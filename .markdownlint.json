@@ -1,0 +1,13 @@
+{
+  "line-length": {
+    "line_length": 120,
+    "code_blocks": false,
+    "tables": false,
+    "headings": false
+  },
+  "single-title": false,
+  "no-duplicate-heading": false,
+  "no-inline-html": false,
+  "no-bare-urls": false,
+  "first-line-heading": false
+}

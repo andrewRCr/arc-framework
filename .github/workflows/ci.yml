@@ -1,0 +1,62 @@
+name: Documentation Quality CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  documentation-quality:
+    name: Documentation Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Lint markdown files
+      run: npx markdownlint-cli2 "**/*.md" "!node_modules/**" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
+      
+    - name: Validate template structure
+      run: |
+        echo "=== Validating template tokens ==="
+        # Check that templates contain expected tokens
+        find _docs/templates -name "*.template.md" -exec grep -L "{{.*}}" {} \; | while read file; do
+          echo "WARNING: Template $file may be missing tokens"
+        done
+        
+        echo "=== Validating file naming conventions ==="
+        # Check naming conventions
+        find _docs -name "*.example.md" -not -path "_docs/templates/*" | head -5
+        find _docs -name "*.template.md" -not -path "_docs/templates/*" | head -5
+        find _docs -name "*.profile.md" -not -path "_docs/profiles/*" | head -5
+        
+    - name: Check for broken internal links
+      run: |
+        echo "=== Checking for broken internal links ==="
+        # Simple check for internal markdown links that might be broken
+        grep -r "\](" _docs/ --include="*.md" | grep -v "http" | while read line; do
+          echo "Internal link found: $line"
+        done
+        
+    - name: Validate system structure
+      run: |
+        echo "=== Validating ARC system structure ==="
+        # Ensure core directories exist
+        test -d "_docs/templates" || (echo "ERROR: Missing _docs/templates/" && exit 1)
+        test -d "_docs/workflows" || (echo "ERROR: Missing _docs/workflows/" && exit 1)
+        test -d "_docs/profiles" || (echo "ERROR: Missing _docs/profiles/" && exit 1)
+        test -d "_docs/ai-instructions" || (echo "ERROR: Missing _docs/ai-instructions/" && exit 1)
+        
+        # Ensure core template files exist
+        test -f "_docs/templates/META-PRD.template.md" || (echo "ERROR: Missing META-PRD template" && exit 1)
+        test -f "_docs/templates/DEVELOPMENT-RULES.template.md" || (echo "ERROR: Missing DEVELOPMENT-RULES template" && exit 1)
+        test -f "_docs/templates/PROJECT-STATUS.template.md" || (echo "ERROR: Missing PROJECT-STATUS template" && exit 1)
+        
+        echo "✅ ARC system structure validation passed"

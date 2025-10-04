@@ -1,0 +1,23 @@
+# ARC Development System - .gitignore
+
+# Temporal development workspace files
+__docs_internal/notes/
+__docs_internal/CURRENT-SESSION.md
+__docs_internal/archive/notes/
+
+# NPX cache (optional - can be cleaned with npx --clear-cache)
+.npm/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/settings.json
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
