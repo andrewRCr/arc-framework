@@ -87,4 +87,5 @@ Branch: [name] | PRD: [prd-file] | Tasks: [task-file] | Work: [structured/incide
 
 ---
 
-**Remember**: This system maintains consistency across AI sessions while preserving human control. CURRENT-SESSION.md is a living document that gets cleared per session to avoid parallel tracking systems.
+**Remember**: This system maintains consistency across AI sessions while preserving human control.
+CURRENT-SESSION.md is a living document that gets cleared per session to avoid parallel tracking systems.

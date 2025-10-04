@@ -2,19 +2,25 @@
 
 ## Purpose
 
-Develop and refine the ARC (Agentic Recursive Coordination) system - a documentation-only, reusable framework for AI-augmented software development. The system provides structured workflows, templates, and processes that enable developers to effectively collaborate with AI agents while maintaining high code quality and project organization.
+Develop and refine the ARC (Agentic Recursive Coordination) system - a documentation-only, reusable framework
+for AI-augmented software development. The system provides structured workflows, templates, and processes that
+enable developers to effectively collaborate with AI agents while maintaining high code quality and project
+organization.
 
 ### Philosophy: Directed, Not Autonomous
 
 The ARC system is explicitly designed as an **antithesis to "vibe coding"** and unstructured AI interactions. It emphasizes:
 
-- **Constant human oversight** - AI agents operate only under direct developer supervision
-- **Task-level autonomy limits** - AI autonomous action is strictly limited to individual sub-tasks within approved task lists
+- **Constant human oversight** - AI agents operate only under direct developer
+  supervision
+- **Task-level autonomy limits** - AI autonomous action is strictly limited to individual sub-tasks
+  within approved task lists
 - **Explicit authorization required** - Any batching or multi-task operations require explicit human approval
 - **Structured, hands-on collaboration** - Every AI action is contextualized within a clear task hierarchy and approval workflow
 - **Preventive against AI drift** - System structure prevents uncontrolled or tangential AI behavior
 
-This approach has been successfully validated in real-world usage (CineXplorer project) and represents a disciplined alternative to more permissive AI development approaches.
+This approach has been successfully validated in real-world usage (CineXplorer project) and represents a
+disciplined alternative to more permissive AI development approaches.
 
 ## Core Features
 

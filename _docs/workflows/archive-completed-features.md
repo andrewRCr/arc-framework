@@ -1,6 +1,7 @@
 # Workflow: Archive Completed Features
 
-Move completed feature documentation to a structured archive to keep the active workspace clean while preserving history and context.
+Move completed feature documentation to a structured archive to keep the active workspace clean while
+preserving history and context.
 
 ## Preconditions
 

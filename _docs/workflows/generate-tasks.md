@@ -2,7 +2,9 @@
 
 ## Goal
 
-To guide an AI assistant in creating a detailed, step-by-step task list in Markdown format based on an existing Sub-PRD (feature-level Product Requirements Document). The task list should guide a developer through implementation.
+To guide an AI assistant in creating a detailed, step-by-step task list in Markdown format based on an
+existing Sub-PRD (feature-level Product Requirements Document). The task list should guide a developer
+through implementation.
 
 ## Output
 
@@ -13,19 +15,44 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 ## Process
 
 1. **Receive Sub-PRD Reference:** The user points the AI to a specific Sub-PRD file
-2. **Review Context:** Read the META-PRD (`/_docs/META-PRD.md`) and PROJECT-STATUS (`/_docs/PROJECT-STATUS.md`) to understand the overall product vision and current state
-3. **Analyze Sub-PRD:** The AI reads and analyzes the functional requirements, user stories, and other sections of the specified Sub-PRD.
-4. **Assess Current State:** Review the existing codebase to understand existing infrastructure, architectural patterns and conventions. Also, identify any existing components or features that already exist and could be relevant to the Sub-PRD requirements. Then, identify existing related files, components, and utilities that can be leveraged or need modification.
-5. **Phase 1: Generate Parent Tasks:** Based on the Sub-PRD analysis and current state assessment, create the file and generate the main, high-level tasks required to implement the feature. Use your judgement on how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user in the specified format (without sub-tasks yet). Inform the user: "I have generated the high-level tasks based on the Sub-PRD. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
+2. **Review Context:** Read the META-PRD (`/_docs/META-PRD.md`) and PROJECT-STATUS
+   (`/_docs/PROJECT-STATUS.md`) to understand the overall product vision and current state
+3. **Analyze Sub-PRD:** The AI reads and analyzes the functional requirements, user stories, and other
+   sections of the specified Sub-PRD.
+4. **Assess Current State:** Review the existing codebase to understand existing infrastructure,
+   architectural patterns and conventions. Also, identify any existing components or features that already
+   exist and could be relevant to the Sub-PRD requirements. Then, identify existing related files,
+   components, and utilities that can be leveraged or need modification.
+5. **Phase 1: Generate Parent Tasks:** Based on the Sub-PRD analysis and current state assessment, create
+   the file and generate the main, high-level tasks required to implement the feature. Use your judgement on
+   how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user in the
+   specified format (without sub-tasks yet). Inform the user: "I have generated the high-level tasks based
+   on the Sub-PRD. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
 6. **Wait for Confirmation:** Pause and wait for the user to respond with "Go".
-7. **Phase 2: Generate Sub-Tasks:** Once the user confirms, break down each parent task into smaller, actionable sub-tasks necessary to complete the parent task. Ensure sub-tasks logically follow from the parent task, cover the implementation details implied by the Sub-PRD, and consider existing codebase patterns where relevant without being constrained by them.
-8. **Identify Relevant Files:** Based on the tasks and Sub-PRD, identify potential files that will need to be created or modified. List these under the `Relevant Files` section, including corresponding test files if applicable.
-9. **Generate Final Output:** Combine the parent tasks, sub-tasks, relevant files, and notes into the final Markdown structure.
-10. **Save Task List:** Save the generated document in the `/_docs/tasks/` directory with the filename `tasks-{{FEATURE_NAME}}.md`, where `{{FEATURE_NAME}}` matches the base name of the input Sub-PRD file (e.g., if the input was `prd-user-profile-editing.md`, the output is `tasks-user-profile-editing.md`).
-11. **Create Feature Branch:** Create a new feature branch with the naming convention `{{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}` (e.g., `feature/user-profile-editing`). Use the command: `git checkout -b {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}`
-12. **Update PROJECT-STATUS:** Add the new feature to the "Upcoming Priorities" section with status "(In Planning - Branch: {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}})" and brief description of key deliverables.
-13. **Stage Initial Documentation:** Stage the new Sub-PRD, the new task list, and the updated PROJECT-STATUS.md file using `git add`.
-14. **Propose Initial Commit:** Present the staged files to the user and propose a commit message for the initial documentation. Await explicit user approval before executing the commit, in accordance with DEVELOPMENT-RULES.md.
+7. **Phase 2: Generate Sub-Tasks:** Once the user confirms, break down each parent task into smaller,
+   actionable sub-tasks necessary to complete the parent task. Ensure sub-tasks logically follow from the
+   parent task, cover the implementation details implied by the Sub-PRD, and consider existing codebase
+   patterns where relevant without being constrained by them.
+8. **Identify Relevant Files:** Based on the tasks and Sub-PRD, identify potential files that will need to
+   be created or modified. List these under the `Relevant Files` section, including corresponding test files
+   if applicable.
+9. **Generate Final Output:** Combine the parent tasks, sub-tasks, relevant files, and notes into the
+   final Markdown structure.
+10. **Save Task List:** Save the generated document in the `/_docs/tasks/` directory with the filename
+    `tasks-{{FEATURE_NAME}}.md`, where `{{FEATURE_NAME}}` matches the base name of the input Sub-PRD file
+    (e.g., if the input was `prd-user-profile-editing.md`, the output is
+    `tasks-user-profile-editing.md`).
+11. **Create Feature Branch:** Create a new feature branch with the naming convention
+    `{{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}` (e.g., `feature/user-profile-editing`). Use the command:
+    `git checkout -b {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}`
+12. **Update PROJECT-STATUS:** Add the new feature to the "Upcoming Priorities" section with status
+    "(In Planning - Branch: {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}})" and brief description of key
+    deliverables.
+13. **Stage Initial Documentation:** Stage the new Sub-PRD, the new task list, and the updated
+    PROJECT-STATUS.md file using `git add`.
+14. **Propose Initial Commit:** Present the staged files to the user and propose a commit message for
+    the initial documentation. Await explicit user approval before executing the commit, in accordance
+    with DEVELOPMENT-RULES.md.
 
     **Safety Note:** Before committing, you can:
     - Preview staged changes: `git diff --staged`
@@ -34,11 +61,14 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 
 ## Interaction Model
 
-The process explicitly requires a pause after generating parent tasks to get user confirmation ("Go") before proceeding to generate the detailed sub-tasks. This ensures the high-level plan aligns with user expectations before diving into details.
+The process explicitly requires a pause after generating parent tasks to get user confirmation ("Go")
+before proceeding to generate the detailed sub-tasks. This ensures the high-level plan aligns with user
+expectations before diving into details.
 
 ## Target Audience
 
-Assume the primary reader of the task list is a **junior developer** who will implement the feature with awareness of the existing codebase context and the broader product vision from the META-PRD.
+Assume the primary reader of the task list is a **junior developer** who will implement the feature
+with awareness of the existing codebase context and the broader product vision from the META-PRD.
 
 ## Output Format
 

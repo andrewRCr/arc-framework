@@ -11,7 +11,8 @@ Rules Hash: `2078ecf7`
   - Backend lint: N/A (documentation-only system)
   - Frontend lint: N/A (documentation-only system)
   - TypeScript check: N/A (documentation-only system)
-  - Markdown lint: `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` (or add `--fix` for auto-fix)
+  - Markdown lint: `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**"
+    "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` (or add `--fix` for auto-fix)
   - CI validation: GitHub Actions automatically runs on push/PR
 - Comprehensive Task Context Analysis before commits
 
@@ -41,7 +42,8 @@ Rules Hash: `2078ecf7`
 
 ### Quality Assurance
 
-- **Markdown linting**: Run `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` before commits
+- **Markdown linting**: Run `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**"
+  "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` before commits
 - **Template validation**: Test template instantiation manually
 - **Token verification**: Verify token replacement works correctly
 - **Workflow validation**: Validate workflows against real usage

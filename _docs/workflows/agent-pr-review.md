@@ -1,6 +1,8 @@
 # Workflow: Agent PR Review
 
-This workflow documents a generic process for addressing AI code review agent comments (e.g., CodeRabbit, GitHub Copilot Reviews) efficiently, balancing thoroughness with pragmatic decision-making and minimizing automated review triggers. Adapt tool-specific notes as needed.
+This workflow documents a generic process for addressing AI code review agent comments (e.g., CodeRabbit,
+GitHub Copilot Reviews) efficiently, balancing thoroughness with pragmatic decision-making and minimizing
+automated review triggers. Adapt tool-specific notes as needed.
 
 ## Core Principles
 

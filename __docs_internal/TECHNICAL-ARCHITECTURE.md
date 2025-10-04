@@ -2,7 +2,8 @@
 
 ## Stack Overview (Documentation-Only System)
 
-The ARC system is intentionally **not** a software application - it's a pure documentation and process framework. This architectural decision ensures:
+The ARC system is intentionally **not** a software application - it's a pure documentation and process
+framework. This architectural decision ensures:
 
 - **Universal compatibility** - Works with any tech stack
 - **Minimal dependencies** - Only requires git, Node.js (for NPX), and a markdown editor

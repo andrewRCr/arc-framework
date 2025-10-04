@@ -1,6 +1,8 @@
 # Adoption Guide
 
-This repo provides the ARC (Agentic Recursive Coordination) system - a structured framework for coordinated AI-human development. The system emphasizes directed collaboration with constant human oversight, serving as an alternative to unstructured "vibe coding" approaches.
+This repo provides the ARC (Agentic Recursive Coordination) system - a structured framework for coordinated
+AI-human development. The system emphasizes directed collaboration with constant human oversight, serving as an
+alternative to unstructured "vibe coding" approaches.
 
 The reusable system lives under `/_docs`.
 
@@ -12,7 +14,9 @@ Recommended flow:
 4. Optionally apply a profile (`_docs/profiles/...`) by merging its commands into your local DEVELOPMENT-RULES
 5. Delete or keep `*.example.md` as learning aids
 
-Token catalog (starter): `{{PROJECT_NAME}}`, `{{PRIMARY_STACK}}`, `{{DEFAULT_BRANCH}}`, `{{FEATURE_BRANCH_PREFIX}}`, `{{DOCKER_COMPOSE_FILE}}`, `{{BACKEND_TEST_CMD}}`, `{{FRONTEND_TEST_CMD}}`, `{{BACKEND_LINT_CMD}}`, `{{FRONTEND_LINT_CMD}}`, `{{TS_TYPECHECK_CMD}}`, `{{MARKDOWN_LINT_CMD}}`
+Token catalog (starter): `{{PROJECT_NAME}}`, `{{PRIMARY_STACK}}`, `{{DEFAULT_BRANCH}}`,
+`{{FEATURE_BRANCH_PREFIX}}`, `{{DOCKER_COMPOSE_FILE}}`, `{{BACKEND_TEST_CMD}}`, `{{FRONTEND_TEST_CMD}}`,
+`{{BACKEND_LINT_CMD}}`, `{{FRONTEND_LINT_CMD}}`, `{{TS_TYPECHECK_CMD}}`, `{{MARKDOWN_LINT_CMD}}`
 
 ---
 

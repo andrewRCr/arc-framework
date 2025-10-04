@@ -1,6 +1,7 @@
 # Atomic Commit Workflow
 
-**Note**: This workflow is for AI execution when explicitly instructed by the user. AI should NEVER initiate this workflow without user approval. See DEVELOPMENT-RULES.md for complete protocols.
+**Note**: This workflow is for AI execution when explicitly instructed by the user. AI should NEVER
+initiate this workflow without user approval. See DEVELOPMENT-RULES.md for complete protocols.
 
 Break changes into logical, atomic commits with clear messages.
 
@@ -24,7 +25,8 @@ Get overview of changed files and line counts
 
 ### 3. Comprehensive Task Context Analysis
 
-**MANDATORY**: Before committing, perform comprehensive analysis of ALL uncommitted changes in the context of current task documentation:
+**MANDATORY**: Before committing, perform comprehensive analysis of ALL uncommitted changes in the
+context of current task documentation:
 
 **Step 1: Identify All Changes**
 

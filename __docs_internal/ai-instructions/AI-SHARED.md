@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-The ARC Agentic Development System is a structured framework designed to facilitate collaboration between human developers and AI agents. By emphasizing spec-driven development and clear task breakdowns, it aims to create a shared understanding and efficient workflows for software development projects.
+The ARC Agentic Development System is a structured framework designed to facilitate collaboration between human
+developers and AI agents. By emphasizing spec-driven development and clear task breakdowns, it aims to create a
+shared understanding and efficient workflows for software development projects.
 
 ## Key Reference Documents
 

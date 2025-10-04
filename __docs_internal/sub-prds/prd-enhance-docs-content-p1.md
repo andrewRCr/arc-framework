@@ -2,11 +2,16 @@
 
 ## Overview
 
-**Phase 1**: Fill out all sparse `_docs/` files (examples, templates, workflows, and AI instructions) to achieve complete breadth coverage with minimal viable content depth. This establishes a solid foundation for all ARC system components by extracting patterns from the CineXplorer project and creating first-draft implementations.
+**Phase 1**: Fill out all sparse `_docs/` files (examples, templates, workflows, and AI instructions) to
+achieve complete breadth coverage with minimal viable content depth. This establishes a solid foundation for
+all ARC system components by extracting patterns from the CineXplorer project and creating first-draft
+implementations.
 
 **Phase 2 (Future)**: Comprehensive depth enhancement of all Phase 1 content to create reference-quality documentation.
 
-Currently, many files in `_docs/` are minimal stubs (e.g., some workflows had only 3 lines before recent enhancements). We have a working, real-world implementation in CineXplorer that demonstrates established patterns we can extract and generalize.
+Currently, many files in `_docs/` are minimal stubs (e.g., some workflows had only 3 lines before recent
+enhancements). We have a working, real-world implementation in CineXplorer that demonstrates established patterns
+we can extract and generalize.
 
 ## Goals
 
