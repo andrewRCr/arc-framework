@@ -3,6 +3,7 @@
 Use this profile to overlay concrete commands into your Development Rules.
 
 Quality gates (examples):
+
 - Backend tests: {{BACKEND_TEST_CMD}}
 - Frontend tests: {{FRONTEND_TEST_CMD}}
 - Backend lint: {{BACKEND_LINT_CMD}}
