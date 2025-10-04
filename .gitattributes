@@ -1,0 +1,10 @@
+# Normalize line endings across platforms
+* text=auto
+
+# Prefer LF for docs and shell scripts
+*.md   text eol=lf
+*.sh   text eol=lf
+
+# Windows scripts keep CRLF
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
