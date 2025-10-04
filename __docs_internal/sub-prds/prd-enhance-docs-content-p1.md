@@ -26,18 +26,21 @@ Currently, many files in `_docs/` are minimal stubs (e.g., some workflows had on
 ## Functional Requirements
 
 ### Content Enhancement (Phase 1 Scope)
+
 - **Templates**: Ensure all `.template.md` files have basic structure with all major sections present
 - **Examples**: Fill out all `.example.md` files with functional, pattern-based content
 - **Workflows**: Complete all workflow documentation with essential step-by-step processes
 - **AI Instructions**: Enhance agent instruction templates with fundamental guidance
 
 ### Pattern Extraction Approach
+
 - **CineXplorer Review**: Systematically analyze CineXplorer `_docs/` content for proven patterns
 - **Pattern Identification**: Extract common structures, workflows, and naming conventions
 - **Smart Generalization**: Remove specifics while preserving concrete examples where valuable
 - **Token Evolution**: Discover and standardize new tokens based on real usage patterns
 
 ### Quality Standards
+
 - **Token Consistency**: All placeholders use `{{UPPER_SNAKE_CASE}}` format
 - **Markdown Quality**: Pass all linting checks
 - **Practical Value**: Each example should be immediately useful for new adopters
@@ -53,17 +56,20 @@ Currently, many files in `_docs/` are minimal stubs (e.g., some workflows had on
 ## Success Metrics
 
 ### Phase 1 Completion Metrics (Primary)
+
 - **File Coverage**: All stub files in `_docs/` have functional first-draft content
 - **Structural Completeness**: All templates have essential sections, all examples have basic patterns
 - **Pattern Coverage**: Key patterns from CineXplorer successfully extracted and generalized
 - **Token Discovery**: New tokens identified and documented for common usage patterns
 
 ### Quality Metrics (Secondary for Phase 1)
+
 - **Markdown Linting**: All files pass automated linting checks
 - **Token Consistency**: Consistent `{{TOKEN_NAME}}` format usage
 - **Basic Usability**: Content sufficient for understanding component purpose and basic usage
 
 ### Foundation Metrics (Phase 1)
+
 - **Phase 2 Readiness**: Enhanced content provides solid foundation for comprehensive development
 - **No Gaps**: Complete breadth coverage with no missing components
 - **Pattern Validation**: Extracted patterns are generalizable and useful

@@ -1,5 +1,7 @@
 # ARC Agentic Development System
+
 ## Overview
+
 **Structured, hands-on framework for coordinated AI-human development.**
 
 **ARC** stands for **Agentic Recursive Coordination**:
