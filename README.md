@@ -1,7 +1,5 @@
-# ARC Development System
-
-## Agentic Recursive Coordination
-
+# ARC Agentic Development System
+## Overview
 **Structured, hands-on framework for coordinated AI-human development.**
 
 **ARC** stands for **Agentic Recursive Coordination**:
@@ -10,7 +8,7 @@
 - **Recursive**: Self-improving system that can be applied at multiple scales and used to develop itself
 - **Coordination**: Shared foundation ensuring both humans and AI work from common understanding and processes
 
-The ARC system provides a documentation-only, reusable framework that enables precise, directed collaboration between developers and AI agents. Built around **spec-driven development** principles and as an antithesis to "vibe coding" approaches, it emphasizes structured task breakdown, constant human oversight, and shared understanding between all team members—both human and AI.
+The ARC system provides a documentation-only, reusable framework that enables precise, directed collaboration between developers and AI agents. Built around **spec-driven development** principles and as an antithesis to "vibe coding" approaches, it emphasizes structured task breakdown, continual human oversight and co-development, and shared understanding between all team members—both human and AI.
 
 ## Philosophy: Spec-Driven, Directed Coordination
 
