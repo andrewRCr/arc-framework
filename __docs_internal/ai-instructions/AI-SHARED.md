@@ -13,6 +13,7 @@ shared understanding and efficient workflows for software development projects.
 - **`_docs/META-PRD.md`** - Product vision, core features, user flows, and success metrics
 - **`_docs/PROJECT-STATUS.md`** - Current progress, completed work, and upcoming priorities
 - **`_docs/TECHNICAL-ARCHITECTURE.md`** - Technical architecture, patterns, and implementation details
+- **`_docs/DEVELOPMENT-RULES.md`** - Quality gates, coding standards, and testing requirements
 
 ### 🔄 Development Workflow
 
