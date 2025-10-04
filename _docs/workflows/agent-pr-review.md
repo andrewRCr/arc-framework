@@ -363,4 +363,3 @@ Tool adaptations (examples):
 - **Custom rules**: Add agent-specific config (e.g., `.coderabbit.yaml`) to suppress common false positives
 - **Auto-defer patterns**: Tag known temporal code for agent to skip
 - **Issue vs. nitpick automation**: Train agent to flag only substantive issues
-
