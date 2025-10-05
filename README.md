@@ -1,5 +1,7 @@
 # ARC Agentic Development Framework
 
+[![CI](https://github.com/andrewRCr/arc-agentic-dev-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewRCr/arc-agentic-dev-framework/actions/workflows/ci.yml)
+
 Structured playbook for coordinating AI agents and human developers on spec-driven software work.
 
 ## Who This Helps
@@ -92,7 +94,7 @@ development—an explicit nod to the “recursive” pillar baked into the name.
 
 ## Production Usage
 
-- CineXplorer currently runs on this framework; its `_docs/` directory demonstrates the system in a live codebase.  
+- CineXplorer currently runs on this framework; its `_docs/` directory demonstrates the system in a live codebase.
   A public reference will be linked once available.
 
 ## Related Assets
