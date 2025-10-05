@@ -1,7 +1,7 @@
 ---
 role: example
 do_not_copy: true
-template_note: Use templates/tasks.template.md and follow workflows/generate-tasks.md
+template_note: Use templates/tasks.template.md and follow workflows/2-generate-tasks.md
 ---
 
 # Tasks: {{FEATURE_NAME}} (Example)
