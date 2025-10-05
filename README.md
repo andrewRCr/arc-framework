@@ -1,4 +1,4 @@
-# 🚀 ARC Agentic Development Framework
+# ARC Agentic Development Framework
 
 [![CI](https://github.com/andrewRCr/arc-agentic-dev-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewRCr/arc-agentic-dev-framework/actions/workflows/ci.yml)
 
