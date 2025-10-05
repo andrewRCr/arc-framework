@@ -67,9 +67,9 @@ The framework operates through feedback loops that build on previous work:
 ### Core Development Cycle
 
 1. **Vision Alignment** — Establish direction via `_docs/META-PRD.md` and high-level references
-2. **Feature Planning** — Use `_docs/workflows/1-create-prd.md` to draft focused sub-PRDs with AI assistance
+2. **Feature Planning** — Use `_docs/workflows/1-create-sub-prd.md` to draft focused sub-PRDs with AI assistance
 3. **Task Generation** — Apply `_docs/workflows/2-generate-tasks.md` to break PRDs into actionable task lists
-4. **Iterative Execution** — Follow `_docs/workflows/3-process-tasks.md` for controlled AI task processing
+4. **Iterative Execution** — Follow `_docs/workflows/3-process-task-loop.md` for controlled AI task processing
 5. **Session Continuity** — Track progress in `_docs/CURRENT-SESSION.md` for seamless handoffs
 
 ### Project Memory System
@@ -113,9 +113,9 @@ Context and decisions are preserved through structured documentation:
 
 ### Process Workflows
 
-- **`_docs/workflows/1-create-prd.md`** — Generate focused sub-PRDs from product direction
+- **`_docs/workflows/1-create-sub-prd.md`** — Generate focused sub-PRDs from product direction
 - **`_docs/workflows/2-generate-tasks.md`** — Turn approved sub-PRDs into agent-ready task lists
-- **`_docs/workflows/3-process-tasks.md`** — Execute tasks with human oversight checkpoints
+- **`_docs/workflows/3-process-task-loop.md`** — Execute tasks with human oversight checkpoints
 - **`_docs/workflows/session-handoff.md`** — Package context for session transfers
 - **`_docs/workflows/agent-pr-review.md`** — Guide AI-assisted pull request reviews
 - **`_docs/workflows/atomic-commit.md`** — Enforce minimal, well-scoped commits
@@ -159,7 +159,7 @@ The ARC framework builds upon and extends excellent foundational work from the o
 
 ### Core Workflow Foundation
 
-The three core workflows (`1-create-prd.md`, `2-generate-tasks.md`, `3-process-tasks.md`) are derived from the
+The three core workflows (`1-create-sub-prd.md`, `2-generate-tasks.md`, `3-process-task-loop.md`) are derived from the
 [AI Dev Tasks](https://github.com/snarktank/ai-dev-tasks) project by snarktank, licensed under Apache 2.0.
 These workflows have been significantly enhanced and integrated into the broader ARC system:
 

@@ -18,9 +18,9 @@ shared understanding and efficient workflows for software development projects.
 ### 🔄 Development Workflow
 
 - **`_docs/workflows/`** - Systematic approach for feature development:
-  1. `1-create-prd.md` - Generate Sub-PRDs for new features
+  1. `1-create-sub-prd.md` - Generate Sub-PRDs for new features
   2. `2-generate-tasks.md` - Create implementation task lists
-  3. `3-process-tasks.md` - Task execution and completion protocols
+  3. `3-process-task-loop.md` - Task execution and completion protocols
 
 ### 📄 Generated Deliverables
 

@@ -87,9 +87,9 @@ ARC Framework (Documentation-Only System)
 
 **Core 3-Step Foundation** (derived from [ai-dev-tasks](https://github.com/snarktank/ai-dev-tasks), Apache 2.0):
 
-1. **`workflows/1-create-prd.md`** — Generate focused sub-PRDs from product direction
+1. **`workflows/1-create-sub-prd.md`** — Generate focused sub-PRDs from product direction
 2. **`workflows/2-generate-tasks.md`** — Turn approved sub-PRDs into agent-ready task lists  
-3. **`workflows/3-process-tasks.md`** — Execute work loop with human oversight checkpoints
+3. **`workflows/3-process-task-loop.md`** — Execute work loop with human oversight checkpoints
 
 **ARC Framework Extensions** (original work):
 4. **`workflows/session-handoff.md`** — Package context for session transfers
