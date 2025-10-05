@@ -1,3 +1,10 @@
+<!--
+Derived from: https://github.com/snarktank/ai-dev-tasks/generate-tasks.md
+Original work licensed under Apache License 2.0
+Modifications: Enhanced for ARC framework with PROJECT-STATUS integration,
+feature branch workflow, and atomic commit protocols
+-->
+
 # Workflow: Generate Tasks
 
 ## Goal

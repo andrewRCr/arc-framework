@@ -1,3 +1,10 @@
+<!--
+Derived from: https://github.com/snarktank/ai-dev-tasks/create-prd.md
+Original work licensed under Apache License 2.0
+Modifications: Enhanced for ARC framework integration with META-PRD system,
+clarifying questions structure, and junior developer focus
+-->
+
 # Workflow: Create Sub-PRD
 
 ## Goal

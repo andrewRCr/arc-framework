@@ -1,3 +1,10 @@
+<!--
+Derived from: https://github.com/snarktank/ai-dev-tasks/process-task-list.md
+Original work licensed under Apache License 2.0
+Modifications: Enhanced for ARC framework with quality gates integration,
+feature branch management, and comprehensive task completion protocols
+-->
+
 # Workflow: Process Tasks
 
 Guidelines for managing task lists in markdown files to track progress on completing a PRD.
