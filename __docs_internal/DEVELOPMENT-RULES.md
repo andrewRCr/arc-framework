@@ -36,7 +36,7 @@ Rules Hash: `2078ecf7`
 
 - `_docs/` = the copyable system (permanent)
 - `__docs_internal/` = development workspace (temporary, will be gitignored before public release)
-- Templates in `_docs/templates/`
+- Templates in `templates/`
 - Workflows in `_docs/workflows/`
 - Examples in root `_docs/` level
 

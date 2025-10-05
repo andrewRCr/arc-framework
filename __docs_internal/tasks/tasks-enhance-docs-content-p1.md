@@ -2,11 +2,11 @@
 
 ## Relevant Files
 
-- `_docs/templates/*.template.md` - All template files need structural enhancement
+- `templates/*.template.md` - All template files need structural enhancement
 - `_docs/*.example.md` - Example files need pattern-based content
 - `_docs/workflows/*.md` - Workflow files need process documentation
 - `_docs/ai-instructions/*.md` - AI instruction files need guidance enhancement
-- `_docs/profiles/*/*.md` - Profile files may need additional examples
+- `profiles/*/*.md` - Profile files may need additional examples
 - `_docs/sub-prds/prd-*.example.md` - Example Sub-PRD file
 - `_docs/tasks/tasks-*.example.md` - Example task list file
 - `__docs_internal/notes/notes-enhance-docs-content-p1.md` - For temporary workspace documenting of new tokens discovered
