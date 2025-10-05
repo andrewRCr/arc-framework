@@ -14,15 +14,19 @@ framework. This architectural decision ensures:
 
 ```
 _docs/                          # The copyable system
-├── templates/                  # Instantiable .template.md files
-├── workflows/                  # Process documentation
-├── profiles/                   # Stack-specific overlays
 ├── ai-instructions/           # Agent configuration templates
 ├── archive/                   # Completed work organization
+├── notes/                     # Working notes and scratch
 ├── reference/                 # Stable patterns and decisions
 ├── sub-prds/                  # Feature PRDs
 ├── tasks/                     # Task breakdowns
-└── notes/                     # Working notes and scratch
+├── workflows/                 # Process documentation
+├── CURRENT-SESSION.example.md # Session template (example)
+├── DEVELOPMENT-RULES.example.md
+├── META-PRD.example.md
+├── PROJECT-STATUS.example.md
+├── README.example.md
+└── TECHNICAL-ARCHITECTURE.example.md
 
 __docs_internal/               # Development workspace (temporary)
 ├── META-PRD.md               # System development PRD
@@ -30,6 +34,9 @@ __docs_internal/               # Development workspace (temporary)
 ├── PROJECT-STATUS.md         # Current progress tracking
 ├── TECHNICAL-ARCHITECTURE.md # This file
 └── CURRENT-SESSION.md        # Session management
+
+templates/                     # Instantiable .template.md files
+profiles/                      # Stack-specific overlays
 ```
 
 ## Testing Strategy
@@ -189,27 +196,27 @@ SYSTEM-VERSION.md → Templates → User Documentation → Project Evolution
 
 ```bash
 # Validate templates contain tokens
-find _docs/templates -name "*.template.md" -exec grep -L "{{.*}}" {} \;
+find templates -name "*.template.md" -exec grep -L "{{.*}}" {} \;
 
 # Check file naming conventions
-find _docs -name "*.example.md" -not -path "_docs/templates/*"
-find _docs -name "*.template.md" -not -path "_docs/templates/*" 
-find _docs -name "*.profile.md" -not -path "_docs/profiles/*"
+find _docs -name "*.example.md"
+find templates -name "*.template.md"
+find profiles -name "*.profile.md"
 ```
 
 ### System Structure Validation
 
 ```bash
 # Verify core directories exist
-test -d "_docs/templates" && echo "✅ Templates directory exists"
+test -d "templates" && echo "✅ Templates directory exists"
 test -d "_docs/workflows" && echo "✅ Workflows directory exists" 
-test -d "_docs/profiles" && echo "✅ Profiles directory exists"
+test -d "profiles" && echo "✅ Profiles directory exists"
 test -d "_docs/ai-instructions" && echo "✅ AI instructions directory exists"
 
 # Verify core templates exist
-test -f "_docs/templates/META-PRD.template.md" && echo "✅ META-PRD template exists"
-test -f "_docs/templates/DEVELOPMENT-RULES.template.md" && echo "✅ DEVELOPMENT-RULES template exists"
-test -f "_docs/templates/PROJECT-STATUS.template.md" && echo "✅ PROJECT-STATUS template exists"
+test -f "templates/META-PRD.template.md" && echo "✅ META-PRD template exists"
+test -f "templates/DEVELOPMENT-RULES.template.md" && echo "✅ DEVELOPMENT-RULES template exists"
+test -f "templates/PROJECT-STATUS.template.md" && echo "✅ PROJECT-STATUS template exists"
 ```
 
 ### NPX Cache Management
