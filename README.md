@@ -7,12 +7,12 @@ real-world application on complex features. Emphasizes disciplined collaboration
 knowledge preservation. Creates recursive feedback loops that strengthen projects over time by preserving context,
 decisions, and patterns from each development cycle.
 
-## 💡 The Core Idea
+## 💡 Core Idea
 
 Working with AI on complex features often feels unpredictable—big requests can produce mixed results, and valuable
 context disappears between sessions. A structured approach helps bring consistency to this collaboration:
 
-### The Foundation: Structured AI Collaboration
+### Foundation: Structured AI Collaboration
 
 1. **Define Scope** — Write clear Product Requirement Documents (PRDs) that specify what you're building
 2. **Break Down Work** — Convert PRDs into specific, manageable task lists
