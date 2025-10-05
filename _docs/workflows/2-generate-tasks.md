@@ -32,7 +32,7 @@ through implementation.
    components, and utilities that can be leveraged or need modification.
 5. **Phase 1: Generate Parent Tasks:** Based on the Sub-PRD analysis and current state assessment, create
    the file and generate the main, high-level tasks required to implement the feature. Use your judgement on
-   how many high-level tasks to use. It's likely to be about 5. Present these tasks to the user in the
+   how many high-level tasks to use (likely 5-8). Present these tasks to the user in the
    specified format (without sub-tasks yet). Inform the user: "I have generated the high-level tasks based
    on the Sub-PRD. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
 6. **Wait for Confirmation:** Pause and wait for the user to respond with "Go".

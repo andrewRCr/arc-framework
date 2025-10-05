@@ -1,103 +1,159 @@
-# ARC Agentic Development Framework
+# 🚀 ARC Agentic Development Framework
 
 [![CI](https://github.com/andrewRCr/arc-agentic-dev-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewRCr/arc-agentic-dev-framework/actions/workflows/ci.yml)
 
-Structured playbook for coordinating AI agents and human developers on spec-driven software work.
+A structured methodology for **spec-driven development** with AI agents and human developers, developed through
+real-world application on complex features. Emphasizes disciplined collaboration over automation, with systematic
+knowledge preservation. Creates recursive feedback loops that strengthen projects over time by preserving context,
+decisions, and patterns from each development cycle.
 
-## Who This Helps
+## 💡 The Core Idea
 
-- Teams adopting supervised AI agents to accelerate delivery without losing control.
-- Solo builders who want a repeatable workflow for planning, delegating, and validating AI-assisted work.
-- Contributors evaluating the documentation toolkit before pulling it into an existing repo.
+Working with AI on complex features often feels unpredictable—big requests can produce mixed results, and valuable
+context disappears between sessions. A structured approach helps bring consistency to this collaboration:
 
-## What You Get
+### The Foundation: Structured AI Collaboration
 
-- Opinionated documentation suite under `_docs/` covering product vision, workflows, and task orchestration.
-- Persistent project memory built from dual-audience references—standards, architecture notes, status, and task history—
-  so humans and agents operate with the same context.
-- Session handoff workflosw centered on `_docs/CURRENT-SESSION.md`, letting you checkpoint decisions, summarize
-  progress, and give the next agent (or yourself) a fast sync-up.
-- Reference patterns (`_docs/reference/`), decision journals (`_docs/notes/`), and an archive of completed feature docs
-  (`_docs/archive/`) that together show how short-term work hardens into long-term knowledge.
-- Templates (`templates/`) and profiles (`profiles/`) you can customize to match your stack while staying inside a
-  consistent operating model.
+1. **Define Scope** — Write clear Product Requirement Documents (PRDs) that specify what you're building
+2. **Break Down Work** — Convert PRDs into specific, manageable task lists
+3. **Guided Execution** — Work through tasks methodically, reviewing and often editing each piece before moving forward
 
-## How It Works
+This systematic approach helps maintain direction, makes issues easier to spot, and keeps you in architectural control
+while leveraging AI for implementation assistance.
 
-1. Align on the product direction via `_docs/META-PRD.md` and the other high-level references.
-2. Run `_docs/workflows/1-create-prd.md` to draft a focused sub-PRD for the feature at hand.
-3. Capture evolving designs and tradeoffs in `_docs/notes/` while the feature is active.
-4. Store the approved sub-PRD in `_docs/sub-prds/` for traceability.
-5. Use `_docs/workflows/2-generate-tasks.md` to expand the sub-PRD into actionable tasks and track them in `_docs/tasks/`.
-6. Track active execution in `_docs/CURRENT-SESSION.md`, updating the session log, outstanding context, and handoff notes.
-7. Follow `_docs/workflows/3-process-tasks.md` to run the work loop, capturing outcomes that feed decisions,
-   reference patterns, and future automation.
+### Recursive Iteration
 
-## Project Memory & Continuity
+The same workflow becomes more valuable when it captures what you learn along the way:
 
-- `_docs/PROJECT-STATUS.md` keeps long-lived progress, risks, and upcoming milestones visible to the whole team.
-- `_docs/tasks/`, `_docs/sub-prds/`, and `_docs/CURRENT-SESSION.md` document what was planned, what’s in flight, and what
-  just happened—allowing AI agents to rehydrate context without huge prompts.
-- `_docs/notes/` records feature-level decisions and research while they are still fluid; once they stabilize, move the
-  distilled guidance into `_docs/reference/` as an enduring pattern or standard.
-- `_docs/archive/` preserves completed sub-PRDs, task lists, and session artifacts so you can audit past cycles or
-  resurrect features with full provenance.
-- Because these artifacts are written for humans and machines alike, they double as onboarding references, QA checkpoints,
-  and a living archive of decisions.
+- **Decisions get documented** as you work through the structured process
+- **Patterns emerge** from repeated choices and get codified into reusable guidance
+- **Context accumulates** so future work builds on what came before
+- **Project knowledge** grows beyond any single feature or session
 
-## Workflow Playbook
+Over time, this creates development cycles that improve on themselves rather than starting fresh each time.
 
-- `_docs/workflows/1-create-prd.md` — Generate focused sub-PRDs from the top-level product direction.
-- `_docs/workflows/2-generate-tasks.md` — Turn an approved sub-PRD into a reviewed, agent-ready task list.
-- `_docs/workflows/3-process-tasks.md` — Run the execution loop with checkpoints for human oversight and validation.
-- `_docs/workflows/session-handoff.md` — Package current context, decisions, and next steps for the next session or agent.
-- `_docs/workflows/agent-pr-review.md` — Guide AI-assisted pull request reviews with explicit approval stages.
-- `_docs/workflows/atomic-commit.md` — Enforce minimal, well-scoped commits for clearer history and automated checks.
-- `_docs/workflows/archive-completed.md` — Capture finished work into `_docs/archive/` so long-term memory stays fresh.
+## 👥 Philosophy
 
-## Adapts As You Grow
+- **Co-development over full automation** — AI assists implementation while humans maintain architectural control
+- **Structured workflows over ad-hoc requests** — Systematic spec-driven development with clear checkpoints
+- **Context preservation over starting fresh** — Project knowledge that compounds rather than resets
 
-The framework is intentionally malleable: customize templates, extend workflows, or introduce new profiles as your
-project evolves. Every iteration improves the documentation and the guardrails that guide the next round of
-development—an explicit nod to the “recursive” pillar baked into the name.
+## 📚 Development Background
 
-## Getting Started
+This framework emerged from hands-on experience building complex features with AI assistance. Rather than starting
+with theory, it developed organically as solutions to real coordination challenges:
 
-1. Copy the `_docs/` folder into your target repository.
-2. Bring along `templates/` if you plan to instantiate the ready-made document templates.
-3. Optionally copy `profiles/` to apply a curated overlay that matches your stack.
-4. Read `ADOPTION.md` for a deeper rollout playbook and `SYSTEM-VERSION.md` to track updates.
+- **Context loss** between development sessions required systematic preservation
+- **Quality drift** from unstructured AI requests needed systematic checkpoints
+- **Knowledge fragmentation** across features called for centralized project memory
+- **Architectural inconsistency** demanded clear human oversight protocols
 
-## Repository Map
+The resulting methodology balances AI acceleration with human judgment, emphasizing sustainable development
+practices over rapid prototyping. Each component addresses specific pain points encountered during production
+feature development.
 
-- `_docs/META-PRD.md` — product vision and success criteria.
-- `_docs/PROJECT-STATUS.md` — progress tracker for current initiatives.
-- `_docs/TECHNICAL-ARCHITECTURE.md` — reference architecture and implementation patterns.
-- `_docs/CURRENT-SESSION.md` — active session log and handoff instructions.
-- `_docs/sub-prds/` — approved feature specifications.
-- `_docs/tasks/` — task checklists derived from sub-PRDs.
-- `_docs/notes/` — temporal decision logs and research notes.
-- `_docs/reference/` — established standards, patterns, and reusable guidance.
-- `_docs/archive/` — completed feature docs and session history.
-- `_docs/workflows/` — step-by-step operating procedures for planning and execution.
+## 🔄 Key Characteristics
 
-### Optional Directories
+- **Hands-on collaboration model** — You stay the architect; AI assists in implementation under your direction
+- **Persistent project memory** that captures and reuses context, decisions, and patterns
+- **Dual-audience documentation** valuable for both AI agents and human team members/onboarding
+- **Session continuity** across AI agent switches, team handoffs, and development cycles
+- **Manual steering encouraged** — Expects human code additions/edits, architectural decisions, and continuous oversight
 
-- `templates/` — reusable specs, checklists, and communication artifacts.
-- `profiles/` — optional overlays for specific stacks or org needs.
+## 🏡 How the System Works
 
-## ARC Pillars (Why the Name)
+The framework operates through feedback loops that build on previous work:
 
-- **Agentic** — optimized for collaborating with AI agents alongside human teammates.
-- **Recursive** — workflows designed to feed back into themselves, enabling continuous refinement of both process and documentation.
-- **Coordination** — shared language, documents, and checkpoints so everyone operates from the same playbook.
+### Core Development Cycle
 
-## Production Usage
+1. **Vision Alignment** — Establish direction via `_docs/META-PRD.md` and high-level references
+2. **Feature Planning** — Use `_docs/workflows/1-create-prd.md` to draft focused sub-PRDs with AI assistance
+3. **Task Generation** — Apply `_docs/workflows/2-generate-tasks.md` to break PRDs into actionable task lists
+4. **Iterative Execution** — Follow `_docs/workflows/3-process-tasks.md` for controlled AI task processing
+5. **Session Continuity** — Track progress in `_docs/CURRENT-SESSION.md` for seamless handoffs
 
-- [CineXplorer](https://github.com/andrewRCr/CineXplorer) currently runs on this framework;
-  its `_docs/` directory demonstrates the system in a live codebase.
+### Project Memory System
 
-## Attribution and License
+Context and decisions are preserved through structured documentation:
+
+- **`_docs/PROJECT-STATUS.md`** — Long-lived progress, risks, and milestones visible to the whole team
+- **`_docs/sub-prds/`** + **`_docs/tasks/`** — Document what was planned and what's in flight for context rehydration
+- **`_docs/notes/`** → **`_docs/reference/`** — Evolution from fluid decisions to stable patterns and standards
+- **`_docs/archive/`** — Complete audit trail of past cycles with full provenance
+- **`_docs/CURRENT-SESSION.md`** — Active context and handoff instructions for agents and team members
+
+### Recursive Improvement
+
+- **Task outcomes** inform project status and future planning
+- **Pattern recognition** moves temporary insights into permanent references
+- **Architecture decisions** update templates and workflows for consistency
+- **Session handoffs** preserve context and lessons learned across transitions
+- **Quality gates** capture issues to prevent repetition in future cycles
+
+## 🗂️ System Components
+
+### Core Project Memory
+
+- **`_docs/META-PRD.md`** — Product vision, success criteria, and high-level direction
+- **`_docs/PROJECT-STATUS.md`** — Progress tracker for current initiatives and milestones
+- **`_docs/TECHNICAL-ARCHITECTURE.md`** — Reference architecture and implementation patterns
+- **`_docs/DEVELOPMENT-RULES.md`** — Code standards, quality gates, and development protocols
+- **`_docs/CURRENT-SESSION.md`** — Active session context and handoff instructions
+
+### Feature Development
+
+- **`_docs/sub-prds/`** — Approved feature specifications and requirements
+- **`_docs/tasks/`** — Task checklists derived from sub-PRDs for implementation
+
+### Knowledge Evolution
+
+- **`_docs/notes/`** — Temporal decision logs and research (fluid)
+- **`_docs/reference/`** — Established standards, patterns, and guidance (stable)
+- **`_docs/archive/`** — Completed feature docs with full historical context
+
+### Process Workflows
+
+- **`_docs/workflows/1-create-prd.md`** — Generate focused sub-PRDs from product direction
+- **`_docs/workflows/2-generate-tasks.md`** — Turn approved sub-PRDs into agent-ready task lists
+- **`_docs/workflows/3-process-tasks.md`** — Execute tasks with human oversight checkpoints
+- **`_docs/workflows/session-handoff.md`** — Package context for session transfers
+- **`_docs/workflows/agent-pr-review.md`** — Guide AI-assisted pull request reviews
+- **`_docs/workflows/atomic-commit.md`** — Enforce minimal, well-scoped commits
+- **`_docs/workflows/archive-completed.md`** — Move finished work to long-term storage
+
+### Customization
+
+- **`templates/`** — Reusable document templates for rapid instantiation
+- **`profiles/`** — Stack-specific overlays and configuration variants
+
+## 🏷️ ARC Pillars
+
+- **Agentic** — Optimized for AI agent collaboration alongside human teammates
+- **Recursive** — Workflows feed back into themselves, enabling continuous system refinement
+- **Coordination** — Shared language, documents, and checkpoints for unified operation
+
+## 🚀 Getting Started
+
+Ready to implement ARC in your project? See **`ADOPTION.md`** for the complete rollout playbook, including
+step-by-step setup instructions, customization options, and team onboarding guidance.
+
+## 🔗 Production Usage
+
+This framework was developed and refined through building [CineXplorer](https://github.com/andrewRCr/CineXplorer),
+a full-stack movie discovery application. The system evolved organically from practical needs encountered during
+feature development, where coordinating AI assistance while maintaining code quality became essential.
+
+**Real-world application demonstrates:**
+
+- Complex feature coordination (search, recommendations, user management)
+- Multi-session development with context preservation
+- Quality gate enforcement preventing technical debt accumulation
+- Successful handoffs between different AI agents and manual development phases
+
+The CineXplorer `_docs/` directory provides a complete example of the framework in action, showing how
+abstract processes translate to concrete project management.
+
+## 📄 Attribution and License
 
 The ARC framework builds upon and extends excellent foundational work from the open source community:
 
@@ -108,8 +164,9 @@ The three core workflows (`1-create-prd.md`, `2-generate-tasks.md`, `3-process-t
 These workflows have been significantly enhanced and integrated into the broader ARC system:
 
 - **Original workflows**: Simple 3-step PRD → Tasks → Process cycle
-- **ARC enhancements**: META-PRD integration, PROJECT-STATUS tracking, feature branch management, quality gates,
-  session handoffs, atomic commit protocols, and comprehensive task completion workflows
+- **ARC enhancements**: META-PRD integration, PROJECT-STATUS tracking, DEVELOPMENT-RULES for code standards,
+  feature branch management, quality gates, session handoffs, agent-assisted PR reviews, atomic commit protocols,
+  and comprehensive task completion workflows
 
 ### Original Contributions
 
@@ -129,7 +186,7 @@ See `NOTICE` file for complete attribution details.
 The ARC Agentic Development Framework is licensed under the Apache License 2.0.
 See the `LICENSE` file for the full license text.
 
-## Related Assets
+## 🔗 Related Assets
 
 - `_docs/README.example.md` for an in-repo tour.
 - `templates/` to spin up new artifacts quickly.
