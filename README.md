@@ -6,7 +6,7 @@ A structured methodology for **spec-driven development** with AI agents and huma
 real-world application on complex features. Emphasizes disciplined collaboration over automation, with systematic
 knowledge preservation.
 
-## 🏷️ ARC Pillars
+## 💡 ARC Core Ideas
 
 - **Agentic** — Optimized for AI agent collaboration alongside human teammates
 - **Recursive** — Workflows feed back into themselves, enabling continuous system refinement
@@ -17,7 +17,7 @@ foundations—PRDs, systematic task generation and processing—but extended wit
 documentation and workflows that create **recursive feedback loops**, strengthening projects over time by preserving
 context, decisions, and patterns from each development cycle.
 
-## 💡 Conceptual Overview
+## ✴️ Conceptual Overview
 
 Working with AI on complex features often feels unpredictable—big requests can produce mixed results, and valuable
 context disappears between sessions. A structured approach helps bring consistency to this collaboration:
@@ -76,7 +76,7 @@ The resulting methodology balances AI acceleration with human judgment, emphasiz
 practices over rapid prototyping. Each component addresses specific pain points encountered during production
 feature development.
 
-## 🗂️ Key Characteristics
+## 🏷️ Key Characteristics
 
 - **Hands-on collaboration model** — You stay the architect; AI assists in implementation under your direction
 - **Persistent project memory** that captures and reuses context, decisions, and patterns
@@ -95,7 +95,7 @@ The framework operates through feedback loops that build on previous work:
 5. **Session Continuity** — Track progress in `_docs/CURRENT-SESSION.md` for seamless handoffs
 6. **Knowledge Integration** — Evolve decisions and patterns into permanent project memory for future cycles
 
-## 🛠️ System Components
+## 🗂️ System Components
 
 ### Constitutional Documents
 
