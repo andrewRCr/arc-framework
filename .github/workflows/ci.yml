@@ -27,15 +27,15 @@ jobs:
       run: |
         echo "=== Validating template tokens ==="
         # Check that templates contain expected tokens
-        find _docs/templates -name "*.template.md" -exec grep -L "{{.*}}" {} \; | while read file; do
+        find templates -name "*.template.md" -exec grep -L "{{.*}}" {} \; | while read file; do
           echo "WARNING: Template $file may be missing tokens"
         done
 
         echo "=== Validating file naming conventions ==="
         # Check naming conventions
-        find _docs -name "*.example.md" -not -path "_docs/templates/*" | head -5
-        find _docs -name "*.template.md" -not -path "_docs/templates/*" | head -5
-        find _docs -name "*.profile.md" -not -path "_docs/profiles/*" | head -5
+        find _docs -name "*.example.md" -not -path "templates/*" | head -5
+        find _docs -name "*.template.md" -not -path "templates/*" | head -5
+        find _docs -name "*.profile.md" -not -path "profiles/*" | head -5
 
     - name: Check for broken internal links
       run: |
@@ -49,9 +49,9 @@ jobs:
       run: |
         echo "=== Validating ARC system structure ==="
         # Ensure core directories exist
-        test -d "templates" || (echo "ERROR: Missing _docs/templates/" && exit 1)
+        test -d "templates" || (echo "ERROR: Missing templates/" && exit 1)
         test -d "_docs/workflows" || (echo "ERROR: Missing _docs/workflows/" && exit 1)
-        test -d "_docs/profiles" || (echo "ERROR: Missing _docs/profiles/" && exit 1)
+        test -d "profiles" || (echo "ERROR: Missing profiles/" && exit 1)
         test -d "_docs/ai-instructions" || (echo "ERROR: Missing _docs/ai-instructions/" && exit 1)
 
         # Ensure core template files exist
