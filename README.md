@@ -6,6 +6,12 @@ A structured methodology for **spec-driven development** with AI agents and huma
 real-world application on complex features. Emphasizes disciplined collaboration over automation, with systematic
 knowledge preservation.
 
+## 🏷️ ARC Pillars
+
+- **Agentic** — Optimized for AI agent collaboration alongside human teammates
+- **Recursive** — Workflows feed back into themselves, enabling continuous system refinement
+- **Coordination** — Shared language, documents, and checkpoints for unified operation
+
 As **context engineering** becomes more common, this framework represents one developer's approach. Built on established
 foundations—PRDs, systematic task generation and processing—but extended with **persistent project memory** via structured
 documentation and workflows that create **recursive feedback loops**, strengthening projects over time by preserving
@@ -16,22 +22,22 @@ context, decisions, and patterns from each development cycle.
 Working with AI on complex features often feels unpredictable—big requests can produce mixed results, and valuable
 context disappears between sessions. A structured approach helps bring consistency to this collaboration:
 
-**Constitutional Documents:** foundational documents establish direction and standards:
+**Constitutional Documents**— foundational documents establish direction and standards:
 
 - META-PRD (product requirement document) defines overall project vision, user flows, and success criteria
 - Supporting high-level documents (PROJECT-STATUS, TECHNICAL-ARCHITECTURE, DEVELOPMENT-RULES)
    provide ongoing context and constraints
 
-**Feature Development Cycle:** With this foundation in place, a core systematic loop guides feature work:
+**Feature Development Cycle**— a core systematic loop guides feature work:
 
 1. **Define Intent and Scope** — Create focused, feature-level Sub-PRDs that align with the META-PRD vision
 2. **Generate Actionable Work** — Convert Sub-PRDs into specific, manageable groupings of parent and sub-tasks
 3. **Guided Execution Loop** — Work through a single atomic task methodically, reviewing/editing code as needed
 
-**Supplemental Workflow Suite:** Additional workflows support the complete development lifecycle:
+**Supplemental Workflow Suite**— additional workflows support the complete development lifecycle:
 
 - Session handoffs for context preservation across time and team/agent boundaries
-- Project memory evolution — temporary, feature-level notes mature into permanent, project-wide reference patterns
+- Project memory evolution — fluid, feature-level notes mature into concrete, project-wide reference patterns
 - Atomic commits for clean, traceable development history; agentic PR review processes
 - Archival processes for completed work/decision history and knowledge consolidation
 
@@ -39,7 +45,7 @@ This systematic approach maintains architectural integrity while leveraging AI f
 
 ### Recursive Iteration
 
-The same workflow becomes more valuable when it captures what you learn along the way:
+These workflows becomes more valuable when they capture what you learn along the way:
 
 - **Decisions get documented** as you work through the structured process
 - **Patterns emerge** from repeated choices and get codified into reusable guidance
@@ -124,12 +130,6 @@ The framework operates through feedback loops that build on previous work:
 
 - **`templates/`** — Reusable document templates for rapid instantiation
 - **`profiles/`** — Stack-specific overlays and configuration variants
-
-## 🏷️ ARC Pillars
-
-- **Agentic** — Optimized for AI agent collaboration alongside human teammates
-- **Recursive** — Workflows feed back into themselves, enabling continuous system refinement
-- **Coordination** — Shared language, documents, and checkpoints for unified operation
 
 ## 🚀 Getting Started
 
