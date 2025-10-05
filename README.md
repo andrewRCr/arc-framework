@@ -4,8 +4,12 @@
 
 A structured methodology for **spec-driven development** with AI agents and human developers, developed through
 real-world application on complex features. Emphasizes disciplined collaboration over automation, with systematic
-knowledge preservation. Creates recursive feedback loops that strengthen projects over time by preserving context,
-decisions, and patterns from each development cycle.
+knowledge preservation.
+
+As context engineering becomes more common, this framework represents one developer's approach. Built on established
+foundations—PRDs, systematic task generation and processing—but extended with persistent project memory via structured
+documentation and workflows that create recursive feedback loops, strengthening projects over time by preserving
+context, decisions, and patterns from each development cycle.
 
 ## 💡 Core Idea
 
@@ -14,12 +18,24 @@ context disappears between sessions. A structured approach helps bring consisten
 
 ### Foundation: Structured AI Collaboration
 
-1. **Define Scope** — Write clear Product Requirement Documents (PRDs) that specify what you're building
-2. **Break Down Work** — Convert PRDs into specific, manageable task lists
+Every project begins with foundational high-level documents that establish direction and standards:
+•  META-PRD (product requirement document) defines overall product vision, user flows, and success criteria
+•  Supporting constitutional documents (TECHNICAL-ARCHITECTURE, DEVELOPMENT-RULES, PROJECT-STATUS)
+   provide ongoing context and constraints
+
+Feature Development Cycle: With this foundation in place, feature development follows a systematic approach:
+
+1. **Define Scope** — Create focused, feature-level Sub-PRDs that align with the META-PRD vision
+2. **Break Down Work** — Convert Sub-PRDs into specific, manageable task lists
 3. **Guided Execution** — Work through tasks methodically, reviewing and often editing each piece before moving forward
 
-This systematic approach helps maintain direction, makes issues easier to spot, and keeps you in architectural control
-while leveraging AI for implementation assistance.
+Extended Workflow Suite: Additional workflows support the complete development lifecycle:
+•  Session handoffs for context preservation across time and team/agent boundaries
+•  Project memory evolution — temporary, feature-level notes mature into permanent, project-wide reference patterns
+•  Atomic commits for clean, traceable development history; agentic PR review processes
+•  Archival processes for completed work/decision history and knowledge consolidation
+
+This systematic approach maintains architectural integrity while leveraging AI for implementation acceleration.
 
 ### Recursive Iteration
 
@@ -33,6 +49,8 @@ The same workflow becomes more valuable when it captures what you learn along th
 Over time, this creates development cycles that improve on themselves rather than starting fresh each time.
 
 ## 👥 Philosophy
+
+This systematic approach reflects several key principles:
 
 - **Co-development over full automation** — AI assists implementation while humans maintain architectural control
 - **Structured workflows over ad-hoc requests** — Systematic spec-driven development with clear checkpoints
@@ -66,11 +84,12 @@ The framework operates through feedback loops that build on previous work:
 
 ### Core Development Cycle
 
-1. **Vision Alignment** — Establish direction via `_docs/META-PRD.md` and high-level references
+1. **Vision Alignment** — Establish direction via `_docs/META-PRD.md` and high-level constitutional documents
 2. **Feature Planning** — Use `_docs/workflows/1-create-sub-prd.md` to draft focused sub-PRDs with AI assistance
 3. **Task Generation** — Apply `_docs/workflows/2-generate-tasks.md` to break PRDs into actionable task lists
 4. **Iterative Execution** — Follow `_docs/workflows/3-process-task-loop.md` for controlled AI task processing
 5. **Session Continuity** — Track progress in `_docs/CURRENT-SESSION.md` for seamless handoffs
+6. **Knowledge Integration** — Evolve decisions and patterns into permanent project memory for future cycles
 
 ### Project Memory System
 
@@ -92,18 +111,18 @@ Context and decisions are preserved through structured documentation:
 
 ## 🗂️ System Components
 
-### Core Project Memory
+### Constitutional Documents
 
 - **`_docs/META-PRD.md`** — Product vision, success criteria, and high-level direction
 - **`_docs/PROJECT-STATUS.md`** — Progress tracker for current initiatives and milestones
 - **`_docs/TECHNICAL-ARCHITECTURE.md`** — Reference architecture and implementation patterns
 - **`_docs/DEVELOPMENT-RULES.md`** — Code standards, quality gates, and development protocols
-- **`_docs/CURRENT-SESSION.md`** — Active session context and handoff instructions
 
 ### Feature Development
 
 - **`_docs/sub-prds/`** — Approved feature specifications and requirements
 - **`_docs/tasks/`** — Task checklists derived from sub-PRDs for implementation
+- **`_docs/CURRENT-SESSION.md`** — Active session context and handoff instructions
 
 ### Knowledge Evolution
 
