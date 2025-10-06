@@ -13,13 +13,13 @@ knowledge preservation.
 - **Coordination** — Shared language, documents, and checkpoints for unified operation
 
 As **context engineering** becomes more common, this framework represents one developer's approach. Built on established
-foundations—PRDs, systematic task generation and processing—but extended with **persistent project memory** via structured
+foundations — PRDs, systematic task generation and processing — but extended with **persistent project memory** via structured
 documentation and workflows that create **recursive feedback loops**, strengthening projects over time by preserving
 context, decisions, and patterns from each development cycle.
 
 ## ✴️ Conceptual Overview
 
-Working with AI on complex features often feels unpredictable—big requests can produce mixed results, and valuable
+Working with AI on complex features often feels unpredictable — big requests can produce mixed results, and valuable
 context disappears between sessions. A structured approach helps bring consistency to this collaboration:
 
 **Constitutional Documents**— foundational documents establish direction and standards:
@@ -43,7 +43,7 @@ context disappears between sessions. A structured approach helps bring consisten
 
 This systematic approach maintains architectural integrity while leveraging AI for implementation acceleration in a
 hands-on, manually steered manner, with human code additions/edits, architectural decisions, and continuous
-oversight - co-development rather than full automation.
+oversight— co-development rather than full automation.
 
 ### Recursive Iteration
 
@@ -55,7 +55,7 @@ These workflows becomes more valuable when they capture what you learn along the
 - **Project knowledge** grows beyond any single feature or session
 
 Over time, this creates development cycles that improve on themselves rather than starting fresh each time.
-This documentation is explicitly dual audience—valuable for both AI agents and human team members/onboarding.
+This documentation is explicitly dual audience— valuable for both AI agents and human team members/onboarding.
 
 ## 📚 Development Background
 
