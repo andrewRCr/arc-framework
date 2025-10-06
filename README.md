@@ -77,7 +77,7 @@ The framework operates through feedback loops that build on previous work:
 
 1. **Vision Alignment** — Establish direction via `META-PRD.md` and high-level constitutional documents
 2. **Feature Planning** — Use `workflows/1-create-sub-prd.md` to draft focused sub-PRDs with AI assistance
-3. **Task Generation** — Apply `workflows/2-generate-tasks.md` to break PRDs into actionable task lists
+3. **Task Generation** — Apply `workflows/2-generate-tasks.md` to break sub-PRDs into actionable task lists
 4. **Iterative Execution** — Follow `workflows/3-process-task-loop.md` for controlled AI-assisted single-task processing
 5. **Session Continuity** — Track context in `CURRENT-SESSION.md` using `workflows/session-handoff.md` for seamless handoffs
 6. **Knowledge Integration** — Evolve decisions and patterns into permanent project memory for future cycles
