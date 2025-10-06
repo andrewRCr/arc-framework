@@ -41,7 +41,9 @@ context disappears between sessions. A structured approach helps bring consisten
 - Atomic commits for clean, traceable development history; agentic PR review processes
 - Archival processes for completed work/decision history and knowledge consolidation
 
-This systematic approach maintains architectural integrity while leveraging AI for implementation acceleration.
+This systematic approach maintains architectural integrity while leveraging AI for implementation acceleration in a
+hands-on, manually steered manner, with human code additions/edits, architectural decisions, and continuous
+oversight - co-development rather than full automation.
 
 ### Recursive Iteration
 
@@ -53,14 +55,7 @@ These workflows becomes more valuable when they capture what you learn along the
 - **Project knowledge** grows beyond any single feature or session
 
 Over time, this creates development cycles that improve on themselves rather than starting fresh each time.
-
-## 👥 Philosophy
-
-This systematic approach reflects several key principles:
-
-- **Co-development over full automation** — AI assists implementation while humans maintain architectural control
-- **Structured workflows over ad-hoc requests** — Systematic spec-driven development with clear checkpoints
-- **Context preservation over starting fresh** — Project knowledge that compounds rather than resets
+This documentation is explicitly dual audience—valuable for both AI agents and human team members/onboarding.
 
 ## 📚 Development Background
 
@@ -75,14 +70,6 @@ with theory, it developed organically as solutions to real coordination challeng
 The resulting methodology balances AI acceleration with human judgment, emphasizing sustainable development
 practices over rapid prototyping. Each component addresses specific pain points encountered during production
 feature development.
-
-## 🏷️ Key Characteristics
-
-- **Hands-on collaboration model** — You stay the architect; AI assists in implementation under your direction
-- **Persistent project memory** that captures and reuses context, decisions, and patterns
-- **Dual-audience documentation** valuable for both AI agents and human team members/onboarding
-- **Session continuity** across AI agent switches, team handoffs, and development cycles
-- **Manual steering encouraged** — Expects human code additions/edits, architectural decisions, and continuous oversight
 
 ## 🔄 Core Development Cycle
 
