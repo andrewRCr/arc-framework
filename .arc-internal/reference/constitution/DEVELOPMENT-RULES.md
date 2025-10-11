@@ -42,6 +42,7 @@ Rules Hash: `2078ecf7`
 
 ### Quality Assurance
 
+- **Documentation linting**: ALWAYS run markdown linting after updating any documentation files
 - **Markdown linting**: Run `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**"
   "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` before commits
 - **Template validation**: Test template instantiation manually

@@ -15,16 +15,16 @@ in favor of simple copy-adapt workflow.
 
 ### 1. Analyze Current Dual System
 
-**Status**: [ ] Pending
+**Status**: [x] Complete
 
 **Objective**: Document current template vs example file relationships and identify consolidation approach
 
 **Subtasks**:
 
-- [ ] 1.1 Catalog all files in `/templates/` directory
-- [ ] 1.2 Catalog all `.example.md` files in `.arc/` structure  
-- [ ] 1.3 Identify which templates/examples need framework defaults integration
-- [ ] 1.4 Plan consolidation strategy for each file type
+- [x] 1.1 Catalog all files in `/templates/` directory
+- [x] 1.2 Catalog all `.example.md` files in `.arc/` structure  
+- [x] 1.3 Identify which templates/examples need framework defaults integration
+- [x] 1.4 Plan consolidation strategy for each file type
 
 **Acceptance Criteria**:
 
@@ -36,17 +36,17 @@ in favor of simple copy-adapt workflow.
 
 ### 2. Create Template-First Constitutional Documents
 
-**Status**: [ ] Pending
+**Status**: [x] Complete
 
 **Objective**: Convert constitutional document templates to rich template-first format with framework defaults
 
 **Subtasks**:
 
-- [ ] 2.1 Create template-first DEVELOPMENT-RULES with framework defaults
-- [ ] 2.2 Create template-first AI-SHARED with framework protocols
-- [ ] 2.3 Create template-first META-PRD with structure guidance
-- [ ] 2.4 Create template-first PROJECT-STATUS with structure guidance
-- [ ] 2.5 Create template-first TECHNICAL-ARCHITECTURE with structure guidance
+- [x] 2.1 Create template-first DEVELOPMENT-RULES with framework defaults
+- [x] 2.2 Create template-first AI-SHARED with framework protocols
+- [x] 2.3 Create template-first META-PRD with structure guidance
+- [x] 2.4 Create template-first PROJECT-STATUS with structure guidance
+- [x] 2.5 Create template-first TECHNICAL-ARCHITECTURE with structure guidance
 
 **Acceptance Criteria**:
 
