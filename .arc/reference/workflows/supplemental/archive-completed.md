@@ -20,7 +20,7 @@ preserving history and context.
 
 ### 2) Move PRD to Archive
 
-- Move PRD from `_docs/sub-prds/` to `_docs/archive/sub-prds/`
+- Move PRD from `_docs/prds/` to `_docs/archive/prds/`
 - Create completion metadata file in `_docs/archive/completion-metadata/` named `completion-{feature}.md`
 - Include in completion metadata:
   - Completion date and final commit hash
@@ -67,7 +67,7 @@ preserving history and context.
 ```
 _docs/archive/
 ├── README.md
-├── sub-prds/                       # Archived PRDs
+├── prds/                         # Archived PRDs
 ├── tasks/                          # Archived task lists (optional)
 └── completion-metadata/            # Completion summaries
 ```

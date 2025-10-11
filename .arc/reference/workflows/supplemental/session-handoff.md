@@ -22,7 +22,7 @@ Update **_docs/CURRENT-SESSION.md** before ending session using the full templat
 ## Session Information
 **Branch**: [current branch name, e.g., {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}]
 **Feature Documents**:
-  - PRD: [path to Sub-PRD, e.g., _docs/sub-prds/prd-{{FEATURE_NAME}}.md]
+  - PRD: [path to PRD, e.g., _docs/prds/prd-{{FEATURE_NAME}}.md]
   - Tasks: [path to task list, e.g., _docs/tasks/tasks-{{FEATURE_NAME}}.md]
   - Notes: [path to notes file if applicable, e.g., _docs/notes/notes-{{FEATURE_NAME}}.md]
 **Work Type**: [structured | incidental: brief description]

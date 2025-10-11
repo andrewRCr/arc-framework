@@ -13,7 +13,7 @@ templates and examples, this directory houses the live project documentation.
 │   ├── incidental/   # Active maintenance and small task work
 │   └── CURRENT-SESSION.md  # Live session context (gitignored)
 ├── upcoming/         # Future work pipeline organized by work type
-│   ├── sub-prds/     # Feature specifications ready for development
+│   ├── prds/         # Feature specifications ready for development
 │   ├── notes/        # Research and decision logs for upcoming features  
 │   └── tasks/        # Generated task lists from approved PRDs
 └── reference/        # Stable, long-term project documentation
@@ -36,7 +36,7 @@ templates and examples, this directory houses the live project documentation.
 
 ### Planning & Pipeline  
 
-- **Future features**: `upcoming/sub-prds/` holds approved specifications awaiting development
+- **Future features**: `upcoming/prds/` holds approved specifications awaiting development
 - **Task queues**: `upcoming/tasks/` contains generated task lists ready for processing
 - **Research pipeline**: `upcoming/notes/` captures investigation and decision logs for future work
 

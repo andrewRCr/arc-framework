@@ -70,8 +70,8 @@ ARC Framework (Documentation-Only System)
 ├── _docs/                    # The deployable documentation system
 │   ├── workflows/           # Process documentation (7 core workflows)
 │   ├── ai-instructions/     # Agent configuration templates
-│   ├── sub-prds/           # Feature specifications
-│   ├── tasks/              # Task breakdowns from sub-PRDs
+│   ├── prds/               # Feature specifications
+│   ├── tasks/              # Task breakdowns from PRDs
 │   ├── notes/              # Working notes and scratch
 │   ├── reference/          # Stable patterns and decisions  
 │   ├── archive/            # Completed work organization
@@ -87,15 +87,15 @@ ARC Framework (Documentation-Only System)
 
 **Core 3-Step Foundation** (derived from [ai-dev-tasks](https://github.com/snarktank/ai-dev-tasks), Apache 2.0):
 
-1. **`workflows/1-create-sub-prd.md`** — Generate focused sub-PRDs from product direction
-2. **`workflows/2-generate-tasks.md`** — Turn approved sub-PRDs into agent-ready task lists  
+1. **`workflows/1-create-prd.md`** — Generate focused PRDs from product direction
+2. **`workflows/2-generate-tasks.md`** — Turn approved PRDs into agent-ready task lists
 3. **`workflows/3-process-task-loop.md`** — Execute work loop with human oversight checkpoints
 
 **ARC Framework Extensions** (original work):
-4. **`workflows/session-handoff.md`** — Package context for session transfers
-5. **`workflows/agent-pr-review.md`** — Guide AI-assisted pull request reviews
-6. **`workflows/atomic-commit.md`** — Enforce minimal, well-scoped commits
-7. **`workflows/archive-completed.md`** — Move finished work to long-term storage
+4. **`workflows/supplemental/session-handoff.md`** — Package context for session transfers
+5. **`workflows/supplemental/agent-pr-review.md`** — Guide AI-assisted pull request reviews
+6. **`workflows/supplemental/atomic-commit.md`** — Enforce minimal, well-scoped commits
+7. **`workflows/supplemental/archive-completed.md`** — Move finished work to long-term storage
 
 ### Documentation Flow Architecture
 
@@ -177,7 +177,7 @@ The system deliberately avoids `package.json` and `node_modules` to maintain:
 
 - **Dual-audience documentation** — Written for both humans and AI agents
 - **Process workflows** provide step-by-step agent instructions
-- **Task decomposition** from sub-PRDs enables focused agent execution
+- **Task decomposition** from PRDs enables focused agent execution
 - **Session persistence** maintains context across agent handoffs
 
 ### Agent Boundaries

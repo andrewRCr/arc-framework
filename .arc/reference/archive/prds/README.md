@@ -1,3 +1,3 @@
-# Archived Sub‑PRDs
+# Archived PRDs
 
 Historical PRDs moved here after completion.

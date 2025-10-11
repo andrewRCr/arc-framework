@@ -2,20 +2,24 @@
 Derived from: https://github.com/snarktank/ai-dev-tasks/create-prd.md
 Original work licensed under Apache License 2.0
 Modifications: Enhanced for ARC framework integration with META-PRD system,
-focus on Sub-PRD creation, dual-audience design, and feature-branch scope
+focus on feature-level PRD creation, dual-audience design, and feature-branch scope
 -->
 
-# Workflow: Create Sub-PRD
+# Workflow: Create PRD
 
 ## Purpose
 
-This workflow guides the creation of Sub-PRDs (feature-level Product Requirements Documents) that define
+This workflow guides the creation of **feature-level PRDs** (Product Requirements Documents) that define
 the scope and requirements for individual features or logical chunks of work, typically aligned with feature
-branches. Sub-PRDs build upon the broader product vision established in the META-PRD.
+branches. Feature PRDs build upon the broader product vision established in the META-PRD.
+
+**Note**: This workflow is for creating **feature-level PRDs**, not the project-wide META-PRD. For establishing
+or updating constitutional documents (META-PRD, PROJECT-STATUS, TECHNICAL-ARCHITECTURE, DEVELOPMENT-RULES),
+use [0-define-constitution.md](0-define-constitution.md) instead.
 
 ## Goal
 
-Create a detailed Sub-PRD in Markdown format based on an initial feature concept. The Sub-PRD should be
+Create a detailed feature PRD in Markdown format based on an initial feature concept. The PRD should be
 clear, actionable, and provide sufficient context for implementation while maintaining alignment with the
 overall product direction.
 
@@ -40,10 +44,10 @@ Ask clarifying questions to gather sufficient detail about the "what" and "why" 
 
 **For interactive sessions:** Provide options in numbered lists to enable quick responses and maintain momentum.
 
-### Step 3: Generate and Save Sub-PRD
+### Step 3: Generate and Save PRD
 
-Using the project context, initial request, and discovery session responses, create a Sub-PRD following
-the structure outlined below. Save the completed Sub-PRD as `prd-{{FEATURE_NAME}}.md` in `_docs/sub-prds/` directory.
+Using the project context, initial request, and discovery session responses, create a feature PRD following
+the structure outlined below. Save the completed PRD as `prd-{{FEATURE_NAME}}.md` in `_docs/prds/` directory.
 
 ## Clarifying Questions (Examples)
 
@@ -62,9 +66,9 @@ Tailor questions based on the specific feature request, but consider these commo
   desired look and feel?"
 - **Edge Cases:** "Are there any potential edge cases or error conditions we should consider?"
 
-## Sub-PRD Structure
+## PRD Structure
 
-The generated Sub-PRD should include the following sections:
+The generated feature PRD should include the following sections:
 
 1. **Introduction/Overview:** Briefly describe the feature and the problem it solves. State the goal.
 2. **Goals:** List the specific, measurable objectives for this feature.
@@ -83,7 +87,7 @@ The generated Sub-PRD should include the following sections:
 
 ## Target Audience
 
-The Sub-PRD serves as a bridge between product vision and implementation:
+The feature PRD serves as a bridge between product vision and implementation:
 
 - **Primary:** Implementation teams (developers, designers) who need clear, actionable requirements
 - **Secondary:** Stakeholders seeking to understand feature scope and rationale
@@ -94,7 +98,7 @@ during implementation.
 ## Output Specifications
 
 - **Format:** Markdown (`.md`)
-- **Location:** `_docs/sub-prds/`
+- **Location:** `_docs/prds/`
 - **Filename:** `prd-{{FEATURE_NAME}}.md`
 - **Token Format:** Use `{{UPPERCASE_SNAKE_CASE}}` for any placeholder values
 
@@ -102,5 +106,5 @@ during implementation.
 
 1. **Focus on requirements definition** - Do not proceed to implementation or task generation
 2. **Prioritize discovery** - Ensure thorough understanding through clarifying questions
-3. **Iterate on clarity** - Refine the Sub-PRD based on feedback and additional context
-4. **Reference next steps** - Upon completion, the Sub-PRD is ready for task generation via `2-generate-tasks.md`
+3. **Iterate on clarity** - Refine the PRD based on feedback and additional context
+4. **Reference next steps** - Upon completion, the PRD is ready for task generation via `2-generate-tasks.md`

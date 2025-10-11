@@ -11,7 +11,7 @@ This directory contains the complete documentation system for projects using the
 │   ├── feature/      # Active feature development work
 │   └── incidental/   # Active maintenance and small tasks
 ├── upcoming/         # Future work pipeline organized by work type
-│   ├── sub-prds/     # Feature specifications ready for development
+│   ├── prds/         # Feature specifications ready for development
 │   ├── notes/        # Research and decision logs for upcoming features
 │   └── tasks/        # Generated task lists from approved PRDs
 └── reference/        # Stable, long-term documentation
@@ -28,7 +28,7 @@ This directory contains the complete documentation system for projects using the
 
 1. **Establish Foundation** - Create constitutional documents in `reference/constitution/`:
    - META-PRD, PROJECT-STATUS, TECHNICAL-ARCHITECTURE, and DEVELOPMENT-RULES
-2. **Plan Features** - Use `reference/workflows/1-create-sub-prd.md` to create structured Sub-PRDs
+2. **Plan Features** - Use `reference/workflows/1-create-prd.md` to create structured PRDs
 3. **Generate Tasks** - Apply `reference/workflows/2-generate-tasks.md` to break PRDs into actionable work
 4. **Execute with Oversight** - Follow `reference/workflows/3-process-task-loop.md` for controlled development
 5. **Handle Incidental Work** - Use `reference/workflows/manage-incidental-work.md` for maintenance tasks
@@ -54,7 +54,7 @@ This directory contains the complete documentation system for projects using the
 ### Planning & Pipeline
 
 - Use `upcoming/` to organize future work by type
-- Sub-PRDs ready for development, research notes, and generated tasks
+- PRDs ready for development, research notes, and generated tasks
 - Maintains development pipeline visibility
 
 ### Reference & History

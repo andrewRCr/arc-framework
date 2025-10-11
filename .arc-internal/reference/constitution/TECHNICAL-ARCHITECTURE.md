@@ -18,7 +18,7 @@ _docs/                          # The copyable system
 ├── archive/                   # Completed work organization
 ├── notes/                     # Working notes and scratch
 ├── reference/                 # Stable patterns and decisions
-├── sub-prds/                  # Feature PRDs
+├── prds/                      # Feature PRDs
 ├── tasks/                     # Task breakdowns
 ├── workflows/                 # Process documentation
 ├── CURRENT-SESSION.example.md # Session template (example)

@@ -1,4 +1,4 @@
-# Sub‑PRD: {{FEATURE_NAME}}
+# PRD: {{FEATURE_NAME}}
 
 ## Overview
 

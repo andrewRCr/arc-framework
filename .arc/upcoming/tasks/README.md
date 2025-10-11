@@ -1,3 +1,3 @@
 # Tasks
 
-Implementation task lists derived from Sub‑PRDs. Naming: tasks-<feature>.md.
+Implementation task lists derived from PRDs. Naming: tasks-<feature>.md.
