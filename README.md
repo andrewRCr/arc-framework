@@ -36,6 +36,7 @@ context disappears between sessions. A structured approach helps bring consisten
 
 **Supplemental Workflow Suite**— additional workflows support the complete development lifecycle:
 
+- Incidental work management for reactive maintenance tasks discovered during feature development
 - Session handoffs for context preservation across time and team/agent boundaries
 - Project memory evolution — fluid, feature-level notes mature into concrete, project-wide reference patterns
 - Atomic commits for clean, traceable development history; agentic PR review processes
@@ -76,42 +77,54 @@ feature development.
 The framework operates through feedback loops that build on previous work:
 
 1. **Vision Alignment** — Establish direction via `META-PRD.md` and high-level constitutional documents
-2. **Feature Planning** — Use `workflows/1-create-sub-prd.md` to draft focused sub-PRDs with AI assistance
-3. **Task Generation** — Apply `workflows/2-generate-tasks.md` to break sub-PRDs into actionable task lists
-4. **Iterative Execution** — Follow `workflows/3-process-task-loop.md` for controlled AI-assisted single-task processing
-5. **Session Continuity** — Track context in `CURRENT-SESSION.md` using `workflows/session-handoff.md` for seamless handoffs
+2. **Feature Planning** — Use `.arc/reference/workflows/1-create-sub-prd.md` to draft focused sub-PRDs with AI assistance
+3. **Task Generation** — Apply `.arc/reference/workflows/2-generate-tasks.md` to break sub-PRDs into actionable
+   task lists
+4. **Iterative Execution** — Follow `.arc/reference/workflows/3-process-task-loop.md` for controlled
+   AI-assisted single-task processing
+5. **Session Continuity** — Track context in `CURRENT-SESSION.md` using
+   `.arc/reference/workflows/session-handoff.md` for seamless handoffs
 6. **Knowledge Integration** — Evolve decisions and patterns into permanent project memory for future cycles
 
 ## 🗂️ System Components
 
 ### Constitutional Documents
 
-- **`_docs/META-PRD.md`** — Product vision, success criteria, and high-level direction
-- **`_docs/PROJECT-STATUS.md`** — Progress tracker for current initiatives and milestones
-- **`_docs/TECHNICAL-ARCHITECTURE.md`** — Reference architecture and implementation patterns
-- **`_docs/DEVELOPMENT-RULES.md`** — Code standards, quality gates, and development protocols
+- **`.arc/reference/constitution/META-PRD.md`** — Product vision, success criteria, and high-level direction
+- **`.arc/reference/constitution/PROJECT-STATUS.md`** — Progress tracker for current initiatives and milestones
+- **`.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`** — Reference architecture and implementation patterns
+- **`.arc/reference/constitution/DEVELOPMENT-RULES.md`** — Code standards, quality gates, and development protocols
 
 ### Feature Development
 
-- **`_docs/CURRENT-SESSION.md`** — Active session context and handoff instructions
-- **`_docs/sub-prds/`** — Approved feature specifications and requirements
-- **`_docs/tasks/`** — Task checklists derived from sub-PRDs for implementation
+- **Sub-PRDs** — Feature specifications flow from `upcoming/sub-prds/` to `active/feature/prd-*.md` during development
+- **Task Lists** — Generated from PRDs and move from `upcoming/tasks/` to `active/feature/tasks-*.md` as work begins
+- **Session Context** — Track active work progress in `active/CURRENT-SESSION.md` with handoff instructions
+
+### Incidental Work
+
+- **Parallel Workflow** — Reactive maintenance tasks use `active/incidental/tasks-incidental-*.md` structure
+- **Work Prioritization** — Feature work pauses for incidental tasks; multiple incidental work units can stack
+- **Status Tracking** — Each task list includes status (pending/in-progress/complete/paused) and branching context
+- **Same Structure** — Follows identical patterns to feature work but in dedicated subdirectory to prevent overlap
 
 ### Knowledge Evolution
 
-- **`_docs/notes/`** — Temporal decision logs and research (fluid)
-- **`_docs/reference/`** — Established standards, patterns, and guidance (stable)
-- **`_docs/archive/`** — Completed feature docs with full historical context
+- **Working Notes** — Untracked temporal workspace files (`active/*/notes-*.md`) for scope-specific scratch work,
+  cleared frequently as work progresses
+- **Evolved Patterns** — Mature insights move from active work to `reference/strategies/` (stable patterns)
+- **Completed Work** — Finished features archive to `reference/archive/` with full historical context
 
 ### Process Workflows
 
-- **`_docs/workflows/1-create-sub-prd.md`** — Generate focused sub-PRDs from product direction
-- **`_docs/workflows/2-generate-tasks.md`** — Turn approved sub-PRDs into agent-ready task lists
-- **`_docs/workflows/3-process-task-loop.md`** — Execute tasks with human oversight checkpoints
-- **`_docs/workflows/session-handoff.md`** — Package context for session transfers
-- **`_docs/workflows/agent-pr-review.md`** — Guide AI-assisted pull request reviews
-- **`_docs/workflows/atomic-commit.md`** — Enforce minimal, well-scoped commits
-- **`_docs/workflows/archive-completed.md`** — Move finished work to long-term storage
+- **`.arc/reference/workflows/1-create-sub-prd.md`** — Generate focused sub-PRDs from product direction
+- **`.arc/reference/workflows/2-generate-tasks.md`** — Turn approved sub-PRDs into agent-ready task lists
+- **`.arc/reference/workflows/3-process-task-loop.md`** — Execute tasks with human oversight checkpoints
+- **`.arc/reference/workflows/manage-incidental-work.md`** — Systematic lifecycle for reactive maintenance tasks
+- **`.arc/reference/workflows/session-handoff.md`** — Package context for session transfers
+- **`.arc/reference/workflows/agent-pr-review.md`** — Guide AI-assisted pull request reviews
+- **`.arc/reference/workflows/atomic-commit.md`** — Enforce minimal, well-scoped commits
+- **`.arc/reference/workflows/archive-completed.md`** — Move finished work to long-term storage
 
 ### Customization
 
@@ -136,7 +149,7 @@ feature development, where coordinating AI assistance while maintaining code qua
 - Quality gate enforcement preventing technical debt accumulation
 - Successful handoffs between different AI agents and manual development phases
 
-The CineXplorer `_docs/` directory provides a complete example of the framework in action, showing how
+The CineXplorer `.arc/` directory provides a complete example of the framework in action, showing how
 abstract processes translate to concrete project management.
 
 ## 📄 Attribution and License
@@ -174,6 +187,6 @@ See the `LICENSE` file for the full license text.
 
 ## 🔗 Related Assets
 
-- `_docs/README.example.md` for an in-repo tour.
+- `.arc/README.example.md` for an in-repo tour.
 - `templates/` to spin up new artifacts quickly.
 - `profiles/` to tailor the framework to your stack.

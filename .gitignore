@@ -1,9 +1,10 @@
 # ARC Development System - .gitignore
 
 # Temporal development workspace files
-__docs_internal/notes/
-__docs_internal/CURRENT-SESSION.md
-__docs_internal/archive/notes/
+.arc-internal/active/CURRENT-SESSION.md
+.arc-internal/active/*/notes-*
+.arc-internal/upcoming/notes/
+.arc-internal/reference/archive/notes/
 
 # NPX cache (optional - can be cleaned with npx --clear-cache)
 .npm/
