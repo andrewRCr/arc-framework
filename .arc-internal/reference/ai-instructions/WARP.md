@@ -1,59 +1,72 @@
-# WARP.md
+# WARP.md - Terminal AI Agent Instructions
 
-This file provides guidance to WARP (warp.dev) when working with code in this repository.
+This file provides specific guidance for WARP (warp.dev) when working with the ARC Agentic Development
+Framework in the terminal environment.
 
 ## Project Overview
 
 **See `AI-SHARED.md` for complete project context and key reference documents.**
 
-The ARC Agentic Development Framework is a documentation-only system designed for coordinating AI agents
-and human developers on spec-driven software work. It's not a software application but a structured
-methodology with templates, workflows, and organizational patterns.
+The ARC Agentic Development Framework is a pure documentation framework designed for coordinating AI agents
+and human developers on spec-driven software work. It provides structured methodology with templates,
+workflows, and organizational patterns.
 
-**Key Principle**: This is a pure documentation framework with minimal dependencies—works with any tech
-stack and requires only git, Node.js (for NPX), and a markdown editor.
+**Key Principle**: Documentation-only framework with minimal dependencies—works with any tech stack and
+requires only git, Node.js (NPX), and a markdown editor.
 
 ## Common Development Commands
 
 ### Markdown Linting (Primary Quality Gate)
 
-```powershell
-# Lint all markdown files (excluding temporal files)
-npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
-
-# Auto-fix formatting issues
-npx markdownlint-cli2 --fix "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
+```bash
+# Lint all markdown files (current simplified approach)
+npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
 
 # Lint specific file
-npx markdownlint-cli2 path/to/file.md
+npx --yes markdownlint-cli path/to/file.md
+
+# Alternative: Use markdownlint-cli2 with patterns (if needed)
+npx --yes markdownlint-cli2 "**/*.md"
 ```
 
 ### Pre-commit Quality Check
 
-```powershell
-# 1. Fix formatting
-npx markdownlint-cli2 --fix "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
+```bash
+# 1. Lint documentation
+npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
 
-# 2. Check status
+# 2. Check git status
 git status
 
 # 3. Review changes for commit planning
 git --no-pager diff --stat
 ```
 
-### Template and System Validation
+### System Structure Validation
 
-```powershell
-# Validate templates contain expected tokens
-Get-ChildItem templates -Filter "*.template.md" | ForEach-Object { if (!(Select-String "{{.*}}" $_.FullName)) { Write-Host "WARNING: Template $($_.Name) may be missing tokens" } }
-
+```bash
 # Verify core system structure
-@('templates', '_docs/workflows', 'profiles', '_docs/ai-instructions') | ForEach-Object { if (Test-Path $_) { Write-Host "✅ $_ exists" } else { Write-Host "❌ Missing $_" } }
+for dir in ".arc" ".arc-internal" "templates" "profiles"; do
+  if [ -d "$dir" ]; then
+    echo "✅ $dir exists"
+  else
+    echo "❌ Missing $dir"
+  fi
+done
+
+# Check key workflow files
+for file in ".arc/reference/workflows/0-define-constitution.md" ".arc/reference/workflows/1-create-prd.md" ".arc/reference/workflows/2-generate-tasks.md" ".arc/reference/workflows/3-process-task-loop.md"; do
+  if [ -f "$file" ]; then
+    echo "✅ $file exists"
+  else
+    echo "❌ Missing $file"
+  fi
+done
 ```
 
 ### NPX Cache Management (Troubleshooting)
 
-```powershell
+```bash
 # Clear npx cache if needed
 npx --clear-cache
 
@@ -67,35 +80,39 @@ npm config get cache
 
 ```
 ARC Framework (Documentation-Only System)
-├── _docs/                    # The deployable documentation system
-│   ├── workflows/           # Process documentation (7 core workflows)
-│   ├── ai-instructions/     # Agent configuration templates
-│   ├── prds/               # Feature specifications
-│   ├── tasks/              # Task breakdowns from PRDs
-│   ├── notes/              # Working notes and scratch
-│   ├── reference/          # Stable patterns and decisions  
-│   ├── archive/            # Completed work organization
-│   └── *.example.md        # Base templates for user projects
-├── templates/              # Instantiable .template.md files
-├── profiles/              # Stack-specific overlays (future)
-└── __docs_internal/       # Development workspace (excluded from releases)
+├── .arc/                     # The deployable template system
+│   ├── reference/           # Framework reference documentation
+│   │   ├── constitution/    # Core project templates (META-PRD, PROJECT-STATUS, etc.)
+│   │   ├── ai-instructions/ # AI agent collaboration templates
+│   │   ├── workflows/       # Process documentation (core + supplemental)
+│   │   └── strategies/      # Pattern documentation
+│   ├── active/              # Current work templates
+│   └── upcoming/            # Future work templates
+├── .arc-internal/           # Framework development workspace
+│   ├── active/              # Current framework development
+│   ├── reference/           # Framework internal documentation
+│   └── upcoming/            # Future framework work
+├── templates/               # Legacy template directory (being consolidated)
+└── profiles/                # Stack-specific overlays
 ```
 
 ### Core Workflows (Process Architecture)
 
 **See `AI-SHARED.md` for the complete workflow reference.** Key workflows include:
 
-**Core 3-Step Foundation** (derived from [ai-dev-tasks](https://github.com/snarktank/ai-dev-tasks), Apache 2.0):
+**Core 4-Step Foundation** (ARC Framework methodology):
 
-1. **`workflows/1-create-prd.md`** — Generate focused PRDs from product direction
-2. **`workflows/2-generate-tasks.md`** — Turn approved PRDs into agent-ready task lists
-3. **`workflows/3-process-task-loop.md`** — Execute work loop with human oversight checkpoints
+1. **`workflows/0-define-constitution.md`** — Project setup and constitutional document creation
+2. **`workflows/1-create-prd.md`** — Generate focused PRDs from product direction  
+3. **`workflows/2-generate-tasks.md`** — Turn approved PRDs into agent-ready task lists
+4. **`workflows/3-process-task-loop.md`** — Execute work loop with human oversight checkpoints
 
-**ARC Framework Extensions** (original work):
-4. **`workflows/supplemental/session-handoff.md`** — Package context for session transfers
-5. **`workflows/supplemental/agent-pr-review.md`** — Guide AI-assisted pull request reviews
-6. **`workflows/supplemental/atomic-commit.md`** — Enforce minimal, well-scoped commits
-7. **`workflows/supplemental/archive-completed.md`** — Move finished work to long-term storage
+**Supplemental Workflows** (Supporting processes):
+
+- **`workflows/supplemental/session-handoff.md`** — Package context for session transfers
+- **`workflows/supplemental/atomic-commit.md`** — Enforce minimal, well-scoped commits
+- **`workflows/supplemental/manage-incidental-work.md`** — Handle reactive maintenance tasks
+- **`workflows/supplemental/archive-completed.md`** — Move finished work to long-term storage
 
 ### Documentation Flow Architecture
 
@@ -124,24 +141,40 @@ Since this is documentation-only, testing focuses on:
 ### Commit Standards (Critical)
 
 - **Manual commit control** — Never commit without explicit user approval
-- **Comprehensive Task Context Analysis** — Before committing, analyze ALL changes against task documentation in `_docs/tasks/`
-- **Task-commit synchronization** — When subtasks are [x] complete, parent tasks should be [x] complete
+- **Comprehensive Task Context Analysis** — Before committing, analyze ALL changes against task documentation
+- **Task-commit synchronization** — When subtasks are [x] complete, parent tasks should be [x] complete  
 - **Atomic commits** — Each commit represents a single logical change
 - **Feature branch workflow** — Use `feature/` prefix for all development branches
+- **Multi-line commit messages** — If `git commit -m` causes interactive editor issues, use file approach:
+
+  ```bash
+  # Create commit message file
+  cat > /tmp/commit_msg.txt << 'EOF'
+  type(scope): Brief description
+  
+  - Detailed change 1
+  - Detailed change 2
+  - Impact/rationale
+  EOF
+  
+  # Commit using file
+  git commit -F /tmp/commit_msg.txt
+  rm /tmp/commit_msg.txt
+  ```
 
 ### Quality Requirements
 
 - **All markdown must pass linting** — No commits with markdown lint failures
-- **Template consistency** — All templates use `{{UPPER_SNAKE_CASE}}` token format
+- **Template-first consistency** — Rich, copy-ready documents with inline guidance
 - **CI validation** — GitHub Actions automatically validates structure and links
 
 ### File Organization Rules
 
-- **`_docs/`** = The copyable system (permanent, versioned)
-- **`__docs_internal/`** = Development workspace (temporary, gitignored before release)
-- **Examples** clearly marked as `.example.md` in `_docs/`
-- **Templates** as `.template.md` in `templates/`
-- **Workflows** centralized in `_docs/workflows/`
+- **`.arc/`** = The deployable template system (permanent, versioned)
+- **`.arc-internal/`** = Framework development workspace (internal use)
+- **Templates** as template-first `.example.md` files in `.arc/reference/`
+- **Workflows** centralized in `.arc/reference/workflows/`
+- **Legacy** `templates/` directory being consolidated into `.arc/` structure
 
 ## NPX-Based Tooling Approach
 
@@ -191,14 +224,14 @@ The system deliberately avoids `package.json` and `node_modules` to maintain:
 
 ### Terminal Commands Preference
 
-- Use **PowerShell syntax** for all command examples (Windows environment)
-- Prefer **non-interactive commands** with explicit flags
+- Use **bash syntax** for all command examples (Linux/WSL environment)
+- Prefer **non-interactive commands** with explicit flags (`--no-pager`, `--yes`)
 - Avoid commands that require pagers or interactive input
 - Use absolute paths when referencing files outside current directory
 
 ### Development Context Integration
 
-- **Always check** `__docs_internal/CURRENT-SESSION.md` for active work context
-- **Reference task documentation** in `_docs/tasks/` before making changes
-- **Validate against project rules** in `__docs_internal/DEVELOPMENT-RULES.md`
-- **Maintain consistency** with established patterns in `_docs/reference/`
+- **Always check** `.arc-internal/active/CURRENT-SESSION.md` for active work context
+- **Reference task documentation** in `.arc-internal/active/` before making changes
+- **Validate against project rules** in `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md`
+- **Maintain consistency** with established patterns in `.arc/reference/`

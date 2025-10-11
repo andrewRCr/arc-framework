@@ -1,103 +1,160 @@
-# Development Rules - ARC Agentic System
+# Development Rules - ARC Agentic Development Framework
 
-Version: 0.1.0-dev
-Rules Hash: `2078ecf7`
+Version: 0.2.0-dev
+Rules Hash: `4b3d89f2`
 
-- Manual commit control
+- Manual commit control (AI NEVER commits without explicit user approval)
 - Feature branch workflow (prefix: `feature/`)
-- Quality gates (use profile commands)
-  - Backend tests: N/A (documentation-only system)
-  - Frontend tests: N/A (documentation-only system)
-  - Backend lint: N/A (documentation-only system)
-  - Frontend lint: N/A (documentation-only system)
-  - TypeScript check: N/A (documentation-only system)
-  - Markdown lint: `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**"
-    "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` (or add `--fix` for auto-fix)
+- Quality gates (zero tolerance policy):
+  - Backend tests: N/A (documentation-only framework)
+  - Frontend tests: N/A (documentation-only framework)
+  - Backend lint: N/A (documentation-only framework)
+  - Frontend lint: N/A (documentation-only framework)
+  - TypeScript check: N/A (documentation-only framework)
+  - Markdown lint: `npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md` (zero violations)
   - CI validation: GitHub Actions automatically runs on push/PR
 - Comprehensive Task Context Analysis before commits
+- Template-first approach with framework defaults integration
 
-## System-Specific Rules
+## Framework-Specific Rules
 
 ### Documentation Standards
 
-- All `.md` files must be well-formed Markdown
-- Templates use `{{TOKEN_NAME}}` format consistently
-- Examples clearly marked as `.example.md`
+- All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
+- Template-first documents with comprehensive inline guidance and framework defaults
+- Examples clearly marked as `.example.md` and copy-ready
 - READMEs required for each directory
+- ALWAYS run markdown linting after updating any documentation files
 
 ### Version Management
 
 - No versioned releases until 1.0.0 (public readiness)
 - CHANGELOG.md tracks unreleased changes
 - SYSTEM-VERSION.md shows current development version
-- Clean git history with meaningful commit messages
+- Clean git history with meaningful commit messages following conventional format
 
 ### File Organization
 
-- `_docs/` = the copyable system (permanent)
-- `__docs_internal/` = development workspace (temporary, will be gitignored before public release)
-- Templates in `templates/`
-- Workflows in `_docs/workflows/`
-- Examples in root `_docs/` level
+- `.arc/` = the deployable template system (permanent, versioned)
+- `.arc-internal/` = framework development workspace (internal use only)
+- Template-first documents in `.arc/reference/constitution/`, `.arc/reference/ai-instructions/`
+- Core workflows in `.arc/reference/workflows/`
+- Legacy `templates/` directory being consolidated into `.arc/` structure
 
 ### Quality Assurance
 
 - **Documentation linting**: ALWAYS run markdown linting after updating any documentation files
-- **Markdown linting**: Run `npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**"
-  "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"` before commits
-- **Template validation**: Test template instantiation manually
-- **Token verification**: Verify token replacement works correctly
-- **Workflow validation**: Validate workflows against real usage
+- **Markdown linting**: Run `npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md` before commits
+- **Template-first validation**: Verify template-first documents are comprehensive and copy-ready
+- **Framework defaults integration**: Ensure battle-tested defaults are properly embedded
+- **Workflow validation**: Validate workflows against real framework development usage
 - **CI checks**: GitHub Actions runs automatically on push/PR
-  - Markdown linting
+  - Markdown linting (zero violations policy)
   - Template structure validation
   - Internal link checking
-  - ARC system structure validation
-- **Backward compatibility**: Maintain compatibility in templates
+  - Framework system structure validation
+- **Backward compatibility**: Maintain compatibility in template-first documents
 
 ### Commit Standards
 
-- **Pre-commit checks**: Run markdown linting before committing
-- **Reference META-PRD context** in commit messages
-- **Use conventional commit format** when applicable (feat:, docs:, fix:, etc.)
-- **Atomic commits** for logical changes
+- **Pre-commit checks**: Run markdown linting before committing (zero tolerance)
+- **Reference META-PRD context** and task documentation in commit messages
+- **Use conventional commit format**: Required (feat:, docs:, fix:, refactor:, etc.)
+- **Atomic commits** for single logical changes
+- **Multi-line commits**: If `git commit -m` causes interactive editor issues, use file approach:
+
+  ```bash
+  # Create commit message file
+  cat > /tmp/commit_msg.txt << 'EOF'
+  type(scope): Brief description
+  
+  - Detailed change 1
+  - Detailed change 2
+  - Impact/rationale
+  EOF
+  
+  # Commit using file
+  git commit -F /tmp/commit_msg.txt
+  rm /tmp/commit_msg.txt
+  ```
+
 - **Never commit if**:
   - Documentation is inconsistent
   - Markdown linting fails
   - CI checks would fail
+  - Task documentation doesn't align with changes
 
 ## AI Collaboration Rules
 
-- Preserve context in CURRENT-SESSION.md
-- Document rationale for system changes
-- Maintain clear task breakdown
-- Use structured approach for complex changes
+### Session Management
+
+- **AI NEVER updates CURRENT-SESSION.md** without explicit user instruction
+- Session handoff document controlled exclusively by user
+- Preserve context across sessions but don't modify session files
+- Follow session handoff protocols for context preservation
+
+### Task Execution
+
+- **Complete ONE sub-task at a time** - mandatory stop after each sub-task
+- Wait for explicit user approval before next sub-task
+- Update task documentation immediately after each sub-task completion
+- Perform comprehensive task context analysis before commits
+
+### Commit Control
+
+- **AI NEVER initiates commits** without explicit user approval/instruction
+- User approval required to begin any git operations
+- MANDATORY: Comprehensive task context analysis before any commit
+- All quality gates must pass before commits
+
+### Quality Standards
+
+- Leave documentation cleaner than found (pre-existing issue protocol)
+- Report issues immediately with full context
+- Never proceed until quality gate failures are resolved or approved
 
 ## Development Commands
 
 ### Markdown Linting
 
 ```bash
-# Lint all markdown files (excluding temporal files)
-npx markdownlint-cli2 "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
-
-# Auto-fix formatting issues
-npx markdownlint-cli2 --fix "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
+# Lint all markdown files (current framework approach)
+npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
 
 # Lint specific file
-npx markdownlint-cli2 path/to/file.md
+npx --yes markdownlint-cli path/to/file.md
+
+# Alternative: markdownlint-cli2 with patterns (if needed)
+npx --yes markdownlint-cli2 "**/*.md"
 ```
 
 ### Pre-commit Workflow
 
 ```bash
-# 1. Fix formatting
-npx markdownlint-cli2 --fix "**/*.md" "!__docs_internal/notes/**" "!__docs_internal/CURRENT-SESSION.md" "!_docs/notes/**"
+# 1. Lint documentation (zero tolerance)
+npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
 
-# 2. Check status
+# 2. Check git status
 git status
 
-# 3. Add and commit
-git add .
-git commit -m "docs: [description following META-PRD context]"
+# 3. Review changes for commit planning
+git --no-pager diff --stat
+
+# 4. Add changes
+git add [specific files]
+
+# 5. Commit with conventional format
+# For simple commits:
+git commit -m "type(scope): brief description"
+
+# For multi-line commits (if editor issues occur):
+cat > /tmp/commit_msg.txt << 'EOF'
+type(scope): Brief description
+
+- Detailed change 1
+- Detailed change 2
+- Impact/rationale
+EOF
+git commit -F /tmp/commit_msg.txt
+rm /tmp/commit_msg.txt
 ```

@@ -1,41 +1,56 @@
-# Technical Architecture - ARC Agentic System
+# Technical Architecture - ARC Agentic Development Framework
 
 ## Stack Overview (Documentation-Only System)
 
-The ARC system is intentionally **not** a software application - it's a pure documentation and process
+The ARC Framework is intentionally **not** a software application - it's a pure documentation and process
 framework. This architectural decision ensures:
 
 - **Universal compatibility** - Works with any tech stack
-- **Minimal dependencies** - Only requires git, Node.js (for NPX), and a markdown editor
-- **Easy adoption** - Simple copy-paste integration
+- **Minimal dependencies** - Only requires git, Node.js (NPX), and a markdown editor
+- **Easy adoption** - Simple copy-adapt integration
 - **No maintenance burden** - No code to update or security patches
+- **Template-first approach** - Rich, copy-ready documents with inline guidance
 
 ### Core Components
 
 ```
-_docs/                          # The copyable system
-├── ai-instructions/           # Agent configuration templates
-├── archive/                   # Completed work organization
-├── notes/                     # Working notes and scratch
-├── reference/                 # Stable patterns and decisions
-├── prds/                      # Feature PRDs
-├── tasks/                     # Task breakdowns
-├── workflows/                 # Process documentation
-├── CURRENT-SESSION.example.md # Session template (example)
-├── DEVELOPMENT-RULES.example.md
-├── META-PRD.example.md
-├── PROJECT-STATUS.example.md
-├── README.example.md
-└── TECHNICAL-ARCHITECTURE.example.md
+.arc/                           # The deployable template system
+├── reference/                 # Framework reference documentation
+│   ├── constitution/          # Core project templates
+│   │   ├── META-PRD.example.md
+│   │   ├── PROJECT-STATUS.example.md
+│   │   ├── DEVELOPMENT-RULES.example.md
+│   │   └── TECHNICAL-ARCHITECTURE.example.md
+│   ├── ai-instructions/       # AI agent collaboration templates
+│   │   ├── AI-SHARED.example.md
+│   │   └── WARP.example.md
+│   ├── workflows/             # Process documentation
+│   │   ├── 0-define-constitution.md
+│   │   ├── 1-create-prd.md
+│   │   ├── 2-generate-tasks.md
+│   │   ├── 3-process-task-loop.md
+│   │   └── supplemental/
+│   └── strategies/            # Pattern documentation
+├── active/                    # Current work templates
+│   └── CURRENT-SESSION.example.md
+└── upcoming/                  # Future work templates
+    ├── prds/
+    └── tasks/
 
-__docs_internal/               # Development workspace (temporary)
-├── META-PRD.md               # System development PRD
-├── DEVELOPMENT-RULES.md      # System development rules
-├── PROJECT-STATUS.md         # Current progress tracking
-├── TECHNICAL-ARCHITECTURE.md # This file
-└── CURRENT-SESSION.md        # Session management
+.arc-internal/                 # Framework development workspace
+├── active/                    # Current framework development
+│   ├── feature/               # Feature work
+│   └── incidental/            # Incidental work
+├── reference/                 # Framework internal documentation
+│   ├── constitution/          # Internal constitutional documents
+│   │   ├── META-PRD.md           # Framework development PRD
+│   │   ├── PROJECT-STATUS.md     # Current progress tracking
+│   │   ├── DEVELOPMENT-RULES.md  # Framework development rules
+│   │   └── TECHNICAL-ARCHITECTURE.md # This file
+│   └── ai-instructions/       # Internal AI instructions
+└── upcoming/                  # Future framework work
 
-templates/                     # Instantiable .template.md files
+templates/                     # Legacy template directory (being consolidated)
 profiles/                      # Stack-specific overlays
 ```
 
@@ -43,23 +58,26 @@ profiles/                      # Stack-specific overlays
 
 Since this is a documentation system, testing focuses on:
 
-### Template Validation
+### Template-First Document Validation
 
-- **Manual instantiation testing** - Verify token replacement works
-- **Profile overlay testing** - Ensure profiles merge correctly
-- **Real-world usage validation** - Test with actual projects (CineXplorer)
+- **Copy-adapt testing** - Verify template-first documents can be easily copied and customized
+- **Framework defaults integration** - Ensure battle-tested defaults are properly embedded
+- **Profile overlay testing** - Ensure profiles enhance template-first documents correctly
+- **Real-world usage validation** - Test with actual projects (CineXplorer methodology validation)
 
 ### Documentation Quality
 
-- **Markdown linting** - Ensure all files are well-formed
-- **Link validation** - Verify internal references work
-- **Consistency checking** - Validate token naming conventions
+- **Markdown linting** - Ensure all files are well-formed with zero tolerance policy
+- **Link validation** - Verify internal references work across `.arc/` structure
+- **Template completeness** - Validate all sections are comprehensive and actionable
+- **Inline guidance quality** - Ensure template comments and guidance are clear
 
 ### Workflow Verification
 
-- **Process walkthroughs** - Test each workflow end-to-end
-- **AI agent compatibility** - Ensure agents can follow instructions
-- **Context preservation** - Verify session handoffs work
+- **Process walkthroughs** - Test each workflow end-to-end on real development work
+- **AI agent compatibility** - Ensure agents can follow structured instructions effectively
+- **Context preservation** - Verify session handoffs maintain continuity across AI/human transitions
+- **Constitutional integration** - Validate workflows integrate properly with constitutional documents
 
 ### Automated Quality Gates
 
@@ -83,18 +101,25 @@ The system uses NPX for all external tooling to maintain a clean repository:
 ### Configuration Files
 
 - **`.markdownlint.json`** - Markdown linting rules optimized for documentation
-- **`.gitignore`** - Excludes temporal workspace files and NPX cache
+- **`.gitignore`** - Excludes temporal workspace files and NPX cache  
 - **`.github/workflows/ci.yml`** - Automated quality gates and validation
 
-## Type Safety
+## Documentation Structure Safety
 
-Not applicable - pure markdown documentation system.
+Pure markdown documentation system with structural consistency through:
 
-However, we maintain "semantic type safety" through:
+### Template-First Structure Validation
 
-- **Consistent token naming** - `{{UPPER_SNAKE_CASE}}` format
-- **Template structure validation** - Required sections and formats
-- **Profile compatibility checking** - Ensure overlays don't conflict
+- **Template completeness** - All template-first documents have comprehensive sections
+- **Framework defaults integration** - Battle-tested rules properly embedded
+- **Inline guidance consistency** - Clear customization instructions throughout
+- **Copy-ready validation** - Templates can be immediately used without external dependencies
+
+### Semantic Consistency
+
+- **Constitutional document alignment** - All documents reference and support each other
+- **Workflow integration** - Process documentation aligns with constitutional requirements  
+- **Profile compatibility** - Stack-specific overlays enhance without conflicting
 
 ## CI/CD
 
@@ -130,27 +155,32 @@ However, we maintain "semantic type safety" through:
 
 ### Development Environment
 
-- **Local workspace** - `__docs_internal/` for system development
-- **Version control** - Git with feature branch workflow
-- **Testing ground** - Use system on itself for validation
+- **Local workspace** - `.arc-internal/` for framework development
+- **Version control** - Git with feature branch workflow following ARC methodology
+- **Testing ground** - Framework self-hosts its own development methodology
+- **Template development** - Rich template-first documents in `.arc/reference/`
 
 ### Production Environment  
 
-- **User projects** - Copied `_docs/` folders in end-user repositories
-- **Public repository** - Clean, versioned system for community adoption
+- **User projects** - Copied `.arc/` folders in end-user repositories
+- **Public repository** - Clean, versioned framework for community adoption
 - **Documentation hosting** - GitHub README and potentially GitHub Pages
+- **Template distribution** - Template-first documents ready for immediate use
 
 ## Data Flow Architecture
 
 ```
-System Development:
-__docs_internal/ → _docs/ → User Projects
+Framework Development:
+.arc-internal/ → .arc/ → User Projects
 
-Token Flow:
-Templates + Profile + User Values → Instantiated Documentation
+Template-First Flow:
+Framework Defaults + Template Structure + Inline Guidance → Copy-Ready Documents
+
+Adoption Flow:
+.arc/ Directory Copy → Project Customization → Immediate Usage
 
 Version Flow:
-SYSTEM-VERSION.md → Templates → User Documentation → Project Evolution
+SYSTEM-VERSION.md → Template Updates → User Documentation → Project Evolution
 ```
 
 ## Security Considerations
@@ -160,7 +190,7 @@ SYSTEM-VERSION.md → Templates → User Documentation → Project Evolution
 - **User data isolation** - System doesn't collect or transmit data
 - **Git-based distribution** - Standard, auditable version control
 - **NPX security model** - Tools downloaded on-demand, no persistent installations
-- **Temporal workspace isolation** - `__docs_internal/` excluded from public releases
+- **Temporal workspace isolation** - `.arc-internal/` excluded from public releases
 
 ## Scalability Considerations
 
@@ -192,31 +222,32 @@ SYSTEM-VERSION.md → Templates → User Documentation → Project Evolution
 
 ## System Validation Commands
 
-### Template Testing
+### Template-First Document Testing
 
 ```bash
-# Validate templates contain tokens
-find templates -name "*.template.md" -exec grep -L "{{.*}}" {} \;
+# Validate template-first documents are comprehensive
+find .arc/reference -name "*.example.md" -exec echo "Checking {}" \;
 
 # Check file naming conventions
-find _docs -name "*.example.md"
-find templates -name "*.template.md"
+find .arc -name "*.example.md"
 find profiles -name "*.profile.md"
+find templates -name "*.template.md"  # Legacy templates being consolidated
 ```
 
 ### System Structure Validation
 
 ```bash
 # Verify core directories exist
-test -d "templates" && echo "✅ Templates directory exists"
-test -d "_docs/workflows" && echo "✅ Workflows directory exists" 
+test -d ".arc" && echo "✅ .arc directory exists"
+test -d ".arc/reference/workflows" && echo "✅ Workflows directory exists" 
 test -d "profiles" && echo "✅ Profiles directory exists"
-test -d "_docs/ai-instructions" && echo "✅ AI instructions directory exists"
+test -d ".arc/reference/ai-instructions" && echo "✅ AI instructions directory exists"
 
-# Verify core templates exist
-test -f "templates/META-PRD.template.md" && echo "✅ META-PRD template exists"
-test -f "templates/DEVELOPMENT-RULES.template.md" && echo "✅ DEVELOPMENT-RULES template exists"
-test -f "templates/PROJECT-STATUS.template.md" && echo "✅ PROJECT-STATUS template exists"
+# Verify core template-first documents exist
+test -f ".arc/reference/constitution/META-PRD.example.md" && echo "✅ META-PRD template exists"
+test -f ".arc/reference/constitution/DEVELOPMENT-RULES.example.md" && echo "✅ DEVELOPMENT-RULES template exists"
+test -f ".arc/reference/constitution/PROJECT-STATUS.example.md" && echo "✅ PROJECT-STATUS template exists"
+test -f ".arc/reference/constitution/TECHNICAL-ARCHITECTURE.example.md" && echo "✅ TECHNICAL-ARCHITECTURE template exists"
 ```
 
 ### NPX Cache Management
