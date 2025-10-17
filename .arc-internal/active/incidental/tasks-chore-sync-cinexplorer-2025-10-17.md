@@ -18,24 +18,34 @@ This sync captures real-world refinements made during active development work.
 - `.arc/reference/QUICK-REFERENCE.example.md` - Environment context and command patterns (completed)
 - `.arc/reference/workflows/supplemental/maintain-task-notes.md` - Task list maintenance workflow (completed)
 - `.arc/reference/ai-instructions/AGENTS.example.md` - Lean reference card (orientation, lookups, gotchas) (completed)
-- `.arc/reference/ai-instructions/CLAUDE.example.md` - Minimal template (references AGENTS.md)
-- `.arc/reference/ai-instructions/GEMINI.example.md` - Minimal template (references AGENTS.md)
-- `.arc/reference/ai-instructions/WARP.example.md` - Minimal template (references AGENTS.md)
-- `.arc/reference/ai-instructions/copilot-instructions.example.md` - Minimal template (references AGENTS.md)
-- `.arc/reference/strategies/` - Strategy document examples (optional Phase 4)
+- `.arc/reference/ai-instructions/CLAUDE.example.md` - Minimal template (references AGENTS.md) (completed)
+- `.arc/reference/ai-instructions/GEMINI.example.md` - Minimal template (references AGENTS.md) (completed)
+- `.arc/reference/ai-instructions/WARP.example.md` - Minimal template (references AGENTS.md) (completed)
+- `.arc/reference/ai-instructions/copilot-instructions.example.md` - Minimal template (references AGENTS.md) (completed)
+- `.arc/reference/ai-instructions/README.md` - Architecture documentation (completed)
+- `.arc/reference/workflows/supplemental/session-init.md` - Session initialization workflow (completed)
+- `.arc/reference/strategies/` - Strategy document examples (optional Phase 3)
 
 ### Files to Update
 
 - `.arc/reference/workflows/supplemental/session-handoff.md` - Working directory context improvements (completed)
 - `.arc/reference/workflows/supplemental/archive-completed.md` - Cross-references to maintain-task-notes.md (completed)
 - `.arc/reference/ai-instructions/AI-SHARED.example.md` - Removed (replaced by AGENTS.example.md) (completed)
-- `.arc/reference/ai-instructions/README.md` - Document new AGENTS.md architecture
+- `.arc/active/CURRENT-SESSION.example.md` - Replaced Session Startup Protocol with reference to session-init.md (completed)
+- `.arc-internal/active/CURRENT-SESSION.md` - Same update (completed)
 
 ### Internal Files
 
-- `.arc-internal/active/CURRENT-SESSION.md` - Framework's own session file with Session Startup Protocol
-- `.arc-internal/reference/QUICK-REFERENCE.md` - Framework-specific environment context
-- `.arc-internal/reference/workflows/supplemental/sync-cinexplorer-refinements.md` - New workflow doc
+- `.arc-internal/active/CURRENT-SESSION.md` - Framework's own session file with Session Startup Protocol (completed)
+- `.arc-internal/reference/QUICK-REFERENCE.md` - Framework-specific environment context (completed)
+- `.arc-internal/reference/workflows/supplemental/sync-cinexplorer-refinements.md` - New workflow doc (completed in
+  previous session)
+- `.arc-internal/reference/workflows/supplemental/session-init.md` - Session initialization workflow (completed)
+- `.arc-internal/reference/ai-instructions/CLAUDE.md` - Framework version of CLAUDE guidance (completed)
+- `.arc-internal/reference/ai-instructions/GEMINI.md` - Framework version of GEMINI guidance (completed)
+- `.arc-internal/reference/ai-instructions/WARP.md` - Framework version of WARP guidance (completed)
+- `.arc-internal/reference/ai-instructions/copilot-instructions.md` - Framework version of Copilot guidance (completed)
+- `.claude/commands/resume-current.md` - Updated to reference session-init.md (completed)
 
 ## Tasks
 
@@ -88,111 +98,69 @@ This sync captures real-world refinements made during active development work.
   - [x] 2.1.5 Remove AI-SHARED.example.md and AI-SHARED.md (replaced by AGENTS)
   - [x] 2.1.6 Run markdown linting and fix any violations
 
-- [ ] 2.2 Create CLAUDE.example.md (minimal template)
-  - [ ] 2.2.1 Extract Claude-specific tips from CineXplorer's CLAUDE.md
-  - [ ] 2.2.2 Create minimal template structure (references AGENTS.md + tool-specific section)
-  - [ ] 2.2.3 Create `.arc/reference/ai-instructions/CLAUDE.example.md`
-  - [ ] 2.2.4 Run markdown linting and fix any violations
+- [x] 2.2 Create CLAUDE.example.md (minimal template)
+  - [x] 2.2.1 Extract Claude-specific tips from CineXplorer's CLAUDE.md
+  - [x] 2.2.2 Create minimal template structure (references AGENTS.md + tool-specific section)
+  - [x] 2.2.3 Create `.arc/reference/ai-instructions/CLAUDE.example.md`
+  - [x] 2.2.4 Run markdown linting and fix any violations
 
-- [ ] 2.3 Create GEMINI.example.md (minimal template)
-  - [ ] 2.3.1 Check if CineXplorer has GEMINI.md (likely doesn't exist)
-  - [ ] 2.3.2 Create minimal template structure (identical to CLAUDE.example.md pattern)
-  - [ ] 2.3.3 Create `.arc/reference/ai-instructions/GEMINI.example.md`
-  - [ ] 2.3.4 Run markdown linting and fix any violations
+- [x] 2.3 Create GEMINI.example.md (minimal template)
+  - [x] 2.3.1 Check if CineXplorer has GEMINI.md (exists - extracted tips)
+  - [x] 2.3.2 Create minimal template structure (identical to CLAUDE.example.md pattern)
+  - [x] 2.3.3 Create `.arc/reference/ai-instructions/GEMINI.example.md`
+  - [x] 2.3.4 Run markdown linting and fix any violations
 
-- [ ] 2.4 Create WARP.example.md (minimal template)
-  - [ ] 2.4.1 Extract Warp-specific tips from CineXplorer's WARP.md
-  - [ ] 2.4.2 Create minimal template structure (references AGENTS.md + tool-specific section)
-  - [ ] 2.4.3 Create `.arc/reference/ai-instructions/WARP.example.md`
-  - [ ] 2.4.4 Run markdown linting and fix any violations
+- [x] 2.4 Create WARP.example.md (minimal template)
+  - [x] 2.4.1 Extract Warp-specific tips from CineXplorer's WARP.md
+  - [x] 2.4.2 Create minimal template structure (references AGENTS.md + tool-specific section)
+  - [x] 2.4.3 Create `.arc/reference/ai-instructions/WARP.example.md`
+  - [x] 2.4.4 Run markdown linting and fix any violations
 
-- [ ] 2.5 Create copilot-instructions.example.md (minimal template)
-  - [ ] 2.5.1 Check if CineXplorer has copilot-instructions.md (likely doesn't exist)
-  - [ ] 2.5.2 Create minimal template structure (identical to CLAUDE.example.md pattern)
-  - [ ] 2.5.3 Create `.arc/reference/ai-instructions/copilot-instructions.example.md`
-  - [ ] 2.5.4 Run markdown linting and fix any violations
+- [x] 2.5 Create copilot-instructions.example.md (minimal template)
+  - [x] 2.5.1 Check if CineXplorer has copilot-instructions.md (exists - extracted tips)
+  - [x] 2.5.2 Create minimal template structure (identical to CLAUDE.example.md pattern)
+  - [x] 2.5.3 Create `.arc/reference/ai-instructions/copilot-instructions.example.md`
+  - [x] 2.5.4 Run markdown linting and fix any violations
 
-- [ ] 2.6 Update ai-instructions README
-  - [ ] 2.6.1 Document AGENTS.md as central shared doc
-  - [ ] 2.6.2 Explain tool-specific file pattern (inherit from AGENTS.md + add tool tips)
-  - [ ] 2.6.3 Note AI-SHARED removal and AGENTS.md replacement
-  - [ ] 2.6.4 Run markdown linting and fix any violations
+- [x] 2.6 Update ai-instructions README
+  - [x] 2.6.1 Document AGENTS.md as central shared doc
+  - [x] 2.6.2 Explain tool-specific file pattern (inherit from AGENTS.md + add tool tips)
+  - [x] 2.6.3 Note AI-SHARED removal and AGENTS.md replacement
+  - [x] 2.6.4 Run markdown linting and fix any violations
 
-### Phase 3: Internal Workflow Documentation
+### Phase 3: Strategy Examples (Optional - Can Be Future Sync)
 
-- [ ] 3.1 Create sync-cinexplorer-refinements.md workflow
-  - [ ] 3.1.1 Document purpose and when to run sync
-  - [ ] 3.1.2 Document what to sync (stable content only, exclusions)
-  - [ ] 3.1.3 Document de-instancing requirements and patterns
-  - [ ] 3.1.4 Document validation checklist
-  - [ ] 3.1.5 Document task list creation process (naming, dating)
-  - [ ] 3.1.6 Add examples of common de-instancing patterns
-  - [ ] 3.1.7 Run markdown linting and fix any violations
-
-### Phase 4: Strategy Examples (Optional - Can Be Future Sync)
-
-- [ ] 4.1 Add strategy document examples
-  - [ ] 4.1.1 Read strategy-authentication.md from CineXplorer
-  - [ ] 4.1.2 De-instance and rename to generic pattern (e.g., strategy-dual-auth-pattern.example.md)
-  - [ ] 4.1.3 Add as example showing mature strategy document structure
-  - [ ] 4.1.4 Consider adding other strategy docs as examples
-  - [ ] 4.1.5 Update strategies README to reference examples
-  - [ ] 4.1.6 Run markdown linting and fix any violations
+- [ ] 3.1 Add strategy document examples
+  - [ ] 3.1.1 Read strategy-authentication.md from CineXplorer
+  - [ ] 3.1.2 De-instance and rename to generic pattern (e.g., strategy-dual-auth-pattern.example.md)
+  - [ ] 3.1.3 Add as example showing mature strategy document structure
+  - [ ] 3.1.4 Consider adding other strategy docs as examples
+  - [ ] 3.1.5 Update strategies README to reference examples
+  - [ ] 3.1.6 Run markdown linting and fix any violations
 
 ### Final Validation
 
-- [ ] 5.1 Cross-reference validation
-  - [ ] 5.1.1 Verify all internal links work in framework repo
-  - [ ] 5.1.2 Verify all template placeholders are consistent
-  - [ ] 5.1.3 Check for any CineXplorer-specific content that wasn't de-instanced
+- [ ] 4.1 Cross-reference validation
+  - [ ] 4.1.1 Verify all internal links work in framework repo
+  - [ ] 4.1.2 Verify all template placeholders are consistent
+  - [ ] 4.1.3 Check for any CineXplorer-specific content that wasn't de-instanced
 
-- [ ] 5.2 Quality gates
-  - [ ] 5.2.1 Run full markdown linting on all new/modified files
-  - [ ] 5.2.2 Verify all files have proper frontmatter/headers
-  - [ ] 5.2.3 Check that new files are referenced in appropriate READMEs
+- [ ] 4.2 Quality gates
+  - [ ] 4.2.1 Run full markdown linting on all new/modified files
+  - [ ] 4.2.2 Verify all files have proper frontmatter/headers
+  - [ ] 4.2.3 Check that new files are referenced in appropriate READMEs
 
-- [ ] 5.3 Framework documentation updates
-  - [ ] 5.3.1 Update main README.md if new capabilities added
-  - [ ] 5.3.2 Update ADOPTION.md if workflow changes
-  - [ ] 5.3.3 Update CHANGELOG.md with sync summary
+- [ ] 4.3 Framework documentation updates
+  - [ ] 4.3.1 Update main README.md if new capabilities added
+  - [ ] 4.3.2 Update ADOPTION.md if workflow changes
+  - [ ] 4.3.3 Update CHANGELOG.md with sync summary
 
-- [ ] 5.4 Prepare for commit
-  - [ ] 5.4.1 Review all changes with git diff
-  - [ ] 5.4.2 Verify commit message plan follows conventional commits
-  - [ ] 5.4.3 Await user approval for commit
+- [ ] 4.4 Prepare for commit
+  - [ ] 4.4.1 Review all changes with git diff
+  - [ ] 4.4.2 Verify commit message plan follows conventional commits
+  - [ ] 4.4.3 Await user approval for commit
 
 ## Notes
-
-### Session Startup Protocol - Critical Innovation
-
-The **Session Startup Protocol** section in CineXplorer's CURRENT-SESSION.md (lines 3-42) represents a major
-breakthrough in AI collaboration:
-
-**Why It Matters**:
-
-- Solves persistent working directory confusion (AI often forgets repo root context)
-- Prevents Docker/venv path errors before they happen
-- Forces environment verification at session start
-- Links to QUICK-REFERENCE for command context
-- Establishes "ground truth" before any work begins
-
-**Key Components**:
-
-1. **Working directory verification** (`pwd` check with expected output)
-2. **Docker status check** (container count validation)
-3. **Venv availability** (tool presence verification)
-4. **Path context table** (critical paths from current working directory)
-5. **Acknowledgment protocol** (AI must state orientation)
-6. **Reference check** (version-aware document access confirmation)
-
-**De-Instancing Requirements**:
-
-- Container names/counts → Generic placeholders
-- Specific paths → `{{DOCKER_COMPOSE_PATH}}`, `{{VENV_PATH}}`, etc.
-- Tool names → Generic quality gate tools
-- Version numbers → Placeholder references
-
-This protocol should become standard in all ARC session files.
 
 ### De-Instancing Patterns
 
@@ -250,10 +218,11 @@ AGENTS.md (central, comprehensive)
   - [x] QUICK-REFERENCE properly de-instanced with clear template placeholders
   - [x] maintain-task-notes workflow integrated into framework
   - [x] session-handoff improvements synced
-- [ ] Phase 2 complete (AI instructions with new architecture)
+- [x] Phase 2 complete (AI instructions with new architecture)
   - [x] AGENTS.example.md created (consolidated central doc)
-  - [ ] All tool-specific templates follow identical minimal pattern
+  - [x] All tool-specific templates follow identical minimal pattern (CLAUDE, GEMINI, WARP, copilot-instructions)
   - [x] AI-SHARED files removed (both template and framework versions)
-- [ ] Zero markdown linting violations across all files
+  - [x] README.md created documenting new architecture
+- [x] Zero markdown linting violations across all files
 - [ ] All internal links verified
 - [ ] Framework documentation updated to reflect new architecture
