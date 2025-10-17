@@ -1,12 +1,15 @@
 # Workflow: Archive Completed Work
 
-Move completed feature and incidental documentation to structured archive to keep the active workspace clean while preserving history and context.
+Move completed feature and incidental documentation to structured archive to keep the active workspace clean
+while preserving history and context.
 
 ## Preconditions
 
-**MANDATORY: Run `maintain-task-notes.md` workflow first** - Ensures docs are archive-ready (lean task list, organized notes file, TOC, no temporal markers).
+**MANDATORY: Run [maintain-task-notes.md](maintain-task-notes.md) workflow first** - Ensures docs are
+archive-ready (lean task list, organized notes file, TOC, no temporal markers).
 
 **Then verify:**
+
 - All subtasks in the task list are marked [x]; parent tasks are [x]
 - PROJECT-STATUS reflects completion (features only)
 - All related code is merged and quality gates are passing
@@ -137,6 +140,7 @@ git commit -m "docs(archive): archive incidental-{work-name} documentation
 ```
 
 **Note**: Incidental work does not require:
+
 - PRD archival (no PRD exists)
 - Completion metadata (task list completion summary is sufficient)
 - PROJECT-STATUS updates (unless work significantly changed project structure)
@@ -179,12 +183,14 @@ git commit -m "docs(archive): archive incidental-{work-name} documentation
 ## Quick Decision: Feature vs Incidental?
 
 **Feature** → Archive with PRD + completion metadata:
+
 - Has PRD document
 - Significant scope (multiple weeks)
 - Listed in PROJECT-STATUS
 - Major capability or system change
 
 **Incidental** → Archive without PRD/completion metadata:
+
 - No PRD (reactive work)
 - Focused scope (days to 2 weeks)
 - Tech debt, refactoring, tooling improvements
@@ -210,12 +216,13 @@ git commit -m "docs(archive): archive incidental-{work-name} documentation
 ## Common Pitfalls
 
 ❌ **Archiving without doc hygiene**: Task list still has verbose blocks, notes file lacks TOC
+   (run [maintain-task-notes.md](maintain-task-notes.md) first)
 ❌ **Forgetting to update PROJECT-STATUS**: Feature completed but still shows "In Progress"
 ❌ **Skipping completion metadata**: Lost context on why/how decisions were made
 ❌ **Inconsistent naming**: Different conventions for different archives
 ❌ **Committing before linting**: Markdown violations in archived docs
 
-✅ **Run `maintain-task-notes.md` first**: Ensures archive-ready documentation
+✅ **Run [maintain-task-notes.md](maintain-task-notes.md) first**: Ensures archive-ready documentation
 ✅ **Consistent naming**: `{type}-{name}.md` format everywhere
 ✅ **Complete metadata**: Future-you will thank you for the context
 ✅ **Clean commits**: Lint before committing, atomic archive commits

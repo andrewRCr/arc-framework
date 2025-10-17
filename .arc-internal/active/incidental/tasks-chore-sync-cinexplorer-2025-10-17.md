@@ -26,6 +26,7 @@ This sync captures real-world refinements made during active development work.
 ### Files to Update
 
 - `.arc/reference/workflows/supplemental/session-handoff.md` - Working directory context improvements
+- `.arc/reference/workflows/supplemental/archive-completed.md` - Cross-references to maintain-task-notes.md (completed)
 - `.arc/reference/ai-instructions/AI-SHARED.example.md` - Consider lean variant
 - `.arc/reference/ai-instructions/WARP.example.md` - Minor improvements
 
@@ -58,20 +59,20 @@ This sync captures real-world refinements made during active development work.
   - [x] 1.1.6 Update DEVELOPMENT-RULES.md to reference QUICK-REFERENCE
   - [x] 1.1.7 Run markdown linting and fix any violations
 
-- [ ] 1.2 Add maintain-task-notes.md workflow
-  - [ ] 1.2.1 Read CineXplorer version and verify it's already generic
-  - [ ] 1.2.2 Copy to `.arc/reference/workflows/supplemental/maintain-task-notes.md`
-  - [ ] 1.2.3 Add cross-references to archive-completed.md where appropriate
-  - [ ] 1.2.4 Update workflows README to list new supplemental workflow
-  - [ ] 1.2.5 Run markdown linting and fix any violations
+- [x] 1.2 Add maintain-task-notes.md workflow
+  - [x] 1.2.1 Read CineXplorer version and verify it's already generic
+  - [x] 1.2.2 Copy to `.arc/reference/workflows/supplemental/maintain-task-notes.md`
+  - [x] 1.2.3 Add cross-references to archive-completed.md where appropriate
+  - [x] 1.2.4 Update workflows README to list new supplemental workflow (N/A - no README exists)
+  - [x] 1.2.5 Run markdown linting and fix any violations
 
-- [ ] 1.3 Sync session-handoff.md improvements
-  - [ ] 1.3.1 Read both versions and create detailed diff analysis
-  - [ ] 1.3.2 Add working directory context warning section
-  - [ ] 1.3.3 Add stable vs dynamic sections guidance
-  - [ ] 1.3.4 Add pre-update verification protocol
-  - [ ] 1.3.5 Add stale state detection section
-  - [ ] 1.3.6 Run markdown linting and fix any violations
+- [x] 1.3 Sync session-handoff.md improvements
+  - [x] 1.3.1 Read both versions and create detailed diff analysis
+  - [x] 1.3.2 Add working directory context warning section
+  - [x] 1.3.3 Add stable vs dynamic sections guidance
+  - [x] 1.3.4 Add pre-update verification protocol
+  - [x] 1.3.5 Add stale state detection section (already complete - verified)
+  - [x] 1.3.6 Run markdown linting and fix any violations
 
 ### Phase 2: High-Value AI Instructions
 

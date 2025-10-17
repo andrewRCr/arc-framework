@@ -14,19 +14,73 @@ This document provides protocols for AI assistants to handle context management,
 
 ## Session Handoff Protocol
 
+### ⚠️ CRITICAL: Working Directory Context Check
+
+**BEFORE updating CURRENT-SESSION.md, always check if working directory context has changed:**
+
+```bash
+# Check current working directory
+pwd
+```
+
+**If you are switching work contexts** (e.g., moving between subdirectories or back to repo root), you **MUST**
+update the "Session Startup Protocol" section in CURRENT-SESSION.md:
+
+- ✅ **Update step 1** (pwd expected output)
+- ✅ **Update step 3** (tool path adjustments based on working directory)
+- ✅ **Update step 4** (path context table with correct relative paths)
+- ✅ **Update step 5** (acknowledgment statement with correct paths)
+
+**Examples of when to update:**
+
+- Switching from backend subdirectory to frontend subdirectory → Update to show new context
+- Moving from subdirectory to repo root → Update to reflect root-level paths
+- Starting new feature in different part of codebase → Update working directory
+
+**This is NOT optional** - stale path information causes immediate command failures and session friction.
+
+---
+
 ### Pre-Update Verification (IMPORTANT)
 
 **Before updating CURRENT-SESSION.md, verify actual state:**
 
-1. **Check git status**: `git status` to see working tree state (clean vs uncommitted changes)
-2. **Check recent commits**: `git log --oneline -10` to capture what's been committed
-3. **Check task completion**: Read actual task list file to see marked checkboxes
-4. **Verify file references**: Ensure any "uncommitted files" listed are actually uncommitted
-5. **Remove stale references**: Clear out old file lists from previous work sessions
+1. **Git status:** `git status` (clean vs uncommitted changes)
+2. **Recent commits:** `git log --oneline -10` (capture committed work)
+3. **Task completion:** Read task list file for marked checkboxes
+4. **File references:** Verify "uncommitted files" are actually uncommitted
+5. **Stale references:** Clear old file lists from previous sessions
+
+### Stable vs. Dynamic Sections in CURRENT-SESSION.md
+
+**Stable (rarely change)**:
+
+- Session Startup Protocol **structure** (the checklist itself)
+- Runtime environment expectations (container/service counts if applicable)
+- Reference version checks (DEVELOPMENT-RULES, QUICK-REFERENCE)
+
+**Dynamic (update when context changes - see CRITICAL warning above)**:
+
+- **"Session Startup Protocol" working directory paths** - update EVERY TIME you switch between:
+  - Subdirectory work (e.g., backend/, frontend/)
+  - Repo root work
+  - Different working contexts
+- Step 1: Expected pwd output
+- Step 3: Tool paths (adjust based on working directory)
+- Step 4: Path context table (all relative paths)
+- Step 5: Acknowledgment statement
+
+**Temporal (update every handoff)**:
+
+- "Session Information" section and below (work status, tasks, commits, etc.)
 
 ### Comprehensive Handoff Format
 
-Update `.arc/active/CURRENT-SESSION.md` before ending session using the full template structure:
+Update `.arc/active/CURRENT-SESSION.md` before ending session:
+
+1. **First**: Check if working directory context changed (see CRITICAL warning above) and update Session Startup
+   Protocol paths if needed
+2. **Then**: Update "Session Information" section and below with work progress:
 
 ```markdown
 ## Session Information
