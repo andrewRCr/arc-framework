@@ -12,6 +12,8 @@ ARC Framework Template: Copy this file and customize for your project
 **Last Updated**: [Date]
 **Rules Hash**: `[Generate unique hash]`
 
+**Read with**: QUICK-REFERENCE.md (environment context and command patterns)
+
 This document consolidates the core development rules and quality standards for [Your Project Name].
 These rules are **non-negotiable** and must be followed by all contributors, including AI assistants.
 

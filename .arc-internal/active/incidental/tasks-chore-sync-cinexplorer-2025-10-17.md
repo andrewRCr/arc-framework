@@ -49,14 +49,14 @@ This sync captures real-world refinements made during active development work.
 
 ### Phase 1: Critical Blockers (Prerequisites for Phase 0 Template Work)
 
-- [ ] 1.1 Add QUICK-REFERENCE.md
-  - [ ] 1.1.1 Read CineXplorer version and analyze structure
-  - [ ] 1.1.2 De-instance project-specific content (paths, ports, commands)
-  - [ ] 1.1.3 Add template placeholders ({{PROJECT_NAME}}, {{DOCKER_COMPOSE_PATH}}, etc.)
-  - [ ] 1.1.4 Create `.arc/reference/QUICK-REFERENCE.example.md`
-  - [ ] 1.1.5 Create `.arc-internal/reference/QUICK-REFERENCE.md` (framework-specific version)
-  - [ ] 1.1.6 Update DEVELOPMENT-RULES.md to reference QUICK-REFERENCE
-  - [ ] 1.1.7 Run markdown linting and fix any violations
+- [x] 1.1 Add QUICK-REFERENCE.md
+  - [x] 1.1.1 Read CineXplorer version and analyze structure
+  - [x] 1.1.2 De-instance project-specific content (paths, ports, commands)
+  - [x] 1.1.3 Add template placeholders ({{PROJECT_NAME}}, {{DOCKER_COMPOSE_PATH}}, etc.)
+  - [x] 1.1.4 Create `.arc/reference/QUICK-REFERENCE.example.md`
+  - [x] 1.1.5 Create `.arc-internal/reference/QUICK-REFERENCE.md` (framework-specific version)
+  - [x] 1.1.6 Update DEVELOPMENT-RULES.md to reference QUICK-REFERENCE
+  - [x] 1.1.7 Run markdown linting and fix any violations
 
 - [ ] 1.2 Add maintain-task-notes.md workflow
   - [ ] 1.2.1 Read CineXplorer version and verify it's already generic

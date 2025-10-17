@@ -3,6 +3,8 @@
 Version: 0.2.0-dev
 Rules Hash: `4b3d89f2`
 
+**Read with**: QUICK-REFERENCE.md (environment context and command patterns)
+
 - Manual commit control (AI NEVER commits without explicit user approval)
 - Feature branch workflow (prefix: `feature/`)
 - Quality gates (zero tolerance policy):
