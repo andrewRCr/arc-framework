@@ -6,7 +6,8 @@ Rules Hash: `4b3d89f2`
 **Read with**: QUICK-REFERENCE.md (environment context and command patterns)
 
 - Manual commit control (AI NEVER commits without explicit user approval)
-- Feature branch workflow (prefix: `feature/`)
+- Work categorization: `feature/` (user-facing), `technical/` (infrastructure), `incidental/` (reactive) - see
+  [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for decision rules
 - Quality gates (zero tolerance policy):
   - Backend tests: N/A (documentation-only framework)
   - Frontend tests: N/A (documentation-only framework)

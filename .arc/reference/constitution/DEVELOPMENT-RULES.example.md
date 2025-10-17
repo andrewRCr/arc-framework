@@ -49,14 +49,23 @@ Before starting ANY work, AI assistants must:
 - **MANDATORY**: AI must perform comprehensive task context analysis before any commit consideration
 - AI reports completion with standardized readiness report, then awaits commit instructions
 
-**Feature Branch Workflow**:
+**Work Categorization & Branch Workflow**:
 
-- **All feature work** must happen on dedicated feature branches
-- **Branch naming convention**: `feature/[feature-name]` (e.g., `feature/user-authentication`)
+The ARC framework uses a three-way work categorization system:
+
+- **feature/** - Planned user-facing capabilities (e.g., `feature/user-authentication`)
+- **technical/** - Planned infrastructure improvements (e.g., `technical/testing-infrastructure`)
+- **incidental/** - Unplanned reactive work (NO separate branches - commits to current feature/technical branch)
+
+See [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for detailed decision rules and workflows.
+
+**Branch Workflow**:
+
+- **All planned work** must happen on dedicated feature or technical branches
 - **Branch creation**: Create new branch during task generation phase
 - **Branch verification**: Always verify correct branch before committing
 - **Merge strategy**: Preserve commit history when merging to main (no squash merge)
-- **Branch cleanup**: Delete feature branches after successful merge
+- **Branch cleanup**: Delete feature/technical branches after successful merge
 
 ### Quality Gates (Zero Tolerance)
 

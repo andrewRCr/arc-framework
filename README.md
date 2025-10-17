@@ -95,10 +95,11 @@ The framework operates through feedback loops that build on previous work:
 - **`.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`** — Reference architecture and implementation patterns
 - **`.arc/reference/constitution/DEVELOPMENT-RULES.md`** — Code standards, quality gates, and development protocols
 
-### Feature Development
+### Planned Work (Feature & Technical)
 
-- **PRDs** — Feature specifications flow from `upcoming/prds/` to `active/feature/prd-*.md` during development
-- **Task Lists** — Generated from PRDs and move from `upcoming/tasks/` to `active/feature/tasks-*.md` as work begins
+- **PRDs** — Specifications flow from `upcoming/` to `active/feature/` (user-facing) or `active/technical/`
+  (infrastructure) during development
+- **Task Lists** — Generated from PRDs; work categorization guides branch naming (`feature/`, `technical/`)
 - **Session Context** — Track active work progress in `active/CURRENT-SESSION.md` with handoff instructions
 
 ### Incidental Work
