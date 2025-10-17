@@ -7,7 +7,7 @@ reusable set of development processes and templates.
 ## AI Instructions
 
 This file provides a general overview of the project. For more specific instructions on how to interact with the project
-as an AI agent, please refer to the `AI-SHARED.md` file in this directory.
+as an AI agent, please refer to the `AGENTS.md` file in this directory.
 
 ## Key Files and Directories
 

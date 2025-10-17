@@ -17,7 +17,7 @@
   3-process-task-loop.md)
 - `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, manage-incidental-work.md)
 - `strategies/` - Technical approaches (project-specific strategy documents)
-- `ai-instructions/` - AI-specific guidance (AI-SHARED.md, CLAUDE.md, AGENTS.md)
+- `ai-instructions/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
 
 ---
 

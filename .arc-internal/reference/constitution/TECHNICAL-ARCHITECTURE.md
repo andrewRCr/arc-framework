@@ -22,8 +22,11 @@ framework. This architectural decision ensures:
 │   │   ├── DEVELOPMENT-RULES.example.md
 │   │   └── TECHNICAL-ARCHITECTURE.example.md
 │   ├── ai-instructions/       # AI agent collaboration templates
-│   │   ├── AI-SHARED.example.md
-│   │   └── WARP.example.md
+│   │   ├── AGENTS.example.md
+│   │   ├── CLAUDE.example.md
+│   │   ├── GEMINI.example.md
+│   │   ├── WARP.example.md
+│   │   └── copilot-instructions.example.md
 │   ├── workflows/             # Process documentation
 │   │   ├── 0-define-constitution.md
 │   │   ├── 1-create-prd.md

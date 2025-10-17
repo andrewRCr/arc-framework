@@ -16,7 +16,7 @@
 - `workflows/` - Core process guides
 - `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, sync-cinexplorer-refinements.md)
 - `strategies/` - Technical approaches and patterns
-- `ai-instructions/` - AI-specific guidance (AI-SHARED.md, CLAUDE.md, AGENTS.md, WARP.md)
+- `ai-instructions/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md)
 
 ---
 

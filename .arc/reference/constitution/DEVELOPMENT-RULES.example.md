@@ -26,7 +26,7 @@ Before starting ANY work, AI assistants must:
 1. **Confirm rules version**: "Acknowledging DEVELOPMENT-RULES v[X.X], hash [hash]"
 2. **State understanding**: Briefly confirm understanding of commit protocols, task context analysis, quality gates,
    session management, and feature branch workflow
-3. **Verify context access**: Confirm access to required documents (AI-SHARED, META-PRD, etc.)
+3. **Verify context access**: Confirm access to required documents (AGENTS, META-PRD, etc.)
 4. **Check branch status**: Verify current git branch and ensure alignment with intended work
 
 ### Session Documentation Control
@@ -354,7 +354,7 @@ git branch -d feature/[feature-name]
 
 This document provides core rules. See detailed protocols in:
 
-- [AI Shared Context](../ai-instructions/AI-SHARED.md) - Common project context for AI
+- [AI Agent Reference](../ai-instructions/AGENTS.md) - Project orientation and lookup guide for AI
 - [Technical Architecture](TECHNICAL-ARCHITECTURE.md) - Additional methodology details
 - [Task Processing Workflow](../workflows/3-process-task-loop.md) - Detailed task execution workflow
 - [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Enhanced commit workflow

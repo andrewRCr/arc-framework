@@ -36,7 +36,7 @@ disciplined alternative to more permissive AI development approaches.
 
 - 4-step core workflow (constitution → PRD → tasks → execution)
 - Structured supplemental workflows (atomic commits, session handoff, incidental work management)
-- AI agent instruction templates (WARP.md, AI-SHARED.md) with comprehensive protocols
+- AI agent instruction templates (WARP.md, AGENTS.md) with comprehensive protocols
 - Session handoff and context preservation processes
 
 ### 3. **Constitutional Project Organization**

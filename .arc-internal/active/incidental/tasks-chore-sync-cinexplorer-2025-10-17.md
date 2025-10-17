@@ -17,7 +17,7 @@ This sync captures real-world refinements made during active development work.
 - `.arc/active/CURRENT-SESSION.example.md` - Session template with Session Startup Protocol (completed)
 - `.arc/reference/QUICK-REFERENCE.example.md` - Environment context and command patterns (completed)
 - `.arc/reference/workflows/supplemental/maintain-task-notes.md` - Task list maintenance workflow (completed)
-- `.arc/reference/ai-instructions/AGENTS.example.md` - Central shared doc (consolidates AI-SHARED + Quick Start)
+- `.arc/reference/ai-instructions/AGENTS.example.md` - Lean reference card (orientation, lookups, gotchas) (completed)
 - `.arc/reference/ai-instructions/CLAUDE.example.md` - Minimal template (references AGENTS.md)
 - `.arc/reference/ai-instructions/GEMINI.example.md` - Minimal template (references AGENTS.md)
 - `.arc/reference/ai-instructions/WARP.example.md` - Minimal template (references AGENTS.md)
@@ -28,7 +28,7 @@ This sync captures real-world refinements made during active development work.
 
 - `.arc/reference/workflows/supplemental/session-handoff.md` - Working directory context improvements (completed)
 - `.arc/reference/workflows/supplemental/archive-completed.md` - Cross-references to maintain-task-notes.md (completed)
-- `.arc/reference/ai-instructions/AI-SHARED.example.md` - Add deprecation notice (replaced by AGENTS.example.md)
+- `.arc/reference/ai-instructions/AI-SHARED.example.md` - Removed (replaced by AGENTS.example.md) (completed)
 - `.arc/reference/ai-instructions/README.md` - Document new AGENTS.md architecture
 
 ### Internal Files
@@ -80,13 +80,13 @@ This sync captures real-world refinements made during active development work.
 **New Approach**: Consolidate AI-SHARED.md + AGENTS.md → AGENTS.md as central doc
 **Rationale**: AGENTS.md provides auto-discovery for tools that support it, while reference chains work identically
 
-- [ ] 2.1 Create AGENTS.example.md (consolidated central doc)
-  - [ ] 2.1.1 Read CineXplorer's AI-SHARED.md (battle-tested, 53 lines)
-  - [ ] 2.1.2 Merge in Quick Start checklist from CineXplorer's AGENTS.md
-  - [ ] 2.1.3 De-instance project-specific content (CineXplorer → placeholders)
-  - [ ] 2.1.4 Create `.arc/reference/ai-instructions/AGENTS.example.md`
-  - [ ] 2.1.5 Add deprecation notice to existing AI-SHARED.example.md
-  - [ ] 2.1.6 Run markdown linting and fix any violations
+- [x] 2.1 Create AGENTS.example.md (consolidated central doc)
+  - [x] 2.1.1 Read CineXplorer's AI-SHARED.md (battle-tested, 53 lines)
+  - [x] 2.1.2 Merge in Quick Start checklist from CineXplorer's AGENTS.md
+  - [x] 2.1.3 De-instance project-specific content (CineXplorer → placeholders)
+  - [x] 2.1.4 Create `.arc/reference/ai-instructions/AGENTS.example.md`
+  - [x] 2.1.5 Remove AI-SHARED.example.md and AI-SHARED.md (replaced by AGENTS)
+  - [x] 2.1.6 Run markdown linting and fix any violations
 
 - [ ] 2.2 Create CLAUDE.example.md (minimal template)
   - [ ] 2.2.1 Extract Claude-specific tips from CineXplorer's CLAUDE.md
@@ -115,7 +115,7 @@ This sync captures real-world refinements made during active development work.
 - [ ] 2.6 Update ai-instructions README
   - [ ] 2.6.1 Document AGENTS.md as central shared doc
   - [ ] 2.6.2 Explain tool-specific file pattern (inherit from AGENTS.md + add tool tips)
-  - [ ] 2.6.3 Note AI-SHARED.example.md deprecation
+  - [ ] 2.6.3 Note AI-SHARED removal and AGENTS.md replacement
   - [ ] 2.6.4 Run markdown linting and fix any violations
 
 ### Phase 3: Internal Workflow Documentation
@@ -251,9 +251,9 @@ AGENTS.md (central, comprehensive)
   - [x] maintain-task-notes workflow integrated into framework
   - [x] session-handoff improvements synced
 - [ ] Phase 2 complete (AI instructions with new architecture)
-  - [ ] AGENTS.example.md created (consolidated central doc)
+  - [x] AGENTS.example.md created (consolidated central doc)
   - [ ] All tool-specific templates follow identical minimal pattern
-  - [ ] AI-SHARED.example.md deprecated with notice
+  - [x] AI-SHARED files removed (both template and framework versions)
 - [ ] Zero markdown linting violations across all files
 - [ ] All internal links verified
 - [ ] Framework documentation updated to reflect new architecture

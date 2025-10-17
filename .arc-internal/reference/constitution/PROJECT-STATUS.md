@@ -34,7 +34,7 @@ framework with battle-tested defaults.
 **Status**: Completed October 11, 2024
 
 - DEVELOPMENT-RULES template with battle-tested CineXplorer framework defaults
-- AI-SHARED template with comprehensive framework protocols and project navigation
+- AGENTS template (lean reference card) with framework protocols and quick lookup guide
 - META-PRD template with flexible structure guidance for any project type
 - PROJECT-STATUS template with progress tracking and priority management
 - TECHNICAL-ARCHITECTURE template with implementation guidance and architectural decisions

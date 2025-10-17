@@ -5,7 +5,7 @@ Framework in the terminal environment.
 
 ## Project Overview
 
-**See `AI-SHARED.md` for complete project context and key reference documents.**
+**See `AGENTS.md` for complete project context and key reference documents.**
 
 The ARC Agentic Development Framework is a pure documentation framework designed for coordinating AI agents
 and human developers on spec-driven software work. It provides structured methodology with templates,
@@ -98,7 +98,7 @@ ARC Framework (Documentation-Only System)
 
 ### Core Workflows (Process Architecture)
 
-**See `AI-SHARED.md` for the complete workflow reference.** Key workflows include:
+**See `AGENTS.md` for the complete workflow reference.** Key workflows include:
 
 **Core 4-Step Foundation** (ARC Framework methodology):
 
@@ -206,7 +206,7 @@ The system deliberately avoids `package.json` and `node_modules` to maintain:
 
 ### Structured Context
 
-**Reference `AI-SHARED.md` for key document locations and workflow overview.**
+**Reference `AGENTS.md` for key document locations and workflow overview.**
 
 - **Dual-audience documentation** — Written for both humans and AI agents
 - **Process workflows** provide step-by-step agent instructions
