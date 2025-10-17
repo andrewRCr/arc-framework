@@ -1,11 +1,5 @@
 # ARC Development System - .gitignore
 
-# Temporal development workspace files
-.arc-internal/active/CURRENT-SESSION.md
-.arc-internal/active/*/notes-*
-.arc-internal/upcoming/notes/
-.arc-internal/reference/archive/notes/
-
 # NPX cache (optional - can be cleaned with npx --clear-cache)
 .npm/
 
@@ -22,3 +16,18 @@ Thumbs.db
 *.tmp
 *.temp
 *.log
+
+# vscode settings
+.vscode/
+
+# AI tool settings (personal development environment preferences)
+.claude/
+.warp/
+
+# Personal reference documentation and notes (work-in-progress only)
+.arc-internal/active/*/notes-*
+.arc-internal/active/*/research-*
+.arc-internal/upcoming/notes/
+
+# Session handoff file (transient)
+.arc-internal/active/CURRENT-SESSION.md

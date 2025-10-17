@@ -20,7 +20,7 @@ Use this section when setting up constitutional documents for the first time.
 
 **Process**:
 
-1. Copy template from `.arc/reference/constitution/META-PRD.example.md`
+1. Build on template at `.arc/reference/constitution/META-PRD.md`
 2. Define core project purpose and value proposition
 3. Establish success metrics and key performance indicators
 4. Outline major user flows and primary use cases
@@ -33,15 +33,13 @@ Use this section when setting up constitutional documents for the first time.
 - What does success look like in 6-12 months?
 - What are the core features that deliver the most value?
 
-**Output**: `.arc-internal/reference/constitution/META-PRD.md`
-
 ### Step 2: Establish Technical Architecture
 
 **Objective**: Document technical decisions, constraints, and implementation patterns
 
 **Process**:
 
-1. Copy template from `.arc/reference/constitution/TECHNICAL-ARCHITECTURE.example.md`
+1. Build on template at `.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`
 2. Define technology stack and key dependencies
 3. Establish architectural patterns and design principles
 4. Document deployment and infrastructure decisions
@@ -54,15 +52,13 @@ Use this section when setting up constitutional documents for the first time.
 - What are the critical performance requirements?
 - What security and reliability standards must be met?
 
-**Output**: `.arc-internal/reference/constitution/TECHNICAL-ARCHITECTURE.md`
-
 ### Step 3: Define Development Rules
 
 **Objective**: Establish code standards, quality gates, and development protocols
 
 **Process**:
 
-1. Copy template from `.arc/reference/constitution/DEVELOPMENT-RULES.example.md`
+1. Build on template at `.arc/reference/constitution/DEVELOPMENT-RULES.md`
 2. Set code style and formatting standards
 3. Define testing requirements and coverage targets
 4. Establish review and approval processes
@@ -75,15 +71,13 @@ Use this section when setting up constitutional documents for the first time.
 - What testing strategies will provide confidence?
 - How will team coordination and reviews work?
 
-**Output**: `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md`
-
 ### Step 4: Initialize Project Status
 
 **Objective**: Create progress tracking framework for initiatives and milestones
 
 **Process**:
 
-1. Copy template from `.arc/reference/constitution/PROJECT-STATUS.example.md`
+1. Build on template at `.arc/reference/constitution/PROJECT-STATUS.md`
 2. Establish milestone tracking structure
 3. Define progress reporting cadence
 4. Set up initiative and epic organization
@@ -95,8 +89,6 @@ Use this section when setting up constitutional documents for the first time.
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
 - What format best communicates progress to stakeholders?
-
-**Output**: `.arc-internal/reference/constitution/PROJECT-STATUS.md`
 
 ---
 
@@ -179,14 +171,14 @@ All feature development should:
 
 **Constitutional Document Templates**:
 
-- `.arc/reference/constitution/META-PRD.example.md`
-- `.arc/reference/constitution/TECHNICAL-ARCHITECTURE.example.md`
-- `.arc/reference/constitution/DEVELOPMENT-RULES.example.md`
-- `.arc/reference/constitution/PROJECT-STATUS.example.md`
+- `.arc/reference/constitution/META-PRD.md`
+- `.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`
+- `.arc/reference/constitution/DEVELOPMENT-RULES.md`
+- `.arc/reference/constitution/PROJECT-STATUS.md`
 
 **Working Documents Location**:
 
-- `.arc-internal/reference/constitution/` (actual project documents)
+- `.arc/reference/constitution/` (project constitutional documents)
 
 ---
 

@@ -134,6 +134,46 @@ Quality issues discovered during work should be addressed, not ignored.
    - Deferred issues: Create task list in `.arc/active/incidental/tasks-incidental-*.md`
    - Never: Leave issues undocumented or unaddressed
 
+## Code Quality Principles
+
+Apply standard software engineering principles to maintain clean, maintainable code:
+
+### Core Principles
+
+**DRY (Don't Repeat Yourself)**
+
+- Extract repeated logic into reusable functions, components, or utilities
+- Wait for 2-3 instances before abstracting (avoid premature optimization)
+- Share types and interfaces instead of duplicating definitions
+
+**SOLID Principles**
+
+- **Single Responsibility**: Each component/function should have one clear purpose
+- **Open/Closed**: Use composition and configuration over modification
+- **Liskov Substitution**: Subtypes must be substitutable for their base types
+- **Interface Segregation**: Keep interfaces focused and minimal
+- **Dependency Inversion**: Depend on abstractions, not concrete implementations
+
+**KISS (Keep It Simple)**
+
+- Choose simple solutions over clever ones
+- Prefer clarity over brevity when they conflict
+- Question complexity - if it's hard to explain, simplify it
+
+**YAGNI (You Aren't Gonna Need It)**
+
+- Implement features when required, not when anticipated
+- Start specific, generalize later when patterns actually emerge
+- Delete unused code
+
+### Practical Application
+
+- **Separate concerns**: UI from business logic, data fetching from presentation
+- **Use custom hooks** to abstract and share logic
+- **Prefer composition** over inheritance or duplication
+- **Design component APIs** that accept configuration
+- **When principles conflict**: Favor readability and simplicity
+
 ## Task Management Protocol
 
 ### One Sub-Task Rule
