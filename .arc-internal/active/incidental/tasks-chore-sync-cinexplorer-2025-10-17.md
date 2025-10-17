@@ -14,21 +14,22 @@ This sync captures real-world refinements made during active development work.
 
 ### New Files to Add
 
-- `.arc/active/CURRENT-SESSION.example.md` - Session template with Session Startup Protocol
-- `.arc/reference/QUICK-REFERENCE.md` - Environment context and command patterns
-- `.arc/reference/workflows/supplemental/maintain-task-notes.md` - Task list maintenance workflow
-- `.arc/reference/ai-instructions/AGENTS.md` - Unified AI agent quick-start
-- `.arc/reference/ai-instructions/CLAUDE.md` - Claude-specific guidance
-- `.arc/reference/ai-instructions/GEMINI.md` - Gemini CLI guidance
-- `.arc/reference/ai-instructions/copilot-instructions.md` - GitHub Copilot alignment
-- `.arc/reference/strategies/` - Strategy document examples (optional Phase 2)
+- `.arc/active/CURRENT-SESSION.example.md` - Session template with Session Startup Protocol (completed)
+- `.arc/reference/QUICK-REFERENCE.example.md` - Environment context and command patterns (completed)
+- `.arc/reference/workflows/supplemental/maintain-task-notes.md` - Task list maintenance workflow (completed)
+- `.arc/reference/ai-instructions/AGENTS.example.md` - Central shared doc (consolidates AI-SHARED + Quick Start)
+- `.arc/reference/ai-instructions/CLAUDE.example.md` - Minimal template (references AGENTS.md)
+- `.arc/reference/ai-instructions/GEMINI.example.md` - Minimal template (references AGENTS.md)
+- `.arc/reference/ai-instructions/WARP.example.md` - Minimal template (references AGENTS.md)
+- `.arc/reference/ai-instructions/copilot-instructions.example.md` - Minimal template (references AGENTS.md)
+- `.arc/reference/strategies/` - Strategy document examples (optional Phase 4)
 
 ### Files to Update
 
-- `.arc/reference/workflows/supplemental/session-handoff.md` - Working directory context improvements
+- `.arc/reference/workflows/supplemental/session-handoff.md` - Working directory context improvements (completed)
 - `.arc/reference/workflows/supplemental/archive-completed.md` - Cross-references to maintain-task-notes.md (completed)
-- `.arc/reference/ai-instructions/AI-SHARED.example.md` - Consider lean variant
-- `.arc/reference/ai-instructions/WARP.example.md` - Minor improvements
+- `.arc/reference/ai-instructions/AI-SHARED.example.md` - Add deprecation notice (replaced by AGENTS.example.md)
+- `.arc/reference/ai-instructions/README.md` - Document new AGENTS.md architecture
 
 ### Internal Files
 
@@ -74,38 +75,48 @@ This sync captures real-world refinements made during active development work.
   - [x] 1.3.5 Add stale state detection section (already complete - verified)
   - [x] 1.3.6 Run markdown linting and fix any violations
 
-### Phase 2: High-Value AI Instructions
+### Phase 2: High-Value AI Instructions (Revised Architecture)
 
-- [ ] 2.1 Add AGENTS.md
-  - [ ] 2.1.1 Read CineXplorer version and verify it's generic
-  - [ ] 2.1.2 Copy to `.arc/reference/ai-instructions/AGENTS.md`
-  - [ ] 2.1.3 Update ai-instructions README to reference new file
-  - [ ] 2.1.4 Run markdown linting and fix any violations
+**New Approach**: Consolidate AI-SHARED.md + AGENTS.md → AGENTS.md as central doc
+**Rationale**: AGENTS.md provides auto-discovery for tools that support it, while reference chains work identically
 
-- [ ] 2.2 Add CLAUDE.md
-  - [ ] 2.2.1 Read CineXplorer version and verify it's generic
-  - [ ] 2.2.2 Copy to `.arc/reference/ai-instructions/CLAUDE.md`
-  - [ ] 2.2.3 Ensure cross-references to AGENTS.md are correct
+- [ ] 2.1 Create AGENTS.example.md (consolidated central doc)
+  - [ ] 2.1.1 Read CineXplorer's AI-SHARED.md (battle-tested, 53 lines)
+  - [ ] 2.1.2 Merge in Quick Start checklist from CineXplorer's AGENTS.md
+  - [ ] 2.1.3 De-instance project-specific content (CineXplorer → placeholders)
+  - [ ] 2.1.4 Create `.arc/reference/ai-instructions/AGENTS.example.md`
+  - [ ] 2.1.5 Add deprecation notice to existing AI-SHARED.example.md
+  - [ ] 2.1.6 Run markdown linting and fix any violations
+
+- [ ] 2.2 Create CLAUDE.example.md (minimal template)
+  - [ ] 2.2.1 Extract Claude-specific tips from CineXplorer's CLAUDE.md
+  - [ ] 2.2.2 Create minimal template structure (references AGENTS.md + tool-specific section)
+  - [ ] 2.2.3 Create `.arc/reference/ai-instructions/CLAUDE.example.md`
   - [ ] 2.2.4 Run markdown linting and fix any violations
 
-- [ ] 2.3 Add GEMINI.md
-  - [ ] 2.3.1 Read CineXplorer version and verify it's generic
-  - [ ] 2.3.2 Copy to `.arc/reference/ai-instructions/GEMINI.md`
-  - [ ] 2.3.3 Ensure cross-references are correct
+- [ ] 2.3 Create GEMINI.example.md (minimal template)
+  - [ ] 2.3.1 Check if CineXplorer has GEMINI.md (likely doesn't exist)
+  - [ ] 2.3.2 Create minimal template structure (identical to CLAUDE.example.md pattern)
+  - [ ] 2.3.3 Create `.arc/reference/ai-instructions/GEMINI.example.md`
   - [ ] 2.3.4 Run markdown linting and fix any violations
 
-- [ ] 2.4 Add copilot-instructions.md
-  - [ ] 2.4.1 Read CineXplorer version and verify it's generic
-  - [ ] 2.4.2 Copy to `.arc/reference/ai-instructions/copilot-instructions.md`
-  - [ ] 2.4.3 Update ai-instructions README to reference new file
+- [ ] 2.4 Create WARP.example.md (minimal template)
+  - [ ] 2.4.1 Extract Warp-specific tips from CineXplorer's WARP.md
+  - [ ] 2.4.2 Create minimal template structure (references AGENTS.md + tool-specific section)
+  - [ ] 2.4.3 Create `.arc/reference/ai-instructions/WARP.example.md`
   - [ ] 2.4.4 Run markdown linting and fix any violations
 
-- [ ] 2.5 Consider AI-SHARED lean variant
-  - [ ] 2.5.1 Analyze CineXplorer's leaner approach (53 lines vs 266)
-  - [ ] 2.5.2 Decide: Replace current template OR add as alternate pattern
-  - [ ] 2.5.3 If alternate: Create AI-SHARED-LEAN.example.md
-  - [ ] 2.5.4 Document when to use template vs lean approach
-  - [ ] 2.5.5 Run markdown linting and fix any violations
+- [ ] 2.5 Create copilot-instructions.example.md (minimal template)
+  - [ ] 2.5.1 Check if CineXplorer has copilot-instructions.md (likely doesn't exist)
+  - [ ] 2.5.2 Create minimal template structure (identical to CLAUDE.example.md pattern)
+  - [ ] 2.5.3 Create `.arc/reference/ai-instructions/copilot-instructions.example.md`
+  - [ ] 2.5.4 Run markdown linting and fix any violations
+
+- [ ] 2.6 Update ai-instructions README
+  - [ ] 2.6.1 Document AGENTS.md as central shared doc
+  - [ ] 2.6.2 Explain tool-specific file pattern (inherit from AGENTS.md + add tool tips)
+  - [ ] 2.6.3 Note AI-SHARED.example.md deprecation
+  - [ ] 2.6.4 Run markdown linting and fix any violations
 
 ### Phase 3: Internal Workflow Documentation
 
@@ -209,12 +220,40 @@ Common transformations when syncing from CineXplorer:
 - `.arc/archive/` (instance-specific history)
 - Project-specific implementation details
 
+### AI Instructions Architecture - New Design
+
+**Decision (2025-10-17)**: Consolidate AI-SHARED.md and AGENTS.md into single AGENTS.md
+
+**Rationale**:
+
+- **Auto-discovery**: Tools that natively look for AGENTS.md get immediate access
+- **Reference chains work identically**: Tools like Claude Code that look for CLAUDE.md → AGENTS.md work the same
+- **Battle-tested content**: Use CineXplorer's lean AI-SHARED.md (53 lines) as foundation
+- **Minimal tool-specific templates**: All tool files use identical structure, clearly showing inheritance pattern
+
+**Architecture**:
+
+```
+AGENTS.md (central, comprehensive)
+├── CLAUDE.md → references AGENTS.md + Claude tips
+├── GEMINI.md → references AGENTS.md + Gemini tips
+├── WARP.md → references AGENTS.md + Warp tips
+└── copilot-instructions.md → references AGENTS.md + Copilot tips
+```
+
+**Template Philosophy**: Tool-specific .example.md files use identical minimal structure to teach the pattern
+
 ### Success Criteria
 
-- [ ] All Phase 1 tasks complete (critical blockers resolved)
-- [ ] QUICK-REFERENCE properly de-instanced with clear template placeholders
-- [ ] maintain-task-notes workflow integrated into framework
-- [ ] session-handoff improvements synced
-- [ ] Zero markdown linting violations
+- [x] Phase 0 complete (Session Startup Protocol synced)
+- [x] Phase 1 complete (critical blockers resolved)
+  - [x] QUICK-REFERENCE properly de-instanced with clear template placeholders
+  - [x] maintain-task-notes workflow integrated into framework
+  - [x] session-handoff improvements synced
+- [ ] Phase 2 complete (AI instructions with new architecture)
+  - [ ] AGENTS.example.md created (consolidated central doc)
+  - [ ] All tool-specific templates follow identical minimal pattern
+  - [ ] AI-SHARED.example.md deprecated with notice
+- [ ] Zero markdown linting violations across all files
 - [ ] All internal links verified
-- [ ] Framework documentation updated to reflect new files
+- [ ] Framework documentation updated to reflect new architecture
