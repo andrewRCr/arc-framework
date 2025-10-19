@@ -534,10 +534,10 @@ Return to paused feature work and continue normal workflow.
 
 ## Related Workflows
 
-- [3-process-task-loop.md](3-process-task-loop.md) - Main task execution workflow
+- [3-process-task-loop.md](../3-process-task-loop.md) - Main task execution workflow
 - [atomic-commit.md](atomic-commit.md) - Commit message standards
-- [archive-completed-features.md](archive-completed-features.md) - Feature archival process
-- [DEVELOPMENT-RULES.md](../constitution/DEVELOPMENT-RULES.md) - Core development standards
+- [archive-completed.md](archive-completed.md) - Feature archival process
+- [DEVELOPMENT-RULES.md](../../constitution/DEVELOPMENT-RULES.md) - Core development standards
 
 ---
 
