@@ -9,16 +9,19 @@ This directory contains the complete documentation system for projects using the
 .arc/
 ├── active/           # Current session work - PRDs, tasks, notes, and session context
 │   ├── feature/      # Active feature development work
+│   ├── technical/    # Active technical infrastructure work
 │   └── incidental/   # Active maintenance and small tasks
 ├── upcoming/         # Future work pipeline organized by work type
-│   ├── prds/         # Feature specifications ready for development
-│   ├── notes/        # Research and decision logs for upcoming features
-│   └── tasks/        # Generated task lists from approved PRDs
+│   ├── feature/      # Planned feature work
+│   └── technical/    # Planned technical infrastructure work
 └── reference/        # Stable, long-term documentation
     ├── constitution/ # Foundational project documents (META-PRD, rules, architecture)
     ├── workflows/    # Development process guidance
     ├── strategies/   # Evolved implementation approaches and stable patterns
-    ├── archive/      # Completed feature documentation and decisions
+    ├── archive/      # Completed work documentation (organized by work type)
+    │   ├── feature/     # Completed feature work
+    │   ├── technical/   # Completed technical work
+    │   └── incidental/  # Completed incidental work
     └── ai-instructions/ # Agent-specific configuration and context
 ```
 
@@ -46,15 +49,15 @@ This directory contains the complete documentation system for projects using the
 
 ### Active Development
 
-- Work primarily in `active/` during feature development
+- Work primarily in `active/` during development
 - Contains current session context, active PRDs, tasks, and research notes
 - Files here represent your immediate work scope
-- Separate `feature/` and `incidental/` work for better organization
+- Organized by work type: `feature/` (user-facing), `technical/` (infrastructure), `incidental/` (maintenance)
 
 ### Planning & Pipeline
 
 - Use `upcoming/` to organize future work by type
-- PRDs ready for development, research notes, and generated tasks
+- Separate `feature/` and `technical/` work for clear planning
 - Maintains development pipeline visibility
 
 ### Reference & History
@@ -62,7 +65,7 @@ This directory contains the complete documentation system for projects using the
 - Consult `reference/` for stable documentation and completed work
 - `reference/constitution/` documents define project principles and architecture
 - `reference/strategies/` capture evolved patterns and approaches in-depth
-- `reference/archive/` preserves completed feature context with full historical records
+- `reference/archive/` preserves completed work organized by work type (feature/, technical/, incidental/)
 - `reference/ai-instructions/` provide agent configuration and context
 - `reference/workflows/` guide development processes
 

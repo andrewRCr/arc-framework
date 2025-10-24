@@ -35,14 +35,23 @@ framework. This architectural decision ensures:
 │   │   └── supplemental/
 │   └── strategies/            # Pattern documentation
 ├── active/                    # Current work templates
+│   ├── feature/               # Feature work templates
+│   ├── technical/             # Technical work templates
+│   ├── incidental/            # Incidental work templates
 │   └── CURRENT-SESSION.example.md
-└── upcoming/                  # Future work templates
-    ├── prds/
-    └── tasks/
+├── upcoming/                  # Future work templates (work-categorized)
+│   ├── feature/               # Planned feature work
+│   └── technical/             # Planned technical work
+└── reference/
+    └── archive/               # Completed work archives (work-categorized)
+        ├── feature/           # Completed features
+        ├── technical/         # Completed technical work
+        └── incidental/        # Completed incidental work
 
 .arc-internal/                 # Framework development workspace
 ├── active/                    # Current framework development
 │   ├── feature/               # Feature work
+│   ├── technical/             # Technical infrastructure work
 │   └── incidental/            # Incidental work
 ├── reference/                 # Framework internal documentation
 │   ├── constitution/          # Internal constitutional documents
@@ -50,8 +59,14 @@ framework. This architectural decision ensures:
 │   │   ├── PROJECT-STATUS.md     # Current progress tracking
 │   │   ├── DEVELOPMENT-RULES.md  # Framework development rules
 │   │   └── TECHNICAL-ARCHITECTURE.md # This file
-│   └── ai-instructions/       # Internal AI instructions
+│   ├── ai-instructions/       # Internal AI instructions
+│   └── archive/               # Framework archives (work-categorized)
+│       ├── feature/           # Completed framework features
+│       ├── technical/         # Completed framework technical work
+│       └── incidental/        # Completed framework incidental work
 └── upcoming/                  # Future framework work
+    ├── feature/               # Planned framework features
+    └── technical/             # Planned framework technical work
 
 templates/                     # Legacy template directory (being consolidated)
 profiles/                      # Stack-specific overlays
