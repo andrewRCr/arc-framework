@@ -9,13 +9,13 @@ Rules Hash: `4b3d89f2`
 - Work categorization: `feature/` (user-facing), `technical/` (infrastructure), `incidental/` (reactive) - see
   [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for decision rules
 - Quality gates (zero tolerance policy):
-  - Backend tests: N/A (documentation-only framework)
-  - Frontend tests: N/A (documentation-only framework)
-  - Backend lint: N/A (documentation-only framework)
-  - Frontend lint: N/A (documentation-only framework)
-  - TypeScript check: N/A (documentation-only framework)
-  - Markdown lint: `npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md` (zero violations)
-  - CI validation: GitHub Actions automatically runs on push/PR
+    - Backend tests: N/A (documentation-only framework)
+    - Frontend tests: N/A (documentation-only framework)
+    - Backend lint: N/A (documentation-only framework)
+    - Frontend lint: N/A (documentation-only framework)
+    - TypeScript check: N/A (documentation-only framework)
+    - Markdown lint: `npx --yes markdownlint-cli2 "**/*.md"` (zero violations)
+    - CI validation: GitHub Actions automatically runs on push/PR
 - Comprehensive Task Context Analysis before commits
 - Template-first approach with framework defaults integration
 
@@ -47,15 +47,15 @@ Rules Hash: `4b3d89f2`
 ### Quality Assurance
 
 - **Documentation linting**: ALWAYS run markdown linting after updating any documentation files
-- **Markdown linting**: Run `npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md` before commits
+- **Markdown linting**: Run `npx --yes markdownlint-cli2 "**/*.md"` before commits
 - **Template-first validation**: Verify template-first documents are comprehensive and copy-ready
 - **Framework defaults integration**: Ensure battle-tested defaults are properly embedded
 - **Workflow validation**: Validate workflows against real framework development usage
 - **CI checks**: GitHub Actions runs automatically on push/PR
-  - Markdown linting (zero violations policy)
-  - Template structure validation
-  - Internal link checking
-  - Framework system structure validation
+    - Markdown linting (zero violations policy)
+    - Template structure validation
+    - Internal link checking
+    - Framework system structure validation
 - **Backward compatibility**: Maintain compatibility in template-first documents
 
 ### Commit Standards
@@ -82,10 +82,10 @@ Rules Hash: `4b3d89f2`
   ```
 
 - **Never commit if**:
-  - Documentation is inconsistent
-  - Markdown linting fails
-  - CI checks would fail
-  - Task documentation doesn't align with changes
+    - Documentation is inconsistent
+    - Markdown linting fails
+    - CI checks would fail
+    - Task documentation doesn't align with changes
 
 ## AI Collaboration Rules
 
@@ -121,21 +121,21 @@ Rules Hash: `4b3d89f2`
 ### Markdown Linting
 
 ```bash
-# Lint all markdown files (current framework approach)
-npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
-
-# Lint specific file
-npx --yes markdownlint-cli path/to/file.md
-
-# Alternative: markdownlint-cli2 with patterns (if needed)
+# Lint all markdown files
 npx --yes markdownlint-cli2 "**/*.md"
+
+# Lint specific file (use --no-globs to avoid processing config globs)
+npx --yes markdownlint-cli2 --no-globs "path/to/file.md"
+
+# Lint specific directory
+npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```
 
 ### Pre-commit Workflow
 
 ```bash
 # 1. Lint documentation (zero tolerance)
-npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
+npx --yes markdownlint-cli2 "**/*.md"
 
 # 2. Check git status
 git status

@@ -21,7 +21,7 @@ jobs:
         node-version: '18'
 
     - name: Lint markdown files
-      run: npx markdownlint-cli2 "**/*.md" "!node_modules/**" "!.arc-internal/active/CURRENT-SESSION.md" "!.arc-internal/active/*/notes-*"
+      run: npx markdownlint-cli2 "**/*.md"
 
     - name: Validate template structure
       run: |

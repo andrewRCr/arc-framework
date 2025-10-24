@@ -33,7 +33,7 @@
 | Template documents | `.arc/reference/` | Template/example content for adopters |
 | Internal docs | `.arc-internal/reference/` | Framework-specific documentation |
 | Active work | `.arc-internal/active/` | Current feature work |
-| Quality gate | `npx --yes markdownlint-cli` | Zero-tolerance linting |
+| Quality gate | `npx --yes markdownlint-cli2` | Zero-tolerance linting |
 
 **Working Directory Note**: This is a documentation-only framework. All work happens at repository root.
 
@@ -56,16 +56,13 @@ All commands from **repository root**.
 
 ```bash
 # Lint all documentation
-npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
-
-# Lint specific file
-npx --yes markdownlint-cli path/to/file.md
-
-# Alternative: markdownlint-cli2 with patterns
 npx --yes markdownlint-cli2 "**/*.md"
 
-# Check single file only (bypass config globs)
+# Lint specific file (bypass config globs to avoid processing entire workspace)
 npx --yes markdownlint-cli2 --no-globs "path/to/file.md"
+
+# Lint specific directory
+npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```
 
 **Important:**
@@ -104,7 +101,7 @@ Reference for DEVELOPMENT-RULES quality gates. Run before any commit.
 
 ```bash
 # 1. Markdown Linting (zero violations required)
-npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
+npx --yes markdownlint-cli2 "**/*.md"
 
 # 2. Git Status Check
 git status
@@ -121,7 +118,7 @@ git --no-pager diff --stat
 Need to run a command?
 │
 ├─ Linting markdown?
-│  └─ npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md
+│  └─ npx --yes markdownlint-cli2 "**/*.md"
 │
 ├─ Checking file changes?
 │  └─ git status && git --no-pager diff --stat
@@ -142,11 +139,11 @@ Need to run a command?
 ### Incremental Quality Checks (After Document Edit)
 
 ```bash
-# Lint specific file
-npx --yes markdownlint-cli .arc/reference/workflows/some-workflow.md
+# Lint specific file (use --no-globs to avoid processing entire workspace)
+npx --yes markdownlint-cli2 --no-globs ".arc/reference/workflows/some-workflow.md"
 
 # Lint specific directory
-npx --yes markdownlint-cli .arc/reference/workflows/**/*.md
+npx --yes markdownlint-cli2 ".arc/reference/workflows/**/*.md"
 
 # Quick status check
 git status
