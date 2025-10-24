@@ -39,14 +39,14 @@ CineXplorer (primary) ──sync-cinexplorer-refinements.md──> ARC Framework
 **Framework Template Documents**:
 
 - `.arc/reference/` directory improvements:
-  - `constitution/` - Constitutional documents and standards
-  - `workflows/` - Process documentation
-  - `ai-instructions/` - AI collaboration guidance
-  - `strategies/` - Strategy and pattern documents
+    - `constitution/` - Constitutional documents and standards
+    - `workflows/` - Process documentation
+    - `ai-instructions/` - AI collaboration guidance
+    - `strategies/` - Strategy and pattern documents
 - `.arc/active/CURRENT-SESSION.md` - **Format/structure improvements only**
-  - Session Startup Protocol updates
-  - Section organization improvements
-  - Standard section additions
+    - Session Startup Protocol updates
+    - Section organization improvements
+    - Standard section additions
 - `.arc/README.md` - Directory overview improvements
 
 **Framework Version References**:

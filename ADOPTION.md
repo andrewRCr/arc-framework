@@ -32,20 +32,20 @@ You can keep projects aligned with system updates in several ways.
 ### 2) Submodule (managed linkage)
 
 - Add this repo as a submodule (replace with your published URL or fork):
-  - `git submodule add -b main {{ARC_SYSTEM_REPO_URL}} vendor/arc-agentic-system`
-  - `git submodule update --init --recursive`
+    - `git submodule add -b main {{ARC_SYSTEM_REPO_URL}} vendor/arc-agentic-system`
+    - `git submodule update --init --recursive`
 - Pull updates later:
-  - `git -C vendor/arc-agentic-system fetch origin`
-  - `git -C vendor/arc-agentic-system checkout main`
-  - `git -C vendor/arc-agentic-system pull --ff-only`
+    - `git -C vendor/arc-agentic-system fetch origin`
+    - `git -C vendor/arc-agentic-system checkout main`
+    - `git -C vendor/arc-agentic-system pull --ff-only`
 - Copy desired changes from `vendor/arc-agentic-system/.arc/` (and optionally `templates/` + `profiles/`) into your project.
 
 ### 3) Git subtree (no submodule overhead)
 
 - Add subtree (one-time):
-  - `git subtree add --prefix vendor/arc-agentic-system {{ARC_SYSTEM_REPO_URL}} main --squash`
+    - `git subtree add --prefix vendor/arc-agentic-system {{ARC_SYSTEM_REPO_URL}} main --squash`
 - Pull updates later:
-  - `git subtree pull --prefix vendor/arc-agentic-system {{ARC_SYSTEM_REPO_URL}} main --squash`
+    - `git subtree pull --prefix vendor/arc-agentic-system {{ARC_SYSTEM_REPO_URL}} main --squash`
 - Copy desired changes from `vendor/arc-agentic-system/.arc/` (and optionally `templates/` + `profiles/`) into your project.
 
 ### Line endings

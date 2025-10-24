@@ -131,10 +131,10 @@ Pure markdown documentation system with structural consistency through:
 - **Automated CI/CD** - GitHub Actions workflow (`.github/workflows/ci.yml`)
 - **NPX-based tooling** - No package.json or node_modules clutter
 - **Multi-stage validation**:
-  - Markdown linting via `markdownlint-cli2`
-  - Template structure validation
-  - Internal link checking
-  - ARC system structure validation
+    - Markdown linting via `markdownlint-cli2`
+    - Template structure validation
+    - Internal link checking
+    - ARC system structure validation
 - **Git-based version management** - Clean history with atomic commits
 - **Force-push capability** - For history cleanup during development
 

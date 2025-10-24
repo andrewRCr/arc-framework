@@ -112,16 +112,16 @@ Organize future work by priority level:
 ### High Priority
 
 - **[Major Feature/Area]** (Status: [In Planning/Branch: feature/name]):
-  - [Key deliverable 1]
-  - [Key deliverable 2]
-  - [Important capability to implement]
-  - [Quality/performance requirement]
-  - **Key Deliverables**: [Summary of main outcomes expected]
+    - [Key deliverable 1]
+    - [Key deliverable 2]
+    - [Important capability to implement]
+    - [Quality/performance requirement]
+    - **Key Deliverables**: [Summary of main outcomes expected]
 
 - **[Another High Priority Item]**:
-  - [Specific requirement 1]
-  - [Specific requirement 2]
-  - [Integration or dependency consideration]
+    - [Specific requirement 1]
+    - [Specific requirement 2]
+    - [Integration or dependency consideration]
 
 ### Medium Priority
 

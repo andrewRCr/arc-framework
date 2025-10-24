@@ -25,14 +25,14 @@ Frequency naturally adjusts based on CineXplorer development activity.
 **Stable Documentation Only**:
 
 - `.arc/reference/` directory and all non-archive subdirectories:
-  - `constitution/` - Constitutional documents and templates
-  - `workflows/` - Process documentation
-  - `ai-instructions/` - AI collaboration guidance
-  - `strategies/` - Strategy and pattern documents
+    - `constitution/` - Constitutional documents and templates
+    - `workflows/` - Process documentation
+    - `ai-instructions/` - AI collaboration guidance
+    - `strategies/` - Strategy and pattern documents
 - `.arc/active/CURRENT-SESSION.md` - **Format/structure changes only** (new stable sections, protocol additions)
-  - ⚠️ **Not temporal content**: Ignore session-specific work details, branch names, current tasks
-  - ⚠️ **Only sync structural improvements**: Session Startup Protocol, section organization, standard sections
-  - Note: File is gitignored everywhere except `.example.md` version
+    - ⚠️ **Not temporal content**: Ignore session-specific work details, branch names, current tasks
+    - ⚠️ **Only sync structural improvements**: Session Startup Protocol, section organization, standard sections
+    - Note: File is gitignored everywhere except `.example.md` version
 - `.arc/README.md` - Directory overview (if improvements are generic)
 
 ### What NOT to Sync (Exclude)
@@ -40,7 +40,7 @@ Frequency naturally adjusts based on CineXplorer development activity.
 **Instance-Specific Content**:
 
 - `.arc/active/` - Current work in CineXplorer (except CURRENT-SESSION.md format improvements)
-  - ⚠️ **CURRENT-SESSION.md exception**: Only sync structural/format changes, never temporal work details
+    - ⚠️ **CURRENT-SESSION.md exception**: Only sync structural/format changes, never temporal work details
 - `.arc/upcoming/` - CineXplorer-specific planning
 - `.arc/reference/archive/` - CineXplorer's completed work history
 - `.arc-internal/` - CineXplorer's internal workspace
