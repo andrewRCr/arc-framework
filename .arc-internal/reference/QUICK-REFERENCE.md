@@ -1,6 +1,6 @@
 # Quick Reference - ARC Agentic Development Framework
 
-**Version**: 0.2.0-dev | **Updated**: 2025-10-17 | **Location**: `.arc-internal/reference/`
+**Version**: 0.2.0-dev | **Updated**: 2025-10-24 | **Location**: `.arc-internal/reference/`
 
 ## About This Reference Directory
 
@@ -14,7 +14,8 @@
 
 - `constitution/` - Framework principles (META-PRD, TECHNICAL-ARCHITECTURE, PROJECT-STATUS)
 - `workflows/` - Core process guides
-- `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, sync-cinexplorer-refinements.md)
+- `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, maintain-docs.md,
+  sync-cinexplorer-refinements.md)
 - `strategies/` - Technical approaches and patterns
 - `ai-instructions/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md)
 
@@ -62,7 +63,15 @@ npx --yes markdownlint-cli path/to/file.md
 
 # Alternative: markdownlint-cli2 with patterns
 npx --yes markdownlint-cli2 "**/*.md"
+
+# Check single file only (bypass config globs)
+npx --yes markdownlint-cli2 --no-globs "path/to/file.md"
 ```
+
+**Important:**
+
+- Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
+- Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
 
 ### Git Operations
 
@@ -206,6 +215,7 @@ git status
 - **3-process-task-loop.md** - Workflow for task execution
 - **supplemental/atomic-commit.md** - Commit creation and review process
 - **supplemental/session-handoff.md** - Session handoff protocol
+- **supplemental/maintain-docs.md** - Documentation maintenance workflow
 - **supplemental/sync-cinexplorer-refinements.md** - CineXplorer sync workflow
 
 ---

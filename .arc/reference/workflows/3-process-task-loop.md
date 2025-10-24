@@ -1,150 +1,158 @@
-<!--
-Derived from: https://github.com/snarktank/ai-dev-tasks/process-task-list.md
-Original work licensed under Apache License 2.0
-Modifications: Enhanced for ARC framework with quality gates integration,
-feature branch management, and comprehensive task completion protocols
--->
+# Workflow: Task Processing Loop
 
-# Workflow: Process Tasks
+## Purpose
 
-Guidelines for managing task lists in markdown files to track progress on completing a PRD.
+This workflow defines the detailed process for executing tasks defined in ARC task lists (e.g., `.arc/active/*/tasks-*.md`).
+It ensures consistent execution, quality control, and documentation of work.
 
 ## Task Implementation
 
-- **One sub-task at a time:** Do **NOT** start the next sub-task until you ask the user for permission
-  and they say "yes" or "y"
-- **Test-first approach:** For new functionality and complex logic, write tests before implementation
-- **Incremental quality checks:** Run linting and type checking on modified files after each
-  sub-task
-- **Immediate documentation:** Update the task list file immediately after completing each subtask
+- **One sub-task at a time:** Do **NOT** start the next sub‑task without user approval
 - **Completion protocol:**
 
-  1. When you finish a **single sub-task**:
-     - **First**: Immediately mark it as completed by changing `[ ]` to `[x]` in the task list file
-     - **Second**: Update the "Relevant Files" section if new files were created or modified
-     - **Third**: **MANDATORY STOP** - Pause and ask for user review/approval of the subtask completion
-     - **Fourth**: Only proceed to next subtask with explicit user permission ("proceed to X.Y" or "y")
+  1. When you finish a **single sub‑task**:
+     - **First**: Run incremental quality checks on modified files (linting, type checking)
+       - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
+       - When task list explicitly calls for quality gates, they are mandatory
+     - **Second**: Mark subtask as `[x]` in task list file (task list reflects completed work when reporting)
+       - Update task description to reflect actual work done (not just original plan)
+       - Add "Completed" section with key findings/changes if work deviated from plan
+       - **Streamline verbose planning details**: Task descriptions serve different purposes before vs. after completion.
+         During planning, verbose details help guide execution. After completion, they become historical records.
+         When marking a task complete, retain information useful for understanding what was done and why,
+         but remove excessive planning scaffolding (detailed step-by-step instructions, pre-implementation
+         considerations, etc.) that no longer serves a purpose. Keep: actual changes made, key decisions,
+         architectural impact, anything needed to understand the implementation later.
+     - **Third**: Verify completion before reporting (use pre-report checklist below)
+     - **Fourth**: **REPORT** completed work to user with summary of changes
+     - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
+     - **Sixth**: After approval, proceed to next subtask
      - **NEVER** continue to multiple subtasks without explicit user approval for each one
+
+     **Pre-Report Checklist** (verify before generating completion report):
+
+     ```
+     - [ ] Quality checks passed (linting, type checking, tests as appropriate)
+     - [ ] Task list markdown file edited and saved
+     - [ ] Subtask marked [x] in task list
+     - [ ] Task description updated to reflect actual work done
+     - [ ] Ready to generate user-facing completion report
+     ```
+
+     If any item is unchecked, complete it before proceeding to report generation.
+
+     **Note on implied permission:** User approval ("great!", "looks good", "proceed") implies permission to
+     continue to the next subtask UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
+     In such cases, address the concern before proceeding to the next task-list-documented subtask.
 
   2. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
 
-  - **First**: Ensure new functionality has appropriate test coverage
-  - **Second**: Run the full test suite per {{BACKEND_TEST_CMD}}, {{FRONTEND_TEST_CMD}}
-- **Third**: Run all linting checks per {{BACKEND_LINT_CMD}}, {{FRONTEND_LINT_CMD}},
-  {{TS_TYPECHECK_CMD}}, {{MARKDOWN_LINT_CMD}}
-- **Fourth**: Check if PROJECT-STATUS needs updates (feature progress, completed functionality,
-  updated priorities)
+     - **First**: Mark the **parent task** as `[x]` in the task list file (ensures docs reflect completion)
+     - **Second**: Ensure new code has appropriate test coverage (models, APIs, complex logic)
+     - **Third**: Run the full quality gates (all tests, linting, type checks)
+     - **Fourth**: Check if [PROJECT-STATUS](.arc/reference/constitution/PROJECT-STATUS.md) needs updates
+       (feature progress, completed functionality, updated priorities)
+     - **Fifth**: Verify completion before reporting (use pre-report checklist below)
 
-  1. Generate standardized readiness report (see DEVELOPMENT-RULES.md for format) and await user instructions
-     on how to proceed. User may choose to commit changes (AI can execute only if explicitly approved to do so)
-     or review first. When committing, follow atomic-commit workflow guidelines:
+  3. Report completion to user
 
-  - Uses conventional commit format (`feat:`, `fix:`, `refactor:`, etc.)
-  - Summarizes what was accomplished in the parent task
-  - Lists key changes and additions
-    - **Accurately references the specific task number being completed** (e.g., "Complete task {TASK_ID}"
-      where {TASK_ID} is the actual subtask like "4.2.3")
-  - References the PRD context and current branch {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}
-  - **Formats the message as a single-line command using `-m` flags**, replacing placeholders with real values:
+     **Pre-Report Checklist for Parent Task Completion** (verify before reporting):
 
-      ```
-      git commit -m "feat({{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}): add validation logic" -m "- Validates input parameters" -m "- Adds unit tests for edge cases" -m "Complete task {TASK_ID}" -m "Related to {{FEATURE_NAME}} PRD"
-      ```
+     ```
+     - [ ] All subtasks under parent task marked [x] in task list
+     - [ ] Parent task marked [x] in task list
+     - [ ] Task list file edited and saved
+     - [ ] Full test suite passed (backend + frontend)
+     - [ ] All linting checks passed (backend + frontend + markdown)
+     - [ ] PROJECT-STATUS checked and updated if needed
+     - [ ] Ready to report completion to user
+     ```
 
-  1. Once the user commits changes, mark the **parent task** as completed in task documentation.
-  2. **Verify task documentation accuracy** - ensure task status matches what was actually completed.
+     If any item is unchecked, complete it before proceeding to report generation.
 
-### Incremental Quality Checks
+  4. Await user instructions on how to proceed.
+     User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
+     When committing, follow [Atomic Commit Workflow](supplemental/atomic-commit.md) guidelines.
 
-After each sub-task, run relevant quality checks on modified files only:
+## Incidental Work Management
 
-**Use commands from DEVELOPMENT-RULES.md:**
+### Quick Decision Guide
 
-- {{BACKEND_LINT_CMD}} on modified backend files
-- {{FRONTEND_LINT_CMD}} on modified frontend files
-- {{TS_TYPECHECK_CMD}} for TypeScript validation
-- {{MARKDOWN_LINT_CMD}} for documentation
+While working on feature tasks, you may discover quality improvements, refactoring, or tech debt that should be fixed
+immediately. **Quick decision tree**:
 
-**Fix issues immediately** - don't accumulate technical debt across sub-tasks.
+**Create incidental task list when:**
 
-### Feature Branch Management
+- ✅ Multiple subtasks needed (>1 subtask)
+- ✅ Non-trivial effort (>30 minutes estimated)
+- ✅ Cross-cutting concern (affects multiple domains/files)
+- ✅ Quality improvement discovered during feature work
+- ✅ Worth documenting for handoffs
 
-#### Starting Feature Work
+**Fix inline (no task list) when:**
 
-- **Ensure correct branch**: Verify you're on the feature branch (e.g., `{{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}`)
-- **Check branch status**: `git status` should show the feature branch as current
-- **If not on feature branch**: `git checkout {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}`
+- ❌ Simple fixes (<30 min, 1 subtask)
+- ❌ Typos, formatting, trivial refactors
+- ❌ Work already in main task list - add subtasks there
+- ❌ Exploratory work - use notes files instead
 
-#### During Task Execution
+### Complete Workflow
 
-- **All commits go to feature branch**: Normal atomic commit workflow applies within the branch
-- **Stay on feature branch**: Don't switch branches during active task work
-- **Branch context in handoffs**: Include current branch in any AI context handoffs
-
-#### Feature Completion
-
-When all parent tasks are complete and ready for integration:
-
-1. **Final quality gates**: All tests pass, zero linting violations, zero type errors
-2. **Generate completion report**: Use standardized format from DEVELOPMENT-RULES.md
-3. **Await user approval**: User decides when to merge to {{DEFAULT_BRANCH}}
-4. **Merge process** (user executes):
-
-   ```bash
-   git checkout {{DEFAULT_BRANCH}}
-   git merge {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}  # Preserve commit history
-   git branch -d {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}  # Clean up feature branch
-   ```
-
-5. **Update PROJECT-STATUS**: Move feature from "In Progress" to "Completed"
-
-### PROJECT-STATUS Maintenance
-
-- **After each sub-task**: Update task documentation only
-- **After each parent task**: Check if PROJECT-STATUS needs updates:
-  - Feature progress milestones reached
-  - Newly completed functionality to highlight
-  - Updated timelines or priorities
-  - Dependencies that are now resolved
-  - Any other work completed outside the current task list
-
-- **Stop after each individual sub-task and wait for the user's go-ahead**
-- **Never complete multiple subtasks in one implementation cycle** - each subtask represents a discrete
-  deliverable that requires individual review
-- **Each subtask should be documented and approved before moving forward**
+**For full incidental work lifecycle** (creation, execution, archival), see:
+**→ [manage-incidental-work.md](manage-incidental-work.md)** ← Complete workflow documentation
 
 ## Task List Maintenance
+
+### TodoWrite Tool vs Task List Files
+
+**TodoWrite Tool** (session-only tracking):
+
+- Used for organizing work during active implementation
+- Ephemeral, not saved to git
+- Helps AI break down current work into steps
+- **NOT a substitute for task list markdown updates**
+
+**Task List Markdown Files** (permanent record):
+
+- Official project documentation (`.arc/active/*/tasks-*.md`)
+- Committed to git with code changes
+- Source of truth for completion status
+- **MUST be updated when completing tasks** (before reporting to user)
+
+Both tools serve different purposes - use TodoWrite for work-in-progress organization.
+Always update task list markdown for permanent completion tracking.
+
+#### TodoWrite Best Practice: Always Include Documentation Step
+
+**IMPORTANT:** When creating TodoWrite items for a subtask, ALWAYS include a dedicated item for updating the task list markdown:
+
+```json
+[
+  {"content": "Analyze the code/requirements", "status": "pending", ...},
+  {"content": "Make technical changes", "status": "pending", ...},
+  {"content": "Run quality checks", "status": "pending", ...},
+  {"content": "Update task list markdown with [x] and details", "status": "pending", ...},
+  {"content": "Report completion to user", "status": "pending", ...}
+]
+```
+
+**Rationale:** This creates a forcing function to remember the task list update before generating
+the completion report. The TodoWrite item serves as a checklist reminder.
+
+**When to mark this item complete:**
+
+- After editing the task list markdown file
+- After marking the subtask `[x]`
+- After adding any "Completed" details about actual work done
+- BEFORE generating the user-facing completion report
+
+### Updating Task Lists
 
 1. **Update the task list as you work:**
 
    - Mark tasks and subtasks as completed (`[x]`) per the protocol above.
    - Add new tasks as they emerge.
 
-2. **Maintain the "Relevant Files" section:**
-   - List every file created or modified.
-   - Give each file a one-line description of its purpose.
-
-## AI Instructions
-
-When working with task lists, the AI must:
-
-1. Regularly update the task list file after finishing any significant work.
-2. Follow the completion protocol:
-   - Mark each finished **sub-task** `[x]`.
-   - Mark the **parent task** `[x]` once **all** its subtasks are `[x]`.
-   - **Verify parent task completion happens in documentation commits**.
-3. Add newly discovered tasks.
-4. Keep "Relevant Files" accurate and up to date.
-5. Before starting work, check which **single sub-task** is next.
-6. **Complete only ONE subtask at a time** - never bundle multiple subtasks together.
-7. After implementing a **single sub-task**:
-   - **Run incremental quality checks** on modified files (linting, type checking)
-   - **Do not mark the subtask [x] until all checks pass (0 errors)**
-   - **Fix any issues immediately** before marking complete
-   - Update the task list file immediately (mark subtask as [x])
-   - Update "Relevant Files" section if applicable
-   - Pause and request user review/approval of the specific subtask completion
-   - Wait for explicit permission before starting the next subtask
-8. **Generate standardized readiness reports** using format from DEVELOPMENT-RULES.md
-9. **Never initiate commits** without explicit user approval - await commit instructions
-10. **Never assume subtasks can be grouped** - each represents an individual deliverable requiring separate approval.
+2. **Track file changes via git:**
+   - Git status and diffs provide the most accurate record of changes.
+   - No need to manually maintain file lists - tools like `git status` and `git diff` are always current.

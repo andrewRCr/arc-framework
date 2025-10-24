@@ -1,6 +1,6 @@
 # Quick Reference - {{PROJECT_NAME}}
 
-**Version**: {{VERSION}} | **Updated**: {{YYYY-MM-DD}} | **Location**: `.arc/reference/`
+**Version**: 1.1 | **Updated**: {{YYYY-MM-DD}} | **Location**: `.arc/reference/`
 
 ## About This Reference Directory
 
@@ -15,7 +15,8 @@
 - `constitution/` - Project principles (META-PRD, TECHNICAL-ARCHITECTURE, PROJECT-STATUS)
 - `workflows/` - Core process guides (0-define-constitution.md, 1-create-prd.md, 2-generate-tasks.md,
   3-process-task-loop.md)
-- `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, manage-incidental-work.md)
+- `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, manage-incidental-work.md,
+  maintain-docs.md)
 - `strategies/` - Technical approaches (project-specific strategy documents)
 - `ai-instructions/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
 
@@ -133,13 +134,27 @@ docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run ty
 
 ### Markdown Linting
 
+**⚠️ Run from repo root** - Config file must be discoverable
+
 ```bash
-# Check
+# Check all files
 npx markdownlint-cli2 "README.md" ".arc/**/*.md"
 
-# Auto-fix
+# Auto-fix all files
 npx markdownlint-cli2 --fix "README.md" ".arc/**/*.md"
+
+# Check single file only (bypass config globs)
+npx markdownlint-cli2 --no-globs "path/to/file.md"
+
+# Auto-fix single file only
+npx markdownlint-cli2 --fix --no-globs "path/to/file.md"
 ```
+
+**Important:**
+
+- Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
+- Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
+- VS Code extension may use separate config file
 
 ---
 
@@ -305,6 +320,7 @@ docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNN
 - **3-process-task-loop.md** - Workflow for task execution
 - **supplemental/atomic-commit.md** - Commit creation and review process
 - **supplemental/session-handoff.md** - Session handoff protocol
+- **supplemental/maintain-docs.md** - Documentation maintenance workflow
 - **strategies/** - Project-specific technical approaches and patterns
 
 ---
