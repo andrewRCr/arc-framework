@@ -1,22 +1,18 @@
 # GitHub Copilot Instructions
 
 Copilot suggestions must align with the canonical docs:
-
-- [AGENTS](AGENTS.md) – Project context, lookup guide, and collaboration principles
-- [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) v0.2.0-dev (hash: 4b3d89f2) – Non-negotiable standards
-- [QUICK-REFERENCE](../QUICK-REFERENCE.md) v0.2.0-dev – Environment context and command patterns
-- [Process Task Loop](../workflows/3-process-task-loop.md) – One-subtask workflow
+[AGENTS](AGENTS.md),
+[DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) v0.2.0-dev (hash: 4b3d89f2),
+and [QUICK-REFERENCE](../QUICK-REFERENCE.md) v0.2.0-dev.
 
 ## Copilot-Specific Notes
 
-- **Session startup:** Execute Session Startup Protocol in CURRENT-SESSION.md first (verify working directory at repo
-  root, no runtime containers, markdown linting available)
-- **Context snippets:** When prompting Copilot, include active task, acceptance criteria, and relevant files; keep
-  prompts short to avoid stale context
-- **Command hints:** Suggest markdown linting and git commands from QUICK-REFERENCE (assume repo root paths) and
-  remind users to run quality gates before committing
-- **Code style reminders:** N/A (documentation-only framework - no backend/frontend code)
-- **Testing prompts:** N/A (documentation doesn't have unit tests - quality gate is markdown linting)
-- **Deferrals:** If Copilot proposes complex tooling, remind that this is a documentation-only framework (markdown
-  linting is the only automated quality check)
-- **Self-hosting:** Framework develops itself using ARC methodology - we are our own test case
+- **Context snippets:** When prompting Copilot, include the active task, acceptance criteria, and relevant files;
+keep prompts short to avoid stale context.
+- **Command hints:** Suggest Docker-first commands (see QUICK-REFERENCE for path patterns from repo root) and remind users
+to run quality gates before committing.
+- **Code style reminders:**
+    - Backend: Django + Ninja, type hints, prefer helper imports over duplicating factories
+    - Frontend: React + Chakra UI, strict TypeScript, include loading/error states
+- **Testing prompts:** Encourage generating unit/integration tests alongside implementation (Vitest + Django TestCase patterns).
+- **Deferrals:** If Copilot proposes outdated tooling (flake8/mypy), correct the suggestion to Ruff/Pyright per DEVELOPMENT-RULES.

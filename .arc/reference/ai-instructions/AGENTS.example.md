@@ -86,6 +86,7 @@ When you need to find information, use these pointers (don't load everything upf
 - **Handle maintenance work** → `workflows/supplemental/manage-incidental-work.md`
 - **Hand off session** → `workflows/supplemental/session-handoff.md`
 - **Clean up completed work** → `workflows/supplemental/archive-completed.md`
+- **Initialize session** → `workflows/supplemental/session-init.md`
 
 **Project Information:**
 
@@ -144,6 +145,8 @@ When constitutional documents change, update related files to keep documentation
 - **Respect user intent** - Never revert or "fix" user changes without explicit approval
 - **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
+- **One subtask at a time** - Complete tasks incrementally, await approval between subtasks
+- **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
 
 **Communication:**
 
