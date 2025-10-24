@@ -1,114 +1,61 @@
-# Development Rules - [Your Project Name]
+# Development Rules - {{PROJECT_NAME}}
 
 <!--
-ARC Framework Template: Copy this file and customize for your project
-- Replace [Your Project Name] with your actual project name
-- Update version and hash as your rules evolve
-- Customize quality gate commands for your technology stack
-- Framework defaults below are battle-tested from real projects
+Copy this file and customize the quality gate commands for your technology stack.
+Replace {{PLACEHOLDERS}} with your actual values.
+This structure is battle-tested - follow the sections and adapt commands to your environment.
 -->
 
-**Version**: 1.0
-**Last Updated**: [Date]
-**Rules Hash**: `[Generate unique hash]`
+**Version:** {{VERSION}} | **Updated:** {{DATE}} | **Hash:** `{{HASH}}`
 
-**Read with**: QUICK-REFERENCE.md (environment context and command patterns)
+Core development rules and quality standards for {{PROJECT_NAME}}. These rules are **non-negotiable** and must be followed
+by all contributors, including AI assistants.
 
-This document consolidates the core development rules and quality standards for [Your Project Name].
-These rules are **non-negotiable** and must be followed by all contributors, including AI assistants.
+**For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
+**For session initialization protocol**, see [session-init.md](../workflows/supplemental/session-init.md).
 
-## ARC Framework Default Rules
-
-### AI Session Initialization Required
-
-Before starting ANY work, AI assistants must:
-
-1. **Confirm rules version**: "Acknowledging DEVELOPMENT-RULES v[X.X], hash [hash]"
-2. **State understanding**: Briefly confirm understanding of commit protocols, task context analysis, quality gates,
-   session management, and feature branch workflow
-3. **Verify context access**: Confirm access to required documents (AGENTS, META-PRD, etc.)
-4. **Check branch status**: Verify current git branch and ensure alignment with intended work
-
-### Session Documentation Control
-
-**CURRENT-SESSION.md Update Protocol**:
-
-- **AI NEVER updates CURRENT-SESSION.md** without explicit user instruction
-- CURRENT-SESSION.md is a handoff document controlled by the user
-- AI should report changes and progress but NOT modify this file during active work
-- User decides when and how session documentation is updated
-- Violating this rule breaks session continuity and coordination
-
-### Git & Commit Control
-
-**Manual Commit Control**:
+## Manual Commit Control
 
 - **AI NEVER initiates commits** without explicit user approval or instruction
-- **AI CAN execute commits** when user explicitly approves/instructs it to do so
-- **User approval required** to begin any git operations
-- **MANDATORY**: AI must perform comprehensive task context analysis before any commit consideration
-- AI reports completion with standardized readiness report, then awaits commit instructions
-
-**Work Categorization & Branch Workflow**:
-
-The ARC framework uses a three-way work categorization system:
-
-- **feature/** - Planned user-facing capabilities (e.g., `feature/user-authentication`)
-- **technical/** - Planned infrastructure improvements (e.g., `technical/testing-infrastructure`)
-- **incidental/** - Unplanned reactive work (NO separate branches - commits to current feature/technical branch)
-
-See [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for detailed decision rules and workflows.
-
-**Branch Workflow**:
-
-- **All planned work** must happen on dedicated feature or technical branches
-- **Branch creation**: Create new branch during task generation phase
-- **Branch verification**: Always verify correct branch before committing
-- **Merge strategy**: Preserve commit history when merging to main (no squash merge)
-- **Branch cleanup**: Delete feature/technical branches after successful merge
+- **AI CAN execute commits** when user explicitly approves/instructs it
+- **User approval required** for all git operations
+- **MANDATORY:** Comprehensive task context analysis before any commit consideration (see atomic-commit workflow)
+- **Task list accuracy required**: Before commit consideration, verify task documentation reflects completed work
+  (parent task marked `[x]` if all subtasks complete)
+- **Never commit stale task docs**: Task list updates must be saved and included in commits for completed work
+- AI reports completion, then awaits commit instructions
 
 ### Quality Gates (Zero Tolerance)
 
-Before any commit consideration, ALL of the following must pass with **zero exceptions**:
+Before any commit consideration, ALL of the following must pass with **zero exceptions**.
+For specific commands, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 
-<!--
-Customize these commands for your technology stack:
-- Replace example commands with your actual testing/linting setup
-- Add or remove quality gates based on your project needs
-- Keep the zero-tolerance principle for quality
--->
+**Zero Tolerance Policy:** All errors, violations, and failures must be fixed. No exceptions.
 
 1. **Backend Tests**: 100% pass rate
-   - Command: `[Your backend test command]`
-   - Example: `npm run test:backend` or `python -m pytest`
-   - Zero failures acceptable
+   - Command: `{{BACKEND_TEST_COMMAND}}`
+   - Example: `pytest backend/` or `docker compose exec backend pytest`
 
 2. **Frontend Tests**: 100% pass rate
-   - Command: `[Your frontend test command]`
-   - Example: `npm test` or `npm run test:frontend`
-   - Zero failures acceptable
+   - Command: `{{FRONTEND_TEST_COMMAND}}`
+   - Example: `npm test` or `docker compose exec frontend npm test`
 
 3. **Backend Linting**: Zero violations
-   - Command: `[Your backend linting command]`
-   - Example: `npm run lint:backend` or `flake8 .`
-   - Auto-fix: `[Your auto-fix command if available]`
-   - Every violation must be fixed
+   - Command: `{{BACKEND_LINT_COMMAND}}`
+   - Example: `ruff check .` or `flake8 backend/`
 
 4. **Frontend Linting**: Zero violations
-   - Command: `[Your frontend linting command]`
-   - Example: `npm run lint` or `npm run lint:frontend`
-   - Every violation must be fixed
+   - Command: `{{FRONTEND_LINT_COMMAND}}`
+   - Example: `npm run lint` or `eslint src/`
 
 5. **Type Checking**: Zero errors
-   - Command: `[Your type checking command]`
-   - Example: `npm run type-check` or `mypy .`
-   - Every type error must be resolved
+   - Command: `{{TYPE_CHECK_COMMAND}}`
+   - Example: `npx pyright` or `npm run type-check` or `mypy .`
 
-6. **Documentation Linting**: Zero violations
-   - **ALWAYS run after updating any documentation files**
-   - Command: `npx markdownlint-cli2 "README.md" ".arc/**/*.md"`
-   - Auto-fix: `npx markdownlint-cli2 --fix "README.md" ".arc/**/*.md"`
-   - Every violation must be fixed
+6. **Markdown Linting**: Zero violations
+   - Command: `npx --yes markdownlint-cli2 "**/*.md"`
+   - Auto-fix: `npx --yes markdownlint-cli2 --fix "**/*.md"`
+   - Config: `.markdownlint-cli2.jsonc`
 
 ### Quality Gate Failure Protocol
 
@@ -145,53 +92,23 @@ Quality issues discovered during work should be addressed, not ignored.
    - Deferred issues: Create task list in `.arc/active/incidental/tasks-incidental-*.md`
    - Never: Leave issues undocumented or unaddressed
 
-## Code Quality Principles
+## Session Documentation Control
 
-Apply standard software engineering principles to maintain clean, maintainable code:
+### CURRENT-SESSION.md Update Protocol
 
-### Core Principles
-
-**DRY (Don't Repeat Yourself)**
-
-- Extract repeated logic into reusable functions, components, or utilities
-- Wait for 2-3 instances before abstracting (avoid premature optimization)
-- Share types and interfaces instead of duplicating definitions
-
-**SOLID Principles**
-
-- **Single Responsibility**: Each component/function should have one clear purpose
-- **Open/Closed**: Use composition and configuration over modification
-- **Liskov Substitution**: Subtypes must be substitutable for their base types
-- **Interface Segregation**: Keep interfaces focused and minimal
-- **Dependency Inversion**: Depend on abstractions, not concrete implementations
-
-**KISS (Keep It Simple)**
-
-- Choose simple solutions over clever ones
-- Prefer clarity over brevity when they conflict
-- Question complexity - if it's hard to explain, simplify it
-
-**YAGNI (You Aren't Gonna Need It)**
-
-- Implement features when required, not when anticipated
-- Start specific, generalize later when patterns actually emerge
-- Delete unused code
-
-### Practical Application
-
-- **Separate concerns**: UI from business logic, data fetching from presentation
-- **Use custom hooks** to abstract and share logic
-- **Prefer composition** over inheritance or duplication
-- **Design component APIs** that accept configuration
-- **When principles conflict**: Favor readability and simplicity
+- **AI NEVER updates CURRENT-SESSION.md** without explicit user instruction
+- CURRENT-SESSION.md is a handoff document only updated at session end when instructed
+- AI should report changes and progress, but user decides when/how session docs are updated
 
 ## Task Management Protocol
 
 ### One Sub-Task Rule
 
 - **Complete ONE sub-task at a time** - never bundle multiple deliverables
-- **Mandatory stop** after each sub-task completion
-- **Wait for explicit user approval** before starting next sub-task
+- **Mark complete immediately** when work is done (tests pass, quality checks pass)
+- **Mandatory stop** after reporting completion for user approval to proceed
+- **Implied permission**: User approval implies permission to proceed UNLESS explicitly stated otherwise
+  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to next subtask.
 
 ### Sub-Task Granularity Guidelines
 
@@ -202,170 +119,55 @@ Break down a sub-task if it requires:
 - Multiple interdependent changes
 - Complex debugging/investigation
 
-### Documentation Synchronization
+### Test-First Protocol
 
-- **Immediate task list updates**: Mark `[x]` in task files after each sub-task
-- **Update "Relevant Files"** section when files are created/modified
-- **Never batch documentation updates** - do immediately after work
-- **Task lists and commit messages must align** - comprehensive task context analysis required
+**BEFORE implementing any sub-task, assess test-first requirement:**
 
-### Parent Task Completion
+**Requires test-first** (write tests BEFORE implementation):
 
-After completing all sub-tasks under a parent task:
+- New models (data schemas, ORM models)
+- New API endpoints or endpoint modifications
+- New service classes or business logic
+- Complex algorithms or data transformations
+- Non-trivial validation or processing logic
 
-1. **Run full quality gate checks**
-2. **Check PROJECT-STATUS** for necessary updates
-3. **Report completion** with standardized readiness report
-4. **Wait for user approval** before proceeding
+**Test-after acceptable**:
+
+- Simple CRUD operations with no custom logic
+- Presentational UI components
+- Configuration file changes
+- Trivial refactoring (renaming, moving files)
+- Documentation-only changes
+
+**If unsure whether test-first applies, default to test-first.** Writing tests after implementation is harder and less effective.
+
+**During task list creation:** Ensure test sub-tasks appear BEFORE implementation sub-tasks for test-first work.
+This makes the protocol visible during execution.
 
 ## Testing Requirements
 
-### Test Coverage Standards
+- **Test-first protocol**: See Task Management Protocol section above for when to write tests before vs. after implementation
+- **Integration focus**: Prefer flow-level coverage over isolated units when practical
+- **All tests must pass** before any commit discussion (see quality gates above)
+- **Command patterns**: See [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) for execution commands
 
-<!--
-Customize these testing approaches for your project:
-- Adjust based on your application type and requirements
-- Set specific coverage targets if desired
--->
+## Code Quality Principles
 
-- **Test-first approach**: Required for new models, API endpoints, complex business logic
-- **Test-after acceptable**: For simple CRUD operations, UI components, configuration
-- **Always required**: All features must have appropriate test coverage
-- **Integration focus**: Test workflows, not just individual components
+Apply standard software engineering principles:
 
-### Test Execution Standards
+- **DRY** (don't repeat yourself)
+- **SOLID** (single responsibility, open/closed, dependency inversion)
+- **KISS** (keep it simple)
+- **YAGNI** (you aren't gonna need it)
 
-- **Before commits**: Full test suite must pass completely
-- **During development**: Use appropriate test modes as needed for efficiency
-- **Coverage reporting**: `[Your coverage command if used]`
-
-## Commit Standards
-
-### Comprehensive Task Context Analysis Protocol
-
-**MANDATORY** before every commit consideration:
-
-1. **Examine ALL uncommitted changes**
-2. **Locate relevant task documentation** in active tasks
-   (`.arc/active/feature/` or `.arc/active/incidental/`)
-   or upcoming tasks (`.arc/upcoming/tasks/`)
-3. **Analyze task completion status** vs documented tasks
-4. **Update task documentation** - mark subtasks complete
-5. **Write accurate commit messages** reflecting project status
-
-**Key Principle**: Commit messages must communicate WHERE the project stands after the commit.
-
-### Conventional Commit Format
-
-<!--
-Customize commit format for your project:
-- Adjust types, scopes, and format as needed
-- Consider tools like Commitizen for consistency
--->
-
-- **Types**: feat, fix, docs, style, refactor, test, config, chore
-- **Scope**: Use feature/system name for context
-- **Reference tasks**: Include task numbers with feature context
-- **Format**: `[type](scope): Brief description`
-
-### Atomic Commit Guidelines
-
-- Each commit should be a single logical change
-- Commits should be independently buildable/testable
-- Use descriptive messages that reflect project milestone status, not just changes made
-- Reference correct task numbers with full phase/milestone context
-- Distinguish clearly between partial progress and milestone completion
-
-## Error Handling
-
-### When Things Go Wrong
-
-- **Report immediately** with full context
-- **Provide diagnostic information** (error messages, stack traces)
-- **Suggest investigation areas** based on the changes made
-- **Wait for guidance** rather than attempting fixes without approval
-
-### Never Proceed If
-
-- Quality gates are failing
-- Tests are broken
-- Linting violations exist
-- Type errors are present (if applicable)
-- User has not approved the next step
-
-## Project-Specific Customizations
-
-<!--
-Add your project-specific rules below:
-- Technology stack requirements
-- Domain-specific standards
-- Team conventions
-- External integrations
--->
-
-### Technology Stack Requirements
-
-[Add your specific technology requirements here]
-
-### Domain-Specific Standards
-
-[Add your business domain requirements here]
-
-### Team Conventions
-
-[Add your team-specific conventions here]
-
-## Essential Commands
-
-<!--
-Customize these commands for your development environment:
-- Replace placeholders with your actual commands
-- Add or remove sections based on your stack
--->
-
-### Application Startup
-
-```bash
-# Start your application
-[Your startup command here]
-# Example: npm run dev, docker-compose up, etc.
-```
-
-### Development Environment
-
-```bash
-# Setup/install dependencies
-[Your setup commands here]
-
-# Environment validation
-[Your validation commands here]
-```
-
-### Feature Branch Management
-
-```bash
-# Create and switch to new feature branch
-git checkout -b feature/[feature-name]
-
-# Check current branch
-git status
-git branch --show-current
-
-# Switch back to main and merge (preserves commit history)
-git checkout main
-git merge feature/[feature-name]
-
-# Delete feature branch after merge
-git branch -d feature/[feature-name]
-```
+Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
 ## Reference Documentation
 
-This document provides core rules. See detailed protocols in:
+This document provides core rules and standards. See related documentation:
 
-- [AI Agent Reference](../ai-instructions/AGENTS.md) - Project orientation and lookup guide for AI
-- [Technical Architecture](TECHNICAL-ARCHITECTURE.md) - Additional methodology details
+- [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
 - [Task Processing Workflow](../workflows/3-process-task-loop.md) - Detailed task execution workflow
-- [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Enhanced commit workflow
-  with comprehensive task context analysis
-- [Session Handoff Workflow](../workflows/supplemental/session-handoff.md) - Detailed context handoff workflow
+- [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Enhanced commit workflow with task context analysis
+- [AI Agent Reference Card](../ai-instructions/AGENTS.md) - Complete project context for AI
+- [Technical Architecture](TECHNICAL-ARCHITECTURE.md) - Architecture and methodology details

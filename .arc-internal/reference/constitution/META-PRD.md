@@ -145,25 +145,6 @@ disciplined alternative to more permissive AI development approaches.
 ### Compatibility
 
 - Works with any git-based project
+- Agent-agnostic (Claude, Gemini, GPT, etc.)
 - Platform agnostic (Windows, macOS, Linux)
 - No external dependencies required
-
-## Data Sources
-
-### Internal Sources
-
-- System usage in CineXplorer project (real-world validation)
-- Development experience from building the system itself
-- Iteration feedback from using `__docs_internal/` workspace
-
-### External Sources
-
-- Best practices from software development methodologies
-- AI-human collaboration research and patterns
-- Documentation system analysis from popular open source projects
-
-### Validation Sources
-
-- Developer feedback when system becomes public
-- Community contributions and issue reports
-- Adoption patterns and common customizations

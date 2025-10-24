@@ -1,207 +1,180 @@
-# [Your Project Name] Project Status
+# {{PROJECT_NAME}} Project Status
 
-<!-- 
-ARC Framework Template: Copy this file and customize for your project
-- Replace [Your Project Name] with your actual project name
-- This document tracks current progress and upcoming work
-- Update regularly as features move from planning → implementation → completion
-- Keep this objective and measurable - concrete deliverables, not intentions
+<!--
+This document tracks project progress. Update regularly as features move through planning → implementation → completion.
+Replace {{PLACEHOLDERS}} with your project specifics.
 -->
 
 ## Current State Overview
 
-<!-- 
-Provide a brief, high-level summary of where your project stands:
-- What phase of development (early, active, mature, maintenance)
-- Overall progress toward META-PRD objectives
-- Key recent accomplishments
-- Current development focus
--->
+<!-- Brief high-level summary of development state and current focus -->
 
-[Your Project Name] is [brief description of current development state - e.g., "in active development",
-"nearing completion", "entering maintenance phase"]. [Brief summary of overall progress and current focus area].
+{{PROJECT_NAME}} is {{DEVELOPMENT_STATE - e.g., "in active development", "nearing completion", "entering maintenance phase"}}.
+{{BRIEF_SUMMARY_OF_PROGRESS_AND_FOCUS}}.
 
-> **Planning Note**: For completed work, this document reflects objective metrics and concrete
-> deliverables. For upcoming/planned features, add explicit acceptance criteria as work approaches execution:
+> **Planning Note**:
+> For completed work, this document aims to reflect objective metrics and concrete deliverables.
+> For upcoming/planned features, specifics are often still being defined.
+> As features move from planning → implementation, add explicit acceptance criteria including:
 >
-> - Technical specifications and implementation details
-> - User interface mockups and user flows
-> - Testing requirements (unit, integration, end-to-end)
-> - Performance benchmarks and quality standards  
-> - Documentation and deployment requirements
+> - API endpoints and data contracts
+> - UI states and user flows
+> - Test coverage requirements (unit, integration, E2E)
+> - Performance budgets (load times, response times)
+> - Documentation updates required
 > - Links to PRDs, task lists, and related issues/PRs
 >
-> This ensures planned work becomes actionable and measurable as it moves from concept to implementation.
+> This ensures planned work becomes actionable and measurable as it approaches execution.
 
 ## Completed Work
 
-<!-- 
-List major features/components that are fully implemented and functional:
-- Group related functionality together
-- Include objective measures (test coverage, endpoints, performance)
-- Note completion dates for significant milestones
-- Link to completion metadata/archives when available
-- Focus on user-facing and technical deliverables
--->
+<!-- List major features/components fully implemented. Include objective measures and completion dates for milestones. -->
 
-### ✅ [Major Feature Area 1]
+### ✅ {{MAJOR_FEATURE_AREA_1}}
 
-- [Specific completed functionality 1]
-- [Specific completed functionality 2]
-- [Specific completed functionality 3]
+- {{SPECIFIC_COMPLETED_FUNCTIONALITY_1}}
+- {{SPECIFIC_COMPLETED_FUNCTIONALITY_2}}
+- {{SPECIFIC_COMPLETED_FUNCTIONALITY_3}}
 
-### ✅ [Major Feature Area 2]
+### ✅ {{MAJOR_FEATURE_AREA_2}}
 
-- [Key completed capability 1]
-- [Key completed capability 2]
-- [Important delivered feature]
+- {{KEY_COMPLETED_CAPABILITY_1}}
+- {{KEY_COMPLETED_CAPABILITY_2}}
+- {{IMPORTANT_DELIVERED_FEATURE}}
 
-### ✅ [Infrastructure/Technical Foundation]
+### ✅ {{INFRASTRUCTURE_OR_TECHNICAL_FOUNDATION}}
 
-- [Core technical capability 1]
-- [Development/deployment infrastructure]
-- [Quality assurance systems]
-- [Integration capabilities]
+- {{CORE_TECHNICAL_CAPABILITY}}
+- {{DEVELOPMENT_DEPLOYMENT_INFRASTRUCTURE}}
+- {{QUALITY_ASSURANCE_SYSTEMS}}
+- {{INTEGRATION_CAPABILITIES}}
 
-### ✅ [Significant Milestone - Optional]
+### ✅ {{SIGNIFICANT_MILESTONE_OPTIONAL}}
 
-**Status**: Completed [Date] | [Archive](../archive/completion-metadata/completion-[milestone-name].md)
+**Status**: Completed {{DATE}} | [Archive](../archive/completion-metadata/completion-{{MILESTONE_NAME}}.md)
 
-- [Major deliverable 1 with objective metrics]
-- [Major deliverable 2 with objective metrics]
-- [Technical achievement with measurable impact]
-- [Quality improvements with specific measures]
-- [Process improvements or tools implemented]
-
-<!-- Add more completed milestones as needed -->
+- {{MAJOR_DELIVERABLE_WITH_METRICS}}
+- {{TECHNICAL_ACHIEVEMENT_WITH_IMPACT}}
+- {{QUALITY_IMPROVEMENTS_WITH_MEASURES}}
+- {{PROCESS_IMPROVEMENTS}}
 
 ## Work in Progress
 
-<!-- 
-List features/areas currently under active development:
-- Be specific about what's actually in progress vs planned
-- Include current status and blockers if any
-- Reference active PRDs or task lists where relevant
-- Note if work is paused and why
--->
+<!-- Be specific about what's actually in progress. For projects with multiple partially-complete features,
+consider categorizing by status. -->
 
-### 🚧 [Active Development Area 1]
+### 🚧 {{FEATURE_IMPLEMENTATION_STATUS_OPTIONAL}}
 
-- [Specific work item in progress with current status]
-- [Another active work item and its current state]
-- [Any blockers or dependencies affecting progress]
+<!-- Optional pattern for projects with many partial features: categorize by completion state -->
 
-### 🚧 [Active Development Area 2]
+**Backend Complete, Frontend Missing** ({{COUNT}} features):
 
-- **Current Status**: [Brief description of where this work stands]
-- [Specific progress made and remaining work]
-- [Expected completion timeframe if known]
+- ⏳ **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
 
-<!-- Note: Keep this section focused - if something isn't actively being worked on, it belongs in "Upcoming Priorities" -->
+**Not Yet Started** ({{COUNT}} features):
+
+- ❌ **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
+
+**Rough Draft** (needs polish):
+
+- ⚠️ **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
+
+**Tentative** (decision pending):
+
+- 🤔 **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
 
 ## Upcoming Priorities
 
-<!-- 
-Organize future work by priority level:
-- High Priority: Next major focus areas
-- Medium Priority: Important but not immediate
-- Lower Priority: Nice-to-have or deferred features
-- Include branch names for work that's been started
--->
+<!-- Organize by priority: Immediate (1-2 weeks), High, Medium, Lower. Include time estimates and rationale for
+immediate work. -->
+
+### Immediate (Next ~1-2 weeks)
+
+<!-- Work actively planned or ready to start. Include scope, rationale, and key deliverables. -->
+
+**{{PRIORITY_WORK_ITEM}}** ({{STATUS - e.g., "Planning complete", "PRD in progress", "Ready to start"}}):
+
+- **Scope**: {{ESTIMATED_EFFORT - e.g., "14-21 hours", "2-3 days"}}
+- **Why First**: {{RATIONALE - e.g., "Unblocks UserMovieData features", "Shorter scope enables faster delivery",
+    "Critical path"}}
+- **Key Deliverables**:
+    - {{MAJOR_OUTCOME_1}}
+    - {{MAJOR_OUTCOME_2}}
+    - {{IMPORTANT_CAPABILITY}}
+- {{OPTIONAL_CROSS_REFERENCE - e.g., "See [Notes Doc](../active/technical/notes-feature-name.md) for details"}}
 
 ### High Priority
 
-- **[Major Feature/Area]** (Status: [In Planning/Branch: feature/name]):
-    - [Key deliverable 1]
-    - [Key deliverable 2]
-    - [Important capability to implement]
-    - [Quality/performance requirement]
-    - **Key Deliverables**: [Summary of main outcomes expected]
+**{{MAJOR_FEATURE_AREA}}**:
 
-- **[Another High Priority Item]**:
-    - [Specific requirement 1]
-    - [Specific requirement 2]
-    - [Integration or dependency consideration]
+- {{KEY_DELIVERABLE_1}}
+- {{KEY_DELIVERABLE_2}}
+- {{IMPORTANT_CAPABILITY}}
+
+**{{ANOTHER_HIGH_PRIORITY}}**:
+
+- {{SPECIFIC_REQUIREMENT_1}}
+- {{SPECIFIC_REQUIREMENT_2}}
 
 ### Medium Priority
 
-- **[Important Feature]**: [Brief description of scope and value]
-- **[Another Medium Priority]**: [What this includes and why it matters]
-- **[Technical Improvement]**: [System enhancement and expected benefit]
+- **{{IMPORTANT_FEATURE}}**: {{BRIEF_SCOPE_AND_VALUE}}
+- **{{ANOTHER_MEDIUM_PRIORITY}}**: {{WHAT_THIS_INCLUDES}}
+- **{{TECHNICAL_IMPROVEMENT}}**: {{ENHANCEMENT_AND_BENEFIT}}
 
 ### Lower Priority
 
-- **[Nice-to-Have Feature]**: [Brief scope description]
-- **[Future Enhancement]**: [Longer-term improvement]
-- **[Optional Integration]**: [External capability or service]
+- **{{NICE_TO_HAVE_FEATURE}}**: {{BRIEF_SCOPE}}
+- **{{FUTURE_ENHANCEMENT}}**: {{LONGER_TERM_IMPROVEMENT}}
+- **{{OPTIONAL_INTEGRATION}}**: {{EXTERNAL_CAPABILITY}}
 
 ## Stretch Goals
 
-<!-- 
-Features that would be valuable but are beyond current scope:
-- Nice-to-have functionality
-- Advanced features for future consideration
-- Experimental or innovative capabilities
-- Features dependent on external factors
--->
-
-- **[Stretch Feature 1]**: [Brief description and why it's a stretch goal]
-- **[Advanced Capability]**: [More sophisticated functionality for future consideration]
-- **[External Integration]**: [Third-party service integration or advanced feature]
+- **{{STRETCH_FEATURE}}**: {{DESCRIPTION_AND_WHY_STRETCH}}
 
 ## Key Deliverables (Target)
 
-<!-- 
-High-level project outcomes you're working toward:
-- Major functional milestones
-- Technical achievements
-- Quality/performance targets
-- Deployment and operational goals
--->
+- {{MAJOR_FUNCTIONAL_DELIVERABLE}}
+- {{TECHNICAL_INFRASTRUCTURE_GOAL}}
+- {{QUALITY_TESTING_MILESTONE}}
+- {{DEPLOYMENT_OPERATIONAL_TARGET}}
 
-- [Major functional deliverable aligned with META-PRD]
-- [Technical infrastructure or architecture goal]
-- [Quality, testing, or performance milestone]
-- [Deployment, documentation, or operational target]
+## Project Metrics (Current)
 
-## Development Workflow Status
+**Codebase Health**:
 
-<!-- 
-How well is the ARC methodology working for this project:
-- Document management effectiveness
-- Workflow adoption and refinements
-- Quality processes and their impact
-- Areas for process improvement
--->
+- {{TEST_RESULTS - e.g., "530 tests passing (197 backend + 333 frontend), 100% pass rate"}}
+- {{TYPE_SAFETY - e.g., "0 type errors (strict mode)"}}
+- {{LINTING - e.g., "0 linting violations"}}
+- {{SECURITY - e.g., "A+ security posture (rate limiting, headers, CSRF protection)"}}
 
-The project follows the ARC development methodology using:
+**{{CUSTOM_METRIC_CATEGORY_1}}**:
 
-- **META-PRD**: [How well this provides project direction]
-- **Feature PRDs**: [Effectiveness for feature specification]
-- **Task Lists**: [Implementation tracking and progress visibility]
-- **Quality Gates**: [Testing and code quality enforcement]
-- **SESSION Management**: [Context preservation across development sessions]
+- {{METRIC_1}}
+- {{METRIC_2}}
 
-**Process Notes**: [Any workflow refinements, challenges, or improvements discovered]
+**Features Status**:
 
-## Project Health Indicators
+- ✅ Complete: {{COUNT}} features
+- ⏳ Backend done, Frontend needed: {{COUNT}} features
+- ❌ Not started: {{COUNT}} features
+- ⚠️ Rough draft: {{COUNT}} features
 
-<!-- 
-Optional section - objective measures of project health:
-- Test coverage and quality metrics
-- Performance benchmarks
-- Technical debt indicators
-- Development velocity
--->
+**Development Velocity**:
 
-- **Code Quality**: [Test coverage, linting compliance, type safety status]
-- **Performance**: [Key performance metrics if measured]
-- **Technical Debt**: [Assessment of code/architecture health]
-- **Development Velocity**: [Completion rates, milestone tracking]
+- {{TIME_PERIOD}}: {{WORK_COMPLETED}}
+- {{EFFORT_TRACKING - e.g., "~170-210 hours of quality/infrastructure work"}}
 
----
+## Development Workflow
 
-*This PROJECT-STATUS document is updated regularly as features progress from planning → development
-→ completion. For detailed feature specifications, see individual PRDs in the upcoming/prds/ directory.*
+The project follows a structured approach using:
 
-*Last updated: [Date]*
+- **META-PRD** for high-level product requirements
+- **Sub-PRDs** for individual feature specifications
+- **Generated task lists** for implementation tracking
+- **{{CUSTOM_TRACKING_DOC}}** for {{PURPOSE - e.g., "tracking user-facing feature status", "infrastructure work"}}
+- **Systematic testing** and code quality checks
+- **{{CUSTOM_WORKFLOW_PATTERN}}** via {{MECHANISM - e.g., "incidental task lists for quality improvements"}}
+- **Regular PROJECT-STATUS updates** as features progress through planning → development → completion
+
+_Last updated: {{DATE}}_

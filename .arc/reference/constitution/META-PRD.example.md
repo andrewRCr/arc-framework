@@ -1,187 +1,71 @@
-# [Your Project Name] Meta Product Requirements Document (META-PRD)
+# {{PROJECT_NAME}} Meta Product Requirements Document (META-PRD)
 
 <!--
-ARC Framework Template: Copy this file and customize for your project
-- Replace [Your Project Name] with your actual project name
-- This document defines your project's overall vision and direction
-- Keep this high-level - feature details belong in individual PRDs
-- Update as your project vision evolves
+This document defines your project's overall vision and direction.
+Replace {{PLACEHOLDERS}} with your project specifics.
+Keep high-level - feature details belong in individual PRDs.
 -->
 
 ## 1. Purpose
 
-<!--
-Define what your project is and why it exists:
-- Brief description of the application/system
-- Target users and their primary needs
-- Value proposition - what problem does this solve?
-- Key differentiators from existing solutions
--->
+<!-- Brief description of what your application does, who it's for, and what problem it solves -->
 
-[Your Project Name] is [brief description of what your application/system does and its core purpose].
-
-**Target Users**: [Who will use this - specific user types, roles, or demographics]
-
-**Core Value Proposition**: [What unique value or solution does your project provide?]
+{{PROJECT_NAME}} is {{BRIEF_DESCRIPTION - e.g., "a web application for movie enthusiasts to discover, track, and
+engage with movies"}}. {{ELABORATION - who it's for, what problem it solves, how it helps users}}.
 
 ## 2. Core Features
 
-<!--
-Outline the main functional areas of your project:
-- Group related features into logical sections
-- Keep descriptions high-level (details go in feature PRDs)
-- Focus on user-facing functionality
-- Include essential features that define your product
--->
+<!-- Group related features into logical areas. Keep descriptions high-level. -->
 
-### [Feature Area 1 - e.g., User Management]
+### {{FEATURE_AREA_1 - e.g., "User Authentication & Profiles"}}
 
-- [Core feature 1 description]
-- [Core feature 2 description]
-- [Core feature 3 description]
+- {{FEATURE_1}}
+- {{FEATURE_2}}
+- {{FEATURE_3}}
 
-### [Feature Area 2 - e.g., Core Functionality]
+### {{FEATURE_AREA_2 - e.g., "Core Functionality"}}
 
-- [Key feature description]
-- [Important capability description]
-- [Essential workflow description]
+- {{FEATURE_1}}
+- {{FEATURE_2}}
+- {{FEATURE_3}}
 
-### [Feature Area 3 - e.g., Data Management]
+### {{FEATURE_AREA_3 - e.g., "Data Management"}}
 
-- [Data handling feature]
-- [Analysis/reporting capability]
-- [Integration functionality]
-
-### [Additional Feature Areas as Needed]
-
-<!-- Add more feature areas based on your project scope -->
+- {{FEATURE_1}}
+- {{FEATURE_2}}
+- {{FEATURE_3}}
 
 ## 3. Out-of-Scope Features
 
-<!--
-Clearly define what your project will NOT include:
-- Features that are commonly expected but you won't build
-- Future functionality that's explicitly deferred
-- Scope boundaries to prevent feature creep
-- Helps set clear expectations
--->
+- {{OUT_OF_SCOPE_1 - e.g., "Social features (following users, activity feeds)"}}
+- {{OUT_OF_SCOPE_2}}
+- {{OUT_OF_SCOPE_3}}
 
-- [Feature/area that won't be included - with brief rationale]
-- [Another out-of-scope item - and why]
-- [Deferred functionality that might be added later]
-- [Integration or capability that's beyond current scope]
+## 4. User Flow (Target)
 
-## 4. User Flows (Primary)
+{{NARRATIVE_DESCRIPTION - Describe the main user journey from entry to value delivery}}
 
-<!--
-Describe the key user journeys through your application:
-- Focus on the most important user workflows
-- Keep at a high level - detailed flows go in feature PRDs
-- Show how different features connect together
-- Demonstrate the overall user experience
--->
-
-**Primary User Journey**:
-[Describe the main path users take through your application, from entry to key value delivery]
-
-**Secondary User Flows**:
-
-- **[Flow Name]**: [Brief description of important secondary workflow]
-- **[Flow Name]**: [Another key user journey through the system]
-- **[Flow Name]**: [Additional important workflow]
-
-<!--
-Example structure:
-A user [enters/registers/starts] and [initial action]. They can [key capabilities]
-to [achieve goal]. The system [provides value] through [core features]. Users can
-[manage/track/analyze] their [data/progress/results] and [key outcome].
--->
+Example: "A user registers and logs in. They can browse content or go to their personalized page for recommendations.
+On a detail page, they can add items to their collection, mark as complete, rate, or review. They can manage their
+collections via drag-and-drop reordering. Finally, they can edit their profile information."
 
 ## 5. Success Metrics
 
-<!--
-Define how you'll measure if your project is successful:
-- Quantitative metrics where possible
-- User behavior indicators
-- Business/project objective measures
-- Technical performance goals
--->
-
-- **[Metric Category 1]**: [Specific success measure - e.g., User Engagement, Performance]
-- **[Metric Category 2]**: [Another key success indicator]
-- **[Metric Category 3]**: [Additional important measure]
-- **[Metric Category 4]**: [Final key success metric]
-
-<!--
-Examples:
-- User Engagement: Users actively use core features and return regularly
-- Performance: Fast response times and reliable system operation
-- Quality: Low error rates and positive user feedback
-- Growth: Increasing user base or usage metrics
--->
+- **{{METRIC_CATEGORY_1 - e.g., "User Engagement"}}**: {{DESCRIPTION}}
+- **{{METRIC_CATEGORY_2 - e.g., "Discovery"}}**: {{DESCRIPTION}}
+- **{{METRIC_CATEGORY_3 - e.g., "Personalization"}}**: {{DESCRIPTION}}
+- **{{METRIC_CATEGORY_4 - e.g., "Retention"}}**: {{DESCRIPTION}}
 
 ## 6. Technical Requirements
 
-<!--
-High-level technical standards and constraints:
-- Performance expectations
-- Reliability requirements
-- Scalability needs
-- Security standards
-- Accessibility requirements
-- Platform/device support
--->
+- **Performance**: {{REQUIREMENTS - e.g., "Fast page loads and responsive interactions"}}
+- **Reliability**: {{REQUIREMENTS - e.g., "Stable data persistence and API integration"}}
+- **Scalability**: {{REQUIREMENTS - e.g., "Architecture supports growing user base and data"}}
+- **Security**: {{REQUIREMENTS - e.g., "Secure user authentication and data protection"}}
+- **Accessibility**: {{REQUIREMENTS - e.g., "Usable across different devices and abilities"}}
 
-- **Performance**: [Key performance requirements - response times, throughput, etc.]
-- **Reliability**: [Uptime, data persistence, error handling expectations]
-- **Scalability**: [Growth expectations and architectural requirements]
-- **Security**: [Data protection, authentication, authorization requirements]
-- **Accessibility**: [Device support, usability standards, compliance needs]
-- **[Additional Technical Requirements]**: [Other technical standards specific to your project]
+## 7. Data Sources
 
-## 7. Data Sources & Dependencies
-
-<!--
-Identify external data sources and key dependencies:
-- Third-party APIs or services
-- External data sources
-- User-generated content
-- Derived/calculated data
-- Critical system dependencies
--->
-
-- **External Sources**: [Third-party APIs, services, or data sources]
-- **User-Generated**: [Data that users create - profiles, content, preferences]
-- **Derived Data**: [Analytics, recommendations, calculated metrics]
-- **Dependencies**: [Critical external services or systems]
-
-## 8. Project Context
-
-<!--
-Optional section - add context specific to your project:
-- Timeline/milestones
-- Constraints or limitations
-- Success criteria
-- Stakeholder information
-- Budget/resource considerations
--->
-
-**Timeline**: [Key project milestones or phases if relevant]
-
-**Key Constraints**: [Important limitations - time, budget, technical, etc.]
-
-**Success Criteria**: [What "done" or "successful" means for this project]
-
-**Stakeholders**: [Key people/groups who care about this project's success]
-
----
-
-*This META-PRD serves as the foundational vision document for [Your Project Name].*
-*Individual feature work should align with this overall direction.*
-*Update this document as the project vision evolves.*
-
-<!--
-Revision History (Optional):
-- Version X.X (Date): [Brief description of major changes]
-- Maintain version history if the project vision changes significantly
--->
+- **{{PRIMARY_SOURCE - e.g., "Primary"}}**: {{DESCRIPTION - e.g., "Third-party API for content metadata"}}
+- **User-Generated**: {{DESCRIPTION - e.g., "Ratings, reviews, collections, and favorites"}}
+- **Derived**: {{DESCRIPTION - e.g., "Recommendation algorithms based on user behavior"}}
