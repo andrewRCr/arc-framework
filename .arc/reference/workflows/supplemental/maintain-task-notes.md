@@ -55,18 +55,35 @@ reference-ready.
 
 ## Checklist
 
-### 1. Confirm Pairing
+### 1. Confirm Pairing and Status
+
+**Step 1a: Verify Pairing**
 
 - Verify both files refer to each other and cover the same scope
-- Note overall status (In Progress, Completed) and remaining unchecked tasks
-- Update status metadata at top of both files (Created/Completed dates)
+- Check cross-references are accurate
+
+**Step 1b: Verify Completion Status (Mode 2 Only)**
+
+- **CRITICAL FIRST CHECK**: Scan entire task list to verify ALL checkboxes are marked `[x]`
+- If any unchecked tasks found → STOP - Use Mode 1 instead (mid-work cleanup)
+- Only proceed with Mode 2 if 100% tasks complete
+
+**Step 1c: Update Status Metadata**
+
+- Update `**Status**:` field in task file header:
+    - Change from "IN PROGRESS" to "COMPLETE"
+    - Remove any temporal notes (e.g., "~90% complete, ~5-8 hours remaining")
+    - Update to reflect final state
+- Add/update `**Completed**:` date in both files (YYYY-MM-DD format)
+- Note: Incidental work uses "Completion Summary" section in task file; planned work uses separate
+  completion-metadata.md (created later in archive-completed workflow)
 
 ### 2. Inventory Open Work
 
 - Note whether task list is complete (all checkboxes marked) or in-progress
 - **If in-progress: List remaining unchecked tasks and identify what context they need**
-  - What decisions, patterns, or constraints do Tasks 7-10 depend on?
-  - What implementation notes from Tasks 1-6 guide future work?
+    - What decisions, patterns, or constraints do Tasks 7-10 depend on?
+    - What implementation notes from Tasks 1-6 guide future work?
 - Review completed task notes through the lens of "Do remaining tasks need this?"
 - Identify verbose content AROUND tasks (not the task lines themselves)
 - Flag sections labeled "Notes", "Implementation Notes", "Decision Log", "Context"
@@ -84,15 +101,14 @@ reference-ready.
 - Search task file for notes content patterns like "(Task 7)", "Task 7:", "Tasks 7-9", "Task 7.x"
 - Verify each reference points to the correct current task, as per the actual task list structure
 - Update references that became stale after restructuring
-- Common locations: "Implementation Notes", similar sections (at the bottom of the task list doc),
-  Relevant Files section, inline notes
+- Common locations: "Implementation Notes", similar sections (at the bottom of the task list doc), inline notes
 
 **Check content ordering in task file:**
 
 - **"Implementation Notes" section:** Ensure subsections appear in current task number order
-  - Example: "Task 7" notes should appear before "Task 8" notes
-  - If out of order (due to restructuring), move entire subsection blocks to correct position
-  - Don't rewrite content - just reorder the blocks
+    - Example: "Task 7" notes should appear before "Task 8" notes
+    - If out of order (due to restructuring), move entire subsection blocks to correct position
+    - Don't rewrite content - just reorder the blocks
 - **"Task List Coordination" section:** Verify task references follow current numbering
 - **Other sections:** Flag any task number references and verify accuracy
 
@@ -172,14 +188,14 @@ This includes:
 
 - **Goal**: Keep task file lean while work continues
 - **Decision Criteria**: "Do remaining tasks need this context?"
-- **What stays**: Top-matter context, task list, bottom-matter notes relevant to remaining work, Relevant Files
+- **What stays**: Top-matter context, task list, bottom-matter notes relevant to remaining work
 - **What migrates**: Historical explanations with no future dependencies
 
 **Mode 2 (Archival Preparation - ALL WORK COMPLETE):**
 
 - **Goal**: Transform task file into quick-reference skeleton
 - **Decision Criteria**: "Is this part of the quick reference or the deep dive?"
-- **Task file becomes**: Top-matter + Task list + Relevant Files + Completion Summary ONLY
+- **Task file becomes**: Top-matter + Task list + Completion Summary ONLY
 - **Everything else migrates**: ALL bottom-matter sections (Implementation Notes, Task List Coordination,
   Decision Logs, etc.) → Notes file
 
@@ -197,11 +213,9 @@ This includes:
 - [x] All task checkboxes with inline outcomes
 - Preserves what was actually done
 
-## Relevant Files (KEEP - quick reference)
-- File paths with one-line descriptions
-- Helps locate implementation quickly
-
-## Completion Summary (KEEP - archival summary)
+## Completion Summary (KEEP for incidental work only)
+- **Incidental work**: Completion Summary section stays in task file
+- **Planned work** (features/PRDs): NO Completion Summary in task file - uses separate completion-metadata.md instead (created in archive-completed workflow)
 - Work Accomplished
 - Major Deliverables
 - Key Architectural Decisions
@@ -274,7 +288,6 @@ Before migrating any content during mid-work cleanup, ask these questions:
 
 - ✅ **All task lines exactly as written** (checkboxes, descriptions, inline outcome notes)
 - ✅ Task structure and hierarchy (parent tasks, subtasks, indentation)
-- ✅ "Relevant Files" section (helpful reference during work)
 - ✅ "Completion Summary" section (for completed work)
 - ✅ **Context needed by remaining uncompleted tasks** (even if verbose)
 - ✅ **Implementation patterns/constraints guiding future work** (critical reference)
@@ -335,7 +348,6 @@ Before migrating any content during mid-work cleanup, ask these questions:
 
 **Scan Bottom-Matter** (below task list):
 
-- ✅ **Keep**: Relevant Files section (quick reference for finding implementation)
 - ✅ **Keep**: Completion Summary section (archival summary of what was achieved)
 - ❌ **Migrate ALL to notes file**: Implementation Notes, Task List Coordination, Decision Logs,
   Investigation Details, Architecture Decisions, Any other explanatory sections
@@ -346,16 +358,13 @@ comprehensive deep-dive showing HOW and WHY.
 **Example Archival Migration:**
 
 ```markdown
-<!-- TASK FILE BEFORE ARCHIVAL CLEANUP (800 lines) -->
+<!-- TASK FILE BEFORE ARCHIVAL CLEANUP (750 lines) -->
 
 ## Context
 [50 lines of background]
 
 ## Tasks
 [300 lines of task checklist]
-
-## Relevant Files
-[50 lines of file list]
 
 ## Task List Coordination
 [100 lines explaining scope boundaries]
@@ -378,9 +387,6 @@ comprehensive deep-dive showing HOW and WHY.
 
 ## Tasks
 [300 lines of task checklist - unchanged]
-
-## Relevant Files
-[50 lines of file list - unchanged]
 
 ## Completion Summary
 [100 lines of metrics - unchanged]
@@ -430,7 +436,84 @@ can remove context needed for remaining tasks. Only clean up when all work is do
 
 ---
 
+**Step 5a: Consolidate and Deduplicate Content (CRITICAL FIRST STEP)**
+
 **This step makes the difference between a notes file that gets used vs ignored.**
+
+Notes files are messy and unorganized during work - content gets added as discoveries happen, leading to repetition
+and scattered information. **Before formatting, consolidate the content.**
+
+**Guiding Principle:** Lean heavily towards keeping everything for historical reasons, but eliminate clear repetition.
+
+**Process:**
+
+1. **Read through entire notes file** to identify repeated information:
+   - Same decision explained in multiple places
+   - Duplicate code examples or patterns
+   - Repeated explanations of the same issue/solution
+   - Multiple sections covering the same topic from different angles
+
+2. **For each repetition found:**
+   - **Keep the most complete version** (usually the later one, as it has more context)
+   - **Delete clear duplicates** (exact same information, no new insights)
+   - **Consolidate similar content** (merge related sections that cover same topic)
+   - **Add "See also" cross-references** if related info lives elsewhere
+
+3. **What to keep (bias towards preservation):**
+   - ✅ Different perspectives on the same decision (shows evolution of thinking)
+   - ✅ Chronological progression (how understanding developed over time)
+   - ✅ Context-specific details (even if topic is repeated)
+   - ✅ Investigation journeys (even if verbose - this is the messy reference)
+   - ✅ When in doubt, KEEP IT
+
+4. **What to remove (only clear repetition):**
+   - ❌ Exact duplicate paragraphs (copy-pasted content)
+   - ❌ Redundant code examples (same code shown multiple times with no variation)
+   - ❌ Repeated summaries of the same decision with no new information
+
+5. **Consolidation patterns:**
+   - Merge multiple sections about the same investigation into one comprehensive section
+   - Move scattered notes about a topic into a single "Topic Name" section
+   - Combine duplicate "lessons learned" or "key insights" lists
+
+**Example - Before Consolidation:**
+
+```markdown
+## Task 4.1: JWT Migration Research
+[300 lines about django-ninja-jwt compatibility]
+
+## Task 4.3: JWT Implementation
+[50 lines repeating same django-ninja-jwt compatibility info]
+[200 lines of implementation details]
+
+## Task 4.7: JWT Testing
+[Another 30 lines about django-ninja-jwt compatibility]
+[Testing details]
+```
+
+**Example - After Consolidation:**
+
+```markdown
+## Django Ninja JWT Migration
+**Context:** Migrated from djangorestframework-simplejwt (Tasks 4.1-4.8)
+
+### Compatibility Research (Task 4.1)
+[300 lines - kept as comprehensive reference]
+
+### Implementation (Task 4.3)
+[200 lines of implementation details - kept]
+See "Compatibility Research" above for library evaluation.
+
+### Testing (Task 4.7)
+[Testing details - kept]
+See "Compatibility Research" above for compatibility notes.
+```
+
+**Time Estimate:** 20-40 minutes for thorough deduplication (depends on notes file size)
+
+**Step 5b: Format for Archival**
+
+After content consolidation, format for navigation and long-term reference:
 
 **Add Table of Contents:**
 
@@ -472,8 +555,8 @@ can remove context needed for remaining tasks. Only clean up when all work is do
 
 - At the top of both files, confirm the "Related Task/Notes" pointers are accurate
 - Update status metadata:
-  - Task file: `**Status**: Completed`, `**Actual Effort**: ...`
-  - Notes file: `**Status**: Complete`, `**Completed**: YYYY-MM-DD`
+    - Task file: `**Status**: Completed`, `**Actual Effort**: ...`
+    - Notes file: `**Status**: Complete`, `**Completed**: YYYY-MM-DD`
 - Add completion date to both files
 
 ### 7. Quality Checks

@@ -62,9 +62,9 @@ update the "Session Startup Protocol" section in CURRENT-SESSION.md:
 **Dynamic (update when context changes - see CRITICAL warning above)**:
 
 - **"Session Startup Protocol" working directory paths** - update EVERY TIME you switch between:
-  - Subdirectory work (e.g., backend/, frontend/)
-  - Repo root work
-  - Different working contexts
+    - Subdirectory work (e.g., backend/, frontend/)
+    - Repo root work
+    - Different working contexts
 - Step 1: Expected pwd output
 - Step 3: Tool paths (adjust based on working directory)
 - Step 4: Path context table (all relative paths)
