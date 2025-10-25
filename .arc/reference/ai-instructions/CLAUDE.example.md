@@ -9,7 +9,7 @@ ARC Framework Template: Copy this file as CLAUDE.md and customize for your proje
 
 Guidance for Claude when working in this repository. For shared rules and architecture, defer to the canonical docs:
 
-- [AGENTS](AGENTS.md) – Project context, lookup guide, and collaboration principles
+- [AGENTS](AGENTS.md) – Project context and collaboration principles
 - [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) {{RULES_VERSION}} – Non-negotiable standards
 - [QUICK-REFERENCE](../QUICK-REFERENCE.md) {{QUICKREF_VERSION}} – Environment context and command patterns
 - [Process Task Loop](../workflows/3-process-task-loop.md) – One-subtask workflow
@@ -32,5 +32,4 @@ Customize this section with Claude-specific tips for your project:
 - **Summaries first:** Lead responses with concise bullet findings before deep dives
 - **Clarifying questions:** Offer numbered/lettered options to keep user replies short
 - **Large diffs:** If a change won't fit in context, propose a chunking strategy and wait for approval
-- **Tooling awareness:** {{TOOL_AVAILABILITY}} - check QUICK-REFERENCE for command patterns
 - **Session handoffs:** Explicitly state whether CURRENT-SESSION.md was updated or left unchanged

@@ -1,26 +1,8 @@
 # Quick Reference - {{PROJECT_NAME}}
 
-**Version**: 1.1 | **Updated**: {{YYYY-MM-DD}} | **Location**: `.arc/reference/`
+**Version**: 1.1 | **Updated**: {{YYYY-MM-DD}}
 
-## About This Reference Directory
-
-**Read every session:**
-
-- `DEVELOPMENT-RULES.md` (constitution/) - Rules and quality standards
-- `QUICK-REFERENCE.md` (this file) - Environment and commands
-- `CURRENT-SESSION.md` (active/) - Work status and next actions
-
-**Key documentation:**
-
-- `constitution/` - Project principles (META-PRD, TECHNICAL-ARCHITECTURE, PROJECT-STATUS)
-- `workflows/` - Core process guides (0-define-constitution.md, 1-create-prd.md, 2-generate-tasks.md,
-  3-process-task-loop.md)
-- `workflows/supplemental/` - Supporting workflows (atomic-commit.md, session-handoff.md, manage-incidental-work.md,
-  maintain-docs.md)
-- `strategies/` - Technical approaches (project-specific strategy documents)
-- `ai-instructions/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
-
----
+Command patterns and environment context for {{PROJECT_NAME}}.
 
 ## Environment & Path Context
 
@@ -216,36 +198,6 @@ docker compose -f {{DOCKER_COMPOSE_PATH}} down
 
 ---
 
-## Tool Decision Tree
-
-```
-Need to run a command?
-│
-├─ Type checking (Backend)?
-│  └─ npx pyright {{BACKEND_CODE_PATH}} --project {{BACKEND_PROJECT_ROOT}}
-│
-├─ Linting (Backend)?
-│  └─ {{BACKEND_VENV_PATH}}/bin/{{BACKEND_LINTER}} check {{BACKEND_CODE_PATH}} --fix
-│
-├─ Testing (Backend)?
-│  └─ docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} {{TEST_PATH}}
-│     (Adjust based on service requirements - database, etc.)
-│
-├─ API Testing?
-│  └─ curl {{CURL_FLAGS}} {{BACKEND_PROTOCOL}}://localhost:{{BACKEND_PORT}}/{{API_PREFIX}}/endpoint
-│
-├─ Linting/Type-checking (Frontend)?
-│  └─ docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run [lint|type-check]
-│
-├─ Markdown linting?
-│  └─ npx markdownlint-cli2 --fix "README.md" ".arc/**/*.md"
-│
-└─ Unsure?
-   └─ Use Docker (always consistent across environments)
-```
-
----
-
 ## Common Patterns
 
 ### Incremental Quality Checks (After Sub-Task)
@@ -299,29 +251,6 @@ docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNN
 ✅ Use commands from QUICK-REFERENCE (paths correct for repo root)
 ✅ Adjust paths based on your working directory (see CURRENT-SESSION.md)
 ✅ Use explicit paths for venv tools: `{{BACKEND_VENV_PATH}}/bin/[tool]`
-
----
-
-## Key Reminders
-
-1. **Docker Compose location**: `{{DOCKER_COMPOSE_PATH}}` (from repo root)
-2. **Tests may require Docker**: Check if backend tests need database/service access
-3. **Venv location**: `{{BACKEND_VENV_PATH}}/bin/` (from repo root)
-4. **Working directory varies**: Check CURRENT-SESSION.md for context-specific paths
-5. **Tool availability**: Some tools work from anywhere (npx), others need correct CWD
-
----
-
-## Additional Resources
-
-- **DEVELOPMENT-RULES.md** - Quality standards and protocols (what/why)
-- **CURRENT-SESSION.md** - Current work context and adjusted paths for your working directory
-- **TECHNICAL-ARCHITECTURE.md** - System design and methodology
-- **3-process-task-loop.md** - Workflow for task execution
-- **supplemental/atomic-commit.md** - Commit creation and review process
-- **supplemental/session-handoff.md** - Session handoff protocol
-- **supplemental/maintain-docs.md** - Documentation maintenance workflow
-- **strategies/** - Project-specific technical approaches and patterns
 
 ---
 
