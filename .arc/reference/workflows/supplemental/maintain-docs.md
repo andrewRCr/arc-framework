@@ -12,7 +12,7 @@ When constitutional documents change, update related files to keep documentation
 
 **Update these files:**
 
-- `ai-instructions/AGENTS.md` - Project overview and features section
+- `agent/AGENTS.md` - Project overview and features section
 - `PROJECT-STATUS.md` - If scope or priorities change
 
 **Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
@@ -22,17 +22,17 @@ When constitutional documents change, update related files to keep documentation
 **Update these files:**
 
 - Version number in DEVELOPMENT-RULES.md header (increment minor version, update hash)
-- All `ai-instructions/*.md` files - If protocols or quality standards change
+- All `agent/*.md` files - If protocols or quality standards change
 - Team communication about rule changes (if applicable)
 
 **Why**: Development rules govern AI behavior. Version tracking helps identify when behavioral issues stem from rule
 changes versus AI interpretation.
 
-### TECHNICAL-ARCHITECTURE.md Changes
+### TECHNICAL-OVERVIEW.md Changes
 
 **Update these files:**
 
-- `ai-instructions/AGENTS.md` - Technology stack and patterns section
+- `agent/AGENTS.md` - Technology stack and patterns section
 - `PROJECT-STATUS.md` - If architectural decisions affect roadmap
 
 **Why**: Technical architecture decisions cascade to implementation patterns and project timelines.
@@ -54,7 +54,7 @@ changes versus AI interpretation.
 - Other documents can reference it, but shouldn't duplicate it
 - Contradictions emerge when same instruction exists in multiple places with slight variations
 
-**Example**: Task completion protocol belongs in `3-process-task-loop.md`.
+**Example**: Task completion protocol belongs in `3_process-task-loop.md`.
 Other documents should reference it, not duplicate it.
 
 ### Cross-References Over Duplication
@@ -69,7 +69,7 @@ When tempted to duplicate content:
 
 ### Keep AI Instructions Lean
 
-When updating `ai-instructions/` docs:
+When updating `agent/` docs:
 
 - **Do**: Reference other docs for details
 - **Do**: Provide quick lookup/navigation guides
@@ -125,7 +125,7 @@ When updating `ai-instructions/` docs:
 - `AGENTS.md` - Project context and lookup guide
 - `CURRENT-SESSION.md` - Active work state
 - `DEVELOPMENT-RULES.md` - Quality standards and protocols
-- `3-process-task-loop.md` - Task execution workflow
+- `3_process-task-loop.md` - Task execution workflow
 - `QUICK-REFERENCE.md` - Commands and environment
 
 ### Read On-Demand

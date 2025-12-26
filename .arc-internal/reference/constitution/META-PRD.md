@@ -43,7 +43,7 @@ disciplined alternative to more permissive AI development approaches.
 ### 3. **Constitutional Project Organization**
 
 - Hierarchical task management (META-PRD → PRDs → tasks)
-- Constitutional document foundation (META-PRD, PROJECT-STATUS, DEVELOPMENT-RULES, TECHNICAL-ARCHITECTURE)
+- Constitutional document foundation (META-PRD, PROJECT-STATUS, DEVELOPMENT-RULES, TECHNICAL-OVERVIEW)
 - Progress tracking with task-commit synchronization
 - Archive system for completed work with completion metadata
 

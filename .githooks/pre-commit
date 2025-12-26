@@ -1,0 +1,203 @@
+#!/bin/bash
+# Git pre-commit hook - Runs before commit is created
+# Location: .githooks/pre-commit
+#
+# Setup: git config core.hooksPath .githooks
+# Bypass: git commit --no-verify (use sparingly!)
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}🔍 Running pre-commit checks...${NC}"
+
+errors=0
+warnings=0
+
+# ============================================================================
+# CHECK 1: No direct commits to main (safety check)
+# ============================================================================
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
+
+if [ "$current_branch" = "main" ]; then
+    echo -e "${YELLOW}⚠️  Warning: Committing directly to main branch${NC}"
+    echo "   Consider using feature/ or technical/ branches for planned work"
+    echo "   This is OK for: planning, documentation, maintenance, archival"
+    warnings=$((warnings + 1))
+fi
+
+# ============================================================================
+# CHECK 2: Large file check (prevent accidental commits)
+# ============================================================================
+large_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+    size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+    if [ "$size" -gt 1048576 ]; then  # 1MB
+        echo "$file ($(numfmt --to=iec-i --suffix=B $size 2>/dev/null || echo $size bytes))"
+    fi
+done)
+
+if [ -n "$large_files" ]; then
+    echo -e "${YELLOW}⚠️  Warning: Large files detected in commit:${NC}"
+    echo "$large_files" | sed 's/^/   /'
+    echo "   Verify these files should be committed"
+    warnings=$((warnings + 1))
+fi
+
+# ============================================================================
+# CHECK 3: Sensitive file patterns (prevent credential leaks)
+# ============================================================================
+sensitive_patterns=(
+    "\.env$"
+    "\.env\.local$"
+    "credentials.*\.json"
+    "secrets.*\.yaml"
+    "private.*\.key"
+)
+
+for pattern in "${sensitive_patterns[@]}"; do
+    sensitive_files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E "$pattern" || true)
+    if [ -n "$sensitive_files" ]; then
+        echo -e "${RED}❌ Error: Sensitive file detected: $sensitive_files${NC}"
+        echo "   This file pattern matches credentials/secrets"
+        echo "   Verify this should be committed (should likely be in .gitignore)"
+        errors=$((errors + 1))
+    fi
+done
+
+# ============================================================================
+# CHECK 4: Check for common merge conflict markers
+# ============================================================================
+conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+    if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
+        echo "$file"
+    fi
+done)
+
+if [ -n "$conflict_markers" ]; then
+    echo -e "${RED}❌ Error: Merge conflict markers found in:${NC}"
+    echo "$conflict_markers" | sed 's/^/   /'
+    echo "   Resolve conflicts before committing"
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# CHECK 5: Debug statements check (optional warning)
+# ============================================================================
+debug_patterns=(
+    "console.log"
+    "console.debug"
+    "debugger;"
+    "import pdb"
+    "pdb.set_trace"
+    "print("
+)
+
+for pattern in "${debug_patterns[@]}"; do
+    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+        # Skip test files
+        if echo "$file" | grep -qE "(test_|_test\.py|\.test\.ts|\.test\.tsx|spec\.)"; then
+            continue
+        fi
+        # Check for debug statements
+        if grep -qF "$pattern" "$file" 2>/dev/null; then
+            echo "$file: $pattern"
+        fi
+    done)
+
+    if [ -n "$debug_files" ]; then
+        echo -e "${YELLOW}⚠️  Warning: Debug statements found:${NC}"
+        echo "$debug_files" | sed 's/^/   /'
+        echo "   Consider removing before committing"
+        warnings=$((warnings + 1))
+        break  # Only warn once
+    fi
+done
+
+# ============================================================================
+# CHECK 6: Verify modified task lists are staged
+# ============================================================================
+# If committing code changes, check if related task lists should also be staged
+modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+
+if [ -n "$modified_task_lists" ] && [ -z "$staged_task_lists" ]; then
+    echo -e "${YELLOW}⚠️  Warning: Modified task lists not staged:${NC}"
+    echo "$modified_task_lists" | sed 's/^/   /'
+    echo "   If completing tasks, remember to stage task list updates"
+    warnings=$((warnings + 1))
+fi
+
+# ============================================================================
+# CHECK 7: Task numbering format (numeric.numeric.alpha)
+# ============================================================================
+# Per strategy-task-list-formatting.md: Third level uses letters (1.1.a not 1.1.1)
+# Format: X.Y (parent) → X.Y.a (subtask) → X.Y.a.1 (fourth level, rare)
+task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^\.arc/(active|backlog)/.*/tasks-.*\.md$' | \
+    while read file; do
+        # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
+        # Pattern: checkbox followed by optional bold, then three numeric segments
+        violations=$(grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' "$file" 2>/dev/null || true)
+        if [ -n "$violations" ]; then
+            echo "$file:"
+            echo "$violations" | sed 's/^/     /'
+        fi
+    done)
+
+if [ -n "$task_numbering_violations" ]; then
+    echo -e "${RED}❌ Error: Invalid task numbering format in task lists:${NC}"
+    echo "$task_numbering_violations"
+    echo ""
+    echo "   Per strategy-task-list-formatting.md:"
+    echo "   - Third level uses letters: 1.1.a, 1.1.b (not 1.1.1, 1.1.2)"
+    echo "   - Fourth level (if needed): 1.1.a.1, 1.1.a.2"
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# CHECK 8: No meta-project references in production code
+# ============================================================================
+# Per DEVELOPMENT-RULES.md: Never reference task IDs, phase numbers, or .arc/
+# documentation in production code (comments, docstrings, variable names)
+meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -v "^\.arc/" | \
+    grep -v "^README\.md" | \
+    grep -E "\.(ts|tsx|py|js|jsx)$" | \
+    while read file; do
+        # Check for "Task X.Y" or "Phase X" patterns (case insensitive)
+        refs=$(grep -nE "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/" "$file" 2>/dev/null || true)
+        if [ -n "$refs" ]; then
+            echo "$file:"
+            echo "$refs" | sed 's/^/     /'
+        fi
+    done)
+
+if [ -n "$meta_project_refs" ]; then
+    echo -e "${RED}❌ Error: Meta-project references found in production code:${NC}"
+    echo "$meta_project_refs"
+    echo ""
+    echo "   Per DEVELOPMENT-RULES.md: Code must be self-documenting without task/phase references"
+    echo "   Replace with descriptive comments explaining 'what' and 'why' independently"
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# Summary
+# ============================================================================
+echo ""
+if [ $errors -gt 0 ]; then
+    echo -e "${RED}❌ Pre-commit checks FAILED with $errors error(s) and $warnings warning(s)${NC}"
+    echo ""
+    echo "To bypass checks (use sparingly): git commit --no-verify"
+    exit 1
+elif [ $warnings -gt 0 ]; then
+    echo -e "${GREEN}✅ Pre-commit checks PASSED with $warnings warning(s)${NC}"
+    exit 0
+else
+    echo -e "${GREEN}✅ Pre-commit checks PASSED${NC}"
+    exit 0
+fi

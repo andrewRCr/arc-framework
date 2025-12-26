@@ -1,180 +1,245 @@
 # {{PROJECT_NAME}} Project Status
 
-<!--
-This document tracks project progress. Update regularly as features move through planning → implementation → completion.
-Replace {{PLACEHOLDERS}} with your project specifics.
--->
+*This is an example PROJECT-STATUS structure. Replace all content with your project's specifics.*
 
-## Current State Overview
+## Overview
 
-<!-- Brief high-level summary of development state and current focus -->
+CineXplorer is a movie discovery web application in active development. The core foundation is complete, with several
+key features implemented and a clear roadmap for remaining work.
 
-{{PROJECT_NAME}} is {{DEVELOPMENT_STATE - e.g., "in active development", "nearing completion", "entering maintenance phase"}}.
-{{BRIEF_SUMMARY_OF_PROGRESS_AND_FOCUS}}.
+**Table of Contents:**
 
-> **Planning Note**:
-> For completed work, this document aims to reflect objective metrics and concrete deliverables.
-> For upcoming/planned features, specifics are often still being defined.
-> As features move from planning → implementation, add explicit acceptance criteria including:
->
-> - API endpoints and data contracts
-> - UI states and user flows
-> - Test coverage requirements (unit, integration, E2E)
-> - Performance budgets (load times, response times)
-> - Documentation updates required
-> - Links to PRDs, task lists, and related issues/PRs
->
-> This ensures planned work becomes actionable and measurable as it approaches execution.
+1. [Status Snapshot](#status-snapshot) - Current state and active work
+2. [Roadmap](#roadmap) - Planned work by priority
+3. [Completed Major Work](#completed-major-work) - Historical achievements
+4. [Development Approach](#development-approach) - Workflow and organization
 
-## Completed Work
+---
 
-<!-- List major features/components fully implemented. Include objective measures and completion dates for milestones. -->
+## Status Snapshot
 
-### ✅ {{MAJOR_FEATURE_AREA_1}}
+**Last Completed:**
 
-- {{SPECIFIC_COMPLETED_FUNCTIONALITY_1}}
-- {{SPECIFIC_COMPLETED_FUNCTIONALITY_2}}
-- {{SPECIFIC_COMPLETED_FUNCTIONALITY_3}}
+- Toast Notification System (technical) - Consistent user feedback with semantic tokens
+    - [Archive](../archive/2025-q4/technical/26_toast-notification-system/)
 
-### ✅ {{MAJOR_FEATURE_AREA_2}}
+**Currently Active:**
 
-- {{KEY_COMPLETED_CAPABILITY_1}}
-- {{KEY_COMPLETED_CAPABILITY_2}}
-- {{IMPORTANT_DELIVERED_FEATURE}}
+- None (planning next work)
 
-### ✅ {{INFRASTRUCTURE_OR_TECHNICAL_FOUNDATION}}
+**Next Priority:**
 
-- {{CORE_TECHNICAL_CAPABILITY}}
-- {{DEVELOPMENT_DEPLOYMENT_INFRASTRUCTURE}}
-- {{QUALITY_ASSURANCE_SYSTEMS}}
-- {{INTEGRATION_CAPABILITIES}}
+- Backend Modernization (technical) - Async tasks, E2E testing, code quality
+    - [Plan](../../backlog/technical/plan-backend-modernization.md)
 
-### ✅ {{SIGNIFICANT_MILESTONE_OPTIONAL}}
+---
 
-**Status**: Completed {{DATE}} | [Archive](../archive/completion-metadata/completion-{{MILESTONE_NAME}}.md)
+## Roadmap
 
-- {{MAJOR_DELIVERABLE_WITH_METRICS}}
-- {{TECHNICAL_ACHIEVEMENT_WITH_IMPACT}}
-- {{QUALITY_IMPROVEMENTS_WITH_MEASURES}}
-- {{PROCESS_IMPROVEMENTS}}
+### Feature Development
 
-## Work in Progress
+*High Priority:*
 
-<!-- Be specific about what's actually in progress. For projects with multiple partially-complete features,
-consider categorizing by status. -->
+- **UserMovieData Feature UIs** - Backend APIs complete, frontend needed (ratings, reviews, library, liked movies, log
+modal, watchlist enhancements)
+    - [Plan](../../backlog/feature/plan-user-movie-data-features.md)
+- **Movie Lists/Collections** - User-created lists + system curated collections
+    - [Plan](../../backlog/feature/plan-user-movie-lists.md)
+- **Recommendations System** - Personalized "For You" page with metadata-based recommendation engine
+    - [Backlog](../../backlog/feature/BACKLOG-FEATURE.md)
 
-### 🚧 {{FEATURE_IMPLEMENTATION_STATUS_OPTIONAL}}
+*Medium Priority:*
 
-<!-- Optional pattern for projects with many partial features: categorize by completion state -->
+- **Person Detail Pages** - Actor/crew profiles with filmography, TMDB integration
+    - [Backlog](../../backlog/feature/BACKLOG-FEATURE.md)
+- **Movie Detail Page Polish** - Layout refinement and user action controls integration
+    - [Backlog](../../backlog/feature/BACKLOG-FEATURE.md)
 
-**Backend Complete, Frontend Missing** ({{COUNT}} features):
+### Technical Infrastructure
 
-- ⏳ **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
+*High Priority:*
 
-**Not Yet Started** ({{COUNT}} features):
+- **E2E Testing** - Playwright-based regression protection for critical user flows
+    - [Plan](../../backlog/technical/plan-backend-modernization.md) (E2E section)
+- **Async Infrastructure** - Celery/Redis for non-blocking email, future computation
+    - [Plan](../../backlog/technical/plan-backend-modernization.md) (Async section)
 
-- ❌ **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
+*Medium Priority:*
 
-**Rough Draft** (needs polish):
+- **Deployment Enablement** - Production hosting strategy, secrets management, migration procedures
+    - [Backlog](../../backlog/technical/BACKLOG-TECHNICAL.md)
+- **Routing Modernization** - React Router data patterns (loaders, type-safe routes)
+    - [Plan](../../backlog/technical/plan-frontend-modernization.md)
 
-- ⚠️ **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
+*Lower Priority:*
 
-**Tentative** (decision pending):
+- **Observability & Monitoring** - Metrics, tracing, alerting infrastructure (Prometheus/OpenTelemetry)
+- **Performance Optimization** - Caching strategies, query optimization, profiling
+- **Documentation & Onboarding** - Architecture evolution guide, getting started improvements
 
-- 🤔 **{{FEATURE_NAME}}**: {{STATUS_DESCRIPTION}}
+**For detailed sequencing and scoping decisions, see [ROADMAP.md](../../backlog/ROADMAP.md).**
 
-## Upcoming Priorities
+---
 
-<!-- Organize by priority: Immediate (1-2 weeks), High, Medium, Lower. Include time estimates and rationale for
-immediate work. -->
+## Completed Major Work
 
-### Immediate (Next ~1-2 weeks)
+### ✅ User Authentication
 
-<!-- Work actively planned or ready to start. Include scope, rationale, and key deliverables. -->
+- Backend and frontend for user registration with email verification
+- Secure login/logout using JWT tokens
+- Backend logic for user profile data editing
 
-**{{PRIORITY_WORK_ITEM}}** ({{STATUS - e.g., "Planning complete", "PRD in progress", "Ready to start"}}):
+### ✅ Movie Browsing and Filtering
 
-- **Scope**: {{ESTIMATED_EFFORT - e.g., "14-21 hours", "2-3 days"}}
-- **Why First**: {{RATIONALE - e.g., "Unblocks UserMovieData features", "Shorter scope enables faster delivery",
-    "Critical path"}}
-- **Key Deliverables**:
-    - {{MAJOR_OUTCOME_1}}
-    - {{MAJOR_OUTCOME_2}}
-    - {{IMPORTANT_CAPABILITY}}
-- {{OPTIONAL_CROSS_REFERENCE - e.g., "See [Notes Doc](../active/technical/notes-feature-name.md) for details"}}
+- Functional pages for browsing movies (Popular, Top Rated, Now Playing, Upcoming)
+- Search results functionality
+- Unified filter and sort system with always-visible minimal controls
+- Toggleable advanced filtering options
+- Unified state management system for filters
 
-### High Priority
+### ✅ Core Backend Infrastructure
 
-**{{MAJOR_FEATURE_AREA}}**:
+- Comprehensive REST API with endpoints for user actions (like, watch, rate, etc.)
+- Partial data models/endpoints for movie personnel
+- API documentation available via Swagger
+- Integration with The Movie Database (TMDB) API
 
-- {{KEY_DELIVERABLE_1}}
-- {{KEY_DELIVERABLE_2}}
-- {{IMPORTANT_CAPABILITY}}
+### ✅ Technical Foundation
 
-**{{ANOTHER_HIGH_PRIORITY}}**:
+**Core Infrastructure:**
 
-- {{SPECIFIC_REQUIREMENT_1}}
-- {{SPECIFIC_REQUIREMENT_2}}
+- Django Ninja backend (DRF fully eliminated) with PostgreSQL database
+- React/TypeScript frontend with modern tooling
+- Containerized Docker setup for all services (5 containers: backend, frontend, postgres, redis, caddy)
+- Caddy reverse proxy for development environment with HTTPS
 
-### Medium Priority
+**Type Safety & Quality:**
 
-- **{{IMPORTANT_FEATURE}}**: {{BRIEF_SCOPE_AND_VALUE}}
-- **{{ANOTHER_MEDIUM_PRIORITY}}**: {{WHAT_THIS_INCLUDES}}
-- **{{TECHNICAL_IMPROVEMENT}}**: {{ENHANCEMENT_AND_BENEFIT}}
+- Zero type errors across entire codebase (Pyright strict mode)
+- Custom type stubs for third-party libraries (django-allauth, ninja-jwt)
+- Pytest test infrastructure with parallel execution support
+- CI/CD with blocking type checks and quality gates
 
-### Lower Priority
+**Security Posture:**
 
-- **{{NICE_TO_HAVE_FEATURE}}**: {{BRIEF_SCOPE}}
-- **{{FUTURE_ENHANCEMENT}}**: {{LONGER_TERM_IMPROVEMENT}}
-- **{{OPTIONAL_INTEGRATION}}**: {{EXTERNAL_CAPABILITY}}
+- Rate limiting (5/min login, 3/hr register, 10/min token refresh)
+- Token blacklisting with automatic rotation
+- Environment-aware security headers (HSTS, CSP, X-Frame-Options)
+- CSRF protection for hybrid authentication
 
-## Stretch Goals
+### ✅ Logging System
 
-- **{{STRETCH_FEATURE}}**: {{DESCRIPTION_AND_WHY_STRETCH}}
+[Archive](../archive/completion-metadata/completion-logging-system.md)
 
-## Key Deliverables (Target)
+- Django backend logging with configurable levels and request correlation
+- React frontend error boundaries and logging service
+- TMDB API call tracking with performance monitoring
+- Security-compliant logging (API keys properly excluded)
+- Docker volume integration for log file access
+- Comprehensive structured logging with correlation IDs
+- Production-ready logging configuration with rotation
 
-- {{MAJOR_FUNCTIONAL_DELIVERABLE}}
-- {{TECHNICAL_INFRASTRUCTURE_GOAL}}
-- {{QUALITY_TESTING_MILESTONE}}
-- {{DEPLOYMENT_OPERATIONAL_TARGET}}
+### ✅ API Layer Modernization (Phase 1)
 
-## Project Metrics (Current)
+[Archive](../archive/completion-metadata/completion-api-layer-modernization-p1.md)
 
-**Codebase Health**:
+- Movie domain fully migrated from DRF to Django Ninja with complete type safety
+- Pydantic schemas replacing DRF serializers for all movie endpoints (10 endpoints)
+- Auto-generated TypeScript types from Django Ninja OpenAPI schema
+- Established Pydantic TMDB response models and typed validators
+- Hybrid type checking strategy (Pyright primary)
+- CI/CD pipeline with automated type generation and quality enforcement
+- Zero technical debt in movie app and core infrastructure
 
-- {{TEST_RESULTS - e.g., "530 tests passing (197 backend + 333 frontend), 100% pass rate"}}
-- {{TYPE_SAFETY - e.g., "0 type errors (strict mode)"}}
-- {{LINTING - e.g., "0 linting violations"}}
-- {{SECURITY - e.g., "A+ security posture (rate limiting, headers, CSRF protection)"}}
+### ✅ API Layer Modernization (Phase 2)
 
-**{{CUSTOM_METRIC_CATEGORY_1}}**:
+[Archive](../archive/technical/api-layer-modernization-p2/)
 
-- {{METRIC_1}}
-- {{METRIC_2}}
+- UserMovieData domain migrated to Django Ninja (4 endpoints, 24 tests)
+- Authentication domain migrated to Django Ninja (9 endpoints, 93 tests)
+- JWT migration (djangorestframework-simplejwt → django-ninja-jwt)
+- Email verification bridge removed (direct allauth API usage)
+- TypeScript types auto-generated from OpenAPI schema
+- Frontend services updated to use Django Ninja endpoints
+- OAuth login buttons added (Google, GitHub)
+- DRF eliminated from codebase
+- **Key Achievement:** Infrastructure migration validated (DRF → Django Ninja complete)
+- **Scope Note:** Ratings/reviews/favorites APIs exist but frontend UI deferred to future feature work
 
-**Features Status**:
+### ✅ Authentication System (Two-Pattern Architecture)
 
-- ✅ Complete: {{COUNT}} features
-- ⏳ Backend done, Frontend needed: {{COUNT}} features
-- ❌ Not started: {{COUNT}} features
-- ⚠️ Rough draft: {{COUNT}} features
+[Archives](../archive/completion-metadata/)
 
-**Development Velocity**:
+**Foundation (Authentication Modernization):**
 
-- {{TIME_PERIOD}}: {{WORK_COMPLETED}}
-- {{EFFORT_TRACKING - e.g., "~170-210 hours of quality/infrastructure work"}}
+- Migrated from custom JWT to django-allauth
+- Django default User model (removed custom User, maintained compatibility)
+- ZeptoMail production email integration via custom allauth adapter
+- Email verification system with mandatory verification for password-based signup
 
-## Development Workflow
+**Dual Authentication Patterns (OAuth Headless Migration):**
 
-The project follows a structured approach using:
+- **JWT Pattern:** Email/password login (refresh_token cookie + access_token in sessionStorage)
+- **Session Cookie Pattern:** OAuth login (sessionid cookie, HTTP-only)
+- OAuth 2.0 fully functional (Google + GitHub)
+- Automatic token refresh via interceptor
+- Frontend OAuth callback handler with error recovery
+
+**Service Layer Architecture:**
+
+- Class-based services with dependency injection pattern
+- MovieEnrichmentService for user-specific data enrichment
+- Minimal watchlist implementation validating API integration
+
+**Test Infrastructure:**
+
+- OAuth mock infrastructure (fixtures, test helpers)
+- Session authentication test coverage
+- CSRF protection tests
+
+### ✅ Service Layer Modernization
+
+[Archive](../archive/2025-q4/technical/25_service-layer-modernization/)
+
+- Class-based services with dependency injection (constructor injection) for testability
+- Repository pattern for data access abstraction (UserMovieDataRepository)
+- Service composition enabling complex operations (MovieEnrichmentService)
+- Factory functions for production instantiation while preserving test injection
+- 7 backend services: MovieService, UserMovieDataService, AuthenticationService, MovieEnrichmentService,
+  KeywordService, PeopleService, MetricsService
+- Comprehensive test coverage (788 tests, 92.66% coverage)
+- 11 incidental task lists spawned and completed during execution
+- **Key Achievement:** Established service layer architecture as project standard
+
+### ✅ Toast Notification System
+
+[Archive](../archive/2025-q4/technical/26_toast-notification-system/)
+
+- Chakra UI v3 toaster with semantic token styling (5 status variants)
+- Toast recipe with consistent patterns matching alert system
+- Auth flow integration (login, register, logout, email verification, session errors)
+- Watchlist integration with undo functionality
+- API error interceptors (401, 5xx responses)
+- Promise toast pattern for async operations
+- Accessibility compliant (ARIA, reduced motion, pause on hover)
+- **Key Achievement:** Consistent user feedback infrastructure for all features
+
+---
+
+## Development Approach
+
+The project follows a structured development workflow:
 
 - **META-PRD** for high-level product requirements
-- **Sub-PRDs** for individual feature specifications
-- **Generated task lists** for implementation tracking
-- **{{CUSTOM_TRACKING_DOC}}** for {{PURPOSE - e.g., "tracking user-facing feature status", "infrastructure work"}}
-- **Systematic testing** and code quality checks
-- **{{CUSTOM_WORKFLOW_PATTERN}}** via {{MECHANISM - e.g., "incidental task lists for quality improvements"}}
-- **Regular PROJECT-STATUS updates** as features progress through planning → development → completion
-
-_Last updated: {{DATE}}_
+- **PRDs** for individual major/planned feature/technical specifications
+- **Task lists** for implementation tracking and execution
+- **Backlog organization** using GTD-inspired structure (ADR-014):
+    - `backlog/TASK-INBOX.md` - Zero-friction capture
+    - `backlog/feature/BACKLOG-FEATURE.md` - Feature ideas bucket
+    - `backlog/technical/BACKLOG-TECHNICAL.md` - Technical ideas bucket
+    - `backlog/*/plan-*.md` - Work units under planning/analysis
+    - `backlog/*/prd-*.md` - Work units ready for implementation
+- **Active work tracking** in `.arc/active/` with task lists and session state
+- **Quality gates** enforced via CI/CD (pytest, type checking, linting)
+- **Stacked branch workflow** for all work (feature, technical, incidental)
+- **Systematic archival** preserving work history and decisions

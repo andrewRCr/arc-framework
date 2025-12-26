@@ -1,0 +1,221 @@
+#!/bin/bash
+# Git commit-msg hook - Validates commit message format
+# Location: .githooks/commit-msg
+#
+# Setup: git config core.hooksPath .githooks
+# Bypass: git commit --no-verify (use sparingly!)
+
+set -e
+
+commit_msg_file="$1"
+commit_msg=$(cat "$commit_msg_file")
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+# Extract components
+subject=$(echo "$commit_msg" | head -n1)
+subject_length=${#subject}
+body=$(echo "$commit_msg" | tail -n +3) # Skip subject and blank line
+total_lines=$(echo "$commit_msg" | wc -l)
+
+errors=0
+warnings=0
+
+echo -e "${GREEN}🔍 Validating commit message...${NC}"
+
+# ============================================================================
+# RULE 1: Conventional Commit Format
+# ============================================================================
+if ! echo "$subject" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|perf|config)\([a-z][a-z0-9-]*\): .+'; then
+    echo -e "${RED}❌ Error: Subject must follow Conventional Commits format${NC}"
+    echo "   Expected: <type>(scope): description"
+    echo "   Types: feat, fix, docs, style, refactor, test, chore, perf, config"
+    echo "   Example: feat(auth): add JWT token refresh endpoint"
+    echo ""
+    echo "   Your subject: $subject"
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# RULE 2: Subject Line Length (50-72 chars)
+# ============================================================================
+if [ "$subject_length" -lt 10 ]; then
+    echo -e "${RED}❌ Error: Subject line too short (${subject_length} chars, minimum 10)${NC}"
+    errors=$((errors + 1))
+elif [ "$subject_length" -gt 72 ]; then
+    echo -e "${RED}❌ Error: Subject line too long (${subject_length} chars, maximum 72)${NC}"
+    errors=$((errors + 1))
+elif [ "$subject_length" -gt 50 ]; then
+    echo -e "${YELLOW}⚠️  Warning: Subject line is ${subject_length} chars (recommended max 50, hard limit 72)${NC}"
+    warnings=$((warnings + 1))
+fi
+
+# ============================================================================
+# RULE 3: Context Footer Present
+# ============================================================================
+if ! echo "$commit_msg" | grep -qE '^Context: '; then
+    echo -e "${RED}❌ Error: Missing 'Context:' footer${NC}"
+    echo "   Every commit must include a Context: line"
+    echo ""
+    echo "   Examples:"
+    echo "   Context: tasks-filter-integration-testing.md (Task 3.6)"
+    echo "   Context: tasks-api-layer-modernization.md (Tasks 1.4-1.7)"
+    echo "   Context: tasks-theme-modernization.md (Task 2.3.a)"
+    echo "   Context: tasks-theme-modernization.md (Tasks 2.3.c-e)"
+    echo "   Context: tasks-theme-modernization.md (Tasks 6.1.h, 6.2.a-d; maintenance)"
+    echo "   Context: tasks-filter-testing.md (incidental - discovered during Task 3.6)"
+    echo "   Context: tasks-chakra-recipe-system.md (incidental - discovered during code review)"
+    echo "   Context: tasks-pagination-buffer-tracking.md (planning)"
+    echo "   Context: tasks-theme-modernization.md (maintenance)"
+    echo "   Context: maintenance (atomic / no associated task list)"
+    echo "   Context: refactor (no associated task list)"
+    echo "   Context: documentation (atomic / no associated task list)"
+    echo "   Context: planning (atomic / no associated task list)"
+    errors=$((errors + 1))
+else
+    # Extract Context line for further validation
+    context_line=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
+
+    # ============================================================================
+    # RULE 4: Context Footer Format
+    # ============================================================================
+
+    # Check for task list reference
+    if echo "$context_line" | grep -qE '^Context: tasks-[a-z0-9-]+\.md'; then
+        # Task list reference format
+
+        # Extract filename
+        task_file=$(echo "$context_line" | sed -E 's/Context: (tasks-[a-z0-9-]+\.md).*/\1/')
+
+        # Check if task list file exists
+        if [ ! -f ".arc/active/feature/$task_file" ] &&
+           [ ! -f ".arc/active/technical/$task_file" ] &&
+           [ ! -f ".arc/active/incidental/$task_file" ]; then
+            echo -e "${YELLOW}⚠️  Warning: Task list file '$task_file' not found in .arc/active/{{feature,technical,incidental}}/${NC}"
+            echo "   This may be intentional if the file was just created or archived"
+            warnings=$((warnings + 1))
+        fi
+
+        # Validate task reference format
+        # Support multi-level task numbering: X.Y, X.Y.a, X.Y.a.1, etc.
+        # Level 3 uses letters for readability (strategy v1.4): 2.3.a, 2.3.b
+        # Special case: 'R' (capital) for revised/remedial/remaining work: X.Y.R, X.Y.R.1, X.Y.a.R
+        # Ranges can be abbreviated (e.g., 2.3.c-e means 2.3.c-2.3.e)
+        if echo "$context_line" | grep -qE '\(Task [0-9]+(\.[0-9A-Za-z]+)+\)$'; then
+            # Single task format - valid
+            :
+        elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*\)$'; then
+            # Task range format (full or abbreviated) - valid
+            # Examples: (Tasks 2.2-2.3), (Tasks 2.3.6c-2.3.6e) or (Tasks 2.3.6c-e)
+            :
+        elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+(, [0-9]+(\.[0-9A-Za-z]+)+)+\)$'; then
+            # Multiple non-contiguous tasks - valid
+            :
+        elif echo "$context_line" | grep -qE '\(Task [0-9]+(\.[0-9A-Za-z]+)+; (planning|maintenance)\)$'; then
+            # Single task completion + planning/maintenance qualifier - valid
+            # Examples: (Task 7.2.c; planning), (Task 2.3.a; maintenance)
+            :
+        elif echo "$context_line" | grep -qE '\(Tasks .+; (planning|maintenance)\)$'; then
+            # Multiple tasks completion + planning/maintenance qualifier - valid
+            # Examples: (Tasks 6.1.h, 6.2.a-d; maintenance), (Tasks 2.3.a-c; planning)
+            :
+        elif echo "$context_line" | grep -qE '\(incidental - discovered during (Task [0-9]+(\.[0-9A-Za-z]+)+|code review)\)$'; then
+            # Incidental work - discovered during task or code review - valid
+            :
+        elif echo "$context_line" | grep -qE '\((planning|maintenance)\)$'; then
+            # Task list planning/maintenance - valid
+            :
+        else
+            echo -e "${RED}❌ Error: Invalid task reference format in Context: line${NC}"
+            echo "   Expected formats for task list references:"
+            echo "   - (Task X.Y) or (Task X.Y.a) - level 3 uses letters (v1.4)"
+            echo "   - (Task X.Y.a.1) - level 4 if needed"
+            echo "   - (Task X.Y.R) or (Task X.Y.R.1) - 'R' for revised/remedial work"
+            echo "   - (Tasks X.Y-X.Z) or (Tasks X.Y.a-X.Y.d) - task range"
+            echo "   - (Tasks X.Y.c-e) or (Tasks 2.3.c-e) - abbreviated range"
+            echo "   - (Tasks X.Y, A.B, C.D) - non-contiguous tasks"
+            echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
+            echo "   - (Tasks X.Y, A.B; planning) or (Tasks X.Y, A.B; maintenance) - multiple tasks with extra work"
+            echo "   - (incidental - discovered during Task X.Y)"
+            echo "   - (incidental - discovered during code review)"
+            echo "   - (planning) or (maintenance) - task list planning/maintenance"
+            echo ""
+            echo "   Note: Parenthetical is REQUIRED for all commits"
+            echo ""
+            echo "   Your Context line: $context_line"
+            errors=$((errors + 1))
+        fi
+
+    # Check for no-task-list categories (both old and new atomic pattern)
+    elif echo "$context_line" | grep -qE '^Context: (planning|documentation|maintenance|refactor) \((atomic / )?no associated task list\)$'; then
+        # No task list category - valid (supports both "no associated task list" and "atomic / no associated task list")
+        :
+    else
+        echo -e "${RED}❌ Error: Invalid Context: format${NC}"
+        echo "   Expected formats:"
+        echo "   - Context: tasks-[name].md (Task X.Y)"
+        echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
+        echo "   - Context: tasks-[name].md (incidental - discovered during Task X.Y)"
+        echo "   - Context: tasks-[name].md (planning) or (maintenance)"
+        echo "   - Context: [planning|documentation|maintenance|refactor] (no associated task list)"
+        echo "   - Context: [planning|documentation|maintenance|refactor] (atomic / no associated task list)"
+        echo ""
+        echo "   Note: Parenthetical is REQUIRED for all commits"
+        echo "   Note: Use 'atomic / no associated task list' for work from ATOMIC-TASKS.md or emergent atomic work"
+        echo ""
+        echo "   Your Context line: $context_line"
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# RULE 5: Body Length Limits (warnings only)
+# ============================================================================
+body_lines=$(echo "$body" | grep -v '^$' | wc -l)
+
+if [ "$body_lines" -gt 25 ]; then
+    echo -e "${YELLOW}⚠️  Warning: Commit body is ${body_lines} lines (maximum 25 recommended)${NC}"
+    echo "   Consider breaking into multiple commits or reducing verbosity"
+    warnings=$((warnings + 1))
+elif [ "$body_lines" -gt 15 ]; then
+    echo -e "${YELLOW}⚠️  Info: Commit body is ${body_lines} lines (normal limit 15, milestone limit 25)${NC}"
+fi
+
+# ============================================================================
+# RULE 6: Common Mistakes
+# ============================================================================
+
+# Check for "Phase X.Y" instead of "Task X.Y"
+if echo "$commit_msg" | grep -qE 'Phase [0-9]+\.[0-9]+'; then
+    echo -e "${YELLOW}⚠️  Warning: Found 'Phase X.Y' in commit message${NC}"
+    echo "   Use 'Task X.Y' to reference specific tasks (phases contain tasks)"
+    warnings=$((warnings + 1))
+fi
+
+# Check for referencing PRD instead of task list
+if echo "$commit_msg" | grep -qE 'Related to:.*PRD'; then
+    echo -e "${YELLOW}⚠️  Warning: Found 'Related to: ... PRD' in commit message${NC}"
+    echo "   Use 'Context: tasks-[name].md' instead to reference task list"
+    warnings=$((warnings + 1))
+fi
+
+# ============================================================================
+# Summary
+# ============================================================================
+echo ""
+if [ $errors -gt 0 ]; then
+    echo -e "${RED}❌ Commit validation FAILED with $errors error(s) and $warnings warning(s)${NC}"
+    echo ""
+    echo "To bypass validation (use sparingly): git commit --no-verify"
+    exit 1
+elif [ $warnings -gt 0 ]; then
+    echo -e "${GREEN}✅ Commit validation PASSED with $warnings warning(s)${NC}"
+    exit 0
+else
+    echo -e "${GREEN}✅ Commit validation PASSED${NC}"
+    exit 0
+fi

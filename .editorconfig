@@ -1,0 +1,70 @@
+# EditorConfig - Standardize editor settings across team and file types
+# https://editorconfig.org
+#
+# VS Code, IntelliJ, Vim, and most modern editors support this automatically.
+# When you press TAB, your editor will insert the correct indentation for the file type.
+
+root = true
+
+# Defaults for all files
+[*]
+charset = utf-8
+end_of_line = lf              # Matches .gitattributes - all files use Unix line endings
+insert_final_newline = true   # Files should end with newline (Git best practice)
+trim_trailing_whitespace = true
+
+# Python (PEP 8 standard)
+[*.py]
+indent_style = space
+indent_size = 4
+
+# React/JSX files (2 spaces - React ecosystem standard)
+# Deeply nested JSX benefits from smaller indent
+[*.{jsx,tsx}]
+indent_style = space
+indent_size = 2
+
+# Regular JavaScript/TypeScript (4 spaces - project preference)
+# Non-React JS/TS uses 4 spaces for consistency with backend
+[*.{js,ts}]
+indent_style = space
+indent_size = 4
+
+# JSON/YAML (2 spaces - industry standard)
+[*.{json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown (4 spaces - matches markdownlint MD007 config)
+[*.md]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = false  # Markdown uses trailing spaces for line breaks
+
+# Configuration files (2 spaces - standard)
+[*.{toml,ini,cfg,conf}]
+indent_style = space
+indent_size = 2
+
+# Shell scripts (2 spaces - standard)
+[*.{sh,bash}]
+indent_style = space
+indent_size = 2
+
+# Makefiles (MUST use tabs - required by Make syntax)
+[Makefile]
+indent_style = tab
+
+# Docker files (2 spaces - standard)
+[{Dockerfile,Dockerfile.*,*.dockerfile}]
+indent_style = space
+indent_size = 2
+
+# HTML/CSS/SCSS (2 spaces - standard)
+[*.{html,css,scss}]
+indent_style = space
+indent_size = 2
+
+# Lock files and generated files (don't modify)
+[{package-lock.json,yarn.lock,pnpm-lock.yaml}]
+insert_final_newline = false
