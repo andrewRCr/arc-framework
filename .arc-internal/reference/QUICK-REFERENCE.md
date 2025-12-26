@@ -11,12 +11,12 @@ Command patterns and environment context for framework development.
 
 ### Critical Path Reference
 
-| Resource | Location from Repo Root | Why It Matters |
-|----------|-------------------------|----------------|
-| Template documents | `.arc/reference/` | Template/example content for adopters |
-| Internal docs | `.arc-internal/reference/` | Framework-specific documentation |
-| Active work | `.arc-internal/active/` | Current feature work |
-| Quality gate | `npx --yes markdownlint-cli2` | Zero-tolerance linting |
+| Resource           | Location from Repo Root       | Why It Matters                        |
+|--------------------|-------------------------------|---------------------------------------|
+| Template documents | `.arc/reference/`             | Template/example content for adopters |
+| Internal docs      | `.arc-internal/reference/`    | Framework-specific documentation      |
+| Active work        | `.arc-internal/active/`       | Current feature work                  |
+| Quality gate       | `npx --yes markdownlint-cli2` | Zero-tolerance linting                |
 
 **Working Directory Note**: This is a documentation-only framework. All work happens at repository root.
 

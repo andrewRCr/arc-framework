@@ -16,7 +16,8 @@ The ARC system is explicitly designed as an **antithesis to "vibe coding"** and 
 - **Task-level autonomy limits** - AI autonomous action is strictly limited to individual sub-tasks
   within approved task lists
 - **Explicit authorization required** - Any batching or multi-task operations require explicit human approval
-- **Structured, hands-on collaboration** - Every AI action is contextualized within a clear task hierarchy and approval workflow
+- **Structured, hands-on collaboration** - Every AI action is contextualized within a clear task hierarchy
+  and approval workflow
 - **Preventive against AI drift** - System structure prevents uncontrolled or tangential AI behavior
 
 This approach has been successfully validated in real-world usage (CineXplorer project) and represents a

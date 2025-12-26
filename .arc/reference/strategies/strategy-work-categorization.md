@@ -742,7 +742,8 @@ git commit -m "test: update tests to use shared helpers (tasks-refactor-test-hel
 git commit -m "test: add integration test coverage"
 ```
 
-**Note:** Size doesn't determine category. This is 15 hours of work but still incidental because it was discovered, not planned.
+**Note:** Size doesn't determine category. This is 15 hours of work but still incidental because it was
+discovered, not planned.
 
 ---
 

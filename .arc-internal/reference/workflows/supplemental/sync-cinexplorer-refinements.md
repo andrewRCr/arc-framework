@@ -118,17 +118,17 @@ Look for:
 
 **3.2 Common De-Instancing Patterns**
 
-| CineXplorer Content | Framework Template |
-|---------------------|-------------------|
-| `CineXplorer` | `{{PROJECT_NAME}}` |
-| `/home/andrew/dev/CineXplorer/` | `{{REPO_ROOT}}/` |
-| `8000` (backend port) | `{{BACKEND_PORT}}` |
-| `5173` (frontend port) | `{{FRONTEND_PORT}}` |
-| `8444` (proxy port) | `{{PROXY_PORT}}` |
-| `infrastructure/docker-compose.yml` | `{{DOCKER_COMPOSE_PATH}}` |
-| `.venv-backend/bin/` | `{{VENV_PATH}}/bin/` |
-| Tech stack specifics | Generic + note "Example tech stack" |
-| Django/React commands | Generic patterns + tech stack note |
+| CineXplorer Content                 | Framework Template                  |
+|-------------------------------------|-------------------------------------|
+| `CineXplorer`                       | `{{PROJECT_NAME}}`                  |
+| `/home/andrew/dev/CineXplorer/`     | `{{REPO_ROOT}}/`                    |
+| `8000` (backend port)               | `{{BACKEND_PORT}}`                  |
+| `5173` (frontend port)              | `{{FRONTEND_PORT}}`                 |
+| `8444` (proxy port)                 | `{{PROXY_PORT}}`                    |
+| `infrastructure/docker-compose.yml` | `{{DOCKER_COMPOSE_PATH}}`           |
+| `.venv-backend/bin/`                | `{{VENV_PATH}}/bin/`                |
+| Tech stack specifics                | Generic + note "Example tech stack" |
+| Django/React commands               | Generic patterns + tech stack note  |
 
 **3.3 Preserve Value While Generalizing**
 

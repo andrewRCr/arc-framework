@@ -11,13 +11,13 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 
 ### Critical Path Reference
 
-| Resource | Location from Repo Root | Why It Matters |
-|----------|-------------------------|----------------|
-| Docker Compose | `{{DOCKER_COMPOSE_PATH}}` | Required for all Docker operations |
-| Backend venv | `{{BACKEND_VENV_PATH}}/bin/` | Host tools (linters, type checkers) |
-| Backend code | `{{BACKEND_CODE_PATH}}` | Type checking, linting targets |
-| Frontend code | `{{FRONTEND_CODE_PATH}}` | Frontend operations |
-| .arc docs | `.arc/` | Documentation |
+| Resource       | Location from Repo Root      | Why It Matters                      |
+|----------------|------------------------------|-------------------------------------|
+| Docker Compose | `{{DOCKER_COMPOSE_PATH}}`    | Required for all Docker operations  |
+| Backend venv   | `{{BACKEND_VENV_PATH}}/bin/` | Host tools (linters, type checkers) |
+| Backend code   | `{{BACKEND_CODE_PATH}}`      | Type checking, linting targets      |
+| Frontend code  | `{{FRONTEND_CODE_PATH}}`     | Frontend operations                 |
+| .arc docs      | `.arc/`                      | Documentation                       |
 
 **Working Directory Note**: Your actual working directory may vary (subdirectories or root). CURRENT-SESSION.md
 contains context-specific paths adjusted for your current location.

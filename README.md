@@ -121,7 +121,8 @@ The framework operates through feedback loops that build on previous work:
 - **`.arc/reference/workflows/1-create-prd.md`** — Generate focused PRDs from product direction
 - **`.arc/reference/workflows/2-generate-tasks.md`** — Turn approved PRDs into agent-ready task lists
 - **`.arc/reference/workflows/3-process-task-loop.md`** — Execute tasks with human oversight checkpoints
-- **`.arc/reference/workflows/supplemental/manage-incidental-work.md`** — Systematic lifecycle for reactive maintenance tasks
+- **`.arc/reference/workflows/supplemental/manage-incidental-work.md`** — Systematic lifecycle for reactive
+  maintenance tasks
 - **`.arc/reference/workflows/supplemental/session-handoff.md`** — Package context for session transfers
 - **`.arc/reference/workflows/supplemental/agent-pr-review.md`** — Guide AI-assisted pull request reviews
 - **`.arc/reference/workflows/supplemental/atomic-commit.md`** — Enforce minimal, well-scoped commits
