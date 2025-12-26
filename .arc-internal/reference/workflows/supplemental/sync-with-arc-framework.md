@@ -41,7 +41,7 @@ CineXplorer (primary) ──sync-cinexplorer-refinements.md──> ARC Framework
 - `.arc/reference/` directory improvements:
     - `constitution/` - Constitutional documents and standards
     - `workflows/` - Process documentation
-    - `ai-instructions/` - AI collaboration guidance
+    - `agent/` - AI collaboration guidance
     - `strategies/` - Strategy and pattern documents
 - `.arc/active/CURRENT-SESSION.md` - **Format/structure improvements only**
     - Session Startup Protocol updates
@@ -67,7 +67,7 @@ CineXplorer (primary) ──sync-cinexplorer-refinements.md──> ARC Framework
 **Active Work**:
 
 - Current `.arc/active/` content (except format improvements to CURRENT-SESSION.md)
-- `.arc/upcoming/` planning specific to that project
+- `.arc/backlog/` planning specific to that project
 - `.arc/reference/archive/` completed work history
 - `.arc-internal/` framework-project-specific workspace
 

@@ -23,9 +23,8 @@ a shared understanding and efficient workflows for software development projects
 
 **Repository Layout:**
 
-- `.arc/` - Deployable template system (reference/, active/, upcoming/, archive/)
+- `.arc/` - Deployable template system (reference/, active/, backlog/)
 - `.arc-internal/` - Framework development workspace (constitution, workflows, active work)
-- `templates/` - Legacy directory (being consolidated into .arc/)
 - Root-level documentation (README.md, ADOPTION.md, CHANGELOG.md, etc.)
 
 ## Critical Path Information

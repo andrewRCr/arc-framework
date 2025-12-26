@@ -132,7 +132,7 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 - `.arc/` = the deployable template system (permanent, versioned)
 - `.arc-internal/` = framework development workspace (internal use only)
-- Template-first documents in `.arc/reference/constitution/`, `.arc/reference/ai-instructions/`
+- Template-first documents in `.arc/reference/constitution/`, `.arc/reference/agent/`
 - Core workflows in `.arc/reference/workflows/`
 
 ### Commit Standards
@@ -169,6 +169,6 @@ Separate concerns, prefer composition over duplication, favor readability when p
 This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
-- [Task Processing Workflow](../workflows/3-process-task-loop.md) - Detailed task execution workflow
-- [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Enhanced commit workflow with task context analysis
-- [AI Agent Reference Card](../ai-instructions/AGENTS.md) - Complete project context for AI
+- [Task Processing Workflow](../../.arc/reference/workflows/3_process-task-loop.md) - Detailed task execution workflow
+- [Atomic Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md) - Enhanced commit workflow
+- [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI

@@ -37,7 +37,7 @@ framework with battle-tested defaults.
 - AGENTS template (lean reference card) with framework protocols and quick lookup guide
 - META-PRD template with flexible structure guidance for any project type
 - PROJECT-STATUS template with progress tracking and priority management
-- TECHNICAL-ARCHITECTURE template with implementation guidance and architectural decisions
+- TECHNICAL-OVERVIEW template with implementation guidance and architectural decisions
 - Added framework rule: ALWAYS run markdown linting after updating documentation
 - All templates serve dual purpose: rich guidance + copy-ready starting points
 - Eliminated empty placeholder approach in favor of comprehensive templates

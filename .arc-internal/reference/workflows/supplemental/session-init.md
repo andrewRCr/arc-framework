@@ -39,7 +39,7 @@ more value in having complete context upfront than discovering missing rules mid
 
 **Read these documents to establish complete context:**
 
-1. `.arc-internal/reference/ai-instructions/AGENTS.md` - **MUST READ IN FULL**
+1. `.arc-internal/reference/agent/AGENTS.md` - **MUST READ IN FULL**
    - Framework overview (documentation-only, template system)
    - Quick lookup guide (workflows, constitution docs)
    - AI collaboration principles
@@ -64,7 +64,7 @@ more value in having complete context upfront than discovering missing rules mid
      large to internalize upfront. But you MUST read the overview + current task context.
    - **What to extract**: Current phase, next task, overall completion status, key patterns, current task details
 
-4. `.arc/reference/workflows/3-process-task-loop.md` - **MUST READ IN FULL**
+4. `.arc/reference/workflows/3_process-task-loop.md` - **MUST READ IN FULL**
    - One-subtask-at-a-time workflow
    - Task execution protocol
    - Quality gate requirements per subtask

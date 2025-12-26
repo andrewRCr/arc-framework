@@ -6,7 +6,7 @@ canonical docs:
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
 - [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) v0.2.0-dev (hash: 4b3d89f2) – Non-negotiable standards
 - [QUICK-REFERENCE](../QUICK-REFERENCE.md) v0.2.0-dev – Environment context and command patterns
-- [Process Task Loop](../workflows/3-process-task-loop.md) – One-subtask workflow
+- [Process Task Loop](../../.arc/reference/workflows/3_process-task-loop.md) – One-subtask workflow
 
 ## Claude-Specific Notes
 

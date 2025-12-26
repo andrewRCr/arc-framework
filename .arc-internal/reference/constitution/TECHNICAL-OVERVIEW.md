@@ -20,55 +20,58 @@ framework. This architectural decision ensures:
 │   │   ├── META-PRD.example.md
 │   │   ├── PROJECT-STATUS.example.md
 │   │   ├── DEVELOPMENT-RULES.example.md
-│   │   └── TECHNICAL-ARCHITECTURE.example.md
-│   ├── ai-instructions/       # AI agent collaboration templates
+│   │   └── TECHNICAL-OVERVIEW.example.md
+│   ├── agent/                 # AI agent collaboration templates
 │   │   ├── AGENTS.example.md
 │   │   ├── CLAUDE.example.md
 │   │   ├── GEMINI.example.md
 │   │   ├── WARP.example.md
 │   │   └── copilot-instructions.example.md
 │   ├── workflows/             # Process documentation
-│   │   ├── 0-define-constitution.md
-│   │   ├── 1-create-prd.md
-│   │   ├── 2-generate-tasks.md
-│   │   ├── 3-process-task-loop.md
+│   │   ├── 0_define-constitution.md
+│   │   ├── 1_create-prd.md
+│   │   ├── 2_generate-tasks.md
+│   │   ├── 3_process-task-loop.md
 │   │   └── supplemental/
+│   ├── adr/                   # Architecture decision records
+│   ├── research/              # Technical research documents
 │   └── strategies/            # Pattern documentation
 ├── active/                    # Current work templates
 │   ├── feature/               # Feature work templates
 │   ├── technical/             # Technical work templates
 │   ├── incidental/            # Incidental work templates
+│   ├── ATOMIC-TASKS.example.md  # Small one-off tasks
 │   └── CURRENT-SESSION.example.md
-├── upcoming/                  # Future work templates (work-categorized)
-│   ├── feature/               # Planned feature work
-│   └── technical/             # Planned technical work
-└── reference/
-    └── archive/               # Completed work archives (work-categorized)
-        ├── feature/           # Completed features
-        ├── technical/         # Completed technical work
-        └── incidental/        # Completed incidental work
+└── backlog/                   # Future work pipeline
+    ├── ROADMAP.example.md     # Sequencing strategy
+    ├── TASK-INBOX.example.md  # Zero-friction capture
+    ├── feature/               # Feature backlog
+    │   └── BACKLOG-FEATURE.example.md
+    └── technical/             # Technical backlog
+        └── BACKLOG-TECHNICAL.example.md
 
 .arc-internal/                 # Framework development workspace
 ├── active/                    # Current framework development
 │   ├── feature/               # Feature work
 │   ├── technical/             # Technical infrastructure work
-│   └── incidental/            # Incidental work
-├── reference/                 # Framework internal documentation
-│   ├── constitution/          # Internal constitutional documents
-│   │   ├── META-PRD.md           # Framework development PRD
-│   │   ├── PROJECT-STATUS.md     # Current progress tracking
-│   │   ├── DEVELOPMENT-RULES.md  # Framework development rules
-│   │   └── TECHNICAL-ARCHITECTURE.md # This file
-│   ├── ai-instructions/       # Internal AI instructions
-│   └── archive/               # Framework archives (work-categorized)
-│       ├── feature/           # Completed framework features
-│       ├── technical/         # Completed framework technical work
-│       └── incidental/        # Completed framework incidental work
-└── upcoming/                  # Future framework work
-    ├── feature/               # Planned framework features
-    └── technical/             # Planned framework technical work
+│   ├── incidental/            # Incidental work
+│   └── ATOMIC-TASKS.md        # Small one-off framework tasks
+├── backlog/                   # Future framework work pipeline
+│   ├── ROADMAP.md             # Framework development sequencing
+│   ├── TASK-INBOX.md          # Idea capture
+│   ├── feature/               # Framework feature backlog
+│   └── technical/             # Framework technical backlog
+└── reference/                 # Framework internal documentation
+    ├── constitution/          # Internal constitutional documents
+    │   ├── META-PRD.md           # Framework development PRD
+    │   ├── PROJECT-STATUS.md     # Current progress tracking
+    │   ├── DEVELOPMENT-RULES.md  # Framework development rules
+    │   └── TECHNICAL-OVERVIEW.md # This file
+    ├── agent/                 # Internal AI instructions
+    ├── adr/                   # Framework architecture decision records
+    ├── research/              # Framework technical research
+    └── archive/               # Framework archives (quarterly, by work type)
 
-templates/                     # Legacy template directory (being consolidated)
 profiles/                      # Stack-specific overlays
 ```
 

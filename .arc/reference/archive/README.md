@@ -5,17 +5,38 @@ working directories clean and focused.
 
 ## Archive Organization
 
-The archive uses **work-categorized subdirectories** where all documents for a piece of work live together:
+The archive uses **quarterly directories** with **work-categorized subdirectories**:
+
+```
+archive/
+├── {{QUARTER}}/                    # e.g., 2025-q4
+│   ├── feature/
+│   │   └── {{NN}}_{{name}}/       # e.g., 08_user-authentication/
+│   ├── technical/
+│   │   └── {{NN}}_{{name}}/       # e.g., 01_logging-system/
+│   └── incidental/
+│       └── {{NN}}_{{name}}/       # e.g., 04_security-fixes/
+└── completed-atomic-{{QUARTER}}.md # Completed atomic tasks
+```
+
+**Categories:**
 
 - **`feature/`** - User-facing planned work (each feature has its own subdirectory)
 - **`technical/`** - Infrastructure planned work (each technical work has its own subdirectory)
-- **`incidental/`** - Unplanned reactive work (subdirectories for multi-doc work, root for simple task lists)
+- **`incidental/`** - Unplanned reactive work (each gets its own subdirectory)
+
+**Sequence numbering:**
+
+- `{{NN}}` is a global sequence number (01-99) across ALL categories in the quarter
+- Assigned by completion order (when archived, not when started)
+- Gaps between numbers in a category show where other categories' work completed
+- Reset to 01 at start of each quarter
 
 ### Work Package Structure
 
-Each completed planned work (feature/technical) gets its own subdirectory containing:
+Each completed work gets its own subdirectory containing:
 
-- `prd-{name}.md` - Product Requirements Document
+- `prd-{name}.md` - Product Requirements Document (planned work only)
 - `tasks-{name}.md` - Task implementation documentation
 - `notes-{name}.md` - Development notes (optional)
 - `completion-{name}.md` - Completion metadata and summary
@@ -23,19 +44,20 @@ Each completed planned work (feature/technical) gets its own subdirectory contai
 **Example:**
 
 ```
-archive/technical/api-modernization/
-├── prd-api-modernization.md
-├── tasks-api-modernization.md
-├── notes-api-modernization.md
-└── completion-api-modernization.md
+archive/2025-q4/technical/01_logging-system/
+├── prd-logging-system.md
+├── tasks-logging-system.md
+├── notes-logging-system.md
+└── completion-logging-system.md
 ```
 
 ### Incidental Work Organization
 
-Incidental work (unplanned reactive fixes/improvements):
+Incidental work (unplanned reactive fixes/improvements) follows the same structure:
 
-- **With multiple docs**: Gets subdirectory (e.g., `incidental/security-fixes/`)
-- **Single task list**: Stays in `incidental/` root (e.g., `incidental/tasks-quick-fix.md`)
+- All incidental work gets a subdirectory with sequence prefix
+- Contains at minimum: `tasks-{name}.md` and `completion-{name}.md`
+- Notes file optional based on work complexity
 
 ## Completed Work
 
@@ -48,7 +70,7 @@ _This section will be populated as work is completed and archived._
 ### Active Documentation
 
 - **Current Work**: [`.arc/active/`](../../active/) (feature/, technical/, incidental/)
-- **Upcoming Work**: [`.arc/upcoming/`](../../upcoming/) (feature/, technical/)
+- **Backlog**: [`.arc/backlog/`](../../backlog/) (ROADMAP, feature/, technical/)
 - **Project Status**: [`constitution/{{PROJECT_STATUS_FILE}}`](../constitution/)
 - **Workflows**: [`workflows/`](../workflows/)
 
