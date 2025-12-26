@@ -1,71 +1,77 @@
 # {{PROJECT_NAME}} Meta Product Requirements Document (META-PRD)
 
-<!--
-This document defines your project's overall vision and direction.
-Replace {{PLACEHOLDERS}} with your project specifics.
-Keep high-level - feature details belong in individual PRDs.
--->
+*This is an example META-PRD structure. Replace all content with your project's specifics.*
 
 ## 1. Purpose
 
-<!-- Brief description of what your application does, who it's for, and what problem it solves -->
+{{PROJECT_DESCRIPTION}}
 
-{{PROJECT_NAME}} is {{BRIEF_DESCRIPTION - e.g., "a web application for movie enthusiasts to discover, track, and
-engage with movies"}}. {{ELABORATION - who it's for, what problem it solves, how it helps users}}.
+Describe what your application does, who it's for, and key external dependencies.
 
 ## 2. Core Features
 
-<!-- Group related features into logical areas. Keep descriptions high-level. -->
+### User Authentication & Profiles
 
-### {{FEATURE_AREA_1 - e.g., "User Authentication & Profiles"}}
+- User registration with email verification
+- Secure login/logout system
+- User profile management and editing
+- Personal preferences and settings
 
-- {{FEATURE_1}}
-- {{FEATURE_2}}
-- {{FEATURE_3}}
+### Movie Discovery & Browsing
 
-### {{FEATURE_AREA_2 - e.g., "Core Functionality"}}
+- Browse movies by category (Popular, Top Rated, Now Playing, Upcoming)
+- Advanced search functionality with multiple filters
+- Movie detail pages with comprehensive information
+- Actor and key crew profile pages
 
-- {{FEATURE_1}}
-- {{FEATURE_2}}
-- {{FEATURE_3}}
+### Personal Movie Management
 
-### {{FEATURE_AREA_3 - e.g., "Data Management"}}
+- **Watchlist**: Movies the user wants to watch
+    - Drag-and-drop reordering capability
+    - "Next Up" queue featuring top watchlist items
+- **Library**: Movies the user has watched
+    - "Favorites" section with reorderable subset
+    - Watch history and personal ratings
+- **Reviews**: User-generated movie reviews and ratings
 
-- {{FEATURE_1}}
-- {{FEATURE_2}}
-- {{FEATURE_3}}
+### Personalized Recommendations
+
+- "For You" page with curated movie suggestions
+- Metadata-based recommendation engine
+- Recommendations based on user preferences and history
 
 ## 3. Out-of-Scope Features
 
-- {{OUT_OF_SCOPE_1 - e.g., "Social features (following users, activity feeds)"}}
-- {{OUT_OF_SCOPE_2}}
-- {{OUT_OF_SCOPE_3}}
+- Social features (e.g., following users, activity feeds)
+- TV show tracking
+- Third-party streaming platform integration (stretch goal only)
 
 ## 4. User Flow (Target)
 
-{{NARRATIVE_DESCRIPTION - Describe the main user journey from entry to value delivery}}
-
-Example: "A user registers and logs in. They can browse content or go to their personalized page for recommendations.
-On a detail page, they can add items to their collection, mark as complete, rate, or review. They can manage their
-collections via drag-and-drop reordering. Finally, they can edit their profile information."
+A user registers and logs in. They can browse movies or go to their "For You" page for recommendations.
+On a movie page, they can add it to their watchlist, mark it as watched (adding it to their library),
+like, rate, or review it. They can view actor/director pages by clicking links from a movie detail page.
+The user can visit their "Watchlist" page, which includes a "Next Up" queue, and reorder the list via drag-and-drop.
+They can visit their "Library" page to see all watched movies, including a special "Favorites" section
+that is also reorderable. Finally, they can edit their basic profile information.
 
 ## 5. Success Metrics
 
-- **{{METRIC_CATEGORY_1 - e.g., "User Engagement"}}**: {{DESCRIPTION}}
-- **{{METRIC_CATEGORY_2 - e.g., "Discovery"}}**: {{DESCRIPTION}}
-- **{{METRIC_CATEGORY_3 - e.g., "Personalization"}}**: {{DESCRIPTION}}
-- **{{METRIC_CATEGORY_4 - e.g., "Retention"}}**: {{DESCRIPTION}}
+- **User Engagement**: Users actively maintain watchlists and library
+- **Discovery**: Users find and explore new movies through browsing and recommendations
+- **Personalization**: Users rate movies and receive relevant recommendations
+- **Retention**: Users return to track progress and discover new content
 
 ## 6. Technical Requirements
 
-- **Performance**: {{REQUIREMENTS - e.g., "Fast page loads and responsive interactions"}}
-- **Reliability**: {{REQUIREMENTS - e.g., "Stable data persistence and API integration"}}
-- **Scalability**: {{REQUIREMENTS - e.g., "Architecture supports growing user base and data"}}
-- **Security**: {{REQUIREMENTS - e.g., "Secure user authentication and data protection"}}
-- **Accessibility**: {{REQUIREMENTS - e.g., "Usable across different devices and abilities"}}
+- **Performance**: Fast page loads and responsive interactions
+- **Reliability**: Stable data persistence and API integration
+- **Scalability**: Architecture supports growing user base and data
+- **Security**: Secure user authentication and data protection
+- **Accessibility**: Usable across different devices and abilities
 
 ## 7. Data Sources
 
-- **{{PRIMARY_SOURCE - e.g., "Primary"}}**: {{DESCRIPTION - e.g., "Third-party API for content metadata"}}
-- **User-Generated**: {{DESCRIPTION - e.g., "Ratings, reviews, collections, and favorites"}}
-- **Derived**: {{DESCRIPTION - e.g., "Recommendation algorithms based on user behavior"}}
+- **Primary**: The Movie Database (TMDB) API for movie metadata
+- **User-Generated**: Ratings, reviews, watchlists, and favorites
+- **Derived**: Recommendation algorithms based on user behavior
