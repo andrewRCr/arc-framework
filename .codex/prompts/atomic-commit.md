@@ -1,0 +1,5 @@
+---
+description="Performs atomic commits by following the workflow."
+---
+
+Let's commit all uncommitted changes using `.arc/reference/workflows/supplemental/atomic-commit.md`.
