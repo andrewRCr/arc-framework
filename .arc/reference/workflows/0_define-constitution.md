@@ -39,7 +39,7 @@ Use this section when setting up constitutional documents for the first time.
 
 **Process**:
 
-1. Build on template at `.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`
+1. Build on template at `.arc/reference/constitution/TECHNICAL-OVERVIEW.md`
 2. Define technology stack and key dependencies
 3. Establish architectural patterns and design principles
 4. Document deployment and infrastructure decisions
@@ -130,7 +130,7 @@ Use this section to evolve constitutional documents as the project matures.
 
 **When major changes occur**:
 
-- **Technology changes**: Update TECHNICAL-ARCHITECTURE.md
+- **Technology changes**: Update TECHNICAL-OVERVIEW.md
 - **Team changes**: Review and update DEVELOPMENT-RULES.md
 - **Market changes**: Revise META-PRD.md direction and success criteria
 - **Performance issues**: Update architecture and development standards
@@ -149,7 +149,7 @@ Use this section to evolve constitutional documents as the project matures.
 
 ### Constitutional Context in PRDs
 
-When creating feature-level PRDs using [1-create-prd.md](1-create-prd.md):
+When creating feature-level PRDs using [1_create-prd.md](1_create-prd.md):
 
 - **Reference META-PRD**: Ensure feature aligns with project vision
 - **Check Technical Architecture**: Verify implementation approach fits established patterns
@@ -161,7 +161,7 @@ When creating feature-level PRDs using [1-create-prd.md](1-create-prd.md):
 All feature development should:
 
 - **Align with META-PRD vision** and success criteria
-- **Follow TECHNICAL-ARCHITECTURE** patterns and constraints
+- **Follow TECHNICAL-OVERVIEW** patterns and constraints
 - **Adhere to DEVELOPMENT-RULES** standards and processes
 - **Contribute to PROJECT-STATUS** milestone progress
 
@@ -172,7 +172,7 @@ All feature development should:
 **Constitutional Document Templates**:
 
 - `.arc/reference/constitution/META-PRD.md`
-- `.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`
+- `.arc/reference/constitution/TECHNICAL-OVERVIEW.md`
 - `.arc/reference/constitution/DEVELOPMENT-RULES.md`
 - `.arc/reference/constitution/PROJECT-STATUS.md`
 

@@ -18,11 +18,11 @@ infrastructure improvements. Work PRDs build upon the broader product vision est
 - **Feature PRDs** - User-facing capabilities (e.g., movie ratings, user profiles, search functionality)
 - **Technical PRDs** - Infrastructure work (e.g., API modernization, type safety improvements, testing infrastructure)
 
-See [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for the complete decision tree.
+See [Work Organization Strategy](../strategies/arc/strategy-work-organization.md) for the complete decision tree.
 
 **Note**: This workflow is for creating **work-level PRDs**, not the project-wide META-PRD. For establishing
-or updating constitutional documents (META-PRD, PROJECT-STATUS, TECHNICAL-ARCHITECTURE, DEVELOPMENT-RULES),
-use [0-define-constitution.md](0-define-constitution.md) instead.
+or updating constitutional documents (META-PRD, PROJECT-STATUS, TECHNICAL-OVERVIEW, DEVELOPMENT-RULES),
+use [0_define-constitution.md](0_define-constitution.md) instead.
 
 ## Goal
 
@@ -38,7 +38,7 @@ After examining the feature description or request, but before asking questions,
 documents to understand the complete context:
 
 - **`.arc/reference/constitution/META-PRD.md`** - Product vision, core features, and user flows
-- **`.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`** - Technical constraints, patterns, and architectural decisions
+- **`.arc/reference/constitution/TECHNICAL-OVERVIEW.md`** - Technical constraints, patterns, and architectural decisions
 - **`.arc/reference/constitution/DEVELOPMENT-RULES.md`** - Code standards, quality gates, and development protocols
 - **`.arc/reference/constitution/PROJECT-STATUS.md`** - Current priorities, progress, and project state
 
@@ -53,8 +53,8 @@ pattern captures evolving understanding during planning, with PRDs created only 
 
 - `.arc/active/feature/notes-{{FEATURE_NAME}}.md` (active feature work)
 - `.arc/active/technical/notes-{{FEATURE_NAME}}.md` (active technical work)
-- `.arc/upcoming/feature/notes-{{FEATURE_NAME}}.md` (planned features)
-- `.arc/upcoming/technical/notes-{{FEATURE_NAME}}.md` (planned technical work)
+- `.arc/backlog/feature/notes-{{FEATURE_NAME}}.md` (planned features)
+- `.arc/backlog/technical/notes-{{FEATURE_NAME}}.md` (planned technical work)
 
 **If notes document exists:**
 
@@ -85,7 +85,7 @@ Before detailed discovery, determine whether this is **feature** or **technical*
 1. **Does it add user-visible capability from the product vision?** → Feature work
 2. **Is it infrastructure/architecture improvement?** → Technical work
 
-See [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for complete decision tree and examples.
+See [Work Organization Strategy](../strategies/arc/strategy-work-organization.md) for complete decision tree and examples.
 
 ### Step 3: Conduct Discovery Session
 
@@ -116,10 +116,10 @@ the structure outlined below.
 
 **Save location:**
 
-- **Feature work** (user-facing): `.arc/upcoming/feature/prd-{{FEATURE_NAME}}.md`
-- **Technical work** (infrastructure): `.arc/upcoming/technical/prd-{{FEATURE_NAME}}.md`
+- **Feature work** (user-facing): `.arc/backlog/feature/prd-{{FEATURE_NAME}}.md`
+- **Technical work** (infrastructure): `.arc/backlog/technical/prd-{{FEATURE_NAME}}.md`
 
-See [Work Categorization Strategy](../strategies/strategy-work-categorization.md) for guidance on feature vs. technical.
+See [Work Organization Strategy](../strategies/arc/strategy-work-organization.md) for guidance on feature vs. technical.
 
 ## Clarifying Questions (Examples)
 
@@ -170,7 +170,7 @@ during implementation.
 ## Output Specifications
 
 - **Format:** Markdown (`.md`)
-- **Location:** `.arc/upcoming/feature/` (user-facing) or `.arc/upcoming/technical/` (infrastructure)
+- **Location:** `.arc/backlog/feature/` (user-facing) or `.arc/backlog/technical/` (infrastructure)
 - **Filename:** `prd-{{FEATURE_NAME}}.md`
 - **Token Format:** Use `{{UPPERCASE_SNAKE_CASE}}` for any placeholder values
 
@@ -179,4 +179,4 @@ during implementation.
 1. **Focus on requirements definition** - Do not proceed to implementation or task generation
 2. **Prioritize discovery** - Ensure thorough understanding through clarifying questions
 3. **Iterate on clarity** - Refine the PRD based on feedback and additional context
-4. **Reference next steps** - Upon completion, the PRD is ready for task generation via `2-generate-tasks.md`
+4. **Reference next steps** - Upon completion, the PRD is ready for task generation via `2_generate-tasks.md`

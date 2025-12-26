@@ -18,12 +18,12 @@ architectural decisions.
 
 - **Format:** Markdown (`.md`)
 - **Location:**
-    - Feature work: `.arc/upcoming/feature/`
-    - Technical work: `.arc/upcoming/technical/`
+    - Feature work: `.arc/backlog/feature/`
+    - Technical work: `.arc/backlog/technical/`
 - **Filename:** `tasks-[name].md` (e.g., `tasks-user-profile-editing.md`, `tasks-api-modernization.md`)
 
-**Note:** Task lists typically start in `.arc/upcoming/` during planning, then move to `.arc/active/` when
-work begins. See [Project Structure](../strategies/strategy-work-categorization.md) for complete lifecycle.
+**Note:** Task lists typically start in `.arc/backlog/` during planning, then move to `.arc/active/` when
+work begins. See [Project Structure](../strategies/arc/strategy-work-organization.md) for complete lifecycle.
 
 ## Process
 
@@ -34,7 +34,7 @@ foundational documents for broader context:
 
 - **[META-PRD](../constitution/META-PRD.md)** - Product vision and core features
 - **[PROJECT-STATUS](../constitution/PROJECT-STATUS.md)** - Current priorities and project state
-- **[TECHNICAL-ARCHITECTURE](../constitution/TECHNICAL-ARCHITECTURE.md)** - Architectural patterns and conventions
+- **[TECHNICAL-OVERVIEW](../constitution/TECHNICAL-OVERVIEW.md)** - Architectural patterns and conventions
 
 ### Step 2: Assess Current Codebase State
 
@@ -57,17 +57,33 @@ phases.
 - Order tasks to minimize dependencies and enable incremental progress
 - Include phases for testing, documentation, and quality validation
 
-**Example parent task structure:**
+**Example parent task structure (showing test-first ordering):**
 
 ```markdown
 ## Tasks
 
-- [ ] 1.0 Create Core Data Models
-- [ ] 2.0 Implement API Endpoints
-- [ ] 3.0 Build UI Components
-- [ ] 4.0 Testing and Validation
-- [ ] 5.0 Documentation and Polish
+### **Phase 1:** Backend Tests and Data Models
+
+- [ ] **1.1 Write tests for data models**
+- [ ] **1.2 Implement data models**
+
+### **Phase 2:** API Endpoint Tests and Implementation
+
+- [ ] **2.1 Write API integration tests**
+- [ ] **2.2 Implement API endpoints**
+
+### **Phase 3:** Frontend Component Tests and Implementation
+
+- [ ] **3.1 Write component tests**
+- [ ] **3.2 Implement UI components**
+
+### **Phase 4:** Integration Testing and Quality Gates
+
+- [ ] **4.1 Run full test suite**
+- [ ] **4.2 Run quality gates**
 ```
+
+**Note:** Tests come BEFORE or alongside implementation in each phase, not as separate final phase.
 
 Present parent tasks and confirm the high-level plan aligns with expectations before proceeding to detailed
 sub-tasks.
@@ -84,9 +100,16 @@ For each parent task, define specific, actionable sub-tasks that:
 
 **Sub-task guidelines:**
 
-- **Test-first protocol**: For models, APIs, and business logic, include test sub-tasks before implementation
+- **Test-first protocol (CRITICAL)**: Write test sub-tasks BEFORE implementation sub-tasks for:
+    - Data models (Django models, schemas)
+    - API endpoints and business logic
+    - Service layer functions
+    - See [strategy-testing-methodology.md](../strategies/project/strategy-testing-methodology.md)
+      and [DEVELOPMENT-RULES.md](../constitution/DEVELOPMENT-RULES.md) for complete protocol
 - **Quality gates**: Include linting and type-checking steps after significant changes
 - **Incremental validation**: Structure tasks so progress can be verified at each step
+- **No time estimates**: Task lists should NOT include time estimates (duration emojis, minute counts, etc.)
+  Focus on clear scope and completion criteria instead
 
 ### Step 5: Add Implementation Notes Section (Placeholder)
 
@@ -94,39 +117,76 @@ If architectural decisions, patterns, or constraints emerged during planning, th
 "Implementation Notes" section at the bottom of the task list. This provides context for future developers
 and explains why certain approaches were chosen.
 
-### Step 6: Generate Final Task List
+### Step 6: Review Task List Formatting Standards
 
-Combine parent tasks, sub-tasks, and optional implementation notes into the standard Markdown structure:
+**CRITICAL:** Before generating the task list, review formatting standards:
+
+**→ [strategy-task-list-formatting.md](../strategies/arc/strategy-task-list-formatting.md)** ← **Required reading**
+
+This strategy document defines:
+
+- Exact format for all task list elements (phase headers, parent tasks, subtasks)
+- Test-first task structure patterns
+- Complete annotated examples
+- Common mistakes to avoid
+- Decision guidelines for numbered subtasks vs. detail bullets
+
+**Use the strategy's Quick Format Checklist to verify your generated task list.**
+
+### Step 7: Generate Final Task List
+
+Combine parent tasks, sub-tasks, and optional implementation notes into the standard Markdown structure following [strategy-task-list-formatting.md](../strategies/arc/strategy-task-list-formatting.md).
+
+**Basic structure:**
 
 ```markdown
 # Task List: [Feature/Work Name]
 
 **PRD Reference:** `.arc/active/[category]/prd-[name].md`
+**Created:** YYYY-MM-DD
 **Branch:** `feature/[feature-name]` or `technical/[work-name]`
+**Base Branch:** `main` (or parent branch if stacked)
+**Status:** In Progress
+
+## Tasks
+
+### **Phase 1:** Backend Tests and Implementation
+
+- [ ] **1.1 Write tests for core functionality**
+
+    - [ ] 1.1.1 Create test for validation
+        - Test cases listed here
+        - Expect tests to FAIL initially
+    - [ ] 1.1.2 Run tests and verify failures
+
+- [ ] **1.2 Implement core functionality**
+
+    - [ ] 1.2.1 Create implementation
+        - Implementation details here
+    - [ ] 1.2.2 Run tests - should now PASS
+    - [ ] 1.2.3 Run quality gates
 
 ## Implementation Notes
 
 _(Optional: Document architectural decisions, patterns, constraints discovered during planning)_
-
-## Tasks
-
-- [ ] 1.0 Parent Task Title
-  - [ ] 1.1 Sub-task description
-  - [ ] 1.2 Sub-task description
-- [ ] 2.0 Parent Task Title
-  - [ ] 2.1 Sub-task description
-  - [ ] 2.2 Sub-task description
 ```
 
-### Step 7: Save Task List
+See [strategy-task-list-formatting.md](../strategies/arc/strategy-task-list-formatting.md) for complete formatting rules
+and annotated examples.
+
+### Step 8: Save Task List
 
 Save the generated task list in the appropriate category directory matching the PRD location:
 
-- Feature work: `.arc/upcoming/feature/tasks-[name].md`
-- Technical work: `.arc/upcoming/technical/tasks-[name].md`
+- Feature work: `.arc/backlog/feature/tasks-[name].md`
+- Technical work: `.arc/backlog/technical/tasks-[name].md`
 
 The `[name]` should match the base name of the input PRD file
 (e.g., if the input was `prd-user-profile-editing.md`, the output is `tasks-user-profile-editing.md`).
+
+**Format verification:** Use the Quick Format Checklist in
+[strategy-task-list-formatting.md](../strategies/arc/strategy-task-list-formatting.md)
+to verify the generated task list follows all formatting standards before saving.
 
 ## Target Audience
 
@@ -143,41 +203,12 @@ Task lists should be written for developers (junior to mid-level) who will imple
 - References to patterns, files, or approaches where helpful
 - Assumes familiarity with the tech stack but not with every project-specific pattern
 
-## Task List Structure
+**Formatting standards:** See [strategy-task-list-formatting.md](../strategies/arc/strategy-task-list-formatting.md)
+for complete formatting rules, test-first patterns, and examples.
 
-**Numbering convention:**
+## Task Completion Tracking
 
-- Parent tasks: `1.0`, `2.0`, `3.0`, etc.
-- Sub-tasks: `1.1`, `1.2`, `2.1`, `2.2`, etc.
 - All tasks start unchecked: `- [ ]`
-
-**Task completion tracking:**
-
 - Mark completed: `- [x] 1.1 Sub-task description`
 - Task list is a living document, updated throughout implementation
-- See [Task Processing Loop](3-process-task-loop.md) for execution workflow
-
-## Reference Template
-
-**The task list must follow this exact structure:**
-
-```markdown
-# Task List: [Feature/Work Name]
-
-**PRD Reference:** `.arc/active/[category]/prd-[name].md`
-**Branch:** `[category]/[name]`
-
-## Tasks
-
-- [ ] 1.0 Parent Task Title
-  - [ ] 1.1 Sub-task description (specific, actionable)
-  - [ ] 1.2 Sub-task description (includes quality checkpoints)
-- [ ] 2.0 Parent Task Title
-  - [ ] 2.1 Sub-task description
-- [ ] 3.0 Parent Task Title (may not require sub-tasks if purely structural or configuration)
-
-
-## Implementation Notes
-
-_(Optional section for documenting architectural decisions, patterns, or constraints discovered during planning)_
-```
+- See [Task Processing Loop](3_process-task-loop.md) for execution workflow

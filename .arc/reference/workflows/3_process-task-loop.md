@@ -8,6 +8,9 @@ It ensures consistent execution, quality control, and documentation of work.
 ## Task Implementation
 
 - **One sub-task at a time:** Do **NOT** start the next sub‑task without user approval
+- **Branch/task list coupling:** Task lists in `.arc/active/` correspond to git branches (branch exists ↔ task list
+  active). Archive task list immediately when branch deleted after merge. See
+  [Work Organization Strategy](../strategies/arc/strategy-work-organization.md) for details.
 - **Completion protocol:**
 
   1. When you finish a **single sub‑task**:
@@ -16,7 +19,9 @@ It ensures consistent execution, quality control, and documentation of work.
        - When task list explicitly calls for quality gates, they are mandatory
      - **Second**: Mark subtask as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
-       - Add "Completed" section with key findings/changes if work deviated from plan
+       - Add completion notes with key findings/changes if work deviated from plan
+       - **No inline dates**: Don't add completion dates to subtasks (e.g., "Completed: 2025-11-02"). Only the
+         task list header `**Completed:**` field should have a date. Inline dates become temporal noise during archival.
        - **Streamline verbose planning details**: Task descriptions serve different purposes before vs. after completion.
          During planning, verbose details help guide execution. After completion, they become historical records.
          When marking a task complete, retain information useful for understanding what was done and why,
@@ -47,12 +52,12 @@ It ensures consistent execution, quality control, and documentation of work.
 
   2. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
 
-     - **First**: Mark the **parent task** as `[x]` in the task list file (ensures docs reflect completion)
-     - **Second**: Ensure new code has appropriate test coverage (models, APIs, complex logic)
-     - **Third**: Run the full quality gates (all tests, linting, type checks)
-     - **Fourth**: Check if [PROJECT-STATUS](.arc/reference/constitution/PROJECT-STATUS.md) needs updates
-       (feature progress, completed functionality, updated priorities)
-     - **Fifth**: Verify completion before reporting (use pre-report checklist below)
+    - **First**: Mark the **parent task** as `[x]` in the task list file (ensures docs reflect completion)
+    - **Second**: Ensure new code has appropriate test coverage (models, APIs, complex logic)
+    - **Third**: Run the full quality gates (all tests, linting, type checks)
+    - **Fourth**: Check if [PROJECT-STATUS](.arc/reference/constitution/PROJECT-STATUS.md) needs updates
+      (feature progress, completed functionality, updated priorities)
+    - **Fifth**: Verify completion before reporting (use pre-report checklist below)
 
   3. Report completion to user
 
@@ -83,18 +88,17 @@ immediately. **Quick decision tree**:
 
 **Create incidental task list when:**
 
-- ✅ Multiple subtasks needed (>1 subtask)
-- ✅ Non-trivial effort (>30 minutes estimated)
-- ✅ Cross-cutting concern (affects multiple domains/files)
-- ✅ Quality improvement discovered during feature work
-- ✅ Worth documenting for handoffs
+- ✅ Multiple distinct phases with different goals (not just sequential steps)
+- ✅ Scope likely to expand via discovery (investigation-heavy)
+- ✅ Estimated 2+ hours OR requires research → design → implement cycle
 
-**Fix inline (no task list) when:**
+**Keep as atomic task (or fix inline) when:**
 
-- ❌ Simple fixes (<30 min, 1 subtask)
-- ❌ Typos, formatting, trivial refactors
-- ❌ Work already in main task list - add subtasks there
-- ❌ Exploratory work - use notes files instead
+- ❌ Single coherent concern, even if complex (multiple files, 30-90 min)
+- ❌ Sequential steps all serving one goal
+- ❌ Scope is known/bounded after initial analysis
+
+**Key distinction:** "Sequential steps toward one goal" = atomic. "Distinct phases with different objectives" = task list.
 
 ### Complete Workflow
 
@@ -156,3 +160,65 @@ the completion report. The TodoWrite item serves as a checklist reminder.
 2. **Track file changes via git:**
    - Git status and diffs provide the most accurate record of changes.
    - No need to manually maintain file lists - tools like `git status` and `git diff` are always current.
+
+---
+
+## Atomic Task Completion Protocol
+
+**For tasks tracked in:** `active/ATOMIC-TASKS.md`
+
+Atomic tasks are small, one-off work items (fixes, chores, quick refactors) that don't require formal task lists with
+phases and subtasks. They follow a simplified completion protocol.
+
+### Completion Workflow
+
+**1. Complete the work**
+
+- Do the task (fix, update, refactor, etc.)
+- Run appropriate quality checks (linting if code change, etc.)
+
+**2. Mark complete and add completion notes**
+
+- Change `[ ]` to `[x]`
+- Add completion notes describing what was done (can be multi-line for complex work)
+
+**3. Archive to quarterly file**
+
+- Move the completed entry from `active/ATOMIC-TASKS.md` to
+  `reference/archive/{year}-{quarter}/completed-atomic-{quarter}.md`
+- Insert at **top** of archive file (reverse chronological order)
+- Add branch line after completion notes (with empty line separator):
+
+  ```markdown
+  - [x] Refactor auth domain technical debt
+      - **Outcome:** Fixed circular deps, standardized AuthResult types, migrated to logger
+      - **Files:** useAuth.ts, auth-state.d.ts, MovieDetail.tsx, Login.tsx, etc.
+
+      - **Branch:** `technical/service-layer-modernization`
+  ```
+
+- This keeps ATOMIC-TASKS.md focused on actionable work
+
+**4. Commit with atomic context footer**
+
+- Use boundary category + atomic pattern:
+
+     ```
+     Context: maintenance (atomic / no associated task list)
+     Context: refactor (atomic / no associated task list)
+     Context: documentation (atomic / no associated task list)
+     Context: planning (atomic / no associated task list)
+     ```
+
+- See [Atomic Commit Workflow](supplemental/atomic-commit.md) for full format
+
+### When Atomic Tasks Grow
+
+If an atomic task becomes more complex than expected:
+
+1. **Stop** - Don't continue as atomic work
+2. **Create incidental task list** - Use incidental workflow for proper tracking
+3. **Remove from ATOMIC-TASKS.md** - Delete the atomic task entry
+4. **Continue in task list** - Follow normal task completion protocol
+
+See [Incidental Work Management](#incidental-work-management) above for creating task lists.
