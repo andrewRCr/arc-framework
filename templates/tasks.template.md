@@ -7,4 +7,4 @@
 ## Tasks
 
 - [ ] 1.0 Parent Task
-  - [ ] 1.1 Sub‑task
+    - [ ] 1.1 Sub‑task
