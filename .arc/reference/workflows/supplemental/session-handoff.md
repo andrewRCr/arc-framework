@@ -33,7 +33,7 @@ update the "Session Startup Protocol" section in CURRENT-SESSION.md:
 
 **Examples of when to update:**
 
-- Switching from backend subdirectory to frontend subdirectory → Update to show new context
+- Switching between different subdirectories in the codebase → Update to show new context
 - Moving from subdirectory to repo root → Update to reflect root-level paths
 - Starting new feature in different part of codebase → Update working directory
 
@@ -69,7 +69,7 @@ update the "Session Startup Protocol" section in CURRENT-SESSION.md:
 **Dynamic (update when context changes - see CRITICAL warning above)**:
 
 - **"Session Startup Protocol" working directory paths** - update EVERY TIME you switch between:
-    - Subdirectory work (e.g., backend/, frontend/)
+    - Subdirectory work (e.g., src/, lib/, apps/)
     - Repo root work
     - Different working contexts
 - Step 1: Expected pwd output

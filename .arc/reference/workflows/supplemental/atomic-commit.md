@@ -270,7 +270,7 @@ steps:
 
   - Tested rating ranges 1.0-3.5, 0-6.0, 8.5-10.0
   - Verified accurate filtering with vote_count threshold
-  - All 368 backend + 351 frontend tests passing
+  - All tests passing
 
   Completes parent task 3.0: Manual Testing Phase
 
@@ -283,7 +283,7 @@ steps:
   style(types): fix variable naming convention
 
   - Changed MAX_BUFFER_PAGES to max_buffer_pages
-  - Resolves ruff N806 violation
+  - Resolves linter naming convention violation
 
   Context: tasks-pagination-buffer-tracking.md (incidental - discovered during Task 2.1)
   ```
@@ -346,10 +346,10 @@ steps:
   ### Repository Maintenance (Atomic)
 
   ```
-  chore(deps): update Django to 5.2.8 security patch
+  chore(deps): update framework to security patch version
 
-  - Updated Django from 5.2.7 to 5.2.8
-  - Addresses CVE-2024-XXXXX
+  - Updated [framework] from X.Y.Z to X.Y.Z+1
+  - Addresses CVE-YYYY-XXXXX
   - All tests passing post-update
 
   Context: maintenance (atomic / no associated task list)

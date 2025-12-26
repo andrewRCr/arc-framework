@@ -154,35 +154,7 @@ feature development, where coordinating AI assistance while maintaining code qua
 The CineXplorer `.arc/` directory provides a complete example of the framework in action, showing how
 abstract processes translate to concrete project management.
 
-## 📄 Attribution and License
-
-The ARC framework builds upon and extends excellent foundational work from the open source community:
-
-### Core Workflow Foundation
-
-The three core workflows (`1-create-prd.md`, `2-generate-tasks.md`, `3-process-task-loop.md`) are derived from the
-[AI Dev Tasks](https://github.com/snarktank/ai-dev-tasks) project by snarktank, licensed under Apache 2.0.
-These workflows have been significantly enhanced and integrated into the broader ARC system:
-
-- **Original workflows**: Simple 3-step PRD → Tasks → Process cycle
-- **ARC enhancements**: META-PRD integration, PROJECT-STATUS tracking, DEVELOPMENT-RULES for code standards,
-  feature branch management, quality gates, session handoffs, agent-assisted PR reviews, atomic commit protocols,
-  and comprehensive task completion workflows
-
-### Original Contributions
-
-All other components represent original work, including:
-
-- The broader ARC framework architecture and methodology
-- Session management and context preservation systems
-- Documentation templates and organizational structure
-- AI agent coordination patterns and boundaries
-- Quality gate integration and NPX-based tooling approach
-- The recursive refinement philosophy and adoption playbook
-
-See `NOTICE` file for complete attribution details.
-
-### License
+## 📄 License
 
 The ARC Agentic Development Framework is licensed under the Apache License 2.0.
 See the `LICENSE` file for the full license text.

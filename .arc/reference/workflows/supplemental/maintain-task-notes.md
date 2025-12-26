@@ -385,15 +385,15 @@ Before migrating any content during mid-work cleanup, ask these questions:
 
 ```markdown
 <!-- KEEP (relevant to remaining Tasks 7-9, even though verbose) -->
-- [x] 6.5 Implement session auth fallback
-    **IMPORTANT for Tasks 7-9:** All endpoints must check session auth after JWT.
-    Authentication order: JWT → API Key → Session (Priority 3).
-    See test_session_auth.py for pattern. All future endpoints must follow this.
+- [x] 6.5 Implement auth fallback
+    **IMPORTANT for Tasks 7-9:** All endpoints must check secondary auth after primary.
+    Authentication order: Primary → API Key → Session (Priority 3).
+    See test_auth.py for pattern. All future endpoints must follow this.
     [Additional 10 lines of implementation guidance...]
 
 <!-- MIGRATE (historical, no future dependencies) -->
-- [x] 3.4 Debug CSRF token issue - RESOLVED
-    **Root Cause:** Referer header missing in form.submit() due to browser security
+- [x] 3.4 Debug token issue - RESOLVED
+    **Root Cause:** Header missing in form.submit() due to browser security
     **Solution:** Switched to fetch() API with explicit headers
     **Investigation:** Tried 5 different approaches... [15 lines of debugging journey]
     **Result:** Working, 0 regressions, all tests pass
@@ -666,23 +666,23 @@ and scattered information. **Before formatting, consolidate the content.**
 **Example - Before Consolidation:**
 
 ```markdown
-## Task 4.1: JWT Migration Research
-[300 lines about django-ninja-jwt compatibility]
+## Task 4.1: Auth Library Migration Research
+[300 lines about library compatibility]
 
-## Task 4.3: JWT Implementation
-[50 lines repeating same django-ninja-jwt compatibility info]
+## Task 4.3: Auth Library Implementation
+[50 lines repeating same compatibility info]
 [200 lines of implementation details]
 
-## Task 4.7: JWT Testing
-[Another 30 lines about django-ninja-jwt compatibility]
+## Task 4.7: Auth Library Testing
+[Another 30 lines about library compatibility]
 [Testing details]
 ```
 
 **Example - After Consolidation:**
 
 ```markdown
-## Django Ninja JWT Migration
-**Context:** Migrated from djangorestframework-simplejwt (Tasks 4.1-4.8)
+## Auth Library Migration
+**Context:** Migrated from old-auth-library to new-auth-library (Tasks 4.1-4.8)
 
 ### Compatibility Research (Task 4.1)
 [300 lines - kept as comprehensive reference]
@@ -712,8 +712,8 @@ After content consolidation, format for navigation and long-term reference:
 
 **Update Section Headers:**
 
-- Remove task references from headers (e.g., "Task 5.5: Django Ninja CSRF..." →
-  "CSRF Integration Issue Resolution")
+- Remove task references from headers (e.g., "Task 5.5: Token Validation..." →
+  "Token Validation Issue Resolution")
 - Make headers descriptive and standalone (future-you won't remember task numbers)
 - Add brief context line under each major heading
 

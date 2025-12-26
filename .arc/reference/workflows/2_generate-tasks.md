@@ -62,19 +62,19 @@ phases.
 ```markdown
 ## Tasks
 
-### **Phase 1:** Backend Tests and Data Models
+### **Phase 1:** Core Tests and Data Layer
 
 - [ ] **1.1 Write tests for data models**
 - [ ] **1.2 Implement data models**
 
-### **Phase 2:** API Endpoint Tests and Implementation
+### **Phase 2:** Service Layer Tests and Implementation
 
-- [ ] **2.1 Write API integration tests**
-- [ ] **2.2 Implement API endpoints**
+- [ ] **2.1 Write service/API tests**
+- [ ] **2.2 Implement service/API layer**
 
-### **Phase 3:** Frontend Component Tests and Implementation
+### **Phase 3:** UI Tests and Implementation
 
-- [ ] **3.1 Write component tests**
+- [ ] **3.1 Write component/UI tests**
 - [ ] **3.2 Implement UI components**
 
 ### **Phase 4:** Integration Testing and Quality Gates
@@ -101,7 +101,7 @@ For each parent task, define specific, actionable sub-tasks that:
 **Sub-task guidelines:**
 
 - **Test-first protocol (CRITICAL)**: Write test sub-tasks BEFORE implementation sub-tasks for:
-    - Data models (Django models, schemas)
+    - Data models and schemas
     - API endpoints and business logic
     - Service layer functions
     - See [strategy-testing-methodology.md](../strategies/project/strategy-testing-methodology.md)
@@ -150,7 +150,7 @@ Combine parent tasks, sub-tasks, and optional implementation notes into the stan
 
 ## Tasks
 
-### **Phase 1:** Backend Tests and Implementation
+### **Phase 1:** Core Tests and Implementation
 
 - [ ] **1.1 Write tests for core functionality**
 

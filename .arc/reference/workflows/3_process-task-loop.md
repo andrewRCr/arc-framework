@@ -67,8 +67,8 @@ It ensures consistent execution, quality control, and documentation of work.
      - [ ] All subtasks under parent task marked [x] in task list
      - [ ] Parent task marked [x] in task list
      - [ ] Task list file edited and saved
-     - [ ] Full test suite passed (backend + frontend)
-     - [ ] All linting checks passed (backend + frontend + markdown)
+     - [ ] Full test suite passed (all applicable domains)
+     - [ ] All linting checks passed (code + markdown as applicable)
      - [ ] PROJECT-STATUS checked and updated if needed
      - [ ] Ready to report completion to user
      ```

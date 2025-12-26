@@ -10,7 +10,7 @@
 
 ## Overview
 
-Weekly review is the cornerstone of backlog organization (per ADR-014). It ensures:
+Weekly review is the cornerstone of backlog organization. It ensures:
 
 - TASK-INBOX.md stays lean (no accumulation)
 - ATOMIC-TASKS.md shows current priorities
@@ -163,6 +163,5 @@ After completing review:
 
 ## Reference
 
-- ADR-014: Backlog Organization (GTD-inspired structure)
 - strategy-work-organization.md: Work categorization and workflow
 - 3_process-task-loop.md: Task execution workflow

@@ -83,7 +83,7 @@ If uncertain, ask for guidance on whether task list overhead is justified.
 Examples:
 
 - `tasks-filter-integration-testing.md`
-- `tasks-backend-type-safety.md`
+- `tasks-api-type-safety.md`
 - `tasks-security-updates.md`
 
 **Template structure** (same as feature/technical work):
@@ -160,9 +160,8 @@ Related to: .arc/active/technical/tasks-service-layer-modernization.md
 
 ## Git Branch Creation for Incidental Work
 
-**As of 2025-11-10 (ADR-013)**, incidental work that meets task list criteria gets its own git branch
-using a stacked branch workflow. See [ADR-013](../../adr/adr-013-adopt-stacked-branch-workflow.md) and
-[Work Organization Strategy](../../strategies/arc/strategy-work-organization.md) for complete rationale.
+Incidental work that meets task list criteria gets its own git branch using a stacked branch workflow.
+See [Work Organization Strategy](../../strategies/arc/strategy-work-organization.md) for complete rationale.
 
 ### When to Create a Branch
 
@@ -311,10 +310,10 @@ Example hierarchy:
 
 **Changelog**:
 
-- v3.1 (2025-12-04): Revised "When to Create" criteria - focus on distinct phases vs sequential steps,
+- v3.1: Revised "When to Create" criteria - focus on distinct phases vs sequential steps,
   raised time threshold from 30min to 2hrs, emphasized scope certainty as key factor. Removed overly
   trigger-happy criteria (">1 subtask", ">30min") that caused unnecessary task list overhead.
-- v3.0 (2025-11-10): Added git branch creation guidance, stacked branch workflow, updated completion/archival
-  to reflect branch lifecycle (ADR-013)
-- v2.0 (2025-10-24): Streamlined to focus on unique aspects of incidental work
-- v1.0 (previous): Initial version
+- v3.0: Added git branch creation guidance, stacked branch workflow, updated completion/archival
+  to reflect branch lifecycle
+- v2.0: Streamlined to focus on unique aspects of incidental work
+- v1.0: Initial version

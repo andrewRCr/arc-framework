@@ -1,10 +1,3 @@
-<!--
-Derived from: https://github.com/snarktank/ai-dev-tasks/create-prd.md
-Original work licensed under Apache License 2.0
-Modifications: Enhanced for ARC framework integration with META-PRD system,
-focus on feature-level PRD creation, dual-audience design, and feature-branch scope
--->
-
 # Workflow: Create PRD
 
 ## Purpose

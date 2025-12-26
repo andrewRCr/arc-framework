@@ -3,7 +3,7 @@
 Move completed work documentation to structured archive to keep the active workspace clean while preserving
 history and context.
 
-**Archive Timing (As of ADR-013, 2025-11-10):**
+**Archive Timing:**
 
 Task lists are archived **immediately when their corresponding git branch is deleted** (which occurs after merge
 completion). This creates conceptual coherence:
@@ -11,8 +11,7 @@ completion). This creates conceptual coherence:
 - Branch exists ↔ Task list in `.arc/active/`
 - Branch deleted → Task list archived to `.arc/reference/archive/`
 
-See [ADR-013](../../adr/adr-013-adopt-stacked-branch-workflow.md) and
-[Work Organization Strategy](../../strategies/arc/strategy-work-organization.md) for complete rationale.
+See [Work Organization Strategy](../../strategies/arc/strategy-work-organization.md) for complete rationale.
 
 ## Workflow Overview
 
@@ -45,26 +44,25 @@ If all tasks are marked complete, quality gates have passed. No separate verific
 
 **Note:** Not all work has PRDs. Incidental work typically has only task lists. Only update PRD status if one exists.
 
-### 1b) API Type Sync Check (If Applicable)
+### 1b) Generated Code Sync Check (If Applicable)
 
-**If backend API files were modified** (`api.py`, `schemas.py`), regenerate frontend types:
+**If your project has generated code** (API types, schema files, etc.), verify they're in sync before archiving:
 
 ```bash
-# Check if API files changed on this branch
-git diff main --name-only | grep -E "backend/apps/.*/api\.py|backend/apps/.*/schemas\.py"
+# Check if source files changed that would require regeneration
+git diff {{BASE_BRANCH}} --name-only | grep -E "{{GENERATED_CODE_SOURCE_PATTERN}}"
 
-# If any matches, regenerate types (requires running backend containers)
-DEV_SKIP_TLS=true NODE_ENV=development npm run generate-types --prefix frontend
+# If any matches, regenerate (project-specific command)
+{{TYPE_GENERATION_COMMAND}}
 
-# Check for uncommitted type changes
-git diff --exit-code frontend/openapi.json frontend/src/types/api.ts
+# Check for uncommitted changes
+git diff --exit-code {{GENERATED_FILES_PATTERN}}
 ```
 
-**If diff shows changes:** Commit them before proceeding. CI will fail the "check for type drift" step if
-OpenAPI schema and TypeScript types are not in sync with the backend.
+**If diff shows changes:** Commit them before proceeding. CI may fail if generated files drift from source.
 
-**Why this step:** CI regenerates types from a fresh backend and compares against committed files. Local
-type checking passes because it uses the committed (stale) types, but CI catches the drift.
+**Why this step:** CI typically regenerates from source and compares against committed files. Local checks
+may pass with stale generated files, but CI catches the drift.
 
 ### 2) Clean Up Documentation (MANDATORY)
 
@@ -232,24 +230,24 @@ Documentation prep commits use:
 
 ### 5) Code Review
 
-**Two-pass review (per ADR-013 stacked branch workflow):**
+**Two-pass review (recommended):**
 
-With the stacked branch workflow, ALL task list work gets branches and PRs, which means PR review is
-always triggered. The local review is a pre-flight check before creating the PR.
+With branch-based workflows, task list work gets branches and PRs, which means PR review is always triggered.
+A local review serves as a pre-flight check before creating the PR.
 
 ```bash
 # Pass 1: Local pre-PR review (recommended - catch issues before PR)
-coderabbit review local
+{{LOCAL_REVIEW_COMMAND}}  # e.g., linting, AI review tool, manual checklist
 # Fix findings, commit fixes
 
-# Pass 2: Create PR (CodeRabbit reviews PR automatically)
+# Pass 2: Create PR (automated review tools run on PR if configured)
 gh pr create --base parent-branch --head child-branch
 # Address PR review findings if any
 ```
 
-**Note:** While the local review is technically optional (the PR review will happen regardless), it's
-strongly recommended to catch and fix issues before the PR review. This creates a better review experience
-and maintains high code quality standards.
+**Note:** While local review is technically optional (PR review will happen regardless), it's strongly
+recommended to catch and fix issues before PR review. This creates a better review experience and
+maintains high code quality standards.
 
 **Use completion doc as PR description template:** Copy/adapt sections from `completion-{name}.md`
 for the PR body. This ensures consistency and avoids duplicate writing.
@@ -507,14 +505,5 @@ Earlier phases remain valid (will be used by new approach), but later phases are
 
 **Key principle:** The strikethrough + decision point note creates clear audit trail showing intentional
 architectural pivot, not abandoned work.
-
----
-
-### Historical Note: Completion Metadata Evolution
-
-**Before ADR-013 (< 2025-11-10):** Incidental work had inline completion summary in task list (no separate doc).
-
-**After ADR-013 (>= 2025-11-10):** ALL work gets separate `completion-{name}.md`. Archives before this date
-may lack completion docs for incidental work - this is expected.
 
 ---

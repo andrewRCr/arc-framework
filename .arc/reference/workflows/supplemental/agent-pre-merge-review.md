@@ -12,13 +12,11 @@ This workflow documents the **two-pass defense-in-depth strategy** for AI agent 
 This two-pass approach ensures **clean initial PRs** with focused, high-value PR reviews, similar to running
 linters locally before CI.
 
-**Applies to all merges** (as of ADR-013, 2025-11-10):
+**Applies to all merges:**
 
 - Merging to main (planned work complete)
 - Merging to parent branch (stacked branch workflow - incidental work merging to feature/technical parent)
 - Any PR where code review is warranted
-
-See [ADR-013](../../adr/adr-013-adopt-stacked-branch-workflow.md) for stacked branch workflow context.
 
 ## When to Use This Workflow
 
@@ -339,22 +337,21 @@ After all fixes committed and replies posted:
 
 ## Common Patterns
 
-### Pattern 1: DRF Code Scheduled for Deletion (Defer)
+### Pattern 1: Code Scheduled for Deletion (Defer)
 
-**Comment**: "Fix validation in DRF serializer"
+**Comment**: "Fix validation in this serializer"
 
 **Classification**: Issue (requires defer explanation)
 
 **Response** (PR Mode only):
 
 ```markdown
-Valid concern, but declining to fix. This DRF serializer is scheduled
-for complete removal in API Layer Phase 2 (documented deferral in
-prd-api-layer-modernization-p2.md). Fixing would add churn to code
-with ~2 week lifespan.
+Valid concern, but declining to fix. This code is scheduled for
+complete removal in [Phase/Task] (documented deferral in
+[prd-name].md). Fixing would add churn to code with limited lifespan.
 
-Current functionality works correctly. Will be replaced with Pydantic
-schemas during Django Ninja migration.
+Current functionality works correctly. Will be replaced with
+[new implementation] during [migration/refactor].
 ```
 
 ### Pattern 2: Documentation Inconsistency (Fix)
@@ -615,9 +612,9 @@ Fixed in commit [hash].
 
 **Changelog**:
 
-- v3.2 (2025-12-25): Clarified Issue/Nitpick classification comes from tool (not subjective assessment),
+- v3.2: Clarified Issue/Nitpick classification comes from tool (not subjective assessment),
   updated to draft replies immediately during fix collection with placeholder hash (captures context while fresh)
-- v3.1 (2025-11-10): Added stacked branch guidance (ADR-013) - review process applies to all merges (main or
+- v3.1: Added stacked branch guidance - review process applies to all merges (main or
   parent branch), updated PR creation examples to show base branch specification
-- v3.0 (2025-10-21): Introduced two-pass strategy with local + PR modes
+- v3.0: Introduced two-pass strategy with local + PR modes
 - Previous versions: Initial workflow documentation
