@@ -1,8 +1,26 @@
 # Quick Reference - ARC Agentic Development Framework
 
-**Version**: 0.2.0-dev | **Updated**: 2025-10-24
+**Version**: 0.3.0-dev | **Updated**: 2025-12-26
 
 Command patterns and environment context for framework development.
+
+## About This Reference Directory
+
+**Read every session:**
+
+- `DEVELOPMENT-RULES.md` (constitution/) - Rules and quality standards
+- `QUICK-REFERENCE.md` (this file) - Environment and commands
+- `CURRENT-SESSION.md` (active/) - Work status and next actions
+
+**Key documentation:**
+
+- `constitution/` - Project principles (META-PRD, DEVELOPMENT-RULES)
+- `workflows/` - Core process guides (define-constitution, create-prd, generate-tasks, process-task-loop)
+- `workflows/supplemental/` - Supporting workflows (atomic-commit, session-handoff, manage-incidental-work)
+- `strategies/` - Technical approaches (ADR methodology, task formatting, work organization)
+- `agent/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
+
+---
 
 ## Environment & Path Context
 
@@ -51,8 +69,17 @@ npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md"
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 ```
 
-**Note:** Without `--no-globs`, markdownlint-cli2 processes config globs in addition to specified files,
-which can unnecessarily process the entire workspace.
+**Important:**
+
+- Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
+- Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
+- `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) - use `markdown-table-prettify` instead:
+
+```bash
+# Fix table formatting (MD060 violations)
+npx --yes markdown-table-prettify < input.md > output.md
+# Or use VS Code extension: "Markdown Table Prettifier"
+```
 
 ---
 

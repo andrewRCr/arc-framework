@@ -111,7 +111,7 @@ State your understanding to confirm successful initialization:
 - **Runtime status**: Project-specific services running (per QUICK-REFERENCE.md)
 - **Tool availability**: Required tools available (per QUICK-REFERENCE.md)
 - **Quality policy**: Zero-tolerance for linting violations, 100% test pass rate
-- **Reference versions**: DEVELOPMENT-RULES v2.15 (hash: r8n4q1x3), QUICK-REFERENCE v1.1
+- **Reference versions**: DEVELOPMENT-RULES v{{DEV_RULES_VERSION}} (hash: {{DEV_RULES_HASH}}), QUICK-REFERENCE v{{QUICK_REF_VERSION}}
 - **Documents read in full**: Confirm that AGENTS, CURRENT-SESSION, 3-process-task-loop, STRATEGY-INDEX,
   DEVELOPMENT-RULES, QUICK-REFERENCE, and agent-specific file were read completely (not skimmed)
 - **Task list context loaded**: Confirm that task list overview + current task section were read (from CURRENT-SESSION)
