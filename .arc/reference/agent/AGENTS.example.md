@@ -1,75 +1,42 @@
 # {{PROJECT_NAME}} - AI Agent Reference Card
 
-<!--
-ARC Framework Template: Copy this file as AGENTS.md and customize for your project
-- Replace all {{PLACEHOLDERS}} with your actual project values
-- This is a reference card, not a workflow guide
-- Keep it lean - don't duplicate what's in CURRENT-SESSION/DEVELOPMENT-RULES/QUICK-REFERENCE
-- Focus on: orientation, lookups, gotchas, and maintenance
--->
-
-**Version:** {{VERSION_DATE}} | **Maintained by:** {{MAINTAINER}} | **Source of truth:** `.arc/reference/`
+**Version:** {{VERSION_DATE}} | **Source of truth:** `.arc/reference/`
 
 ## Project Overview
 
-<!--
-Brief 3-5 line description:
-- What does this application do?
-- Who is it for?
-- Project type (solo showcase, team product, client work, etc.)
-- Primary goal (showcase skills, solve business problem, etc.)
--->
-
-{{PROJECT_NAME}} is {{PROJECT_DESCRIPTION}}.
+{{PROJECT_DESCRIPTION}}
 
 **Project Type**: {{PROJECT_TYPE}}
 **Primary Goal**: {{PRIMARY_GOAL}}
 
 ## Project Snapshot
 
-<!--
-Customize with your actual stack and repo structure.
-Keep this lean - details belong in TECHNICAL-ARCHITECTURE.md
--->
-
 **Technology Stack:**
 
-- **Backend**: {{BACKEND_TECH}}
-- **Frontend**: {{FRONTEND_TECH}}
-- **Database**: {{DATABASE_TECH}}
-- **Infrastructure**: {{INFRASTRUCTURE_TECH}}
+- **Backend**: {{BACKEND_STACK}}
+- **Frontend**: {{FRONTEND_STACK}}
+- **Database**: {{DATABASE}}
+- **Infrastructure**: {{INFRASTRUCTURE}}
 - **External Services**: {{EXTERNAL_SERVICES}}
 
 **Repository Layout:**
 
-- `{{BACKEND_DIR}}/` - {{BACKEND_STRUCTURE}}
-- `{{FRONTEND_DIR}}/` - {{FRONTEND_STRUCTURE}}
-- `{{SHARED_DIR}}/` - {{SHARED_STRUCTURE}}
+- `{{BACKEND_DIR}}/` - Backend code and configuration
+- `{{FRONTEND_DIR}}/` - Frontend code and assets
 - `.arc/` - Documentation (constitution, strategies, workflows, active/upcoming tasks)
-- `{{INFRASTRUCTURE_DIR}}/` - {{INFRASTRUCTURE_STRUCTURE}}
-- `{{VENV_PATH}}/` - {{VENV_DESCRIPTION}}
+- `{{INFRASTRUCTURE_DIR}}/` - Infrastructure configuration
+- `{{VENV_PATH}}/` - Virtual environment (if applicable)
 
 ## Critical Path Information
 
-<!--
-Document your project's most common friction points:
-- Paths that are frequently wrong
-- Tools that need special invocation
-- Working directory gotchas
-- Environment setup requirements
-- Common mistakes to avoid
--->
-
 **Common Friction Points:**
 
-- **{{INFRASTRUCTURE_LOCATION}}**: `{{INFRASTRUCTURE_PATH}}` (from repo root)
-- **{{VENV_NAME}}**: `{{VENV_PATH}}/` (from repo root)
-- **{{TESTS_REQUIREMENT}}**: {{TESTS_CONTEXT}}
+- **Docker Compose location**: `{{DOCKER_COMPOSE_PATH}}` (from repo root)
+- **Backend venv**: `{{VENV_PATH}}/bin/` (from repo root)
+- **Tests**: {{TEST_REQUIREMENTS}}
 - **Working directory varies**: Check CURRENT-SESSION.md Session Startup Protocol for current context
-  ({{WORKING_DIR_OPTIONS}})
 - **Commands in QUICK-REFERENCE**: All assume repo root - adjust paths based on current working directory
-- **{{ADDITIONAL_GOTCHA_1}}**: {{GOTCHA_DESCRIPTION_1}}
-- **{{ADDITIONAL_GOTCHA_2}}**: {{GOTCHA_DESCRIPTION_2}}
+- **Network architecture**: {{NETWORK_ARCHITECTURE}}
 
 ## AI Collaboration Principles
 
@@ -81,6 +48,12 @@ Document your project's most common friction points:
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
 - **One subtask at a time** - Complete tasks incrementally, await approval between subtasks
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
+- **Verify before asserting** - Never guess file paths, implementation details, or content. Use Grep/Glob/Read
+  to verify, or ask clarifying questions when uncertain. See DEVELOPMENT-RULES Verification Protocol.
+- **Check strategy guidance** - Before implementing in codified domains, grep the relevant strategy doc.
+  See STRATEGY-INDEX.md for available guidance.
+- **Respect layered architecture** - Business logic belongs in appropriate layers, not in API/HTTP handlers.
+  See DEVELOPMENT-RULES.md for details.
 
 **Communication:**
 
@@ -89,5 +62,5 @@ Document your project's most common friction points:
 
 ---
 
-*This reference card is part of the ARC (Agentic, Recursive, Coordination) development framework. It provides
-quick orientation for AI assistants working on this project.*
+*This reference card is part of the ARC development framework. It provides
+quick orientation and lookup guidance for AI assistants working on this project.*
