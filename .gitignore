@@ -21,7 +21,7 @@ Thumbs.db
 .vscode/
 
 # AI tool settings (personal development environment preferences)
-.claude/
+.claude/settings.local.json
 .warp/
 
 # Personal reference documentation and notes (work-in-progress only)
