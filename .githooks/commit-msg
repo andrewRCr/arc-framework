@@ -3,7 +3,7 @@
 # Location: .githooks/commit-msg
 #
 # Setup: git config core.hooksPath .githooks
-# Bypass: git commit --no-verify (use sparingly!)
+# NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 
 set -e
 
@@ -30,10 +30,10 @@ echo -e "${GREEN}🔍 Validating commit message...${NC}"
 # ============================================================================
 # RULE 1: Conventional Commit Format
 # ============================================================================
-if ! echo "$subject" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|perf|config)\([a-z][a-z0-9-]*\): .+'; then
+if ! echo "$subject" | grep -qE '^(feat|fix|docs|style|refactor|content|test|chore|perf|build|ci|config|revert)\([a-z][a-z0-9-]*\): .+'; then
     echo -e "${RED}❌ Error: Subject must follow Conventional Commits format${NC}"
     echo "   Expected: <type>(scope): description"
-    echo "   Types: feat, fix, docs, style, refactor, test, chore, perf, config"
+    echo "   Types: feat, fix, docs, style, refactor, content, test, chore, perf, build, ci, config, revert"
     echo "   Example: feat(auth): add JWT token refresh endpoint"
     echo ""
     echo "   Your subject: $subject"
@@ -105,29 +105,27 @@ else
         # Level 3 uses letters for readability (strategy v1.4): 2.3.a, 2.3.b
         # Special case: 'R' (capital) for revised/remedial/remaining work: X.Y.R, X.Y.R.1, X.Y.a.R
         # Ranges can be abbreviated (e.g., 2.3.c-e means 2.3.c-2.3.e)
+        # Matches: (Task 2.3), (Task 2.3.a), (Task 2.3.a.1), (Task 2.3.R)
         if echo "$context_line" | grep -qE '\(Task [0-9]+(\.[0-9A-Za-z]+)+\)$'; then
-            # Single task format - valid
             :
+        # Matches: (Tasks 2.2-2.3), (Tasks 2.3.a-2.3.d), (Tasks 2.3.c-e)
         elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*\)$'; then
-            # Task range format (full or abbreviated) - valid
-            # Examples: (Tasks 2.2-2.3), (Tasks 2.3.6c-2.3.6e) or (Tasks 2.3.6c-e)
             :
-        elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+(, [0-9]+(\.[0-9A-Za-z]+)+)+\)$'; then
-            # Multiple non-contiguous tasks - valid
+        # Matches: (Tasks 2.3, 4.5), (Tasks 2.3.a, 4.5.b, 6.7), (Tasks 4.3, 5.1.a-c)
+        # Each element can be simple (4.3, 5.1.a) or range (5.1.a-c, 2.3-2.5)
+        elif echo "$context_line" | grep -qE '\(Tasks [0-9]+(\.[0-9A-Za-z]+)+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?(, [0-9]+(\.[0-9A-Za-z]+)+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?)+\)$'; then
             :
+        # Matches: (Task 7.2.c; planning), (Task 2.3.a; maintenance)
         elif echo "$context_line" | grep -qE '\(Task [0-9]+(\.[0-9A-Za-z]+)+; (planning|maintenance)\)$'; then
-            # Single task completion + planning/maintenance qualifier - valid
-            # Examples: (Task 7.2.c; planning), (Task 2.3.a; maintenance)
             :
+        # Matches: (Tasks 6.1.h, 6.2.a-d; maintenance), (Tasks 2.3.a-c; planning)
         elif echo "$context_line" | grep -qE '\(Tasks .+; (planning|maintenance)\)$'; then
-            # Multiple tasks completion + planning/maintenance qualifier - valid
-            # Examples: (Tasks 6.1.h, 6.2.a-d; maintenance), (Tasks 2.3.a-c; planning)
             :
+        # Matches: (incidental - discovered during Task 2.3), (incidental - discovered during code review)
         elif echo "$context_line" | grep -qE '\(incidental - discovered during (Task [0-9]+(\.[0-9A-Za-z]+)+|code review)\)$'; then
-            # Incidental work - discovered during task or code review - valid
             :
+        # Matches: (planning), (maintenance)
         elif echo "$context_line" | grep -qE '\((planning|maintenance)\)$'; then
-            # Task list planning/maintenance - valid
             :
         else
             echo -e "${RED}❌ Error: Invalid task reference format in Context: line${NC}"
@@ -150,9 +148,8 @@ else
             errors=$((errors + 1))
         fi
 
-    # Check for no-task-list categories (both old and new atomic pattern)
-    elif echo "$context_line" | grep -qE '^Context: (planning|documentation|maintenance|refactor) \((atomic / )?no associated task list\)$'; then
-        # No task list category - valid (supports both "no associated task list" and "atomic / no associated task list")
+    # Matches: Context: planning (no associated task list), Context: maintenance (atomic / no associated task list)
+    elif echo "$context_line" | grep -qE '^Context: (planning|documentation|maintenance|refactor|content) \((atomic / )?no associated task list\)$'; then
         :
     else
         echo -e "${RED}❌ Error: Invalid Context: format${NC}"
@@ -160,9 +157,10 @@ else
         echo "   - Context: tasks-[name].md (Task X.Y)"
         echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
         echo "   - Context: tasks-[name].md (incidental - discovered during Task X.Y)"
+        echo "   - Context: tasks-[name].md (incidental - discovered during code review)"
         echo "   - Context: tasks-[name].md (planning) or (maintenance)"
-        echo "   - Context: [planning|documentation|maintenance|refactor] (no associated task list)"
-        echo "   - Context: [planning|documentation|maintenance|refactor] (atomic / no associated task list)"
+        echo "   - Context: [planning|documentation|maintenance|refactor|content] (no associated task list)"
+        echo "   - Context: [planning|documentation|maintenance|refactor|content] (atomic / no associated task list)"
         echo ""
         echo "   Note: Parenthetical is REQUIRED for all commits"
         echo "   Note: Use 'atomic / no associated task list' for work from ATOMIC-TASKS.md or emergent atomic work"
@@ -210,7 +208,7 @@ echo ""
 if [ $errors -gt 0 ]; then
     echo -e "${RED}❌ Commit validation FAILED with $errors error(s) and $warnings warning(s)${NC}"
     echo ""
-    echo "To bypass validation (use sparingly): git commit --no-verify"
+    echo "Fix the issues above and retry. Do not use --no-verify to bypass."
     exit 1
 elif [ $warnings -gt 0 ]; then
     echo -e "${GREEN}✅ Commit validation PASSED with $warnings warning(s)${NC}"
