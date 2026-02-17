@@ -27,6 +27,7 @@ work in these domains.
 **Process:**
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
+- `arc/strategy-quality-gates.md` - Tiered quality gate system, when to run E2E checkpoints
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
 - `arc/strategy-work-organization.md` - Feature vs incidental work, branch coupling, archival
 
