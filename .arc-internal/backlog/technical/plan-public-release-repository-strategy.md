@@ -2,115 +2,70 @@
 
 ## Overview
 
-Planning document for transitioning the ARC framework from development to public release using separate repository approach.
+Planning document for the repository structure supporting ARC Framework's public release.
 
-## Current State
+**Status:** Evolving — delivery mechanism has shifted from "copy directory" to package manager install.
+See `feature/plan-distribution-and-update-system.md` for the distribution system design.
 
-**Repository**: `arc-agentic-dev-framework` (private development)
+**Created:** 2025-10-11
+**Updated:** 2026-02-17
 
-- Contains full `.arc-internal/` development workspace
-- Uses `.example.md` naming in `.arc/` structure
-- All development history and work context preserved
-- Battle-tested through real project usage (CineXplorer)
+---
 
-## Future Public Release Strategy
+## Repository Structure (Still Valid)
 
-### Repository Structure
+### Development Repository (private)
 
-**Development Repository** (private):
-
-- **Name**: `arc-agentic-dev-framework-dev` (or `-internal`)
-- **Purpose**: Ongoing framework development and improvements
+- **Name**: `arc-framework-dev` (rename from current `arc-agentic-dev-framework`)
+- **Purpose**: Ongoing framework development, self-hosted ARC methodology
 - **Contains**: Full `.arc-internal/` workspace, development history, work context
-- **Access**: Private, for framework development team
+- **Access**: Private
 
-**Public Repository** (public):
+### Public Repository (public)
 
-- **Name**: `arc-agentic-dev-framework` ← **Keep current name**
-- **Purpose**: Clean, user-facing framework for adoption
-- **Contains**: Only `.arc/` structure, ready-to-use templates, documentation
-- **Access**: Public, for framework users
+- **Name**: TBD (possibly `arc-framework` or keep `arc-agentic-dev-framework`)
+- **Purpose**: Clean, user-facing framework + npm package source
+- **Contains**: Framework files, CLI source, documentation, no development artifacts
+- **Access**: Public
 
-### Migration Process
+## What Has Changed
 
-**When Ready for Public Release:**
+The original plan assumed users would "just copy `.arc/` directory and start using." This has
+evolved significantly:
 
-1. **Rename Current Repository**:
-   - GitHub: Rename `arc-agentic-dev-framework` → `arc-agentic-dev-framework-dev`
-   - Update local remotes accordingly
+- **Distribution**: Package manager install (`npx arc-framework init`) instead of manual copy
+- **Updates**: Three-way merge system instead of manual sync
+- **Customization**: Interactive init with conditional content instead of manual template editing
+- **Agent tooling**: Selective install of `.claude/`, `.codex/`, `.gemini/` directories
 
-2. **Create Clean Public Repository**:
-   - New GitHub repo: `arc-agentic-dev-framework`
-   - Push cleaned version without development artifacts
+## What Remains Valid
 
-3. **Release Preparation**:
-   - Remove entire `.arc-internal/` directory
-   - Remove `.example` suffixes from all `.arc/` files
-   - Polish documentation for public consumption
-   - Create initial release tag
+- Dual-repo concept (dev + public) — still the right approach
+- Clean public presentation without development artifacts
+- GitHub as primary platform
 
-4. **Ongoing Development Workflow**:
-   - Continue development in `-dev` repository
-   - Periodic updates to public repository when ready
-   - Release tags and user documentation from public repo
+## Prerequisites (Updated)
 
-### User Experience Goals
+1. ✅ **Terminology Refactoring** — Complete
+2. ✅ **Template System Consolidation** — Complete (via CineXplorer sync)
+3. ✅ **Framework Defaults Integration** — Complete (battle-tested through multiple projects)
+4. 🔄 **Structural Optimization** — In planning (distribution readiness)
+5. ⏳ **Distribution CLI** — Not started
+6. ⏳ **Documentation Polish** — Not started
 
-**Simplicity**:
+## Migration Process
 
-- Users discover: `github.com/andrewRCr/arc-agentic-dev-framework`
-- No branch navigation required
-- No confusing naming conventions
-- Just copy `.arc/` directory and start using
+Deferred until distribution CLI is functional. The public repo will contain:
 
-**Professionalism**:
+- Framework source files (what gets installed)
+- CLI source code
+- npm package configuration
+- User-facing documentation (README, getting started, examples)
+- No `.arc-internal/` content
 
-- Clean, polished framework presentation
-- No development artifacts visible to users
-- Clear adoption documentation and examples
-- Battle-tested framework defaults included
+---
 
-## Prerequisites for Public Release
+## Related Documents
 
-**Must be completed before migration:**
-
-1. ✅ **Terminology Refactoring**: sub-prd → prd (COMPLETE)
-2. 🔄 **Template System Consolidation**: Eliminate dual-template complexity (IN PROGRESS)
-3. ⏳ **Framework Defaults Integration**: Include battle-tested rules from CineXplorer
-4. ⏳ **Documentation Polish**: User-focused documentation throughout
-5. ⏳ **Real-World Validation**: Ensure framework works seamlessly for adoption
-
-## Long-Term Development Workflow
-
-**Development Phase** (in `-dev` repo):
-
-- Normal ARC framework development workflow
-- Full `.arc-internal/` context maintained
-- All development history preserved
-- Feature development and improvements
-
-**Release Updates** (to public repo):
-
-- Periodic updates when significant improvements are ready
-- Clean transfer of `.arc/` content without development artifacts
-- Release notes and version tags
-- User-focused communication
-
-## Benefits of This Strategy
-
-- ✅ **Clean user experience**: No development noise in public repo
-- ✅ **Development context preserved**: Full work history maintained in `-dev` repo
-- ✅ **Professional presentation**: Public repo shows polished framework only
-- ✅ **Flexible timing**: Can develop privately until framework is truly ready
-- ✅ **Simple adoption**: Users just copy `.arc/` directory, no complex navigation
-- ✅ **Continued improvement**: Can enhance framework long-term without user confusion
-
-## Timeline
-
-**Phase 1** (Current): Complete framework development in current repo
-**Phase 2** (After template consolidation): Prepare for public release
-**Phase 3** (When ready): Execute repository migration strategy
-**Phase 4** (Ongoing): Maintain dual-repo workflow for continued development
-
-This strategy ensures the public framework maintains professional quality while preserving valuable
-development context for ongoing improvements.
+- Distribution system: `../feature/plan-distribution-and-update-system.md`
+- Roadmap: `../ROADMAP.md`

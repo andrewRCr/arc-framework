@@ -2,9 +2,9 @@
 
 ## Current State Overview
 
-The ARC Framework is in active development with significant structural improvements and template
-consolidation work recently completed. The system has evolved from basic scaffolding to a comprehensive
-framework with battle-tested defaults.
+The ARC Framework is a mature documentation-based development methodology, battle-tested through
+real project usage (CineXplorer, arc-portfolio). The framework is now in pre-release preparation,
+with distribution system design as the primary focus area.
 
 ## Completed Work
 
@@ -14,143 +14,119 @@ framework with battle-tested defaults.
 
 - Successfully migrated from Windows to WSL development environment
 - Restructured to `.arc/` (public templates) and `.arc-internal/` (development workspace)
-- Established active/upcoming/reference organization pattern
+- Established active/backlog/reference organization pattern
 - Complete git history preservation across migration
 - Updated CI workflows for new structure
 
 ### ✅ Terminology Refactoring
 
-**Status**: Completed October 11, 2024 | [Archive](../archive/tasks/incidental/tasks-incidental-terminology-refactoring.md)
+**Status**: Completed October 2024
 
 - Renamed all "Sub-PRD" references to "PRD" for cleaner terminology
 - Updated directory structure: sub-prds/ → prds/ throughout system
 - Created constitutional workflow: 0-define-constitution.md
-- Reorganized workflows: core (0-1-2-3) + supplemental/ subdirectory
-- Updated all documentation, examples, and internal references
-- Framework now uses consistent "prd" terminology with clear META-PRD distinction
+- Reorganized workflows: core (0-3) + supplemental/ subdirectory
 
 ### ✅ Template-First Constitutional Documents
 
-**Status**: Completed October 11, 2024
+**Status**: Completed October 2024
 
-- DEVELOPMENT-RULES template with battle-tested CineXplorer framework defaults
-- AGENTS template (lean reference card) with framework protocols and quick lookup guide
-- META-PRD template with flexible structure guidance for any project type
-- PROJECT-STATUS template with progress tracking and priority management
-- TECHNICAL-OVERVIEW template with implementation guidance and architectural decisions
-- Added framework rule: ALWAYS run markdown linting after updating documentation
+- DEVELOPMENT-RULES, AGENTS, META-PRD, PROJECT-STATUS, TECHNICAL-OVERVIEW templates
 - All templates serve dual purpose: rich guidance + copy-ready starting points
 - Eliminated empty placeholder approach in favor of comprehensive templates
 
 ### ✅ Framework Development Infrastructure
 
-- NPX-based markdown linting with comprehensive quality gates
+**Status**: Completed, incrementally improved
+
+- NPX-based markdown linting with zero-tolerance quality gates
 - GitHub Actions CI pipeline with automated validation
-- Atomic commit protocols for clean development history
+- Atomic commit protocols with conventional commit githook validation
 - Session management workflows for context preservation
 - Incidental work management system for reactive tasks
 
-## Work in Progress
+### ✅ CineXplorer Sync (December 2025)
 
-### 🚧 Documentation Enhancement - Phase 1 (Active)
+**Status**: Completed December 2025
 
-**Current Status**: Phase 0 partially complete, Phase 1 pending
-**Task List**: [tasks-enhance-docs-content-p1.md](../../active/feature/tasks-enhance-docs-content-p1.md)
+- Synced 2+ months of refinements from CineXplorer project usage
+- Infrastructure, workflows, agent files, constitution, and strategies aligned
+- Multi-agent support added (.claude, .codex, .gemini directories)
+- Legacy `/templates/` directory removed
+- Superseded task list archived (`tasks-enhance-docs-content-p1.md`)
 
-**Phase 0 (Template System Consolidation)**:
+### ✅ Dual-Maintenance Sync (February 2026)
 
-- ✅ Task 0.1-0.2: Analyzed dual system, created template-first constitutional documents
-- ⏳ Task 0.3: Create template-first workflow documents (CURRENT-SESSION, PRD, tasks)
-- ⏳ Task 0.4: Eliminate legacy `/templates/` directory entirely
-- ⏳ Task 0.5: Update framework documentation for unified template approach
+**Status**: Completed February 2026
 
-**Phase 1 (Content Enhancement)**:
+- Accumulated improvements from arc-portfolio project development
+- Tiered quality gates strategy (Tier 1/2/3 system)
+- Letter numbering standardization at third level (X.Y.a)
+- Expanded commit format skill and githook validation
+- New workflows: activate-work-unit, PRD header metadata
+- Refined archive-completed and maintain-task-notes workflows
 
-- All tasks pending Phase 0 completion
-- Focus: Enhance template-first documents with comprehensive CineXplorer patterns
-- Scope: Template content depth, workflow documentation, AI instructions
+## Currently Active
 
-**Objective**: Complete template system unification, then enhance with battle-tested content patterns
-
-**Integration Note**: Previously separate incidental work (template consolidation) has been properly
-integrated as Phase 0 of the feature work, providing the necessary foundation for comprehensive content
-enhancement.
+No active feature/technical work units. Planning phase for distribution system.
 
 ## Upcoming Priorities
 
 ### High Priority
 
-1. **Complete Documentation Enhancement Phase 0** (Active Feature Work)
-   - Task 0.3: Create template-first workflow documents
-   - Task 0.4: Eliminate legacy `/templates/` directory
-   - Task 0.5: Update framework documentation for unified approach
-   - **Goal**: Single source of truth per document type with rich guidance
+1. **Distribution & Update System** (Planning)
+   - Package manager delivery (npm) with CLI for init/update
+   - Pristine copy + three-way merge for non-destructive updates
+   - Interactive init with token replacement, conditional content, agent selection
+   - Plan: `backlog/feature/plan-distribution-and-update-system.md`
 
-2. **Execute Documentation Enhancement Phase 1** (Post-Phase 0)
-   - Enhance all template-first documents with comprehensive content depth
-   - Extract and integrate proven patterns from CineXplorer usage
-   - Focus on practical usability and immediate value for new adopters
-   - **Goal**: Battle-tested, copy-ready documentation system
+2. **General Refinement Pass** (Content quality)
+   - Content quality audit across all `.arc/` docs
+   - Clarity, accuracy, staleness, completeness
+   - Clean foundation before structural decisions
+
+3. **Structural Analysis Pass** (Prerequisite for distribution)
+   - Audit all `.arc/` files for stable vs configurable content separation
+   - Cross-cutting concept dependency mapping
+   - File classification inventory (framework/configurable/scaffolded/project-owned)
+   - Results feed into focused work unit for specific restructuring
+
+3. **README.md Refresh**
+   - Remove emojis, align with current framework structure
+   - Reframe for public consumption (adoption-focused, not dev-focused)
 
 ### Medium Priority
 
-1. **Public Release Preparation**
-   - Execute repository migration strategy (dev vs public repos)
-   - Remove `.example` suffixes from `.arc/` files
-   - Polish documentation for public consumption
-   - Create initial release materials
-   - **Timeline**: After template consolidation completion
+1. **Public Repository Setup**
+   - Rename current repo → `arc-framework-dev` (or similar)
+   - Create clean public-facing repo
+   - Plan: `backlog/technical/plan-public-release-repository-strategy.md` (evolving)
 
-2. **Real-World Validation**
-   - Test framework adoption on additional projects
-   - Document common customization patterns
-   - Refine based on actual usage feedback
-   - Create troubleshooting guide
+2. **CI/CD Improvements**
+   - Enhanced internal link validation
+   - Automated template instantiation testing
 
 ### Lower Priority
 
-1. **Advanced Framework Features**
-   - Enhanced profile system (if still needed after simplification)
-   - Migration tools for template updates
-   - Integration examples and CI/CD configurations
-
-2. **Community Preparation**
-   - Contribution guidelines and issue templates
-   - Documentation site (GitHub Pages)
-   - Tutorial content and walkthrough materials
+1. **Documentation Site** — GitHub Pages for browseable docs
+2. **Integration Examples** — Common tech stack configurations
+3. **Community Pipeline** — Contribution guidelines, issue templates, tutorials
 
 ## Key Deliverables (Target)
 
-- **Unified Template System**: Single source of truth with rich guidance (in progress)
-- **Battle-Tested Framework Defaults**: Constitutional documents with proven practices (complete)
-- **Public-Ready Framework**: Clean, professional presentation without development artifacts
-- **Comprehensive Documentation**: User-focused guidance for framework adoption
-- **Real-World Validation**: Proven effectiveness across multiple project types
-
-## Development Workflow Status
-
-The project successfully follows the ARC development methodology:
-
-- **META-PRD**: Provides clear framework development direction
-- **Incidental Work Management**: Effective for reactive tasks (terminology, templates)
-- **Feature Work Management**: Systematic approach with proper pause/resume capability
-- **Quality Gates**: Comprehensive markdown linting and atomic commit protocols
-- **Session Management**: Effective context preservation across development sessions
-- **Task Documentation**: Clear progress tracking and milestone achievement
-
-**Process Notes**: The framework successfully self-hosts its own development, demonstrating practical effectiveness.
+- **Distribution CLI**: `npx arc-framework init` / `update` / `diff` / `status`
+- **Non-Destructive Updates**: Three-way merge preserving user customizations
+- **Interactive Setup**: Selective agent install, conditional content, token replacement
+- **Public-Ready Framework**: Clean presentation with professional documentation
+- **Real-World Validation**: Proven across multiple project types (CineXplorer, arc-portfolio)
 
 ## Project Health Indicators
 
-- **Code Quality**: 100% markdown linting compliance, clean git history
-- **Framework Maturity**: Battle-tested defaults from CineXplorer integration
-- **Documentation Quality**: Comprehensive templates with inline guidance
-- **Development Velocity**: Major milestones completed systematically with atomic commits
-- **Technical Debt**: Minimal - proactive cleanup through incidental work management
+- **Quality**: 100% markdown linting compliance, clean git history
+- **Maturity**: Battle-tested through multi-project usage over 16+ months
+- **Documentation**: Comprehensive templates with inline guidance
+- **Self-Hosting**: Framework successfully develops itself using ARC methodology
 
 ---
 
-*This PROJECT-STATUS document reflects the evolution from basic framework scaffolding to a comprehensive,
-battle-tested development methodology. Progress tracked through systematic task management and atomic commits.*
-
-*Last updated: October 11, 2024*
+*Last updated: 2026-02-17*
