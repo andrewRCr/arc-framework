@@ -34,7 +34,10 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 
 - [ ] All task list subtasks and parent tasks marked `[x]`
 - [ ] Task list header `**Status:**` updated to `Complete`
-- [ ] PRD header `**Status:**` updated to `Complete` (if PRD exists - planned work only)
+- [ ] Task list Success Criteria aligned with completed Phase tasks (all checked if work complete)
+- [ ] PRD alignment (if PRD exists - planned work only):
+    - [ ] PRD header `**Status:**` updated to `Complete`
+    - [ ] PRD Open Questions resolved with brief notes on decisions made
 - [ ] All quality gates passed (documented as completed subtasks in task list)
 - [ ] Implementation functions as expected in development environment
 - [ ] PROJECT-STATUS reflects completion (if applicable - major features/technical work)
@@ -42,7 +45,7 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 **Note:** Quality gates (tests, linting, type checking) are always documented as subtasks in the task list.
 If all tasks are marked complete, quality gates have passed. No separate verification step needed.
 
-**Note:** Not all work has PRDs. Incidental work typically has only task lists. Only update PRD status if one exists.
+**Note:** Not all work has PRDs. Incidental work typically has only task lists. Skip PRD alignment items if no PRD.
 
 ### 1b) Generated Code Sync Check (If Applicable)
 
@@ -123,25 +126,28 @@ Create `completion-{name}.md` in the same directory as the task list:
 
 {2-3 sentences: What was accomplished and why it matters}
 
-## Key Implementation Details
+## Key Deliverables
 
-- {Major decision or pattern}
+{Concrete outputs - components, capabilities, test coverage areas}
+{Focus on the important stuff, not exhaustive inventory}
+{Avoid volatile metrics (test counts, version numbers) - they become stale}
+
+- {Component or capability}
+- {Another deliverable}
+
+## Implementation Highlights
+
+{Notable technical details worth remembering}
+
+- {Major decision or pattern established}
 - {Significant challenge overcome}
-- {Notable outcome}
-
-## Metrics
-
-- **Phases Completed**: N phases
-- **Key Deliverables**: [Components, files, features - whatever makes sense for this work]
-- **Tests Added**: Y tests (if applicable)
-- **Quality Gates**: [What was validated - WCAG, type safety, etc.]
+- {Anything useful for similar future work}
 
 ## Related Documentation
 
 - {For planned work: PRD: `path/to/prd-{name}.md`}
 - Tasks: `path/to/tasks-{name}.md`
 - Notes: `path/to/notes-{name}.md` (if exists)
-- Completion: `path/to/completion-{name}.md`
 
 ## {For planned work only: Incidental Work Completed}
 
@@ -222,37 +228,46 @@ Documentation prep commits use:
 - Completion metadata informs PR description
 - Natural forcing function: "Is completion doc accurate?"
 
+**⛔ CHECKPOINT:** Phase 1 complete. Do NOT push yet. Proceed to Phase 2 for code review before PR.
+
 ---
 
 ## Phase 2: Code Review & Merge
 
-**Context:** Still on child branch, docs are clean and committed.
+**Context:** Still on child branch, docs are clean and committed. **Branch is NOT pushed yet.**
 
-### 5) Code Review
+### 5) Local Code Review (Before Push)
 
-**Two-pass review (recommended):**
-
-With branch-based workflows, task list work gets branches and PRs, which means PR review is always triggered.
-A local review serves as a pre-flight check before creating the PR.
+**Run local review before pushing to remote.** This catches issues before they hit PR review,
+creating a cleaner review experience.
 
 ```bash
-# Pass 1: Local pre-PR review (recommended - catch issues before PR)
-{{LOCAL_REVIEW_COMMAND}}  # e.g., linting, AI review tool, manual checklist
-# Fix findings, commit fixes
+# Run local review (AI tool, linting, manual checklist)
+{{LOCAL_REVIEW_COMMAND}}
 
-# Pass 2: Create PR (automated review tools run on PR if configured)
-gh pr create --base parent-branch --head child-branch
-# Address PR review findings if any
+# Fix any findings
+# Commit fixes if needed
 ```
 
-**Note:** While local review is technically optional (PR review will happen regardless), it's strongly
-recommended to catch and fix issues before PR review. This creates a better review experience and
-maintains high code quality standards.
+**Why before push:** Fixes made here are part of the clean branch history. Fixes after PR creation
+require additional commits and re-review cycles.
+
+### 6) Push and Create PR
+
+**After local review passes:**
+
+```bash
+# Push branch to remote
+git push -u origin {branch-name}
+
+# Create PR using completion doc as description template
+gh pr create --base {parent-branch} --head {branch-name}
+```
 
 **Use completion doc as PR description template:** Copy/adapt sections from `completion-{name}.md`
 for the PR body. This ensures consistency and avoids duplicate writing.
 
-### 6) Address Review Findings
+### 7) Address PR Review Findings
 
 **If code review results in significant changes:**
 
@@ -264,11 +279,11 @@ for the PR body. This ensures consistency and avoids duplicate writing.
 **Important:** If review causes substantial changes to what was delivered, the completion doc should reflect
 final state, not initial intent. This is a natural forcing function for accuracy.
 
-### 7) Merge Pull Request
+### 8) Merge Pull Request
 
 ```bash
 # Merge PR through GitHub interface or CLI
-gh pr merge {pr-number} --squash  # or --merge, per project conventions
+gh pr merge {pr-number} --merge  # preserve commit history (no squash)
 
 # Or if merging locally:
 git checkout parent-branch
@@ -283,7 +298,7 @@ git push
 **Context:** PR is merged, you're now on the parent branch (e.g., `technical/service-layer-modernization`
 or `main`).
 
-### 8) Delete Child Branch
+### 9) Delete Child Branch
 
 ```bash
 # Delete locally
@@ -296,7 +311,7 @@ git push origin --delete {child-branch-name}
 **Branch deletion is the trigger for archival.** Once the branch is deleted, the task list should immediately
 move from `.arc/active/` to `.arc/reference/archive/`.
 
-### 9) Archive Files
+### 10) Archive Files
 
 **Create archive directory and move all files using git mv** (preserves history):
 
@@ -340,7 +355,7 @@ git mv .arc/active/incidental/notes-{name}.md .arc/reference/archive/{quarter}/i
 **Why git mv:** Preserves file history. Future developers can use `git log --follow` to see the file's
 full evolution even after it moved to archive.
 
-### 10) Update PROJECT-STATUS and ROADMAP
+### 11) Update PROJECT-STATUS and ROADMAP
 
 Update `.arc/reference/constitution/PROJECT-STATUS.md` if applicable:
 
@@ -361,7 +376,7 @@ Update `.arc/backlog/ROADMAP.md` if applicable:
 - ✅ Significant technical work (modernization, infrastructure changes)
 - ❌ Small incidental fixes (usually not necessary)
 
-### 11) Commit Archive Changes
+### 12) Commit Archive Changes
 
 **Stage changes:**
 
