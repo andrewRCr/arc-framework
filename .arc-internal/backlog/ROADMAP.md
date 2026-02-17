@@ -29,11 +29,11 @@ Prepare the framework for public distribution via package manager.
    - Agent-driven consistency audit for cross-cutting concept management
    - npm package delivery model
 
-2. **General refinement pass** — Content quality across `.arc/` docs
-   - Clarity, accuracy, staleness, completeness
+2. **General refinement pass** 🔄 In Progress — Content quality across `.arc/` docs
+   - PRD + task list: `.arc-internal/active/technical/`
+   - Branch: `technical/content-refinement-pass`
+   - 6 phases: agnosticism → templates → streamlining → content fixes
    - Focused on content quality, NOT structural concerns
-   - Clean foundation before structural decisions
-   - Scope TBD after initial audit; may be atomic or warrant a task list
 
 3. **Structural analysis pass** — Audit `.arc/` files for distribution readiness
    - File classification inventory (framework / configurable / scaffolded / project-owned)

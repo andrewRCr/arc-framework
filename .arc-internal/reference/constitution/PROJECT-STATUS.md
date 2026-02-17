@@ -68,7 +68,10 @@ with distribution system design as the primary focus area.
 
 ## Currently Active
 
-No active feature/technical work units. Planning phase for distribution system.
+- **Content Refinement Pass** (technical) — Systematic content quality improvement across all `.arc/` template files:
+  agnosticism corrections, template standardization, streamlining, content fixes.
+    - Task list: `.arc-internal/active/technical/tasks-content-refinement-pass.md`
+    - Branch: `technical/content-refinement-pass`
 
 ## Upcoming Priorities
 
@@ -80,20 +83,11 @@ No active feature/technical work units. Planning phase for distribution system.
    - Interactive init with token replacement, conditional content, agent selection
    - Plan: `backlog/feature/plan-distribution-and-update-system.md`
 
-2. **General Refinement Pass** (Content quality)
-   - Content quality audit across all `.arc/` docs
-   - Clarity, accuracy, staleness, completeness
-   - Clean foundation before structural decisions
-
-3. **Structural Analysis Pass** (Prerequisite for distribution)
+2. **Structural Analysis Pass** (Prerequisite for distribution)
    - Audit all `.arc/` files for stable vs configurable content separation
    - Cross-cutting concept dependency mapping
    - File classification inventory (framework/configurable/scaffolded/project-owned)
    - Results feed into focused work unit for specific restructuring
-
-3. **README.md Refresh**
-   - Remove emojis, align with current framework structure
-   - Reframe for public consumption (adoption-focused, not dev-focused)
 
 ### Medium Priority
 
@@ -123,7 +117,7 @@ No active feature/technical work units. Planning phase for distribution system.
 ## Project Health Indicators
 
 - **Quality**: 100% markdown linting compliance, clean git history
-- **Maturity**: Battle-tested through multi-project usage over 16+ months
+- **Maturity**: Battle-tested through multi-project usage (CineXplorer, arc-portfolio)
 - **Documentation**: Comprehensive templates with inline guidance
 - **Self-Hosting**: Framework successfully develops itself using ARC methodology
 

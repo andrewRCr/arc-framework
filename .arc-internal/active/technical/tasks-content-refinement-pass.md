@@ -1,10 +1,10 @@
 # Task List: Content Refinement Pass
 
-**PRD:** `.arc-internal/backlog/technical/prd-content-refinement-pass.md`
+**PRD:** `.arc-internal/active/technical/prd-content-refinement-pass.md`
 **Created:** 2026-02-17
 **Branch:** `technical/content-refinement-pass`
 **Base Branch:** `main`
-**Status:** Pending
+**Status:** In Progress
 
 ## Overview
 
