@@ -1,6 +1,6 @@
 # Task List Formatting Strategy
 
-**Version:** 1.5 | **Updated:** 2025-12-09 | **Status:** Active
+**Version:** 1.6 | **Updated:** 2025-12-31 | **Status:** Active
 
 ## Purpose
 
@@ -32,8 +32,8 @@ Before finalizing any task list, verify:
 
 - [ ] Phase headers use `### **Phase X:** Description` format
 - [ ] Parent tasks have checkboxes and bold: `- [ ] **X.Y Description**`
-- [ ] Numbered subtasks use `- [ ] **X.Y.Z Description**` when they have detail bullets (bold for hierarchy)
-- [ ] Letter numbering at third level: Use `X.Y.a`, `X.Y.b` for better readability (not `X.Y.1.1`)
+- [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
+- [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) - letters signal depth
 - [ ] Blank lines between subtasks when they have detail bullets beneath
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
 - [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
@@ -342,16 +342,16 @@ discovered during browser testing
 - [ ] **1.1.0 Write tests for data models**  # Wrong number format
 ```
 
-### Numbered Subtasks
+### Subtasks (Third Level)
 
-**Format:** `- [ ] **X.Y.Z Description**` (bold when detail bullets follow)
+**Format:** `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
 
 **When to use:** Parent task requires 2+ distinct, independently completable steps
 
 **Rules:**
 
 - Checkbox with space: `- [ ]`
-- Number format: `X.Y.Z` (matches parent `X.Y`, adds third level)
+- **Letter format: `X.Y.a`, `X.Y.b`, `X.Y.c`** (letters at third level for visual clarity)
 - **Bold description when subtask has detail bullets beneath** (creates visual hierarchy)
 - For consistency, accept bold even on rare single-line subtasks without details
 - Indented 4 spaces from parent task
@@ -366,36 +366,37 @@ discovered during browser testing
 ```markdown
 - [ ] **1.1 Write tests for data models**
 
-    - [ ] **1.1.1 Create test for `User` model validation**
+    - [ ] **1.1.a Create test for `User` model validation**
         - Test: Email format validation
         - Test: Username uniqueness constraint
         - Expect tests to FAIL initially
 
-    - [ ] **1.1.2 Create test for `Profile` model relationships**
+    - [ ] **1.1.b Create test for `Profile` model relationships**
         - Test: Foreign key to `User`
         - Test: Auto-creation on user signup
         - Expect tests to FAIL initially
 
-    - [ ] **1.1.3 Run tests and verify failure messages**
+    - [ ] **1.1.c Run tests and verify failure messages**
 ```
 
 ✅ **Also correct (simple single-line subtasks):**
 
 ```markdown
 - [ ] **1.2 Run quality gates**
-    - [ ] 1.2.1 Run linting checks
-    - [ ] 1.2.2 Run type checking
-    - [ ] 1.2.3 Verify no errors
+    - [ ] 1.2.a Run linting checks
+    - [ ] 1.2.b Run type checking
+    - [ ] 1.2.c Verify no errors
 ```
 
 ❌ **Wrong:**
 
 ```markdown
 - [ ] **1.1 Write tests for data models**
-- [ ] 1.1.1 Create test for User model  # Not indented
-- [ ] **1.1.1** Create test for User model  # Only number bold
-    - [ ] 1.1.1 Create test with details  # Not bold but should be (has details below)
+- [ ] 1.1.a Create test for User model  # Not indented
+- [ ] **1.1.a** Create test for User model  # Only number bold
+    - [ ] 1.1.a Create test with details  # Not bold but should be (has details below)
         - Test details
+- [ ] **1.1.1 Create test for User model**  # Numeric third level (use letters)
 ```
 
 ### Letter Numbering (Third Level and Beyond)
@@ -416,8 +417,7 @@ discovered during browser testing
 ```
 Phase: ### **Phase X:**
 Parent task: X.Y (e.g., 1.1, 2.3)
-Subtask: X.Y.Z (e.g., 1.1.1, 2.3.2)
-Sub-subtask: X.Y.a, X.Y.b (use letters for clarity)
+Subtask: X.Y.a, X.Y.b (letters at third level)
 Fourth level (rare): X.Y.a.1, X.Y.a.2
 ```
 
@@ -520,14 +520,14 @@ Detail bullets serve two distinct purposes:
 ```markdown
 - [ ] **1.1 Write tests for data models**
 
-    - [ ] **1.1.1 Create comprehensive test file in `test_models.py`**
+    - [ ] **1.1.a Create comprehensive test file in `test_models.py`**
         - Test: Email format validation (grouped action - same file)
         - Test: Username uniqueness constraint (grouped action - same file)
         - Test: Password minimum length (grouped action - same file)
         - File location: `backend/apps/core/tests/test_models.py` (guidance)
         - Expect tests to FAIL initially (guidance)
 
-    - [ ] **1.1.2 Run tests and verify failure messages**
+    - [ ] **1.1.b Run tests and verify failure messages**
 ```
 
 **Key distinction:** Unnumbered bullets provide **guidance or grouped actions**, not independent completable
@@ -556,11 +556,11 @@ steps that warrant tracking separately.
 
     **Goal:** Validate field constraints and relationships before implementation.
 
-    - [ ] **1.1.1 Create test for `User` model validation**
+    - [ ] **1.1.a Create test for `User` model validation**
         - Test: Email format validation
         - Test: Username uniqueness
 
-    - [ ] **1.1.2 Create test for `Profile` model relationships**
+    - [ ] **1.1.b Create test for `Profile` model relationships**
         - Test: Foreign key to `User`
 ```
 
@@ -569,11 +569,11 @@ steps that warrant tracking separately.
 ```markdown
 - [ ] **1.1 Write tests for User and Profile model validation**
 
-    - [ ] **1.1.1 Create test for `User` model field constraints**
+    - [ ] **1.1.a Create test for `User` model field constraints**
         - Test: Email validation
         - Test: Username uniqueness
 
-    - [ ] **1.1.2 Create test for `Profile` foreign key relationship**
+    - [ ] **1.1.b Create test for `Profile` foreign key relationship**
         - Test: Foreign key constraint
 ```
 
@@ -727,23 +727,23 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
     **Goal:** Establish test coverage before implementation.
 
-    - [ ] **1.1.1 Create test for `User` model**
+    - [ ] **1.1.a Create test for `User` model**
         - Test: Email validation
         - Test: Username uniqueness
         - Expect tests to FAIL initially
 
-    - [ ] **1.1.2 Create test for `Profile` model**
+    - [ ] **1.1.b Create test for `Profile` model**
         - Test: Foreign key to `User`
         - Test: Auto-creation on user signup
         - Expect tests to FAIL initially
 
 - [ ] **1.2 Implement core functionality**
 
-    - [ ] **1.2.1 Create `User` model in `models.py`**
+    - [ ] **1.2.a Create `User` model in `models.py`**
         - Fields: `username`, `email`, `password_hash`
         - Add `clean()` method for validation
 
-    - [ ] **1.2.2 Run tests - should now PASS**
+    - [ ] **1.2.b Run tests - should now PASS**
 ```
 
 ---
@@ -761,22 +761,22 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
 - [ ] **1.1 Write tests for User model**
 
-    - [ ] **1.1.1 Create test file `test_user_model.py`**
+    - [ ] **1.1.a Create test file `test_user_model.py`**
         - Test: Email validation
         - Test: Password hashing
         - Expect tests to FAIL initially
 
-    - [ ] **1.1.2 Run tests and verify failure messages**
+    - [ ] **1.1.b Run tests and verify failure messages**
 
 - [ ] **1.2 Implement User model**
 
-    - [ ] **1.2.1 Create `User` model in `models.py`**
+    - [ ] **1.2.a Create `User` model in `models.py`**
         - Fields: `username`, `email`, `password_hash`
         - Add validation in `clean()` method
 
-    - [ ] **1.2.2 Run tests - should now PASS**
+    - [ ] **1.2.b Run tests - should now PASS**
 
-    - [ ] **1.2.3 Run quality gates (linting, type checking)**
+    - [ ] **1.2.c Run quality gates (linting, type checking)**
 ```
 
 ### Pattern 2: Multi-Component Test-First
@@ -788,39 +788,39 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
 - [ ] **2.1 Write API integration tests**
 
-    - [ ] **2.1.1 Create test for user registration endpoint**
+    - [ ] **2.1.a Create test for user registration endpoint**
         - Test: Successful registration with valid data
         - Test: Validation errors with invalid data
         - Test: Email uniqueness constraint
         - Expect tests to FAIL initially
 
-    - [ ] **2.1.2 Create test for user login endpoint**
+    - [ ] **2.1.b Create test for user login endpoint**
         - Test: Successful login with correct credentials
         - Test: Failed login with wrong password
         - Test: Account lockout after failed attempts
         - Expect tests to FAIL initially
 
-    - [ ] **2.1.3 Run all tests and verify failures**
+    - [ ] **2.1.c Run all tests and verify failures**
 
 - [ ] **2.2 Implement registration endpoint**
 
-    - [ ] **2.2.1 Create `/api/register/` endpoint in `api.py`**
+    - [ ] **2.2.a Create `/api/register/` endpoint in `api.py`**
         - Accept `username`, `email`, `password`
         - Validate inputs, create user
 
-    - [ ] **2.2.2 Run registration tests - should now PASS**
+    - [ ] **2.2.b Run registration tests - should now PASS**
 
 - [ ] **2.3 Implement login endpoint**
 
-    - [ ] **2.3.1 Create `/api/login/` endpoint in `api.py`**
+    - [ ] **2.3.a Create `/api/login/` endpoint in `api.py`**
         - Authenticate user, return JWT token
         - Implement rate limiting
 
-    - [ ] **2.3.2 Run login tests - should now PASS**
+    - [ ] **2.3.b Run login tests - should now PASS**
 
 - [ ] **2.4 Final quality gates**
-    - [ ] 2.4.1 Run full test suite (all tests pass)
-    - [ ] 2.4.2 Run linting and type checking
+    - [ ] 2.4.a Run full test suite (all tests pass)
+    - [ ] 2.4.b Run linting and type checking
 ```
 
 ### Pattern 3: Feature with Backend and Frontend
@@ -832,61 +832,61 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
 - [ ] **1.1 Write backend tests**
 
-    - [ ] **1.1.1 Create API integration tests**
+    - [ ] **1.1.a Create API integration tests**
         - Test endpoints, validation, error handling
         - Expect tests to FAIL initially
 
-    - [ ] **1.1.2 Create service layer tests**
+    - [ ] **1.1.b Create service layer tests**
         - Test business logic independently
         - Use mocks for external dependencies
         - Expect tests to FAIL initially
 
 - [ ] **1.2 Implement backend**
 
-    - [ ] **1.2.1 Implement API endpoints**
+    - [ ] **1.2.a Implement API endpoints**
         - Create routes, request handling
 
-    - [ ] **1.2.2 Implement service layer**
+    - [ ] **1.2.b Implement service layer**
         - Business logic, data processing
 
-    - [ ] **1.2.3 Run backend tests - should PASS**
+    - [ ] **1.2.c Run backend tests - should PASS**
 
 ### **Phase 2:** Frontend Tests and Implementation
 
 - [ ] **2.1 Write component tests**
 
-    - [ ] **2.1.1 Create tests for form component**
+    - [ ] **2.1.a Create tests for form component**
         - Test user interactions, validation
         - Mock API calls
         - Expect tests to FAIL initially
 
-    - [ ] **2.1.2 Create integration tests for feature flow**
+    - [ ] **2.1.b Create integration tests for feature flow**
         - Test complete user journey
         - Use MSW for API mocking
         - Expect tests to FAIL initially
 
 - [ ] **2.2 Implement frontend components**
 
-    - [ ] **2.2.1 Create form component**
+    - [ ] **2.2.a Create form component**
         - Input fields, validation, submit handler
 
-    - [ ] **2.2.2 Integrate with API service**
+    - [ ] **2.2.b Integrate with API service**
         - Wire up API calls, error handling
 
-    - [ ] **2.2.3 Run component tests - should PASS**
+    - [ ] **2.2.c Run component tests - should PASS**
 
 ### **Phase 3:** End-to-End Validation
 
 - [ ] **3.1 Manual testing**
 
-    - [ ] **3.1.1 Test complete flow in browser**
+    - [ ] **3.1.a Test complete flow in browser**
         - Verify all user paths work
         - Check error handling and edge cases
 
 - [ ] **3.2 Quality gates**
-    - [ ] 3.2.1 Run full test suite (backend + frontend)
-    - [ ] 3.2.2 Run all linting and type checking
-    - [ ] 3.2.3 Verify no regressions
+    - [ ] 3.2.a Run full test suite (backend + frontend)
+    - [ ] 3.2.b Run all linting and type checking
+    - [ ] 3.2.c Verify no regressions
 ```
 
 ### Anti-Pattern: Tests After Implementation
@@ -956,18 +956,18 @@ This example demonstrates all formatting elements in proper context:
 
     **Goal:** Reusable fixtures to test state persistence across components.
 
-    - [ ] **1.1.1 Create fixture for filter state in `test_helpers.py`**
+    - [ ] **1.1.a Create fixture for filter state in `test_helpers.py`**
         - Return mock filter object with all fields
         - Support partial overrides for test variations
         - Include advanced filters (rating, year range)
 
-    - [ ] **1.1.2 Create fixture for navigation context**
+    - [ ] **1.1.b Create fixture for navigation context**
         - Mock URL params and history state
         - Support detail→back→detail flows
 
 - [ ] **1.2 Verify fixture compatibility with existing tests**
 
-    - [ ] **1.2.1 Run existing test suite with new fixtures**
+    - [ ] **1.2.a Run existing test suite with new fixtures**
         - Ensure no regressions
         - All tests should still PASS
 
@@ -975,13 +975,13 @@ This example demonstrates all formatting elements in proper context:
 
 - [ ] **2.1 Write tests for URL parameter preservation**
 
-    - [ ] **2.1.1 Create test in `test_navigation.ts`**
+    - [ ] **2.1.a Create test in `test_navigation.ts`**
         - Test: All filter params survive navigation
         - Test: Unknown params preserved (forward compatibility)
         - Test: Page number preserved correctly
         - Expect tests to FAIL initially (implementation not updated)
 
-    - [ ] **2.1.2 Create test for edge cases**
+    - [ ] **2.1.b Create test for edge cases**
         - Test: Empty filters (no params)
         - Test: Malformed URL params
         - Test: Very long param strings
@@ -991,13 +991,13 @@ This example demonstrates all formatting elements in proper context:
 
     **Goal:** Ensure expanded panels stay expanded across navigation.
 
-    - [ ] **2.2.1 Create test for advanced panel state**
+    - [ ] **2.2.a Create test for advanced panel state**
         - Test: Panel expanded with rating filters → detail → back → still expanded
         - Test: Panel collapsed with genres only → detail → back → still collapsed
         - Mock `useMovieCollectionState` hook
         - Expect tests to FAIL initially
 
-    - [ ] **2.2.2 Create test for filter collapsed state**
+    - [ ] **2.2.b Create test for filter collapsed state**
         - Test: Filters expanded → detail → back → still expanded
         - Expect tests to FAIL initially
 
@@ -1005,52 +1005,52 @@ This example demonstrates all formatting elements in proper context:
 
 - [ ] **3.1 Update URL parameter handling**
 
-    - [ ] **3.1.1 Modify `MovieCard.tsx` query string construction**
+    - [ ] **3.1.a Modify `MovieCard.tsx` query string construction**
         - Capture all URL params from `useSearchParams()`
         - Pass all params to detail page URL
         - Preserve unknown params
         - File location: `components/movie/MovieCard.tsx:133-139`
 
-    - [ ] **3.1.2 Modify `MovieDetail.tsx` back button URL**
+    - [ ] **3.1.b Modify `MovieDetail.tsx` back button URL**
         - Read all params from current URL
         - Reconstruct complete back URL
         - File location: `pages/movie/MovieDetail.tsx:116-120`
 
-    - [ ] **3.1.3 Run URL preservation tests - should now PASS**
+    - [ ] **3.1.c Run URL preservation tests - should now PASS**
 
 - [ ] **3.2 Update UI state preservation**
 
-    - [ ] **3.2.1 Verify `useEffect` auto-expand logic**
+    - [ ] **3.2.a Verify `useEffect` auto-expand logic**
         - Effect detects advanced filters from URL
         - Sets `showAdvanced` to true when filters present
         - File location: `useMovieCollectionState.tsx:119-125`
 
-    - [ ] **3.2.2 Run UI state tests - should now PASS**
+    - [ ] **3.2.b Run UI state tests - should now PASS**
 
 ### **Phase 4:** Quality Gates and Manual Verification
 
 - [ ] **4.1 Automated quality checks**
 
-    - [ ] **4.1.1 Run full test suite**
+    - [ ] **4.1.a Run full test suite**
         - Backend: All tests pass
         - Frontend: All 416+ tests pass
 
-    - [ ] **4.1.2 Run linting and type checking**
+    - [ ] **4.1.b Run linting and type checking**
         - ESLint: 0 violations
         - TypeScript: 0 errors
         - Pyright: 0 errors
 
 - [ ] **4.2 Manual testing**
 
-    - [ ] **4.2.1 Test URL param preservation**
+    - [ ] **4.2.a Test URL param preservation**
         - Apply filters → detail → back → verify filters
         - Test with all filter types
 
-    - [ ] **4.2.2 Test UI state preservation**
+    - [ ] **4.2.b Test UI state preservation**
         - Expand advanced panel → detail → back → verify expanded
         - Test across multiple navigation cycles
 
-    - [ ] **4.2.3 Test browser back button**
+    - [ ] **4.2.c Test browser back button**
         - Verify no regression in browser navigation
         - Test forward button as well
 
@@ -1210,8 +1210,8 @@ This example demonstrates all formatting elements in proper context:
 
 ```markdown
 - [ ] **1.1 Update component**
-    - [ ] 1.1.1 Fix the bug
-    - [ ] 1.1.2 Add the feature
+    - [ ] 1.1.a Fix the bug
+    - [ ] 1.1.b Add the feature
 ```
 
 ✅ **Correct:**
@@ -1219,12 +1219,35 @@ This example demonstrates all formatting elements in proper context:
 ```markdown
 - [ ] **1.1 Update MovieCard component for filter preservation**
 
-    - [ ] **1.1.1 Capture all URL params in query string**
+    - [ ] **1.1.a Capture all URL params in query string**
         - Use `useSearchParams()` to read current filters
 
-    - [ ] **1.1.2 Pass params to detail page via Link component**
+    - [ ] **1.1.b Pass params to detail page via Link component**
         - Serialize params to query string
 ```
+
+### Mistake 8: Numeric Third Level (Use Letters)
+
+❌ **Wrong:**
+
+```markdown
+- [ ] **1.1 Write tests for User model**
+    - [ ] **1.1.1 Create validation tests**  # Numbers blend together
+    - [ ] **1.1.2 Create relationship tests**
+    - [ ] **1.1.3 Run and verify failures**
+```
+
+✅ **Correct:**
+
+```markdown
+- [ ] **1.1 Write tests for User model**
+    - [ ] **1.1.a Create validation tests**  # Letters signal depth
+    - [ ] **1.1.b Create relationship tests**
+    - [ ] **1.1.c Run and verify failures**
+```
+
+**Why:** Three consecutive numbers (`1.1.1`) are harder to parse than number-number-letter (`1.1.a`).
+Letters at the third level provide visual differentiation and reduce cognitive load.
 
 ---
 
@@ -1234,7 +1257,7 @@ This example demonstrates all formatting elements in proper context:
 
 **Core principle:** Number subtasks when tracking completion adds value; use detail bullets when numbering creates noise.
 
-#### Use Numbered Subtasks (X.Y.Z) When
+#### Use Subtasks (X.Y.a) When
 
 - **Independently completable** at different times/sessions
 - **Clear checkpoint value** - marking complete signals progress
@@ -1247,20 +1270,20 @@ This example demonstrates all formatting elements in proper context:
 - Would you do them all in one sitting? → Detail bullets
 - Does splitting add clarity or just noise? → If noise, use detail bullets
 
-**Example needing numbered subtasks:**
+**Example needing subtasks:**
 
 ```markdown
 - [ ] **2.1 Write API integration tests**
 
-    - [ ] **2.1.1 Create test for registration endpoint**
+    - [ ] **2.1.a Create test for registration endpoint**
         - Test: Successful registration
         - Test: Validation errors
 
-    - [ ] **2.1.2 Create test for login endpoint**
+    - [ ] **2.1.b Create test for login endpoint**
         - Test: Successful login
         - Test: Failed login
 
-    - [ ] **2.1.3 Create test for logout endpoint**
+    - [ ] **2.1.c Create test for logout endpoint**
         - Test: Session invalidation
 ```
 
@@ -1340,14 +1363,14 @@ If you find this pattern, you have two options:
 ```markdown
 ❌ **Wrong (multiple actions in single subtask):**
 - [ ] **2.3 Verify MovieCollectionGrid compatibility**
-    - [ ] **2.3.1 Review integration and run tests**
+    - [ ] **2.3.a Review integration and run tests**
 
 ✅ **Correct (split distinct actions):**
 - [ ] **2.3 Verify MovieCollectionGrid compatibility**
-    - [ ] **2.3.1 Review integration code**
+    - [ ] **2.3.a Review integration code**
         - Check prop passing
         - Verify parameter flow
-    - [ ] **2.3.2 Run integration tests - should PASS**
+    - [ ] **2.3.b Run integration tests - should PASS**
 ```
 
 ### When to Add Goal/Note Lines
@@ -1371,7 +1394,7 @@ If you find this pattern, you have two options:
 
     **Goal:** Separate pagination metadata tracking from result filtering for clarity.
 
-    - [ ] **3.2.1 Extract metadata handling to separate function**
+    - [ ] **3.2.a Extract metadata handling to separate function**
         - Move tracking logic to `pagination_helpers.py`
 ```
 
@@ -1380,7 +1403,7 @@ If you find this pattern, you have two options:
 ```markdown
 - [ ] **3.2 Write tests for buffer pagination metadata tracking**
 
-    - [ ] **3.2.1 Create test for metadata in API response**
+    - [ ] **3.2.a Create test for metadata in API response**
         - Test: `next_tmdb_page_start` field present
         - Expect tests to FAIL initially
 ```
@@ -1398,17 +1421,17 @@ If you find this pattern, you have two options:
 ```markdown
 - [ ] **2.1 Write comprehensive test suite**
 
-    - [ ] **2.1.1 Create model validation tests**
+    - [ ] **2.1.a Create model validation tests**
         - Test field constraints
         - Test relationships
         - Expect tests to FAIL initially
 
-    - [ ] **2.1.2 Create API endpoint tests**
+    - [ ] **2.1.b Create API endpoint tests**
         - Test success cases
         - Test error handling
         - Expect tests to FAIL initially
 
-    - [ ] **2.1.3 Run all tests and verify failures**
+    - [ ] **2.1.c Run all tests and verify failures**
 ```
 
 **Skip blank lines when:**
