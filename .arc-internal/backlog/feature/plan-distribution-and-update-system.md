@@ -127,7 +127,7 @@ The init process supports multiple customization mechanisms:
 - **Presets (cross-cutting):** Choices that affect multiple files consistently:
     - "Work organization?" → 3-category (feature/technical/incidental, default) / flat hierarchy
       → adjusts directory structure, workflow references, commit context patterns, archive paths
-    - Future: quality gate approach, task numbering style, etc.
+    - Future: quality gate approach, task numbering style, markdown line length, etc.
 - **File selection:** "Include ADR workflow?" → includes or skips optional files
 - **Agent selection:** "Which AI agents do you use?" → installs only selected agent dirs
   (`.claude/`, `.codex/`, `.gemini/` with pre-built skills, slash commands, settings)
@@ -304,6 +304,27 @@ initial choices), but `arc init --reconfigure` could allow re-running setup.
 Some current files interleave framework and project content at the paragraph level. Every
 interleaving point is a potential unnecessary conflict. The structural analysis pass should
 identify and reduce these.
+
+### Markdown Line Length as Init Option
+
+Framework docs are authored at ~100 chars per line (safe default that passes any config >= 100). But line length is a
+developer preference that affects every file and the `.markdownlint-cli2.jsonc` config.
+
+**Considerations:**
+
+- **Merge impact:** If a user reformats framework docs to a different width, every line changes, making three-way merge
+  on updates essentially useless. This is the strongest argument for re-wrapping at init time rather than letting users
+  reformat manually.
+- **Init-time re-wrapping:** Init asks for preferred line length (default: 100), renders all framework docs at that
+  width, sets the linting config accordingly. Pristine copy stores the result at the user's width. Mechanically
+  straightforward (line wrapping is a solved problem).
+- **Update re-wrapping:** `arc update` would need to re-wrap new framework content to the user's configured width
+  before merging. Adds complexity but keeps merges clean.
+- **Config only (simpler alternative):** Init sets the linting config but doesn't re-wrap framework docs. Users who
+  want a different width reformat manually. Simpler tooling but worse merge experience.
+
+**Recommendation:** Re-wrap at init time. The complexity is low (it's just line wrapping) and the merge benefit is
+significant. Framework source files stay at authoring width; the init/update pipeline handles conversion.
 
 ## Prerequisites / Next Steps
 
