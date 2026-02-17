@@ -33,7 +33,7 @@ Prepare the framework for public distribution via package manager.
    - Clarity, accuracy, staleness, completeness
    - Focused on content quality, NOT structural concerns
    - Clean foundation before structural decisions
-   - Results: each work unit produces focused PRD + task list
+   - Scope TBD after initial audit; may be atomic or warrant a task list
 
 3. **Structural analysis pass** — Audit `.arc/` files for distribution readiness
    - File classification inventory (framework / configurable / scaffolded / project-owned)
