@@ -313,6 +313,10 @@ Separate concerns, prefer composition over duplication, favor readability when p
   are searchable and provide clear context about which work the task belongs to.
   Examples: "Task 8.3 - `tasks-oauth-migration.md`", "Phase 3 - `tasks-service-layer.md`"
 
+- **Collaborative voice in documentation**: Commits, task lists, and project docs should read
+  naturally from an author or team perspective. Avoid third-person references to collaborators;
+  write as the work's author would.
+
 ## Architecture Documentation
 
 ### Architecture Decision Records (ADRs)

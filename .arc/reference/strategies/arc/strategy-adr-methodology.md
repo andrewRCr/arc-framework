@@ -87,7 +87,7 @@ Write an ADR when a decision meets any of these criteria:
 
 ## ADR Format and Structure
 
-Every ADR follows this four-section structure:
+Every ADR follows this five-section structure:
 
 ### 1. Title
 
