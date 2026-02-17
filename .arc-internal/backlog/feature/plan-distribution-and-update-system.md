@@ -131,6 +131,9 @@ The init process supports multiple customization mechanisms:
 - **File selection:** "Include ADR workflow?" → includes or skips optional files
 - **Agent selection:** "Which AI agents do you use?" → installs only selected agent dirs
   (`.claude/`, `.codex/`, `.gemini/` with pre-built skills, slash commands, settings)
+- **Workflow options:**
+    - "Track CURRENT-SESSION in git?" → yes (multi-machine) / no (default, gitignored)
+    - "Team or solo?" → solo (default, current behavior) / team (per-developer workspaces)
 
 ### Init Recipe
 
@@ -316,6 +319,32 @@ identify and reduce these.
 3. **CLI prototype** — Minimal `init` + `update` with three-way merge proof-of-concept.
 
 4. **Public repo setup** — Separate concern from distribution; still needed for clean presentation.
+
+## Future Directions
+
+### Team Support
+
+ARC is currently designed for solo developers. Basic team support could be added as an init
+option without fundamentally changing the framework:
+
+- **Per-developer workspaces:** `active/team/{name}/` containing personal CURRENT-SESSION,
+  planning notes, scratch space — each developer owns their directory
+- **Shared resources:** Task lists, PRDs, strategies remain shared (normal git collaboration)
+- **Distribution/update is unaffected:** Each dev runs `arc update` on their own clone;
+  pristine copy merge works independently per person. Shared ARC docs are handled by git
+  (branches, PRs), not the distribution system.
+- **Task coordination:** Lightweight conventions for assignment in shared task lists
+  (e.g., owner annotations on subtasks)
+
+### External Tool Integrations
+
+Optional, lightweight agent workflows for common project management tools (Jira, Linear, etc.):
+
+- **Not bidirectional sync** — lightweight, on-demand operations an agent can run
+  (e.g., "sync completed task status to Jira", "import Linear issues as atomic tasks")
+- **Activation:** Only when configured (API tokens in project config, not framework config)
+- **Delivery:** Optional skills/workflows that ship with ARC but are inert unless configured
+- **Scope:** Low priority, future addition — only if it can be done without bloating the core
 
 ## Relationship to Other Plans
 
