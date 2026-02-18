@@ -30,18 +30,7 @@
 
 ## Active
 
-- [ ] **General refinement pass on `.arc/` framework docs**
-    - Audit all `.arc/reference/` docs for content quality: clarity, accuracy, staleness, completeness
-    - Scope includes: workflows (core + supplemental), strategies (ARC), constitution templates,
-      agent templates, QUICK-REFERENCE template — everything under `.arc/reference/`
-    - Also review `.arc/active/` and `.arc/backlog/` starter/template files
-    - Focus on **content quality only** — not structural concerns (that's the subsequent structural
-      audit). If structural issues are spotted, note them but don't fix.
-    - For each file: Is the content current? Is guidance clear and actionable? Are examples
-      accurate? Is anything stale, redundant, or missing? Are there mixed concerns worth flagging
-      for the structural pass?
-    - Output: fixes applied directly (with commits), plus a summary of structural observations
-      to feed into the structural analysis pass
-    - Context: prerequisite for distribution system; clean content before structural decisions
-    - Reference: `backlog/ROADMAP.md` (Phase B.2), `backlog/technical/BACKLOG-TECHNICAL.md`
-    - Note: if scope expands beyond atomic, escalate to task list per process-task-loop protocol
+*No active atomic tasks.*
+
+<!-- General refinement pass escalated to task list: tasks-content-refinement-pass.md
+     (in progress on branch technical/content-refinement-pass). -->

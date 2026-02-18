@@ -8,8 +8,9 @@
 
 ## High Priority
 
-### General Refinement Pass
+### General Refinement Pass — **In Progress**
 
+- **Status:** Active on branch `technical/content-refinement-pass` — see `tasks-content-refinement-pass.md`
 - **Problem:** Framework docs have accumulated over 16+ months; some content may be stale,
   unclear, or incomplete
 - **Approach:** Content quality audit across all `.arc/` docs — clarity, accuracy, staleness,
@@ -56,6 +57,11 @@
 
 ## Lower Priority / Ideas
 
+- **Reconsider `.example.md` naming convention** — as templates shift from "filled-in examples"
+  (old CineXplorer content) to "structure + guidance + tokens" (current approach), `.template.md`
+  may be more accurate. Also consider providing actual filled-in examples separately (in the npm
+  package or docs site, not the install directory) so adopters can see what a mature document
+  looks like. Related: `plan-distribution-and-update-system.md`
 - Documentation site (GitHub Pages for browseable docs)
 - Community contribution pipeline (PR templates, issue forms)
 - Compatibility testing across agent platforms

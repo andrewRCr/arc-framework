@@ -385,16 +385,24 @@ strategy-task-list-formatting defers streamlining to Phase 5. Includes document 
 **Goal:** Standardize all `.example.md` constitution templates to the structure + guidance + tokens approach. Fix template
 alignment issues.
 
-- [ ] **4.1 Rework `META-PRD.example.md`**
-    - Replace CineXplorer-specific body content with structure + inline guidance + tokens
-    - Each section should explain what goes there and why it matters, with `{{TOKENS}}` for user-owned content
-    - Preserve section structure (it's good) while replacing project-specific content with guidance
-    - Keep merge-friendliness in mind: framework-owned guidance and user-owned content on separate lines
+- [x] **4.1 Rework `META-PRD.example.md`**
+    - 78 → 82 lines. All 7 sections preserved, CineXplorer content replaced with structure +
+      guidance + tokens. Each section now has: heading (framework-owned), 1-2 line guidance
+      explaining what goes there (framework-owned), tokens for user content (user-owned, on
+      separate lines for merge-friendliness). Added intro paragraph explaining META-PRD purpose
+      and relationship to work-level PRDs. HTML comments for optional context: feature group
+      scaling guidance, non-UI project adaptation for User Flow, technical requirement category
+      customization, data sources section optionality. Replaced stale italic instruction with
+      proper intro.
 
-- [ ] **4.2 Rework `TECHNICAL-OVERVIEW.example.md`**
-    - Same approach as 4.1 — remove hardcoded "CineXplorer" and all project-specific content
-    - Replace with structure + guidance + tokens showing what level of detail is expected
-    - The structure IS good; the content examples just need to be guidance rather than one project's specifics
+- [x] **4.2 Rework `TECHNICAL-OVERVIEW.example.md`**
+    - 173 → 79 lines. All CineXplorer content replaced. Restructured from web-app-specific
+      sections (Backend/Frontend/Shared Code/Service Layer) to project-type-agnostic pattern:
+      Overview, Architecture Components (repeatable subsection template with framework/language/
+      libraries/style/directory tokens), Infrastructure, Testing Infrastructure. HTML comments
+      provide adaptation examples for different project types (web app, CLI, library, monorepo).
+      Each component subsection shows the expected level of detail via token structure. Intro
+      updated to explain document purpose (AI agents reference this during implementation).
 
 - [ ] **4.3 Rework `PROJECT-STATUS.example.md`**
     - Same approach — replace 130+ lines of CineXplorer completion history with representative structure
