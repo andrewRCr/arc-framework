@@ -21,9 +21,9 @@ checks for key milestones.
 
 ## Tiered Quality Gate System
 
-### Tier 1: Fast Incremental (Per-Subtask)
+### Tier 1: Fast Incremental (Per-Task)
 
-**When:** After completing each subtask, before marking it complete.
+**When:** After completing any task (each checkbox), before marking it complete.
 
 **What:**
 
@@ -39,18 +39,19 @@ loop keeps you in flow.
 
 **Guidance:**
 
-- Always run before marking subtask complete
+- Always run before marking a task complete
 - Use targeted commands (specific files/directories), not full-project scans
 - Fix issues immediately while context is fresh
 
 ---
 
-### Tier 2: Integration Checkpoint (Parent Task Completion)
+### Tier 2: Integration Checkpoint (Coherent Unit Completion)
 
 **When:**
 
-- After completing all subtasks of a parent task
-- When you've touched components that existing E2E/integration tests exercise
+- After completing a coherent unit of work — typically when all subtasks of a parent task are done,
+  or when a standalone task (no subtasks) touches integration-relevant code
+- When you've touched code that existing integration/E2E tests exercise
 - Before moving from one major area of the codebase to another
 
 **What:**
@@ -61,42 +62,42 @@ loop keeps you in flow.
 
 **Time budget:** 1-5 minutes
 
-**Purpose:** Catch integration breakage at parent task boundaries while context is still fresh. Parent tasks
-represent a coherent unit of work — validating at this level catches cross-subtask issues without the overhead
-of full suite runs.
+**Purpose:** Catch integration breakage at meaningful boundaries while context is still fresh. A coherent
+unit of work — whether a parent task with all subtasks complete or a standalone task — represents a natural
+checkpoint for broader validation.
 
-**Guidance for identifying E2E checkpoints:**
+**Guidance for identifying integration checkpoints:**
 
-1. **Component scope:** Did the parent task modify components that handle layout, navigation, routing, forms,
-   or user interactions? These are typically E2E-tested.
+1. **Component scope:** Did the completed work modify code that integration or E2E tests exercise?
+   (e.g., request handlers, UI components, API endpoints, data pipelines)
 
 2. **Behavior changes:** Did it change how something works (not just how it looks)? Behavioral changes
-   are more likely to break E2E assertions.
+   are more likely to break integration assertions.
 
-3. **Cross-cutting changes:** Did it modify shared infrastructure (context providers, hooks used by
-   multiple components, global state)? These have wider blast radius.
+3. **Cross-cutting changes:** Did it modify shared infrastructure (middleware, shared utilities,
+   configuration, dependency injection)? These have wider blast radius.
 
-4. **If no E2E relevance:** Skip targeted E2E but still run full-project Tier 1 checks + build.
+4. **If no integration/E2E relevance:** Skip targeted tests but still run full-project Tier 1
+   checks + build.
 
-**Running targeted E2E tests:**
+**Running targeted integration/E2E tests:**
 
-Don't run the full E2E suite at Tier 2 - that's Tier 3. Instead:
+Don't run the full suite at Tier 2 — that's Tier 3. Instead:
 
 - Run specific test files that cover the area you modified
 - Run tests tagged for the feature area (if using a tag system)
-- Run on a single browser configuration for speed (full browser matrix is Tier 3)
+- Use a minimal configuration for speed (full matrix is Tier 3)
 
 Example patterns (project-specific commands vary):
 
 ```bash
 # Run tests for a specific area
-npm run test:e2e -- e2e/tests/layout.spec.ts
+pytest tests/integration/test_auth_flow.py
+npm run test:e2e -- e2e/tests/checkout.spec.ts
 
 # Run tests matching a tag/grep pattern
+pytest -m "payments" tests/integration/
 npm run test:e2e -- --grep "@navigation"
-
-# Run on single browser for speed
-npm run test:e2e -- --project="Desktop Chrome" e2e/tests/layout.spec.ts
 ```
 
 ---
@@ -105,7 +106,7 @@ npm run test:e2e -- --project="Desktop Chrome" e2e/tests/layout.spec.ts
 
 **When:**
 
-- After completing a phase (all parent tasks in the phase done)
+- After completing a phase (all tasks in the phase done)
 - Before creating a pull request
 - Final quality gate before merge
 
@@ -115,7 +116,7 @@ npm run test:e2e -- --project="Desktop Chrome" e2e/tests/layout.spec.ts
 - Full linting (entire project)
 - Full format checking
 - Full unit test suite
-- Full E2E test suite (all browsers/viewports)
+- Full integration/E2E test suite (all configurations)
 - Build verification
 - Markdown linting (for documentation changes)
 
@@ -141,29 +142,28 @@ fixes, atomic tasks), run at least Tier 1 before committing.
 
 When generating task lists, include appropriate quality gate checkpoints:
 
-**Subtask level (implicit):**
-Every subtask implicitly includes Tier 1 checks before completion. No need to list explicitly unless
-emphasizing a specific check.
+**Task level (implicit):**
+Every task (each checkbox) implicitly includes Tier 1 checks before completion. No need to list
+explicitly unless emphasizing a specific check.
 
-**Parent task completion (implicit):**
-Tier 2 checks are always required when all subtasks of a parent task are complete. If the parent task
-touched E2E-tested code, include targeted E2E tests. This is documented in 3_process-task-loop.md.
+**Coherent unit completion (implicit):**
+Tier 2 checks run when you complete a coherent unit of work — all subtasks of a parent done, or a
+standalone task that touches integration-tested code. This is documented in 3_process-task-loop.md.
 
 **Phase level (explicit when relevant):**
 Include explicit E2E/integration checkpoint tasks when a phase modifies E2E-tested code:
 
 ```markdown
-### **Phase 3:** Layout Modifications
+### **Phase 3:** API Endpoint Changes
 
-- [ ] **3.1 Modify TopBar component**
+- [ ] **3.1 Modify authentication endpoint**
     - [implementation details]
 
-- [ ] **3.2 Update FooterBar positioning**
+- [ ] **3.2 Update rate limiting middleware**
     - [implementation details]
 
 - [ ] **3.3 Run integration checkpoint**
-    - Run layout E2E tests: `npm run test:e2e -- e2e/tests/layout.spec.ts`
-    - Run on single browser for speed
+    - Run auth integration tests: `pytest tests/integration/test_auth.py`
     - Fix any failures before proceeding to Phase 4
 ```
 
@@ -174,7 +174,7 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 ### **Phase N:** Testing & Quality Gates
 
 - [ ] **N.1 Run full test suite**
-- [ ] **N.2 Run full E2E suite**
+- [ ] **N.2 Run full integration/E2E suite**
 - [ ] **N.3 Run all quality gates**
 ```
 
@@ -191,7 +191,7 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 
 **Escalate from Tier 2 to Tier 3 when:**
 
-- You've completed a significant body of work spanning multiple parent tasks
+- You've completed a significant body of work spanning multiple tasks
 - You're about to take a break or end a session
 - You want high confidence before a major context switch
 
@@ -212,8 +212,8 @@ of debugging with forgotten context.
 at once, each requiring context reconstruction.
 
 **❌ Running full E2E at Tier 2:**
-Running the complete E2E suite (all browsers, all tests) after every phase is wasteful. Targeted tests
-provide the integration confidence you need with fraction of the time.
+Running the complete integration/E2E suite (all configurations, all tests) after every task is
+wasteful. Targeted tests provide the integration confidence you need in a fraction of the time.
 
 **❌ Skipping Tier 1 to "save time":**
 Tier 1 is seconds. Skipping it means type errors and lint violations accumulate, making Tier 3 cleanup
@@ -241,7 +241,3 @@ tests miss. It's mandatory, not optional.
 
 - **Project testing methodology:** Project-specific guidance on which test files cover which components,
   tag systems, and targeted test patterns.
-
----
-
-**Version:** 2026-02-11

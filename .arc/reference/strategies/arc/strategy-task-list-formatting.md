@@ -1,7 +1,5 @@
 # Task List Formatting Strategy
 
-**Version:** 1.6 | **Updated:** 2025-12-31 | **Status:** Active
-
 ## Purpose
 
 Authoritative standards and conventions for task list structure, style, and organization across all work types
@@ -190,35 +188,35 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Example (active work):**
 
 ```markdown
-# Incidental: Navigation Filter State Preservation
+# Incidental: CLI Output Encoding on Windows
 
 **Created:** 2025-10-29
-**Branch:** `incidental/navigation-filter-state-preservation`
-**Base Branch:** `incidental/filter-integration-testing`
+**Branch:** `incidental/cli-output-encoding`
+**Base Branch:** `feature/multi-format-export`
 **Status:** In Progress
 
 ## Context
 
-**Discovered:** Manual testing during Phase 3.6 (data quality filtering implementation)
+**Discovered:** Manual testing during Phase 3.6 (CSV export implementation)
 
-**Interrupts:** `tasks-filter-integration-testing.md` at Phase 3.6, Task 3.6.2
+**Interrupts:** `tasks-multi-format-export.md` at Phase 3.6, Task 3.6.2
 
-**Problem:** Navigation loses filter query params, causing blank screens and collapsed panels.
+**Problem:** CLI output garbles non-ASCII characters on Windows terminals.
 
-**Why Now:** Blocks manual testing confidence and affects UX of newly implemented features.
+**Why Now:** Blocks manual testing confidence and affects newly implemented export features.
 
 ## Scope
 
 ### Will Do
 
-- Fix "Back to Results" button parameter preservation
-- Restore advanced panel state after navigation
-- Add comprehensive state management tests
+- Fix encoding for all output formats (table, CSV, JSON)
+- Add comprehensive encoding tests
+- Manual verification across terminal types
 
 ### Won't Do
 
 - Performance optimization (separate enhancement)
-- Deep linking optimization (separate feature)
+- Custom encoding configuration (out of scope)
 
 ---
 
@@ -227,27 +225,27 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Example (paused work):**
 
 ```markdown
-# Incidental: Test Organization Standardization
+# Incidental: Test Fixture Deduplication
 
 **Created:** 2025-10-30
-**Branch:** `incidental/test-organization-standardization`
-**Base Branch:** `incidental/buffer-deduplication`
+**Branch:** `incidental/test-fixture-deduplication`
+**Base Branch:** `technical/api-versioning`
 **Status:** Paused
 
 ## Context
 
-**Discovered:** During Phase 3 planning for buffer deduplication work
+**Discovered:** During Phase 3 planning for API versioning work
 
-**Interrupts:** `tasks-buffer-deduplication.md` at Task 3.1
+**Interrupts:** `tasks-api-versioning.md` at Task 3.1
 
-**Paused At:** Phase 3 complete (test file analysis done, before Phase 4 file splits)
+**Paused At:** Phase 3 complete (fixture analysis done, before Phase 4 consolidation)
 
-**Paused To:** `tasks-discover-endpoint-consolidation.md` - Critical endpoint architecture issues
-discovered during browser testing
+**Paused To:** `tasks-auth-token-refresh.md` - Critical token refresh bug discovered during
+integration testing
 
-**Problem:** Test organization inconsistent and files too large.
+**Problem:** Test fixtures duplicated across 12 test modules.
 
-**Why Now:** Must establish patterns before adding 15+ new tests.
+**Why Now:** Must consolidate patterns before adding 15+ new versioned endpoint tests.
 ```
 
 **Pause chain traceability rules:**
@@ -432,23 +430,23 @@ Fourth level (rare): X.Y.a.1, X.Y.a.2
 ✅ **Correct (letter numbering at third level):**
 
 ```markdown
-- [ ] **7.1 Systematic component audit**
+- [ ] **7.1 Systematic module audit**
 
-    **Goal:** Review all components for token usage consistency.
+    **Goal:** Review all modules for consistent error handling patterns.
 
-    - [ ] **7.1.a Catalog all components**
-        - Generate list of all `.tsx` files
-        - Categorize by type: pages, layout, features
+    - [ ] **7.1.a Catalog all modules**
+        - Generate list of all source files
+        - Categorize by layer: core, services, utilities
         - Create audit checklist
 
-    - [ ] **7.1.b Verify button pattern consistency**
-        - Check solid buttons use `bg="primary"` + `color="on-primary"`
-        - Check outline buttons use proper border tokens
+    - [ ] **7.1.b Verify error propagation consistency**
+        - Check service modules return typed error results
+        - Check utility modules use consistent exception hierarchy
         - Document violations
 
-    - [ ] **7.1.c Verify form control consistency**
-        - Check all inputs use `input` token for borders
-        - Check all focus states use `ring` token
+    - [ ] **7.1.c Verify logging consistency**
+        - Check all error paths include structured logging
+        - Check all log entries include correlation IDs
         - Document violations
 ```
 
@@ -457,16 +455,16 @@ Fourth level (rare): X.Y.a.1, X.Y.a.2
 ```markdown
 - [ ] **7.2 Apply fixes from audit**
 
-    - [ ] **7.2.a Apply button pattern fixes**
-        - Work through button violation list from 7.1.b
+    - [ ] **7.2.a Apply error propagation fixes**
+        - Work through violation list from 7.1.b
 
-        - [ ] **7.2.a.1 Fix primary button patterns**
-            - Update 15 components with correct token pairs
-            - Test across all themes
+        - [ ] **7.2.a.1 Fix service module patterns**
+            - Update 15 modules with correct return types
+            - Verify error contracts with callers
 
-        - [ ] **7.2.a.2 Fix outline button patterns**
-            - Update 8 components with border tokens
-            - Test across all themes
+        - [ ] **7.2.a.2 Fix utility module patterns**
+            - Update 8 modules with typed exceptions
+            - Verify error contracts with callers
 ```
 
 ❌ **Wrong (all numbers - hard to parse):**
@@ -524,7 +522,7 @@ Detail bullets serve two distinct purposes:
         - Test: Email format validation (grouped action - same file)
         - Test: Username uniqueness constraint (grouped action - same file)
         - Test: Password minimum length (grouped action - same file)
-        - File location: `backend/apps/core/tests/test_models.py` (guidance)
+        - File location: `tests/models/test_user.py` (guidance)
         - Expect tests to FAIL initially (guidance)
 
     - [ ] **1.1.b Run tests and verify failure messages**
@@ -617,11 +615,11 @@ steps that warrant tracking separately.
     - [x] 3.1.1 Update hook to extract metadata
 
     - [ ] **3.1.R Additional integration tests discovered**
-        - [ ] **3.1.R.1 Write tests for useMovieFetchRouter**
+        - [ ] **3.1.R.1 Write tests for `PaginatedQuery` handler**
             - Test: metadata parameter accepted
             - Expect tests to FAIL initially
 
-        - [ ] **3.1.R.2 Write stability tests for MovieGrid**
+        - [ ] **3.1.R.2 Write stability tests for `ResultsList`**
             - Test: No infinite fetches when metadata received
             - Expect tests to FAIL initially
 ```
@@ -682,16 +680,16 @@ and clearly signals "this wasn't in the original plan."
 ✅ **Correct:**
 
 ```markdown
-- [ ] 1.2.1 Create `User` model in `apps/core/models.py`
+- [ ] 1.2.1 Create `User` model in `src/models/user.py`
     - Add fields: `username`, `email`, `date_joined`
-    - Implement `clean()` validation method
-    - Use `EmailField` for email validation
+    - Implement `validate()` method for input checking
+    - Use `EmailField` type for email validation
 ```
 
 ❌ **Wrong:**
 
 ```markdown
-- [ ] 1.2.1 Create User model in apps/core/models.py  # No backticks
+- [ ] 1.2.1 Create User model in src/models/user.py  # No backticks
 ```
 
 ### Indentation Rules
@@ -823,71 +821,13 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
     - [ ] 2.4.b Run linting and type checking
 ```
 
-### Pattern 3: Feature with Backend and Frontend
+### Pattern 3: Multi-Layer Projects
 
-**Use when:** Full-stack feature needs comprehensive testing
+**Use when:** Feature spans multiple layers (e.g., backend + frontend, API + CLI, core + plugins)
 
-```markdown
-### **Phase 1:** Backend Tests and Implementation
-
-- [ ] **1.1 Write backend tests**
-
-    - [ ] **1.1.a Create API integration tests**
-        - Test endpoints, validation, error handling
-        - Expect tests to FAIL initially
-
-    - [ ] **1.1.b Create service layer tests**
-        - Test business logic independently
-        - Use mocks for external dependencies
-        - Expect tests to FAIL initially
-
-- [ ] **1.2 Implement backend**
-
-    - [ ] **1.2.a Implement API endpoints**
-        - Create routes, request handling
-
-    - [ ] **1.2.b Implement service layer**
-        - Business logic, data processing
-
-    - [ ] **1.2.c Run backend tests - should PASS**
-
-### **Phase 2:** Frontend Tests and Implementation
-
-- [ ] **2.1 Write component tests**
-
-    - [ ] **2.1.a Create tests for form component**
-        - Test user interactions, validation
-        - Mock API calls
-        - Expect tests to FAIL initially
-
-    - [ ] **2.1.b Create integration tests for feature flow**
-        - Test complete user journey
-        - Use MSW for API mocking
-        - Expect tests to FAIL initially
-
-- [ ] **2.2 Implement frontend components**
-
-    - [ ] **2.2.a Create form component**
-        - Input fields, validation, submit handler
-
-    - [ ] **2.2.b Integrate with API service**
-        - Wire up API calls, error handling
-
-    - [ ] **2.2.c Run component tests - should PASS**
-
-### **Phase 3:** End-to-End Validation
-
-- [ ] **3.1 Manual testing**
-
-    - [ ] **3.1.a Test complete flow in browser**
-        - Verify all user paths work
-        - Check error handling and edge cases
-
-- [ ] **3.2 Quality gates**
-    - [ ] 3.2.a Run full test suite (backend + frontend)
-    - [ ] 3.2.b Run all linting and type checking
-    - [ ] 3.2.c Verify no regressions
-```
+**Approach:** Apply Pattern 1 or 2 to each layer as a separate phase, then add a final phase for
+cross-layer validation (integration tests, end-to-end testing, quality gates). Each layer's phase
+follows test-first ordering internally.
 
 ### Anti-Pattern: Tests After Implementation
 
@@ -918,52 +858,52 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 This example demonstrates all formatting elements in proper context:
 
 ```markdown
-# Incidental: Filter State Preservation
+# Incidental: Config Validation Error Reporting
 
 **Created:** 2025-10-29
-**Branch:** `incidental/filter-state-preservation`
-**Base Branch:** `incidental/filter-integration-testing`
+**Branch:** `incidental/config-validation-errors`
+**Base Branch:** `feature/plugin-system`
 **Status:** In Progress
 
 ## Context
 
-**Discovered:** Manual testing during Phase 3.6 (data quality filtering implementation)
+**Discovered:** Manual testing during Phase 3.6 (plugin loader implementation)
 
-**Interrupts:** `tasks-filter-integration-testing.md` at Phase 3.6, Task 3.6.2
+**Interrupts:** `tasks-plugin-system.md` at Phase 3.6, Task 3.6.2
 
-**Problem:** UI state not preserved when navigating back from detail pages.
+**Problem:** Invalid configuration silently ignored instead of reporting clear errors.
 
-**Why Now:** Blocks manual testing confidence and affects newly implemented filter UX.
+**Why Now:** Blocks manual testing confidence and affects newly implemented plugin loading.
 
 ## Scope
 
 ### Will Do
 
-- Fix state preservation for all filter types
-- Add comprehensive test coverage
-- Manual verification of navigation flows
+- Fix error reporting for all configuration fields
+- Add comprehensive validation tests
+- Manual verification of error messages
 
 ### Won't Do
 
 - Performance optimization (separate enhancement)
-- History API refactoring (if not needed)
+- Custom validation rules API (out of scope)
 
 ---
 
-### **Phase 1:** Backend Test Infrastructure
+### **Phase 1:** Test Infrastructure
 
-- [ ] **1.1 Create test fixtures for state scenarios**
+- [ ] **1.1 Create test fixtures for config scenarios**
 
-    **Goal:** Reusable fixtures to test state persistence across components.
+    **Goal:** Reusable fixtures to test validation across configuration types.
 
-    - [ ] **1.1.a Create fixture for filter state in `test_helpers.py`**
-        - Return mock filter object with all fields
+    - [ ] **1.1.a Create fixture for valid configs in `test_helpers.py`**
+        - Return mock config object with all required fields
         - Support partial overrides for test variations
-        - Include advanced filters (rating, year range)
+        - Include nested config (plugin settings, environment overrides)
 
-    - [ ] **1.1.b Create fixture for navigation context**
-        - Mock URL params and history state
-        - Support detail→back→detail flows
+    - [ ] **1.1.b Create fixture for invalid configs**
+        - Missing required fields, type mismatches, out-of-range values
+        - Support combining multiple violations in one config
 
 - [ ] **1.2 Verify fixture compatibility with existing tests**
 
@@ -971,97 +911,96 @@ This example demonstrates all formatting elements in proper context:
         - Ensure no regressions
         - All tests should still PASS
 
-### **Phase 2:** State Preservation Tests
+### **Phase 2:** Validation Tests
 
-- [ ] **2.1 Write tests for URL parameter preservation**
+- [ ] **2.1 Write tests for field validation**
 
-    - [ ] **2.1.a Create test in `test_navigation.ts`**
-        - Test: All filter params survive navigation
-        - Test: Unknown params preserved (forward compatibility)
-        - Test: Page number preserved correctly
-        - Expect tests to FAIL initially (implementation not updated)
+    - [ ] **2.1.a Create test in `test_config_validation.py`**
+        - Test: Required fields report missing with field path
+        - Test: Type mismatches report expected vs actual type
+        - Test: Range violations report allowed bounds
+        - Expect tests to FAIL initially (validation not updated)
 
     - [ ] **2.1.b Create test for edge cases**
-        - Test: Empty filters (no params)
-        - Test: Malformed URL params
-        - Test: Very long param strings
+        - Test: Empty config (all fields missing)
+        - Test: Deeply nested invalid fields
+        - Test: Multiple simultaneous violations
         - Expect tests to FAIL initially
 
-- [ ] **2.2 Write tests for UI state preservation**
+- [ ] **2.2 Write tests for error message formatting**
 
-    **Goal:** Ensure expanded panels stay expanded across navigation.
+    **Goal:** Ensure error messages are actionable and include fix suggestions.
 
-    - [ ] **2.2.a Create test for advanced panel state**
-        - Test: Panel expanded with rating filters → detail → back → still expanded
-        - Test: Panel collapsed with genres only → detail → back → still collapsed
-        - Mock `useMovieCollectionState` hook
+    - [ ] **2.2.a Create test for error output format**
+        - Test: Errors include field path (e.g., `plugins.auth.timeout`)
+        - Test: Errors include expected type or value range
+        - Test: Multiple errors collected and reported together
         - Expect tests to FAIL initially
 
-    - [ ] **2.2.b Create test for filter collapsed state**
-        - Test: Filters expanded → detail → back → still expanded
+    - [ ] **2.2.b Create test for suggestion generation**
+        - Test: Typos suggest closest valid field name
         - Expect tests to FAIL initially
 
 ### **Phase 3:** Implementation
 
-- [ ] **3.1 Update URL parameter handling**
+- [ ] **3.1 Update field validation logic**
 
-    - [ ] **3.1.a Modify `MovieCard.tsx` query string construction**
-        - Capture all URL params from `useSearchParams()`
-        - Pass all params to detail page URL
-        - Preserve unknown params
-        - File location: `components/movie/MovieCard.tsx:133-139`
+    - [ ] **3.1.a Add validation to `ConfigLoader` required field checks**
+        - Collect all violations before reporting (don't fail on first)
+        - Include field path in each error
+        - Preserve existing valid-config behavior
+        - File location: `src/config/loader.py:89-120`
 
-    - [ ] **3.1.b Modify `MovieDetail.tsx` back button URL**
-        - Read all params from current URL
-        - Reconstruct complete back URL
-        - File location: `pages/movie/MovieDetail.tsx:116-120`
+    - [ ] **3.1.b Add type checking to `ConfigParser.parse_field()`**
+        - Report expected vs actual type
+        - Handle nested configs recursively
+        - File location: `src/config/parser.py:45-78`
 
-    - [ ] **3.1.c Run URL preservation tests - should now PASS**
+    - [ ] **3.1.c Run field validation tests - should now PASS**
 
-- [ ] **3.2 Update UI state preservation**
+- [ ] **3.2 Update error message formatting**
 
-    - [ ] **3.2.a Verify `useEffect` auto-expand logic**
-        - Effect detects advanced filters from URL
-        - Sets `showAdvanced` to true when filters present
-        - File location: `useMovieCollectionState.tsx:119-125`
+    - [ ] **3.2.a Implement `ValidationErrorFormatter`**
+        - Collect errors into structured report
+        - Sort by field path for readability
+        - File location: `src/config/errors.py` (new file)
 
-    - [ ] **3.2.b Run UI state tests - should now PASS**
+    - [ ] **3.2.b Run error format tests - should now PASS**
 
 ### **Phase 4:** Quality Gates and Manual Verification
 
 - [ ] **4.1 Automated quality checks**
 
     - [ ] **4.1.a Run full test suite**
-        - Backend: All tests pass
-        - Frontend: All 416+ tests pass
+        - Unit tests: All pass
+        - Integration tests: All pass
 
     - [ ] **4.1.b Run linting and type checking**
-        - ESLint: 0 violations
-        - TypeScript: 0 errors
-        - Pyright: 0 errors
+        - Linter: 0 violations
+        - Type checker: 0 errors
 
 - [ ] **4.2 Manual testing**
 
-    - [ ] **4.2.a Test URL param preservation**
-        - Apply filters → detail → back → verify filters
-        - Test with all filter types
+    - [ ] **4.2.a Test missing field errors**
+        - Remove required field → verify clear error message
+        - Test with multiple missing fields
 
-    - [ ] **4.2.b Test UI state preservation**
-        - Expand advanced panel → detail → back → verify expanded
-        - Test across multiple navigation cycles
+    - [ ] **4.2.b Test type mismatch errors**
+        - String where int expected → verify helpful message
+        - Test across all config field types
 
-    - [ ] **4.2.c Test browser back button**
-        - Verify no regression in browser navigation
-        - Test forward button as well
+    - [ ] **4.2.c Test suggestion accuracy**
+        - Typo in field name → verify closest match suggested
+        - Test with various edit distances
 
 ## Notes & Observations
 
 **Technical Approach**:
-- URL params: Simple pass-through, low risk
-- UI state: Effect-based auto-expand using filters as signal
+- Collect-then-report pattern for validation (no fail-fast)
+- Recursive descent for nested config validation
 
 **Related Work**:
-- Discovered during: `.arc/active/incidental/tasks-pagination-buffer-tracking.md`
+- Discovered during: `tasks-plugin-system.md`
 ```
 
 **Key elements demonstrated:**
@@ -1084,170 +1023,18 @@ This example demonstrates all formatting elements in proper context:
 
 ## Common Mistakes
 
-### Mistake 1: Headers Instead of Parent Tasks
+Quick reference for frequent errors. Each element's detailed ✅/❌ examples are in
+[Format Elements Reference](#format-elements-reference) above.
 
-❌ **Wrong:**
-
-```markdown
-### **Phase 1:** Backend Implementation
-
-### 1.1 Write tests for models  # This is a HEADER, not a task
-
-- Create test file
-- Add test cases
-```
-
-✅ **Correct:**
-
-```markdown
-### **Phase 1:** Backend Implementation
-
-- [ ] **1.1 Write tests for models**  # This is a PARENT TASK
-
-    - [ ] **1.1.1 Create test file**
-        - Add test cases for validation
-```
-
-### Mistake 2: Missing Test-First Structure
-
-❌ **Wrong (implementation before tests):**
-
-```markdown
-- [ ] **1.1 Implement User model**
-- [ ] **1.2 Write tests for User model**
-```
-
-✅ **Correct (tests before implementation):**
-
-```markdown
-- [ ] **1.1 Write tests for User model**
-
-    - [ ] **1.1.1 Create test file with validation tests**
-        - Expect tests to FAIL initially
-
-- [ ] **1.2 Implement User model**
-
-    - [ ] **1.2.1 Create `User` model in `models.py`**
-        - Tests should now PASS
-```
-
-### Mistake 3: Pre-checked Tasks
-
-❌ **Wrong:**
-
-```markdown
-- [x] **1.1 Write tests**  # Never pre-check
-```
-
-✅ **Correct:**
-
-```markdown
-- [ ] **1.1 Write tests**  # Always start unchecked
-```
-
-### Mistake 4: Numbered Detail Bullets
-
-❌ **Wrong:**
-
-```markdown
-- [ ] **1.1 Create model**
-    - [ ] 1.1.1 Add username field  # Too granular for numbered subtask
-    - [ ] 1.1.2 Add email field     # These are implementation details
-```
-
-✅ **Correct:**
-
-```markdown
-- [ ] **1.1 Create model**
-
-    - [ ] **1.1.1 Add fields to `User` model in `models.py`**
-        - Add `username` field (CharField, max 150, unique)
-        - Add `email` field (EmailField, unique)
-        - Add `date_joined` field (DateTimeField, auto_now_add)
-```
-
-### Mistake 5: Goal/Note Indentation
-
-❌ **Wrong:**
-
-```markdown
-- [ ] **1.1 Refactor service layer**
-**Goal:** Improve testability.  # Not indented properly
-
-    - [ ] 1.1.1 Extract helper functions
-```
-
-✅ **Correct:**
-
-```markdown
-- [ ] **1.1 Refactor service layer**
-
-    **Goal:** Improve testability by extracting pure functions.
-
-    - [ ] **1.1.1 Extract helper functions**
-        - Move validation logic to separate module
-```
-
-### Mistake 6: Missing Backticks
-
-❌ **Wrong:**
-
-```markdown
-- [ ] 1.1.1 Create User model in models.py
-    - Add email field with validation
-```
-
-✅ **Correct:**
-
-```markdown
-- [ ] **1.1.1 Create `User` model in `models.py`**
-    - Add `email` field with `EmailValidator`
-```
-
-### Mistake 7: Vague Subtask Descriptions
-
-❌ **Wrong:**
-
-```markdown
-- [ ] **1.1 Update component**
-    - [ ] 1.1.a Fix the bug
-    - [ ] 1.1.b Add the feature
-```
-
-✅ **Correct:**
-
-```markdown
-- [ ] **1.1 Update MovieCard component for filter preservation**
-
-    - [ ] **1.1.a Capture all URL params in query string**
-        - Use `useSearchParams()` to read current filters
-
-    - [ ] **1.1.b Pass params to detail page via Link component**
-        - Serialize params to query string
-```
-
-### Mistake 8: Numeric Third Level (Use Letters)
-
-❌ **Wrong:**
-
-```markdown
-- [ ] **1.1 Write tests for User model**
-    - [ ] **1.1.1 Create validation tests**  # Numbers blend together
-    - [ ] **1.1.2 Create relationship tests**
-    - [ ] **1.1.3 Run and verify failures**
-```
-
-✅ **Correct:**
-
-```markdown
-- [ ] **1.1 Write tests for User model**
-    - [ ] **1.1.a Create validation tests**  # Letters signal depth
-    - [ ] **1.1.b Create relationship tests**
-    - [ ] **1.1.c Run and verify failures**
-```
-
-**Why:** Three consecutive numbers (`1.1.1`) are harder to parse than number-number-letter (`1.1.a`).
-Letters at the third level provide visual differentiation and reduce cognitive load.
+1. **Headers instead of parent tasks** — Use `- [ ] **X.Y Description**` (checkbox + bold), not
+   `### X.Y` (heading)
+2. **Tests after implementation** — Test tasks come BEFORE implementation in each phase
+3. **Pre-checked tasks** — All tasks start as `- [ ]` (unchecked), never `- [x]`
+4. **Numbered detail bullets** — Implementation details use unnumbered bullets, not numbered subtasks
+5. **Goal/Note at wrong indent** — Indent 4 spaces from margin (same level as subtasks), not at margin
+6. **Missing backticks** — All technical identifiers need backticks: `ClassName`, `file.py`, `/api/path/`
+7. **Vague descriptions** — Be specific: "Capture all query params before redirect", not "Fix the bug"
+8. **Numeric third level** — Use letters (`1.1.a`) not numbers (`1.1.1`) — letters signal depth
 
 ---
 
@@ -1270,55 +1057,11 @@ Letters at the third level provide visual differentiation and reduce cognitive l
 - Would you do them all in one sitting? → Detail bullets
 - Does splitting add clarity or just noise? → If noise, use detail bullets
 
-**Example needing subtasks:**
-
-```markdown
-- [ ] **2.1 Write API integration tests**
-
-    - [ ] **2.1.a Create test for registration endpoint**
-        - Test: Successful registration
-        - Test: Validation errors
-
-    - [ ] **2.1.b Create test for login endpoint**
-        - Test: Successful login
-        - Test: Failed login
-
-    - [ ] **2.1.c Create test for logout endpoint**
-        - Test: Session invalidation
-```
-
-The three subtasks represent independent checkpoints - different endpoints tested separately.
-
 #### Use Detail Bullets When
 
-Detail bullets serve two purposes:
-
-**1. Implementation guidance (non-actionable):**
-
-- File locations, line numbers: `File: components/MovieCard.tsx:133-139`
-- Architecture notes: "Uses existing filter state as signal"
-- Expected behaviors: "Expect tests to FAIL initially"
-- Context or rationale: "Workaround for browser compatibility"
-
-**2. Grouped sub-actions (actionable but coupled):**
-
-- Multiple tests in same file created together
-- Manual testing scenarios done in one session
-- Configuration items changed together
-- Too granular/coupled to track separately
-
-**Example using detail bullets correctly:**
-
-```markdown
-- [ ] **3.2 Manual browser verification of showAdvanced auto-expand**
-    - Apply rating filter → detail → back → verify expanded (grouped - same session)
-    - Apply year range → detail → back → verify expanded (grouped - same session)
-    - Single year → detail → back → verify collapsed (grouped - same session)
-    - Genres only → detail → back → verify collapsed (grouped - same session)
-    - Test across remounts (detail→back→detail→back) (grouped - same session)
-```
-
-All 5 items done in one manual testing session - splitting into subtasks creates noise without value.
+Items are done in one sitting, too granular/coupled to track separately, or non-actionable
+context/guidance. See [Unnumbered Implementation Bullets](#unnumbered-implementation-bullets)
+for the two-purpose breakdown (guidance vs grouped actions) and full formatting rules.
 
 #### Avoid Parent Tasks with Single Subtask
 
@@ -1338,106 +1081,19 @@ If you find this pattern, you have two options:
 
 - If subtask has "and" or multiple verbs representing separate completion events
 - Example:
-    - ❌ `2.3 Verify compatibility` → `2.3.1 Review and test integration`
-    - ✅ `2.3 Verify compatibility` → `2.3.1 Review integration` + `2.3.2 Test integration`
-
-**Example - Collapsed correctly:**
-
-```markdown
-❌ **Wrong (single subtask anti-pattern):**
-- [ ] **1.1 Write tests for URL preservation**
-    - [ ] **1.1.1 Create test file with all scenarios**
-        - Test: All filter params survive navigation
-        - Test: Unknown params preserved
-        - Expect tests to FAIL initially
-
-✅ **Correct (collapsed to parent):**
-- [ ] **1.1 Create test file for URL preservation in `test_navigation.ts`**
-    - Test: All filter params survive navigation
-    - Test: Unknown params preserved
-    - Expect tests to FAIL initially
-```
-
-**Example - Split correctly:**
-
-```markdown
-❌ **Wrong (multiple actions in single subtask):**
-- [ ] **2.3 Verify MovieCollectionGrid compatibility**
-    - [ ] **2.3.a Review integration and run tests**
-
-✅ **Correct (split distinct actions):**
-- [ ] **2.3 Verify MovieCollectionGrid compatibility**
-    - [ ] **2.3.a Review integration code**
-        - Check prop passing
-        - Verify parameter flow
-    - [ ] **2.3.b Run integration tests - should PASS**
-```
+    - ❌ `2.3 Verify compatibility` → `2.3.a Review and test integration`
+    - ✅ `2.3 Verify compatibility` → `2.3.a Review integration` + `2.3.b Test integration`
 
 ### When to Add Goal/Note Lines
 
-**Add Goal/Note line when:**
-
-- Parent task title is technical/terse
-- Purpose or rationale needs clarification
-- Context would help future readers
-
-**Skip Goal/Note line when:**
-
-- Parent task title is already clear and descriptive
-- Purpose is obvious from context
-- Would just repeat the title
-
-**Example needing Goal line:**
-
-```markdown
-- [ ] **3.2 Refactor buffer logic**
-
-    **Goal:** Separate pagination metadata tracking from result filtering for clarity.
-
-    - [ ] **3.2.a Extract metadata handling to separate function**
-        - Move tracking logic to `pagination_helpers.py`
-```
-
-**Example NOT needing Goal line:**
-
-```markdown
-- [ ] **3.2 Write tests for buffer pagination metadata tracking**
-
-    - [ ] **3.2.a Create test for metadata in API response**
-        - Test: `next_tmdb_page_start` field present
-        - Expect tests to FAIL initially
-```
+**Add when:** Parent task title is technical/terse, purpose needs clarification, or context helps
+future readers. **Skip when:** Title is already descriptive, purpose is obvious, or it would repeat
+the title. See [Goal/Note Lines](#goalnote-lines) for formatting rules and examples.
 
 ### When to Add Blank Lines Between Subtasks
 
-**Add blank lines when:**
-
-- Parent has 3+ numbered subtasks
-- Each subtask has 2+ lines of detail bullets
-- Improves readability through visual chunking
-
-**Example with blank lines:**
-
-```markdown
-- [ ] **2.1 Write comprehensive test suite**
-
-    - [ ] **2.1.a Create model validation tests**
-        - Test field constraints
-        - Test relationships
-        - Expect tests to FAIL initially
-
-    - [ ] **2.1.b Create API endpoint tests**
-        - Test success cases
-        - Test error handling
-        - Expect tests to FAIL initially
-
-    - [ ] **2.1.c Run all tests and verify failures**
-```
-
-**Skip blank lines when:**
-
-- Subtasks are simple/single-line
-- Parent has only 1-2 subtasks
+**Add when:** Parent has 3+ subtasks and each has 2+ detail bullets (visual chunking helps).
+**Skip when:** Subtasks are simple/single-line or parent has only 1-2 subtasks.
 
 ---
 
@@ -1484,7 +1140,7 @@ If you find this pattern, you have two options:
 - [x] Service layer handles all business logic (API endpoints are thin wrappers)
 - [x] Class-based architecture implemented for all services
 - [x] 100% test coverage for service layer methods
-- [x] All quality gates pass (611 backend tests, 504 frontend tests, 0 violations)
+- [x] All quality gates pass (tests, linting, type checking — 0 violations)
 - [x] Ready for archival
 ```
 
@@ -1493,11 +1149,11 @@ If you find this pattern, you have two options:
 ```markdown
 ## Success Criteria
 
-- [x] Within-page deduplication working (no duplicates on single page)
-- [x] Cross-page deduplication working (no duplicates across pagination)
-- [x] Backward navigation to page 1 consistent (same movies on return)
-- [x] Filter changes reset session (new filters = fresh results)
-- [x] All quality gates pass (backend 611, frontend 504, 0 violations)
+- [x] Required-field validation reports all missing fields with paths
+- [x] Type-mismatch validation reports expected vs actual types
+- [x] Nested config validation works recursively
+- [x] Multiple errors collected and reported in single pass
+- [x] All quality gates pass (tests, linting, type checking — 0 violations)
 - [x] Ready to resume interrupted work at Task 3.3
 ```
 
@@ -1515,7 +1171,6 @@ If you find this pattern, you have two options:
 ## References
 
 - [DEVELOPMENT-RULES.md](../constitution/DEVELOPMENT-RULES.md) - Test-First Protocol
-- [strategy-testing-methodology.md](./strategy-testing-methodology.md) - Testing standards and patterns
 - [2_generate-tasks.md](../workflows/2_generate-tasks.md) - Planned work task generation
 - [manage-incidental-work.md](../workflows/supplemental/manage-incidental-work.md) - Incidental work lifecycle
 - [3_process-task-loop.md](../workflows/3_process-task-loop.md) - Task execution workflow

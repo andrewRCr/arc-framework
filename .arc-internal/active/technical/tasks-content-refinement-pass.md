@@ -285,22 +285,57 @@ strategy-task-list-formatting defers streamlining to Phase 5. Includes document 
     - Structure and guidance preserved — doc was already well-scoped and well-structured per notes
       evaluation. No prose tightening needed beyond the template deduplication.
 
-- [ ] **3.3 Audit and fix `strategy-task-list-formatting.md`** (agnosticism only — streamlining in Phase 5)
-    - Check for project-type assumptions in examples
-    - Verify examples span project types
-    - Note: full streamlining deferred to Phase 5
+- [x] **3.3 Audit and fix `strategy-task-list-formatting.md`** (agnosticism + first-pass streamlining)
+    - Agnosticism + streamlining: 1520 → 1176 lines (-23%)
+    - **De-instanced**: All CineXplorer/TMDB references (~15 occurrences) — `MovieCard`, `MovieDetail`,
+      `MovieGrid`, `useMovieFetchRouter`, `MovieCollectionGrid`, `useMovieCollectionState`,
+      `showAdvanced`, `next_tmdb_page_start`, movie-themed task/branch names, filter-integration
+      branches, pagination-buffer-tracking, discover-endpoint-consolidation
+    - **Diversified examples**: Complete Annotated Example replaced (web frontend → project-neutral
+      config validation). Incidental examples replaced (CineXplorer → CLI tool, API versioning).
+      Letter numbering examples replaced (React component audit → generic module audit). Decision
+      guideline examples replaced (MovieCard/MovieCollectionGrid → SearchHandler/DataGrid)
+    - **Streamlined**: Common Mistakes condensed from ~170 lines (8 verbose ✅/❌ examples) to ~14-line
+      compact list with cross-reference to Format Elements (which already has the examples). Test-First
+      Pattern 3 (65-line full-stack example) replaced with 5-line "apply per layer" guidance. Decision
+      Guidelines trimmed — removed examples duplicating Format Elements, kept unique decision criteria
+      (subtask granularity, single-subtask anti-pattern, when-to-use rules)
+    - **Also fixed**: Removed phantom `strategy-testing-methodology.md` reference (file doesn't exist).
+      Version header removed per pattern
+    - Phase 5 Task 5.3 can do deeper tightening from 1176-line baseline
 
-- [ ] **3.4 Audit and fix `strategy-quality-gates.md`**
-    - **Agnosticism**: Check for project-type assumptions in tier examples; ensure quality gate examples aren't
-      exclusively web-app-focused (lint/type-check/E2E pattern); add conditional framing where tiers reference
-      project-type-specific tooling
-    - **Quality**: Fresh-adopter read-through (~250 lines, already well-structured — expect light touch)
+- [x] **3.4 Audit and fix `strategy-quality-gates.md`**
+    - Light touch as expected: 248 → 245 lines. Structure and philosophy already excellent.
+    - **Agnosticism**: E2E checkpoint guidance generalized — React-specific language (context
+      providers, hooks, components, browser matrix) replaced with project-neutral framing (request
+      handlers, middleware, shared utilities, dependency injection). Example commands diversified
+      from npm/Playwright-only to include pytest patterns alongside. Task list integration example
+      replaced (TopBar/FooterBar layout → API auth endpoint/rate limiting). "All browsers/viewports"
+      generalized to "all configurations" throughout.
+    - **Terminology**: Reframed tier triggers from task-structure-based (subtask/parent) to
+      scope-based (per-task / coherent unit). Tier 1 "Per-Subtask" → "Per-Task" (any checkbox).
+      Tier 2 "Parent Task Completion" → "Coherent Unit Completion" (all subtasks of parent done,
+      OR standalone task touching integration-relevant code). Resolves ambiguity where standalone
+      tasks (no subtasks) had no clear tier mapping.
+    - **Quality**: Version footer removed. Trailing horizontal rule cleaned up. Minor grammar fix.
+    - **Note**: `3_process-task-loop.md` lines 50-51 still use parent/sub framing for Tier 2
+      trigger — needs alignment with this reframing (minor addition, not blocking).
 
-- [ ] **3.5 Fix `STRATEGY-INDEX.md` phantom references**
-    - Reframe project strategy section to clearly indicate these are examples of strategies adopters might create,
-      not files that should exist (PRD req 17)
-    - Verify ARC strategies section is accurate
-    - Fresh-adopter lens: does the index read clearly for someone who hasn't created any project strategies yet?
+- [x] **3.5 Fix `STRATEGY-INDEX.md` phantom references**
+    - Reframed: 51 → 48 lines. Section order swapped (ARC first, Project second) so adopters see
+      what ships before what they create.
+    - **Phantom references fixed** (PRD req 17): Project strategy section now explicitly states
+      "illustrations — these files don't exist until you create them." Removed the implicit
+      suggestion that these files should be present.
+    - **ARC strategies verified**: All 4 listed strategies exist. Quality gates description updated
+      to "integration checkpoints" (aligning with Tier 2 reframing from Task 3.4).
+    - **Fresh-adopter clarity**: Location line now explains the two directories ("ships with ARC"
+      vs "you create these"). Pointer to `project/README.md` for creation guidance. Removed
+      phantom "semantic-tokens" reference from Usage Protocol. Simplified grep instruction to
+      general "search for the specific topic" guidance.
+    - Dropped `project/style/strategy-layout-tokens.md` example (3 style examples → 2, reducing
+      web-frontend-heavy impression). Dropped "Process:" sub-header from ARC section (unnecessary
+      — all ARC strategies are process strategies).
 
 - [ ] **3.6 Evaluate and fix `agent/README.md`**
     - Evaluate migration-from-AI-SHARED section — remove or minimize if stale for new adopters (PRD req 32)

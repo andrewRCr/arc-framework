@@ -47,8 +47,9 @@ It ensures consistent execution, quality control, and documentation of work.
      continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
      In such cases, address the concern before proceeding to the next task.
 
-  2. **Parent task completion:** If the task you just finished was the last subtask under a parent
-     task (all subtasks now `[x]`), follow this additional sequence:
+  2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
+     the last subtask under a parent (all subtasks now `[x]`), or a standalone task that touches
+     integration-tested code — follow this additional sequence:
 
     - **First**: Mark the **parent task** as `[x]` in the task list file (ensures docs reflect completion)
     - **Second**: Ensure new code has appropriate test coverage for new or modified logic
@@ -58,11 +59,11 @@ It ensures consistent execution, quality control, and documentation of work.
 
   3. Report completion to user
 
-     **Pre-Report Checklist for Parent Task Completion** (verify before reporting):
+     **Pre-Report Checklist for Coherent Unit Completion** (verify before reporting):
 
      ```
-     - [ ] All subtasks under parent task marked [x] in task list
-     - [ ] Parent task marked [x] in task list
+     - [ ] All subtasks marked [x] (if parent task) or standalone task marked [x]
+     - [ ] Parent task marked [x] in task list (if applicable)
      - [ ] Task list file edited and saved
      - [ ] Tier 2 quality gates passed (full-project lint/type-check/format, unit tests, targeted E2E if applicable, build)
      - [ ] Ready to report completion to user
