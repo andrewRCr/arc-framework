@@ -46,7 +46,7 @@
 - **Respect user intent** - Never revert or "fix" user changes without explicit approval
 - **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
-- **One subtask at a time** - Complete tasks incrementally, await approval between subtasks
+- **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
 - **Verify before asserting** - Never guess file paths, implementation details, or content. Use Grep/Glob/Read
   to verify, or ask clarifying questions when uncertain. See DEVELOPMENT-RULES Verification Protocol.

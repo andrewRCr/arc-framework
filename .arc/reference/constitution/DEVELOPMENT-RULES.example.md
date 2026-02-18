@@ -34,7 +34,7 @@ for complete guidance.
 
 | Tier   | When                   | What to Run                                                   |
 |--------|------------------------|---------------------------------------------------------------|
-| Tier 1 | Per-subtask            | Type-check, lint, format, related unit tests (modified files) |
+| Tier 1 | Per-task               | Type-check, lint, format, related unit tests (modified files) |
 | Tier 2 | Parent task completion | Tier 1 (full project) + targeted E2E tests + build            |
 | Tier 3 | Per-phase, pre-PR      | Full suite (everything below)                                 |
 
@@ -68,12 +68,12 @@ For specific commands, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 
 ### Quality Gate Failure Protocol
 
-If quality gates fail after sub-task completion:
+If quality gates fail after task completion:
 
 1. **Report the failure** with specific details
 2. **Identify suspected causes** and investigation areas
 3. **Ask for guidance** on whether to fix immediately or defer
-4. **Never proceed** to next sub-task until resolved or user approves
+4. **Never proceed** to next task until resolved or user approves
 
 ### Leave It Cleaner: Pre-existing Issue Protocol
 
@@ -216,17 +216,20 @@ when specific patterns/commands are needed. Active verification beats passive re
 
 ## Task Management Protocol
 
-### One Sub-Task Rule
+### One Task at a Time
 
-- **Complete ONE sub-task at a time** - never bundle multiple deliverables
+Each checkbox in the task list is one work unit — whether it's a standalone task or a subtask under
+a parent. The checkpoint is always at the checkbox level.
+
+- **Complete ONE task at a time** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (tests pass, quality checks pass)
 - **Mandatory stop** after reporting completion for user approval to proceed
 - **Implied permission**: User approval implies permission to proceed UNLESS explicitly stated otherwise
-  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to next subtask.
+  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to the next task.
 
-### Sub-Task Granularity Guidelines
+### Task Granularity Guidelines
 
-Break down a sub-task if it requires:
+Break down a task into subtasks if it requires:
 
 - More than 3 files to be modified
 - More than 50 lines of core logic changes
@@ -235,7 +238,7 @@ Break down a sub-task if it requires:
 
 ### Test-First Protocol
 
-**BEFORE implementing any sub-task, assess test-first requirement:**
+**BEFORE implementing any task, assess test-first requirement:**
 
 **Requires test-first** (write tests BEFORE implementation):
 
@@ -255,7 +258,7 @@ Break down a sub-task if it requires:
 
 **If unsure whether test-first applies, default to test-first.** Writing tests after implementation is harder and less effective.
 
-**During task list creation:** Ensure test sub-tasks appear BEFORE implementation sub-tasks for test-first work.
+**During task list creation:** Ensure test tasks appear BEFORE implementation tasks for test-first work.
 This makes the protocol visible during execution.
 
 ## Testing Requirements

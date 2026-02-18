@@ -80,8 +80,8 @@ This is typically invoked via slash command when the user needs to step away bri
 - Make any requested changes
 - Run atomic commit workflow (at user's direction)
 - Run session handoff workflow (at user's direction)
-- **Resume normal workflow** ([3_process-task-loop.md](../../.arc/reference/workflows/3_process-task-loop.md)) - one
-  subtask at a time with check-ins
+- **Resume normal workflow** ([3_process-task-loop.md](../../.arc/reference/workflows/3_process-task-loop.md)) — one
+  task at a time with check-ins
 
 **Appropriate for:**
 

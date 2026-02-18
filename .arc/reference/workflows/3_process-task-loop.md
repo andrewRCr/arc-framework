@@ -7,21 +7,22 @@ It ensures consistent execution, quality control, and documentation of work.
 
 ## Task Implementation
 
-- **One sub-task at a time:** Do **NOT** start the next sub‑task without user approval
+- **One task at a time:** Each checkbox in the task list is one work unit — whether it's a standalone
+  task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
 - **Branch/task list coupling:** Task lists in `.arc/active/` correspond to git branches (branch exists ↔ task list
   active). Archive task list immediately when branch deleted after merge. See
   [Work Organization Strategy](../strategies/arc/strategy-work-organization.md) for details.
 - **Completion protocol:**
 
-  1. When you finish a **single sub‑task**:
+  1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files - **Tier 1** (linting, type checking, related unit tests)
        - See [Quality Gates Strategy](../strategies/arc/strategy-quality-gates.md) for the tiered approach
        - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
        - When task list explicitly calls for quality gates (including E2E checkpoints), they are mandatory
-     - **Second**: Mark subtask as `[x]` in task list file (task list reflects completed work when reporting)
+     - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
-       - **No inline dates**: Don't add completion dates to subtasks (e.g., "Completed: 2025-11-02"). Only the
+       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Only the
          task list header `**Completed:**` field should have a date. Inline dates become temporal noise during archival.
        - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
@@ -35,7 +36,7 @@ It ensures consistent execution, quality control, and documentation of work.
      ```
      - [ ] Quality checks passed (linting, type checking, tests as appropriate)
      - [ ] Task list markdown file edited and saved
-     - [ ] Subtask marked [x] in task list
+     - [ ] Task marked [x] in task list
      - [ ] Task description updated to reflect actual work done
      - [ ] Ready to generate user-facing completion report
      ```
@@ -43,10 +44,11 @@ It ensures consistent execution, quality control, and documentation of work.
      If any item is unchecked, complete it before proceeding to report generation.
 
      **Note on implied permission:** User approval ("great!", "looks good", "proceed") implies permission to
-     continue to the next subtask UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
-     In such cases, address the concern before proceeding to the next task-list-documented subtask.
+     continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
+     In such cases, address the concern before proceeding to the next task.
 
-  2. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
+  2. **Parent task completion:** If the task you just finished was the last subtask under a parent
+     task (all subtasks now `[x]`), follow this additional sequence:
 
     - **First**: Mark the **parent task** as `[x]` in the task list file (ensures docs reflect completion)
     - **Second**: Ensure new code has appropriate test coverage for new or modified logic
@@ -103,7 +105,7 @@ immediately. **Quick decision tree**:
 ### Session-Scoped Tracking vs Task List Files
 
 Many AI coding tools offer ephemeral task tracking (e.g., Claude Code's TodoWrite, or similar
-features in other tools). These are useful for organizing work during a sub-task but are
+features in other tools). These are useful for organizing work during a task but are
 **not a substitute for task list markdown updates**.
 
 **Key distinction:**
@@ -112,7 +114,7 @@ features in other tools). These are useful for organizing work during a sub-task
 - **Task list markdown** — Permanent record, committed to git. Source of truth for completion
   status. Must be updated before reporting to user.
 
-**Best practice:** When using session tracking for a sub-task, always include a step for updating
+**Best practice:** When using session tracking for a task, always include a step for updating
 the task list markdown. This creates a forcing function to remember the permanent update before
 reporting completion.
 
