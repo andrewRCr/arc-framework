@@ -40,32 +40,71 @@ fixing known content issues.
 **Goal:** Remove project-type and agent-specific assumptions from the 4 core workflows — the most-read, most-impactful
 framework documents.
 
-- [ ] **1.1 Audit and fix `0_define-constitution.md`**
-    - Generalize team language: "Team Review" → "Review with collaborators" or similar (PRD req 30)
-    - Check for project-type assumptions (backend/frontend, Docker, etc.)
-    - Apply audience indicator if appropriate (this is agent-executed + human-guided)
-    - Note any structural observations for B.3
+- [x] **1.1 Audit and fix `0_define-constitution.md`**
+    - Significant restructure: 205 → 93 lines. Removed all filler, kept only value-carrying content.
+    - Cut: Process numbered lists (redundant with templates), Integration with Feature Development
+      section (restated what docs are), Constitutional Evolution Process (generic change management),
+      Success Criteria section, section intro lines that restated headings
+    - Restructured steps: Objective/Process/Key Questions → one-line description + template link +
+      "Think through" questions. "Create" → "Define" in step headers (matches workflow title)
+    - Condensed Quarterly Review (16 generic bullets) → Periodic Review (4 diagnostic questions)
+    - Absorbed Templates section into workflow steps; setup note at end of Step 4
+    - Agnosticism: team language generalized, project-type assumptions softened, "Market changes" →
+      "Direction changes", template mechanism made distribution-agnostic
+    - Template paths converted from backticks to markdown links for human navigability
+    - **Audience indicator deferred**: convention is structural (B.3 / task 3.7)
+    - **B.3 structural observations**:
+        - Workflow/strategy docs lack header metadata convention
+        - ROADMAP.md not covered here; needs broader "project bootstrap" workflow
+        - ROADMAP vs PROJECT-STATUS: valid separation, needs sharper purpose framing
+    - **Cross-cutting note**: Process docs can be leaner given planned onboarding materials will
+      provide conceptual grounding upstream — docs needn't justify their own concepts inline
 
-- [ ] **1.2 Audit and fix `1_create-prd.md`**
-    - Check for project-type assumptions in examples and language
-    - Verify examples don't default to web app patterns
-    - Add conditional framing where sections are project-type-dependent
+- [x] **1.2 Audit and fix `1_create-prd.md`**
+    - Significant restructure: 228 → 109 lines. Removed feature/web-app bias throughout.
+    - Step 1 (Review Context) → one-line note before steps (DEV-RULES already loaded at session init)
+    - Step 1.5 → Step 1 "Check for Existing Planning Artifacts"; updated from notes-first to
+      plan-first pattern (`plan-*.md` as primary pre-PRD artifact, `notes-*.md` as supplemental)
+    - Purpose/Goal merged; Output Specifications merged into Step 4; Target Audience cut
+    - Workflow Completion → "Stop here" guardrail folded into Step 4
+    - Clarifying Questions: replaced web-app-specific examples with work-type-neutral categories
+    - Header metadata: Created/Updated → single Updated date; Status only for dependency variant
+    - Content Sections reframed for both work types: "User Stories" → "User Stories or Use Cases",
+      "Functional Requirements" → "Requirements", "Success Metrics" → "Success Criteria",
+      Technical Considerations noted as "often the core of technical PRDs; supplementary for features"
+    - PRD structure kept inline (not extracted to template) — compact and needed at point of use
 
-- [ ] **1.3 Audit and fix `2_generate-tasks.md`**
-    - Check for project-type assumptions
-    - Add clarifying note that `strategy-testing-methodology.md` is a project-level strategy adopters create, not a
-      framework-provided file (PRD req 31)
-    - Verify test-first examples are generalizable beyond web app patterns
+- [x] **1.3 Audit and fix `2_generate-tasks.md`**
+    - Significant restructure: 275 → 137 lines. 8 steps → 4 steps.
+    - Cut: Purpose/Goal/Output redundancy, Target Audience (enterprise framing), Task Completion
+      Tracking (one-line ref to process-task-loop), Steps 5-8 collapsed into Step 4
+    - Step 1 (Review Context) → pre-step note; Step 1.5 (PRD header cleanup) → folded into same note
+    - Web-app-biased phase example → project-type-neutral template with `[component]` placeholders
+    - `strategy-testing-methodology.md` reframed as project-level: "If your project has a testing
+      methodology strategy" (PRD req 31)
+    - PRD Reference path fixed: `.arc/active/` → `.arc/backlog/` (lifecycle consistency)
+    - Task list Status: "In Progress" → "Not Started" (accurate for pre-activation state)
+    - Step 1 expanded: added explicit STRATEGY-INDEX check for project-level strategies that should
+      inform task structure (more actionable than "read META-PRD")
+    - Body structure template removed — single source of truth via strategy-task-list-formatting.md
+      reference; only task list header kept inline (workflow-specific metadata)
 
-- [ ] **1.4 Audit and fix `3_process-task-loop.md`**
-    - Generalize "TodoWrite Tool" section from Claude Code-specific to tool-agnostic — replace with "session-scoped
-      tracking tools" or equivalent, remove Claude Code JSON examples (PRD req 5)
-    - Check for other project-type or agent-specific assumptions throughout
-    - This is the heart of the framework — changes need careful attention to preserve the value while removing bias
+- [x] **1.4 Audit and fix `3_process-task-loop.md`**
+    - Surgical edits (227 → 152 lines) — structure preserved, forcing functions intact
+    - TodoWrite → "Session-Scoped Tracking vs Task List Files": tool-agnostic with Claude Code as
+      one example, JSON removed, forcing function concept preserved (42 → 15 lines) (PRD req 5)
+    - Completion protocol tightened: removed redundant stop rules (MANDATORY STOP sufficient on its
+      own), "Streamline verbose planning details" condensed (6 → 3 lines)
+    - PROJECT-STATUS check removed from parent task completion (excessive per-parent-task ceremony)
+    - PROJECT-STATUS link fixed (wrong relative path)
+    - Atomic Task Completion Protocol → brief pointer to ATOMIC-TASKS.md header (single source of
+      truth); kept "When Atomic Tasks Grow" escalation with collaborative framing
+    - Incidental work decision tree: "Create" → "Suggest" (agent assesses and flags, doesn't
+      unilaterally act); "When Atomic Tasks Grow" similarly reframed with "Flag to user" + "If approved"
+    - Test coverage broadened, CineXplorer example genericized, redundant bullets trimmed
 
-- [ ] **1.5 Run quality gate on Phase 1 files**
-    - `npx --yes markdownlint-cli2 --no-globs` on all 4 modified workflow files
-    - Verify zero violations
+- [x] **1.5 Run quality gate on Phase 1 files**
+    - All 4 core workflow files pass with zero violations
 
 ### **Phase 2:** Supplemental Workflow Agnosticism
 
