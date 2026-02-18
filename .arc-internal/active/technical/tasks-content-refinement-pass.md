@@ -337,24 +337,48 @@ strategy-task-list-formatting defers streamlining to Phase 5. Includes document 
       web-frontend-heavy impression). Dropped "Process:" sub-header from ARC section (unnecessary
       — all ARC strategies are process strategies).
 
-- [ ] **3.6 Evaluate and fix `agent/README.md`**
-    - Evaluate migration-from-AI-SHARED section — remove or minimize if stale for new adopters (PRD req 32)
-    - Check for project-type or agent-specific assumptions in adoption guidance
-    - Fresh-adopter lens: does adoption guidance work for someone setting up ARC for the first time?
+- [x] **3.6 Evaluate and fix `agent/README.md`**
+    - 183 → 201 lines. External research confirmed AGENTS.md is now a Linux Foundation standard
+      (60k+ projects, co-founded by Google/Cursor/Windsurf). Major architecture section rework:
+      "Why AGENTS.md as Hub" explains format choice (industry standard) and ARC-managed loading
+      (session-init, not tool auto-discovery from this directory). New "File Placement" subsection
+      explains containment rationale (no conflict with existing configs, controlled load order,
+      layering possible for outside-ARC config). Explicit answer to "why tool-specific files for
+      tools that read AGENTS.md natively?" (model quirks don't belong in shared context).
+      Migration-from-AI-SHARED removed (stale — PRD req 32). Fixed stale path reference
+      (`ai-instructions/` → `agent/`). "Adding Files for Other Tools" extensibility section added.
+      Design Principles rewritten (5 → 6, now reflecting ARC-managed loading model). "tips" →
+      "guidance" throughout. Version footer removed.
+    - **B.3 observation**: File placement is now documented but onboarding docs should cover it
+      too — first-time adopters need to understand that ARC manages loading via session-init
+      rather than relying on tool auto-discovery.
 
-- [ ] **3.7 Update `.arc/README.md` with audience clarity**
-    - Add document audience table (agent-executed / shared context / human-facing) using aspirational README as
-      model (PRD req 9)
-    - Ensure the README clearly communicates which docs are for whom
-    - Add brief audience indicators to individual documents where helpful (PRD req 8) — light touch, one-line notes
+- [x] **3.7 Update `.arc/README.md` with audience clarity**
+    - Full rework: 93 → 55 lines. Cut Getting Started (belongs in repo README), Usage Patterns
+      (restated directory tree), Framework Integration (stale, wrong repo link, unnecessary).
+      Kept: directory tree (updated, accurate), document audience table (3 categories:
+      agent-executed / shared context / human-facing — PRD req 9), pointer to repo README with
+      TODO comment for future getting-started link.
+    - Added `**Audience:**` one-liner to all 14 workflow files (PRD req 8): 4 core workflows
+      (define-constitution, create-prd, generate-tasks as "collaborative"; process-task-loop as
+      "agent-executed") + 10 supplementals (session-init/handoff, atomic-commit, archive,
+      maintain-docs, maintain-task-notes, agent-pre-merge-review as "agent-executed";
+      manage-incidental-work as "shared context"; activate-work-unit as "collaborative";
+      weekly-review as "human-driven"). atomic-commit `**Note:**` replaced with `**Audience:**`
+      that preserves the "never without approval" constraint.
 
-- [ ] **3.8 Audit remaining `.arc/reference/` files for agent-specific content**
-    - Sweep across any files not yet checked for agent-specific content leakage (PRD req 7)
-    - This is a verification pass — confirm that Phases 1-3 caught everything
+- [x] **3.8 Audit remaining `.arc/reference/` files for agent-specific content**
+    - Verification pass complete. Grepped all `.arc/reference/` files (excluding `agent/`) for
+      agent-specific terms (Claude, Gemini, Copilot, GPT, Cursor, Windsurf, TodoWrite, CLAUDE.md,
+      etc.). All hits are appropriate: process-task-loop uses Claude Code as one example with
+      "or similar" framing (Phase 1 fix); agent-pre-merge-review has tool-specific notes as a
+      clearly separated appendix (correct pattern); DEVELOPMENT-RULES and session-init reference
+      agent file paths as navigation (not embedding content). No leakage found — Phases 1-3
+      caught everything.
 
-- [ ] **3.9 Run quality gate on Phase 3 files**
-    - `npx --yes markdownlint-cli2 --no-globs` on all modified strategy and reference files
-    - Verify zero violations
+- [x] **3.9 Run quality gate on Phase 3 files**
+    - Linted all 16 modified `.arc/` files (1 README, 1 agent/README, 4 core workflows,
+      10 supplemental workflows). Zero violations.
 
 ### **Phase 4:** Template Standardization
 

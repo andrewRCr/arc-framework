@@ -1,5 +1,7 @@
 # Workflow: Generate Task List
 
+**Audience:** Collaborative — developer and agent work through this together.
+
 **Purpose**: Transform a PRD into an executable task list — a step-by-step implementation plan
 with phases, sub-tasks, quality checkpoints, and test-first ordering.
 

@@ -1,5 +1,7 @@
 # Workflow: Create PRD
 
+**Audience:** Collaborative — developer and agent work through this together.
+
 **Purpose**: Guide the creation of work-level PRDs that define scope and requirements for individual
 pieces of planned work. Work PRDs build on the project vision established in the META-PRD.
 

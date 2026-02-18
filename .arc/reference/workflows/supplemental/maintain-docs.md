@@ -1,5 +1,7 @@
 # Workflow: Documentation Maintenance
 
+**Audience:** Agent-executed — your agent follows this when updating framework documentation.
+
 **Purpose**: Keep .arc framework documentation accurate, consistent, and free of contradictions as the project evolves.
 
 **When to use**: When making changes to constitutional documents or discovering documentation issues during active work.

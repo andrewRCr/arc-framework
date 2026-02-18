@@ -5,23 +5,48 @@ the ARC framework.
 
 ## Architecture
 
-The AI instructions follow a **minimal inheritance pattern**:
+The AI instructions follow a **minimal inheritance pattern** built around `AGENTS.md` — both an ARC convention
+and an industry standard (stewarded by the Linux Foundation's Agentic AI Foundation, adopted by 60,000+ projects).
 
 ```
-AGENTS.md (central reference card)
-├── CLAUDE.md → references AGENTS.md + Claude-specific tips
-├── GEMINI.md → references AGENTS.md + Gemini-specific tips
-├── WARP.md → references AGENTS.md + Warp-specific tips
-└── copilot-instructions.md → references AGENTS.md + Copilot-specific tips
+AGENTS.md (central reference card — industry-standard format)
+├── CLAUDE.md → references AGENTS.md + Claude-specific guidance
+├── GEMINI.md → references AGENTS.md + Gemini-specific guidance
+├── WARP.md → references AGENTS.md + Warp-specific guidance
+└── copilot-instructions.md → references AGENTS.md + Copilot-specific guidance
 ```
+
+### Why AGENTS.md as Hub
+
+`AGENTS.md` is an industry standard — tools like Gemini, Cursor, and Windsurf natively auto-discover
+it at project root. ARC uses the same format for interoperability but keeps files here in `.arc/reference/agent/`
+rather than at tool-native locations (see [File Placement](#file-placement) below). ARC's session-init workflow
+handles loading: AGENTS.md first for shared context, then the appropriate tool-specific file.
+
+**Why tool-specific files, even for tools that read AGENTS.md natively?** Different models have different
+quirks — context window thresholds, output format preferences, capability limitations, autonomous work
+protocols. This model-specific guidance doesn't belong in shared project context.
+
+### File Placement
+
+Files live in `.arc/reference/agent/` rather than where tools natively look (project root, `.github/`,
+`.claude/`, etc.). This is deliberate:
+
+- **Containment** — all agent configuration in one directory, managed as part of ARC
+- **No conflict** — won't overwrite pre-existing tool configs already in your project
+- **Controlled loading** — session-init reads files in the right order (shared context → tool-specific)
+- **Layering possible** — you can still place additional config at tool-native locations for
+  guidance that lives outside ARC, layered on top
 
 ### Design Principles
 
-1. **AGENTS.md is the central hub** - Contains project overview, quick lookup guide, and AI collaboration principles
-2. **Tool files are minimal** - Each tool file (~20-40 lines) references AGENTS.md and adds only tool-specific tips
-3. **No duplication** - Shared context lives in AGENTS.md, not repeated in tool files
-4. **Auto-discovery support** - Tools that look for AGENTS.md get immediate access to shared context
-5. **Reference chains work** - Tools that look for their specific file (e.g., CLAUDE.md) are directed to AGENTS.md
+1. **AGENTS.md is the central hub** — project overview, quick lookup guide, and AI collaboration principles
+2. **Tool files hold model-specific guidance** — each file (~20-40 lines) references AGENTS.md and adds only
+   what's unique to that model (quirks, capabilities, context management, communication preferences)
+3. **No duplication** — shared context lives in AGENTS.md, not repeated in tool files
+4. **ARC manages loading** — session-init reads files in order; files don't need to live where tools natively look
+5. **Contained and non-conflicting** — all agent config lives here, won't overwrite existing tool configs
+6. **Extensible** — adopters can add files for any tool following the same pattern
 
 ## Files in This Directory
 
@@ -55,7 +80,7 @@ AGENTS.md (central reference card)
 - Communication preferences (summaries first, clarifying questions)
 - Large diff handling strategies
 
-**When to customize**: Add Claude-specific tips for your project (typically 5-10 bullet points)
+**When to customize**: Add Claude-specific guidance for your project (typically 5-10 bullet points)
 
 ### GEMINI.example.md
 
@@ -69,7 +94,7 @@ AGENTS.md (central reference card)
 - Summary format preferences
 - Cross-tool handoff practices
 
-**When to customize**: Add Gemini-specific tips for your project (typically 5-10 bullet points)
+**When to customize**: Add Gemini-specific guidance for your project (typically 5-10 bullet points)
 
 ### WARP.example.md
 
@@ -83,7 +108,7 @@ AGENTS.md (central reference card)
 - Quality gate shortcuts
 - Environment verification patterns
 
-**When to customize**: Add Warp-specific tips for your project (typically 5-10 bullet points)
+**When to customize**: Add Warp-specific guidance for your project (typically 5-10 bullet points)
 
 ### copilot-instructions.example.md
 
@@ -98,13 +123,23 @@ AGENTS.md (central reference card)
 - Testing prompt strategies
 - Tool deferral corrections
 
-**When to customize**: Add Copilot-specific tips for your project (typically 5-10 bullet points)
+**When to customize**: Add Copilot-specific guidance for your project (typically 5-10 bullet points)
+
+### Adding Files for Other Tools
+
+ARC ships with templates for the tools above, but the pattern works with any AI coding assistant. To add support
+for another tool (e.g., Cursor, Windsurf, or a future tool):
+
+1. Create a minimal file following the same pattern: reference AGENTS.md, add tool-specific guidance
+2. Ensure your session-init workflow reads the new file after AGENTS.md
+3. If the tool uses a structured config format (e.g., `.cursor/rules/*.mdc`), include a pointer to AGENTS.md
+   for shared project context
 
 ## Adoption Guide
 
 ### For New Projects
 
-1. **Copy all `.example.md` files** from this directory to your project's `.arc/reference/ai-instructions/`
+1. **Copy all `.example.md` files** from this directory to your project's `.arc/reference/agent/`
 2. **Rename files** by removing `.example` extension:
    - `AGENTS.example.md` → `AGENTS.md`
    - `CLAUDE.example.md` → `CLAUDE.md`
@@ -114,7 +149,7 @@ AGENTS.md (central reference card)
    - Repository layout
    - Critical friction points
    - Common workflows
-4. **Customize tool-specific files** with tips relevant to your project
+4. **Customize tool-specific files** with guidance relevant to your project
 5. **Remove unused tool files** if you don't use certain AI tools
 
 ### Customization Tips
@@ -129,27 +164,9 @@ AGENTS.md (central reference card)
 **Tool-specific files**:
 
 - Keep them minimal (reference AGENTS.md for shared context)
-- Add only tool-specific tips (not general project information)
+- Add only tool-specific guidance (not general project information)
 - Use placeholders like `{{TOOL_AVAILABILITY}}` for project-specific values
 - Focus on how to use the tool effectively in your project
-
-## Migration from Previous Versions
-
-### If You Have AI-SHARED.md
-
-The old `AI-SHARED.md` has been replaced by `AGENTS.md`:
-
-1. **Copy content** from your `AI-SHARED.md` into `AGENTS.md`
-2. **Remove duplication** - eliminate any content that duplicates CURRENT-SESSION.md, DEVELOPMENT-RULES.md, or
-   QUICK-REFERENCE.md
-3. **Add Quick Lookup Guide** - create "How do I...?" / "What are the rules for...?" / "Where is...?" sections
-4. **Delete AI-SHARED.md** after migration
-
-### Why the Change?
-
-- **Auto-discovery**: Some AI tools natively look for `AGENTS.md`
-- **Clearer naming**: "AGENTS" better describes the file's purpose than "AI-SHARED"
-- **Reference chains work identically**: Tools still follow CLAUDE.md → AGENTS.md pattern
 
 ## Maintenance
 
@@ -180,4 +197,5 @@ needs updates to reflect new:
 
 ---
 
-**Version**: 2025-10-17 (Initial version documenting new AGENTS.md architecture)
+**Maintenance:** Update this README and file descriptions when adding new tool templates or when the
+AGENTS.md architecture evolves.

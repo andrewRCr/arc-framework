@@ -1,5 +1,7 @@
 # Workflow: Archive Completed Work
 
+**Audience:** Agent-executed — your agent follows this to archive completed work.
+
 Move completed work documentation to structured archive to keep the active workspace clean while preserving
 history and context.
 

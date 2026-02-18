@@ -1,5 +1,7 @@
 # Workflow: Weekly Review
 
+**Audience:** Human-driven — developer conducts this review, optionally with agent assistance.
+
 **Purpose**: Process captured work, maintain backlog health, and ensure task tracking stays current.
 See `strategy-work-organization.md` for work categorization context (feature vs technical, backlog
 lifecycle).

@@ -1,7 +1,7 @@
 # Atomic Commit Workflow
 
-**Note**: This workflow is for AI execution when explicitly instructed by the user.
-AI should NEVER initiate this workflow without user approval.  See DEVELOPMENT-RULES.md for complete protocols.
+**Audience:** Agent-executed at developer's direction — agent NEVER initiates commits without explicit approval.
+See DEVELOPMENT-RULES.md for complete protocols.
 
 Break changes into logical, atomic commits with clear messages.
 

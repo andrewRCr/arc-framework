@@ -1,5 +1,7 @@
 # Workflow: Define Constitution
 
+**Audience:** Collaborative — developer and agent work through this together.
+
 **Purpose**: Establish and maintain the foundational project documents that guide all development
 decisions and provide persistent project context.
 

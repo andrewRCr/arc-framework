@@ -1,5 +1,7 @@
 # Workflow: Agent Pre-Merge Review
 
+**Audience:** Agent-executed — your agent follows this for pre-merge code review.
+
 **Purpose**: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
 
 1. **Pass 1 (Local)**: Run agent review locally before creating PR — catch the majority of issues

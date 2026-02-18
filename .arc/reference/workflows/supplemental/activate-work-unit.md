@@ -1,5 +1,7 @@
 # Workflow: Activate Work Unit
 
+**Audience:** Collaborative — developer and agent transition planned work to active status.
+
 ## Purpose
 
 Transition a planned work unit (PRD + task list) from backlog to active status, establishing the branch and

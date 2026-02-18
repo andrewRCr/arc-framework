@@ -1,5 +1,7 @@
 # Workflow: Task Processing Loop
 
+**Audience:** Agent-executed — your agent follows this protocol during task execution.
+
 ## Purpose
 
 This workflow defines the detailed process for executing tasks defined in ARC task lists (e.g., `.arc/active/*/tasks-*.md`).

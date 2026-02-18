@@ -1,5 +1,7 @@
 # Workflow: Session Initialization
 
+**Audience:** Agent-executed — your agent follows this at the start of each session.
+
 **Purpose**: Establish complete AI context at session start, ensuring the AI has all necessary environment information,
 project context, and behavioral guidance before beginning work.
 

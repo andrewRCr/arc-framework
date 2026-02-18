@@ -1,5 +1,7 @@
 # Workflow: Session Handoff
 
+**Audience:** Agent-executed — your agent follows this to capture session state.
+
 **Purpose**: Capture session state in CURRENT-SESSION.md so the next session can resume with full context.
 
 **When to use**: User-triggered at the end of a session, or when transitioning between work contexts.

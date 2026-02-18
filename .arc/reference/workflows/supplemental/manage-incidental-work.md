@@ -1,5 +1,7 @@
 # Workflow: Manage Incidental Work
 
+**Audience:** Shared context — referenced by both developer and agent when discovered work arises.
+
 **Purpose**: Guidelines for creating and managing incidental task lists—
 quality improvements, refactoring, or tech debt discovered during feature or technical work—
 that should be addressed immediately.

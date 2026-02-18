@@ -1,5 +1,7 @@
 # Workflow: Maintain Task & Notes Hygiene
 
+**Audience:** Agent-executed — your agent follows this to clean up task lists before archival.
+
 Use this workflow when an active task list has accumulated historical notes or when the companion notes document
 needs pruning. **Execute this workflow before archiving completed work** to ensure files are reference-ready.
 
