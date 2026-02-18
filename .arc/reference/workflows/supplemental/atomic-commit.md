@@ -47,8 +47,8 @@ steps:
     - Also check [backlog tasks](.arc/backlog/) for additional relevant tasks
         - `.arc/backlog/feature/` and `.arc/backlog/technical/`
     - Look for task files that reference modified files or related functionality
-    - Use `find .arc -name "*.md" -exec grep -l "pagination" {} \;` to find related tasks
-      (replace "pagination" with relevant keyword, e.g., "authentication", "api-layer", etc.)
+    - Search `.arc/` for keywords related to your changes to find relevant task files
+      (e.g., grep for "authentication", "pipeline", "api-layer", etc.)
     - This task list reference will be used in Context: footer of commit message
 
   **Step 3: Analyze Task Progress Context**
@@ -96,7 +96,7 @@ steps:
   4. Documentation - Task list updates (use task list Context:)
   5. Documentation - Boundary scenarios (use category Context: if no task list)
   6. Code formatting (linting fixes, style)
-  7. Dependencies (package.json, requirements)
+  7. Dependencies (package manifests, lock files)
   8. Cleanup (removals, refactoring)
 
   **Important: Documentation Overlap Scenario**
@@ -107,11 +107,11 @@ steps:
 
   In these cases, commit documentation LAST as a separate commit after all code commits:
 
-  Example with tasks 6.1.d, 6.1.e, 6.1.g:
-    - Commit 1: Task 6.1.d code changes only
-    - Commit 2: Task 6.1.e code changes only
-    - Commit 3: Task 6.1.g code changes only
-    - Commit 4: docs(arc): update task list and strategy doc for tasks 6.1.d-g
+  Example with tasks 3.1, 3.2, 3.3:
+    - Commit 1: Task 3.1 code changes only
+    - Commit 2: Task 3.2 code changes only
+    - Commit 3: Task 3.3 code changes only
+    - Commit 4: docs(arc): update task list and strategy doc for Tasks 3.1-3.3
 
   This avoids artificial coupling of unrelated code changes and maintains true atomicity.
   The documentation commit should reference all tasks it documents (Tasks X.Y-X.Z format).
@@ -137,7 +137,7 @@ steps:
 
   **Types:** `feat` `fix` `docs` `style` `refactor` `test` `chore` `perf` `config`
 
-  **Scope:** Functional area (auth, movie, api, tests, types, config, docs, arc, deps)
+  **Scope:** Functional area (e.g., auth, api, tests, types, config, docs, arc, deps)
 
   ## Context Footer Format
 
@@ -231,8 +231,8 @@ steps:
   **Prohibited:**
 
     - ❌ PRD references (use task list instead)
-    - ❌ Display names (use exact filenames: "tasks-pagination.md" NOT "pagination feature")
-    - ❌ Generic descriptions when referencing task lists ("theme system" → "tasks-theme-system-modernization.md")
+    - ❌ Display names (use exact filenames: "tasks-auth-system.md" NOT "auth feature")
+    - ❌ Generic descriptions when referencing task lists ("auth system" → "tasks-auth-system.md")
     - ❌ Checkbox lists in body
     - ❌ Implementation details (code shows what, commits show why)
     - ❌ "Phase X.Y" when referring to tasks
@@ -242,72 +242,72 @@ steps:
   ### Standard Single Task
 
   ```
-  fix(movie): resolve buffer pagination duplicate issue
+  fix(auth): resolve token refresh race condition
 
-  - Smart buffer now tracks consumed TMDB pages via metadata
-  - Prevents duplicate movies appearing across pagination
-  - Maintains consistent 20-result pages with restrictive filters
+  - Refresh now acquires lock before checking expiry
+  - Prevents duplicate refresh requests on concurrent API calls
+  - Adds exponential backoff for retry attempts
 
-  Context: tasks-pagination-buffer-tracking.md (Task 2.1)
+  Context: tasks-auth-system.md (Task 2.1)
   ```
 
   ### Multiple Tasks
 
   ```
-  refactor(api): extract service layer for movie operations
+  refactor(api): extract service layer for data operations
 
-  - Extracted MovieService class with business logic
-  - Updated discover/search endpoints to use service layer
+  - Extracted DataService class with business logic from handlers
+  - Updated CRUD endpoints to use service layer
   - Added comprehensive service layer test coverage
 
-  Context: tasks-api-layer-modernization.md (Tasks 3.1-3.4)
+  Context: tasks-api-modernization.md (Tasks 3.1-3.4)
   ```
 
   ### Parent Task Completion
 
   ```
-  test(movie): verify rating filter accuracy in manual testing
+  test(pipeline): verify data transformation accuracy across formats
 
-  - Tested rating ranges 1.0-3.5, 0-6.0, 8.5-10.0
-  - Verified accurate filtering with vote_count threshold
-  - All tests passing
+  - Tested CSV, JSON, and Parquet input formats
+  - Verified schema validation catches malformed records
+  - All integration tests passing
 
-  Completes parent task 3.0: Manual Testing Phase
+  Completes parent task 3.0: Data Validation Phase
 
-  Context: tasks-filter-integration-testing.md (Task 3.6)
+  Context: tasks-pipeline-validation.md (Task 3.6)
   ```
 
   ### Incidental - Discovered During Task
 
   ```
-  style(types): fix variable naming convention
+  style(config): fix variable naming convention
 
-  - Changed MAX_BUFFER_PAGES to max_buffer_pages
+  - Changed MAX_RETRY_COUNT to max_retry_count
   - Resolves linter naming convention violation
 
-  Context: tasks-pagination-buffer-tracking.md (incidental - discovered during Task 2.1)
+  Context: tasks-auth-system.md (incidental - discovered during Task 2.1)
   ```
 
   ### Incidental - Discovered During Code Review
 
   ```
-  fix(recipes): correct radio slot documentation
+  fix(docs): correct API endpoint documentation
 
-  - Fixed itemIndicator slot comment (was "indicator")
-  - Added explicit layer="01" props to auth form inputs
-  - Added TODO for MovieDetail button variant refactoring
+  - Fixed route path in authentication section (was /auth, now /api/v2/auth)
+  - Added missing rate limit header to response examples
+  - Added TODO for WebSocket endpoint documentation
 
-  Context: tasks-chakra-recipe-system-implementation.md (incidental - discovered during code review)
+  Context: tasks-api-documentation.md (incidental - discovered during code review)
   ```
 
   ### Planning Work - New Task List
 
   ```
-  docs(arc): create PRD for pagination improvements feature
+  docs(arc): create PRD for caching layer implementation
 
-  - Analyzed current pagination limitations
-  - Defined solution approach with metadata tracking
-  - Generated initial task breakdown (7 phases)
+  - Analyzed current performance bottlenecks
+  - Defined cache invalidation strategy
+  - Generated initial task breakdown (5 phases)
 
   Context: planning (no associated task list)
   ```
@@ -315,32 +315,31 @@ steps:
   ### Planning Work - Updating Existing Task List
 
   ```
-  docs(arc): add Task 3.7 for metadata persistence across navigation
+  docs(arc): add Task 3.7 for connection pool monitoring
 
-  - Discovered during tasks-navigation-filter-state-preservation.md (Task 3.3)
-  - Pagination metadata lost on component remount
-  - Task 3.7 adds URL persistence using filter param pattern
-  - Follows TDD structure
+  - Discovered during tasks-data-pipeline.md (Task 3.3)
+  - Pool exhaustion under load not covered by existing tasks
+  - Task 3.7 adds health check endpoint and alerting
+  - Follows implementation-then-test structure
 
-  Context: tasks-pagination-buffer-tracking.md (planning)
+  Context: tasks-data-pipeline.md (planning)
   ```
 
   ### Task Completion with Extra Task List Work
 
   ```
-  docs(arc): complete Phase 6 and enhance Phase 7 structure
+  docs(arc): complete Phase 4 and restructure Phase 5 scope
 
-  - Marked Task 6.1.h complete (dropdown selected state pattern)
-  - Marked parent Tasks 6.1, 6.2, and Phase 6 complete
-  - Removed unnecessary Task 6.2.e (Phase 8 grep check sufficient)
-  - Restructured Phase 7.1: pattern-focused → domain-focused audits
-  - Expanded pattern checklist from 8 to 13 comprehensive patterns
-  - Added border width standards, form control details, focus specs
+  - Marked Task 4.3 complete (retry logic with backoff)
+  - Marked parent Tasks 4.1, 4.2, and Phase 4 complete
+  - Removed unnecessary Task 4.2.e (Phase 6 integration test covers this)
+  - Restructured Phase 5: sequential steps → parallel workstreams
+  - Expanded acceptance criteria for monitoring tasks
 
-  Rationale: Domain-focused structure enables natural session boundaries
-  with manageable context budgets (10-15 components per domain vs 50+).
+  Rationale: Parallel structure enables independent progress on
+  logging and metrics without blocking each other.
 
-  Context: tasks-theme-system-modernization.md (Tasks 6.1.h, 6.2.a-d; maintenance)
+  Context: tasks-data-pipeline.md (Tasks 4.1-4.3; maintenance)
   ```
 
   ### Repository Maintenance (Atomic)
@@ -371,7 +370,7 @@ steps:
 
   **Focus on WHY and IMPACT:**
 
-    - ✅ "Prevents duplicate movies across pages" (impact)
+    - ✅ "Prevents duplicate requests on concurrent API calls" (impact)
     - ✅ "Improves query performance by 40%" (measurable)
     - ❌ "Changed function name" (code shows this)
 
@@ -389,10 +388,10 @@ steps:
 
   **Use exact filenames everywhere:**
 
-    - ✅ "Discovered during Phase 7.1.c audit (tasks-theme-system-modernization.md)"
-    - ❌ "Discovered during theme system audit" (too vague)
-    - ✅ "Implements pattern from tasks-api-layer-modernization.md (Task 3.2)"
-    - ❌ "Implements API layer pattern" (missing filename)
+    - ✅ "Discovered during Phase 4.1.c audit (tasks-data-pipeline.md)"
+    - ❌ "Discovered during pipeline audit" (too vague)
+    - ✅ "Implements pattern from tasks-api-modernization.md (Task 3.2)"
+    - ❌ "Implements API modernization pattern" (missing filename)
     - **Why:** Enables easy `git log --grep` searches and unambiguous traceability
 
   **Remember:** Commit messages should accurately reflect WHERE the project stands after the commit.

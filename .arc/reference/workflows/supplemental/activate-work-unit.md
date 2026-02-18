@@ -95,7 +95,11 @@ Edit `.arc/active/CURRENT-SESSION.md`:
 ### Step 8: Commit Activation
 
 ```bash
-git add -A
+git add .arc/active/{category}/prd-{name}.md \
+       .arc/active/{category}/tasks-{name}.md \
+       .arc/reference/constitution/PROJECT-STATUS.md \
+       .arc/backlog/ROADMAP.md \
+       .arc/active/CURRENT-SESSION.md
 git commit -m "docs(arc): activate {work-name} work unit
 
 - Move PRD and task list to active
@@ -104,6 +108,9 @@ git commit -m "docs(arc): activate {work-name} work unit
 
 Context: {feature|technical}/{branch-name} / tasks-{name}.md"
 ```
+
+**Note:** Stage only the files actually modified. The list above covers the typical case — adjust
+based on which optional steps (ROADMAP, CURRENT-SESSION) applied.
 
 ### Step 9: Push Feature Branch (Optional)
 
@@ -137,7 +144,3 @@ Before proceeding to task execution, verify:
 With the work unit activated, proceed to task execution:
 
 **→ [3_process-task-loop.md](../3_process-task-loop.md)** - Execute tasks one at a time with quality gates
-
----
-
-**Version:** 2026-01-19

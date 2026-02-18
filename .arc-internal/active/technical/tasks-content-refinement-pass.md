@@ -106,36 +106,86 @@ framework documents.
 - [x] **1.5 Run quality gate on Phase 1 files**
     - All 4 core workflow files pass with zero violations
 
-### **Phase 2:** Supplemental Workflow Agnosticism
+### **Phase 2:** Supplemental Workflow Agnosticism & Quality
 
-**Goal:** Extend agnosticism corrections to supplemental workflows. Includes the potentially substantial
-agent-pre-merge-review rework.
+**Goal:** Extend agnosticism corrections to supplemental workflows, with a general quality pass (fresh-adopter
+read-through, agent-perspective review, streamlining redundant/stale content). Heavyweight docs that need
+dedicated streamlining (atomic-commit, maintain-task-notes) defer that work to Phase 5. Includes the
+potentially substantial agent-pre-merge-review rework.
 
-- [ ] **2.1 Audit and fix `session-init.md`**
-    - Check for project-type assumptions (Docker checks, venv, service verification)
-    - Ensure environment verification examples span project types, not just containerized web apps
-    - Add note about auto-compact prohibition assumption (PRD req 36): sessions end with handoff, not compaction
+- [x] **2.1 Audit and fix `session-init.md`**
+    - 148 → 121 lines (-18%). Project-type bias removed, reading list tightened, acknowledgment reworked.
+    - Step 1: Docker/venv/services examples replaced with project-type-neutral categories
+    - Step 2: "Why full read needed" blocks removed from 6 of 8 items (kept only for task list partial-read
+      rationale). CURRENT-SESSION description de-biased, content bullets collapsed. Leaked project-specific
+      example path genericized.
+    - Steps 3+4 merged into "Confirm Orientation": two-section structure — quick environment confirmation,
+      then active work understanding with explicit scannable fields (branch/task, last completed, next action,
+      blockers). Proves comprehension rather than parroting a checklist.
+    - Redundant closing Rationale paragraph removed (restated CRITICAL PRINCIPLE)
+    - Session lifecycle assumption added (PRD req 36): auto-compact prohibition framed as session model note
+    - "When to use" clarified as user-triggered (not agent-initiated)
+    - **B.3 structural observation**: Workflow docs use footer-style versioning vs header metadata in
+      PRDs/task lists — inconsistency to resolve when versioning is removed entirely
 
-- [ ] **2.2 Audit and fix `session-handoff.md`**
-    - Check for project-type assumptions in examples
-    - Verify handoff examples are generalizable (current examples are CineXplorer-flavored per evaluation)
-    - Ensure field descriptions work for any project type
+- [x] **2.2 Audit and fix `session-handoff.md`**
+    - 381 → 268 lines (-30%). Stale content removed, project-type bias eliminated, examples diversified,
+      redundant guidance trimmed.
+    - Removed redundant Session Initialization Protocol section (lines 5-13) — competing source of truth
+      with session-init.md. Replaced with proper Purpose/When-to-use header matching framework pattern.
+    - Working Directory Context Check (23 lines with CRITICAL warning + step number references) and
+      Pre-Update Verification merged into single condensed "Pre-Update Verification" (4 items).
+    - Stable vs Dynamic section (25 lines with CineXplorer example, stale step number references,
+      version check references) replaced with 6-line "What to Update" section.
+    - Handoff examples: cut Example 1 (clean on-task — just the template filled in simply, zero marginal
+      value). Kept 3 examples covering non-obvious patterns (off-task known, preparatory, off-task unclear),
+      diversified to data pipeline, API documentation, and CI pipeline projects.
+    - "What to include": removed Current Task and Next Action guidance (already covered by thorough
+      template inline comments); kept Remaining Work and Additional Context (unique value).
+    - Post-Update Cleanup: replaced specific markdownlint command with tool-agnostic guidance noting
+      that gitignored CURRENT-SESSION.md may need explicit path or IDE linter.
+    - Completed This Session good/bad examples and format template inline comments de-instanced.
+    - Stale cross-reference ("see CRITICAL warning above") fixed. Closing footer removed.
+    - **B.3 structural observation**: Working directory context management (stable vs dynamic paths)
+      may belong in CURRENT-SESSION template guidance rather than in the handoff workflow
 
-- [ ] **2.3 Audit and fix `atomic-commit.md`** (agnosticism only — streamlining in Phase 5)
-    - Check for project-type assumptions in commit examples and analysis steps
-    - Verify Context footer examples span project types
-    - Note: full streamlining deferred to Phase 5; this pass focuses only on agnosticism
+- [x] **2.3 Audit and fix `atomic-commit.md`** (agnosticism only — streamlining in Phase 5)
+    - 432 → 430 lines (minimal — agnosticism pass only, streamlining deferred to Phase 5).
+    - All 8 project-specific Complete Examples replaced: movie/pagination/theme/Chakra/TMDB references
+      → auth system, API modernization, data pipeline, API documentation examples. Two already-generic
+      examples (repo maintenance, quick doc update) kept as-is.
+    - Scope list: removed "movie" (CineXplorer leak).
+    - Commit Message Guidelines: de-instanced "duplicate movies" and theme-system/api-layer filename
+      examples.
+    - Mandatory Rules prohibited examples: de-instanced "tasks-pagination.md" and "theme system".
+    - Documentation Overlap Scenario: genericized task numbers (6.1.d-g → 3.1-3.3).
+    - Search command: replaced `find` with tool-agnostic "search `.arc/` for keywords".
+    - Dependencies category: "package.json, requirements" → "package manifests, lock files".
+    - Context footer format examples were already generic (use placeholders) — no changes needed.
 
-- [ ] **2.4 Audit and fix `activate-work-unit.md`**
-    - Replace `git add -A` with specific file staging (PRD req 28)
-    - Check for other project-type assumptions
+- [x] **2.4 Audit and fix `activate-work-unit.md`**
+    - 144 → 150 lines. Replaced `git add -A` with explicit file staging listing all typical
+      activation files (PRD req 28), with note to adjust based on which optional steps applied.
+    - No other project-type assumptions found — doc already uses generic placeholders throughout.
 
-- [ ] **2.5 Audit and fix `manage-incidental-work.md`**
-    - Fix double horizontal rule at line ~306-307 (PRD req 29)
-    - Check for project-type assumptions in examples and decision criteria
+- [x] **2.5 Audit and fix `manage-incidental-work.md`**
+    - 320 → 147 lines (-54%). Significant streamlining — removed all content restating other workflows.
+    - Fixed double horizontal rule (PRD req 29).
+    - De-instanced: commit example, branch naming example.
+    - Cut redundant "Verify Need" section (restated criteria from 10 lines above as questions).
+    - Formatting standards: collapsed triple strategy-task-list-formatting.md reference to single paragraph.
+    - Cut "Executing Incidental Work" (restated process-task-loop), "Completing Incidental Work" (restated
+      branch lifecycle + stale completion notes template), "Archive and Resume" (restated archive-completed.md).
+      Replaced with 5-line pointer section.
+    - Git branch section: collapsed 45-line section (redundant criteria + 11-step generic lifecycle) to
+      10 lines preserving only the unique conventions (naming, PR against parent, archive timing).
+    - Cut "Common Patterns" (nested work is self-described as rare; scope management is generic wisdom).
+    - Removed version/changelog footer, linting explanation, "Purpose" bullets.
+    - Fixed missing `--yes` in npx command.
 
 - [ ] **2.6 Audit and fix `weekly-review.md`**
     - Check for project-type assumptions
+    - Fresh-adopter + agent-perspective quality pass
     - This doc is already well-scoped (~170 lines) — likely minimal changes needed
 
 - [ ] **2.7 Audit and fix `maintain-task-notes.md`** (agnosticism only — streamlining in Phase 5)
@@ -145,12 +195,14 @@ agent-pre-merge-review rework.
 - [ ] **2.8 Audit and fix `archive-completed.md`**
     - Check for project-type assumptions
     - Verify "Generated Code Sync Check" section is generalizable or conditionally framed
+    - Fresh-adopter + agent-perspective quality pass
 
 - [ ] **2.9 Rework `agent-pre-merge-review.md` for tool-agnosticism**
     - Rework from CodeRabbit-specific to tool-agnostic core (PRD req 6)
     - Separate agent-specific details (CodeRabbit CLI commands, reply formats, classification terms) from the
       generalizable two-pass review strategy
     - Add "illustrative, not measured" clarification to metrics table (PRD req 33)
+    - Fresh-adopter + agent-perspective quality pass
     - Note: this may be substantial. If scope exceeds a single subtask, split into sub-steps and report.
 
 - [ ] **2.10 Run quality gate on Phase 2 files**
