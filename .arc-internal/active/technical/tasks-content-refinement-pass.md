@@ -183,31 +183,65 @@ potentially substantial agent-pre-merge-review rework.
     - Removed version/changelog footer, linting explanation, "Purpose" bullets.
     - Fixed missing `--yes` in npx command.
 
-- [ ] **2.6 Audit and fix `weekly-review.md`**
-    - Check for project-type assumptions
-    - Fresh-adopter + agent-perspective quality pass
-    - This doc is already well-scoped (~170 lines) — likely minimal changes needed
+- [x] **2.6 Audit and fix `weekly-review.md`**
+    - Reworked for dual audience (human-solo + agent-assisted): 168 → 110 lines (-35%)
+    - Added agent-assisted framing: agent reads files, surfaces findings, user decides
+    - Restructured: "Review Steps" → "Process" with "Step N:" headers (matches create-prd pattern)
+    - Cut: "When to use" / "Duration" / "Red flag" prescriptive metadata, "Overview" section
+      (restated step goals), verbose troubleshooting thresholds, "Celebrate wins"
+    - Cut: Optional Extended Review section — step 6 (CURRENT-SESSION audit) was a scope mismatch;
+      step 5 (work unit files) folded into step 3 as natural part of backlog directory review
+    - Step 4: added ROADMAP.md alongside PROJECT-STATUS.md with brief purpose distinction
+    - Strategy reference moved from dedicated Reference section to header for context
+    - Tightened: step prose leaner, "Check for bloat" → "Prune", Post-Review simplified
+    - Fixed: "notes/PRD" → "plan/PRD" consistency
+    - Agnosticism: already clean — no project-type or agent bias found
 
-- [ ] **2.7 Audit and fix `maintain-task-notes.md`** (agnosticism only — streamlining in Phase 5)
-    - Check for project-type assumptions
-    - Note: full streamlining deferred to Phase 5
+- [x] **2.7 Audit and fix `maintain-task-notes.md`** (agnosticism only — streamlining in Phase 5)
+    - Surgical agnosticism pass on 867-line doc (867 → 861 lines, minimal delta as intended)
+    - Removed project-instance data from Lessons Learned: "From Authentication Security Updates
+      (2025-10-14) and Test-First Protocol Updates (2025-10-15)" framing and inline date from item 7
+    - Removed version footer
+    - Code examples (auth, CSRF, tokens) assessed as illustrative, not assuming — left as-is
+    - Workflow steps are inherently project-agnostic — no changes needed
+    - Full streamlining deferred to Phase 5
 
-- [ ] **2.8 Audit and fix `archive-completed.md`**
-    - Check for project-type assumptions
-    - Verify "Generated Code Sync Check" section is generalizable or conditionally framed
-    - Fresh-adopter + agent-perspective quality pass
+- [x] **2.8 Audit and fix `archive-completed.md`**
+    - Agnosticism + quality pass: 524 → 376 lines (-28%)
+    - Agnosticism: replaced all CineXplorer-instance examples (`chakra-recipe-system`,
+      `discover-endpoint-consolidation`, `service-layer-modernization`, archive tree) with generic
+      alternatives. Conditionally framed "Implementation verified" for non-code projects. Generated
+      Code Sync Check already well-framed with template tokens — no changes needed.
+    - Quality/condensing: cut redundant notes restating checklist items (Step 1), collapsed Step 2
+      from 24 lines to 4 (maintain-task-notes details belong there, not here), removed "Why commit
+      on child branch" (restated overview), removed "Purpose of completion doc" section (folded
+      one-liner into Step 3 intro), deduplicated Step 10 planned/incidental blocks into single
+      block, condensed sequence numbering to single paragraph, cut best-practices list (mirrored
+      critical-errors), tightened Steps 5-7 and commit format guidance throughout
+    - Preserved: all procedural content, completion doc template + verification checklist,
+      archive structure reference, superseded work appendix
 
-- [ ] **2.9 Rework `agent-pre-merge-review.md` for tool-agnosticism**
-    - Rework from CodeRabbit-specific to tool-agnostic core (PRD req 6)
-    - Separate agent-specific details (CodeRabbit CLI commands, reply formats, classification terms) from the
-      generalizable two-pass review strategy
-    - Add "illustrative, not measured" clarification to metrics table (PRD req 33)
-    - Fresh-adopter + agent-perspective quality pass
-    - Note: this may be substantial. If scope exceeds a single subtask, split into sub-steps and report.
+- [x] **2.9 Rework `agent-pre-merge-review.md` for tool-agnosticism**
+    - Major rework: 621 → 226 lines (-64%). Restructured from CodeRabbit-centric to tool-agnostic core.
+    - **Structural changes**: Decision framework defined once (was duplicated in Local + PR modes).
+      Tool-specific details (CodeRabbit CLI, classification terms, temp file workflow, platform quirks)
+      extracted to dedicated "Tool-Specific Notes" section with subsections per tool. Core workflow
+      now uses generic language ("Run your review tool's local analysis command").
+    - **Condensing**: Collapsed 5 Common Patterns → 3 (cut redundant fix examples, kept one per
+      disposition type). Merged Tips + Anti-Patterns into single lean Anti-Patterns list (was two
+      mirrored lists + verbose tips restating main workflow). Cut Example Sessions (55 lines — useful
+      but duplicated the workflow steps). Cut "Two-Pass Strategy Benefits" (restated overview).
+      Cut reply format templates (covered by Tool-Specific Notes + brief guidelines).
+    - **PRD req 33**: Metrics table reframed as "Illustrative Metrics" with explicit disclaimer
+      ("illustrative estimates, not measured benchmarks"). Table simplified to show the pattern.
+    - Removed version/changelog footer.
+    - Lint: zero violations.
 
-- [ ] **2.10 Run quality gate on Phase 2 files**
-    - `npx --yes markdownlint-cli2 --no-globs` on all modified supplemental workflow files
-    - Verify zero violations
+- [x] **2.10 Run quality gate on Phase 2 files**
+    - Ran `markdownlint-cli2 --no-globs` on all 5 modified supplemental workflow files + internal
+      session-init: zero violations across all files
+    - Task list excluded by config ignore pattern (`.arc-internal/active/**`) — by design,
+      active task lists are working documents exempt from linting
 
 ### **Phase 3:** Strategy & Reference Agnosticism
 

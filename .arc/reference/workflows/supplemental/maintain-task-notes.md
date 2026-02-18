@@ -807,8 +807,6 @@ The completion doc requires reading overview + final phases + CLEANUP-PROGRESS t
 
 ## Lessons Learned
 
-**From Authentication Security Updates (2025-10-14) and Test-First Protocol Updates (2025-10-15):**
-
 1. **Relevance Over Length**: Don't migrate based on line count alone. A 20-line implementation guide needed
    by Tasks 7-10 should stay. A 2-line note about completed Task 3 with no future dependencies should migrate.
 
@@ -828,8 +826,8 @@ The completion doc requires reading overview + final phases + CLEANUP-PROGRESS t
 6. **Archival Prep ROI**: 20-30 minutes of cleanup dramatically increases likelihood of actually using these docs
    6 months later.
 
-7. **Unified Completion Docs** (as of 2025-11-17): All work (feature/technical/incidental) gets separate
-   `completion-{name}.md`. No more completion summaries in task files - cleaner separation of concerns.
+7. **Unified Completion Docs**: All work (feature/technical/incidental) gets separate `completion-{name}.md`.
+   No more completion summaries in task files - cleaner separation of concerns.
 
 ## Common Pitfalls
 
@@ -860,7 +858,3 @@ The completion doc requires reading overview + final phases + CLEANUP-PROGRESS t
 ✅ **Notes file cleanup only at archival** (not mid-work)
 ✅ **Both files are navigable** (TOC, clear headers, no temporal confusion - after archival)
 ✅ **Future-you says "thank you"** (actually uses these docs when needed)
-
----
-
-**Version:** 2026-01-26

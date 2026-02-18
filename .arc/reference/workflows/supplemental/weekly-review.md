@@ -1,167 +1,108 @@
 # Workflow: Weekly Review
 
-**Purpose:** Process captured work, maintain backlog health, and ensure task tracking stays current.
+**Purpose**: Process captured work, maintain backlog health, and ensure task tracking stays current.
+See `strategy-work-organization.md` for work categorization context (feature vs technical, backlog
+lifecycle).
 
-**When to use:** Weekly (recommended: Friday afternoon or Sunday evening)
-
-**Duration:** 15-30 minutes
-
----
-
-## Overview
-
-Weekly review is the cornerstone of backlog organization. It ensures:
-
-- TASK-INBOX.md stays lean (no accumulation)
-- ATOMIC-TASKS.md shows current priorities
-- Bucket files reflect work ready for promotion
-- Nothing gets lost or forgotten
+In agent-assisted sessions, the agent reads each file, surfaces findings and proposed dispositions,
+and the user makes final decisions on each item.
 
 ---
 
-## Review Steps
+## Process
 
-### 1. Process Task Inbox
+### Step 1: Process Task Inbox
 
 **File:** `.arc/backlog/TASK-INBOX.md`
 
-**For each item, decide:**
+For each item, decide disposition:
 
 - **Quick action (<5 min)?** → Do immediately, delete from inbox
-- **Atomic task (ready now)?** → Move to `active/ATOMIC-TASKS.md` (Active section)
-- **Feature idea?** → Move to `feature/BACKLOG-FEATURE.md` (appropriate section)
-- **Technical idea?** → Move to `technical/BACKLOG-TECHNICAL.md` (appropriate section)
-- **Uncertain/not ready?** → Leave in inbox for next week
+- **Atomic task?** → Move to `active/ATOMIC-TASKS.md`
+- **Feature idea?** → Move to `feature/BACKLOG-FEATURE.md`
+- **Technical idea?** → Move to `technical/BACKLOG-TECHNICAL.md`
+- **Not ready?** → Leave for next review
 
-**Goal:** Empty or nearly-empty inbox at end of review.
+**Goal:** Empty or nearly-empty inbox.
 
-**Red flag:** If inbox has >20 items, you're not reviewing frequently enough or capturing too granularly.
-
----
-
-### 2. Review Atomic Tasks
+### Step 2: Review Atomic Tasks
 
 **File:** `.arc/active/ATOMIC-TASKS.md`
 
-**Actions:**
+For each active task:
 
-1. **Review active tasks**
-   - Still relevant? Keep
-   - No longer needed? Delete
-   - Too complex (needs task list)? Create incidental task list, delete from atomic
+- Still relevant? → Keep
+- No longer needed? → Delete
+- Too complex for atomic? → Propose incidental task list, remove from atomic
+- Reprioritize if warranted — high-priority items to top
 
-2. **Reprioritize if needed**
-   - Move high-priority items to top
-   - Consider effort vs value
+Completed items are archived at completion time; no cleanup needed here.
 
-**Note:** Completed items are immediately archived to `completed-atomic-{quarter}.md` at completion time,
-so no cleanup of completed items is needed during weekly review.
+**Goal:** Clean list with only relevant, actionable items.
 
-**Goal:** Clean active list with only relevant, actionable items.
-
----
-
-### 3. Review Bucket Files
+### Step 3: Review Bucket Files
 
 **Files:**
 
 - `.arc/backlog/feature/BACKLOG-FEATURE.md`
 - `.arc/backlog/technical/BACKLOG-TECHNICAL.md`
 
-**For each section:**
+For each file:
 
-1. **Sort "Unsorted" items** into appropriate sections
-
-2. **Assess maturity:**
-   - Ready for planning? → Create `plan-{name}.md`, delete from bucket
-   - Ready for PRD? → Create `prd-{name}.md`, delete from bucket
+1. Sort any "Unsorted" items into appropriate sections
+2. Assess maturity:
+   - Ready for planning? → Create `plan-{name}.md`, remove from bucket
+   - Ready for PRD? → Create `prd-{name}.md`, remove from bucket
    - Still exploring? → Leave in bucket
+3. Prune: delete stale items, combine related ideas
+4. Check work unit files (`plan-*.md`, `prd-*.md`) in the same directories — still in planning,
+   or ready to advance?
 
-3. **Check for bloat:**
-   - Are sections getting too large?
-   - Should some items be combined or deleted?
-   - Are items stale (no longer relevant)?
+**Goal:** Bucket files reflect current thinking; mature ideas graduate to dedicated files.
 
-**Goal:** Bucket files reflect current thinking, mature ideas graduate to files.
+### Step 4: Update Roadmap and Project Status
 
----
+**Files:**
 
-### 4. Update Project Status
+- `.arc/backlog/ROADMAP.md` — Internal planning guide: priorities, sequencing, rough direction
+- `.arc/reference/constitution/PROJECT-STATUS.md` — Official project state, potentially public-facing
 
-**File:** `.arc/reference/constitution/PROJECT-STATUS.md`
+Review and update both:
 
-**Review and update:**
+- Do active task lists reflect current priorities?
+- Any completed work to document?
+- Are we working on the right things?
 
-- **Current priorities:** Do active task lists reflect what matters most?
-- **Feature progress:** Any completed work to document?
-- **Roadmap alignment:** Are we working on the right things?
-- **Recent completions:** Celebrate wins, update completion status
-
-**Goal:** PROJECT-STATUS.md accurately reflects current state and priorities.
+**Goal:** Both files accurately reflect current state and direction.
 
 ---
 
-## Optional: Extended Review
+## Post-Review
 
-If time permits or quarterly:
+Commit backlog changes:
 
-### 5. Review Work Unit Files
+```bash
+git add .arc/backlog/ .arc/active/ATOMIC-TASKS.md
+git commit -m "docs(arc): weekly review - process inbox and clean atomic tasks
 
-**Files in:** `.arc/backlog/feature/` and `.arc/backlog/technical/`
-
-- **plan-*.md files:** Still in planning? Or ready for PRD?
-- **prd-*.md files:** Ready to move to active and generate tasks?
-
-### 6. Audit Active Work
-
-**Check:** `.arc/active/CURRENT-SESSION.md`
-
-- Is current work still aligned with priorities?
-- Any blockers that need addressing?
-- Should paused work be resumed or archived?
-
----
-
-## Post-Review Actions
-
-After completing review:
-
-1. **Commit changes** to backlog files:
-
-   ```bash
-   git add .arc/backlog/ .arc/active/ATOMIC-TASKS.md
-   git commit -m "docs(arc): weekly review - process inbox and clean atomic tasks
-
-   Context: planning (atomic / no associated task list)"
-   ```
-
-2. **Optional:** Plan next week's focus based on review
+Context: planning (atomic / no associated task list)"
+```
 
 ---
 
 ## Troubleshooting
 
-**Inbox not getting empty?**
+**Inbox not emptying?**
 
-- Capturing too granularly? Save truly quick thoughts for immediate action.
-- Not reviewing frequently enough? Consider bi-weekly reviews.
-- Items need more time to mature? That's okay, leave for next week.
+- Capturing too granularly — save quick thoughts for immediate action
+- Items need more time to mature — leave for next review
 
 **Atomic tasks accumulating?**
 
-- Tasks too large? Break down or convert to incidental task lists.
-- Not doing them? Reassess priority or delete if no longer relevant.
-- New ones faster than completion? Normal - just ensure list stays <30 items.
+- Tasks too large? Convert to incidental task lists.
+- Not getting done? Reassess priority or delete.
 
-**Bucket files feeling cluttered?**
+**Bucket files cluttered?**
 
-- Graduate more aggressively to notes/PRD files.
-- Delete stale ideas (if not touched in 3+ months, probably not happening).
-- Combine related ideas into single work units.
-
----
-
-## Reference
-
-- strategy-work-organization.md: Work categorization and workflow
-- 3_process-task-loop.md: Task execution workflow
+- Graduate more aggressively to plan/PRD files
+- Delete stale ideas, combine related items

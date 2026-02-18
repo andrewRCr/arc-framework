@@ -1,9 +1,14 @@
 # Workflow: Session Initialization (Framework Development)
 
-**Purpose**: Establish complete AI context at session start for ARC framework development work.
+**Purpose**: Establish complete AI context at session start, ensuring the AI has all necessary environment information,
+project context, and behavioral guidance before beginning work.
 
-**When to use**: Every framework development session (documentation improvements, CineXplorer syncs, workflow
-enhancements, etc.)
+**When to use**: User-triggered at the start of every session (resuming features, starting new work, handling
+incidental tasks, etc.). The agent does not initiate this workflow on its own.
+
+**Session lifecycle assumption**: ARC sessions are bounded — they begin with this initialization workflow and end
+with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct response
+is to complete the current work item and hand off, not to compact or summarize prior context.
 
 ## Steps
 
@@ -13,22 +18,15 @@ enhancements, etc.)
 
 ```bash
 pwd
-# Expected: /home/andrew/dev/arc-agentic-dev-framework
+# Expected: /home/andrew/dev/arc-agentic-dev-framework (repo root)
 ```
 
-**Verify runtime environment status:**
+**Verify runtime status:**
 
 ```bash
-# This is a documentation-only framework (no runtime containers)
-# Verification: N/A
-```
-
-**Confirm tool availability:**
-
-```bash
-# Markdown linting is the primary quality gate tool
+# Documentation-only framework — no runtime containers, no services
+# Only tool needed: markdown linting via npx
 npx --yes markdownlint-cli --version
-# Expected: markdownlint-cli available
 ```
 
 ### 2. Load AI Context (read in order)
@@ -40,24 +38,16 @@ more value in having complete context upfront than discovering missing rules mid
 **Read these documents to establish complete context:**
 
 1. `.arc-internal/reference/agent/AGENTS.md` - **MUST READ IN FULL**
-   - Framework overview (documentation-only, template system)
-   - Quick lookup guide (workflows, constitution docs)
-   - AI collaboration principles
-   - **Why full read needed**: Short, maintained to be lean, provides essential project context
+   - Project overview, technology stack, and AI collaboration principles
 
 2. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
-   - Session Startup Protocol (working directory context)
-   - Session Information (branch, work type, task reference)
-   - Last completed work and next action
-   - Blockers and Outstanding Questions
-   - Session Context (detailed work notes)
-   - **Why full read needed**: Critical for understanding current state, recent work, and avoiding conflicts
+   - Current state: branch, task context, last completed work, blockers, and implementation notes
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
 3. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
    - Path referenced in CURRENT-SESSION.md
-   - Example: `.arc-internal/active/feature/tasks-enhance-docs-content-p1.md`
+   - Example: `.arc-internal/active/technical/tasks-[work-unit-name].md`
    - **Reading strategy**:
      - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
      - **ALWAYS read**: Current task section identified in CURRENT-SESSION.md (the specific task being worked on)
@@ -70,57 +60,41 @@ more value in having complete context upfront than discovering missing rules mid
    - **What to extract**: Current phase, task details, acceptance criteria, implementation notes
 
 4. `.arc/reference/workflows/3_process-task-loop.md` - **MUST READ IN FULL**
-   - One-subtask-at-a-time workflow
-   - Task execution protocol
-   - Quality gate requirements per subtask
-   - Documentation update protocol
-   - **Why full read needed**: Defines workflow that governs ALL task execution - can't avoid violations if rules unknown
+   - Task execution protocol, quality gates, and documentation update requirements
 
 5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
-   - Index of available strategy documents by domain
-   - Quick reference for where codified guidance exists
-   - Protocol for checking strategies before implementation
-   - **Why full read needed**: Establishes what guidance exists before reading rules about using it
+   - Index of codified strategy guidance; establishes what domain-specific patterns exist
 
 6. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
-   - Quality gate requirements (markdown linting zero-tolerance)
-   - Commit standards and protocols
-   - AI collaboration rules
-   - Template-first approach and framework-specific rules
-   - **Why full read needed**: Behavioral constraints - can't avoid violating rules you haven't read
+   - Quality gates, commit standards, verification protocol, and all behavioral constraints
 
 7. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
-   - Framework-specific command patterns
-   - Path context (template vs. internal directories)
-   - Quality gate commands and anti-patterns
-   - **Why full read needed**: Incorrect command patterns = broken operations, wrong paths = failures
+   - Environment context, command patterns, and quality gate commands
 
-**Rationale**: These docs are actively maintained to stay lean and avoid overlap. Reading all of them upfront
-(except task list details) ensures complete context without wasted effort. The task list is the only document
-large enough to warrant partial reading - but you must still read the overview and current task sections.
+8. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
+   - Path: `.arc-internal/reference/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
+   - Agent-specific operational guidance (context window thresholds, capabilities, autonomous work protocols)
+   - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 
-### 3. Acknowledge Orientation
+### 3. Confirm Orientation
 
-State your understanding to confirm successful initialization:
+Confirm successful initialization with a brief structured summary:
 
-- **Working directory**: Repository root (`/home/andrew/dev/arc-agentic-dev-framework/`)
-- **Runtime status**: Documentation-only framework (no runtime)
-- **Tool availability**: Markdown linting available via npx
-- **Quality policy**: Zero-tolerance quality policy for documentation
-- **Reference versions**: DEVELOPMENT-RULES v0.2.0-dev (hash: 4b3d89f2), QUICK-REFERENCE v0.2.0-dev
-- **Documents read in full**: Confirm that AGENTS, CURRENT-SESSION, 3-process-task-loop, STRATEGY-INDEX,
-  DEVELOPMENT-RULES, and QUICK-REFERENCE were read completely (not skimmed)
-- **Task list context loaded**: Confirm that task list overview + current task section were read (from CURRENT-SESSION)
+**Environment and context:**
 
-### 4. Ready to Proceed
+- Working directory, runtime status, and quality policy (per QUICK-REFERENCE.md)
+- Documents read in full; task list overview + current task loaded
 
-With context loaded:
+**Active work understanding:**
 
-1. Review next action from CURRENT-SESSION.md
-2. Check for blockers that need resolution
-3. Await user instruction - do not start work until user provides direction
+- **Current branch and task**: From CURRENT-SESSION.md
+- **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
+- **Next action**: What comes next per CURRENT-SESSION.md
+- **Blockers**: Any blockers or mismatches detected during initialization
 
-### 5. If Context Seems Mismatched
+Then await user direction — do not start work until the user provides it.
+
+### 4. If Context Seems Mismatched
 
 If documented state (CURRENT-SESSION.md) doesn't match reality (git status, task list checkboxes, file state):
 
@@ -136,8 +110,3 @@ If documented state (CURRENT-SESSION.md) doesn't match reality (git status, task
 - CURRENT-SESSION describes work in progress but git log shows it's been committed
 
 **Do not attempt to "fix" state on your own** - always involve the user when state is unclear.
-
----
-
-**Version**: 2025-12-26 (Framework-internal version - Added task line number verification, STRATEGY-INDEX reading,
-and context mismatch handling. Synced improvements from template version.)
