@@ -1,13 +1,18 @@
 # Roadmap: Order of Operations
 
-**Purpose:** Internal planning artifact documenting sequencing strategy for remaining work.
-Subject to change as we learn.
+Planning and reasoning — the sequencing strategy for remaining work, what gets built next
+and why. This is a working document, subject to change as you learn. For project state
+and record (achievements, current status), see `PROJECT-STATUS.md`.
 
 **Last Updated:** {{DATE}}
 
 ---
 
 ## Current Sequencing Strategy
+
+<!-- Organize phases by whatever grouping makes sense for your project: chronological
+     milestones, dependency chains, risk-ordered priorities, or capability areas.
+     Adjust the number and naming of phases to fit your planning granularity. -->
 
 ### Phase A: {{PHASE_NAME}}
 
@@ -34,11 +39,15 @@ Subject to change as we learn.
 
 ### Phase C: {{PHASE_NAME}}
 
-{{Final phase items - often polish, deployment, etc.}}
+{{Final phase items — often polish, deployment, etc.}}
 
 ---
 
 ## Dependency Analysis
+
+<!-- Optional. Useful when work items have meaningful ordering constraints.
+     ASCII diagrams work well for simple chains. Remove this section entirely
+     if dependencies are straightforward or self-evident from the phase structure. -->
 
 ```
 {{Item 1}} ──────────► {{What it enables}}
@@ -48,6 +57,9 @@ Subject to change as we learn.
 ---
 
 ## Scoping Decisions
+
+<!-- Captures the reasoning behind what's in scope and what isn't. Prevents
+     relitigating settled decisions during weekly reviews. -->
 
 ### Included
 
@@ -71,6 +83,10 @@ Subject to change as we learn.
 ---
 
 ## Open Questions
+
+<!-- Track decisions that haven't been made yet. Move to "Resolved" with the
+     resolution when decided. Prune resolved items during weekly review once
+     they're no longer useful context. -->
 
 - {{Question needing decision}}
 

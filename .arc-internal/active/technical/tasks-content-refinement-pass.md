@@ -404,17 +404,39 @@ alignment issues.
       Each component subsection shows the expected level of detail via token structure. Intro
       updated to explain document purpose (AI agents reference this during implementation).
 
-- [ ] **4.3 Rework `PROJECT-STATUS.example.md`**
-    - Same approach — replace 130+ lines of CineXplorer completion history with representative structure
-    - Show what a mature status doc looks like using tokens and guidance, not one project's history
-    - Keep the section structure (table of contents, roadmap, completed work) as guidance
+- [x] **4.3 Rework `PROJECT-STATUS.example.md` + enhance `ROADMAP.example.md`**
+    - PROJECT-STATUS: 246 → 54 lines. All CineXplorer content replaced with structure + guidance +
+      tokens. Removed: Roadmap section (duplicated ROADMAP.md's role), Current Priorities section
+      (direction belongs in ROADMAP; Status Snapshot's "Next Priority" sufficient for state),
+      Development Approach section (meta-ARC content), Table of Contents. Completed Major Work
+      restructured as repeatable token pattern. Two sections remain: Status Snapshot (state) +
+      Completed Major Work (record).
+    - ROADMAP: 86 → 102 lines. Already well-templated — enhanced with dual-audience intro paragraph,
+      HTML comments for adaptation guidance on each section (phase organization, dependency analysis
+      optionality, scoping decisions rationale, open questions lifecycle). No structural changes.
+    - Role distinction sharpened via mirrored intro framing: PROJECT-STATUS = "state and record"
+      (cross-refs ROADMAP for "planning and reasoning"), ROADMAP = "planning and reasoning"
+      (cross-refs PROJECT-STATUS for "state and record"). Same vocabulary, reversed.
+    - Template structure verified against activate-work-unit.md Steps 5-6 and archive-completed.md.
+    - ROADMAP.example.md touched here; Task 4.7 scope for that file reduces to verification-only.
+    - **B.3 observation**: `0_define-constitution.md` only covers PROJECT-STATUS setup, not
+      ROADMAP — "project bootstrap" workflow should cover both.
 
-- [ ] **4.4 Verify and fix `DEVELOPMENT-RULES.example.md`**
-    - Already well-templated — verify token approach is consistent
-    - Add conditional framing for frontend-specific sections (Component Styling Standards, Import Standards) so
-      non-frontend projects know these are optional (PRD req 13)
-    - Add concrete example to "collaborative voice" rule (PRD req 27)
-    - Check for phantom strategy references and add clarifying framing (PRD req 18)
+- [x] **4.4 Verify and fix `DEVELOPMENT-RULES.example.md`**
+    - 374 → 361 lines. Structure preserved, surgical fixes throughout.
+    - Frontend/backend-specific sections replaced with token-based architecture rules +
+      HTML comment showing project-type examples (web app, CLI, library, monorepo) (PRD req 13)
+    - Full Suite quality gates: 6 hardcoded backend/frontend items → generic token-based
+      checks with HTML comment for stack adaptation
+    - Collaborative voice rule added to Code Documentation Standards with concrete examples:
+      ❌ "The user approved" / ✅ "Approved after review" (PRD req 27)
+    - Phantom strategy references removed: `strategy-testing-methodology.md`,
+      `strategy-type-safety.md`, `strategy-component-styling.md`, `strategy-color-tokens.md`
+      replaced with STRATEGY-INDEX pointers and conditional framing (PRD req 18)
+    - Agent-tool-specific `commit-format` skill reference → generic atomic-commit workflow link
+    - Project-specific items generalized: TypeScript re-check trigger removed from Core
+      Document Reference Protocol, "Django models" → "data models or schemas" in Test-First
+    - Reference Documentation section: phantom project strategies replaced with STRATEGY-INDEX
 
 - [ ] **4.5 Align `CURRENT-SESSION.example.md` with handoff workflow**
     - Update fields to match `session-handoff.md` expectations (PRD req 15):

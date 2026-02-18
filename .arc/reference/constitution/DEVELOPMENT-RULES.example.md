@@ -22,7 +22,8 @@ followed by all contributors, including AI assistants.
   (parent task marked `[x]` if all subtasks complete)
 - **Never commit stale task docs**: Task list updates must be saved and included in commits for completed work
 - AI reports completion, then awaits commit instructions
-- **Commit message format**: Use the `commit-format` skill for proper format (Context footer, subject length, etc.)
+- **Commit message format**: See [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) for
+  format requirements (conventional commits, Context footer, subject length)
 
 ### Quality Gates
 
@@ -45,26 +46,23 @@ the task loop inherits the gates already run at each milestone. For work outside
 **Full Suite (Tier 3)** - Required for phase completion and pre-PR.
 For specific commands, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 
-1. **Backend Tests**: 100% pass rate
-   - Command: `{{BACKEND_TEST_CMD}}`
-   - Requirements: {{BACKEND_TEST_REQUIREMENTS}}
+<!-- List your project's quality checks here. The items below are examples for a
+     web app with backend/frontend — adjust to match your project's stack. A CLI
+     might have: build, unit tests, lint, type-check. A library might have: tests,
+     lint, docs generation. The key is: list every check, with its command. -->
 
-2. **Frontend Tests**: 100% pass rate
-   - Command: `{{FRONTEND_TEST_CMD}}`
+1. **{{QUALITY_CHECK_1}}**: {{PASS_CRITERIA}}
+   - Command: `{{QUALITY_CHECK_CMD}}`
 
-3. **Backend Linting**: Zero violations
-   - Command: `{{BACKEND_LINT_CMD}}`
+2. **{{QUALITY_CHECK_2}}**: {{PASS_CRITERIA}}
+   - Command: `{{QUALITY_CHECK_CMD}}`
 
-4. **Frontend Linting**: Zero violations
-   - Command: `{{FRONTEND_LINT_CMD}}`
-
-5. **Type Checking**: Zero errors
+3. **Type Checking**: Zero errors
    - Command: `{{TYPE_CHECK_CMD}}`
 
-6. **Markdown Linting**
+4. **Markdown Linting**
    - Use markdownlint-cli2 via npx with auto-fix
-   - Config: `.markdownlint-cli2.jsonc` (MD034 bare URLs disabled only for temporal docs)
-   - Gitignored files automatically excluded (notes/, archive/notes/, CURRENT-SESSION.md)
+   - Config: `.markdownlint-cli2.jsonc`
 
 ### Quality Gate Failure Protocol
 
@@ -143,15 +141,14 @@ during initialization).
 
 **Process:**
 
-1. Identify if your work touches a domain with codified guidance (theming, auth, testing, layout, etc.)
-2. Grep the strategy doc for your specific topic (e.g., `grep -i "button patterns" strategy-component-styling.md`)
+1. Identify if your work touches a domain with codified guidance
+2. Check [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) for relevant strategies
 3. Read relevant section(s) before implementing
 4. Follow documented patterns and token usage
 
-**When uncertain if strategy applies:** Ask. "Does this work touch [domain] where we have strategy guidance?"
+**When uncertain if strategy applies:** Ask. "Does this work touch a domain where we have strategy guidance?"
 
-**For large multi-topic strategies** (e.g., `strategy-component-styling.md`): Search for specific component/pattern
-rather than reading entire document.
+**For large multi-topic strategies**: Search for the specific topic rather than reading the entire document.
 
 **Why this matters:** Strategy docs codify decisions, patterns, and token systems. Following them ensures consistency and
 prevents rework when non-standard approaches are caught in review.
@@ -197,8 +194,7 @@ Core documents (QUICK-REFERENCE, DEVELOPMENT-RULES) are read each session but sh
 **QUICK-REFERENCE - Re-check when:**
 
 - Bash command fails with path/environment errors (ENOENT, "no such file or directory", "config not found")
-- About to run quality gate commands and uncertain which tool/path to use (Docker vs host? Which flags?)
-- **About to run TypeScript type checks** - Verify exact command (NEVER use `npx tsc` directly, ALWAYS use `npm run type-check`)
+- About to run quality gate commands and uncertain which tool/path to use
 - Working directory context feels uncertain or commands aren't working as expected
 
 **DEVELOPMENT-RULES - Re-check when:**
@@ -242,7 +238,7 @@ Break down a task into subtasks if it requires:
 
 **Requires test-first** (write tests BEFORE implementation):
 
-- New models (Django models, data schemas)
+- New data models or schemas
 - New API endpoints or endpoint modifications
 - New service classes or business logic
 - Complex algorithms or data transformations
@@ -267,7 +263,8 @@ This makes the protocol visible during execution.
 - **Integration focus**: Prefer flow-level coverage over isolated units when practical
 - **All tests must pass** before any commit discussion (see quality gates above)
 - **Command patterns**: See [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) for execution commands
-- **Detailed guidance**: See [Testing Methodology Strategy](../strategies/project/strategy-testing-methodology.md)
+- **Detailed guidance**: See your project's testing methodology strategy if you've created one
+  (see [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) for guidance on project strategies)
 
 ## Code Quality Principles
 
@@ -280,43 +277,28 @@ Apply standard software engineering principles:
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
-### Layered Architecture (Backend)
+<!-- Add architecture-specific subsections relevant to your project. These should
+     capture the non-negotiable patterns that apply across all work in that area.
+     Examples:
+     - Web app: Layered Architecture (Backend), Component Styling (Frontend), Import Standards
+     - CLI: Command Structure, Configuration Patterns, Output Formatting
+     - Library: Public API Conventions, Backward Compatibility, Extension Points
+     - Monorepo: Package Boundaries, Shared Code Policy, Dependency Direction
 
-Backend uses strict layered architecture: API routes handle HTTP concerns only, Service layer contains ALL
-business logic (filtering, calculations, presets, orchestration).
+     For each subsection: state the rule, give a brief rationale or "rule of thumb",
+     and reference the relevant strategy doc if one exists. -->
 
-**Rule of thumb:** If an API route does more than extract params → call service → return response, the extra
-logic likely belongs in Service layer.
+### {{ARCHITECTURE_RULE_1}}
 
-### Component Styling Standards (Frontend)
+{{RULE_DESCRIPTION}}
 
-Frontend uses semantic token system for all styling. Components MUST use semantic tokens, never hardcoded colors or
-direct style values.
+**Rule of thumb:** {{QUICK_HEURISTIC}}
 
-**Required practices:**
+### {{ARCHITECTURE_RULE_2}}
 
-- Always use semantic tokens (e.g., `color="tertiary"`, `bg="layer-01"`)
-- Never hardcode colors (`color="#4299e1"`, `bg="blue.500"`)
-- Never use Chakra raw color tokens (`color="red.600"`, `colorScheme="blue"`)
-- Use recipes and wrapper components for consistent patterns
-- Reference strategy docs before implementing: [Color Token System](../strategies/project/style/strategy-color-tokens.md),
-  [Component Styling Strategy](../strategies/project/style/strategy-component-styling.md)
+{{RULE_DESCRIPTION}}
 
-**Rule of thumb:** If you're writing inline color/style values instead of semantic tokens, check the strategy
-docs for the correct pattern.
-
-### Import Standards (Frontend)
-
-Use absolute imports (`@/`) for cross-directory references and relative imports (`./`) for same-directory references.
-
-**Examples:**
-
-- ✅ `import { foo } from "@/services/apiClient"` (from hooks/ to services/)
-- ✅ `import { bar } from "./httpService"` (within services/)
-- ❌ `import { foo } from "../services/apiClient"` (cross-directory relative)
-
-**Why:** Absolute imports are resilient to file moves and make import paths self-documenting. The `@/` alias maps
-to `src/`, configured in `tsconfig.json` and `vite.config.ts`.
+**Rule of thumb:** {{QUICK_HEURISTIC}}
 
 ### Code Documentation Standards
 
@@ -330,7 +312,13 @@ to `src/`, configured in `tsconfig.json` and `vite.config.ts`.
   "Task X.Y - `tasks-name.md`" or "Phase X - `tasks-name.md`". Use only the filename (no path),
   as task lists move between active/, backlog/, and archive/ directories. This ensures references
   are searchable and provide clear context about which work the task belongs to.
-  Examples: "Task 8.3 - `tasks-oauth-headless-migration.md`", "Phase 3 - `tasks-service-layer-modernization.md`"
+  Examples: "Task 8.3 - `tasks-oauth-migration.md`", "Phase 3 - `tasks-service-layer.md`"
+
+- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an
+  author or team perspective — not as a transcript of the human-AI interaction. Write as the
+  work's author would.\
+  ❌ "The user approved the approach", "Pending user review", "User requested we defer this"\
+  ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
 
 ## Architecture Documentation
 
@@ -365,9 +353,8 @@ This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
 - [Task Processing Workflow](../workflows/3_process-task-loop.md) - Detailed task execution workflow
-- [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Enhanced commit workflow with task context analysis
+- [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Commit workflow with task context analysis
 - [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI
-- [Technical Overview](TECHNICAL-OVERVIEW.md) - High-level system architecture and technology stack
+- [Technical Overview](TECHNICAL-OVERVIEW.md) - System architecture and technology stack
 - [ADR Methodology Strategy](../strategies/arc/strategy-adr-methodology.md) - Architecture decision record guidance
-- [Type Safety Strategy](../strategies/project/strategy-type-safety.md) - Type checking approach and patterns
-- [Testing Methodology Strategy](../strategies/project/strategy-testing-methodology.md) - Testing philosophy and practices
+- [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) - Index of all strategy documents (ARC and project)
