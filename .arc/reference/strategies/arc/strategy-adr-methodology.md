@@ -1,7 +1,5 @@
 # Architecture Decision Records (ADR) Methodology
 
-**Version:** 1.1 | **Updated:** 2025-10-30
-
 ## Purpose
 
 Standards and guidance for documenting architectural decisions using Architecture Decision Records (ADRs).
@@ -41,6 +39,19 @@ along with its context and consequences.
 - **Concise:** Typically 1-2 pages, focusing on decision and context, not implementation details
 - **Discoverable:** Stored in version control alongside code, easily searchable
 
+### Industry Context
+
+ADRs were introduced by Michael Nygard in his 2011 blog post "Documenting Architecture Decisions."
+The practice has achieved broad industry adoption — ThoughtWorks classified ADRs as "Adopt" on their
+Technology Radar (2018), and AWS, Google Cloud, and Microsoft Azure all include ADR guidance in their
+architecture frameworks.
+
+This strategy follows Nygard's original five-section format (Title, Status, Context, Decision,
+Consequences). Notable variants exist for different contexts: MADR (Markdown Architectural Decision
+Records) adds structured options analysis, and Y-statements offer a minimalist single-sentence format
+for rapid capture. The core principles — immutability, sequential numbering, context-and-consequences
+documentation — are consistent across all variants.
+
 ---
 
 ## When to Write an ADR
@@ -61,7 +72,7 @@ Write an ADR when a decision meets any of these criteria:
 
 **3. Decision driven by external constraint**
 
-- External API limitations (e.g., "TMDB list endpoints don't support filtering")
+- External API limitations (e.g., "upstream API rate limit of 100 requests/minute")
 - Regulatory requirements (e.g., GDPR data handling)
 - Performance requirements (e.g., "must support 10k concurrent users")
 
@@ -101,9 +112,9 @@ Every ADR follows this five-section structure:
 
 **Examples:**
 
-- ✅ `ADR-001: Use TMDB Discover Endpoint for Filtering`
+- ✅ `ADR-001: Use REST over GraphQL for Public API`
 - ✅ `ADR-002: Store JWT Tokens in HTTP-Only Cookies`
-- ❌ `ADR-001: TMDB Filtering Problem` (describes problem, not decision)
+- ❌ `ADR-001: API Filtering Problem` (describes problem, not decision)
 
 ### 2. Status
 
@@ -152,7 +163,7 @@ Document what becomes easier or harder as a result.
 - **Negative:** What becomes harder, trade-offs accepted
 - **Risks (optional):** Concerns requiring monitoring, follow-up work
 
-**Example ADR** (see adr-001-use-tmdb-discover-endpoint.md for complete structure)
+**Template:** See [adr-template.md](../adr/adr-template.md) for the copy-ready starting point.
 
 ---
 
@@ -168,9 +179,9 @@ Document what becomes easier or harder as a result.
 
 **Examples:**
 
-- `adr-001-use-tmdb-discover-endpoint.md`
+- `adr-001-use-rest-for-public-api.md`
 - `adr-002-jwt-cookie-authentication.md`
-- `adr-003-client-side-filtering-for-data-quality.md`
+- `adr-003-event-driven-notifications.md`
 
 **Guidelines:**
 
@@ -219,7 +230,7 @@ Document what becomes easier or harder as a result.
 ```markdown
 ## Status
 
-Deprecated - TMDB added filtering support to list endpoints as of API v4 (2026-03-15)
+Deprecated - upstream API now supports native filtering as of v3.2 (2026-03-15)
 ```
 
 ### Superseded
@@ -238,71 +249,14 @@ Deprecated - TMDB added filtering support to list endpoints as of API v4 (2026-0
 
 ## Template
 
-Use this template when creating new ADRs. Copy from `.arc/reference/adr/adr-template.md`.
-
-```markdown
-# ADR-NNN: [Short Title in Present Tense Imperative]
-
-## Status
-
-[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
-
-## Context
-
-Describe the forces at play (technical, business, project constraints) that are probably in tension.
-This section should be neutral - just the facts about the problem space.
-
-What is the issue that we're seeing that is motivating this decision or change?
-
-If applicable, mention alternatives that were considered:
-
-- **Option A**: Description and key characteristics
-- **Option B**: Description and key characteristics
-- **Option C (chosen)**: Description and key characteristics
-
-## Decision
-
-State the decision in full sentences, with active voice.
-"We will ..."
-
-Be specific about:
-
-- What is being done
-- Who/what is affected
-- When this takes effect (if relevant)
-
-This section should be short and definitive.
-
-## Consequences
-
-What becomes easier or more difficult as a result of this decision?
-List both positive and negative consequences honestly.
-
-### Positive
-
-- List what improves
-- Think about maintainability, clarity, performance, testability
-- Consider impact on developers, users, operations
-
-### Negative
-
-- List what becomes harder or what we're giving up
-- Be honest about trade-offs
-- Consider long-term implications
-- Mention increased complexity if relevant
-
-### Risks (optional)
-
-- List any concerns or risks that need monitoring
-- Mention follow-up work if required
-- Note dependencies on external factors
-```
+Copy from [adr-template.md](../adr/adr-template.md) when creating new ADRs. The template includes
+inline guidance for each section (Context, Decision, Consequences with Positive/Negative/Risks).
 
 ---
 
 ## Relationship to Strategy Documents
 
-**Strategy Documents** (`.arc/reference/strategies/strategy-*.md`):
+**Strategy Documents** (`.arc/reference/strategies/`):
 
 - Synthesized approaches to problem domains
 - "How we think about X" (testing, type safety, API integration)
@@ -321,12 +275,14 @@ List both positive and negative consequences honestly.
 - Multiple related ADRs may reveal patterns worth extracting into a strategy
 - Strategy documents often reference ADRs as examples
 - Writing ADRs helps identify when a strategy is needed
+- This separation operationalizes a widely-recognized principle: ADRs should remain
+  point-in-time records, not evolve into prescriptive design guides
 
 **Example Pattern:**
 
-1. Write ADR-001 (TMDB discover endpoint), ADR-007 (Rate limiting), ADR-012 (Cache invalidation)
+1. Write ADR-001 (REST for public API), ADR-007 (rate limiting strategy), ADR-012 (cache invalidation)
 2. Notice pattern: "We keep making decisions about external API integration"
-3. Extract: `strategy-api-integration.md` synthesizing principles across multiple ADRs
+3. Extract: `strategy-api-integration.md` synthesizing principles across those ADRs
 4. Strategy references specific ADRs as case studies
 
 ---

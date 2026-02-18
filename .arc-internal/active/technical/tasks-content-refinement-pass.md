@@ -243,19 +243,47 @@ potentially substantial agent-pre-merge-review rework.
     - Task list excluded by config ignore pattern (`.arc-internal/active/**`) — by design,
       active task lists are working documents exempt from linting
 
-### **Phase 3:** Strategy & Reference Agnosticism
+### **Phase 3:** Strategy & Reference Agnosticism & Quality
 
-**Goal:** Complete agnosticism corrections across strategy documents, STRATEGY-INDEX, agent README, and .arc/README.
-Includes document audience clarity work (A3).
+**Goal:** Extend agnosticism corrections to strategy documents and reference files, with a general quality pass
+(fresh-adopter read-through, streamlining redundant/stale content, tightening prose). Heavyweight
+strategy-task-list-formatting defers streamlining to Phase 5. Includes document audience clarity work (A3).
 
-- [ ] **3.1 Audit and fix `strategy-work-organization.md`**
-    - Check for project-type assumptions (feature branches with PRs, Docker, etc.)
-    - Verify decision tree and examples work for non-web-app projects
-    - Note any structural observations (evaluation flagged backlog section as potentially separate concern)
+- [x] **3.1 Audit and fix `strategy-work-organization.md`**
+    - Agnosticism + quality pass: 1257 → 585 lines (-53%)
+    - **Agnosticism**: Technical work examples diversified from web-app-specific (Redux→Zustand, Vite,
+      bundle analysis) to project-neutral (CI/CD, test framework migration, monolith decomposition).
+      Edge cases de-fronted (toast notifications → generic). CodeRabbit commands removed from Code
+      Review section (tool-agnostic with pointer to agent-pre-merge-review.md). "MovieService"
+      CineXplorer leak fixed in branch workflow example. Branch naming examples diversified. "Solo
+      developer" → "Pragmatic Workflow" in Core Principles.
+    - **Quality/condensing**: Removed version history + footer. Cut Implementation Examples section
+      (118 lines duplicating Decision Examples + Git Workflow). Cut Historical Note (27 lines of
+      framework-instance content irrelevant to adopters). Removed duplicated Branch Naming Conventions
+      in Git Workflow (already in Our Solution). Core Principles condensed from verbose justification
+      blocks to lean single-paragraph principles. Incidental sub-category formatted lists merged into
+      Work Categories inline. Migration Guide "Updating Documentation" literal markdown removed
+      (prescriptive, will go stale). Anti-Patterns condensed (5 → 4, removed redundant file naming
+      pattern already covered by naming convention). Decision Examples converted to table format.
+      Backlog Organization trimmed (File Purposes, Discovery Mechanism, Weekly Review subsections
+      replaced with concise Key Design Points + pointer to weekly-review.md and ADR-014).
+    - **B.3 structural observations**: Backlog Organization (still ~55 lines after trim) is
+      essentially a separate strategy embedded here — confirmed for potential extraction. Incidental
+      Work Model (~85 lines) straddles strategy and workflow. Document covers 5 distinct concerns
+      (categorization, git workflow, directory structure, incidental model, backlog organization).
 
-- [ ] **3.2 Audit and fix `strategy-adr-methodology.md`**
-    - Check for project-type assumptions
-    - Resolve minor redundancy between template section and `adr-template.md` (PRD req 34)
+- [x] **3.2 Audit and fix `strategy-adr-methodology.md`**
+    - Agnosticism + quality pass: 333 → 273 lines (-18%)
+    - **Agnosticism**: De-instanced all CineXplorer/TMDB examples (~8 occurrences) — title examples,
+      constraint examples, naming examples, deprecated example, relationship pattern example all
+      replaced with project-neutral alternatives (REST/GraphQL, rate limiting, event-driven
+      notifications). Strategy path fixed (was `strategy-*.md`, now `.arc/reference/strategies/`).
+    - **Quality/dedup**: Replaced 60-line inline template (verbatim copy of `adr-template.md`) with
+      2-line pointer to the template file (PRD req 34 — single source of truth). Version header
+      removed per pattern. "Example ADR" reference to CineXplorer-specific ADR file replaced with
+      pointer to `adr-template.md`.
+    - Structure and guidance preserved — doc was already well-scoped and well-structured per notes
+      evaluation. No prose tightening needed beyond the template deduplication.
 
 - [ ] **3.3 Audit and fix `strategy-task-list-formatting.md`** (agnosticism only — streamlining in Phase 5)
     - Check for project-type assumptions in examples
@@ -263,18 +291,21 @@ Includes document audience clarity work (A3).
     - Note: full streamlining deferred to Phase 5
 
 - [ ] **3.4 Audit and fix `strategy-quality-gates.md`**
-    - Check for project-type assumptions in tier examples
-    - Ensure quality gate examples aren't exclusively web-app-focused (lint/type-check/E2E pattern)
-    - Add conditional framing where tiers reference project-type-specific tooling
+    - **Agnosticism**: Check for project-type assumptions in tier examples; ensure quality gate examples aren't
+      exclusively web-app-focused (lint/type-check/E2E pattern); add conditional framing where tiers reference
+      project-type-specific tooling
+    - **Quality**: Fresh-adopter read-through (~250 lines, already well-structured — expect light touch)
 
 - [ ] **3.5 Fix `STRATEGY-INDEX.md` phantom references**
     - Reframe project strategy section to clearly indicate these are examples of strategies adopters might create,
       not files that should exist (PRD req 17)
     - Verify ARC strategies section is accurate
+    - Fresh-adopter lens: does the index read clearly for someone who hasn't created any project strategies yet?
 
 - [ ] **3.6 Evaluate and fix `agent/README.md`**
     - Evaluate migration-from-AI-SHARED section — remove or minimize if stale for new adopters (PRD req 32)
     - Check for project-type or agent-specific assumptions in adoption guidance
+    - Fresh-adopter lens: does adoption guidance work for someone setting up ARC for the first time?
 
 - [ ] **3.7 Update `.arc/README.md` with audience clarity**
     - Add document audience table (agent-executed / shared context / human-facing) using aspirational README as

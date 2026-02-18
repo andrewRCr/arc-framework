@@ -1,14 +1,5 @@
 # Work Organization Strategy
 
-**Version:** 2.1 | **Updated:** 2025-12-18 | **Status:** Active
-
-**Version history (latest first):**
-
-- 2.1 (2025-12-18) – Added global sequence numbering for archive directories (`{NN}_` prefix by completion order)
-- 2.0 (2025-11-10) – Added stacked branch workflow (ADR-013), renamed from "Work Categorization" to
-  "Work Organization" to reflect expanded scope covering git workflow, directory structure, and archive organization
-- 1.0 (2025-10-17) – Initial strategy (three-way split with incidental model)
-
 ## Purpose
 
 Authoritative guidance for organizing development work in ARC-based projects. Defines work categorization
@@ -21,7 +12,6 @@ Use this strategy when:
 - Discovering reactive work during development
 - Deciding whether to create a git branch
 - Organizing task documentation
-- Planning project structure
 
 ## Table of Contents
 
@@ -33,16 +23,14 @@ Use this strategy when:
 6. [Incidental Work Model](#incidental-work-model)
 7. [Git Workflow](#git-workflow)
 8. [Directory Structure](#directory-structure)
-9. [Implementation Examples](#implementation-examples)
-10. [Anti-Patterns](#anti-patterns)
-11. [Migration Guide](#migration-guide)
+9. [Anti-Patterns](#anti-patterns)
+10. [Migration Guide](#migration-guide)
+11. [Backlog Organization](#backlog-organization)
 12. [Related Documentation](#related-documentation)
 
 ---
 
 ## The Challenge
-
-### Common Organizational Problems
 
 **Semantic Confusion**: Work categories that describe size ("epic") rather than type create ambiguity.
 
@@ -54,15 +42,8 @@ Use this strategy when:
 
 **The real distinctions that matter:**
 
-1. **PLANNED vs UNPLANNED** - Different workflows, documentation requirements, git strategies
-2. **USER-FACING vs TECHNICAL** - Different stakeholders, different value propositions
-
-**Problems this causes:**
-
-1. Category names don't match content (cognitive dissonance)
-2. Work type is lost in categorization
-3. Git branch naming doesn't align with industry conventions
-4. Difficult to communicate project state to stakeholders
+1. **PLANNED vs UNPLANNED** — Different workflows, documentation requirements, git strategies
+2. **USER-FACING vs TECHNICAL** — Different stakeholders, different value propositions
 
 ---
 
@@ -73,14 +54,13 @@ Use this strategy when:
 **Primary Distinction: PLANNED vs UNPLANNED**
 
 - **Planned work** (feature/ + technical/) → Gets PRDs, formal task lists, git branches
-- **Unplanned work** (incidental/) → Gets task lists, NO PRDs, gets branches if substantial (>30min, multiple subtasks)
+- **Unplanned work** (incidental/) → Gets task lists, NO PRDs, gets branches if substantial
+  (>30min, multiple subtasks)
 
 **Secondary Distinction: USER-FACING vs TECHNICAL** (for planned work)
 
 - **feature/** → User capabilities from product vision
 - **technical/** → Infrastructure improvements
-
-This preserves the valuable planned vs unplanned distinction while clarifying work type.
 
 ### Directory Structure
 
@@ -97,83 +77,70 @@ This preserves the valuable planned vs unplanned distinction while clarifying wo
 # Planned work (gets branches)
 feature/user-authentication
 feature/data-export
-feature/advanced-search
 
-technical/backend-modernization
-technical/frontend-state-management
-technical/testing-infrastructure
+technical/api-modernization
+technical/ci-pipeline-improvements
 
-# Incidental work (gets branches if substantial work)
-incidental/filter-integration-testing
-incidental/pagination-buffer-tracking
-incidental/theme-system-modernization
+# Incidental work (gets branches if substantial)
+incidental/fix-auth-token-expiration
+incidental/refactor-test-helpers
 ```
 
 ### Key Insight
 
-**Work is categorized by TYPE and PLANNING STATUS, not SIZE.**
+**Work is categorized by TYPE and PLANNING STATUS, not SIZE.** All three categories can contain
+large or small work. Incidental work can take 30 minutes or 15 hours.
 
-All three categories can contain large or small work. Incidental work can take 30 minutes or 15 hours. Size doesn't
-determine category.
+### Industry Context
+
+This approach draws on established patterns rather than inventing new ones:
+
+- **Planned/unplanned as primary axis** — The Phoenix Project identifies this as the fundamental
+  organizational distinction (Business Projects and Internal IT Projects vs Unplanned Work)
+- **Technical work as first-class category** — SAFe's "Enabler Story" concept recognizes that
+  infrastructure work deserves the same intentional planning as user-facing features, not just
+  backlog afterthought status
+- **Stacked branches for discovered work** — Follows the stacked development pattern used at
+  Meta, Google, and supported by tools like Graphite and gh-stack
+- **Conventional Commits at the commit level** — Commit types (`feat`, `fix`, `refactor`, `chore`)
+  describe *what changed*; our branch categories describe *why it was planned and when it was
+  discovered*. These are complementary, not competing
 
 ---
 
 ## Core Principles
 
-### 1. Work Type, Not Work Size
+### 1. Work Type Over Work Size
 
-**Categorization based on:**
-
-- ✅ What kind of work (user-facing, infrastructure, reactive)
-- ✅ Planning status (planned vs discovered)
-- ❌ Duration or complexity
-
-**Benefits:**
-
-- Clear categorization rules
-- No subjective "how big is epic?" debates
-- Scalable to any project size
+Categorize by what kind of work (user-facing, infrastructure, reactive) and planning status (planned
+vs discovered) — never by duration or complexity. This eliminates subjective sizing debates and scales
+to any project.
 
 ### 2. Industry Alignment
 
-**Git branch naming follows industry conventions:**
-
-- `feature/` - Standard for user-facing capabilities
-- `technical/` or `refactor/` - Standard for infrastructure
-- `chore/`, `fix/`, `test/` - Conventional Commit types
-
-**Recognizable patterns:**
-
-- Other developers understand immediately
-- Follows Conventional Commits philosophy
-- Compatible with automated tooling
+The three-way split builds on recognized patterns (see [Industry Context](#industry-context)).
+Git branch naming follows conventions (`feature/`, `technical/`, `chore/`, `fix/`, `test/`)
+compatible with Conventional Commits and automated tooling.
 
 ### 3. Semantic Clarity
 
-**Name immediately tells you what kind of work:**
+Names immediately communicate work type:
 
 - `feature/` = "What can users DO now that they couldn't before?"
 - `technical/` = "How does the codebase work better internally?"
 - `incidental/` = "What did we discover and fix along the way?"
 
-**No cognitive dissonance:**
+Directory names match git branches, branch names match commit prefixes — no cognitive dissonance.
 
-- Directory names match git branches
-- Branch names match commit prefixes
-- Clear communication with stakeholders
+### 4. Pragmatic Workflow
 
-### 4. Pragmatic Solo Developer Workflow
-
-**Planned vs unplanned demands different processes:**
+Planned vs unplanned work demands different processes:
 
 - Planned work: Formal PRD, task breakdown, dedicated branch, structured commits
 - Unplanned work: Task list for tracking, commits to current branch, conventional prefixes
 
-**Avoids branch management overhead:**
-
-- Solo developers benefit from simplicity
-- Incidental work often cascades (fixing A reveals B reveals C)
-- Task lists provide equivalent traceability
+Incidental work often cascades (fixing A reveals B reveals C). Task lists provide traceability
+without branch management overhead.
 
 ---
 
@@ -186,23 +153,21 @@ determine category.
 **Characteristics:**
 
 - Referenced in product roadmap or META-PRD
-- Adds new user capabilities
-- Changes what users can do
-- Has user-facing impact
+- Adds new user capabilities or changes what users can do
 
 **Examples:**
 
 - User authentication system
-- Data export functionality
-- Advanced search with filters
-- Recommendations engine
-- Collaborative features
+- Data export or reporting functionality
+- Search and filtering capabilities
+- Public API or SDK
+- Collaborative editing features
 
 **Documentation:**
 
 - PRD: `.arc/active/feature/prd-<name>.md`
 - Tasks: `.arc/active/feature/tasks-<name>.md`
-- Notes: `.arc/active/feature/notes-<name>.md`
+- Notes: `.arc/active/feature/notes-<name>.md` (optional)
 - Git branch: `feature/<name>`
 
 ### Category 2: Technical Work (Infrastructure Improvements)
@@ -211,25 +176,23 @@ determine category.
 
 **Characteristics:**
 
-- Infrastructure and tooling improvements
-- Refactoring and code quality
-- Testing and CI/CD enhancements
-- Performance optimizations
-- Developer experience improvements
+- Infrastructure, tooling, and architecture improvements
+- Refactoring, performance, and code quality
+- Testing infrastructure and CI/CD enhancements
 
 **Examples:**
 
-- State management migration (Redux → Zustand)
-- Type safety improvements (adding TypeScript strict mode)
-- Testing infrastructure (pytest migration, test helpers)
-- Build system optimization (Vite configuration, bundle analysis)
-- Service layer patterns (extracting business logic)
+- CI/CD pipeline improvements (build optimization, deployment automation)
+- Testing infrastructure (framework migration, shared test utilities)
+- Architecture migration (monolith decomposition, state management rework)
+- Performance optimization (query tuning, caching layer, build speed)
+- Developer tooling (linting configuration, code generation, local dev environment)
 
 **Documentation:**
 
 - PRD: `.arc/active/technical/prd-<name>.md`
 - Tasks: `.arc/active/technical/tasks-<name>.md`
-- Notes: `.arc/active/technical/notes-<name>.md`
+- Notes: `.arc/active/technical/notes-<name>.md` (optional)
 - Git branch: `technical/<name>`
 
 ### Category 3: Incidental Work (Reactive Quality Improvements)
@@ -241,96 +204,58 @@ determine category.
 - Discovered during development (not planned)
 - Often cascades (fixing A reveals B)
 - Requires pause/resume (interleaved with primary work)
-- Can be large or small (stub updates = 30 min, type safety = 15 hours)
+- Can be large or small (quick config fix = 30 min, type safety overhaul = 15 hours)
 
-**Examples (by conventional commit type):**
+**File naming uses conventional commit prefixes:** `tasks-<type>-<name>.md`
 
-**Maintenance (chore):**
-
-- Dependency updates
-- Configuration changes
-- Tooling improvements
-- Documentation updates
-
-**Refactoring:**
-
-- Code restructuring
-- Pattern extraction
-- Service layer work
-- DRY improvements
-
-**Fixes:**
-
-- Bug fixes discovered during development
-- Issue resolution
-- Security patches
-
-**Testing:**
-
-- Test infrastructure improvements
-- Coverage gap filling
-- Security test additions
-
-**Performance:**
-
-- Performance optimizations
-- Query optimization
-- Bundle size reduction
+- `tasks-chore-*` — Maintenance, tooling, config, dependencies
+- `tasks-refactor-*` — Code restructuring, pattern extraction
+- `tasks-fix-*` — Bug fixes discovered during development
+- `tasks-test-*` — Test infrastructure, coverage improvements
+- `tasks-perf-*` — Performance optimizations
+- `tasks-docs-*` — Documentation updates
 
 **Documentation:**
 
-- Tasks: `.arc/active/incidental/tasks-<type>-<name>.md` (e.g., `tasks-chore-update-deps.md`)
+- Tasks: `.arc/active/incidental/tasks-<type>-<name>.md`
 - Notes: `.arc/active/incidental/notes-<type>-<name>.md` (optional)
-- Git branch: **None** (commits to feature/technical branch)
+- Git branch: **None** by default (commits to feature/technical branch); see
+  [Incidental Work Model](#incidental-work-model) for when branches are warranted
 
 ---
 
 ## Decision Rules
 
-### Clear & Simple Decision Tree
+### Decision Tree
 
-**Step 1: Ask "Was this planned in advance?"**
+**Step 1: "Was this planned in advance?"**
 
-- **No** (discovered during work) → `incidental/` (see Incidental Work Model)
+- **No** (discovered during work) → `incidental/` (see [Incidental Work Model](#incidental-work-model))
 - **Yes** (has PRD or formal planning) → Continue to Step 2
 
-**Step 2: Ask "Does this add user-visible capability from product vision?"**
+**Step 2: "Does this add user-visible capability from product vision?"**
 
-- **Yes** → `feature/` (user authentication, data export, search, etc.)
-- **No** → `technical/` (modernization, type safety, refactoring, infrastructure)
+- **Yes** → `feature/`
+- **No** → `technical/`
 
-**Why planned/unplanned is Step 1:** Different workflows apply - incidental work doesn't get PRDs or separate branches.
+**Why planned/unplanned is Step 1:** Different workflows apply — incidental work doesn't get PRDs
+or separate branches.
 
 ### Decision Examples
 
-**Example 1: User Authentication**
-
-- **Step 1:** Planned? → Yes (in product roadmap)
-- **Step 2:** User-visible capability? → Yes (users can log in, register, reset password)
-- **Category:** `feature/user-authentication`
-
-**Example 2: State Management Migration**
-
-- **Step 1:** Planned? → Yes (PRD created, task list generated)
-- **Step 2:** User-visible capability? → No (changes implementation, not user features)
-- **Category:** `technical/state-management-migration`
-
-**Example 3: Type Safety Improvements**
-
-- **Step 1:** Planned? → No (discovered type errors while implementing feature)
-- **Category:** `incidental/tasks-chore-type-safety-improvements.md` (no branch)
-
-**Example 4: Bug Fix During Feature Work**
-
-- **Step 1:** Planned? → No (discovered while testing authentication)
-- **Category:** `incidental/tasks-fix-auth-token-expiration.md` (no branch)
+| Scenario | Planned? | User-visible? | Category |
+| --- | --- | --- | --- |
+| User authentication | Yes (roadmap) | Yes | `feature/user-authentication` |
+| CI pipeline improvements | Yes (PRD) | No | `technical/ci-pipeline-improvements` |
+| Type errors found during feature work | No | — | `incidental/tasks-chore-type-safety.md` |
+| Bug found while testing | No | — | `incidental/tasks-fix-auth-token-expiration.md` |
 
 ### Edge Cases
 
-**Polish and UX Improvements:**
+**UX and polish improvements:**
 
-- If planned and substantial → `technical/ux-enhancements` (toast notifications, loading states, skeleton screens)
-- If reactive and small → `incidental/tasks-refactor-loading-states.md`
+- Planned and substantial → `technical/ux-enhancements`
+- Reactive and small → `incidental/tasks-refactor-loading-states.md`
 
 **Refactoring:**
 
@@ -342,80 +267,51 @@ determine category.
 - Planned documentation project → `technical/api-documentation` or `feature/user-guide`
 - Quick doc updates → `incidental/tasks-docs-update-readme.md`
 
+**Production issues:**
+
+- Critical (user-impacting, service disruption) → `incidental/` with dedicated branch regardless
+  of size; may warrant interrupting current work
+- Non-critical (cosmetic, low-impact) → Capture in TASK-INBOX for triage; may become planned
+  `technical/` or `feature/` work
+
+Note: "incidental" in this strategy means work *discovered during development*. Production incidents
+follow the same categorization (unplanned → incidental) but urgency — not category — determines
+whether they interrupt current work and get dedicated branches.
+
 ---
 
 ## Incidental Work Model
 
 ### Why Incidental Work is Different
 
-**Characteristics that make incidental work special:**
+1. **Discovery-driven** — Can't plan what you haven't discovered yet
+2. **Cascading nature** — Fixing type errors reveals stub issues → reveals test helper duplication
+3. **Interleaved execution** — Must pause/resume primary work
+4. **Variable size** — 30-minute config fix or 15-hour type safety overhaul
 
-1. **Discovery-driven** - Can't plan what you haven't discovered yet
-2. **Cascading nature** - Fixing type errors reveals stub issues → reveals test helper duplication
-3. **Interleaved execution** - Must pause/resume feature work
-4. **Variable size** - 30-minute stub update or 15-hour type safety overhaul
+### When to Create a Branch
 
-**Industry challenge:** Creating git branches for each discovered issue creates branch management overhead that outweighs
-benefits for solo developers.
+Incidental work that meets task list criteria gets separate git branches stacked on the current branch.
 
-**Our approach:** Hybrid model combining task list tracking with conventional commit practices.
-
-### File Naming: Conventional Commit Prefixes
-
-**Pattern:** `incidental/tasks-<type>-<name>.md`
-
-**Conventional commit types:**
-
-- `tasks-chore-X` - Maintenance, tooling, config, dependencies
-- `tasks-refactor-X` - Code restructuring, pattern extraction
-- `tasks-fix-X` - Bug fixes discovered during development
-- `tasks-test-X` - Test infrastructure, coverage improvements
-- `tasks-perf-X` - Performance optimizations
-- `tasks-docs-X` - Documentation updates
-
-**Examples:**
-
-```
-incidental/tasks-chore-backend-type-safety.md
-incidental/tasks-refactor-extract-test-helpers.md
-incidental/tasks-fix-csrf-middleware.md
-incidental/tasks-test-coverage-improvements.md
-incidental/notes-chore-backend-type-safety.md (optional)
-```
-
-**Benefits:**
-
-- ✅ Industry-standard terminology (aligns with Conventional Commits)
-- ✅ Reduces filename redundancy
-- ✅ Clear work type at a glance
-- ✅ Filterable when archived
-
-### Stacked Branch Workflow
-
-**Incidental work that meets task list criteria gets separate git branches.**
-
-**When to create a branch for incidental work:**
+**Create a branch when:**
 
 - ✅ Requires dedicated task list (>30min effort, multiple subtasks)
 - ✅ Semantically distinct from current branch's work
 - ✅ Desire independent merge/review capability
 
-**When to stay on current branch:**
+**Stay on current branch when:**
 
 - ❌ Trivial fixes (<30min, single action)
 - ❌ Work directly continues current branch's theme
 - ❌ No separate task list justified
 
-**Branch Naming:** Use `incidental/<name>` prefix matching task list name (minus `tasks-` prefix)
-
-**Example:**
-
-- Task list: `tasks-pagination-buffer-tracking.md`
-- Branch: `incidental/pagination-buffer-tracking`
+Branch naming: `incidental/<name>` matching task list name (minus `tasks-` prefix).
 
 ### Stacked Branch Model
 
-**What is stacking:** Child branches created off parent branches (not always from main).
+Child branches created off parent branches (not always from main). This follows the stacked
+development pattern (used at Meta, Google, and supported by tools like Graphite) adapted for
+discovered work rather than planned decomposition:
 
 ```
 main
@@ -424,171 +320,64 @@ main
         └── incidental/pagination-buffer-tracking
 ```
 
-**Why stacking makes sense:**
-
-- Work discovered DURING parent work naturally depends on parent context
-- Preserves causality (git history shows what triggered what)
-- Enables independent review/merge of each logical unit
-- Matches industry-standard "stacked development" pattern (Meta, Google)
+Work discovered DURING parent work naturally depends on parent context. Stacking preserves causality
+and enables independent review/merge of each logical unit.
 
 ### Branch Lifecycle
 
 ```
-On Child Branch (Before PR):
-1. Discover work that needs task list (>30min, multiple subtasks)
-2. Create branch off current: git checkout -b incidental/<name>
-3. Create task list: .arc/active/incidental/tasks-<name>.md
-4. Work on branch, commit with task references
-5. Complete work (all tasks done, quality gates pass)
-6. Run maintain-task-notes.md Mode 2 (clean task list and notes files)
-7. Create completion-{name}.md (executive summary, PR description draft)
-8. Commit documentation changes to child branch
+On Child Branch:
+1. Create branch off current: git checkout -b incidental/<name>
+2. Create task list: .arc/active/incidental/tasks-<name>.md
+3. Work on branch, commit with task references
+4. Complete work (all tasks done, quality gates pass)
+5. Clean task list (maintain-task-notes.md Mode 2)
+6. Create completion-{name}.md (summary + PR description draft)
+7. Commit documentation changes
 
 Code Review & Merge:
-9. Run local code review (coderabbit review local)
-10. Create PR against parent: gh pr create --base parent-branch --head child-branch
-    (use completion doc as PR description template)
-11. Address PR review findings (update completion doc if outcomes changed)
-12. Merge PR (child → parent)
+8. Run code review (local analysis, then PR-based if warranted)
+9. Create PR against parent branch
+10. Address review findings, merge PR
 
 On Parent Branch (After Merge):
-13. Delete merged branch: git branch -d incidental/<name>
-14. Archive files: git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
-15. Commit archive changes on parent branch
-16. Return to parent branch and continue work
+11. Delete merged branch
+12. Archive: git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
+13. Commit archive changes, resume parent work
 ```
 
-**Key rule:** Task list in `.arc/active/` ↔ Git branch exists
+**Key rule:** Task list in `.arc/active/` ↔ Git branch exists. Archive immediately when branch
+is deleted.
 
 ### Merge Strategy
 
 **Depth-first merging:** Complete deepest child first, merge up to parent.
 
 ```bash
-# Example stack
+# Example stack:
 main
 └── technical/service-layer
     └── incidental/filter-testing
         └── incidental/pagination-fixes
 
 # Merge order:
-# 1. pagination-fixes → filter-testing (PR, merge, delete branch, archive task list)
-# 2. filter-testing → service-layer (PR, merge, delete branch, archive task list)
-# 3. service-layer → main (PR, merge, delete branch, archive task list)
+# 1. pagination-fixes → filter-testing (PR, merge, archive)
+# 2. filter-testing → service-layer (PR, merge, archive)
+# 3. service-layer → main (PR, merge, archive)
 ```
 
-**Why depth-first:**
-
-- Child work must be integrated into parent before parent can be considered complete
-- Prevents orphaned branches
-- Natural cleanup rhythm
-
-### Archive Timing
-
-**Archive immediately when branch is deleted** (after merge completes).
-
-This creates conceptual coherence:
-
-- Branch exists → Task list in `.arc/active/`
-- Branch deleted → Task list archived to `.arc/reference/archive/`
-
-**Why this timing:**
-
-- Prevents accumulation (can't forget to archive)
-- Enforces cleanup discipline
-- Makes "active" meaningful (only work with live branches)
-
-### Code Review at Every Merge
-
-Review required at EVERY merge point (not just merge to main):
-
-**Method 1 (Lightweight):** Local review only
-
-```bash
-coderabbit review local  # Before PR
-# Fix findings, commit
-gh pr create --base parent-branch --head child-branch
-```
-
-**Method 2 (Thorough):** Two-pass review
-
-```bash
-# Pass 1: Local review
-coderabbit review local
-# Fix findings, commit
-
-# Pass 2: PR review
-gh pr create --base parent-branch --head child-branch
-# CodeRabbit reviews PR
-# Address findings, merge
-```
-
-**Choose based on scope:**
-
-- Lightweight: Small changes (<300 lines), low risk
-- Thorough: Large changes, user-facing, planned work
-
-### Industry Alignment
-
-**✅ Aligned with industry-standard "stacked development":**
-
-- Stacked PRs/diffs pattern (Meta, Google, Graphite, gh-stack)
-- Branch-per-logical-unit matches modern workflows
-- Conventional commit types still used (chore/refactor/fix/test/perf)
-- Task tracking for work management
-
-**Tools supporting this:**
-
-- Plain git (start here - sufficient for solo dev)
-- gh-stack (GitHub CLI extension for stacked PRs)
-- Graphite (SaaS, overkill for solo projects)
-- git-town (comprehensive but heavy)
-
-**Recommendation:** Use plain git with helpful aliases. Avoid tooling complexity until needed.
+Child work must be integrated into parent before parent can be considered complete.
 
 ### Handling Branch Updates
 
-**If parent branch updates while working on child:**
+If the parent branch updates while working on a child:
 
-```bash
-# Option 1: Rebase (clean history)
-git rebase parent-branch
-
-# Option 2: Merge (preserve merge points)
-git merge parent-branch
-```
-
-**Choose rebase for:** Simple changes, clean history desired
-**Choose merge for:** Complex conflicts, want to preserve exact history
+- **Rebase** for clean history: `git rebase parent-branch`
+- **Merge** to preserve history: `git merge parent-branch`
 
 ---
 
 ## Git Workflow
-
-### Branch Naming Conventions
-
-**Planned work gets branches:**
-
-```
-# User-facing features
-feature/user-authentication
-feature/data-export
-feature/advanced-search
-
-# Infrastructure improvements
-technical/backend-modernization
-technical/frontend-state-management
-technical/testing-infrastructure
-```
-
-**Incidental work (gets branches if substantial):**
-
-```
-# Incidental work with task lists (>30min, multiple subtasks)
-incidental/filter-integration-testing
-incidental/pagination-buffer-tracking
-incidental/theme-system-modernization
-```
 
 ### Commit Message Patterns
 
@@ -604,291 +393,88 @@ docs: update API authentication guide
 **Incidental work (with task reference):**
 
 ```bash
-chore: enable strict TypeScript mode (tasks-chore-type-safety.md Task 1.1)
+chore: enable strict mode checking (tasks-chore-type-safety.md Task 1.1)
 refactor: extract test helper utilities (tasks-refactor-test-helpers.md Task 2.3)
-fix: correct CSRF middleware configuration (tasks-fix-csrf.md Task 1.2)
+fix: correct auth token validation (tasks-fix-auth-tokens.md Task 1.2)
 test: add coverage for edge cases (tasks-test-coverage.md Task 3.1)
 ```
 
-**Benefits of task references:**
-
-- Traceability to task documentation
-- Context for future developers
-- Links work to planning artifacts
-- Can reconstruct work history
-
-### Branch Workflow Example (Stacked Model)
+### Branch Workflow Example
 
 ```bash
 # Start planned technical work
 git checkout -b technical/service-layer-modernization
-git commit -m "refactor: extract MovieService class"
+git commit -m "refactor: extract service base class"
 
-# Discover testing gaps (substantial incidental work - needs task list)
+# Discover testing gaps — substantial, needs task list + branch
 git checkout -b incidental/filter-integration-testing
 # Create: .arc/active/incidental/tasks-filter-integration-testing.md
 git commit -m "test: add filter integration tests (tasks-filter-integration-testing.md Task 1.1)"
 
-# Complete filter testing work
-coderabbit review local  # Local review
-gh pr create --base technical/service-layer-modernization --head incidental/filter-integration-testing
-# Merge PR, delete branch
+# Complete filter testing → review, PR against parent, merge
 git checkout technical/service-layer-modernization
 git branch -d incidental/filter-integration-testing
-# Archive: git mv .arc/active/incidental/ → .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
+# Archive task list to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
 
 # Resume service layer work
-git commit -m "refactor: complete MovieService extraction"
-
-# When service layer complete, merge to main
-gh pr create --base main --head technical/service-layer-modernization
-# Merge PR, delete branch, archive task list
+git commit -m "refactor: complete service extraction"
+# When complete → review, PR against main, merge, archive
 ```
-
-### Historical Note: Workflow Evolution
-
-**Version History:**
-
-- **v1.0 (2025-10 to 2025-11-09)**: Single long-lived branch model
-    - Feature/technical branches lived for weeks/months
-    - All incidental work committed to feature/technical branch (no separate branches)
-    - Task lists accumulated in `.arc/active/` (not tied to branch lifecycle)
-    - Led to branch name semantic mismatch and accumulation issues
-    - Example: `technical/service-layer-modernization` branch contained 8 different logical work units
-
-- **v2.0 (2025-11-10+)**: Stacked branch model (see ADR-013)
-    - Each substantial task list gets its own branch (if >30min, multiple subtasks)
-    - Branches merge depth-first (child → parent → main)
-    - Archive when branch deleted (prevents accumulation)
-    - Semantic clarity and natural cleanup discipline
-    - Industry-aligned with "stacked development" pattern
-
-**Branches created before 2025-11-10** may not follow stacked model. This is expected and documented
-in their CURRENT-SESSION.md context. All new work uses v2.0 stacked model.
-
-**If examining historical branches:**
-
-- `technical/service-layer-modernization` contains 7+ nested incidental task lists (v1.0 model)
-- Commit messages still follow conventional format with task references
-- Use `git log --grep="tasks-{name}.md"` to filter commits by logical work unit
-- See ADR-013 for full context on why the change was made
 
 ---
 
 ## Directory Structure
 
-### Active Work Organization
-
-**Planned work directories:**
+### Active Work
 
 ```
 .arc/active/
   feature/
-    prd-user-authentication.md
-    tasks-user-authentication.md
-    notes-user-authentication.md
+    prd-<name>.md, tasks-<name>.md, notes-<name>.md
   technical/
-    prd-backend-modernization.md
-    tasks-backend-modernization.md
-    notes-backend-modernization.md
-```
-
-**Incidental work directories:**
-
-```
-.arc/active/
+    prd-<name>.md, tasks-<name>.md, notes-<name>.md
   incidental/
-    tasks-chore-type-safety.md
-    notes-chore-type-safety.md (optional)
-    completion-chore-type-safety.md (created before PR)
-    tasks-refactor-auth-service.md
-    completion-refactor-auth-service.md (created before PR)
-    tasks-fix-csrf-middleware.md
-    completion-fix-csrf-middleware.md (created before PR)
+    tasks-<type>-<name>.md, notes-<type>-<name>.md (optional),
+    completion-<type>-<name>.md (created before PR)
 ```
 
-### Archive Organization
+### Archive
 
-**When work completes, archive preserves structure with global sequence numbering:**
+Archive preserves structure with global sequence numbering:
 
 ```
 .arc/reference/archive/{quarter}/
   feature/
     01_user-authentication/
-      prd-user-authentication.md
-      tasks-user-authentication.md
-      notes-user-authentication.md
-      completion-user-authentication.md
+      prd-*, tasks-*, notes-*, completion-*
   technical/
-    02_backend-modernization/
-      prd-backend-modernization.md
-      tasks-backend-modernization.md
-      notes-backend-modernization.md
-      completion-backend-modernization.md
-    05_api-layer-modernization/
-      ...
+    02_api-modernization/
+      prd-*, tasks-*, notes-*, completion-*
   incidental/
     03_chore-type-safety/
-      tasks-chore-type-safety.md
-      notes-chore-type-safety.md
-      completion-chore-type-safety.md
-    04_refactor-auth-service/
-      tasks-refactor-auth-service.md
-      completion-refactor-auth-service.md
+      tasks-*, notes-*, completion-*
 ```
 
-**Sequence numbering:**
+`{NN}_` prefix indicates completion order (global across all categories). Gaps within a category
+show where other categories' work completed. Reset to 01 each quarter.
 
-- `{NN}_` prefix indicates completion order (global across all categories)
-- Gaps within a category show where other categories' work completed
-- Reset to 01 at start of each quarter
-- See [archive-completed.md](../../workflows/supplemental/archive-completed.md) for full archival workflow
+See [archive-completed.md](../../workflows/supplemental/archive-completed.md) for full archival workflow.
 
-### Directory Alignment
+### Alignment
 
-**Planned work - Perfect alignment:**
+Branch, directory, and file naming align consistently:
 
-- Branch: `technical/backend-modernization`
-- PRD: `.arc/active/technical/prd-backend-modernization.md`
-- Tasks: `.arc/active/technical/tasks-backend-modernization.md`
-- Notes: `.arc/active/technical/notes-backend-modernization.md`
-
-**Incidental work - Task-based alignment (with branches post-ADR-013):**
-
-- Branch: `incidental/chore-type-safety` (if >30min, multiple subtasks)
-- Tasks: `.arc/active/incidental/tasks-chore-type-safety.md`
-- Notes: `.arc/active/incidental/notes-chore-type-safety.md` (optional)
-- Completion: `.arc/active/incidental/completion-chore-type-safety.md` (created before PR)
-- Archive: `.arc/reference/archive/{quarter}/incidental/{NN}_chore-type-safety/` (all files together)
-
----
-
-## Implementation Examples
-
-### Example 1: Feature Work - User Authentication
-
-**Product vision requirement:** Users need to create accounts, log in, and reset passwords.
-
-**Decision process:**
-
-1. **Planned?** → Yes (in product roadmap)
-2. **User-visible?** → Yes (users can authenticate)
-3. **Category:** `feature/user-authentication`
-
-**Implementation:**
-
-```bash
-# Create PRD and task list
-mkdir -p .arc/active/feature
-# Create prd-user-authentication.md
-# Create tasks-user-authentication.md
-
-# Create git branch
-git checkout -b feature/user-authentication
-
-# Work through tasks with feature commits
-git commit -m "feat(auth): add user registration endpoint"
-git commit -m "feat(auth): add login endpoint"
-git commit -m "feat(auth): add password reset flow"
-
-# Merge when complete
-git checkout main
-git merge feature/user-authentication
-```
-
-### Example 2: Technical Work - Type Safety Improvements
-
-**Technical need:** Project has grown, type safety gaps causing bugs.
-
-**Decision process:**
-
-1. **Planned?** → Yes (PRD created after spike/research)
-2. **User-visible?** → No (internal code quality)
-3. **Category:** `technical/type-safety-improvements`
-
-**Implementation:**
-
-```bash
-# Create PRD and task list
-mkdir -p .arc/active/technical
-# Create prd-type-safety-improvements.md
-# Create tasks-type-safety-improvements.md
-
-# Create git branch
-git checkout -b technical/type-safety-improvements
-
-# Work through tasks with technical commits
-git commit -m "chore: enable TypeScript strict mode"
-git commit -m "refactor: add type annotations to API layer"
-git commit -m "test: add type safety integration tests"
-
-# Merge when complete
-git checkout main
-git merge technical/type-safety-improvements
-```
-
-### Example 3: Incidental Work - CSRF Middleware Bug
-
-**Discovery:** While testing authentication, discover CSRF token validation failing.
-
-**Decision process:**
-
-1. **Planned?** → No (discovered during feature work)
-2. **Category:** `incidental/tasks-fix-csrf-middleware.md`
-
-**Implementation:**
-
-```bash
-# Currently on feature/user-authentication branch
-
-# Create incidental task list
-# Create .arc/active/incidental/tasks-fix-csrf-middleware.md
-
-# Fix the issue with conventional commit
-git commit -m "fix: correct CSRF middleware configuration (tasks-fix-csrf-middleware.md Task 1.1)"
-git commit -m "test: add CSRF protection tests (tasks-fix-csrf-middleware.md Task 2.1)"
-
-# Resume feature work
-git commit -m "feat(auth): complete login endpoint"
-```
-
-### Example 4: Incidental Work - Test Helper Extraction (Larger Scope)
-
-**Discovery:** While writing tests, notice significant duplication across test files.
-
-**Decision process:**
-
-1. **Planned?** → No (discovered during test writing)
-2. **Category:** `incidental/tasks-refactor-test-helpers.md` (even though 15 hours of work)
-
-**Implementation:**
-
-```bash
-# Currently on technical/testing-infrastructure branch
-
-# Create incidental task list (breaks down 15 hours into subtasks)
-# Create .arc/active/incidental/tasks-refactor-test-helpers.md
-
-# Work through refactoring with conventional commits
-git commit -m "refactor: extract HTTP test helpers (tasks-refactor-test-helpers.md Task 1.1)"
-git commit -m "refactor: create user factory helpers (tasks-refactor-test-helpers.md Task 1.2)"
-git commit -m "refactor: consolidate mock factories (tasks-refactor-test-helpers.md Task 2.1)"
-git commit -m "test: update tests to use shared helpers (tasks-refactor-test-helpers.md Task 3.1)"
-
-# Resume technical work
-git commit -m "test: add integration test coverage"
-```
-
-**Note:** Size doesn't determine category. This is 15 hours of work but still incidental because it was
-discovered, not planned.
+- **Planned:** Branch `technical/api-modernization` → `.arc/active/technical/` →
+  `.arc/reference/archive/{quarter}/technical/{NN}_api-modernization/`
+- **Incidental:** Branch `incidental/chore-type-safety` (if substantial) →
+  `.arc/active/incidental/` →
+  `.arc/reference/archive/{quarter}/incidental/{NN}_chore-type-safety/`
 
 ---
 
 ## Anti-Patterns
 
-### ❌ Don't: Mix Category Types
-
-**Problem:** Using "epic" or size-based categorization.
+### Don't: Use Size-Based Categories
 
 ```
 .arc/active/
@@ -896,231 +482,62 @@ discovered, not planned.
   small-features/    # ❌ Describes size, not type
 ```
 
-**Why it fails:**
+Use `feature/`, `technical/`, `incidental/` — categorize by type and planning status, not size.
 
-- Subjective size assessment
-- Doesn't align with git conventions
-- Loses semantic meaning
-
-**✅ Do:**
-
-```
-.arc/active/
-  feature/           # ✓ User-facing capabilities
-  technical/         # ✓ Infrastructure improvements
-  incidental/        # ✓ Reactive quality work
-```
-
-### ❌ Don't: Create Branches for All Incidental Work
-
-**Problem:** Creating git branches for every discovered issue.
+### Don't: Create Branches for All Incidental Work
 
 ```bash
+# ❌ Branch per discovered issue = overhead
 git checkout -b fix/csrf-token-validation
 git commit -m "fix: correct CSRF validation"
 git checkout feature/user-authentication
 git merge fix/csrf-token-validation
-
-git checkout -b refactor/extract-test-helper
-git commit -m "refactor: extract helper"
-git checkout feature/user-authentication
-git merge refactor/extract-test-helper
-
-# Branch juggling overhead!
+# Repeat for every discovery...
 ```
 
-**Why it fails:**
+Stay on the current branch for small incidental work. Create a task list for traceability, use
+conventional commits with task references. Only create a separate branch when the work meets
+[stacked branch criteria](#when-to-create-a-branch).
 
-- Branch management overhead
-- Context switching costs
-- Doesn't scale for cascading discoveries
-- Slows velocity for solo developers
-
-**✅ Do:**
+### Don't: Skip Task References in Commits
 
 ```bash
-# Stay on feature/user-authentication branch
-
-# Create task list for traceability
-# .arc/active/incidental/tasks-fix-csrf.md
-
-git commit -m "fix: correct CSRF validation (tasks-fix-csrf.md Task 1.1)"
-
-# Create task list for refactoring
-# .arc/active/incidental/tasks-refactor-test-helpers.md
-
-git commit -m "refactor: extract test helper (tasks-refactor-test-helpers.md Task 1.1)"
-
-# Continue feature work
-git commit -m "feat(auth): complete authentication flow"
+git commit -m "fix: CSRF validation"             # ❌ No context
+git commit -m "fix: CSRF validation (tasks-fix-csrf.md Task 1.1)"  # ✅ Traceable
 ```
 
-### ❌ Don't: Use Redundant File Naming
-
-**Problem:** Repeating "incidental" in filename.
+### Don't: Over-Process Incidental Work
 
 ```
-incidental/tasks-type-safety.md  # ✅ Clean naming
-incidental/notes-refactoring.md  # ✅ Clean naming
+.arc/active/incidental/prd-fix-csrf-token.md     # ❌ PRDs are for planned work
+.arc/active/incidental/notes-fix-typo.md          # ❌ 200-line doc for a typo
 ```
 
-**Why it fails:**
-
-- Redundant information
-- Doesn't indicate work type
-- Harder to filter/search
-
-**✅ Do:**
-
-```
-incidental/tasks-chore-type-safety.md      # ✓ Clear work type
-incidental/tasks-refactor-auth-service.md  # ✓ Conventional commit type
-```
-
-### ❌ Don't: Forget Task References in Commits
-
-**Problem:** Incidental commits without task references.
-
-```bash
-git commit -m "fix: CSRF validation"  # ❌ No context
-git commit -m "refactor: extract helper"  # ❌ No traceability
-```
-
-**Why it fails:**
-
-- Lost context for future developers
-- Can't reconstruct work history
-- No link to planning artifacts
-
-**✅ Do:**
-
-```bash
-git commit -m "fix: correct CSRF validation (tasks-fix-csrf.md Task 1.1)"  # ✓ Traceable
-git commit -m "refactor: extract test helper (tasks-refactor-test-helpers.md Task 1.1)"  # ✓ Documented
-```
-
-### ❌ Don't: Mix Planned and Unplanned Workflows
-
-**Problem:** Treating incidental work like planned work (creating PRDs, complex planning).
-
-```
-# ❌ Don't create PRDs for incidental work
-.arc/active/incidental/prd-fix-csrf-token.md  # Overkill!
-
-# ❌ Don't create extensive notes for simple fixes
-.arc/active/incidental/notes-fix-typo.md  # 200-line document for typo
-```
-
-**Why it fails:**
-
-- Overhead doesn't match work type
-- Slows velocity
-- Creates unnecessary artifacts
-
-**✅ Do:**
-
-```
-# ✓ Task list only for incidental work
-.arc/active/incidental/tasks-fix-csrf-token.md
-
-# ✓ Notes only when needed for complex incidental
-.arc/active/incidental/notes-chore-type-safety.md  # Optional, only if helpful
-```
+Incidental work gets task lists only. Notes files are optional, reserved for complex incidental work.
 
 ---
 
 ## Migration Guide
 
-### Adopting This Strategy
+### For New Projects
 
-**For new projects:**
+1. Create directory structure: `mkdir -p .arc/active/{feature,technical,incidental} .arc/backlog`
+2. Document decision rules in DEVELOPMENT-RULES.md (reference this strategy)
+3. Start using immediately — adopt conventions from first commit
 
-1. Create directory structure upfront:
+### For Existing Projects
 
-   ```bash
-   mkdir -p .arc/active/{feature,technical,incidental}
-   mkdir -p .arc/backlog
-   mkdir -p .arc/archive
-   ```
-
-2. Document decision rules in DEVELOPMENT-RULES.md
-3. Add commit message conventions to git hooks (optional)
-4. Start using immediately
-
-**For existing projects:**
-
-1. **Complete current work** - Don't rename mid-flight
-2. **Create new structure** - Add `technical/` directory alongside `feature/`
-3. **Adopt going forward** - New work uses three-way split
-4. **Update documentation** - DEVELOPMENT-RULES, workflow guides
-5. **Migrate gradually** - Archive old work as-is, new work uses new structure
-
-### Transition Example
-
-**Current state:**
-
-```
-.arc/active/
-  feature/  # Contains both user-facing AND technical work
-  incidental/
-```
-
-**Transition steps:**
-
-```bash
-# 1. Complete current work
-# (Finish current feature/X work, archive normally)
-
-# 2. Create technical directory
-mkdir -p .arc/active/technical
-
-# 3. Move planned technical work
-mv .arc/backlog/prd-backend-modernization.md .arc/active/technical/
-
-# 4. Update documentation
-# - Update DEVELOPMENT-RULES.md
-# - Update workflow guides
-# - Document decision rules
-
-# 5. Adopt for new work
-git checkout -b technical/backend-modernization  # New convention
-```
-
-### Updating Documentation
-
-**DEVELOPMENT-RULES.md changes:**
-
-```markdown
-## Work Categorization
-
-The ARC framework uses a three-way work categorization system:
-
-- **feature/** - Planned user-facing capabilities
-- **technical/** - Planned infrastructure improvements
-- **incidental/** - Unplanned reactive quality work
-
-See [Work Organization Strategy](strategies/strategy-work-organization.md) for decision rules.
-
-## Git Branch Naming
-
-- Planned work: `feature/<name>` or `technical/<name>`
-- Incidental work: No separate branches (commits to feature/technical branch)
-- Commit format: `<type>: <description> (<task-file> Task X.Y)`
-```
-
-**Workflow guide changes:**
-
-Update `2_generate-tasks.md` to reflect:
-
-- feature/ and technical/ get PRDs + task lists + branches
-- incidental/ gets task lists only, no PRDs, no branches
-- Document incidental commit message format
+1. **Complete current work** — Don't rename mid-flight
+2. **Create new structure** — Add `technical/` directory alongside `feature/`
+3. **Adopt going forward** — New work uses three-way split
+4. **Update documentation** — Reference this strategy from DEVELOPMENT-RULES.md and workflow guides
+5. **Migrate gradually** — Archive old work as-is, new work uses new structure
 
 ---
 
 ## Backlog Organization
 
-**Context:** Per ADR-014, backlog uses GTD-inspired two-tier structure for work that hasn't started yet.
+Backlog uses a GTD-inspired two-tier structure for work that hasn't started yet.
 
 ### Structure
 
@@ -1140,43 +557,8 @@ backlog/
 active/
   ATOMIC-TASKS.md            # Committed atomic tasks (checkboxes, ready to execute)
   CURRENT-SESSION.md         # Session state
-  feature/
-  technical/
-  incidental/
+  feature/  technical/  incidental/
 ```
-
-### File Purposes
-
-**TASK-INBOX.md** (backlog root):
-
-- Unsorted captures, processed weekly → buckets/atomic/action
-- Flat bullets (no checkboxes), kept lean
-
-**ROADMAP.md** (backlog root):
-
-- Internal planning artifact for sequencing strategy
-- Documents order of operations (phases), dependency analysis, scoping decisions
-- Subject to change as project evolves
-- Referenced from PROJECT-STATUS.md for detailed planning context
-
-**ATOMIC-TASKS.md** (active root):
-
-- GTD "Next Actions" - small, one-off tasks ready to execute
-- Checkbox format: "Active" and "Completed (This Week)" sections
-- Completed items deleted during weekly review
-
-**BACKLOG-FEATURE.md / BACKLOG-TECHNICAL.md**:
-
-- Section-based organization (e.g., "User Auth", "API Integration")
-- Plain bullets (no checkboxes)
-- Non-atomic work only (atomic tasks go to ATOMIC-TASKS.md)
-- Graduate to plan/PRD files when scope defined, then delete from bucket
-
-**plan-*.md and prd-*.md**:
-
-- Individual files for scoped work units
-- plan: Planning/analysis phase, research (backlog only, deleted after PRD)
-- prd: Ready for task generation
 
 ### Processing Flow
 
@@ -1189,68 +571,38 @@ Capture → TASK-INBOX.md
   ├─ Technical idea? → BACKLOG-TECHNICAL.md
   └─ Uncertain? → Leave in inbox
 
-Bucket files → plan-*.md (when scope clear) → prd-*.md (when ready, delete plan)
+Bucket → plan-*.md (when scope clear) → prd-*.md (when ready, delete plan)
 ```
+
+### Key Design Points
+
+- **No incidental/ in backlog** — Incidental work is discovered during active work, not pre-planned
+- **ATOMIC-TASKS.md** lives in `active/` — Small, one-off tasks ready to execute (GTD "Next Actions")
+- **ROADMAP.md** is an internal planning artifact for sequencing, referenced from PROJECT-STATUS.md
+- **Bucket → plan → PRD graduation** — Items move to individual files when scope is defined
 
 ### Commit Context for Atomic Tasks
 
-Work from ATOMIC-TASKS.md or emergent atomic work uses:
+Work from ATOMIC-TASKS.md uses boundary categories in the commit Context footer:
 
 ```
 Context: maintenance (atomic / no associated task list)
 Context: refactor (atomic / no associated task list)
 Context: documentation (atomic / no associated task list)
-Context: planning (atomic / no associated task list)
 ```
 
-Boundary categories: maintenance, refactor, documentation, planning
+Atomic tasks aren't archived (deleted after completion) — the commit message IS the record.
 
-**Rationale:** Atomic tasks aren't archived (deleted after completion), so no long-term traceability.
-Commit message IS the record.
-
-### Discovery Mechanism
-
-"Have we thought about X?" → Check 3 places:
-
-1. TASK-INBOX.md (unsorted captures)
-2. BACKLOG-FEATURE.md or BACKLOG-TECHNICAL.md (sections)
-3. plan-*.md or prd-*.md files (scoped work units)
-
-No separate index needed.
-
-### Weekly Review
-
-Core workflow (15-30 minutes):
-
-1. Process TASK-INBOX.md
-2. Review ATOMIC-TASKS.md (delete completed, reprioritize)
-3. Review bucket files (promote to notes/PRD when ready)
-4. Update PROJECT-STATUS.md
-
-See [weekly-review.md](../workflows/supplemental/weekly-review.md) for full workflow.
-
-### Design Decisions
-
-- **No frontend/backend split** - Only feature/ and technical/
-- **No incidental/ in backlog** - Stacked workflow (ADR-013) means incidental stays active
-- **Maturity markers TBD** - Optional tags like `[Exploring]`, `[Ready]` evaluated in practice
-
-See ADR-014 for complete rationale and alternatives considered.
+See [weekly-review.md](../../workflows/supplemental/weekly-review.md) for backlog processing workflow.
 
 ---
 
 ## Related Documentation
 
-- [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) - Development standards and git workflow
-- [2_generate-tasks.md](../workflows/2_generate-tasks.md) - Task breakdown workflow
-- [3_process-task-loop.md](../workflows/3_process-task-loop.md) - Task execution workflow
-- [atomic-commit.md](../workflows/supplemental/atomic-commit.md) - Commit creation and review
-- [manage-incidental-work.md](../workflows/supplemental/manage-incidental-work.md) - Incidental work workflow
-- [weekly-review.md](../workflows/supplemental/weekly-review.md) - Weekly backlog review process
-- [ADR-014](../adr/adr-014-backlog-organization-gtd-inspired.md) - Backlog organization decision record
-
----
-
-**Document Status**: This strategy document is the authoritative reference for work categorization in ARC-based projects.
-The three-way split (feature/technical/incidental) with hybrid incidental model represents battle-tested patterns
-validated across multiple project contexts.
+- [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) — Development standards and git workflow
+- [2_generate-tasks.md](../workflows/2_generate-tasks.md) — Task breakdown workflow
+- [3_process-task-loop.md](../workflows/3_process-task-loop.md) — Task execution workflow
+- [atomic-commit.md](../workflows/supplemental/atomic-commit.md) — Commit creation and review
+- [manage-incidental-work.md](../workflows/supplemental/manage-incidental-work.md) — Incidental work workflow
+- [agent-pre-merge-review.md](../workflows/supplemental/agent-pre-merge-review.md) — Code review workflow
+- [weekly-review.md](../workflows/supplemental/weekly-review.md) — Weekly backlog review process
