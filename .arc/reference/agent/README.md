@@ -18,10 +18,11 @@ AGENTS.md (central reference card — industry-standard format)
 
 ### Why AGENTS.md as Hub
 
-`AGENTS.md` is an industry standard — tools like Gemini, Cursor, and Windsurf natively auto-discover
-it at project root. ARC uses the same format for interoperability but keeps files here in `.arc/reference/agent/`
-rather than at tool-native locations (see [File Placement](#file-placement) below). ARC's session-init workflow
-handles loading: AGENTS.md first for shared context, then the appropriate tool-specific file.
+`AGENTS.md` is an industry standard — tools like Gemini, Cursor, and Windsurf read it from project
+root. ARC uses the same format for interoperability but keeps files here in `.arc/reference/agent/`
+rather than at tool-native locations (see [File Placement](#file-placement) below). ARC's session-init
+workflow (manually invoked each session) handles the loading chain: AGENTS.md first for shared
+context, then the appropriate tool-specific file.
 
 **Why tool-specific files, even for tools that read AGENTS.md natively?** Different models have different
 quirks — context window thresholds, output format preferences, capability limitations, deferred review

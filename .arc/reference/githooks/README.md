@@ -32,7 +32,7 @@ Enforces the commit message standard defined in DEVELOPMENT-RULES.md:
 **Warnings (allows commit):**
 
 - Subject line 50+ chars (warns, blocks at 72)
-- Body over 15 lines (warns, blocks at 25)
+- Body over 15 lines (warns at 15; warns again at 25 for milestones)
 - "Phase X.Y" usage (should be "Task X.Y")
 - Task list file not found in active directories
 

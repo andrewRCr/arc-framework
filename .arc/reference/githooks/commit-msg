@@ -20,7 +20,6 @@ NC='\033[0m' # No Color
 subject=$(echo "$commit_msg" | head -n1)
 subject_length=${#subject}
 body=$(echo "$commit_msg" | tail -n +3) # Skip subject and blank line
-total_lines=$(echo "$commit_msg" | wc -l)
 
 errors=0
 warnings=0
