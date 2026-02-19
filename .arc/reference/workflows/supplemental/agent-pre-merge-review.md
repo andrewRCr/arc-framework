@@ -1,67 +1,28 @@
-# Agent Pre-Merge Review Workflow
+# Workflow: Agent Pre-Merge Review
 
-**Primary Agent**: CodeRabbit (adaptable to other agents)
+**Audience:** Agent-executed — your agent follows this for pre-merge code review.
 
-## Overview
+**Purpose**: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
 
-This workflow documents the **two-pass defense-in-depth strategy** for AI agent code reviews before merging work:
+1. **Pass 1 (Local)**: Run agent review locally before creating PR — catch the majority of issues
+2. **Pass 2 (PR)**: Address agent comments on actual PR — catch remaining context-specific issues
 
-1. **Local Mode (Pass 1)**: Run agent review locally before creating PR → catch 80-90% of issues
-2. **PR Mode (Pass 2)**: Address agent comments on actual PR → catch remaining 10-20% of issues
+This ensures clean initial PRs with focused, high-value PR reviews — similar to running linters
+locally before CI.
 
-This two-pass approach ensures **clean initial PRs** with focused, high-value PR reviews, similar to running
-linters locally before CI.
+**Applies to all merges:** main, parent branches (stacked workflow), any PR where review is warranted.
 
-**Applies to all merges:**
-
-- Merging to main (planned work complete)
-- Merging to parent branch (stacked branch workflow - incidental work merging to feature/technical parent)
-- Any PR where code review is warranted
-
-## When to Use This Workflow
-
-**Timing**: After work is complete, before creating PR (regardless of PR base branch)
-
-**Applies to**:
-
-- Planned work (feature/technical) merging to main
-- Incidental work merging to parent branch (stacked workflow)
-- Any logical work unit ready for review and merge
-
-**Choose your mode**:
-
-- **Local Mode** - Use when reviewing locally before creating pull request (you are here for first pass)
-- **PR Mode** - Use when addressing review comments on existing pull request (second pass after PR creation)
+**Tool adaptation:** This workflow describes the strategy and decision-making process. Specific review
+tools (CodeRabbit, GitHub Copilot, etc.) plug into the generic steps — see
+[Tool-Specific Notes](#tool-specific-notes) for tool commands and platform details.
 
 ---
 
-## Local Mode: Pre-PR Review
+## Decision Framework
 
-**Purpose**: Catch the majority of issues before PR creation using local agent review
-
-**When**: After feature complete/archived, before `gh pr create`
-
-### Process
-
-#### 1. Run Local Review
-
-```bash
-# Example with CodeRabbit CLI (adjust for your agent)
-coderabbit review local
-
-# Wait for agent to complete analysis
-# Agent generates findings report (not PR comments)
-```
-
-**Note**: Findings are typically **pasted directly into the conversation** rather than saved to a
-tracking file. This allows for immediate evaluation and fixes without additional file management overhead.
-
-#### 2. Process Findings
-
-Work through agent findings sequentially using the **Decision Framework**:
-
-**Workflow**: User pastes finding → AI helps evaluate → AI suggests fix (or recommends deferral/rejection) →
-fix if applicable or move on → Repeat for next finding
+Used in both passes. For each finding, evaluate validity (real issue or preference?), context
+(conflicts with documented deferrals? code scheduled for replacement?), and impact (functionality
+vs code quality?).
 
 **✅ FIX NOW** if:
 
@@ -79,542 +40,190 @@ fix if applicable or move on → Repeat for next finding
 
 **❌ REJECT** (note reason) if:
 
-- Conflicts with project standards (e.g., using `Any` vs `object`)
+- Conflicts with project standards
 - Out of scope for current work
 - Agent misunderstands the context
 
-#### 3. Make Fixes Locally
+**🔧 SILENT FIX** (minor/nitpick findings — no reply needed) if:
 
-```bash
-# Work through all findings
-# Make fixes to local files
-# DO NOT commit yet
-```
-
-**Track your decisions:**
-
-- Which findings you fixed
-- Which you're deferring (with brief reason)
-- Which you're rejecting (with brief reason)
-
-#### 4. Commit Changes
-
-```bash
-# Stage all changes
-git add [files]
-
-# Single batch commit (preferred)
-git commit -m "fix: Address local agent review findings" \
-  -m "**Fixed:**" \
-  -m "- [Finding 1 description]" \
-  -m "- [Finding 2 description]" \
-  -m "" \
-  -m "**Deferred:**" \
-  -m "- [Finding X]: [Brief reason]" \
-  -m "" \
-  -m "**Rejected:**" \
-  -m "- [Finding Y]: [Brief reason]"
-
-# Push to branch
-git push origin [branch-name]
-```
-
-**Alternative**: Split commits only if fixes have substantially different scope/impact (backend vs frontend,
-critical bugs vs improvements)
-
-#### 5. Create Pull Request
-
-```bash
-# Create PR with cleaner code
-# For stacked branches, specify parent as base:
-gh pr create --base parent-branch --head child-branch --title "[Title]" --body "[Description]"
-
-# For main branch:
-gh pr create --base main --title "[Title]" --body "[Description]"
-
-# Agent will run PR review (Pass 2)
-# Expect fewer findings than if you'd skipped local review
-```
-
-**Note on stacked branches**: If your work is on a child branch (e.g., `incidental/filter-testing` branched from
-`technical/service-layer`), create PR against the parent branch, not main. The parent branch becomes the PR base.
-
-**Local Mode Complete** - Proceed to PR Mode when agent comments appear on PR
-
----
-
-## PR Mode: PR-Triggered Review
-
-**Purpose**: Address remaining agent findings on actual pull request
-
-**When**: After PR created, agent has posted review comments
-
-**Context**: This is Pass 2 - most issues were caught in local review, this catches the remaining 10-20%
-
-**Applies to all PR base branches**: Whether merging to main or to a parent branch in stacked workflow, the PR Mode
-process is identical. Agent reviews the diff regardless of base branch.
-
-### Core Principles
-
-1. **Sequential processing** - Address comments one at a time to avoid duplicate agent responses
-2. **Batch commits** - Minimize PR commits to reduce automated review triggers
-3. **Issue vs. nitpick distinction** - Tool classifies findings; Issues get replies, Nitpicks get silent fixes
-4. **Draft-as-you-go replies** - Draft replies immediately after fixing (placeholder hash), finalize after commit
-
-### Process
-
-#### 1. Sequential Comment Processing
-
-Work through comments **one at a time** in order:
-
-**For each comment, evaluate:**
-
-**a) Validity**
-
-- Is this a real issue or just a preference?
-- Does it align with project standards?
-
-**b) Context**
-
-- Does it conflict with documented strategic deferrals?
-- Is this code scheduled for replacement/deletion?
-- Is it within the current feature scope?
-
-**c) Impact**
-
-- Does it affect functionality or just code quality?
-- Is it worth addressing now vs. later?
-
-**d) Classification**
-
-The review tool classifies each finding - use the tool's classification, not subjective assessment:
-
-- **Issue**: Substantive finding that warrants a reply (whether fixed, deferred, or rejected)
-- **Nitpick**: Minor suggestion that can be silently fixed or skipped (no reply needed)
-
-CodeRabbit uses these exact terms. Other tools may use different terminology (e.g., "warning" vs "suggestion")
-but the same principle applies: substantive concerns get replies, minor suggestions don't.
-
-#### 2. Decision Framework
-
-Use same framework as Local Mode:
-
-**✅ FIX NOW** if:
-
-- Legitimate bug affecting current functionality
-- Documentation inconsistency causing confusion
-- Simple fix (<10 lines, low risk)
-- Improves code we're actively maintaining
-
-**⏸️ DEFER** (requires reply) if:
-
-- Code is scheduled for deletion in next phase
-- Already documented as strategic deferral
-- Requires substantial refactoring of temporary code
-- Part of a different feature/phase
-
-**❌ REJECT** (requires reply) if:
-
-- Conflicts with project standards (e.g., using `Any` vs `object`)
-- Out of scope for current work
-- Agent misunderstands the context
-
-**🔧 SILENT FIX** (nitpick - no reply) if:
-
-- Typo corrections
-- Formatting improvements
+- Typo corrections, formatting improvements
 - Minor code quality enhancements
 - Simple clarifications that don't need justification
 
-#### 3. Fix Collection Phase
+---
 
-**Important**: Make fixes but **DO NOT commit yet**
+## Pass 1: Local Review (Before PR)
 
-For each comment:
+**When**: After work is complete, before `gh pr create`.
 
-1. **Make the fix** (or decide to defer/reject)
-2. **If Issue**: Draft reply immediately in temp file (use `[commit-hash]` placeholder)
-3. **If Nitpick**: No reply needed, just track that it was fixed
+### 1) Run Local Review
 
-**Why draft immediately**: Captures context while fresh, aids tracking, and the placeholder hash
-gets replaced after batch commit.
+Run your review tool's local analysis command. Findings are typically pasted into the conversation
+for immediate evaluation rather than saved to a tracking file.
 
-**Temp file location**: `.arc/active/{category}/temp-agent-reply.md` (next to task list, gitignored)
+### 2) Process Findings
 
-#### 4. Batch Commit Strategy
+Work through findings sequentially using the Decision Framework above.
 
-**After processing all comments**, commit fixes using **one of these strategies**:
+**Workflow**: Review finding → evaluate → fix or decide disposition → repeat.
 
-**Strategy A: Single Batch Commit (PREFERRED)**
+### 3) Commit Fixes
 
-Use when all fixes are related to PR review feedback:
+Stage all fixes and commit as a single batch (preferred). Track which findings were fixed, deferred,
+or rejected — include in commit message:
 
 ```bash
-# Stage all changes
-git add [files]
+git commit -m "fix: address local agent review findings
 
-# Commit everything together
-git commit -m "fix: Address AI code review feedback" \
-  -m "**Issues fixed:**" \
-  -m "- [Issue 1 description]" \
-  -m "- [Issue 2 description]" \
-  -m "" \
-  -m "**Nitpicks addressed:**" \
-  -m "- [Nitpick 1, 2, 3 summary]" \
-  -m "" \
-  -m "**Deferred:**" \
-  -m "- [Issue X]: [Brief reason - detailed in PR comment]"
+Fixed:
+- [Finding 1 description]
+- [Finding 2 description]
 
-# Push to PR
-git push origin [branch-name]
+Deferred:
+- [Finding X]: [Brief reason]
+
+Rejected:
+- [Finding Y]: [Brief reason]"
 ```
 
-**Strategy B: Split Commits (ONLY IF NECESSARY)**
+Split commits only if fixes have substantially different scope (e.g., critical bugs separate from
+minor improvements).
 
-Split **only** if fixes have substantially different scope/impact:
+### 4) Create Pull Request
 
-- Separate **critical bug fixes** from **minor improvements**
-- Separate **backend changes** from **frontend changes** (if large)
-- Separate **test fixes** from **production code changes** (if significant)
-
-**General rule**: Prefer single batch commit unless splitting provides meaningful semantic separation.
-
-#### 5. Finalize and Post Replies
-
-Replies were drafted during Fix Collection (Step 3). After committing:
-
-1. **Get commit hash**: `git log -1 --format=%h`
-2. **Replace placeholder**: Update `[commit-hash]` in temp file with actual hash
-3. **Post each reply**: Copy from temp file → paste into GitHub comment
-4. **Clear temp file**: After posting, clear content for next reply (or delete when done)
-
-**Formatting note:** Write reply content as single continuous lines (no hard wraps). GitHub wraps
-automatically - hard line breaks in the source create awkward formatting when pasted. The temp file
-is excluded from markdown linting for this reason.
-
-**Reply format for fixes:**
-
-```markdown
-[Brief acknowledgment]
-
-[What was fixed and why]
-
-Fixed in commit [hash].
+```bash
+gh pr create --base {parent-branch} --head {branch-name}
 ```
 
-**Reply format for deferrals/rejections:**
+For stacked branches, create PR against the parent branch, not main.
 
-```markdown
-[Acknowledgment of concern]
+Agent runs PR review (Pass 2) — expect fewer findings than without local review.
 
-Declining because:
+---
 
-1. **[Reason 1]** - [Details]
-2. **[Reason 2]** - [Details]
+## Pass 2: PR Review (After PR Created)
 
-[Context/justification - link to PRD/documentation if applicable]
+**When**: After PR created, review agent has posted comments.
+
+**Core principles:**
+
+- **Sequential processing** — address comments one at a time to avoid duplicate agent responses
+- **Batch commits** — minimize commits to reduce automated review triggers
+- **Classification-aware** — review tools classify findings by severity; substantive findings
+  get replies, minor suggestions get silent fixes
+
+### 1) Process Comments
+
+Work through PR comments sequentially using the Decision Framework. For each comment:
+
+1. **Evaluate and fix** (or decide to defer/reject)
+2. **If substantive**: Draft reply immediately (use `[commit-hash]` placeholder) — captures context
+   while fresh
+3. **If minor/nitpick**: No reply needed, just fix silently
+4. **Do NOT commit yet** — collect all fixes first
+
+### 2) Batch Commit
+
+After processing all comments, commit fixes in a single batch:
+
+```bash
+git commit -m "fix: address AI code review feedback
+
+Issues fixed:
+- [Issue 1 description]
+- [Issue 2 description]
+
+Nitpicks addressed:
+- [Summary of minor fixes]
+
+Deferred:
+- [Issue X]: [Brief reason — detailed in PR comment]"
+
+git push origin {branch-name}
 ```
 
-**For Nitpicks:**
+### 3) Post Replies and Resolve
 
-- No reply needed
-- Silently included in batch commit
-- Resolve conversation immediately after commit is pushed
+1. Get commit hash: `git log -1 --format=%h`
+2. Replace `[commit-hash]` placeholders in drafted replies
+3. Post replies to substantive findings (fixes, deferrals, rejections)
+4. Resolve conversations: fixes after posting reply, nitpicks immediately, deferrals left open
+   for acknowledgment
 
-#### 6. Final Resolution
+**Reply guidelines:**
 
-After all fixes committed and replies posted:
-
-1. **Verify commits are in PR** - Check GitHub shows your fixes
-2. **Resolve conversations** - Mark conversations as resolved:
-   - Issues with fixes: After posting reply with commit hash
-   - Nitpicks: Immediately (no reply needed)
-   - Deferrals: Leave open for agent/team to acknowledge
-3. **Wait for re-review** - Agent may respond to deferrals
-4. **Delete temp file** - `rm .arc/active/{category}/temp-agent-reply.md` (optional - file is gitignored)
+- Be concise — agents are AI, skip politeness padding
+- Be specific — reference line numbers, commit hashes, config values
+- Provide context — link to PRDs, documented deferrals, related issues
 
 ---
 
 ## Common Patterns
 
-### Pattern 1: Code Scheduled for Deletion (Defer)
+### Scheduled for Deletion (Defer)
 
-**Comment**: "Fix validation in this serializer"
+**Finding**: "Fix validation in this serializer"
+**Response**: Decline — code scheduled for removal in [Phase/Task]. Fixing adds churn to
+short-lived code. Current functionality works correctly.
 
-**Classification**: Issue (requires defer explanation)
+### Documentation Inconsistency (Fix)
 
-**Response** (PR Mode only):
+**Finding**: "PRD has conflicting statements about scope"
+**Action**: Fix immediately. Reply with what was corrected and commit hash.
 
-```markdown
-Valid concern, but declining to fix. This code is scheduled for
-complete removal in [Phase/Task] (documented deferral in
-[prd-name].md). Fixing would add churn to code with limited lifespan.
+### Minor Quality (Silent Fix)
 
-Current functionality works correctly. Will be replaced with
-[new implementation] during [migration/refactor].
-```
-
-### Pattern 2: Documentation Inconsistency (Fix)
-
-**Comment/Finding**: "PRD has conflicting statements about scope"
-
-**Classification**: Issue (substantive fix)
-
-**Action**: Fix immediately
-
-**Response** (PR Mode only):
-
-```markdown
-Good catch! Fixed Non-Goals section to clarify [specific item] is
-in-scope as an exception to the general rule.
-
-Fixed in commit [hash].
-```
-
-### Pattern 3: Test Quality Improvement (Fix)
-
-**Comment/Finding**: "Test should assert X instead of just Y"
-
-**Classification**: Issue (adds context)
-
-**Action**: Fix immediately
-
-**Response** (PR Mode only):
-
-```markdown
-Valid improvement. Added assertion for X to verify [behavior].
-
-Fixed in commit [hash].
-```
-
-### Pattern 4: Typo in Comment (Nitpick)
-
-**Comment/Finding**: "Typo: 'recieve' should be 'receive'"
-
-**Classification**: Nitpick (silent fix)
-
-**Action**: Fix silently, include in batch commit
-
-**Response** (PR Mode): No reply, resolve conversation immediately
-
-### Pattern 5: Configuration/Template Mismatch (Fix with context)
-
-**Comment/Finding**: "Template says X but config says Y"
-
-**Classification**: Issue (needs explanation)
-
-**Action**: Fix immediately
-
-**Response** (PR Mode only):
-
-```markdown
-Template is correct - it matches **production** config. Test config
-uses different value for [reason]. Added comment to clarify the
-intentional difference.
-
-Fixed in commit [hash].
-```
+**Finding**: "Typo: 'recieve' should be 'receive'"
+**Action**: Fix silently, include in batch commit, resolve conversation without reply.
 
 ---
 
-## Tips
+## Tool-Specific Notes
 
-### Two-Pass Strategy Benefits
+### CodeRabbit
 
-**Local Mode (Pass 1):**
+- **Local review**: `coderabbit` (or `cr`). Use `--plain` for detailed output, `--prompt-only` for
+  agent-optimized output. `--base {branch}` to specify comparison branch.
+- **Classification**: Uses "Issue" (substantive, needs reply) and "Nitpick" (minor, silent fix)
+- **PR behavior**: Replying to comments triggers automatic agent response — process sequentially
+  to avoid duplicates
+- **Temp file for replies**: Draft in `.arc/active/{category}/temp-agent-reply.md` (gitignored),
+  copy to GitHub comment. Write as single continuous lines — GitHub wraps automatically, hard
+  breaks create awkward formatting.
 
-- Catches majority of issues before PR creation
-- Cleaner initial PR for human reviewers
-- Faster iteration (no PR overhead)
-- No reply overhead
-
-**PR Mode (Pass 2):**
-
-- Catches context-specific issues from actual diff view
-- Catches issues that emerge from integration concerns
-- Lower volume of findings (most caught in Pass 1)
-- More focused review conversation
-
-**Combined Result:**
-
-- Higher quality code merged to main
-- Less PR review noise and back-and-forth
-- Better use of agent capabilities (two perspectives)
-- Cleaner git history
-
-### Agent-Specific Adaptations
-
-**CodeRabbit**:
-
-- Local: Use `coderabbit review local` CLI command
-- PR: Replying to in-repo comments triggers automatic response
-- Use sequential processing to avoid duplicate agent reviews
-- Agent understands technical context well
-
-**GitHub Copilot Reviews**:
+### GitHub Copilot Reviews
 
 - May require more explicit context in replies
-- Adjust tone/detail as needed
+- Adjust classification mapping to Copilot's severity levels
 
-**Other Agents**:
+### Other Tools
 
-- Adapt to agent's local review capabilities
-- Maintain core workflow (evaluate → fix → commit)
+- Adapt local review command and classification terminology
+- Core workflow (evaluate → fix → batch commit → reply) applies regardless of tool
 
-### Formatting Issues (Windows, PR Mode)
+---
 
-**Problem**: Copy/paste from terminal loses markdown formatting
+## Illustrative Metrics
 
-**Solutions**:
+The following are illustrative estimates, not measured benchmarks. Actual results vary by project
+complexity, review tool, and codebase.
 
-1. **Use temp file** (recommended): AI creates `temp-agent-reply.md` next to task list, copy from VS Code
-2. **Type directly**: GitHub's comment box supports markdown
-3. **Use clipboard manager**: ClipClip/Ditto (may add extra whitespace)
+| Scenario                    | Local Findings | PR Findings | Estimated Reduction |
+|-----------------------------|----------------|-------------|---------------------|
+| Without local review        | N/A            | ~15         | N/A                 |
+| With local review (Pass 1)  | ~15            | ~3          | ~80%                |
 
-### Batching Strategy Guidance
-
-**Single commit is ideal** because:
-
-- Minimizes automated review triggers (e.g., CodeRabbit re-review)
-- Cleaner commit history for PR review
-- Easier to reference in replies (one hash) - PR Mode only
-- Reduces CI/CD pipeline runs
-
-**Split commits ONLY when**:
-
-- Critical bug fix needs immediate visibility separate from minor improvements
-- Backend and frontend changes are substantial enough to review separately
-- Changes have fundamentally different scope/impact that justifies semantic separation
-
-**Never split**:
-
-- Just to separate "types" of fixes (typos vs. refactoring) if they're all minor
-- To match the number of agent comments (batching is the goal)
-- For convenience (adds overhead, triggers more reviews)
-
-### Reply Tone (PR Mode)
-
-- **Be concise** - Agents are AI, don't need politeness padding
-- **Be specific** - Reference line numbers, commit hashes, config values
-- **Provide context** - Link to PRDs, documented deferrals, related issues
-- **Use markdown** - Bold key points, use code blocks for references
+**Expected pattern:** Local review catches the majority of issues. PR review catches
+context-specific issues that only emerge from the actual diff. Time investment is roughly neutral
+(local review time offset by reduced PR review complexity).
 
 ---
 
 ## Anti-Patterns
 
-❌ **Don't**:
-
-- **Skip local review** - Pass 1 catches majority of issues, don't skip it
-- Reply to comments immediately (PR Mode - triggers duplicate agent reviews)
-- Rush to fix everything without evaluating context
-- Make changes to code scheduled for deletion
-- Ignore legitimate bugs just because code is temporary
-- Resolve conversations before committing fixes (PR Mode)
-- Copy/paste replies directly from terminal (PR Mode - formatting breaks)
-- Create multiple commits unnecessarily (triggers more reviews)
-- Reply to nitpicks (PR Mode - clutters PR conversation)
-
-✅ **Do**:
-
-- **Run local review first** - Always do Pass 1 before creating PR
-- Evaluate findings/comments against project standards
-- Reference documented strategic deferrals
-- Fix legitimate issues even in temporary code if they affect current functionality
-- Batch all fixes into one commit (or minimal commits)
-- Commit first, then reply with commit reference (PR Mode)
-- Use temp files for formatted replies (PR Mode)
-- Distinguish issues (need reply in PR Mode) from nitpicks (silent fix)
-- Include commit hashes in replies for accuracy (PR Mode)
-
----
-
-## Example Sessions
-
-### Example 1: Local Mode (Pre-PR)
-
-**Agent (CodeRabbit) local review with 15 findings:**
-
-1. ✅ **PRD scope inconsistency** → Fix (updated Non-Goals)
-2. ✅ **Typo in docstring** → Fix silently
-3. ⏸️ **Email service stub returns** → Defer (DRF code scheduled for deletion)
-4. ✅ **Test clarity** → Fix (renamed test, added docstring)
-5. ✅ **Import ordering** → Fix silently
-6. ✅ **Template comment needed** → Fix (added clarification comment)
-7. ✅ **Type annotation missing** → Fix
-8. ✅ **Unused import** → Fix silently
-9. ⏸️ **Complex function refactor** → Defer (out of scope)
-10. ✅ **Missing test case** → Fix (added edge case test)
-11. ✅ **Variable naming** → Fix
-12. ❌ **Use Any instead of object** → Reject (conflicts with project standards)
-13. ✅ **Missing docstring** → Fix
-14. ✅ **Hardcoded value** → Fix (extract to config)
-15. ✅ **Formatting inconsistency** → Fix silently
-
-**Workflow:**
-
-1. Process all 15 findings, make fixes locally (11 fixes, 2 defers, 2 rejects)
-2. Commit all fixes in **one batch commit**: `fix: Address local agent review findings`
-3. Create PR with cleaner code
-4. Agent runs PR review (Pass 2) - finds 3 additional issues (80% reduction)
-
-**Result**: 1 commit before PR, 11 fixes applied, 2 deferred (documented), 2 rejected (noted)
-
-**Time**: ~45 minutes (review + fixes + commit)
-
-### Example 2: PR Mode (Post-PR)
-
-**Agent (CodeRabbit) PR review with 3 comments** (after local review):
-
-1. ✅ **Test assertion could be stronger** → Issue: Fixed (added assertion) - reply with context
-2. 🔧 **Minor wording improvement** → Nitpick: Fixed silently - no reply
-3. ⏸️ **Consider extracting helper** → Issue: Deferred (nice-to-have, not critical) - reply with deferral
-
-**Workflow:**
-
-1. Process all 3 comments sequentially, make all fixes locally
-2. Commit all fixes in **one batch commit**: `fix: Address AI code review feedback`
-3. Push to PR (triggers one agent re-review, not three)
-4. Generate 2 replies for issues (items 1, 3) with accurate commit hash
-5. Resolve nitpick immediately (item 2) without reply
-6. Leave deferral (item 3) open for agent acknowledgment
-
-**Result**: 1 commit, 2 replies, 1 silent fix, 1 deferred
-
-**Time**: ~15 minutes (review + fixes + replies)
-
-**Total Time (Both Passes)**: ~60 minutes for comprehensive two-pass review
-
----
-
-## Metrics & Outcomes
-
-**Historical Data (example):**
-
-| Branch                       | Local Review Findings | PR Review Findings | Reduction | Time Saved |
-|------------------------------|-----------------------|--------------------|-----------|------------|
-| Feature A (no local review)  | N/A                   | 5                  | N/A       | N/A        |
-| Feature B (with local)       | 15 (estimated)        | 3 (estimated)      | 80%       | ~30 min    |
-
-**Expected Pattern:**
-
-- Local Mode catches: 80-90% of total issues
-- PR Mode catches: 10-20% of total issues (context-specific)
-- Time investment: Local +30 min, PR -30 min = net neutral with better outcomes
-
----
-
----
-
-**Workflow Version**: v3.2 (draft-as-you-go replies, tool-based classification)
-
-**Last Updated**: 2025-12-25
-
-**Changelog**:
-
-- v3.2: Clarified Issue/Nitpick classification comes from tool (not subjective assessment),
-  updated to draft replies immediately during fix collection with placeholder hash (captures context while fresh)
-- v3.1: Added stacked branch guidance - review process applies to all merges (main or
-  parent branch), updated PR creation examples to show base branch specification
-- v3.0: Introduced two-pass strategy with local + PR modes
-- Previous versions: Initial workflow documentation
+- ❌ Skip local review — Pass 1 catches the majority of issues
+- ❌ Reply before committing (PR Mode) — commit first, reply with hash
+- ❌ Multiple small commits for review fixes — batch to minimize re-review triggers
+- ❌ Reply to nitpicks — clutters PR conversation; silent fix and resolve
+- ❌ Rush fixes without evaluating context — check for documented deferrals first
+- ❌ Fix code scheduled for deletion — defer unless it affects current functionality

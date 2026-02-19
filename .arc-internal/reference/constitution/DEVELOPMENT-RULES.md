@@ -8,20 +8,62 @@ by all contributors, including AI assistants.
 **For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 **For session initialization protocol**, see [session-init.md](../workflows/supplemental/session-init.md).
 
-## Manual Commit Control
+## Commit Standards
+
+### Commit Control
 
 - **AI NEVER initiates commits** without explicit user approval or instruction
 - **AI CAN execute commits** when user explicitly approves/instructs it
 - **User approval required** for all git operations
-- **NEVER use `--no-verify`** to bypass commit hooks - hooks exist to catch errors
-- **Careful with file reverts**: Before running `git checkout -- <file>` or similar destructive operations,
-  check `git diff <file>` to understand ALL uncommitted changes. Your changes may not be the only ones in
-  that file - other tasks may have added uncommitted work that will be lost
-- **MANDATORY:** Comprehensive task context analysis before any commit consideration (see atomic-commit workflow)
-- **Task list accuracy required**: Before commit consideration, verify task documentation reflects completed work
-  (parent task marked `[x]` if all subtasks complete)
-- **Never commit stale task docs**: Task list updates must be saved and included in commits for completed work
+- **NEVER use `--no-verify`** to bypass commit hooks — hooks exist to catch errors
+- **Careful with file reverts**: Before `git checkout -- <file>`, check `git diff <file>` — other
+  tasks may have uncommitted work in the same file
+- **Task list accuracy**: Before committing, verify task documentation reflects completed work
+  (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit
 - AI reports completion, then awaits commit instructions
+
+**For complex commits** (multi-session accumulated work, interleaved concerns), see
+[Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md).
+
+### Commit Message Format
+
+```text
+<type>(scope): Brief description (50-72 chars, imperative mood)
+
+- Key change or rationale (1-2 lines per bullet)
+- Impact if significant
+
+Context: [task-reference or category]
+```
+
+**Types:** `feat` `fix` `docs` `content` `style` `refactor` `test` `chore` `perf` `build` `ci` `config` `revert`
+
+**Scope:** Lowercase functional area (e.g., `auth`, `api`, `tests`, `config`, `arc`, `deps`).
+
+**Body:** 10-15 lines max (20-25 for milestones). Focus on WHY and IMPACT, not what changed.
+
+**Context footer (required on every commit):**
+
+With task list:
+
+- `Context: tasks-[filename].md (Task X.Y)` — single task
+- `Context: tasks-[filename].md (Tasks X.Y-X.Z)` — range
+- `Context: tasks-[filename].md (Tasks X.Y, A.B)` — non-contiguous
+- `Context: tasks-[filename].md (Tasks X.Y; planning)` — task completion + extra task list work
+- `Context: tasks-[filename].md (incidental - discovered during Task X.Y)` — incidental fix
+- `Context: tasks-[filename].md (planning)` — task list metadata only
+
+Without task list:
+
+- `Context: [category] (no associated task list)` — emergent work
+- `Context: [category] (atomic / no associated task list)` — small one-off work
+
+Categories: `planning`, `documentation`, `maintenance`, `refactor`.
+
+**Atomicity:** One logical change per commit. When multiple tasks completed between commits, separate
+code changes by task; commit shared documentation (task list updates) last.
+
+**Enforcement:** Git hooks validate format automatically. See `.arc/reference/githooks/README.md` for setup.
 
 ### Quality Gates (Zero Tolerance)
 
@@ -43,12 +85,12 @@ For specific commands, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 
 ### Quality Gate Failure Protocol
 
-If quality gates fail after sub-task completion:
+If quality gates fail after task completion:
 
 1. **Report the failure** with specific details
 2. **Identify suspected causes** and investigation areas
 3. **Ask for guidance** on whether to fix immediately or defer
-4. **Never proceed** to next sub-task until resolved or user approves
+4. **Never proceed** to next task until resolved or user approves
 
 ### Leave It Cleaner: Pre-existing Issue Protocol
 
@@ -149,7 +191,8 @@ managed by the user.
 
 **Ideal end-of-session workflow:**
 
-1. Use atomic-commit workflow to commit all **complete** work
+1. Commit all **complete** work (see [Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md)
+   for complex scenarios)
 2. Leave any **partial** work uncommitted
 3. Perform session handoff documenting partial work state
 
@@ -190,17 +233,20 @@ when specific patterns/commands are needed. Active verification beats passive re
 
 ## Task Management Protocol
 
-### One Sub-Task Rule
+### One Task at a Time
 
-- **Complete ONE sub-task at a time** - never bundle multiple deliverables
+Each checkbox in the task list is one work unit — whether it's a standalone task or a subtask under
+a parent. The checkpoint is always at the checkbox level.
+
+- **Complete ONE task at a time** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (tests pass, quality checks pass)
 - **Mandatory stop** after reporting completion for user approval to proceed
 - **Implied permission**: User approval implies permission to proceed UNLESS explicitly stated otherwise
-  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to next subtask.
+  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to the next task.
 
-### Sub-Task Granularity Guidelines
+### Task Granularity Guidelines
 
-Break down a sub-task if it requires:
+Break down a task into subtasks if it requires:
 
 - More than 3 files to be modified
 - More than 50 lines of core logic changes
@@ -214,7 +260,7 @@ code-based projects.
 
 **General Protocol (for code-based projects):**
 
-**BEFORE implementing any sub-task, assess test-first requirement:**
+**BEFORE implementing any task, assess test-first requirement:**
 
 **Requires test-first** (write tests BEFORE implementation):
 
@@ -235,7 +281,7 @@ code-based projects.
 **If unsure whether test-first applies, default to test-first.** Writing tests after implementation is harder and
 less effective.
 
-**During task list creation:** Ensure test sub-tasks appear BEFORE implementation sub-tasks for test-first work.
+**During task list creation:** Ensure test tasks appear BEFORE implementation tasks for test-first work.
 This makes the protocol visible during execution.
 
 ## Testing Requirements
@@ -313,6 +359,10 @@ Separate concerns, prefer composition over duplication, favor readability when p
   are searchable and provide clear context about which work the task belongs to.
   Examples: "Task 8.3 - `tasks-oauth-migration.md`", "Phase 3 - `tasks-service-layer.md`"
 
+- **Collaborative voice in documentation**: Commits, task lists, and project docs should read
+  naturally from an author or team perspective. Avoid third-person references to collaborators;
+  write as the work's author would.
+
 ## Architecture Documentation
 
 ### Architecture Decision Records (ADRs)
@@ -345,6 +395,7 @@ This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
 - [Task Processing Workflow](../../.arc/reference/workflows/3_process-task-loop.md) - Detailed task execution workflow
-- [Atomic Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md) - Enhanced commit workflow
+- [Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md) - Complex commit scenarios,
+  atomicity analysis
 - [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI
 - [ADR Methodology Strategy](../../.arc/reference/strategies/arc/strategy-adr-methodology.md) - ADR guidance

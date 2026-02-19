@@ -2,7 +2,7 @@
 
 ## Session Startup Protocol (AI: Execute First)
 
-**⚠️ IMPORTANT**: Execute the complete session initialization workflow before reading work context below.
+**IMPORTANT**: Execute the complete session initialization workflow before reading work context below.
 
 See: `.arc/reference/workflows/supplemental/session-init.md`
 
@@ -10,68 +10,43 @@ See: `.arc/reference/workflows/supplemental/session-init.md`
 
 ## Session Information
 
-**Branch**: {{FEATURE_BRANCH_PREFIX}}/{{FEATURE_NAME}}
-
-**Feature Documents**:
-
-- Main PRD: `.arc/active/feature/prd-{{FEATURE_NAME}}.md`
-- Main Task List: `.arc/active/feature/tasks-{{FEATURE_NAME}}.md`
-- Additional documents as needed
-
-**Work Type**: [structured feature | technical improvement | incidental]
-
-**Last Completed**: [task id or commit reference]
-
-**Next Action**: [task id or next step]
+**Branch**: `{{branch-prefix}}/{{work-name}}`
+**Task List**: `.arc/active/{{category}}/tasks-{{work-name}}.md`
+<!-- OR: [none associated] — for planning, boundary work, or sessions between task lists -->
+**Following Task List**: Yes
+<!-- OR: No - [brief context, e.g., "fixing connection timeout (will return to Task 4.5)"] -->
+**Current Task**: Task X.Y (line NNN) - Brief description
+<!-- REQUIRED when following task list — enables direct jump during session init -->
+<!-- Omit only if no task list or transitioning between task lists -->
+**Last Completed**: Task X.Z - Brief description
+<!-- OR for off-task-list: brief description of what was completed -->
+<!-- OR if work complete: "{{Work Name}} (Tasks 1-N, archived)" -->
+**Next Action**: Start Task X.Y - Brief description
+<!-- Can be preparatory work (strategy review, source reading) even when Current Task shows task number -->
 
 ---
 
 ## Session Context & Status
 
-### Current Work Summary
-
-[Brief description of current phase/milestone]
-
 ### Completed This Session
 
-[List major accomplishments]
+<!-- When documenting UNCOMMITTED work, use commit-level granularity so the next session -->
+<!-- can recreate proper atomic commits from git diff: map accomplishments to logical -->
+<!-- commits, include task numbers, note incidental work separately. -->
 
-### In Progress
+<!-- For committed work: simple list with commit hashes is sufficient. -->
 
-[Current focus areas]
+### Blockers
 
----
+[none]
+<!-- OR: describe blockers, pending decisions, waiting on user clarification -->
 
-## Blockers
+### Additional Context for Next Session
 
-**[None | List any blockers]**
-
-- [Blocker description with context]
-
----
-
-## Outstanding Questions
-
-**[None | List questions needing resolution]**
-
-- [Question with relevant context]
+<!-- Supplemental information not in the task list: debugging insights, -->
+<!-- decisions made, things tried and ruled out, constraints discovered. -->
+<!-- OR: [none] — if the task list has all needed context. -->
 
 ---
 
-## Notes for Next Session
-
-### Key Context for Resumption
-
-[Important context needed when resuming work]
-
-### Recent Insights
-
-[Lessons learned or important discoveries]
-
-### Next Steps
-
-[Clear action items for next session]
-
----
-
-**Last Updated**: {{YYYY-MM-DD}} ([brief update description])
+**Last Updated**: {{YYYY-MM-DD}} (brief update description)

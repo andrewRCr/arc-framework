@@ -1,219 +1,148 @@
 # Quick Reference - {{PROJECT_NAME}}
 
-**Version**: 1.1 | **Updated**: {{YYYY-MM-DD}}
-
 Command patterns and environment context for {{PROJECT_NAME}}.
 
 ## Environment & Path Context
 
 **Repository Root**: `{{REPO_ROOT}}`
-**All commands in this document assume you are at repository root unless otherwise specified.**
+**All commands in this document assume you are at repository root.**
 
 ### Critical Path Reference
 
-| Resource       | Location from Repo Root      | Why It Matters                      |
-|----------------|------------------------------|-------------------------------------|
-| Docker Compose | `{{DOCKER_COMPOSE_PATH}}`    | Required for all Docker operations  |
-| Backend venv   | `{{BACKEND_VENV_PATH}}/bin/` | Host tools (linters, type checkers) |
-| Backend code   | `{{BACKEND_CODE_PATH}}`      | Type checking, linting targets      |
-| Frontend code  | `{{FRONTEND_CODE_PATH}}`     | Frontend operations                 |
-| .arc docs      | `.arc/`                      | Documentation                       |
+<!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
 
-**Working Directory Note**: Your actual working directory may vary (subdirectories or root). CURRENT-SESSION.md
-contains context-specific paths adjusted for your current location.
+| Resource          | Location from Repo Root     | Why It Matters                     |
+|-------------------|-----------------------------|------------------------------------|
+| {{Resource name}} | `{{path}}`                  | {{brief explanation}}              |
+| {{Resource name}} | `{{path}}`                  | {{brief explanation}}              |
+| .arc docs         | `.arc/`                     | Development documentation          |
 
-### Network Architecture & Ports
+**Working Directory Note**: Your working directory may vary. Check CURRENT-SESSION.md for
+current context and adjusted paths.
 
-**Container Network** (if using Docker):
+### Runtime Environment
 
-```
-Browser → Proxy ({{PROXY_PORT}}) → Backend ({{BACKEND_PORT}}) {{BACKEND_PROTOCOL}}
-                                  → Frontend ({{FRONTEND_PORT}}) {{FRONTEND_PROTOCOL}}
-```
+<!-- Describe what's needed to run the project. Examples: -->
+<!-- "Docker Compose must be running (3 containers: api, web, db)" -->
+<!-- "Python 3.12+ with venv at backend/.venv/" -->
+<!-- "Node.js 20+ with dependencies installed via npm" -->
+<!-- "Documentation-only — no runtime services needed" -->
 
-**Direct Access Ports** (example tech stack):
+{{Runtime description}}
 
-- **Backend API**: `{{BACKEND_PROTOCOL}}://localhost:{{BACKEND_PORT}}` (example: direct HTTPS access)
-- **Frontend Dev Server**: `{{FRONTEND_PROTOCOL}}://localhost:{{FRONTEND_PORT}}` (example: Vite dev server)
-- **Proxy**: `{{PROXY_PROTOCOL}}://localhost:{{PROXY_PORT}}` (example: unified entry point)
+**Quality Tools**:
 
-**For Testing/Development:**
-
-- **API Testing**: Use `{{BACKEND_PROTOCOL}}://localhost:{{BACKEND_PORT}}` with appropriate flags
-- **Browser Testing**: Use proxy if available for production-like routing
-- **Frontend Development**: Use direct frontend port for hot reload
-
-**Important Notes** (adjust for your stack):
-
-- Backend protocol and certificate setup
-- Frontend environment variables and API base URL configuration
-- Internal services that don't need exposed ports
+- {{Primary linter/formatter}}: `{{command}}`
+- {{Type checker (if applicable)}}: `{{command}}`
+- {{Test runner}}: `{{command}}`
 
 ---
 
 ## Command Patterns
 
-All commands shown from **repository root**. If you're in a subdirectory, adjust paths accordingly
-(see CURRENT-SESSION.md for your context).
+All commands from **repository root**.
 
-### Type Checking (Backend - Python example)
+<!-- Document the commands your agents will run most often. Group by concern -->
+<!-- (linting, testing, type checking, building) rather than by technology. -->
+<!-- Include both "check" and "fix" variants where applicable. -->
 
-```bash
-# Fast: Via npx (if using Pyright)
-npx pyright {{BACKEND_CODE_PATH}} --project {{BACKEND_PROJECT_ROOT}}
-
-# Comprehensive: Custom script
-{{BACKEND_VENV_PATH}}/bin/python {{BACKEND_CODE_PATH}}/scripts/type_check.py
-```
-
-### Linting (Backend - Python example)
-
-```bash
-# Host venv (FAST with auto-fix) - Recommended for development
-{{BACKEND_VENV_PATH}}/bin/{{BACKEND_LINTER}} check {{BACKEND_CODE_PATH}} --fix
-
-# Docker (consistent across environments)
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{BACKEND_LINTER}} check {{BACKEND_CODE_IN_CONTAINER}} --fix
-
-# Note: From inside backend/ directory, adjust paths as needed
-```
-
-### Testing (Backend - example requiring Docker)
-
-**CRITICAL: Adjust based on your test requirements** (database, services, etc.)
-
-**Test Runner**: {{TEST_RUNNER}} (e.g., pytest, jest, etc.)
-
-```bash
-# Run all tests (standard)
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} {{TEST_PATH}}
-
-# Parallel execution (if supported)
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} -n auto {{TEST_PATH}}
-
-# With coverage
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} --cov={{COVERAGE_PATH}} --cov-report=term-missing {{TEST_PATH}}
-
-# IMPORTANT: Coverage path format depends on your test runner
-# Check documentation for module vs file path requirements
-```
-
-### Linting (Frontend - example)
-
-```bash
-# Via Docker
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run lint
-
-# With auto-fix
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run lint -- --fix
-```
-
-### Type Checking (Frontend - TypeScript example)
-
-```bash
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run type-check
-```
-
-### Markdown Linting
-
-**⚠️ Run from repo root** - Config file must be discoverable
+### Linting
 
 ```bash
 # Check all files
-npx markdownlint-cli2 "README.md" ".arc/**/*.md"
+{{lint_command_all}}
 
-# Auto-fix all files
-npx markdownlint-cli2 --fix "README.md" ".arc/**/*.md"
+# Check specific file
+{{lint_command_single}}
 
-# Check single file only (bypass config globs)
-npx markdownlint-cli2 --no-globs "path/to/file.md"
-
-# Auto-fix single file only
-npx markdownlint-cli2 --fix --no-globs "path/to/file.md"
+# Auto-fix
+{{lint_fix_command}}
 ```
 
-**Important:**
+<!-- Add additional linting commands if your project has multiple linters -->
+<!-- (e.g., separate backend and frontend linters, markdown linting alongside code linting) -->
 
-- Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
-- Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
-- VS Code extension may use separate config file
+### Type Checking
+
+<!-- Omit this section if your project doesn't use static type checking -->
+
+```bash
+# Full project
+{{type_check_command_all}}
+
+# Specific file or directory
+{{type_check_command_targeted}}
+```
+
+### Testing
+
+```bash
+# Run all tests
+{{test_command_all}}
+
+# Run specific test file
+{{test_command_single}}
+
+# With coverage
+{{test_command_coverage}}
+```
+
+<!-- If tests require services (database, containers), note that here -->
+
+### Markdown Linting
+
+<!-- Keep this section if your project uses ARC documentation with markdown linting -->
+
+```bash
+# Check all documentation
+npx --yes markdownlint-cli2 "**/*.md"
+
+# Check specific file (bypass config globs)
+npx --yes markdownlint-cli2 --no-globs "path/to/file.md"
+
+# Auto-fix specific file
+npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md"
+```
 
 ---
 
 ## Quality Gate Commands
 
-Reference for DEVELOPMENT-RULES quality gates. Run these before any commit.
+Reference commands for DEVELOPMENT-RULES quality gates. See
+[Quality Gates Strategy](strategies/arc/strategy-quality-gates.md) for the tiered approach
+(when to run which level of checks).
+
+### Incremental — Tier 1 (per-task)
+
+<!-- Targeted commands for modified files only. Run after completing each task. -->
 
 ```bash
-# 1. Backend Tests
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} {{TEST_PATH}}
+# Lint specific file
+{{lint_command_single}}
 
-# 2. Frontend Tests
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm test
+# Type check specific file
+{{type_check_command_targeted}}
 
-# 3. Backend Linting (with auto-fix)
-{{BACKEND_VENV_PATH}}/bin/{{BACKEND_LINTER}} check {{BACKEND_CODE_PATH}} --fix
-
-# 4. Frontend Linting
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run lint
-
-# 5. TypeScript Type Checking
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} npm run type-check
-
-# 6. Backend Type Safety
-npx pyright {{BACKEND_CODE_PATH}} --project {{BACKEND_PROJECT_ROOT}}
-
-# 7. Markdown Linting (with auto-fix)
-npx markdownlint-cli2 --fix "README.md" ".arc/**/*.md"
+# Run specific test
+{{test_command_single}}
 ```
 
----
+### Full Suite — Tier 3 (per-phase / pre-PR)
 
-## Docker Operations
-
-```bash
-# Check container status
-docker ps | grep {{PROJECT_CONTAINER_PREFIX}}
-
-# View logs
-docker compose -f {{DOCKER_COMPOSE_PATH}} logs {{BACKEND_CONTAINER}}
-docker compose -f {{DOCKER_COMPOSE_PATH}} logs {{FRONTEND_CONTAINER}}
-
-# Follow logs (real-time)
-docker compose -f {{DOCKER_COMPOSE_PATH}} logs -f {{BACKEND_CONTAINER}}
-
-# Shell access
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} bash
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{FRONTEND_CONTAINER}} sh
-
-# Rebuild after dependency changes
-docker compose -f {{DOCKER_COMPOSE_PATH}} up --build
-
-# Start services
-docker compose -f {{DOCKER_COMPOSE_PATH}} up -d
-
-# Stop services
-docker compose -f {{DOCKER_COMPOSE_PATH}} down
-```
-
----
-
-## Common Patterns
-
-### Incremental Quality Checks (After Sub-Task)
+<!-- All checks at full project scope. Run after completing a phase or before creating a PR. -->
 
 ```bash
-# Type check specific files
-npx pyright {{BACKEND_CODE_PATH}}/path/to/file.py --project {{BACKEND_PROJECT_ROOT}}
+# 1. {{Quality gate name}}
+{{command}}
 
-# Lint and fix specific files
-{{BACKEND_VENV_PATH}}/bin/{{BACKEND_LINTER}} check {{BACKEND_CODE_PATH}}/path/to/file.py --fix
+# 2. {{Quality gate name}}
+{{command}}
 
-# Run specific test file
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} {{TEST_PATH}}/path/to/test_file.py -v
+# 3. Markdown Linting
+npx --yes markdownlint-cli2 "**/*.md"
 
-# Coverage for specific modules (check test runner documentation for path format)
-docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNNER}} --cov={{MODULE_PATH}} --cov-report=term-missing {{TEST_PATH}}
+# 4. Git Status Check
+git status
 ```
 
 ---
@@ -223,36 +152,26 @@ docker compose -f {{DOCKER_COMPOSE_PATH}} exec {{BACKEND_CONTAINER}} {{TEST_RUNN
 ### Path Confusion
 
 ❌ Assuming you're at repo root without checking
-❌ Using `cd` commands unnecessarily
-❌ Forgetting `-f {{DOCKER_COMPOSE_PATH}}` for Docker Compose
+❌ Mixing repo-root and subdirectory paths in commands
 
 ✅ Check `pwd` first
 ✅ Use absolute paths or correct relative paths
-✅ Always use `-f` flag with explicit path for Docker Compose
-
-### Docker Assumptions
-
-❌ "Docker isn't running" without verifying
-❌ Running tests from host (if services are required)
-❌ Assuming containers are up without checking
-❌ Using wrong ports
-
-✅ Verify: `docker ps | grep {{PROJECT_CONTAINER_PREFIX}}` (expect {{EXPECTED_CONTAINER_COUNT}} containers)
-✅ Use Docker when services are required
-✅ Check container status before operations
-✅ Use correct ports per Network Architecture section
+✅ Reference CURRENT-SESSION.md for working directory context
 
 ### Command Construction
 
 ❌ Using commands from DEVELOPMENT-RULES without checking paths
-❌ Mixing repo-root and subdirectory paths
-❌ Assuming tools are in PATH vs. venv
+❌ Assuming tools are globally available vs. project-local
 
-✅ Use commands from QUICK-REFERENCE (paths correct for repo root)
-✅ Adjust paths based on your working directory (see CURRENT-SESSION.md)
-✅ Use explicit paths for venv tools: `{{BACKEND_VENV_PATH}}/bin/[tool]`
+✅ Use commands from this file (paths correct for repo root)
+✅ Check Runtime Environment section for tool locations
+
+<!-- Add project-specific anti-patterns as you discover them. Examples: -->
+<!-- "Running tests without the database container" -->
+<!-- "Forgetting to activate the virtual environment" -->
+<!-- "Using wrong port for API testing" -->
 
 ---
 
-**Version Note**: Commands assume repo root. If working from subdirectory, see CURRENT-SESSION.md
-"Session Startup Protocol" for adjusted paths.
+**Commands assume repo root.** If working from a subdirectory, see CURRENT-SESSION.md
+for adjusted paths.

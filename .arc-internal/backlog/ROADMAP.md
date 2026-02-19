@@ -3,68 +3,92 @@
 **Purpose:** Internal planning artifact documenting sequencing strategy for framework development.
 Subject to change as we learn.
 
-**Last Updated:** 2025-12-26
+**Last Updated:** 2026-02-17
 
 ---
 
 ## Current Sequencing Strategy
 
-### Phase A: CineXplorer Sync Completion (Current)
+### Phase A: Framework Maturation ✅ Complete
 
-Complete the 2+ month sync from CineXplorer refinements.
+Battle-test the framework through real project usage and sync refinements back.
 
-1. ✅ **Infrastructure Sync** - Complete (2025-12-26)
-   - .githooks, .claude infrastructure
-   - Directory structure alignment
+1. ✅ **CineXplorer Integration** — Original battle-testing project
+2. ✅ **CineXplorer Sync** (December 2025) — Infrastructure, workflows, agents, constitution
+3. ✅ **arc-portfolio Dual-Maintenance** (February 2026) — Quality gates, letter numbering,
+   commit tooling, workflow refinements
 
-2. ✅ **Workflow Sync** - Complete (2025-12-26)
-   - Core workflows (0-3) with underscore naming
-   - Supplemental workflows
+### Phase B: Distribution Preparation (Current)
 
-3. ✅ **Agent Files Sync** - Complete (2025-12-26)
-   - ai-instructions → agent rename
-   - De-instanced from CineXplorer
+Prepare the framework for public distribution via package manager.
 
-4. ✅ **Constitution Sync** - Complete (2025-12-26)
-   - TECHNICAL-ARCHITECTURE → TECHNICAL-OVERVIEW
-   - Strategy documents
+1. **Distribution system design** ✅ — Plan captured in
+   `feature/plan-distribution-and-update-system.md`
+   - Pristine copy + three-way merge approach
+   - Interactive init with conditional content, presets, and agent selection
+   - Agent-driven consistency audit for cross-cutting concept management
+   - npm package delivery model
 
-5. 🔄 **Structural Alignment** - In Progress
-   - Phase 7a: upcoming → backlog, ATOMIC-TASKS, archive structure
-   - Phase 7b: Workflow generalization (remove CineXplorer-specific content)
+2. **General refinement pass** ✅ Complete (February 2026) — Content quality across `.arc/` docs
+   - 6 phases, 62 files, ~3,900 lines net removed
+   - Archive: `.arc-internal/reference/archive/2026-q1/technical/`
 
-6. ⏳ **Validation**
-   - Phase 8: Review old tasks-enhance-docs-content-p1 for remaining work
+3. **Structural analysis pass** — Audit `.arc/` files for distribution readiness
+   - File classification inventory (framework / configurable / scaffolded / project-owned)
+   - Identify mixed-concern files (stable vs configurable content interleaving)
+   - Cross-cutting concept dependency mapping
+   - Propose section-level separation to minimize merge conflicts
+   - Results become a focused PRD + task list for restructuring work
 
-### Phase B: Documentation Enhancement
+4. **Structural optimization** — Execute restructuring based on audit findings
+   - Reduce interleaving of framework and project content
+   - Standardize file classification markers (for manifest)
+   - Clean up or remove per-file version stamps (manifest replaces these)
 
-After sync completion, enhance template content.
+5. **README.md refresh** — Reframe for public audience
 
-- Comprehensive template-first documents
-- Battle-tested patterns from CineXplorer
-- User-focused adoption documentation
+### Phase C: CLI & Package Development
 
-### Phase C: Public Release
+Build the distribution tooling.
 
-- Repository migration strategy execution
-- Polish for public consumption
-- Initial release
+1. **CLI prototype** — Minimal `init` + `update` with three-way merge
+2. **Init recipe system** — Declarative config for interactive setup options
+3. **Agent tooling packaging** — Selective install of `.claude/`, `.codex/`, `.gemini/`
+4. **Testing & validation** — Verify init/update flows across scenarios
+
+### Phase D: Public Release
+
+1. **Public repository setup** — Rename dev repo, create clean public repo
+2. **Documentation polish** — Adoption-focused docs, getting started guide
+3. **Initial release** — npm publish, GitHub release
+4. **Community infrastructure** — Issue templates, contribution guidelines
 
 ---
 
 ## Dependency Analysis
 
+```text
+Framework Maturation ──► Distribution Preparation
+                         (can't optimize structure without mature content)
+
+  Within Distribution Prep:
+  General Refinement ──► Structural Audit ──► Structural Optimization
+  (clean content first)   (then evaluate)     (then restructure)
+
+Distribution Prep ─────► CLI & Package Development
+                         (can't build tooling without knowing file structure)
+
+CLI Development ───────► Public Release
+                         (can't release without distribution mechanism)
 ```
-CineXplorer Sync ────► Documentation Enhancement
-                       (can't enhance until synced)
-Documentation ───────► Public Release
-                       (can't release until polished)
-```
+
+**Note:** README refresh and public repo setup can proceed in parallel with CLI development.
 
 ---
 
 ## Related Documents
 
-- Plan: `technical/plan-public-release-repository-strategy.md`
+- Distribution plan: `feature/plan-distribution-and-update-system.md`
+- Public release plan: `technical/plan-public-release-repository-strategy.md`
 - Active work: `.arc-internal/active/CURRENT-SESSION.md`
 - Constitution: `.arc-internal/reference/constitution/PROJECT-STATUS.md`

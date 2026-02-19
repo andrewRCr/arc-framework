@@ -125,7 +125,7 @@ The framework operates through feedback loops that build on previous work:
   maintenance tasks
 - **`.arc/reference/workflows/supplemental/session-handoff.md`** — Package context for session transfers
 - **`.arc/reference/workflows/supplemental/agent-pr-review.md`** — Guide AI-assisted pull request reviews
-- **`.arc/reference/workflows/supplemental/atomic-commit.md`** — Enforce minimal, well-scoped commits
+- **`.arc/reference/workflows/supplemental/atomic-commit.md`** — Complex commit scenarios and atomicity guide
 - **`.arc/reference/workflows/supplemental/archive-completed.md`** — Move finished work to long-term storage
 
 ### Customization

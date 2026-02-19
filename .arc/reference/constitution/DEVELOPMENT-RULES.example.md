@@ -8,58 +8,110 @@ followed by all contributors, including AI assistants.
 **For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 **For session initialization protocol**, see [session-init.md](../workflows/supplemental/session-init.md).
 
-## Manual Commit Control
+## Commit Standards
+
+### Commit Control
 
 - **AI NEVER initiates commits** without explicit user approval or instruction
 - **AI CAN execute commits** when user explicitly approves/instructs it
 - **User approval required** for all git operations
-- **NEVER use `--no-verify`** to bypass commit hooks - hooks exist to catch errors
-- **Careful with file reverts**: Before running `git checkout -- <file>` or similar destructive operations,
-  check `git diff <file>` to understand ALL uncommitted changes. Your changes may not be the only ones in
-  that file - other tasks may have added uncommitted work that will be lost
-- **MANDATORY:** Comprehensive task context analysis before any commit consideration (see atomic-commit workflow)
-- **Task list accuracy required**: Before commit consideration, verify task documentation reflects completed work
-  (parent task marked `[x]` if all subtasks complete)
-- **Never commit stale task docs**: Task list updates must be saved and included in commits for completed work
+- **NEVER use `--no-verify`** to bypass commit hooks — hooks exist to catch errors
+- **Careful with file reverts**: Before `git checkout -- <file>`, check `git diff <file>` — other
+  tasks may have uncommitted work in the same file
+- **Task list accuracy**: Before committing, verify task documentation reflects completed work
+  (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit
 - AI reports completion, then awaits commit instructions
-- **Commit message format**: Use the `commit-format` skill for proper format (Context footer, subject length, etc.)
 
-### Quality Gates (Zero Tolerance)
+**For complex commits** (multi-session accumulated work, interleaved concerns), see
+[Commit Workflow](../workflows/supplemental/atomic-commit.md).
 
-Before any commit consideration, ALL of the following must pass with **zero exceptions**.
+### Commit Message Format
+
+```text
+<type>(scope): Brief description (50-72 chars, imperative mood)
+
+- Key change or rationale (1-2 lines per bullet)
+- Impact if significant
+
+Context: [task-reference or category]
+```
+
+**Types:** `feat` `fix` `docs` `content` `style` `refactor` `test` `chore` `perf` `build` `ci` `config` `revert`
+
+**Scope:** Lowercase functional area (e.g., `auth`, `api`, `tests`, `config`, `arc`, `deps`).
+
+**Body:** 10-15 lines max (20-25 for milestones). Focus on WHY and IMPACT, not what changed.
+
+**Context footer (required on every commit):**
+
+With task list:
+
+- `Context: tasks-[filename].md (Task X.Y)` — single task
+- `Context: tasks-[filename].md (Tasks X.Y-X.Z)` — range
+- `Context: tasks-[filename].md (Tasks X.Y, A.B)` — non-contiguous
+- `Context: tasks-[filename].md (Tasks X.Y; planning)` — task completion + extra task list work
+- `Context: tasks-[filename].md (incidental - discovered during Task X.Y)` — incidental fix
+- `Context: tasks-[filename].md (planning)` — task list metadata only
+
+Without task list:
+
+- `Context: [category] (no associated task list)` — emergent work
+- `Context: [category] (atomic / no associated task list)` — small one-off work
+
+Categories: `planning`, `documentation`, `maintenance`, `refactor`.
+
+**Atomicity:** One logical change per commit. When multiple tasks completed between commits, separate
+code changes by task; commit shared documentation (task list updates) last.
+
+**Enforcement:** Git hooks validate format automatically. See [githooks setup](../githooks/README.md).
+
+### Quality Gates
+
+**Zero Tolerance Policy:** Whatever checks you run, they must pass. No ignoring failures, no exceptions.
+
+**Tiered Approach:** Quality gates follow a tiered system. The tier determines *what* to run; zero tolerance
+determines that it must *pass*. See [Quality Gates Strategy](../strategies/arc/strategy-quality-gates.md)
+for complete guidance.
+
+| Tier   | When                   | What to Run                                                   |
+|--------|------------------------|---------------------------------------------------------------|
+| Tier 1 | Per-task               | Type-check, lint, format, related unit tests (modified files) |
+| Tier 2 | Parent task completion | Tier 1 (full project) + targeted E2E tests + build            |
+| Tier 3 | Per-phase, pre-PR      | Full suite (everything below)                                 |
+
+**Commits and quality gates:** Tiers are milestone-driven, not commit-driven. Work committed through
+the task loop inherits the gates already run at each milestone. For work outside the task loop
+(incidental fixes, atomic tasks), run at least Tier 1 before committing.
+
+**Full Suite (Tier 3)** - Required for phase completion and pre-PR.
 For specific commands, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 
-**Zero Tolerance Policy:** All errors, violations, and failures must be fixed. No exceptions.
+<!-- List your project's quality checks here. The items below are examples for a
+     web app with backend/frontend — adjust to match your project's stack. A CLI
+     might have: build, unit tests, lint, type-check. A library might have: tests,
+     lint, docs generation. The key is: list every check, with its command. -->
 
-1. **Backend Tests**: 100% pass rate
-   - Command: `{{BACKEND_TEST_CMD}}`
-   - Requirements: {{BACKEND_TEST_REQUIREMENTS}}
+1. **{{QUALITY_CHECK_1}}**: {{PASS_CRITERIA}}
+   - Command: `{{QUALITY_CHECK_CMD}}`
 
-2. **Frontend Tests**: 100% pass rate
-   - Command: `{{FRONTEND_TEST_CMD}}`
+2. **{{QUALITY_CHECK_2}}**: {{PASS_CRITERIA}}
+   - Command: `{{QUALITY_CHECK_CMD}}`
 
-3. **Backend Linting**: Zero violations
-   - Command: `{{BACKEND_LINT_CMD}}`
-
-4. **Frontend Linting**: Zero violations
-   - Command: `{{FRONTEND_LINT_CMD}}`
-
-5. **Type Checking**: Zero errors
+3. **Type Checking**: Zero errors
    - Command: `{{TYPE_CHECK_CMD}}`
 
-6. **Markdown Linting**
+4. **Markdown Linting**
    - Use markdownlint-cli2 via npx with auto-fix
-   - Config: `.markdownlint-cli2.jsonc` (MD034 bare URLs disabled only for temporal docs)
-   - Gitignored files automatically excluded (notes/, archive/notes/, CURRENT-SESSION.md)
+   - Config: `.markdownlint-cli2.jsonc`
 
 ### Quality Gate Failure Protocol
 
-If quality gates fail after sub-task completion:
+If quality gates fail after task completion:
 
 1. **Report the failure** with specific details
 2. **Identify suspected causes** and investigation areas
 3. **Ask for guidance** on whether to fix immediately or defer
-4. **Never proceed** to next sub-task until resolved or user approves
+4. **Never proceed** to next task until resolved or user approves
 
 ### Leave It Cleaner: Pre-existing Issue Protocol
 
@@ -129,15 +181,14 @@ during initialization).
 
 **Process:**
 
-1. Identify if your work touches a domain with codified guidance (theming, auth, testing, layout, etc.)
-2. Grep the strategy doc for your specific topic (e.g., `grep -i "button patterns" strategy-component-styling.md`)
+1. Identify if your work touches a domain with codified guidance
+2. Check [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) for relevant strategies
 3. Read relevant section(s) before implementing
 4. Follow documented patterns and token usage
 
-**When uncertain if strategy applies:** Ask. "Does this work touch [domain] where we have strategy guidance?"
+**When uncertain if strategy applies:** Ask. "Does this work touch a domain where we have strategy guidance?"
 
-**For large multi-topic strategies** (e.g., `strategy-component-styling.md`): Search for specific component/pattern
-rather than reading entire document.
+**For large multi-topic strategies**: Search for the specific topic rather than reading the entire document.
 
 **Why this matters:** Strategy docs codify decisions, patterns, and token systems. Following them ensures consistency and
 prevents rework when non-standard approaches are caught in review.
@@ -160,7 +211,8 @@ managed by the user.
 
 **Ideal end-of-session workflow:**
 
-1. Use atomic-commit workflow to commit all **complete** work
+1. Commit all **complete** work (see [Commit Workflow](../workflows/supplemental/atomic-commit.md)
+   for complex scenarios)
 2. Leave any **partial** work uncommitted
 3. Perform session handoff documenting partial work state
 
@@ -183,8 +235,7 @@ Core documents (QUICK-REFERENCE, DEVELOPMENT-RULES) are read each session but sh
 **QUICK-REFERENCE - Re-check when:**
 
 - Bash command fails with path/environment errors (ENOENT, "no such file or directory", "config not found")
-- About to run quality gate commands and uncertain which tool/path to use (Docker vs host? Which flags?)
-- **About to run TypeScript type checks** - Verify exact command (NEVER use `npx tsc` directly, ALWAYS use `npm run type-check`)
+- About to run quality gate commands and uncertain which tool/path to use
 - Working directory context feels uncertain or commands aren't working as expected
 
 **DEVELOPMENT-RULES - Re-check when:**
@@ -202,17 +253,20 @@ when specific patterns/commands are needed. Active verification beats passive re
 
 ## Task Management Protocol
 
-### One Sub-Task Rule
+### One Task at a Time
 
-- **Complete ONE sub-task at a time** - never bundle multiple deliverables
+Each checkbox in the task list is one work unit — whether it's a standalone task or a subtask under
+a parent. The checkpoint is always at the checkbox level.
+
+- **Complete ONE task at a time** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (tests pass, quality checks pass)
 - **Mandatory stop** after reporting completion for user approval to proceed
 - **Implied permission**: User approval implies permission to proceed UNLESS explicitly stated otherwise
-  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to next subtask.
+  (e.g., "that's done, but before moving on..."). Address such concerns before proceeding to the next task.
 
-### Sub-Task Granularity Guidelines
+### Task Granularity Guidelines
 
-Break down a sub-task if it requires:
+Break down a task into subtasks if it requires:
 
 - More than 3 files to be modified
 - More than 50 lines of core logic changes
@@ -221,11 +275,11 @@ Break down a sub-task if it requires:
 
 ### Test-First Protocol
 
-**BEFORE implementing any sub-task, assess test-first requirement:**
+**BEFORE implementing any task, assess test-first requirement:**
 
 **Requires test-first** (write tests BEFORE implementation):
 
-- New models (Django models, data schemas)
+- New data models or schemas
 - New API endpoints or endpoint modifications
 - New service classes or business logic
 - Complex algorithms or data transformations
@@ -241,7 +295,7 @@ Break down a sub-task if it requires:
 
 **If unsure whether test-first applies, default to test-first.** Writing tests after implementation is harder and less effective.
 
-**During task list creation:** Ensure test sub-tasks appear BEFORE implementation sub-tasks for test-first work.
+**During task list creation:** Ensure test tasks appear BEFORE implementation tasks for test-first work.
 This makes the protocol visible during execution.
 
 ## Testing Requirements
@@ -250,7 +304,8 @@ This makes the protocol visible during execution.
 - **Integration focus**: Prefer flow-level coverage over isolated units when practical
 - **All tests must pass** before any commit discussion (see quality gates above)
 - **Command patterns**: See [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) for execution commands
-- **Detailed guidance**: See [Testing Methodology Strategy](../strategies/project/strategy-testing-methodology.md)
+- **Detailed guidance**: See your project's testing methodology strategy if you've created one
+  (see [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) for guidance on project strategies)
 
 ## Code Quality Principles
 
@@ -263,43 +318,28 @@ Apply standard software engineering principles:
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
-### Layered Architecture (Backend)
+<!-- Add architecture-specific subsections relevant to your project. These should
+     capture the non-negotiable patterns that apply across all work in that area.
+     Examples:
+     - Web app: Layered Architecture (Backend), Component Styling (Frontend), Import Standards
+     - CLI: Command Structure, Configuration Patterns, Output Formatting
+     - Library: Public API Conventions, Backward Compatibility, Extension Points
+     - Monorepo: Package Boundaries, Shared Code Policy, Dependency Direction
 
-Backend uses strict layered architecture: API routes handle HTTP concerns only, Service layer contains ALL
-business logic (filtering, calculations, presets, orchestration).
+     For each subsection: state the rule, give a brief rationale or "rule of thumb",
+     and reference the relevant strategy doc if one exists. -->
 
-**Rule of thumb:** If an API route does more than extract params → call service → return response, the extra
-logic likely belongs in Service layer.
+### {{ARCHITECTURE_RULE_1}}
 
-### Component Styling Standards (Frontend)
+{{RULE_DESCRIPTION}}
 
-Frontend uses semantic token system for all styling. Components MUST use semantic tokens, never hardcoded colors or
-direct style values.
+**Rule of thumb:** {{QUICK_HEURISTIC}}
 
-**Required practices:**
+### {{ARCHITECTURE_RULE_2}}
 
-- Always use semantic tokens (e.g., `color="tertiary"`, `bg="layer-01"`)
-- Never hardcode colors (`color="#4299e1"`, `bg="blue.500"`)
-- Never use Chakra raw color tokens (`color="red.600"`, `colorScheme="blue"`)
-- Use recipes and wrapper components for consistent patterns
-- Reference strategy docs before implementing: [Color Token System](../strategies/project/style/strategy-color-tokens.md),
-  [Component Styling Strategy](../strategies/project/style/strategy-component-styling.md)
+{{RULE_DESCRIPTION}}
 
-**Rule of thumb:** If you're writing inline color/style values instead of semantic tokens, check the strategy
-docs for the correct pattern.
-
-### Import Standards (Frontend)
-
-Use absolute imports (`@/`) for cross-directory references and relative imports (`./`) for same-directory references.
-
-**Examples:**
-
-- ✅ `import { foo } from "@/services/apiClient"` (from hooks/ to services/)
-- ✅ `import { bar } from "./httpService"` (within services/)
-- ❌ `import { foo } from "../services/apiClient"` (cross-directory relative)
-
-**Why:** Absolute imports are resilient to file moves and make import paths self-documenting. The `@/` alias maps
-to `src/`, configured in `tsconfig.json` and `vite.config.ts`.
+**Rule of thumb:** {{QUICK_HEURISTIC}}
 
 ### Code Documentation Standards
 
@@ -313,7 +353,13 @@ to `src/`, configured in `tsconfig.json` and `vite.config.ts`.
   "Task X.Y - `tasks-name.md`" or "Phase X - `tasks-name.md`". Use only the filename (no path),
   as task lists move between active/, backlog/, and archive/ directories. This ensures references
   are searchable and provide clear context about which work the task belongs to.
-  Examples: "Task 8.3 - `tasks-oauth-headless-migration.md`", "Phase 3 - `tasks-service-layer-modernization.md`"
+  Examples: "Task 8.3 - `tasks-oauth-migration.md`", "Phase 3 - `tasks-service-layer.md`"
+
+- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an
+  author or team perspective — not as a transcript of the human-AI interaction. Write as the
+  work's author would.\
+  ❌ "The user approved the approach", "Pending user review", "User requested we defer this"\
+  ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
 
 ## Architecture Documentation
 
@@ -348,9 +394,8 @@ This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
 - [Task Processing Workflow](../workflows/3_process-task-loop.md) - Detailed task execution workflow
-- [Atomic Commit Workflow](../workflows/supplemental/atomic-commit.md) - Enhanced commit workflow with task context analysis
+- [Commit Workflow](../workflows/supplemental/atomic-commit.md) - Complex commit scenarios and atomicity analysis
 - [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI
-- [Technical Overview](TECHNICAL-OVERVIEW.md) - High-level system architecture and technology stack
+- [Technical Overview](TECHNICAL-OVERVIEW.md) - System architecture and technology stack
 - [ADR Methodology Strategy](../strategies/arc/strategy-adr-methodology.md) - Architecture decision record guidance
-- [Type Safety Strategy](../strategies/project/strategy-type-safety.md) - Type checking approach and patterns
-- [Testing Methodology Strategy](../strategies/project/strategy-testing-methodology.md) - Testing philosophy and practices
+- [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) - Index of all strategy documents (ARC and project)

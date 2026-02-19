@@ -1,5 +1,7 @@
 # Workflow: Documentation Maintenance
 
+**Audience:** Agent-executed — your agent follows this when updating framework documentation.
+
 **Purpose**: Keep .arc framework documentation accurate, consistent, and free of contradictions as the project evolves.
 
 **When to use**: When making changes to constitutional documents or discovering documentation issues during active work.
@@ -130,7 +132,7 @@ When updating `agent/` docs:
 
 ### Read On-Demand
 
-- `atomic-commit.md` - When creating commits
+- `atomic-commit.md` - When committing complex or accumulated changes
 - `manage-incidental-work.md` - When handling discovered issues
 - `session-handoff.md` - When ending sessions
 - `maintain-docs.md` (this file) - When updating documentation
