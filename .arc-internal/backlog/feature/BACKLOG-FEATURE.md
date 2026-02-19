@@ -30,6 +30,12 @@
 - **Note:** This is part of the distribution system but called out separately as a significant
   feature in its own right
 - **Related:** `plan-distribution-and-update-system.md` (Interactive Init section)
+- **Note — recommended environment settings:** Init or accompanying onboarding docs should
+  strongly recommend disabling auto-compact/context-summarization features in AI coding tools
+  (e.g., Claude Code's auto-compact). ARC sessions depend on constitutional context loaded at
+  session-init; automatic compaction degrades that context silently. Sessions should end with
+  explicit handoff, not context loss. (Origin: `tasks-content-refinement-pass.md` Task 6.2,
+  PRD req 35)
 
 ---
 

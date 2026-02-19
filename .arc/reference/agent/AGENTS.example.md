@@ -49,7 +49,10 @@
 
 - **Plan before executing** - Default to plan-driven execution; skip plans only for trivial tasks
 - **Respect user intent** - Never revert or "fix" user changes without explicit approval
-- **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance
+- **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance.
+  Note: the developer may be working alongside you — editing files, running commands, making
+  commits. Co-development diffs are normal, not anomalies. Flag only changes that conflict
+  with your current task or seem unintentional.
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
 - **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction

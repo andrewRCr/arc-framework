@@ -14,6 +14,11 @@ It ensures consistent execution, quality control, and documentation of work.
 - **Branch/task list coupling:** Task lists in `.arc/active/` correspond to git branches (branch exists ↔ task list
   active). Archive task list immediately when branch deleted after merge. See
   [Work Organization Strategy](../strategies/arc/strategy-work-organization.md) for details.
+- **Co-development awareness:** The developer may be working alongside you — editing files, running
+  commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
+  single-threaded, small-scope tasks keep the developer close enough to the work to contribute
+  directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
+  your current task, flag the conflict and ask how to proceed.
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
