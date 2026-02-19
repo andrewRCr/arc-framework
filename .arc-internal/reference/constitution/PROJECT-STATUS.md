@@ -76,6 +76,7 @@ with distribution system design as the primary focus area.
 - Streamlined heavyweight docs: atomic-commit (-70%), maintain-task-notes (-58%), task-list-formatting (-35%)
 - Co-development guidance, deferred review protocol, layered commit architecture
 - Structural observations captured for B.3 in `plan-structural-analysis-pass.md`
+- Archive: `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
 
 ## Currently Active
 
@@ -131,4 +132,4 @@ with distribution system design as the primary focus area.
 
 ---
 
-*Last updated: 2026-02-17*
+*Last updated: 2026-02-19*
