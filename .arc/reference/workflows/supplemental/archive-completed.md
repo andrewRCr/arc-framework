@@ -163,7 +163,7 @@ git add .arc/active/{category}/completion-{name}.md
 git add .arc/active/{category}/prd-{name}.md  # if planned work with PRD updates
 ```
 
-**Commit message format:** Follow [atomic-commit.md](atomic-commit.md) for full commit message standards.
+**Commit message format:** Follow DEVELOPMENT-RULES.md § Commit Message Format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with a Context footer
 referencing the task list being archived.
 
@@ -271,7 +271,7 @@ git add .arc/reference/constitution/PROJECT-STATUS.md  # if updated
 git add .arc/backlog/ROADMAP.md  # if updated
 ```
 
-**Commit message format:** Follow [atomic-commit.md](atomic-commit.md) for full commit message standards.
+**Commit message format:** Follow DEVELOPMENT-RULES.md § Commit Message Format.
 Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer
 `tasks-{name}.md (maintenance)`.
 

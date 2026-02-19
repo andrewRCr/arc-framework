@@ -463,7 +463,7 @@ alignment issues.
       voice, deduplication, version footer removal)
     - ROADMAP.example.md already done in 4.3 — excluded here
 
-    - [x] **4.7.1 `AGENTS.example.md`** — agnosticism rework (67 → 75 lines)
+    - [x] **4.7.a `AGENTS.example.md`** — agnosticism rework (67 → 75 lines)
         - Technology Stack: repeatable `{{Component}}` tokens with HTML comments for project-type
           adaptation (web app, CLI, library examples)
         - Repository Layout: generic `{{src_dir}}/`, `{{test_dir}}/` tokens
@@ -473,7 +473,7 @@ alignment issues.
         - "Source of truth" line removed (artifact, no agent value)
         - Backticks added to all `.md` file references per convention
 
-    - [x] **4.7.2 `CLAUDE.example.md`** — agnosticism fixes (140 → 136 lines)
+    - [x] **4.7.b `CLAUDE.example.md`** — agnosticism fixes (140 → 136 lines)
         - Removed version numbers from doc references (v2.7, v1.1)
         - Session startup: "Docker status, venv availability" → "runtime environment, tool availability";
           corrected reference from CURRENT-SESSION.md → `session-init.md`
@@ -484,7 +484,7 @@ alignment issues.
         - Hyphens standardized to em dashes for consistency with other templates
         - Autonomous work framing untouched (Task 5.4 scope)
 
-    - [x] **4.7.3 `GEMINI.example.md`, `WARP.example.md`, `copilot-instructions.example.md`**
+    - [x] **4.7.c `GEMINI.example.md`, `WARP.example.md`, `copilot-instructions.example.md`**
         - GEMINI (16 → 16 lines): removed version refs, "Use Gemini CLI" reframed as capability
           description not tool-specific instruction, "Claude/Copilot" → "other agents"
         - WARP (19 → 16 lines): removed Docker-centric content ("exec into containers",
@@ -493,7 +493,7 @@ alignment issues.
         - copilot-instructions (18 → 17 lines): removed Docker-first commands and Backend/Frontend
           framework tokens, replaced with QUICK-REFERENCE/STRATEGY-INDEX pointers, removed version refs
 
-    - [x] **4.7.4 `QUICK-REFERENCE.example.md`** — major agnosticism restructure (259 → 190 lines)
+    - [x] **4.7.d `QUICK-REFERENCE.example.md`** — major agnosticism restructure (259 → 190 lines)
         - Removed Docker Operations section (project-specific, not universal)
         - Removed Network Architecture & Ports section (web-app-specific)
         - Removed backend-specific Python/Pyright and frontend-specific TypeScript/npm sections
@@ -506,11 +506,11 @@ alignment issues.
         - Anti-Patterns genericized (removed Docker Assumptions), added HTML comment examples
         - Version header removed
 
-    - [x] **4.7.5 `ATOMIC-TASKS.example.md`, `TASK-INBOX.example.md`** — verified clean
+    - [x] **4.7.e `ATOMIC-TASKS.example.md`, `TASK-INBOX.example.md`** — verified clean
         - ATOMIC-TASKS: no changes needed — tokens used well, no project-type bias, clear instructions
         - TASK-INBOX: one HTML comment example fix ("on {{page}}" → "in {{component}}")
 
-    - [x] **4.7.6 `BACKLOG-FEATURE.example.md`, `BACKLOG-TECHNICAL.example.md`** — verified clean
+    - [x] **4.7.f `BACKLOG-FEATURE.example.md`, `BACKLOG-TECHNICAL.example.md`** — verified clean
         - No changes needed — both use clean token/category structure, no project-type bias
         - FEATURE uses token categories (project-dependent); TECHNICAL uses concrete universal
           categories (Infrastructure, Code Quality, Testing & Quality, Developer Experience) —
@@ -538,14 +538,46 @@ prose, reorder sections, consolidate examples. Note structural opportunities for
 
 _Principle: A reader who stops at 60% should have everything they need for normal use._
 
-- [ ] **5.1 Streamline `atomic-commit.md` (~430 lines)**
-    - Evaluate whether all 6 pre-commit analysis steps are still necessary given session-boundary improvements
-    - Consider reducing ceremony for simple cases (e.g., atomic tasks, single-file fixes) while preserving full
-      protocol for complex multi-session commits
-    - Front-load the essential commit workflow; move accumulated edge cases and safeguards later
-    - Consolidate examples where multiple examples serve the same point
-    - **Calibration point:** This is the first streamlining task. Get user feedback on the approach and depth of
-      trimming before applying the same lens to 5.2 and 5.3.
+**Commit architecture prerequisite (5.0.a-c):** Before streamlining atomic-commit.md, establish the layered commit
+system — format rules in DEVELOPMENT-RULES (loaded every session), githook templates in `.arc/reference/githooks/`
+(automated enforcement), commit-format skill removed (redundant). This reshapes what remains in atomic-commit.md
+and defines 5.1's scope.
+
+- [x] **5.0.a Expand DEVELOPMENT-RULES commit format section**
+    - Restructured "Manual Commit Control" → "Commit Standards" with two subsections: "Commit Control"
+      (behavioral rules, tightened) and "Commit Message Format" (complete format spec). Both template
+      and internal copies updated. ~40 lines of format spec added: message structure, types, scope,
+      body limits, full Context footer patterns (task list and no-task-list), atomicity rule, hooks pointer.
+      "See atomic-commit for format" indirection removed — DEVELOPMENT-RULES is now the format authority.
+      Reference Documentation updated in both files.
+
+- [x] **5.0.b Create `.arc/reference/githooks/` templates**
+    - Created `.arc/reference/githooks/` with commit-msg, pre-commit, and README.md
+    - Quality pass: removed `--no-verify` bypass suggestions (contradicts DEVELOPMENT-RULES), replaced
+      `print(` with `breakpoint()` in debug patterns (too broad for Python projects), extended task file
+      search to `.arc-internal/active/` dirs, removed emoji prefixes from output, cleaned up error messages
+    - README rewritten: 269 → ~90 lines, focused on setup/validation/customization/singularity note
+    - Dog-food: `core.hooksPath` set to `.arc/reference/githooks/`, old `.githooks/` removed
+    - Hooks tested: valid and invalid messages both produce correct results
+
+- [x] **5.0.c Remove commit-format skill**
+    - Deleted `.claude/skills/commit-format/` and `.codex/skills/commit-format/`
+    - Verified: no live references remain (only planning/notes files describing this task)
+
+- [x] **5.1 Streamline `atomic-commit.md`**
+    - Rewrote as "Commit Workflow" — 431 → 128 lines (70% reduction). Format spec removed (now in
+      DEVELOPMENT-RULES). YAML-ish step format → standard markdown. Two clear modes: Quick Commit
+      Reference (5 steps for simple commits) and Complex Analysis Path (6 steps for accumulated/
+      multi-session work). Explicit session-handoff connection in Step 1. All 12 examples removed
+      (format examples now in DEVELOPMENT-RULES, hooks provide error examples). Added Documentation
+      Overlap Pattern and Parent Task Completion sections. Branch Practices preserved.
+    - Updated 8 cross-references across live docs: process-task-loop, archive-completed (×2),
+      manage-incidental-work, session-handoff, maintain-docs, strategy-work-organization, README.md.
+      Format references redirected to DEVELOPMENT-RULES; workflow references updated to reflect
+      "complex scenarios" purpose.
+    - **Calibration point:** This is the first streamlining task. Approach: format authority moved to
+      DEVELOPMENT-RULES (always loaded), workflow doc kept for process guidance only, hooks as
+      enforcement layer. User should review before applying lens to 5.2 and 5.3.
 
 - [ ] **5.2 Streamline `maintain-task-notes.md` (~860 lines)**
     - Keep the two-mode structure (mid-work vs archival) — it's sound

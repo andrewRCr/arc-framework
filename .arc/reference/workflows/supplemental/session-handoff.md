@@ -80,7 +80,7 @@ Next session needs enough detail to recreate proper atomic commits from `git dif
 - ❌ "Updated several files" (which? for what commits?)
 - ❌ "Fixed bugs" (what bugs? which files? separate commits?)
 
-**For committed work:** Simple list with commit hashes is sufficient (atomic-commit workflow already documented details).
+**For committed work:** Simple list with commit hashes is sufficient (commit messages already documented details).
 
 ### Remaining Work Before Returning to Task List
 

@@ -8,20 +8,62 @@ by all contributors, including AI assistants.
 **For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
 **For session initialization protocol**, see [session-init.md](../workflows/supplemental/session-init.md).
 
-## Manual Commit Control
+## Commit Standards
+
+### Commit Control
 
 - **AI NEVER initiates commits** without explicit user approval or instruction
 - **AI CAN execute commits** when user explicitly approves/instructs it
 - **User approval required** for all git operations
-- **NEVER use `--no-verify`** to bypass commit hooks - hooks exist to catch errors
-- **Careful with file reverts**: Before running `git checkout -- <file>` or similar destructive operations,
-  check `git diff <file>` to understand ALL uncommitted changes. Your changes may not be the only ones in
-  that file - other tasks may have added uncommitted work that will be lost
-- **MANDATORY:** Comprehensive task context analysis before any commit consideration (see atomic-commit workflow)
-- **Task list accuracy required**: Before commit consideration, verify task documentation reflects completed work
-  (parent task marked `[x]` if all subtasks complete)
-- **Never commit stale task docs**: Task list updates must be saved and included in commits for completed work
+- **NEVER use `--no-verify`** to bypass commit hooks — hooks exist to catch errors
+- **Careful with file reverts**: Before `git checkout -- <file>`, check `git diff <file>` — other
+  tasks may have uncommitted work in the same file
+- **Task list accuracy**: Before committing, verify task documentation reflects completed work
+  (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit
 - AI reports completion, then awaits commit instructions
+
+**For complex commits** (multi-session accumulated work, interleaved concerns), see
+[Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md).
+
+### Commit Message Format
+
+```text
+<type>(scope): Brief description (50-72 chars, imperative mood)
+
+- Key change or rationale (1-2 lines per bullet)
+- Impact if significant
+
+Context: [task-reference or category]
+```
+
+**Types:** `feat` `fix` `docs` `content` `style` `refactor` `test` `chore` `perf` `build` `ci` `config` `revert`
+
+**Scope:** Lowercase functional area (e.g., `auth`, `api`, `tests`, `config`, `arc`, `deps`).
+
+**Body:** 10-15 lines max (20-25 for milestones). Focus on WHY and IMPACT, not what changed.
+
+**Context footer (required on every commit):**
+
+With task list:
+
+- `Context: tasks-[filename].md (Task X.Y)` — single task
+- `Context: tasks-[filename].md (Tasks X.Y-X.Z)` — range
+- `Context: tasks-[filename].md (Tasks X.Y, A.B)` — non-contiguous
+- `Context: tasks-[filename].md (Tasks X.Y; planning)` — task completion + extra task list work
+- `Context: tasks-[filename].md (incidental - discovered during Task X.Y)` — incidental fix
+- `Context: tasks-[filename].md (planning)` — task list metadata only
+
+Without task list:
+
+- `Context: [category] (no associated task list)` — emergent work
+- `Context: [category] (atomic / no associated task list)` — small one-off work
+
+Categories: `planning`, `documentation`, `maintenance`, `refactor`.
+
+**Atomicity:** One logical change per commit. When multiple tasks completed between commits, separate
+code changes by task; commit shared documentation (task list updates) last.
+
+**Enforcement:** Git hooks validate format automatically. See `.arc/reference/githooks/README.md` for setup.
 
 ### Quality Gates (Zero Tolerance)
 
@@ -149,7 +191,8 @@ managed by the user.
 
 **Ideal end-of-session workflow:**
 
-1. Use atomic-commit workflow to commit all **complete** work
+1. Commit all **complete** work (see [Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md)
+   for complex scenarios)
 2. Leave any **partial** work uncommitted
 3. Perform session handoff documenting partial work state
 
@@ -352,6 +395,7 @@ This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
 - [Task Processing Workflow](../../.arc/reference/workflows/3_process-task-loop.md) - Detailed task execution workflow
-- [Atomic Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md) - Enhanced commit workflow
+- [Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md) - Complex commit scenarios,
+  atomicity analysis
 - [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI
 - [ADR Methodology Strategy](../../.arc/reference/strategies/arc/strategy-adr-methodology.md) - ADR guidance

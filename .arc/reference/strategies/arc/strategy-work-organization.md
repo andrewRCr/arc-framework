@@ -602,7 +602,7 @@ See [weekly-review.md](../../workflows/supplemental/weekly-review.md) for backlo
 - [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) — Development standards and git workflow
 - [2_generate-tasks.md](../workflows/2_generate-tasks.md) — Task breakdown workflow
 - [3_process-task-loop.md](../workflows/3_process-task-loop.md) — Task execution workflow
-- [atomic-commit.md](../workflows/supplemental/atomic-commit.md) — Commit creation and review
+- [atomic-commit.md](../workflows/supplemental/atomic-commit.md) — Complex commit scenarios and atomicity
 - [manage-incidental-work.md](../workflows/supplemental/manage-incidental-work.md) — Incidental work workflow
 - [agent-pre-merge-review.md](../workflows/supplemental/agent-pre-merge-review.md) — Code review workflow
 - [weekly-review.md](../workflows/supplemental/weekly-review.md) — Weekly backlog review process

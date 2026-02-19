@@ -177,6 +177,28 @@ The framework footprint spans the full `.arc/` tree, not just `reference/`:
 Each of these contains a mix of framework-provided structure and project-owned content,
 which the file classification system handles.
 
+### Slash Command Generation
+
+Slash command content is duplicated across agent-specific directories (`.claude/commands/`,
+`.codex/prompts/`, `.gemini/commands/`) in different formats (bare markdown, YAML frontmatter,
+TOML). This violates DRY — content changes require manual updates in 3+ places.
+
+**Proposed solution:** Single source of truth for command content + CLI generation step.
+
+- Source: `.arc/` (location TBD — `commands/`, or an infrastructure directory)
+- Generation: CLI reads source, outputs agent-specific formats during `init` and `update`
+- Format differences are mechanical (frontmatter format, field names) — no content divergence
+
+This also applies to any future agent-specific files where content is shared but format differs.
+
+### `reference/` Directory Organization
+
+`reference/` currently mixes documentation (constitution, workflows, strategies, ADRs) with
+infrastructure/tooling (githooks, agent configs, and future commands source). These are different
+concerns — infrastructure is tooling ARC provides, not project reference material. The structural
+analysis pass should evaluate whether infrastructure concerns belong in a separate top-level
+directory (e.g., `.arc/infrastructure/`) while keeping `.arc/` directory count manageable.
+
 ## Cross-Cutting Framework Concepts
 
 ### The Problem
@@ -192,8 +214,9 @@ woven throughout multiple files, creating implicit dependencies:
   (`active/feature/`), workflows, archive paths, commit context patterns
 - **Task numbering conventions** — Referenced in: task formatting strategy, generate-tasks,
   process-task-loop, commit hook validation
-- **Commit format (conventional + Context footer)** — Referenced in: SKILL.md, githook,
-  atomic-commit workflow, DEVELOPMENT-RULES
+- **Commit format (conventional + Context footer)** — Referenced in: DEVELOPMENT-RULES (format
+  authority), githook validation, atomic-commit workflow (complex scenarios). Formerly also in
+  a commit-format skill (removed — redundant with DEVELOPMENT-RULES + hooks)
 
 A user can change any single file — but modifying a cross-cutting concept means updating every
 file that references it, and they may not know which files those are.

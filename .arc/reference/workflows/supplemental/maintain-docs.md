@@ -132,7 +132,7 @@ When updating `agent/` docs:
 
 ### Read On-Demand
 
-- `atomic-commit.md` - When creating commits
+- `atomic-commit.md` - When committing complex or accumulated changes
 - `manage-incidental-work.md` - When handling discovered issues
 - `session-handoff.md` - When ending sessions
 - `maintain-docs.md` (this file) - When updating documentation

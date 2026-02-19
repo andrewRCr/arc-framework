@@ -75,7 +75,7 @@ It ensures consistent execution, quality control, and documentation of work.
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
-     When committing, follow [Atomic Commit Workflow](supplemental/atomic-commit.md) guidelines.
+     When committing, follow [Commit Workflow](supplemental/atomic-commit.md) guidelines.
 
 ## Incidental Work Management
 
