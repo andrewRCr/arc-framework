@@ -9,7 +9,7 @@ into actionable work areas with rough sequencing.
 
 **Status:** Initial broad planning (pre-PRD)
 **Created:** 2026-02-17
-**Source:** `.arc-internal/active/notes-refinement-pass.md` (evaluation notes)
+**Source:** evaluation notes (deleted at archival — findings incorporated into PRD and task completion notes)
 **Roadmap context:** Phase B.2 (general refinement pass — fixes phase)
 
 ---
@@ -28,7 +28,7 @@ refinement — don't break what's working:
 7. **Tiered quality gates** (1/2/3) — practical balance of thoroughness and velocity
 8. **Agent-agnostic core + agent-specific extensions** — sound architecture
 
-See `notes-refinement-pass.md` lines 368-414 for full detail on each.
+These strengths were preserved as guardrails throughout the refinement pass execution.
 
 ---
 

@@ -263,7 +263,8 @@ D (Content Fixes) ── interleave throughout ─┘
 
 ## Reference Documents
 
-- Evaluation notes: `.arc-internal/active/notes-refinement-pass.md`
+- Evaluation notes: deleted at archival (pre-work audit; all findings incorporated into PRD requirements and task
+  completion notes)
 - Planning document: `.arc-internal/backlog/technical/plan-content-refinement-pass.md`
 - Aspirational README: `README-ASPIRATIONAL.md`
 - Landscape research: `.arc-internal/active/research-landscape-analysis-2026-02.md`
