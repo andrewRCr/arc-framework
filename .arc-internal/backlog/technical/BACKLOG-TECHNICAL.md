@@ -8,15 +8,10 @@
 
 ## High Priority
 
-### General Refinement Pass — **In Progress**
+### General Refinement Pass — ✅ Complete
 
-- **Status:** Active on branch `technical/content-refinement-pass` — see `tasks-content-refinement-pass.md`
-- **Problem:** Framework docs have accumulated over 16+ months; some content may be stale,
-  unclear, or incomplete
-- **Approach:** Content quality audit across all `.arc/` docs — clarity, accuracy, staleness,
-  completeness. Focused on content quality, NOT structural concerns.
-- **Context:** Should precede structural audit so structural decisions are made on clean content
-- **Sequencing:** Before structural analysis pass
+- **Status:** Completed February 2026 — merged via PR #3
+- **Archive:** `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
 
 ### Structural Analysis Pass
 
