@@ -44,7 +44,7 @@ more value in having complete context upfront than discovering missing rules mid
 
 2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
    - Path: `.arc-internal/reference/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
-   - Agent-specific operational guidance (context window thresholds, capabilities, autonomous work protocols)
+   - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
    - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 
 **Constitutional and process context:**

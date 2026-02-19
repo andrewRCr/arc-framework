@@ -49,11 +49,22 @@ It ensures consistent execution, quality control, and documentation of work.
      continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
      In such cases, address the concern before proceeding to the next task.
 
+     **Deferred review:** When the user explicitly requests continuation through a specific set
+     of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
+     those tasks is deferred. The user defines the scope — the agent never self-invokes this.
+     Complete only the specified work — update the task list and run quality gates after each
+     task, but continue to the next without waiting for approval. Stop when the specified scope
+     is complete or if anything unexpected arises. Leave sufficient context for the user to
+     review, iterate, commit, and hand off when they return.
+
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
      the last subtask under a parent (all subtasks now `[x]`), or a standalone task that touches
-     integration-tested code — follow this additional sequence:
+     integration-tested code — follow this additional sequence. Note: phase headers are
+     organizational groupings, not trackable items — phase completion is implicit when all tasks
+     within the phase are complete.
 
-    - **First**: Mark the **parent task** as `[x]` in the task list file (ensures docs reflect completion)
+    - **First**: Mark the **parent task** as `[x]` in the task list file if it has subtasks (ensures docs
+      reflect completion)
     - **Second**: Ensure new code has appropriate test coverage for new or modified logic
     - **Third**: Run quality gates - **Tier 2** (full-project type-check, lint, format, unit tests, targeted E2E if
       applicable, build)
@@ -64,8 +75,8 @@ It ensures consistent execution, quality control, and documentation of work.
      **Pre-Report Checklist for Coherent Unit Completion** (verify before reporting):
 
      ```
-     - [ ] All subtasks marked [x] (if parent task) or standalone task marked [x]
-     - [ ] Parent task marked [x] in task list (if applicable)
+     - [ ] All subtasks marked [x] (if parent task with subtasks) or standalone task marked [x]
+     - [ ] Parent task marked [x] in task list (if it has subtasks — phase headers don't get checkboxes)
      - [ ] Task list file edited and saved
      - [ ] Tier 2 quality gates passed (full-project lint/type-check/format, unit tests, targeted E2E if applicable, build)
      - [ ] Ready to report completion to user

@@ -579,28 +579,36 @@ and defines 5.1's scope.
       DEVELOPMENT-RULES (always loaded), workflow doc kept for process guidance only, hooks as
       enforcement layer. User should review before applying lens to 5.2 and 5.3.
 
-- [ ] **5.2 Streamline `maintain-task-notes.md` (~860 lines)**
-    - Keep the two-mode structure (mid-work vs archival) — it's sound
-    - Tighten lessons-learned and common-pitfalls sections: keep the guidance, trim the "how we learned this"
-    - Front-load essential guidance for each mode
-    - Simplify pointer directionality section if possible without losing correctness
-    - Apply calibrated approach from 5.1 feedback
+- [x] **5.2 Streamline `maintain-task-notes.md` (~860 lines)**
+    - 863 → 359 lines (58% reduction). Eliminated Lessons Learned section (all restated workflow
+      body), mode restatement in Step 3, redundant keep/migrate criteria, second examples per
+      concept. Pointer directionality 27→8 lines, CLEANUP-PROGRESS template→description,
+      Common Pitfalls 21→10 items. Fixed input paths to generic `{category}`, added `--no-globs`
+      to lint command, linked archive-completed.md. Two-mode structure and all grep patterns preserved.
 
-- [ ] **5.3 Streamline `strategy-task-list-formatting.md` (~1520 lines)**
-    - Quick Format Checklist is already well-positioned at top — preserve this
-    - Tighten extensive edge cases and detailed rule explanations
-    - Consolidate or reduce examples where multiple examples illustrate the same point
-    - Consider whether Emoji Usage policy section is proportionate for a framework doc
-    - Apply calibrated approach from 5.1/5.2 feedback
+- [x] **5.3 Streamline `strategy-task-list-formatting.md` (~1520 lines)**
+    - 1176 → 768 lines (35% reduction). Trimmed wrong examples throughout Format Elements
+      (4-5 per element → 2-3), cut Letter Numbering rationale/comparison, consolidated Test-First
+      Pattern 2+3 into brief note, cut "Key elements demonstrated" checklist (restated Quick Format
+      Checklist), cut Success Criteria relationship table, trimmed Emoji to 7 lines, consolidated
+      incidental header examples (2→1), cut paused work example. Quick Format Checklist, Complete
+      Annotated Example, Common Mistakes, Decision Guidelines all preserved. Fixed reference paths.
 
-- [ ] **5.4 Clarify autonomous work mode framing**
-    - Update `CLAUDE.example.md` autonomous work mode section to frame as a bounded exception within the
-      tight-coupling philosophy, not a separate operating mode (PRD req 23)
-    - Check other agent example files (GEMINI, WARP, copilot-instructions) for similar framing needs
+- [x] **5.4 Formalize deferred review as ARC concept (was: autonomous work mode)**
+    - Renamed "Autonomous Work Mode" → "Deferred Review" across all docs. Reframed as a bounded
+      exception to the process-task-loop mandatory stop, not a separate operating mode.
+    - Process-task-loop: added 6-line "Deferred review" note at the mandatory stop checkpoint —
+      agent-agnostic protocol lives here now (single source of truth).
+    - CLAUDE.example.md: 55-line protocol → 8-line section referencing process-task-loop +
+      Claude-specific token introspection caveat. No token thresholds (unreliable).
+    - Internal CLAUDE.md: same treatment.
+    - Slash command simplified (removed token buffer math).
+    - Updated 4 cross-references: agent README, both session-init files (template + internal).
+    - Confirmed no other agent files (GEMINI, WARP, copilot-instructions) reference the concept.
 
-- [ ] **5.5 Run quality gate on Phase 5 files**
-    - `npx --yes markdownlint-cli2 --no-globs` on all modified files
-    - Verify zero violations
+- [x] **5.5 Run quality gate on Phase 5 files**
+    - Full project lint: 87 files, zero errors. Incremental linting done after each task;
+      full pass confirms no regressions.
 
 ### **Phase 6:** Content Fixes & Wrap-Up
 

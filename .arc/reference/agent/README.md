@@ -24,8 +24,8 @@ rather than at tool-native locations (see [File Placement](#file-placement) belo
 handles loading: AGENTS.md first for shared context, then the appropriate tool-specific file.
 
 **Why tool-specific files, even for tools that read AGENTS.md natively?** Different models have different
-quirks — context window thresholds, output format preferences, capability limitations, autonomous work
-protocols. This model-specific guidance doesn't belong in shared project context.
+quirks — context window thresholds, output format preferences, capability limitations, deferred review
+notes. This model-specific guidance doesn't belong in shared project context.
 
 ### File Placement
 
