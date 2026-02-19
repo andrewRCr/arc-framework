@@ -1,61 +1,31 @@
 # ARC Framework Archive
 
-This archive contains documentation for completed framework development work, preserving the development history
-while keeping active working directories clean and focused.
+Completed framework development work, organized by quarter and category. Preserves development
+history while keeping active directories clean.
 
 ## Archive Organization
 
-The archive uses **work-categorized subdirectories**:
+**Path pattern:** `{quarter}/{category}/` (e.g., `2025-q4/incidental/`)
 
-- **`incidental/`** - Completed framework maintenance work (syncs, refactoring, updates)
-- **`technical/`** - Completed technical infrastructure work (reserved for future use)
-- **`feature/`** - Completed feature work (reserved for future use)
+- **Quarters:** `2025-q4`, `2026-q1`, etc.
+- **Categories:** `feature/`, `technical/`, `incidental/`
 
-### Work Package Structure
+Multi-document work uses numbered subdirectories (convention adopted Q1 2026):
 
-For multi-document work, create a subdirectory containing all related files:
-
-```
-archive/incidental/cinexplorer-sync-2025-10-24/
-├── tasks-chore-sync-cinexplorer-2025-10-24.md
-├── notes-phase5-constitutional-improvements.md
-└── completion-sync-cinexplorer-2025-10-24.md
+```text
+2026-q1/technical/01_content-refinement-pass/
+├── completion-content-refinement-pass.md
+├── prd-content-refinement-pass.md
+└── tasks-content-refinement-pass.md
 ```
 
-For single-document work, place the file directly in the category directory:
-
-```
-archive/incidental/tasks-quick-fix.md
-```
-
-## Completed Work
-
-### Incidental Work
-
-- **CineXplorer Sync (2025-10-17)**: Initial sync of workflow improvements
-- **Terminology Refactoring**: Standardized framework terminology
-
----
+Single-document or pre-convention work uses flat placement within category directories.
 
 ## Navigation
 
-### Active Documentation
-
-- **Current Work**: [`.arc-internal/active/`](../../active/)
-- **Project Status**: [`constitution/PROJECT-STATUS.md`](../constitution/PROJECT-STATUS.md)
-
-### Archive Workflow
-
-- **Archival Process**: [`workflows/supplemental/archive-completed.md`](../workflows/supplemental/archive-completed.md)
-
-## Purpose
-
-This archive serves multiple purposes:
-
-1. **Framework History**: Preserves the evolution of the framework itself
-2. **Reference Material**: Provides context for similar future work
-3. **Clean Workspace**: Keeps active directories focused on current work
-4. **Consistent Pattern**: Demonstrates the archive structure for adopters
+- **Active work**: [`.arc-internal/active/`](../../active/)
+- **Project status**: [`constitution/PROJECT-STATUS.md`](../constitution/PROJECT-STATUS.md)
+- **Archival process**: [`archive-completed.md`](../workflows/supplemental/archive-completed.md)
 
 ---
 
