@@ -1,7 +1,5 @@
 # {{PROJECT_NAME}} - AI Agent Reference Card
 
-**Version:** {{VERSION_DATE}} | **Source of truth:** `.arc/reference/`
-
 ## Project Overview
 
 {{PROJECT_DESCRIPTION}}
@@ -13,30 +11,37 @@
 
 **Technology Stack:**
 
-- **Backend**: {{BACKEND_STACK}}
-- **Frontend**: {{FRONTEND_STACK}}
-- **Database**: {{DATABASE}}
-- **Infrastructure**: {{INFRASTRUCTURE}}
-- **External Services**: {{EXTERNAL_SERVICES}}
+<!-- List the major components of your stack. Adapt categories to your project type: -->
+<!-- Web app: Language, Framework, Frontend, Database, Infrastructure -->
+<!-- CLI tool: Language, Package manager, Distribution format -->
+<!-- Library: Language, Build system, Test framework, Documentation tool -->
+
+- **{{Component}}**: {{technology, version, notes}}
+- **{{Component}}**: {{technology, version, notes}}
+- **Quality Gates**: {{primary quality tools — linters, type checkers, test runners}}
+- **Infrastructure**: {{hosting, CI/CD, containerization if applicable}}
 
 **Repository Layout:**
 
-- `{{BACKEND_DIR}}/` - Backend code and configuration
-- `{{FRONTEND_DIR}}/` - Frontend code and assets
-- `.arc/` - Documentation (constitution, strategies, workflows, active/upcoming tasks)
-- `{{INFRASTRUCTURE_DIR}}/` - Infrastructure configuration
-- `{{VENV_PATH}}/` - Virtual environment (if applicable)
+<!-- List the top-level directories an agent needs to know about -->
+
+- `{{src_dir}}/` - {{description}}
+- `{{test_dir}}/` - {{description}}
+- `.arc/` - Development documentation (constitution, strategies, workflows, active tasks)
+- {{additional directories as needed}}
 
 ## Critical Path Information
 
 **Common Friction Points:**
 
-- **Docker Compose location**: `{{DOCKER_COMPOSE_PATH}}` (from repo root)
-- **Backend venv**: `{{VENV_PATH}}/bin/` (from repo root)
-- **Tests**: {{TEST_REQUIREMENTS}}
-- **Working directory varies**: Check CURRENT-SESSION.md Session Startup Protocol for current context
-- **Commands in QUICK-REFERENCE**: All assume repo root - adjust paths based on current working directory
-- **Network architecture**: {{NETWORK_ARCHITECTURE}}
+<!-- Document the gotchas that waste agent time — things that aren't obvious from the code. -->
+<!-- Examples: "tests require a running database", "config lives in an unexpected location", -->
+<!-- "two build systems coexist", "working directory matters for certain commands" -->
+
+- {{Friction point with context}}
+- {{Friction point with context}}
+- **Commands in `QUICK-REFERENCE.md`**: All assume repo root — adjust paths based on working directory
+- **Working directory**: Check `CURRENT-SESSION.md` for current context
 
 ## AI Collaboration Principles
 
@@ -48,12 +53,15 @@
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
 - **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
-- **Verify before asserting** - Never guess file paths, implementation details, or content. Use Grep/Glob/Read
-  to verify, or ask clarifying questions when uncertain. See DEVELOPMENT-RULES Verification Protocol.
-- **Check strategy guidance** - Before implementing in codified domains, grep the relevant strategy doc.
-  See STRATEGY-INDEX.md for available guidance.
-- **Respect layered architecture** - Business logic belongs in appropriate layers, not in API/HTTP handlers.
-  See DEVELOPMENT-RULES.md for details.
+- **Verify before asserting** - Never guess file paths, implementation details, or content.
+  Use search/read tools to verify, or ask clarifying questions when uncertain.
+  See `DEVELOPMENT-RULES.md` Verification Protocol.
+- **Check strategy guidance** - Before implementing in codified domains, consult the relevant
+  strategy doc. See `STRATEGY-INDEX.md` for available guidance.
+
+<!-- Add project-specific principles as needed. Examples: -->
+<!-- - **Respect layered architecture** - Business logic in service layer, not in handlers -->
+<!-- - **Feature flags required** - All new features behind flags until validated -->
 
 **Communication:**
 
@@ -63,4 +71,4 @@
 ---
 
 *This reference card is part of the ARC development framework. It provides
-quick orientation and lookup guidance for AI assistants working on this project.*
+quick orientation for AI assistants working on this project.*

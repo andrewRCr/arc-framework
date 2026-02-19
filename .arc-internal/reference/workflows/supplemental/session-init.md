@@ -35,17 +35,40 @@ npx --yes markdownlint-cli --version
 in full EXCEPT the active task list (which is reference material). These docs are kept minimal by design - there's
 more value in having complete context upfront than discovering missing rules mid-session.
 
-**Read these documents to establish complete context:**
+**Read these documents to establish complete context (general → specific):**
+
+**Project identity and agent context:**
 
 1. `.arc-internal/reference/agent/AGENTS.md` - **MUST READ IN FULL**
    - Project overview, technology stack, and AI collaboration principles
 
-2. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
+2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
+   - Path: `.arc-internal/reference/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
+   - Agent-specific operational guidance (context window thresholds, capabilities, autonomous work protocols)
+   - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
+
+**Constitutional and process context:**
+
+3. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
+   - Quality gates, commit standards, verification protocol, and all behavioral constraints
+
+4. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
+   - Index of codified strategy guidance; establishes what domain-specific patterns exist
+
+5. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
+   - Environment context, command patterns, and quality gate commands
+
+6. `.arc/reference/workflows/3_process-task-loop.md` - **MUST READ IN FULL**
+   - Task execution protocol, quality gates, and documentation update requirements
+
+**Active work context:**
+
+7. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
    - Current state: branch, task context, last completed work, blockers, and implementation notes
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
-3. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
+8. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
    - Path referenced in CURRENT-SESSION.md
    - Example: `.arc-internal/active/technical/tasks-[work-unit-name].md`
    - **Reading strategy**:
@@ -58,23 +81,6 @@ more value in having complete context upfront than discovering missing rules mid
    - **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
      large to internalize upfront. But you MUST read the overview + current task context.
    - **What to extract**: Current phase, task details, acceptance criteria, implementation notes
-
-4. `.arc/reference/workflows/3_process-task-loop.md` - **MUST READ IN FULL**
-   - Task execution protocol, quality gates, and documentation update requirements
-
-5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
-   - Index of codified strategy guidance; establishes what domain-specific patterns exist
-
-6. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
-   - Quality gates, commit standards, verification protocol, and all behavioral constraints
-
-7. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
-   - Environment context, command patterns, and quality gate commands
-
-8. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
-   - Path: `.arc-internal/reference/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
-   - Agent-specific operational guidance (context window thresholds, capabilities, autonomous work protocols)
-   - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 
 ### 3. Confirm Orientation
 

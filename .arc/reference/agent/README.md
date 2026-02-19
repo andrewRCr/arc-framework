@@ -187,7 +187,7 @@ for another tool (e.g., Cursor, Windsurf, or a future tool):
 
 ### Keeping Files in Sync
 
-When constitutional documents change (DEVELOPMENT-RULES.md, TECHNICAL-ARCHITECTURE.md, etc.), check if AGENTS.md
+When constitutional documents change (DEVELOPMENT-RULES.md, TECHNICAL-OVERVIEW.md, etc.), check if AGENTS.md
 needs updates to reflect new:
 
 - Quality standards

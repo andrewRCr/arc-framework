@@ -438,28 +438,98 @@ alignment issues.
       Document Reference Protocol, "Django models" → "data models or schemas" in Test-First
     - Reference Documentation section: phantom project strategies replaced with STRATEGY-INDEX
 
-- [ ] **4.5 Align `CURRENT-SESSION.example.md` with handoff workflow**
-    - Update fields to match `session-handoff.md` expectations (PRD req 15):
-      "Following Task List", "Current Task" (with line number), structured completion tracking,
-      "Additional Context for Next Session"
-    - Ensure template is immediately usable with the handoff workflow without translation
+- [x] **4.5 Align `CURRENT-SESSION.example.md` with handoff workflow**
+    - Rewrote template to match `session-handoff.md` field structure exactly (PRD req 15):
+      Branch, Task List, Following Task List, Current Task (with line number), Last Completed,
+      Next Action, Completed This Session, Blockers, Additional Context for Next Session
+    - Removed non-handoff fields: Feature Documents, Work Type, Current Work Summary, In Progress,
+      Outstanding Questions, Notes for Next Session subsections (Key Context, Recent Insights, Next Steps)
+    - HTML comments provide guidance for field alternatives (template standardization pattern)
+    - "Remaining Work Before Returning to Task List" omitted as permanent section — off-task-list-only
+      format provided by the handoff workflow when needed
 
-- [ ] **4.6 Fix `completion-sample.example.md`**
-    - Replace with a proper sample matching the template described in `archive-completed.md` workflow (PRD req 16)
-    - Remove non-standard YAML frontmatter (role/do_not_copy pattern used nowhere else)
-    - Include Summary, Key Deliverables, Implementation Highlights, Related Documentation, Follow-Up Work sections
+- [x] **4.6 Fix `completion-sample.example.md`**
+    - Replaced stub (9-line YAML-fronted placeholder) with full template matching `archive-completed.md`
+      workflow template exactly (PRD req 16): header metadata (Completed, Branch, Category, Context),
+      Summary, Key Deliverables, Implementation Highlights, Related Documentation, Incidental Work
+      Completed (conditional), Follow-Up Work
+    - Removed non-standard YAML frontmatter (role/do_not_copy/template_note)
+    - HTML comments provide section guidance; conditional sections noted for planned-work-only use
 
-- [ ] **4.7 Verify remaining `.example.md` files**
-    - Check AGENTS.example.md, CLAUDE.example.md, GEMINI.example.md, WARP.example.md,
-      copilot-instructions.example.md — verify they follow consistent template approach (PRD req 14)
-    - Check ATOMIC-TASKS.example.md, ROADMAP.example.md, TASK-INBOX.example.md,
-      BACKLOG-FEATURE.example.md, BACKLOG-TECHNICAL.example.md
-    - Check QUICK-REFERENCE.example.md
-    - Fix any inconsistencies found; report if all are already consistent
+- [x] **4.7 Audit and fix remaining `.example.md` files**
+    - Full content pass on each file: agnosticism, template standardization (structure + guidance +
+      tokens), cross-cutting lenses (fresh-adopter read-through, agent-perspective pass for agent
+      files, philosophy alignment, distribution awareness, B.3 structural observations, collaborative
+      voice, deduplication, version footer removal)
+    - ROADMAP.example.md already done in 4.3 — excluded here
 
-- [ ] **4.8 Run quality gate on Phase 4 files**
-    - `npx --yes markdownlint-cli2 --no-globs` on all modified template files
-    - Verify zero violations
+    - [x] **4.7.1 `AGENTS.example.md`** — agnosticism rework (67 → 75 lines)
+        - Technology Stack: repeatable `{{Component}}` tokens with HTML comments for project-type
+          adaptation (web app, CLI, library examples)
+        - Repository Layout: generic `{{src_dir}}/`, `{{test_dir}}/` tokens
+        - Critical Path: generic friction point tokens with HTML comment examples
+        - "Respect layered architecture" moved to HTML comment as project-specific example
+        - "Verify before asserting" tool references made agent-agnostic
+        - "Source of truth" line removed (artifact, no agent value)
+        - Backticks added to all `.md` file references per convention
+
+    - [x] **4.7.2 `CLAUDE.example.md`** — agnosticism fixes (140 → 136 lines)
+        - Removed version numbers from doc references (v2.7, v1.1)
+        - Session startup: "Docker status, venv availability" → "runtime environment, tool availability";
+          corrected reference from CURRENT-SESSION.md → `session-init.md`
+        - Removed "Tooling awareness: Docker and venv" bullet (project-specific, belongs in AGENTS.md)
+        - MCP section: Playwright example → tokens with HTML comment guidance
+        - Sub-Agent section: hardcoded external-research-analyst → tokens with HTML comment guidance
+        - Quality gate items in autonomous mode: added "(if applicable)" qualifiers
+        - Hyphens standardized to em dashes for consistency with other templates
+        - Autonomous work framing untouched (Task 5.4 scope)
+
+    - [x] **4.7.3 `GEMINI.example.md`, `WARP.example.md`, `copilot-instructions.example.md`**
+        - GEMINI (16 → 16 lines): removed version refs, "Use Gemini CLI" reframed as capability
+          description not tool-specific instruction, "Claude/Copilot" → "other agents"
+        - WARP (19 → 16 lines): removed Docker-centric content ("exec into containers",
+          PowerShell Docker commands, Docker env checks), replaced with generic tooling guidance,
+          removed version refs
+        - copilot-instructions (18 → 17 lines): removed Docker-first commands and Backend/Frontend
+          framework tokens, replaced with QUICK-REFERENCE/STRATEGY-INDEX pointers, removed version refs
+
+    - [x] **4.7.4 `QUICK-REFERENCE.example.md`** — major agnosticism restructure (259 → 190 lines)
+        - Removed Docker Operations section (project-specific, not universal)
+        - Removed Network Architecture & Ports section (web-app-specific)
+        - Removed backend-specific Python/Pyright and frontend-specific TypeScript/npm sections
+        - Command Patterns grouped by concern (Linting, Type Checking, Testing, Markdown Linting)
+          not by technology — adaptable to any stack
+        - HTML comments provide adaptation guidance and optional section markers
+        - Quality Gate Commands aligned with strategy-quality-gates tiered approach: organized
+          by Tier 1 (incremental, per-task) and Tier 3 (full suite, per-phase/pre-PR), with
+          pointer to strategy doc; removed incorrect "run before any commit" framing
+        - Anti-Patterns genericized (removed Docker Assumptions), added HTML comment examples
+        - Version header removed
+
+    - [x] **4.7.5 `ATOMIC-TASKS.example.md`, `TASK-INBOX.example.md`** — verified clean
+        - ATOMIC-TASKS: no changes needed — tokens used well, no project-type bias, clear instructions
+        - TASK-INBOX: one HTML comment example fix ("on {{page}}" → "in {{component}}")
+
+    - [x] **4.7.6 `BACKLOG-FEATURE.example.md`, `BACKLOG-TECHNICAL.example.md`** — verified clean
+        - No changes needed — both use clean token/category structure, no project-type bias
+        - FEATURE uses token categories (project-dependent); TECHNICAL uses concrete universal
+          categories (Infrastructure, Code Quality, Testing & Quality, Developer Experience) —
+          distinction is appropriate
+
+- [x] **4.8 Run quality gate on Phase 4 files**
+    - Linted all 11 modified/verified `.example.md` files plus completion-sample. Zero violations.
+    - Files checked: CURRENT-SESSION, AGENTS, CLAUDE, GEMINI, WARP, copilot-instructions,
+      QUICK-REFERENCE, TASK-INBOX, ATOMIC-TASKS, BACKLOG-FEATURE, BACKLOG-TECHNICAL,
+      completion-sample (archive-excluded, verified separately)
+    - Also linted: agent/README.md, session-init.md (both versions) — zero violations
+
+    **Additional fixes during Phase 4 review:**
+    - `agent/README.md`: TECHNICAL-ARCHITECTURE → TECHNICAL-OVERVIEW reference fix
+    - `session-init.md` (both `.arc/` and `.arc-internal/`): resequenced reading order from
+      general → specific (project identity → agent file → constitutional → process → active work);
+      added section headers for the three disclosure layers
+    - Quality gate alignment: QUICK-REFERENCE.example.md quality gate section organized by tier
+      to match strategy-quality-gates.md
 
 ### **Phase 5:** Streamline Heavyweight Documentation
 

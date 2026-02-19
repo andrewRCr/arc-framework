@@ -15,6 +15,6 @@
 <!-- Capture anything here using simple bullets (no checkboxes, no numbers) -->
 <!-- Examples: -->
 <!-- - Explore {{capability}} -->
-<!-- - Better error messages on {{page}} -->
+<!-- - Better error messages in {{component}} -->
 <!-- - Fix typo in README line 47 -->
 <!-- - Research {{technology}} options -->
