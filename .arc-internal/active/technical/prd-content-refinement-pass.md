@@ -1,8 +1,9 @@
 # PRD: Content Refinement Pass
 
 **Type:** Technical
-**Status:** Ready for Implementation
+**Status:** Complete
 **Created:** 2026-02-17
+**Completed:** 2026-02-19
 
 ---
 
@@ -250,14 +251,15 @@ D (Content Fixes) ── interleave throughout ─┘
 8. All modified files pass markdown linting with zero violations
 9. Structural observations encountered during content work are captured as notes for B.3
 
-## Open Questions
+## Open Questions (Resolved)
 
-1. **Streamlining calibration.** Area C requires judgment about what's "essential" vs "depth." The first document
-   streamlined (likely atomic-commit.md) will set the tone. Calibrate with user feedback before applying broadly.
+1. **Streamlining calibration.** Resolved — "60% rule" established: a reader stopping at 60% gets
+   everything needed for normal use. Applied across Phase 5 (atomic-commit 431→128 lines,
+   maintain-task-notes 863→359 lines, task-list-formatting 1176→768 lines).
 
-2. **agent-pre-merge-review.md scope.** Reworking this from CodeRabbit-specific to tool-agnostic (A2, requirement 6)
-   is potentially substantial. If it proves larger than expected, it could become its own atomic task rather than a
-   subtask within Area A.
+2. **agent-pre-merge-review.md scope.** Resolved — handled as a standard subtask within Phase 3
+   (Task 3.8). CodeRabbit-specific content generalized to tool-agnostic patterns without requiring
+   a separate work unit.
 
 ## Reference Documents
 

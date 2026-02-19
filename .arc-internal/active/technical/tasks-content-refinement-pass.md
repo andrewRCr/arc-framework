@@ -2,9 +2,10 @@
 
 **PRD:** `.arc-internal/active/technical/prd-content-refinement-pass.md`
 **Created:** 2026-02-17
+**Completed:** 2026-02-19
 **Branch:** `technical/content-refinement-pass`
 **Base Branch:** `main`
-**Status:** In Progress
+**Status:** Complete
 
 ## Overview
 
@@ -654,13 +655,14 @@ structural observations, and verify overall pass completeness.
 
 ## Success Criteria
 
-- [ ] All `.arc/reference/` workflow and strategy docs free of project-type-specific assumptions (or use conditional
+- [x] All `.arc/reference/` workflow and strategy docs free of project-type-specific assumptions (or use conditional
   framing)
-- [ ] No agent-specific content in framework-generic documents
-- [ ] All `.example.md` constitution templates follow structure + guidance + tokens approach
-- [ ] `CURRENT-SESSION.example.md` aligns with `session-handoff.md` expectations
-- [ ] All D2 specific content fixes addressed
-- [ ] Heavyweight docs have essential guidance front-loaded (60% threshold)
-- [ ] Auto-compact prohibition documented in agent template files
-- [ ] All modified files pass markdown linting with zero violations
-- [ ] Structural observations captured for B.3
+- [x] No agent-specific content in framework-generic documents
+- [x] All `.example.md` constitution templates follow structure + guidance + tokens approach
+- [x] `CURRENT-SESSION.example.md` aligns with `session-handoff.md` expectations
+- [x] All D2 specific content fixes addressed
+- [x] Heavyweight docs have essential guidance front-loaded (60% threshold)
+- [x] Auto-compact prohibition documented — deferred to onboarding (CLI config, not agent guidance);
+  backlog note in BACKLOG-FEATURE.md captures intent and rationale
+- [x] All modified files pass markdown linting with zero violations
+- [x] Structural observations captured for B.3
