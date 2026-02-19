@@ -1,3 +1,3 @@
 Initialize session using `.arc-internal/reference/workflows/supplemental/session-init.md`
 
-**Critical first read**: `.arc/reference/agent/AGENTS.md` (context)
+**Critical first read**: `.arc-internal/reference/agent/AGENTS.md` (context)
