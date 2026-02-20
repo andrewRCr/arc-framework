@@ -394,41 +394,48 @@ future refinement.
 **Purpose:** Establish team mode structure and document coordination conventions. Lightweight conventions
 only — no automation or assignment tooling.
 
-- [ ] **6.1 Create `team/` directory structure (B6)**
+- [x] **6.1 Create `team/` directory structure (B6)**
 
-    **Goal:** Template scaffolding for team mode, activated by CLI init option.
+    Created `.arc/team/` with three files:
 
-    - Create `.arc/team/` with README explaining purpose and solo-vs-team model
-    - Include `.gitkeep` for empty state
-    - Create template `CURRENT-SESSION.md` and `ATOMIC-TASKS.md` for team member directories
-    - README content: directory purpose, per-member subdirectory convention (`team/{name}/`), how CLI
-      init creates the structure
-    - Note: describe `team/{name}/` as default without precluding nested groupings
-      (e.g., `team/frontend/alice/`). Avoid language that implies flat-only structure
+    - `README.md` — directory purpose, solo-vs-team model, what-lives-where table
+      (communal `active/` vs personal `team/{name}/`), agent lookup paths, template
+      explanation. Describes `team/{name}/` as default without precluding nested groupings.
+    - `CURRENT-SESSION.template.md` — identical to `active/` template (same content,
+      consistent experience per member)
+    - `ATOMIC-TASKS.template.md` — identical to `active/` template
 
-- [ ] **6.2 Add team coordination guidance (F1, F2)**
+    Design decisions: skipped `.gitkeep` (directory has content), templates use
+    `.template.md` naming convention (consistent with framework). Solo-to-team migration
+    mechanics deferred to CLI work (noted in `plan-distribution-and-update-system.md`).
+    Added `team/` entry to `.arc/README.md` directory tree.
 
-    **Goal:** Lightweight conventions for multi-developer-agent collaboration.
+- [x] **6.2 Add team coordination guidance (F1, F2)**
 
-    - F1: Add team coordination section to `strategy-work-organization.md` (or linked supplement):
-        - Task ownership markers: `(@name)` convention
-        - Team branching patterns: shared integration branch, personal sub-branches, stacked PRs per
-          developer, direct shared branch
-        - Task list merge conflict expectations: trivially resolvable, set expectations
-    - F2: Integration point acknowledgment: teams using external trackers (Jira, Linear, GitHub
-      Issues) use those for assignment/status while ARC task lists handle implementation detail.
-      External tool = assignment layer, ARC = execution layer
+    Created `strategy-team-coordination.md` as a dedicated strategy (separate from work-org
+    to keep solo developers unburdened by team content). Covers:
 
-- [ ] **6.3 Document communal `active/` + personal `team/` model (F3)**
+    - F1: `(@name)` task ownership convention (narrow scope — task list checkboxes and phase
+      headers only, identifies human developer not agent), four team branching patterns
+      (shared integration, personal sub-branches, stacked PRs per developer, direct shared),
+      merge conflict expectations (task lists: trivially resolvable; session state: no conflicts
+      by design via `team/` separation)
+    - F2: External tracker integration model — external tool as assignment/status layer, ARC
+      task lists as execution layer, `(@name)` markers optional when external tracker owns
+      assignment
 
-    - Document in `.arc/README.md` directory overview and/or `team/README.md`:
-        - What lives where: communal work artifacts in `active/`, personal session state in
-          `team/{name}/`
-        - Why the separation exists: no file-level conflicts between team members' session state
-        - Solo-to-team transition: how existing solo `active/CURRENT-SESSION.md` relates to team
-          `team/{name}/CURRENT-SESSION.md`
-        - TASK-INBOX as communal capture point: quick tasks captured, triaged during weekly review,
-          assigned to team member's ATOMIC-TASKS or promoted to backlog
+    Cross-references: added Team Coordination section + ToC entry + Related Documentation
+    link in `strategy-work-organization.md`. Added entry to `STRATEGY-INDEX.md`.
+
+- [x] **6.3 Document communal `active/` + personal `team/` model (F3)**
+
+    Most content was established in 6.1 (`team/README.md` already covered what-lives-where
+    table, why-the-separation, solo-vs-team transition, agent lookup). Added remaining gap:
+
+    - TASK-INBOX as communal capture subsection in `team/README.md` — triage flow from
+      shared inbox to either member's ATOMIC-TASKS (small items) or backlog promotion
+      (larger items)
+    - `.arc/README.md` already has adequate `team/` directory tree entry from 6.1
 
 ### **Phase 7:** Final Verification and Quality Gates
 

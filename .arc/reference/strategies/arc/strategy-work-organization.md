@@ -27,8 +27,9 @@ Use this strategy when:
 10. [Directory Structure](#directory-structure)
 11. [Anti-Patterns](#anti-patterns)
 12. [Migration Guide](#migration-guide)
-13. [Backlog Organization](#backlog-organization) *(→ dedicated strategy)*
-14. [Related Documentation](#related-documentation)
+13. [Team Coordination](#team-coordination) *(→ dedicated strategy)*
+14. [Backlog Organization](#backlog-organization) *(→ dedicated strategy)*
+15. [Related Documentation](#related-documentation)
 
 ---
 
@@ -668,6 +669,13 @@ Incidental work gets task lists only. Notes files are optional, reserved for com
 
 ---
 
+## Team Coordination
+
+See [Team Coordination Strategy][team-coordination] — task ownership markers, team branching
+patterns, merge conflict expectations, and external tracker integration.
+
+---
+
 ## Backlog Organization
 
 See [Backlog Organization Strategy](strategy-backlog-organization.md) — backlog directory structure,
@@ -683,11 +691,13 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 - [atomic-commit.md][atomic-commit] — Complex commit scenarios and atomicity
 - [manage-incidental-work.md][manage-incidental] — Incidental work workflow
 - [agent-pre-merge-review.md][pre-merge-review] — Code review workflow
+- [strategy-team-coordination.md][team-coordination] — Task ownership, team branching, external trackers
 - [weekly-review.md][weekly-review] — Weekly backlog review process
 
 ---
 
 [dev-rules]: ../../constitution/DEVELOPMENT-RULES.md
+[team-coordination]: strategy-team-coordination.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md

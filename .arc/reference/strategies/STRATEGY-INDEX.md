@@ -16,6 +16,7 @@ These ship with the framework and cover development methodology applicable to an
 - `arc/strategy-file-classification.md` - File taxonomy, merge strategies, complete inventory
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
+- `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration
 - `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival
 
 ## Project Strategies

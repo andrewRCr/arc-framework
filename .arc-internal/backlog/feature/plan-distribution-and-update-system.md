@@ -409,6 +409,12 @@ Decisions made during `tasks-structural-readiness-pass.md` that affect CLI desig
 - **Team directory nesting** — `team/` structure supports both flat (`team/{name}/`) and nested
   (`team/{grouping}/{name}/`). CLI glob patterns for team member discovery must use `team/**/`
   not `team/*/`.
+- **Solo-to-team migration** — When a project transitions from solo to team mode, the solo
+  `active/CURRENT-SESSION.md` migrates to `team/{name}/CURRENT-SESSION.md` (and similarly for
+  ATOMIC-TASKS). The `active/` directory continues to hold communal work artifacts (task lists,
+  PRDs). Exact migration mechanics (move vs copy, CLI automation, what happens to solo file)
+  should be finalized when the CLI `init --team` flow is implemented — current team docs
+  describe the conceptual model and defer specifics to CLI work.
 - **Planning branches** — ARC's default branching model now includes `planning/*` branches for
   delivering planning artifacts (PRD, task list) via PR before implementation. The CLI doesn't
   need to manage these directly, but should be aware of the pattern for any branch-related

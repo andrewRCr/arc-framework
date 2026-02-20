@@ -31,6 +31,7 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 │   ├── adr/                   # Architecture Decision Records
 │   ├── research/              # Technical research documents
 │   └── archive/               # Completed work (by work type, quarterly as volume grows)
+├── team/                      # Team mode: per-member session state (optional)
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
     ├── agent/                 # AI agent configuration (AGENTS.md + tool-specific files)
