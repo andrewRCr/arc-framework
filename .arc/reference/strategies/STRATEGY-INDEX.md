@@ -13,6 +13,7 @@ These ship with the framework and cover development methodology applicable to an
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
 - `arc/strategy-backlog-organization.md` - Backlog structure, processing flow, atomic task conventions
 - `arc/strategy-development-methodology.md` - Commit standards, verification, session/task management
+- `arc/strategy-file-classification.md` - File taxonomy, merge strategies, complete inventory
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
 - `arc/strategy-work-organization.md` - Feature vs incidental work, branch coupling, archival
