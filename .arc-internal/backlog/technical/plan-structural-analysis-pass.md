@@ -13,7 +13,8 @@ combined B.3+B.4 structural optimization work.
 
 ## Scoping Decisions
 
-Resolved during planning (2026-02-19 session).
+Resolved during planning (2026-02-19). Updated post-audit with design decisions from analysis
+discussion (2026-02-19).
 
 ### Combined work unit (B.3 audit → B.4 execution)
 
@@ -25,46 +26,64 @@ The roadmap B.3/B.4 distinction reflects sequencing (analyze, then execute), not
 
 **Full execution (A+B+C):**
 
-- **A: File-level restructuring** — Split mixed-concern files (DEVELOPMENT-RULES, work-organization),
-  section-level separation in configurable files to reduce merge conflict surface
-- **B: Directory/naming/metadata** — Evaluate infrastructure separation from reference/, `.example.md`
-  → `.template.md` rename, version footer removal, header metadata conventions
-- **C: Cross-cutting concept management** — Dependency mapping, centralized definitions, file
-  classification markers for manifest
+- **A: File-level restructuring** — Split DEVELOPMENT-RULES (confirmed: ~230 lines framework methodology
+  → `strategies/arc/strategy-development-methodology.md`, ~170 lines project content stays). Extract
+  backlog organization from strategy-work-organization.md (~55 lines →
+  `strategies/arc/strategy-backlog-organization.md`). No splits needed for QUICK-REFERENCE, agent files,
+  ATOMIC-TASKS, TASK-INBOX (audit confirmed clean section-level separation is sufficient).
+- **B: Directory/naming/metadata** — Extract `system/` from `reference/` (agent/, workflows/, githooks/,
+  future commands/). Rename `.example.md` → `.template.md` (16 files). Remove maintain-docs.md version
+  footer. Reframe DEVELOPMENT-RULES version header as project rule evolution tracking. Add `team/`
+  directory template for team mode.
+- **C: Cross-cutting concept management** — Dependency map complete (7 concepts mapped with blast
+  radius). Create `strategy-file-classification.md` as canonical home for file classification taxonomy.
+  Deduplicate DEVELOPMENT-RULES tier table to summary with cross-reference. Decouple branch-to-task-list
+  1:1 rule — update strategy-work-organization.md, activate-work-unit.md, archive-completed.md, and
+  template headers to reflect many-to-one model (branches serve task lists, not the reverse).
 
-**First pass only (D):**
+**First pass (D+F):**
 
 - **D: Workflow/coverage gaps** — Establish placement and rough shape for convention definitions,
-  onboarding skeleton, workflow gap fixes (ROADMAP in define-constitution, working directory context
-  placement, audience indicators). Explicitly not-final — polish deferred until CLI work clarifies
-  actual onboarding needs.
-
-**First pass only (F):**
-
-- **F: Team adaptation readiness** — Identify structural decisions that would block or enable team
-  usage. Establish forward-compatible patterns where possible without over-engineering for a use case
-  that isn't the current priority. See [Team Adaptation Concerns](#team-adaptation-concerns) below.
+  onboarding skeleton (`getting-started.md`), workflow gap fixes (ROADMAP in define-constitution,
+  audience indicators). Explicitly not-final — polish deferred until CLI work clarifies actual
+  onboarding needs.
+- **F: Team adaptation guidance** — Document team coordination conventions: task ownership markers
+  (`@name`), team branching patterns (shared integration branch, personal sub-branches, stacked PRs),
+  integration point acknowledgment for external trackers (Jira, Linear, GitHub Issues). First-pass
+  content — refined when actual team usage provides feedback.
 
 **Deferred:**
 
 - **D polish** — Post-CLI, when onboarding needs are concrete
-- **E: Slash command dedup** — Phase C (CLI), needs generation script. Audit should document
-  current duplication state but execution is a CLI concern.
+- **E: Slash command dedup** — Phase C (CLI), needs generation script
 
 ### Open questions resolved
 
 1. **Scope boundary:** Combined — distribution-readiness structure AND broader concerns (workflow
    gaps, conventions, team readiness), with broader concerns scoped to first-pass placement only.
-2. **DEVELOPMENT-RULES split:** Audit will propose specific split. Execution decides aggressiveness
-   based on audit findings.
-3. **Directory restructuring:** Audit will evaluate and recommend. Decision deferred to audit findings.
+2. **DEVELOPMENT-RULES split:** Confirmed by audit. ~230 lines framework methodology →
+   strategy doc. ~170 lines project content stays in DEVELOPMENT-RULES.
+3. **Directory restructuring:** Decided. `reference/` splits into `reference/` (knowledge) +
+   `system/` (ARC operational machinery). Not just githooks extraction — agent/, workflows/, and
+   githooks/ all move to `system/`.
 4. **Naming convention timing:** Part of this work unit (Cluster B), not deferred to CLI.
+5. **Branch-task list coupling:** Reworked. 1:1 "Key rule" replaced with many-to-one model. Task
+   lists are the unit of work; branches are the unit of delivery. Archive triggers on task
+   completion, not branch deletion.
+6. **Team workspace model:** Communal `active/` (shared task lists, PRDs) + personal `team/`
+   (per-developer session state, atomic tasks). Solo mode keeps current structure; team mode
+   adds `team/` top-level directory.
+7. **constitution/ naming:** Retained. The DEVELOPMENT-RULES split strengthens the grouping —
+   post-split, constitution/ holds genuinely constitutional project governance documents.
+8. **Header metadata convention:** Resolved — no new convention needed. Manifest handles framework
+   versioning. DEVELOPMENT-RULES keeps its version header for project rule evolution tracking.
 
 ---
 
 ## Observations from B.2 Refinement Pass
 
 Gathered during Phases 1-5 of `tasks-content-refinement-pass.md`. Organized by concern area.
+These observations fed the audit prompt and are retained here as reasoning-chain context.
 
 ### File-Level Mixed Concerns
 
@@ -152,14 +171,13 @@ and workflows assume only one such pair exists.
 **Known friction areas:**
 
 - **Session state is singleton.** CURRENT-SESSION.md assumes one developer-agent pair. Team usage
-  needs per-developer session scoping (e.g., `active/team/{name}/` as mentioned in distribution plan).
-  Structural question: does the directory layout support multiple concurrent sessions without breaking
-  workflows?
+  needs per-developer session scoping. Structural question: does the directory layout support
+  multiple concurrent sessions without breaking workflows?
 - **Task list coordination.** Multiple developer-agent pairs working from one task list need
   ownership/assignment conventions. Multiple concurrent task lists need coordination patterns.
   The single-threaded model is fine per-pair; the gap is multi-pair awareness.
 - **ATOMIC-TASKS is a single shared file.** Concurrent edits from multiple devs = merge conflicts.
-  May need per-developer or per-category splitting.
+  May need per-developer splitting.
 - **Branch-to-task-list coupling is 1:1.** Current convention: one branch ↔ one task list in active/.
   Team usage might need multiple devs on one branch, or parallel branches for one work unit.
 - **Workflows assume sole occupancy.** session-init loads one CURRENT-SESSION, session-handoff
@@ -175,100 +193,281 @@ without building team features now.
 
 ---
 
-## Audit Approach
+## Audit Results Summary
 
-The audit is a dedicated session run from a prepared prompt (below). It produces findings that get
-folded back into this plan doc, which then evolves into the PRD.
+**Audit executed:** 2026-02-19
+**Findings document:** `audit-structural-analysis-findings.md` (same directory)
+**Scope:** All 46 `.arc/` markdown files, 2 shell scripts, 5 .gitkeep files, plus distribution plan
 
-### What the audit must produce
+All 8 deliverables produced. Key outcomes by category:
 
-1. **File classification inventory** — Every `.arc/` file classified as framework / configurable /
-   scaffolded / project-owned, with mixed-concern annotations where applicable
-2. **Split/separation proposals** — Concrete recommendations for high-impact files (DEVELOPMENT-RULES,
-   work-organization, any others identified). Section-level granularity: what stays, what moves, where.
-3. **Directory structure recommendation** — Infrastructure separation (yes/no, what form), with
-   rationale weighing adoption simplicity vs. concern separation
-4. **Cross-cutting concept dependency map** — Which concepts span multiple files, what's the blast
-   radius of changing each one, where canonical definitions live
-5. **Team adaptation assessment** — For each structural decision proposed, note whether it enables,
-   blocks, or is neutral for team adaptation. Flag any restructuring that would make team support
-   harder later.
-6. **Placement recommendations for Cluster D** — Where convention definitions, onboarding content,
-   and workflow gap fixes should live in the restructured layout
-7. **Naming convention assessment** — `.example.md` → `.template.md` implications, any other
-   naming concerns
-8. **Version footer inventory** — Verify removal status, confirm no in-file versioning needed
+### Confirmed (audit aligned with B.2 observations)
 
-### Audit prompt
+- DEVELOPMENT-RULES is the highest-impact mixed-concern file (paragraph-level interleaving, ~230
+  lines framework, ~100 lines project, ~70 lines mixed)
+- Work-organization backlog extraction warranted (~55 lines, low impact)
+- Infrastructure separation from reference/ warranted (githooks are tooling, not documentation)
+- `.example.md` → `.template.md` rename confirmed (16 files + 1 special case)
+- Version footers nearly eliminated (only 2 remain; B.2 cleaned the rest)
+- All structural proposals neutral to positive for team adaptation
 
-See [Audit Session Prompt](#audit-session-prompt) below. To be used as the starting prompt for a
-fresh session dedicated to the audit.
+### Scope narrowing (audit ruled out work)
+
+- **No split needed** for: QUICK-REFERENCE, agent files, ATOMIC-TASKS, TASK-INBOX (clean
+  section-level separation is sufficient for three-way merge in all cases)
+
+### New deliverables surfaced
+
+- **File classification strategy doc** (`strategy-file-classification.md`) — taxonomy
+  (framework/configurable/scaffolded/project-owned) needs a canonical home in `.arc/`
+- **Getting-started.md** — onboarding entry point, placed at `reference/getting-started.md`
+
+### Refinements
+
+- **completion-sample.example.md** special case — this is a sample, not a template. Rename to
+  drop `.example` or use `.sample.md`
+- **DEVELOPMENT-RULES version header** — keep, but reframe as project rule evolution tracking
+  (manifest handles framework versioning)
+- **Quality Gate Tiers table** in DEVELOPMENT-RULES — replace full duplicate with summary and
+  cross-reference to strategy doc
+
+### Audit assessment corrected post-discussion
+
+- **Branch-to-task-list coupling**: Audit assessed as "no structural change needed" (Deliverable 5).
+  Post-audit analysis found this underestimates the issue — the 1:1 coupling is expressed as a
+  "Key rule" in strategy-work-organization.md, baked into activate-work-unit workflow, and used as
+  archive trigger. Requires content and workflow changes.
+  See [Branch-task list decoupling](#3-branch-task-list-decoupling).
+- **Directory structure**: Audit proposed narrow extraction (githooks only → `infrastructure/`).
+  Post-audit analysis identified a broader concern — `reference/` conflates passive knowledge with
+  operational machinery (agent config, workflows). Agent files are mechanically loaded config;
+  workflows are procedures agents execute. These are operationally closer to hooks than to ADRs or
+  research notes. Decided on `reference/` + `system/` split.
+  See [Directory structure](#1-directory-structure-reference--reference--system).
+
+---
+
+## Post-Audit Design Decisions
+
+Decisions made during post-audit analysis discussion (2026-02-19). These go beyond the audit's
+recommendations where discussion revealed deeper structural concerns.
+
+### 1. Directory structure: `reference/` → `reference/` + `system/`
+
+**Decision:** Split `reference/` into two top-level directories based on function.
+
+**`reference/`** — Project knowledge base (things you read for understanding):
+
+- `adr/` — Architecture decision records
+- `archive/` — Completed work history
+- `constitution/` — Project governance (META-PRD, DEVELOPMENT-RULES, PROJECT-STATUS, TECHNICAL-OVERVIEW)
+- `research/` — Research notes
+- `strategies/` — Codified patterns (arc/ and project/)
+
+**`system/`** — ARC operational machinery (things that drive development sessions):
+
+- `agent/` — Agent configuration files (loaded at session-init, configure agent behavior)
+- `commands/` — Future CLI command source
+- `githooks/` — Git enforcement scripts
+- `workflows/` — Procedural workflows (executed by agents step-by-step)
+
+**Rationale:** `reference/` was a catch-all for all stable content, conflating passive knowledge
+(constitution, strategies, ADRs) with operational machinery (agent config, workflows, hooks). The
+split creates directories with clear, distinct roles. `system/` naturally sorts to the bottom of
+file explorers.
+
+**Why not the audit's narrower proposal:** The audit proposed extracting only githooks as
+`infrastructure/`. But agent files and workflows are more operational than knowledge — agent files
+are config loaded mechanically, workflows are procedures agents execute. They have more in common
+with hooks (making ARC sessions work) than with ADRs and research (things you consult for context).
+
+**Impact:** All cross-references to `reference/agent/`, `reference/workflows/`, and
+`reference/githooks/` update. Session-init reading list paths change. `.arc/README.md` directory
+tree updates. `git config core.hooksPath` changes.
+
+### 2. Communal `active/` + personal `team/` for team mode
+
+**Decision:** Separate shared work artifacts from per-developer workspace.
+
+**Solo mode (default):** No change from current structure. CURRENT-SESSION.md and ATOMIC-TASKS.md
+live in active/. No `team/` directory.
+
+**Team mode (CLI option):**
+
+- `active/` becomes purely communal — task lists, PRDs, supporting docs. Any team member can work
+  on any task list. No ownership coupling between task lists and team members.
+- `team/` is a new top-level directory with per-developer workspaces: `team/{name}/` holds
+  CURRENT-SESSION.md, ATOMIC-TASKS.md, and personal notes/scratch.
+- CURRENT-SESSION points *into* active/ (personal state references communal work), not the reverse.
+
+**Why separate from active/:** Embedding personal workspaces inside `active/` (the previously
+discussed `active/team/{name}/` approach) couples team members to task list locations. When multiple
+devs work on the same task list, it can't live in any one person's workspace. Separating `team/`
+as a top-level peer keeps both concerns clean.
+
+**ATOMIC-TASKS in team mode:** Personal. "I'm doing this quick thing" is inherently per-developer.
+Communal quick tasks go to `backlog/TASK-INBOX.md` for capture, then during weekly review get
+assigned to a team member's ATOMIC-TASKS.md or promoted to a backlog bucket — you don't execute
+tasks directly from the inbox (unless trivial with no completion documentation/tracking need).
+
+**Solo → team transition:** Mechanical. Create `team/` directory, move session/atomic files to
+`team/{name}/`, `active/` becomes purely communal. CLI manages this.
+
+### 3. Branch-task list decoupling
+
+**Decision:** Replace the 1:1 "Key rule" with a many-to-one model.
+
+**Problem:** ARC currently enforces 1:1 branch-to-task-list coupling:
+
+- strategy-work-organization.md line 349: "Task list in `.arc/active/` ↔ Git branch exists.
+  Archive immediately when branch is deleted."
+- activate-work-unit.md assumes one branch per task list
+- Archive triggers on branch deletion
+
+This is naive. It breaks for: large features decomposed into stacked PRs (multiple branches, one
+task list), team collaboration via personal sub-branches, and even the existing stacked incidental
+branch model (which already partially breaks the rule).
+
+**New model:**
+
+- **Task lists are the unit of work planning.** A work unit is identified by its task list/PRD.
+- **Branches are the unit of code delivery.** One or more branches serve a task list.
+- **The 1:1 pattern is the default**, not a rule. Solo dev, one feature, one branch remains the
+  common case and requires no extra thought.
+- **Multi-branch patterns are supported:** stacked PRs, team sub-branches, the existing incidental
+  stacked branch model (which generalizes naturally to planned work).
+- **Archive triggers on task completion**, not branch deletion. All tasks done → archive. Branches
+  are cleaned up independently as PRs merge.
+
+**Changes required:**
+
+- **strategy-work-organization.md:** Remove "Key rule" (line 349). Replace with guidance that task
+  lists track work, branches deliver code. Add multi-branch patterns section.
+- **activate-work-unit.md:** Create primary/integration branch. Acknowledge additional branches
+  may be created during work.
+- **archive-completed.md:** Trigger changes from "branch deleted" to "all tasks complete."
+- **Task list template header:** Support multiple branches (e.g., `Branch(es):` field).
+- **PROJECT-STATUS template:** Track by work unit name, branches as metadata.
+
+**What stays the same:** Commit context footers (already reference task lists, not branches —
+correct design), category-based organization, branch naming conventions.
+
+### 4. Team coordination conventions
+
+**Decision:** Lightweight conventions, not machinery. Git handles file conflicts, conventions handle
+task coordination, communication handles everything else. This is how the industry works — no need
+for checkout systems, locking, or custom tooling.
+
+**Task ownership markers:**
+
+```markdown
+- [ ] Task 3.1: Implement auth middleware (@alice)
+- [ ] Task 3.2: Add rate limiting (@bob)
+```
+
+Simple `(@name)` convention. Visible in markdown, no tooling required.
+
+**Team branching patterns:**
+
+- **Shared integration branch:** Team creates `feature/auth`, devs create personal branches off it
+  (`feature/auth-alice`, `feature/auth-bob`), merge via PRs. Integration branch merges to main.
+- **Direct shared branch:** Push/pull on same branch. Simpler, for small teams or non-overlapping tasks.
+- **Stacked PRs per developer:** Chain of branches for reviewability, all serving the same task list.
+
+**Integration point acknowledgment:** Teams using external trackers (Jira, Linear, GitHub Issues)
+can use those for assignment and high-level status while ARC task lists handle implementation detail.
+These coexist — the external tool is the assignment layer, ARC is the execution layer.
+
+**Task list merge conflicts:** When multiple devs edit the same task list, git handles it. Task list
+conflicts are trivially resolvable — different people checking different boxes in different parts of
+the file. Document this in team guidance to set expectations.
+
+### 5. Other structural decisions
+
+- **constitution/ naming:** Retained. The DEVELOPMENT-RULES split strengthens the grouping — post-split,
+  constitution/ holds genuinely constitutional project governance documents.
+- **archive/ placement:** Stays in `reference/`. Considered top-level to create a temporal trio
+  (backlog → active → archive), but not worth a 5th (or 6th with team/) top-level directory for
+  rarely-accessed content.
+- **active/ flat mode:** Available as CLI init option. Removes category directories for solo devs who
+  don't need the three-way split. Existing scope — no new decisions needed.
+- **CURRENT-SESSION placement (solo mode):** Stays in `active/`. File explorers sort directories above
+  files, putting it below category dirs — effectively out of the way, which suits agent material.
+
+---
+
+## Proposed `.arc/` Structure (Post-Restructuring)
+
+Target state after B.3+B.4 execution.
+
+### Solo mode (default)
+
+```text
+.arc/
+├── active/                       # Current work
+│   ├── ATOMIC-TASKS.md
+│   ├── CURRENT-SESSION.md
+│   ├── feature/
+│   ├── technical/
+│   └── incidental/
+├── backlog/                      # Future work
+│   ├── ROADMAP.md
+│   ├── TASK-INBOX.md
+│   ├── feature/
+│   └── technical/
+├── reference/                    # Project knowledge base
+│   ├── adr/
+│   ├── archive/
+│   ├── constitution/
+│   ├── getting-started.md        # NEW — onboarding entry point (Cluster D, first-pass)
+│   ├── research/
+│   └── strategies/
+│       ├── STRATEGY-INDEX.md
+│       ├── arc/
+│       │   ├── strategy-adr-methodology.md
+│       │   ├── strategy-backlog-organization.md   # NEW — extracted from work-organization
+│       │   ├── strategy-development-methodology.md # NEW — extracted from DEVELOPMENT-RULES
+│       │   ├── strategy-file-classification.md     # NEW — file taxonomy
+│       │   ├── strategy-quality-gates.md
+│       │   ├── strategy-task-list-formatting.md
+│       │   └── strategy-work-organization.md       # MODIFIED — backlog extracted, branch decoupled
+│       └── project/
+└── system/                       # ARC operational machinery
+    ├── agent/                    # MOVED from reference/agent/
+    ├── commands/                 # NEW — future CLI command source
+    ├── githooks/                 # MOVED from reference/githooks/
+    └── workflows/                # MOVED from reference/workflows/
+```
+
+### Team mode additions
+
+```text
+.arc/
+├── active/                       # Communal — no CURRENT-SESSION or ATOMIC-TASKS
+│   ├── feature/
+│   ├── technical/
+│   └── incidental/
+├── backlog/                      # (unchanged)
+├── reference/                    # (unchanged)
+├── system/                       # (unchanged)
+└── team/                         # NEW — per-developer workspaces
+    ├── alice/
+    │   ├── ATOMIC-TASKS.md
+    │   ├── CURRENT-SESSION.md
+    │   └── (personal notes)
+    └── bob/
+        ├── ATOMIC-TASKS.md
+        └── CURRENT-SESSION.md
+```
 
 ---
 
 ## Audit Session Prompt
 
-**Usage:** Copy this section as the opening prompt for a dedicated audit session. The session should
-read all `.arc/` files systematically and produce findings for each deliverable listed above.
-
----
-
-### Prompt
-
-You are performing a structural analysis audit of the ARC Agentic Development Framework. This is
-Roadmap Phase B.3 — an analysis step whose findings will become the basis for a PRD and task list
-covering structural optimization (B.4).
-
-**Context:** Read these documents first to establish full context:
-
-1. `.arc-internal/reference/agent/AGENTS.md` — Project overview
-2. `.arc-internal/reference/agent/CLAUDE.md` — Agent-specific guidance
-3. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` — Quality standards
-4. `.arc-internal/reference/QUICK-REFERENCE.md` — Environment context
-5. `.arc-internal/backlog/technical/plan-structural-analysis-pass.md` — **This plan doc** (contains
-   B.2 observations, scoping decisions, concern clusters, team adaptation concerns, and the full
-   specification of what this audit must produce)
-6. `.arc-internal/backlog/feature/plan-distribution-and-update-system.md` — Distribution plan
-   (structural decisions must enable the three-way merge update system)
-
-**Your task:** Systematically audit every file in `.arc/` (the template/deployable system) to produce
-the 8 deliverables specified in the "What the audit must produce" section of the plan doc. Work
-through files methodically — by directory, then by file within each directory.
-
-**For each file, assess:**
-
-- **Classification:** Framework / configurable / scaffolded / project-owned
-- **Mixed concerns:** Does this file interleave framework-stable content with project-specific content?
-  At what granularity (section-level, paragraph-level, line-level)?
-- **Cross-cutting concepts:** What framework-wide concepts does this file reference or define?
-- **Team readiness:** Would this file's structure cause problems in a multi-developer context?
-- **Merge conflict surface:** If a user customizes this file, where would framework updates likely
-  conflict?
-
-**For the overall assessment, produce:**
-
-- Concrete split/separation proposals for mixed-concern files (not just "consider splitting" —
-  specify what content moves where)
-- A directory structure recommendation with rationale
-- A cross-cutting concept dependency map (concept → files that reference it → canonical definition
-  location)
-- Team adaptation assessment for each proposed structural change
-- Placement recommendations for workflow gaps, conventions, and onboarding content
-
-**Important constraints:**
-
-- This is analysis only — do not modify any files
-- Produce findings as structured markdown that can be appended to the plan doc
-- Be specific and concrete — "DEVELOPMENT-RULES lines 45-89 are framework methodology, lines 90-150
-  are project constitution" is useful; "DEVELOPMENT-RULES has mixed concerns" is not
-- Consider the distribution plan's three-way merge system when evaluating merge conflict surface
-- Consider team adaptation as a forward-compatibility concern, not a current requirement
-
-**Output format:** Structure your findings using the 8 deliverable headings from the plan doc's
-"What the audit must produce" section. Within each deliverable, organize by file or by concern area
-as appropriate.
+**Executed:** 2026-02-19. Full prompt preserved in git history. Output written to
+`audit-structural-analysis-findings.md` (same directory).
 
 ---
 
 **Created:** 2026-02-19
-**Status:** Planning — scoping complete, audit prompt ready, awaiting audit session execution
+**Status:** Post-audit — design decisions complete, ready for PRD creation
