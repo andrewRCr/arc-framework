@@ -355,17 +355,21 @@ templates, and tooling.
 **Purpose:** Fill documentation gaps identified during structural analysis. First-pass content structured for
 future refinement.
 
-- [ ] **5.1 Create `getting-started.md` (D1)**
+- [x] **5.1 Capture docs site decision and align plan docs with roadmap (D1)**
 
-    **Goal:** First-pass onboarding content, structured in independent sections for easy replacement when CLI
-    work clarifies the actual onboarding flow.
+    **Goal:** Replace the originally-planned in-repo `getting-started.md` with the decision to use an
+    external documentation site. Align backlog plan documents with roadmap phases (Phase C / Phase D)
+    and absorb TASK-INBOX items into the appropriate plans.
 
-    - Create `.arc/reference/getting-started.md`
-    - Content: adoption story (README → `.arc/README.md` → setup), file placement rationale (why ARC
-      manages agent config loading via session-init), session-init loading chain, "what to customize
-      first" guidance
-    - Structure for replaceability: clear sections that can be rewritten independently
-    - Cross-reference from `.arc/README.md`
+    - Rewrite `plan-public-release.md` (moved from technical/ to feature/, renamed from
+      `plan-public-release.md`, renamed from `plan-public-release-repository-strategy.md`) as
+      Phase D planning doc — incorporating dual-repo
+      concept, docs site decision (MkDocs Material + GitHub Pages), README refresh, philosophy and
+      positioning guidance, community infrastructure
+    - Tighten `plan-distribution-and-update-system.md` to Phase C scope — move Phase D content to
+      public release plan, add CURRENT-SESSION tracking documentation prerequisite
+    - Delete stale `plan-content-refinement-pass.md` (work completed and archived)
+    - Absorb TASK-INBOX items into plan docs, update backlogs and roadmap cross-references
 
 - [ ] **5.2 Update workflows and conventions (D2, D3, D4)**
 

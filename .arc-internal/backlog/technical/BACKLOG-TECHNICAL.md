@@ -32,6 +32,7 @@
   data — written from a portfolio angle but provides good content foundation. Needs reframing
   toward user-facing installation/usage focus.
 - **Context:** Can proceed independently of distribution work
+- **Plan:** Captured in `../feature/plan-public-release.md` (Phase D)
 
 ---
 
@@ -55,7 +56,8 @@
 - ~~**Reconsider `.example.md` naming convention**~~ — Resolved: renamed to `.template.md`
   in `tasks-structural-readiness-pass.md` (Tasks 2.1–2.2). External filled-in examples deferred
   to distribution/docs-site work.
-- Documentation site (GitHub Pages for browseable docs)
+- ~~Documentation site~~ → Decision made: MkDocs Material + GitHub Pages. Captured in
+  `../feature/plan-public-release.md` (Phase D)
 - Community contribution pipeline (PR templates, issue forms)
 - Compatibility testing across agent platforms
 
@@ -72,7 +74,7 @@
 ## Related Documents
 
 - Distribution plan: `../feature/plan-distribution-and-update-system.md`
-- Public release plan: `plan-public-release-repository-strategy.md`
+- Public release plan: `../feature/plan-public-release.md`
 
 ---
 

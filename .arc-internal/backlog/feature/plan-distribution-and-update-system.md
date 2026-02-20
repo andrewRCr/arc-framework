@@ -135,6 +135,13 @@ The init process supports multiple customization mechanisms:
     - "Track CURRENT-SESSION in git?" → yes (multi-machine) / no (default, gitignored)
     - "Team or solo?" → solo (default, current behavior) / team (per-developer workspaces)
 
+**Documentation prerequisite for CURRENT-SESSION tracking:** Before CLI codifies the tracking
+option, framework docs need to establish the convention: session-init should note that
+CURRENT-SESSION.md may be gitignored (agents shouldn't attempt to commit it), and a
+standardized field (in QUICK-REFERENCE or DEVELOPMENT-RULES) should indicate the project's
+tracking policy — untracked (solo default), tracked (multi-machine), or per-developer (team).
+(Origin: 2026-02-19, agent attempted `git add` on gitignored CURRENT-SESSION.md.)
+
 ### Init Recipe
 
 A declarative config (JSON/YAML) describing all init options. Serves as self-documentation
@@ -362,7 +369,7 @@ significant. Framework source files stay at authoring width; the init/update pip
 
 3. **CLI prototype** — Minimal `init` + `update` with three-way merge proof-of-concept.
 
-4. **Public repo setup** — Separate concern from distribution; still needed for clean presentation.
+4. **Public release preparation** — See `plan-public-release.md` (Phase D)
 
 ## Future Directions
 
@@ -413,7 +420,6 @@ Decisions made during `tasks-structural-readiness-pass.md` that affect CLI desig
 
 ## Relationship to Other Plans
 
-- **Supersedes** (partially): `plan-public-release-repository-strategy.md` — Delivery mechanism
-  evolves from "copy `.arc/`" to package manager install. Dual-repo concept still valid.
-- **Informs**: README refresh, documentation polish, adoption materials
+- **Complements**: `plan-public-release.md` — This plan covers Phase C (CLI & distribution
+  mechanics); the public release plan covers Phase D (repo setup, docs site, adoption materials)
 - **Depends on**: Structural analysis pass (reduces merge conflict surface area)

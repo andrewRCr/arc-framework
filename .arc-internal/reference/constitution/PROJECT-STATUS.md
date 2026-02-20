@@ -101,7 +101,7 @@ with distribution system design as the primary focus area.
 1. **Public Repository Setup**
    - Rename current repo → `arc-framework-dev` (or similar)
    - Create clean public-facing repo
-   - Plan: `backlog/technical/plan-public-release-repository-strategy.md` (evolving)
+   - Plan: `backlog/feature/plan-public-release.md` (Phase D)
 
 2. **CI/CD Improvements**
    - Enhanced internal link validation
@@ -109,7 +109,8 @@ with distribution system design as the primary focus area.
 
 ### Lower Priority
 
-1. **Documentation Site** — GitHub Pages for browseable docs
+1. ~~**Documentation Site**~~ → Decision made: MkDocs Material + GitHub Pages. See
+   `backlog/feature/plan-public-release.md`
 2. **Integration Examples** — Common tech stack configurations
 3. **Community Pipeline** — Contribution guidelines, issue templates, tutorials
 

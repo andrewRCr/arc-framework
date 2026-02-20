@@ -51,9 +51,11 @@ Build the distribution tooling.
 ### Phase D: Public Release
 
 1. **Public repository setup** — Rename dev repo, create clean public repo
-2. **Documentation polish** — README reframe, adoption-focused docs, getting started guide
-3. **Initial release** — npm publish, GitHub release
-4. **Community infrastructure** — Issue templates, contribution guidelines
+2. **External documentation site** — MkDocs Material + GitHub Pages: conceptual orientation,
+   philosophy, examples, tutorials, comparison/positioning
+3. **README rewrite** — Value proposition, philosophy, "is this for me?" framing
+4. **Initial release** — npm publish, GitHub release
+5. **Community infrastructure** — Issue templates, contribution guidelines
 
 ---
 
@@ -80,7 +82,7 @@ CLI Development ───────► Public Release
 
 ## Related Documents
 
-- Distribution plan: `feature/plan-distribution-and-update-system.md`
-- Public release plan: `technical/plan-public-release-repository-strategy.md`
+- Distribution plan (Phase C): `feature/plan-distribution-and-update-system.md`
+- Public release plan (Phase D): `feature/plan-public-release.md`
 - Active work: `.arc-internal/active/CURRENT-SESSION.md`
 - Constitution: `.arc-internal/reference/constitution/PROJECT-STATUS.md`
