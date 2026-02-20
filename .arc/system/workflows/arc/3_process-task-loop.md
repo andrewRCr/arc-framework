@@ -93,6 +93,14 @@ It ensures consistent execution, quality control, and documentation of work.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
      When committing, follow [Commit Workflow](supplemental/atomic-commit.md) guidelines.
 
+## Verification Phase
+
+Every task list ends with a verification phase as its final phase. The standard task-by-task
+completion protocol applies, but the two verification tasks (Tier 3 gates + success criteria
+validation) follow a specific protocol.
+
+**→ [verify-completion.md](supplemental/verify-completion.md)** ← Full verification protocol
+
 ## Incidental Work Management
 
 ### Quick Decision Guide

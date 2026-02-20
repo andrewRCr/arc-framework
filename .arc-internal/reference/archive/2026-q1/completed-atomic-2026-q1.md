@@ -1,5 +1,18 @@
 # Completed Atomic Tasks — 2026 Q1
 
+- [x] Extract verification protocol to supplemental workflow
+    - **Outcome:** Moved verification phase execution protocol (three-state success criteria
+      model, immutable text rule, Tier 3 procedure, archive-completed relationship) from
+      strategy-task-list-formatting.md into a new supplemental workflow
+      `verify-completion.md`. Process-task-loop's inline section replaced with compact
+      cross-reference (~25 lines removed from every-session context). Formatting strategy
+      retains structural format and three-state table as formatting reference, with
+      cross-refs updated to point to the new workflow.
+    - **Files:** `verify-completion.md` (new), `3_process-task-loop.md`,
+      `strategy-task-list-formatting.md`
+
+    - **Branch:** `technical/structural-readiness-pass`
+
 - [x] Codify verification phase, success criteria ownership, and `[~]` supersession marker
     - **Outcome:** Standardized the final phase of every task list as a two-task verification
       phase (Tier 3 quality gates + PRD success criteria validation). Established three-state

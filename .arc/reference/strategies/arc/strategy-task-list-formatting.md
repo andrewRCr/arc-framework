@@ -728,38 +728,9 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 - [ ] **N.2 Validate success criteria against PRD**
 ```
 
-**Task 1 — Tier 3 quality gates:** Run the full quality gate suite as defined by the project's
-[Quality Gates Strategy][quality-gates]. Even when incremental checks have been clean throughout
-implementation, the full-suite run serves as an attestation that everything passes as a whole.
-One task — don't break out individual gates as separate subtasks.
-
-**Task 2 — Validate success criteria against PRD:** Open the PRD, walk through its success
-criteria, and compare each against actual outcomes. Then mark each criterion in the
-[Success Criteria section](#success-criteria-section) below the task phases. This forces a
-deliberate look back at original intent — catching scope drift, missed requirements, or criteria
-that were quietly dropped during implementation.
-
-For each criterion, mark one of three states:
-
-- `[x]` — **Met.** Criterion satisfied as planned, or addressed via a different approach
-  (add a **Deviation** note explaining how and why).
-- `[~]` — **Superseded.** Criterion intentionally dropped, deferred, or made irrelevant by a
-  design decision during implementation. Add a **Superseded** note explaining the decision.
-- `[ ]` — **Not met.** Criterion was expected but not achieved — a genuine gap that needs
-  discussion before the work can be considered complete.
-
-**Criterion text is immutable.** Never rewrite a criterion to match what was actually built.
-The original text preserves intent; annotations capture reality. Both signals matter — "we
-planned X but delivered Y because Z" is valuable context that's lost if you edit X to say Y.
-
-**Key convention:** Success criteria are only marked during this verification phase, not during
-implementation. Implementation tasks get checked as work progresses; success criteria get
-checked when the implementer steps back and validates outcomes against the PRD.
-
-**Relationship to archive-completed:** The verification phase is the implementer's validation
-pass. The [archive-completed workflow][archive-completed] performs a second confirmation against
-the PRD during archival — a lightweight check that works whether the same person or a different
-team member does the archival.
+**Execution protocol:** When you reach this phase during task processing, see
+[verify-completion.md][verify-completion] for the step-by-step procedure and three-state
+success criteria model.
 
 ---
 
@@ -798,7 +769,7 @@ should map to a verifiable criterion. These checkboxes are checked during the
   Any remaining `[ ]` items represent genuine gaps requiring resolution.
 - No time estimates
 
-**Three states** (see [Verification Phase](#verification-phase) for when and how to apply):
+**Three states** (see [verify-completion.md][verify-completion] for the execution protocol):
 
 | Marker | Meaning    | Annotation                                                   |
 |--------|------------|--------------------------------------------------------------|
@@ -839,5 +810,4 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[quality-gates]: strategy-quality-gates.md
-[archive-completed]: ../../../system/workflows/arc/supplemental/archive-completed.md
+[verify-completion]: ../../../system/workflows/arc/supplemental/verify-completion.md
