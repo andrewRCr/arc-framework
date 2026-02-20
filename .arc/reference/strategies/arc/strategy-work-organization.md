@@ -458,7 +458,7 @@ Archive preserves structure with global sequence numbering:
 `{NN}_` prefix indicates completion order (global across all categories). Gaps within a category
 show where other categories' work completed. Reset to 01 each quarter.
 
-See [archive-completed.md](../../workflows/supplemental/archive-completed.md) for full archival workflow.
+See [archive-completed.md](../../../system/workflows/arc/supplemental/archive-completed.md) for full archival workflow.
 
 ### Alignment
 
@@ -593,16 +593,16 @@ Context: documentation (atomic / no associated task list)
 
 Atomic tasks aren't archived (deleted after completion) — the commit message IS the record.
 
-See [weekly-review.md](../../workflows/supplemental/weekly-review.md) for backlog processing workflow.
+See [weekly-review.md](../../../system/workflows/arc/supplemental/weekly-review.md) for backlog processing workflow.
 
 ---
 
 ## Related Documentation
 
-- [DEVELOPMENT-RULES](../constitution/DEVELOPMENT-RULES.md) — Development standards and git workflow
-- [2_generate-tasks.md](../workflows/2_generate-tasks.md) — Task breakdown workflow
-- [3_process-task-loop.md](../workflows/3_process-task-loop.md) — Task execution workflow
-- [atomic-commit.md](../workflows/supplemental/atomic-commit.md) — Complex commit scenarios and atomicity
-- [manage-incidental-work.md](../workflows/supplemental/manage-incidental-work.md) — Incidental work workflow
-- [agent-pre-merge-review.md](../workflows/supplemental/agent-pre-merge-review.md) — Code review workflow
-- [weekly-review.md](../workflows/supplemental/weekly-review.md) — Weekly backlog review process
+- [DEVELOPMENT-RULES](../../constitution/DEVELOPMENT-RULES.md) — Development standards and git workflow
+- [2_generate-tasks.md](../../../system/workflows/arc/2_generate-tasks.md) — Task breakdown workflow
+- [3_process-task-loop.md](../../../system/workflows/arc/3_process-task-loop.md) — Task execution workflow
+- [atomic-commit.md](../../../system/workflows/arc/supplemental/atomic-commit.md) — Complex commit scenarios and atomicity
+- [manage-incidental-work.md](../../../system/workflows/arc/supplemental/manage-incidental-work.md) — Incidental work workflow
+- [agent-pre-merge-review.md](../../../system/workflows/arc/supplemental/agent-pre-merge-review.md) — Code review workflow
+- [weekly-review.md](../../../system/workflows/arc/supplemental/weekly-review.md) — Weekly backlog review process

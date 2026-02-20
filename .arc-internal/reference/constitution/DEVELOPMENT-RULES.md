@@ -6,7 +6,7 @@ Core development rules and quality standards for the ARC framework. These rules 
 by all contributors, including AI assistants.
 
 **For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
-**For session initialization protocol**, see [session-init.md](../workflows/supplemental/session-init.md).
+**For session initialization protocol**, see [session-init.md](../../system/workflows/arc/supplemental/session-init.md).
 
 ## Commit Standards
 
@@ -23,7 +23,7 @@ by all contributors, including AI assistants.
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), see
-[Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md).
+[Commit Workflow](../../../.arc/system/workflows/arc/supplemental/atomic-commit.md).
 
 ### Commit Message Format
 
@@ -65,7 +65,7 @@ Categories: `planning`, `documentation`, `maintenance`, `refactor`.
 **Atomicity:** One logical change per commit. When multiple tasks completed between commits, separate
 code changes by task; commit shared documentation (task list updates) last.
 
-**Enforcement:** Git hooks validate format automatically. See `.arc/reference/githooks/README.md` for setup.
+**Enforcement:** Git hooks validate format automatically. See `.arc/system/githooks/README.md` for setup.
 
 ### Quality Gates (Zero Tolerance)
 
@@ -193,7 +193,7 @@ managed by the user.
 
 **Ideal end-of-session workflow:**
 
-1. Commit all **complete** work (see [Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md)
+1. Commit all **complete** work (see [Commit Workflow](../../../.arc/system/workflows/arc/supplemental/atomic-commit.md)
    for complex scenarios)
 2. Leave any **partial** work uncommitted
 3. Perform session handoff documenting partial work state
@@ -315,8 +315,8 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 - `.arc/` = the deployable template system (permanent, versioned)
 - `.arc-internal/` = framework development workspace (internal use only)
-- Template-first documents in `.arc/reference/constitution/`, `.arc/reference/agent/`
-- Core workflows in `.arc/reference/workflows/`
+- Template-first documents in `.arc/reference/constitution/`, `.arc/system/agent/`
+- Core workflows in `.arc/system/workflows/`
 
 ### Commit Standards
 
@@ -387,7 +387,7 @@ understanding system constraints.
 - Decisions obvious from reading code (standard CRUD, framework conventions)
 - Temporary or experimental choices
 
-**Format and guidance:** See [ADR Methodology Strategy](../../.arc/reference/strategies/arc/strategy-adr-methodology.md)
+**Format and guidance:** See [ADR Methodology Strategy](../../../.arc/reference/strategies/arc/strategy-adr-methodology.md)
 
 ADRs are immutable once accepted - new decisions require new ADRs that supersede old ones.
 
@@ -396,8 +396,8 @@ ADRs are immutable once accepted - new decisions require new ADRs that supersede
 This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
-- [Task Processing Workflow](../../.arc/reference/workflows/3_process-task-loop.md) - Detailed task execution workflow
-- [Commit Workflow](../../.arc/reference/workflows/supplemental/atomic-commit.md) - Complex commit scenarios,
+- [Task Processing Workflow](../../../.arc/system/workflows/arc/3_process-task-loop.md) - Detailed task execution workflow
+- [Commit Workflow](../../../.arc/system/workflows/arc/supplemental/atomic-commit.md) - Complex commit scenarios,
   atomicity analysis
-- [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI
-- [ADR Methodology Strategy](../../.arc/reference/strategies/arc/strategy-adr-methodology.md) - ADR guidance
+- [AI Agent Reference Card](../../system/agent/AGENTS.md) - Complete project context for AI
+- [ADR Methodology Strategy](../../../.arc/reference/strategies/arc/strategy-adr-methodology.md) - ADR guidance

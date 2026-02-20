@@ -8,8 +8,9 @@ documentation throughout the project lifecycle.
 
 **Referenced by:**
 
-- [2_generate-tasks.md](../../workflows/2_generate-tasks.md) - Planned feature/technical work
-- [manage-incidental-work.md](../../workflows/supplemental/manage-incidental-work.md) - Reactive incidental work
+- [2_generate-tasks.md](../../../system/workflows/arc/2_generate-tasks.md) - Planned feature/technical work
+- [manage-incidental-work.md](../../../system/workflows/arc/supplemental/manage-incidental-work.md) - Reactive incidental
+  work
 
 ## Table of Contents
 
@@ -763,6 +764,6 @@ Each "Will Do" item should map to a verifiable criterion.
 ## References
 
 - [DEVELOPMENT-RULES.md](../../constitution/DEVELOPMENT-RULES.md) - Test-First Protocol
-- [2_generate-tasks.md](../../workflows/2_generate-tasks.md) - Planned work task generation
-- [manage-incidental-work.md](../../workflows/supplemental/manage-incidental-work.md) - Incidental work lifecycle
-- [3_process-task-loop.md](../../workflows/3_process-task-loop.md) - Task execution workflow
+- [2_generate-tasks.md](../../../system/workflows/arc/2_generate-tasks.md) - Planned work task generation
+- [manage-incidental-work.md](../../../system/workflows/arc/supplemental/manage-incidental-work.md) - Incidental work lifecycle
+- [3_process-task-loop.md](../../../system/workflows/arc/3_process-task-loop.md) - Task execution workflow

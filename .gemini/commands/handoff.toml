@@ -1,2 +1,2 @@
 description="Updates the current session documentation based on the session handoff workflow."
-prompt = "Let's update `.arc/active/CURRENT-SESSION.md` using `.arc/reference/workflows/supplemental/session-handoff.md`."
+prompt = "Let's update `.arc-internal/active/CURRENT-SESSION.md` using `.arc/reference/workflows/supplemental/session-handoff.md`."

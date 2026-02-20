@@ -24,18 +24,22 @@ Template files ship as `.example.md` — rename by removing `.example` during se
 │   ├── TASK-INBOX.md          # Zero-friction idea capture
 │   ├── feature/               # Feature backlog
 │   └── technical/             # Technical backlog
-└── reference/                 # Stable, long-lived documentation
-    ├── QUICK-REFERENCE.md     # Environment context and command patterns
-    ├── constitution/          # Foundational documents (META-PRD, rules, architecture)
-    ├── workflows/             # Core development processes (define, plan, generate, execute)
-    │   └── supplemental/      # Supporting workflows (handoff, commits, incidental work)
-    ├── strategies/            # Codified implementation patterns
-    │   ├── arc/               # Framework methodology (ships with ARC)
-    │   └── project/           # Your project-specific patterns
-    ├── adr/                   # Architecture Decision Records
+├── reference/                 # Stable, long-lived documentation
+│   ├── QUICK-REFERENCE.md     # Environment context and command patterns
+│   ├── constitution/          # Foundational documents (META-PRD, rules, architecture)
+│   ├── strategies/            # Codified implementation patterns
+│   │   ├── arc/               # Framework methodology (ships with ARC)
+│   │   └── project/           # Your project-specific patterns
+│   ├── adr/                   # Architecture Decision Records
+│   ├── research/              # Technical research documents
+│   └── archive/               # Completed work (by work type, quarterly as volume grows)
+└── system/                    # Agent-facing operational files
     ├── agent/                 # AI agent configuration (AGENTS.md + tool-specific files)
-    ├── research/              # Technical research documents
-    └── archive/               # Completed work (by work type, quarterly as volume grows)
+    ├── commands/              # Slash commands
+    ├── githooks/              # Git hook scripts
+    └── workflows/             # Development process workflows
+        ├── arc/               # ARC framework workflows (setup/ + supplemental/)
+        └── project/           # Project-specific workflows
 ```
 
 ## Document Audiences

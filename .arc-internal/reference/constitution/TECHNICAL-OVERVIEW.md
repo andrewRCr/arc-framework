@@ -21,21 +21,25 @@ framework. This architectural decision ensures:
 │   │   ├── PROJECT-STATUS.example.md
 │   │   ├── DEVELOPMENT-RULES.example.md
 │   │   └── TECHNICAL-OVERVIEW.example.md
+│   ├── adr/                   # Architecture decision records
+│   ├── research/              # Technical research documents
+│   └── strategies/            # Pattern documentation
+├── system/                    # Agent-facing operational files
 │   ├── agent/                 # AI agent collaboration templates
 │   │   ├── AGENTS.example.md
 │   │   ├── CLAUDE.example.md
 │   │   ├── GEMINI.example.md
 │   │   ├── WARP.example.md
 │   │   └── copilot-instructions.example.md
-│   ├── workflows/             # Process documentation
-│   │   ├── 0_define-constitution.md
-│   │   ├── 1_create-prd.md
-│   │   ├── 2_generate-tasks.md
-│   │   ├── 3_process-task-loop.md
-│   │   └── supplemental/
-│   ├── adr/                   # Architecture decision records
-│   ├── research/              # Technical research documents
-│   └── strategies/            # Pattern documentation
+│   ├── githooks/              # Git hook scripts
+│   └── workflows/             # Process documentation
+│       ├── arc/               # ARC framework workflows
+│       │   ├── setup/define-constitution.md
+│       │   ├── 1_create-prd.md
+│       │   ├── 2_generate-tasks.md
+│       │   ├── 3_process-task-loop.md
+│       │   └── supplemental/
+│       └── project/           # Project-specific workflows
 ├── active/                    # Current work templates
 │   ├── feature/               # Feature work templates
 │   ├── technical/             # Technical work templates

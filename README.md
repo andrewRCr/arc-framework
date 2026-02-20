@@ -77,13 +77,13 @@ feature development.
 The framework operates through feedback loops that build on previous work:
 
 1. **Vision Alignment** — Establish direction via `META-PRD.md` and high-level constitutional documents
-2. **Feature Planning** — Use `.arc/reference/workflows/1-create-prd.md` to draft focused PRDs with AI assistance
-3. **Task Generation** — Apply `.arc/reference/workflows/2-generate-tasks.md` to break sub-PRDs into actionable
+2. **Feature Planning** — Use `.arc/system/workflows/arc/1_create-prd.md` to draft focused PRDs with AI assistance
+3. **Task Generation** — Apply `.arc/system/workflows/arc/2_generate-tasks.md` to break sub-PRDs into actionable
    task lists
-4. **Iterative Execution** — Follow `.arc/reference/workflows/3-process-task-loop.md` for controlled
+4. **Iterative Execution** — Follow `.arc/system/workflows/arc/3_process-task-loop.md` for controlled
    AI-assisted single-task processing
 5. **Session Continuity** — Track context in `CURRENT-SESSION.md` using
-   `.arc/reference/workflows/supplemental/session-handoff.md` for seamless handoffs
+   `.arc/system/workflows/arc/supplemental/session-handoff.md` for seamless handoffs
 6. **Knowledge Integration** — Evolve decisions and patterns into permanent project memory for future cycles
 
 ## 🗂️ System Components
@@ -118,15 +118,15 @@ The framework operates through feedback loops that build on previous work:
 
 ### Process Workflows
 
-- **`.arc/reference/workflows/1-create-prd.md`** — Generate focused PRDs from product direction
-- **`.arc/reference/workflows/2-generate-tasks.md`** — Turn approved PRDs into agent-ready task lists
-- **`.arc/reference/workflows/3-process-task-loop.md`** — Execute tasks with human oversight checkpoints
-- **`.arc/reference/workflows/supplemental/manage-incidental-work.md`** — Systematic lifecycle for reactive
+- **`.arc/system/workflows/arc/1_create-prd.md`** — Generate focused PRDs from product direction
+- **`.arc/system/workflows/arc/2_generate-tasks.md`** — Turn approved PRDs into agent-ready task lists
+- **`.arc/system/workflows/arc/3_process-task-loop.md`** — Execute tasks with human oversight checkpoints
+- **`.arc/system/workflows/arc/supplemental/manage-incidental-work.md`** — Systematic lifecycle for reactive
   maintenance tasks
-- **`.arc/reference/workflows/supplemental/session-handoff.md`** — Package context for session transfers
-- **`.arc/reference/workflows/supplemental/agent-pr-review.md`** — Guide AI-assisted pull request reviews
-- **`.arc/reference/workflows/supplemental/atomic-commit.md`** — Complex commit scenarios and atomicity guide
-- **`.arc/reference/workflows/supplemental/archive-completed.md`** — Move finished work to long-term storage
+- **`.arc/system/workflows/arc/supplemental/session-handoff.md`** — Package context for session transfers
+- **`.arc/system/workflows/arc/supplemental/agent-pre-merge-review.md`** — Guide AI-assisted pull request reviews
+- **`.arc/system/workflows/arc/supplemental/atomic-commit.md`** — Complex commit scenarios and atomicity guide
+- **`.arc/system/workflows/arc/supplemental/archive-completed.md`** — Move finished work to long-term storage
 
 ### Customization
 

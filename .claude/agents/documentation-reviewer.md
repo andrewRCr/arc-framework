@@ -51,7 +51,7 @@ You will analyze `.arc/` framework documentation at two levels:
 
 **Tactical Review** (single-document):
 
-- Apply criteria from `.arc/reference/workflows/supplemental/optimize-doc.md`
+- Apply criteria from `.arc/system/workflows/arc/supplemental/optimize-doc.md`
 - Strengthen vague instructions with explicit criteria
 - Remove redundancy while preserving execution-critical content
 - Protect pattern extraction rules and success criteria
@@ -198,7 +198,7 @@ Apply the "Execution Test" from `optimize-doc.md`:
 
 ## Reference Documentation
 
-For detailed optimization criteria, see: `.arc/reference/workflows/supplemental/optimize-doc.md`
+For detailed optimization criteria, see: `.arc/system/workflows/arc/supplemental/optimize-doc.md`
 
 Key sections:
 

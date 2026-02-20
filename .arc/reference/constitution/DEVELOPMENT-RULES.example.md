@@ -6,7 +6,7 @@ Core development rules and quality standards for {{PROJECT_NAME}}. These rules a
 followed by all contributors, including AI assistants.
 
 **For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
-**For session initialization protocol**, see [session-init.md](../workflows/supplemental/session-init.md).
+**For session initialization protocol**, see [session-init.md](../../system/workflows/arc/supplemental/session-init.md).
 
 ## Commit Standards
 
@@ -23,7 +23,7 @@ followed by all contributors, including AI assistants.
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), see
-[Commit Workflow](../workflows/supplemental/atomic-commit.md).
+[Commit Workflow](../../system/workflows/arc/supplemental/atomic-commit.md).
 
 ### Commit Message Format
 
@@ -63,7 +63,7 @@ Categories: `planning`, `documentation`, `maintenance`, `refactor`.
 **Atomicity:** One logical change per commit. When multiple tasks completed between commits, separate
 code changes by task; commit shared documentation (task list updates) last.
 
-**Enforcement:** Git hooks validate format automatically. See [githooks setup](../githooks/README.md).
+**Enforcement:** Git hooks validate format automatically. See [githooks setup](../../system/githooks/README.md).
 
 ### Quality Gates
 
@@ -211,7 +211,7 @@ managed by the user.
 
 **Ideal end-of-session workflow:**
 
-1. Commit all **complete** work (see [Commit Workflow](../workflows/supplemental/atomic-commit.md)
+1. Commit all **complete** work (see [Commit Workflow](../../system/workflows/arc/supplemental/atomic-commit.md)
    for complex scenarios)
 2. Leave any **partial** work uncommitted
 3. Perform session handoff documenting partial work state
@@ -393,9 +393,9 @@ ADRs are immutable once accepted - new decisions require new ADRs that supersede
 This document provides core rules and standards. See related documentation:
 
 - [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
-- [Task Processing Workflow](../workflows/3_process-task-loop.md) - Detailed task execution workflow
-- [Commit Workflow](../workflows/supplemental/atomic-commit.md) - Complex commit scenarios and atomicity analysis
-- [AI Agent Reference Card](../agent/AGENTS.md) - Complete project context for AI
+- [Task Processing Workflow](../../system/workflows/arc/3_process-task-loop.md) - Detailed task execution workflow
+- [Commit Workflow](../../system/workflows/arc/supplemental/atomic-commit.md) - Complex commit scenarios and atomicity analysis
+- [AI Agent Reference Card](../../system/agent/AGENTS.md) - Complete project context for AI
 - [Technical Overview](TECHNICAL-OVERVIEW.md) - System architecture and technology stack
 - [ADR Methodology Strategy](../strategies/arc/strategy-adr-methodology.md) - Architecture decision record guidance
 - [STRATEGY-INDEX.md](../strategies/STRATEGY-INDEX.md) - Index of all strategy documents (ARC and project)

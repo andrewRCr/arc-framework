@@ -50,77 +50,80 @@ cross-cutting dependency map with blast radius per concept.
 `arc/` + `project/` subdirectories, and update all cross-references. Moves committed before content
 changes to preserve git history tracking.
 
-- [ ] **1.1 Execute directory moves and workflow reorganization**
+- [x] **1.1 Execute directory moves and workflow reorganization**
 
-    **Goal:** Mechanical `git mv` operations to establish new directory structure, including workflow
-    internal reorganization into `arc/` + `project/` subdirectories.
+    All `git mv` operations and new directory scaffolding completed. Structure verified:
 
-    - `.arc/`: move `reference/agent/` → `system/agent/`, `reference/workflows/` → `system/workflows/`,
-      `reference/githooks/` → `system/githooks/`
-    - `.arc-internal/`: move `reference/agent/` → `system/agent/`, `reference/workflows/` →
-      `system/workflows/`
-    - Organize `.arc/system/workflows/`: create `arc/` subdir with `setup/` and `supplemental/`
-      inside. Move core loop (`1_create-prd.md`, `2_generate-tasks.md`, `3_process-task-loop.md`)
-      to `arc/`, supplemental workflows to `arc/supplemental/`, `0_define-constitution.md` to
-      `arc/setup/define-constitution.md` (drop `0_` prefix)
-    - Organize `.arc-internal/system/workflows/`: create `arc/supplemental/` (for `session-init.md`)
-      and `project/` (for `sync-*.md` framework-project-specific workflows)
-    - Create `.arc/system/workflows/project/` with README (user-created project workflows)
-    - Create `.arc/system/commands/` with `.gitkeep` and README (future CLI command source)
-    - Create `.arc/system/README.md` explaining directory purpose
-    - Verify directory structure is correct after moves
+    - `.arc/reference/` retains: adr/, archive/, constitution/, research/, strategies/, QUICK-REFERENCE
+    - `.arc/system/` contains: agent/, commands/, githooks/, workflows/ (arc/ + project/), README.md
+    - `.arc-internal/reference/` retains: adr/, archive/, constitution/, research/, strategies/, QUICK-REFERENCE
+    - `.arc-internal/system/` contains: agent/, workflows/ (arc/supplemental/ + project/)
+    - `0_define-constitution.md` renamed to `define-constitution.md` in `arc/setup/`
+    - New files: system/README.md, workflows/project/README.md, commands/README.md, commands/.gitkeep
 
-- [ ] **1.2 Update cross-references in agent files**
+- [x] **1.2 Update cross-references in agent files**
 
-    **Goal:** Fix relative paths broken by agent files moving from `reference/agent/` to `system/agent/`.
+    Updated 11 files (6 `.arc/` templates + 5 `.arc-internal/` live files):
 
-    - `.arc/` templates: `AGENTS.example.md`, `CLAUDE.example.md`, `GEMINI.example.md`,
-      `WARP.example.md`, `copilot-instructions.example.md`, `README.md`
-    - `.arc-internal/` live files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `WARP.md`,
-      `copilot-instructions.md`
-    - Key pattern: references to `../constitution/`, `../strategies/`, `../QUICK-REFERENCE` become
-      `../../reference/constitution/`, `../../reference/strategies/`, `../../reference/QUICK-REFERENCE`
-    - References between moved directories (e.g., agent → workflows) stay unchanged (both in `system/`)
+    - `../constitution/` → `../../reference/constitution/`, `../QUICK-REFERENCE` → `../../reference/QUICK-REFERENCE`
+    - `../workflows/3_process-task-loop.md` → `../workflows/arc/3_process-task-loop.md` (`.arc/` templates)
+    - `../../.arc/reference/workflows/` → `../../../.arc/system/workflows/arc/` (`.arc-internal/` cross-tree refs)
+    - README.md: `.arc/reference/agent/` → `.arc/system/agent/` (absolute-style path refs)
+    - AGENTS.md: updated source-of-truth and template-vs-internal descriptions for new structure
 
-- [ ] **1.3 Update cross-references in workflow and githook files**
+- [x] **1.3 Update cross-references in workflow and githook files**
 
-    **Goal:** Fix paths in workflow and githook files that reference non-moved directories.
+    Updated 15 files across workflows and githooks:
 
-    - `.arc/system/workflows/arc/`: core loop workflows (`1_create-prd.md` through
-      `3_process-task-loop.md`)
-    - `.arc/system/workflows/arc/setup/`: `define-constitution.md`
-    - `.arc/system/workflows/arc/supplemental/`: all supplemental workflows
-    - `.arc/system/githooks/`: `README.md`, `commit-msg`, `pre-commit`
-    - `.arc-internal/system/workflows/arc/supplemental/`: `session-init.md`
-    - `.arc-internal/system/workflows/project/`: `sync-*.md`
-    - Key pattern: references from `system/workflows/arc/` to constitution, strategies, archive
-      become `../../../reference/constitution/`, etc. (one level deeper than plain `system/workflows/`)
-    - Workflow-to-workflow references within `system/workflows/arc/` stay unchanged
-    - Session-init reading list: update all `.arc-internal/reference/agent/` →
-      `.arc-internal/system/agent/` and `.arc/reference/workflows/` →
-      `.arc/system/workflows/arc/` paths
+    - Core workflows (3): `../strategies/` → `../../../reference/strategies/`, define-constitution
+      link updated to `setup/`, manage-incidental-work link to `supplemental/`
+    - Setup workflow (1): `../constitution/` → `../../../../reference/constitution/` (4 refs)
+    - Supplemental workflows (6): `../../strategies/` and `../../constitution/` →
+      `../../../../reference/...` pattern
+    - Session-init (2, both `.arc/` and `.arc-internal/`): agent paths and process-task-loop path
+    - Githooks (3): `.arc/reference/githooks` → `.arc/system/githooks` in README, commit-msg,
+      pre-commit; updated `core.hooksPath` config
+    - Internal workflows README: rewrote directory structure and cross-tree links
+    - Also fixed pre-existing broken link: maintain-task-notes `../constitution/` (was wrong depth)
 
-- [ ] **1.4 Update cross-references in non-moved files**
+- [x] **1.4 Update cross-references in non-moved files**
 
-    **Goal:** Fix references from files that stayed in `reference/` (and root) pointing to moved files.
+    Updated 7 files with corrected paths for moved directories:
 
-    - `.arc/README.md`: update directory tree to show `system/` alongside `reference/`
-    - `.arc/reference/constitution/DEVELOPMENT-RULES.example.md`: hook setup references, workflow links
-    - `.arc/reference/QUICK-REFERENCE.example.md`: workflow and agent file references
-    - `.arc/reference/strategies/`: all strategy docs referencing workflows, agent files, or hooks
-    - `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md`: parallel updates
-    - `.arc-internal/reference/QUICK-REFERENCE.md`: parallel updates
-    - Update hooks path in githook README (now `.arc/system/githooks/`)
+    - `.arc/README.md`: directory tree restructured to show `reference/` + `system/` split
+    - `.arc/reference/constitution/DEVELOPMENT-RULES.example.md`: 7 refs updated (workflows, agent,
+      githooks, session-init)
+    - `.arc/reference/QUICK-REFERENCE.example.md`: no changes needed (no refs to moved dirs)
+    - `.arc/reference/strategies/arc/strategy-work-organization.md`: 9 refs updated (workflows,
+      constitution depth fix)
+    - `.arc/reference/strategies/arc/strategy-task-list-formatting.md`: 5 refs updated (workflows)
+    - `.arc/reference/strategies/arc/strategy-adr-methodology.md`: 2 refs fixed (pre-existing
+      `../adr/` → `../../adr/` depth bug)
+    - `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md`: 10 refs updated (cross-tree
+      workflow links, agent, githook path, strategy depth fix)
+    - `.arc-internal/reference/QUICK-REFERENCE.md`: key documentation listing updated with
+      `reference/` and `system/` prefixes
+    - Githook README hooks path already updated in Task 1.3
+    - **Note:** Stale refs remain in root README.md, CHANGELOG, `.claude/commands/`,
+      `.codex/prompts/`, `.arc-internal/README.md`, `.arc/active/CURRENT-SESSION.example.md` —
+      these are outside Task 1.4 scope and will be caught by Task 1.5 verification sweep
 
-- [ ] **1.5 Verify no stale directory references remain**
+- [x] **1.5 Verify no stale directory references remain**
 
-    **Goal:** Grep-based verification that all cross-references were caught.
+    Grep-based sweep found and fixed 12 additional files beyond Task 1.4 scope:
 
-    - Grep for `reference/agent`, `reference/workflows`, `reference/githooks`,
-      `0_define-constitution` across all `.md` files
-    - Exclude `archive/` directories (historical references OK) and notes doc (reference data)
-    - Fix any missed references
-    - Run full markdown lint on all modified files
+    - `.claude/commands/` (3 files): resume-current, atomic-commit, handoff — updated paths
+    - `.claude/agents/documentation-reviewer.md`: 2 refs to optimize-doc workflow
+    - `.codex/prompts/` (3 files): resume-current, atomic-commit, handoff — parallel updates
+    - `README.md`: 12 workflow refs updated (paths + fixed pre-existing filename mismatches:
+      `1-create-prd.md` → `1_create-prd.md`, `agent-pr-review.md` → `agent-pre-merge-review.md`)
+    - `.arc-internal/README.md`: directory tree + 3 text references updated
+    - `.arc-internal/reference/constitution/TECHNICAL-OVERVIEW.md`: directory tree restructured
+    - `.arc/active/CURRENT-SESSION.example.md`: session-init path
+    - `.arc-internal/system/workflows/project/sync-with-arc-framework.md`: 6 example paths
+    - Remaining hits: all in excluded categories (archive/, CHANGELOG, active work context,
+      notes/PRD/task-list meta-references, backlog plans)
+    - Full project lint: 0 violations across 90 files
 
 ### **Phase 2:** Naming and Convention Cleanup (B3, B4, B5)
 

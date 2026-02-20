@@ -4,7 +4,7 @@
 
 **IMPORTANT**: Execute the complete session initialization workflow before reading work context below.
 
-See: `.arc/reference/workflows/supplemental/session-init.md`
+See: `.arc/system/workflows/arc/supplemental/session-init.md`
 
 ---
 
