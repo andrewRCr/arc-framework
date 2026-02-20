@@ -204,43 +204,35 @@ merge conflict surface for framework updates.
     testing requirements, code quality principles, architecture documentation, reference links.
     Full project lint: 0 violations across 91 files.
 
-- [ ] **3.3 Create `strategy-backlog-organization.md` (A4)**
+- [x] **3.3 Create `strategy-backlog-organization.md` (A4)**
 
-    **Goal:** Extract backlog organization as independent strategy doc.
+    Extracted Backlog Organization (§11, ~59 lines) from `strategy-work-organization.md` into
+    standalone strategy doc (`strategy-backlog-organization.md`). Replaced source section with
+    cross-reference. Updated STRATEGY-INDEX, `weekly-review.md` (backlog reference routing),
+    and `ATOMIC-TASKS.template.md` (added strategy cross-reference for commit context).
 
-    - Create `.arc/reference/strategies/arc/strategy-backlog-organization.md`
-    - Extract from `strategy-work-organization.md` section 11 (Backlog Organization, ~55 lines):
-      Structure, Processing Flow, Key Design Points, Commit Context for Atomic Tasks
-    - Update `strategy-work-organization.md`: replace extracted section with cross-reference
-    - Update cross-references from `weekly-review.md` and `ATOMIC-TASKS.template.md`
+- [x] **3.4 Update cross-references for content splits**
 
-- [ ] **3.4 Update cross-references for content splits**
+    Full audit of ~48 DEVELOPMENT-RULES references across the codebase. Categorized as:
+    archive (skip), meta-references (file name mentions — no action), already updated in 3.2,
+    and remaining references to extracted content.
 
-    **Goal:** Route "see DEVELOPMENT-RULES" references to the correct file based on content.
+    **Updated in this task (8 files, routing extracted content → methodology strategy):**
 
-    **Already completed in Task 3.2** (do not repeat):
+    - Githooks: `pre-commit` (2 refs: Code Documentation Standards), `README.md` (commit
+      message standard)
+    - Strategy docs: `strategy-task-list-formatting.md` (2 refs: Test-First Protocol)
+    - Workflow docs: `atomic-commit.md` (3 refs: commit format), `2_generate-tasks.md`
+      (Test-First Protocol)
+    - Agent templates: `copilot-instructions.template.md` (test-first protocol),
+      `AGENTS.template.md` (Verification Protocol), `CLAUDE.template.md` (Session Context
+      Management)
 
-    - Session-init reading list: methodology strategy added as item 4 (both versions)
-    - CLAUDE.md: Session Context Management reference updated
-    - Slash commands (3): commit format references → methodology strategy
-    - archive-completed.md, manage-incidental-work.md: commit format/standards references
-    - maintain-docs.md: "Always Read" list updated
-    - strategy-quality-gates.md: failure protocol reference updated
-    - `commit-msg` hook: verified — has no DEVELOPMENT-RULES references (task assumption was wrong)
-
-    **Remaining work:**
-
-    - Githooks: `pre-commit` (lines 165, 185) references Code Documentation Standards (extracted);
-      `README.md` (line 23) references commit message standard — route to methodology strategy
-    - Strategy docs: audit `strategy-task-list-formatting.md`, `strategy-work-organization.md` for
-      references to extracted sections
-    - Workflow docs: audit `atomic-commit.md`, `2_generate-tasks.md`, `maintain-task-notes.md`
-    - Agent templates (`.arc/system/agent/*.template.md`): audit for references to extracted sections
-    - Internal agent files (`copilot-instructions.md`, `WARP.md`, `GEMINI.md`): same audit
-    - `.claude/agents/documentation-reviewer.md`: audit
-    - Grep verification: 48 files reference DEVELOPMENT-RULES; ~12 are archive (skip),
-      ~10 already updated, ~10 are meta-references (task/PRD/backlog). Remaining ~16 need
-      audit to confirm each reference points to the correct file post-split
+    **Verified no action needed:** `strategy-work-organization.md` (migration guide —
+    generic doc reference), `maintain-task-notes.md` (generic "project rules" link),
+    internal agent files (GEMINI.md, copilot-instructions.md, WARP.md — generic doc links),
+    `documentation-reviewer.md` (example prompt), all QUICK-REFERENCE, README, backlog,
+    and archive files (meta-references or historical)
 
 ### **Phase 4:** Cross-Cutting Concept Updates (C1–C13)
 
