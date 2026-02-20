@@ -41,6 +41,7 @@ Enforces the commit message standard defined in
 
 **Errors (blocks commit):**
 
+- Base branch commit protection in `full` mode (all changes require branches and PR review)
 - Merge conflict markers in staged files
 - Sensitive files (`.env`, `credentials.json`, etc.)
 - Invalid task numbering format in task lists (third level must use letters: 1.1.a not 1.1.1)
@@ -48,10 +49,17 @@ Enforces the commit message standard defined in
 
 **Warnings (allows commit):**
 
-- Committing directly to main branch
+- Base branch commit protection in `partial` mode (planned work should use branches)
 - Large files (> 1MB)
 - Debug statements (`console.log`, `debugger`, `pdb`, `breakpoint()`)
 - Modified task lists not staged
+
+**Configuration (`arc-config.yml`):**
+
+The base branch name and protection level are read from `.arc/system/arc-config.yml`.
+If the config file is missing or a setting is absent, defaults apply (`main` base branch,
+`partial` protection). See [strategy-work-organization.md](../../reference/strategies/arc/strategy-work-organization.md)
+for detailed mode descriptions.
 
 ## Customization
 

@@ -319,33 +319,28 @@ templates, and tooling.
       work-organization description from "branch coupling" to "branching model (protection
       modes, planning branches)" reflecting Phase 4 additions.
 
-- [ ] **4.7 Update pre-commit githook for config-aware branch protection (C12)**
+- [x] **4.7 Update pre-commit githook for config-aware branch protection (C12)**
 
-    **Goal:** Make githook read configuration and adjust base-branch-commit behavior per mode.
+    Added `arc_config_get` shell function to pre-commit hook — reads flat key-value pairs from
+    `.arc/system/arc-config.yml` via grep + cut, falls back to defaults (`main`, `partial`) when
+    config is missing. CHECK 1 now uses configured `base_branch` and `branch_protection`:
+    `unprotected` skips silently, `partial` warns, `full` blocks with error. Updated githook
+    README with config-aware check descriptions and configuration section. All three modes plus
+    missing-config fallback tested manually.
 
-    - Add config reading function: parse `base_branch` and `branch_protection` from
-      `.arc/system/arc-config.yml` using shell-native parsing (grep + cut or similar, no YAML library)
-    - Graceful degradation: if no config file or missing settings, default to `partial` protection
-      and `main` as base branch (backward-compatible)
-    - Adjust base-branch-commit check behavior:
-        - `unprotected`: skip check entirely (no warning, no error)
-        - `partial`: warning with improved messaging (current behavior, better text)
-        - `full`: error that blocks the commit
-    - Replace hardcoded `main` branch name with configured base branch value
-    - Update githook README to document new config-aware behavior
-    - Test all three modes manually
+- [x] **4.8 Verify no hardcoded base branch references remain (C8 verification)**
 
-- [ ] **4.8 Verify no hardcoded base branch references remain (C8 verification)**
+    Grep sweep across all `.md` files and hook scripts for hardcoded `main` branch references.
+    Found 2 stale references and fixed:
 
-    **Goal:** Grep-based sweep for stale `main` branch references.
+    - `2_generate-tasks.md`: template header `**Base Branch:** `main`` → config-aware format
+      matching strategy-task-list-formatting.md
+    - `agent-pre-merge-review.md`: "main, parent branches" → "base branch, parent branches"
 
-    - Grep for patterns indicating hardcoded base branch: `"main"` in branch context,
-      `Base Branch.*main`, `--base main`, `origin main`, `checkout.*main` across all `.md` files
-      and hook scripts
-    - Exclude: archive directories, notes doc, prose usage of "main" (not branch references)
-    - Also grep for remaining hardcoded `main` in config-reading code (should use variable)
-    - Fix any missed references
-    - Run markdown lint on all modified files
+    Verified OK (no fix needed): strategy-work-organization, activate-work-unit,
+    strategy-task-list-formatting (already have config refs); githook pre-commit/README (default
+    values in code); ADOPTION.md (references ARC repo's own branch, not project base branch);
+    archive/PRD/backlog/task-list self-references excluded per task scope.
 
 ### **Phase 5:** Workflow and Coverage Gaps (D1–D4)
 

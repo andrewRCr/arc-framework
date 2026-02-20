@@ -13,21 +13,67 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
+# ============================================================================
+# CONFIG: Read settings from arc-config.yml
+# ============================================================================
+# Reads a value from .arc/system/arc-config.yml using shell-native parsing.
+# Falls back to default if config file is missing or key is not found.
+# Usage: arc_config_get <key> <default>
+arc_config_get() {
+    local key="$1"
+    local default="$2"
+    local config_file=".arc/system/arc-config.yml"
+
+    if [ ! -f "$config_file" ]; then
+        echo "$default"
+        return
+    fi
+
+    local value
+    value=$(grep -E "^${key}:" "$config_file" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+
+    if [ -z "$value" ]; then
+        echo "$default"
+    else
+        echo "$value"
+    fi
+}
+
+base_branch=$(arc_config_get "base_branch" "main")
+branch_protection=$(arc_config_get "branch_protection" "partial")
+
 echo -e "${GREEN}Running pre-commit checks...${NC}"
 
 errors=0
 warnings=0
 
 # ============================================================================
-# CHECK 1: No direct commits to main (safety check)
+# CHECK 1: Base branch commit protection (config-aware)
 # ============================================================================
+# Behavior determined by branch_protection setting in arc-config.yml:
+#   unprotected - no restriction (check skipped)
+#   partial     - warning (planned work should use branches)
+#   full        - error (all changes require branches and PR review)
 current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
 
-if [ "$current_branch" = "main" ]; then
-    echo -e "${YELLOW}Warning: Committing directly to main branch${NC}"
-    echo "   Consider using feature/ or technical/ branches for planned work"
-    echo "   This is OK for: planning, documentation, maintenance, archival"
-    warnings=$((warnings + 1))
+if [ "$current_branch" = "$base_branch" ]; then
+    case "$branch_protection" in
+        unprotected)
+            # No restriction on base branch commits
+            ;;
+        full)
+            echo -e "${RED}Error: Direct commits to $base_branch blocked (branch_protection: full)${NC}"
+            echo "   All changes require a feature branch and PR review"
+            echo "   Config: .arc/system/arc-config.yml"
+            errors=$((errors + 1))
+            ;;
+        partial|*)
+            echo -e "${YELLOW}Warning: Committing directly to $base_branch branch${NC}"
+            echo "   Planned work should use feature/ or technical/ branches"
+            echo "   Direct commits OK for: atomic tasks, backlog capture, maintenance"
+            warnings=$((warnings + 1))
+            ;;
+    esac
 fi
 
 # ============================================================================

@@ -10,7 +10,7 @@
 This ensures clean initial PRs with focused, high-value PR reviews — similar to running linters
 locally before CI.
 
-**Applies to all merges:** main, parent branches (stacked workflow), any PR where review is warranted.
+**Applies to all merges:** base branch, parent branches (stacked workflow), any PR where review is warranted.
 
 **Tool adaptation:** This workflow describes the strategy and decision-making process. Specific review
 tools (CodeRabbit, GitHub Copilot, etc.) plug into the generic steps — see

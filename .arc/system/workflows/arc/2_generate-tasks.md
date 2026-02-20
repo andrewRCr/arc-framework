@@ -83,7 +83,7 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 **PRD:** `.arc/backlog/[category]/prd-[name].md`
 **Created:** YYYY-MM-DD
 **Branch:** `feature/[name]` or `technical/[name]`
-**Base Branch:** `main`
+**Base Branch:** base branch per `arc-config.yml` (typically `main`)
 **Status:** Not Started
 ```
 
