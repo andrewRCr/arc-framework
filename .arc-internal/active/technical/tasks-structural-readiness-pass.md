@@ -240,17 +240,14 @@ merge conflict surface for framework updates.
 model (planning branches, base branch concept, branch protection modes), and update all affected workflows,
 templates, and tooling.
 
-- [ ] **4.1 Create `strategy-file-classification.md` (C1)**
+- [x] **4.1 Create `strategy-file-classification.md` (C1)**
 
-    **Goal:** Canonical reference for file classification taxonomy, used by CLI update system for merge
-    strategy per file.
-
-    - Create `.arc/reference/strategies/arc/strategy-file-classification.md`
-    - Define taxonomy: Framework / Configurable / Scaffolded / Project-owned
-    - Include complete file inventory (notes doc Deliverable 1, all 46 files) plus new files
-      introduced in this work unit (`.arc/config.yml`, `.arc/config.template.yml`)
-    - Use post-restructure paths and names (after Phases 1–3: `system/` paths, `.template.md` names)
-    - Document merge strategy implications per classification
+    Created `strategy-file-classification.md` (206 lines) as canonical file classification
+    reference. Taxonomy: Framework (37) / Configurable (12) / Scaffolded (11) / Project-owned (0
+    in template). Complete inventory of 60 files (58 existing + 2 planned: `config.yml`,
+    `config.template.yml`) organized by directory with post-restructure paths and `.template.md`
+    names. Each classification documents merge strategy implications for CLI update system.
+    Updated STRATEGY-INDEX.md with new entry.
 
 - [ ] **4.2 Decouple branch-task list model and introduce base branch concept (C2, C8)**
 
@@ -277,6 +274,8 @@ templates, and tooling.
     - Create `.arc/config.yml` for framework project (`.arc-internal/` uses same)
     - Keep format simple enough for line-based shell parsing (no nested structures)
     - Document in `.arc/README.md` directory overview
+    - Update `strategy-file-classification.md`: add both config files to Root inventory table
+      and adjust summary counts
 
 - [ ] **4.4 Add planning branch workflow and branch protection modes (C10, C11)**
 
