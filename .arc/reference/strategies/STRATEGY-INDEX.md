@@ -11,6 +11,7 @@ work in their domains.
 These ship with the framework and cover development methodology applicable to any project.
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
+- `arc/strategy-backlog-organization.md` - Backlog structure, processing flow, atomic task conventions
 - `arc/strategy-development-methodology.md` - Commit standards, verification, session/task management
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions

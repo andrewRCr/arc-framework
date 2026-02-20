@@ -3,8 +3,8 @@
 **Audience:** Human-driven — developer conducts this review, optionally with agent assistance.
 
 **Purpose**: Process captured work, maintain backlog health, and ensure task tracking stays current.
-See `strategy-work-organization.md` for work categorization context (feature vs technical, backlog
-lifecycle).
+See `strategy-work-organization.md` for work categorization context (feature vs technical) and
+`strategy-backlog-organization.md` for backlog structure and processing flow.
 
 In agent-assisted sessions, the agent reads each file, surfaces findings and proposed dispositions,
 and the user makes final decisions on each item.

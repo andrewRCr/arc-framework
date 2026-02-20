@@ -20,6 +20,8 @@
 
 3. Commit atomic work with: `Context: {{CATEGORY}} (atomic / no associated task list)`
    - Categories: maintenance, refactor, documentation, planning
+   - See [Backlog Organization Strategy](../reference/strategies/arc/strategy-backlog-organization.md)
+     for full conventions
 
 **Referencing completed work:** "see {{TASK_NAME}} in `completed-atomic-{{QUARTER}}.md`"
     - Quick access: [Completed Atomic Tasks](../reference/archive/{{QUARTER}}/completed-atomic-{{QUARTER}}.md)
