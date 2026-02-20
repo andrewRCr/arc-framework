@@ -46,7 +46,7 @@ Guidance for Claude when working in this repository. For shared rules and archit
 - 150k: Proactive check-in with user before hitting limits
 - Leaves buffer for commit workflows, quality gates, and session handoff if needed
 
-**See also:** Session Context Management section in DEVELOPMENT-RULES.md for agent-agnostic principles.
+**See also:** Session Context Management section in strategy-development-methodology.md for agent-agnostic principles.
 
 ## Deferred Review
 

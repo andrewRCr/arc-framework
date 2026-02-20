@@ -493,7 +493,7 @@ use separate phases per layer with test-first ordering in each, plus a cross-lay
 ```
 
 Tests written after implementation are harder, less effective, and violate the
-[DEVELOPMENT-RULES.md](../../constitution/DEVELOPMENT-RULES.md) Test-First Protocol.
+[Development Methodology Strategy](strategy-development-methodology.md) Test-First Protocol.
 
 ---
 
@@ -763,7 +763,7 @@ Each "Will Do" item should map to a verifiable criterion.
 
 ## References
 
-- [DEVELOPMENT-RULES.md](../../constitution/DEVELOPMENT-RULES.md) - Test-First Protocol
+- [Development Methodology Strategy](strategy-development-methodology.md) - Test-First Protocol
 - [2_generate-tasks.md](../../../system/workflows/arc/2_generate-tasks.md) - Planned work task generation
 - [manage-incidental-work.md](../../../system/workflows/arc/supplemental/manage-incidental-work.md) - Incidental work lifecycle
 - [3_process-task-loop.md](../../../system/workflows/arc/3_process-task-loop.md) - Task execution workflow

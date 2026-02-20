@@ -58,7 +58,7 @@
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
 - **Verify before asserting** - Never guess file paths, implementation details, or content.
   Use search/read tools to verify, or ask clarifying questions when uncertain.
-  See `DEVELOPMENT-RULES.md` Verification Protocol.
+  See `strategy-development-methodology.md` Verification Protocol.
 - **Check strategy guidance** - Before implementing in codified domains, consult the relevant
   strategy doc. See `STRATEGY-INDEX.md` for available guidance.
 

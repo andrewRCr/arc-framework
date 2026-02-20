@@ -50,8 +50,9 @@ For each phase, define specific, actionable sub-tasks:
 - No time estimates — focus on clear scope and completion criteria
 
 **Test-first ordering (critical):** For data models, API endpoints, business logic, and complex
-algorithms — write test sub-tasks BEFORE implementation sub-tasks. See DEVELOPMENT-RULES Test-First
-Protocol for what requires test-first vs test-after.
+algorithms — write test sub-tasks BEFORE implementation sub-tasks. See
+[Development Methodology Strategy](../../../reference/strategies/arc/strategy-development-methodology.md)
+Test-First Protocol for what requires test-first vs test-after.
 
 **If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`),
 consult it for project-specific test patterns and coverage expectations.
