@@ -342,6 +342,23 @@ templates, and tooling.
     values in code); ADOPTION.md (references ARC repo's own branch, not project base branch);
     archive/PRD/backlog/task-list self-references excluded per task scope.
 
+- [ ] **4.9 Convert inline cross-references to reference-style links**
+
+    **Goal:** Improve source readability by centralizing verbose relative paths into
+    reference-style link definitions, and establish `---` + link block as consistent EOF pattern.
+
+    - Establish convention: all cross-file links use reference style (`[text][ref]`),
+      definitions collected at end of file after `---` separator, lowercase descriptive
+      ref names. The `---` doubles as a consistent EOF indicator (link definitions are
+      invisible in rendered output, so the rule is the last visible element)
+    - Document convention in strategy-development-methodology.md (Code Documentation
+      Standards section — add a "Link Style" subsection)
+    - Convert existing inline links across `.arc/` and `.arc-internal/` files (excluding
+      archives). Prioritize files with 3+ deep relative links (`../../../` or deeper)
+    - Verify all converted links resolve correctly (click-through spot check + CI link
+      validation)
+    - Run markdown lint on all modified files
+
 ### **Phase 5:** Workflow and Coverage Gaps (D1–D4)
 
 **Purpose:** Fill documentation gaps identified during structural analysis. First-pass content structured for
