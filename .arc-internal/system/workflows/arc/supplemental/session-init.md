@@ -68,7 +68,7 @@ more value in having complete context upfront than discovering missing rules mid
 **Active work context:**
 
 8. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
-   - Current state: branch, task context, last completed work, blockers, and implementation notes
+   - Current state: branch, task context, last completed work, blockers, and additional context
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
@@ -84,7 +84,7 @@ more value in having complete context upfront than discovering missing rules mid
      - **Read on-demand**: Other phases and tasks as needed during work
    - **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
      large to internalize upfront. But you MUST read the overview + current task context.
-   - **What to extract**: Current phase, task details, acceptance criteria, implementation notes
+   - **What to extract**: Current phase, task details, acceptance criteria
 
 ### 3. Confirm Orientation
 

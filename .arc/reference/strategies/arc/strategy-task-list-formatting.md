@@ -20,7 +20,8 @@ documentation throughout the project lifecycle.
 5. [Complete Annotated Example](#complete-annotated-example)
 6. [Common Mistakes](#common-mistakes)
 7. [Decision Guidelines](#decision-guidelines)
-8. [Success Criteria Section](#success-criteria-section)
+8. [Verification Phase](#verification-phase)
+9. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -41,7 +42,8 @@ Before finalizing any task list, verify:
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] "Expect tests to FAIL initially" noted in test subtasks
 - [ ] "Tests should now PASS" noted after implementation subtasks
-- [ ] Success Criteria section at bottom with checkboxes (verified before archival)
+- [ ] Verification phase as final phase (Tier 3 gates + PRD success criteria validation)
+- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 ---
 
@@ -638,14 +640,6 @@ This example demonstrates all formatting elements in proper context:
     - [ ] **4.2.c Test suggestion accuracy**
         - Typo in field name → verify closest match suggested
 
-## Notes & Observations
-
-**Technical Approach**:
-- Collect-then-report pattern for validation (no fail-fast)
-- Recursive descent for nested config validation
-
-**Related Work**:
-- Discovered during: `tasks-plugin-system.md`
 ```
 
 ---
@@ -720,13 +714,63 @@ the title. See [Goal/Note Lines](#goalnote-lines) for formatting rules.
 
 ---
 
+## Verification Phase
+
+**Required for all task lists.** Every task list ends with a verification phase as its final
+phase. This phase marks the boundary between "doing the work" and "confirming the work is done."
+
+**Standard format:**
+
+```markdown
+### **Phase N:** Verification
+
+- [ ] **N.1 Run Tier 3 quality gates**
+- [ ] **N.2 Validate success criteria against PRD**
+```
+
+**Task 1 — Tier 3 quality gates:** Run the full quality gate suite as defined by the project's
+[Quality Gates Strategy][quality-gates]. Even when incremental checks have been clean throughout
+implementation, the full-suite run serves as an attestation that everything passes as a whole.
+One task — don't break out individual gates as separate subtasks.
+
+**Task 2 — Validate success criteria against PRD:** Open the PRD, walk through its success
+criteria, and compare each against actual outcomes. Then mark each criterion in the
+[Success Criteria section](#success-criteria-section) below the task phases. This forces a
+deliberate look back at original intent — catching scope drift, missed requirements, or criteria
+that were quietly dropped during implementation.
+
+For each criterion, mark one of three states:
+
+- `[x]` — **Met.** Criterion satisfied as planned, or addressed via a different approach
+  (add a **Deviation** note explaining how and why).
+- `[~]` — **Superseded.** Criterion intentionally dropped, deferred, or made irrelevant by a
+  design decision during implementation. Add a **Superseded** note explaining the decision.
+- `[ ]` — **Not met.** Criterion was expected but not achieved — a genuine gap that needs
+  discussion before the work can be considered complete.
+
+**Criterion text is immutable.** Never rewrite a criterion to match what was actually built.
+The original text preserves intent; annotations capture reality. Both signals matter — "we
+planned X but delivered Y because Z" is valuable context that's lost if you edit X to say Y.
+
+**Key convention:** Success criteria are only marked during this verification phase, not during
+implementation. Implementation tasks get checked as work progresses; success criteria get
+checked when the implementer steps back and validates outcomes against the PRD.
+
+**Relationship to archive-completed:** The verification phase is the implementer's validation
+pass. The [archive-completed workflow][archive-completed] performs a second confirmation against
+the PRD during archival — a lightweight check that works whether the same person or a different
+team member does the archival.
+
+---
+
 ## Success Criteria Section
 
-**Required for all task lists.** Placed at the bottom after all phases, serves as completion
-verification checklist.
+**Required for all task lists.** Placed at the bottom after all phases (including the
+verification phase), serves as outcome verification checklist.
 
-**Purpose:** Pre-archival sanity check — forces review of outcomes vs. just assuming completion.
-Each "Will Do" item should map to a verifiable criterion.
+**Purpose:** Checkable operationalization of the PRD's success criteria. Each "Will Do" item
+should map to a verifiable criterion. These checkboxes are checked during the
+[verification phase](#verification-phase), not during implementation.
 
 **Format:**
 
@@ -745,10 +789,22 @@ Each "Will Do" item should map to a verifiable criterion.
 **Rules:**
 
 - Checkboxes required (actionable verification items)
-- Derived from Scope "Will Do" items
+- Derived from Scope "Will Do" items and PRD success criteria
 - Always include "All quality gates pass" and "Ready for X" as standard items
-- All items must be `[x]` before running archive workflow
+- **Marked during verification phase** — not during implementation, not during archival
+- Do not duplicate the PRD's criteria verbatim — operationalize them into checkable items
+- **Criterion text is immutable** — never rewrite to match actual implementation
+- All items must be `[x]` or `[~]` (with annotations) before running archive workflow.
+  Any remaining `[ ]` items represent genuine gaps requiring resolution.
 - No time estimates
+
+**Three states** (see [Verification Phase](#verification-phase) for when and how to apply):
+
+| Marker | Meaning    | Annotation                                                   |
+|--------|------------|--------------------------------------------------------------|
+| `[x]`  | Met        | None needed, or **Deviation** note if addressed differently  |
+| `[~]`  | Superseded | **Superseded** note required - why dropped/deferred          |
+| `[ ]`  | Not met    | Genuine gap - resolve before work is considered complete     |
 
 **Example:**
 
@@ -758,6 +814,13 @@ Each "Will Do" item should map to a verifiable criterion.
 - [x] Required-field validation reports all missing fields with paths
 - [x] Type-mismatch validation reports expected vs actual types
 - [x] Multiple errors collected and reported in single pass
+- [x] `getting-started.md` exists with adoption story and "what to customize" guidance
+    - **Deviation:** Content redirected to external docs site (MkDocs Material +
+      GitHub Pages). In-repo file is a lightweight pointer, not the full adoption
+      story originally planned. Decided during Task 5.1.
+- [~] Widget supports offline mode
+    - **Superseded:** Descoped to Phase D after discovering API dependency requires
+      always-online for initial sync. See `plan-public-release.md`.
 - [x] All quality gates pass (tests, linting, type checking — 0 violations)
 - [x] Ready to resume interrupted work at Task 3.3
 ```
@@ -776,3 +839,5 @@ Each "Will Do" item should map to a verifiable criterion.
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[quality-gates]: strategy-quality-gates.md
+[archive-completed]: ../../../system/workflows/arc/supplemental/archive-completed.md

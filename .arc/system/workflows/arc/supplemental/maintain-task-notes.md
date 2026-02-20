@@ -110,9 +110,10 @@ is based on where the referenced file lives:
 **Inventory (Mode 1 focus):**
 
 - If in-progress: identify what context remaining unchecked tasks need
-- Flag verbose content AROUND tasks: sections labeled "Notes", "Implementation Notes", "Decision Log"
+- Flag any non-task content that has accumulated (notes, decision logs, technical context) —
+  these belong in the notes file (`notes-{name}.md`), not in the task list
 - **Key distinction:** Keep what remaining work needs (regardless of length); migrate historical
-  explanations that don't inform future tasks
+  explanations to the notes file
 
 **⚠️ Task lines are historical records — NEVER modify task descriptions or outcomes.** A task line
 is the checkbox with its description and inline outcome notes (e.g., `- [x] 4.3.3 Consider adding
@@ -121,13 +122,12 @@ stay verbatim.
 
 **Fix stale task number references:**
 
-After task list restructuring (inserted tasks, renumbered tasks), references in notes sections may
-point to wrong task numbers. Use the actual task checklist as source of truth:
+After task list restructuring (inserted tasks, renumbered tasks), task number references within
+the file may point to wrong numbers. Use the actual task checklist as source of truth:
 
-- Search for patterns like "(Task 7)", "Task 7:", "Tasks 7-9" in notes sections
+- Search for patterns like "(Task 7)", "Task 7:", "Tasks 7-9" in task descriptions and
+  completion notes
 - Verify each reference points to the correct current task
-- Common locations: "Implementation Notes" sections, inline notes
-- Also check content ordering — ensure notes subsections appear in current task number order
 
 ```markdown
 <!-- Example: After inserting Task 7a-7c, old reference needs updating -->

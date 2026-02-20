@@ -471,47 +471,6 @@ criteria.
 
 ---
 
-## Implementation Notes
-
-**Commit strategy per PRD Technical Considerations:**
-
-- Phase 1: `git mv` operations as one commit, cross-reference updates as subsequent commit(s)
-- Phase 2: `git mv` renames as one commit, reference updates as subsequent commit
-- Phase 3: strategy doc creation + DEVELOPMENT-RULES slimming can be one commit per split
-  (A1+A2+A3 together, A4 separate). Cross-reference routing as follow-up
-- Phase 4: natural commit boundaries align with parent tasks. Config file (4.3) and strategy
-  content (4.4) should be committed before githook update (4.7) which depends on both.
-  Verification (4.8) is last in the phase
-- Phases 5–6: natural commit boundaries align with parent tasks
-
-**Notes doc reference:** `notes-structural-readiness-pass.md` (same directory) contains:
-
-- Deliverable 1: File classification inventory (46 files + new config files) — needed for task 4.1
-- Deliverable 2: DEVELOPMENT-RULES content map (line-by-line) — needed for tasks 3.1/3.2
-- Deliverable 4: Cross-cutting dependency map with blast radius — needed for tasks 1.2–1.5, 3.4
-
-**Self-referential change:** Session-init moves to `system/workflows/arc/supplemental/` AND its content
-references paths that change. Verify by reading the file and tracing each path after updates.
-
-**Workflow reorganization:** The `arc/` + `project/` split within `system/workflows/` mirrors the
-`strategies/` pattern (`arc/` for ARC methodology, `project/` for user-created). `.arc-internal/`
-benefits: `sync-*.md` workflows move to `project/` (framework-project-specific), cleanly separated
-from ARC methodology workflows in `arc/`.
-
-**`.arc-internal/` parallel scope by phase:**
-
-- Phase 1: directory moves + workflow reorg + all cross-references (agent files, workflows, constitution,
-  QUICK-REFERENCE)
-- Phase 2: no renames needed (live files don't use `.example.md` suffix)
-- Phase 3: DEVELOPMENT-RULES.md split parallels template version
-- Phase 4: `.arc-internal/` needs config file (4.3), githook updates apply to shared hooks,
-  strategy-work-organization.md is `.arc/` template only (`.arc-internal/` references it).
-  Other Phase 4 work is mostly `.arc/` template work
-- Phases 5–6: `.arc-internal/` impact minimal (mostly `.arc/` template work)
-- Phase 7: verification covers both directories
-
----
-
 ## Success Criteria
 
 - [ ] Every `.arc/` top-level directory has a single clear purpose expressible in one sentence

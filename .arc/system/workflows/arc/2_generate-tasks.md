@@ -38,6 +38,9 @@ to the user for review before breaking down into sub-tasks.
 - Each phase should produce testable, verifiable progress
 - Order phases to minimize dependencies and enable incremental delivery
 - Place tests before or alongside implementation, not in a separate final phase
+- **Always end with a verification phase** — two tasks: (1) run Tier 3 quality gates,
+  (2) validate success criteria against PRD. See
+  [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
 ### Step 3: Break Down into Sub-Tasks
 
@@ -59,8 +62,9 @@ consult it for project-specific test patterns and coverage expectations.
 
 ### Step 4: Write and Save Task List
 
-Combine phases, sub-tasks, and any implementation notes into the final task list following the
-format described below.
+Combine phases and sub-tasks into the final task list following the format described below.
+Implementation notes, technical context, and design rationale belong in the dedicated notes
+file (`notes-{name}.md`), not in the task list.
 
 **Save to:**
 
@@ -90,8 +94,9 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 ### Body
 
 See [strategy-task-list-formatting.md][task-list-formatting] for
-complete body structure (Overview, Scope, Tasks, Implementation Notes), formatting rules, test-first
-patterns, and annotated examples. Use its Quick Format Checklist to verify before saving.
+complete body structure (Overview, Scope, Tasks, Verification Phase, Success Criteria), formatting
+rules, test-first patterns, and annotated examples. Use its Quick Format Checklist to verify
+before saving.
 
 ---
 

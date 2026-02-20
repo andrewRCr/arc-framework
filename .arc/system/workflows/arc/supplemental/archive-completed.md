@@ -40,8 +40,10 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 
 - [ ] All task list subtasks and parent tasks marked `[x]`
 - [ ] Task list header `**Status:**` updated to `Complete`
-- [ ] Task list Success Criteria aligned with completed Phase tasks (all checked if work complete)
+- [ ] Task list Success Criteria all checked (expected — verification phase should have validated these)
 - [ ] PRD alignment (if PRD exists — planned work only):
+    - [ ] Confirm success criteria against PRD — second pass after verification phase. Note any
+      deviations or criteria met differently than originally planned
     - [ ] PRD header `**Status:**` updated to `Complete`
     - [ ] PRD Open Questions resolved with brief notes on decisions made
 - [ ] All quality gates passed (documented as completed subtasks in task list)
@@ -370,17 +372,22 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    ---
    ```
 
-4. **Strikethrough incomplete tasks:** Use `~~` to clearly indicate tasks weren't abandoned without thought:
+4. **Mark superseded tasks with `[~]`:** Clearly indicates tasks weren't abandoned without thought:
 
    ```markdown
-   - ~~[ ] **4.1 Task description**~~ *(superseded by infinite scroll)*
+   - [~] **4.1 Task description** *(superseded by infinite scroll)*
    ```
+
+   The `[~]` marker means "intentionally not done" — distinct from `[ ]` (pending) and `[x]`
+   (complete). Same convention used in [success criteria][task-list-formatting] for superseded
+   criteria.
 
 5. **Completion doc:** Include `**Status:** Superseded (partial)` and document what was completed vs superseded.
 
-**Key principle:** The strikethrough + decision point note creates clear audit trail showing intentional
+**Key principle:** The `[~]` marker + decision point note creates clear audit trail showing intentional
 architectural pivot, not abandoned work.
 
 ---
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
+[task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
