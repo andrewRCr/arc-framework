@@ -50,25 +50,29 @@ more value in having complete context upfront than discovering missing rules mid
 **Constitutional and process context:**
 
 3. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
-   - Quality gates, commit standards, verification protocol, and all behavioral constraints
+   - Quality gates, testing requirements, code quality principles, and project-specific rules
 
-4. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
+4. `.arc/reference/strategies/arc/strategy-development-methodology.md` - **MUST READ IN FULL**
+   - Commit standards, verification protocol, session management, task management, and all
+     behavioral constraints (extracted from DEVELOPMENT-RULES for framework/project separation)
+
+5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
    - Index of codified strategy guidance; establishes what domain-specific patterns exist
 
-5. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
+6. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
    - Environment context, command patterns, and quality gate commands
 
-6. `.arc/system/workflows/arc/3_process-task-loop.md` - **MUST READ IN FULL**
+7. `.arc/system/workflows/arc/3_process-task-loop.md` - **MUST READ IN FULL**
    - Task execution protocol, quality gates, and documentation update requirements
 
 **Active work context:**
 
-7. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
+8. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
    - Current state: branch, task context, last completed work, blockers, and implementation notes
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
-8. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
+9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
    - Path referenced in CURRENT-SESSION.md
    - Example: `.arc-internal/active/technical/tasks-[work-unit-name].md`
    - **Reading strategy**:

@@ -128,7 +128,8 @@ framework version — use any versioning scheme that works for your team.
 
 - `AGENTS.md` - Project context and lookup guide
 - `CURRENT-SESSION.md` - Active work state
-- `DEVELOPMENT-RULES.md` - Quality standards and protocols
+- `DEVELOPMENT-RULES.md` - Quality gates and project-specific rules
+- `strategy-development-methodology.md` - Commit standards, verification, task protocols
 - `3_process-task-loop.md` - Task execution workflow
 - `QUICK-REFERENCE.md` - Commands and environment
 

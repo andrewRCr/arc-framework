@@ -129,7 +129,7 @@ with no exceptions.
 **Guidance:**
 
 - Never skip or partially run Tier 3
-- If Tier 3 fails, fix before proceeding (see Quality Gate Failure Protocol in DEVELOPMENT-RULES)
+- If Tier 3 fails, fix before proceeding (see Quality Gate Failure Protocol in strategy-development-methodology.md)
 - Tier 3 failures after proper Tier 1/2 execution should be rare
 
 **Commits and quality gates:** Tiers are milestone-driven, not commit-driven. Work committed through the
