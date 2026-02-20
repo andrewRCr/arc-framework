@@ -89,21 +89,27 @@ more value in having complete context upfront than discovering missing rules mid
 
 ### 3. Confirm Orientation
 
-Confirm successful initialization with a brief structured summary:
+Confirm successful initialization. Use this structure:
 
-**Environment and context:**
+**ARC session initialized** · `{branch-name}` · {clean | uncommitted changes}
 
-- Working directory, runtime status, and quality policy (per QUICK-REFERENCE.md)
-- Documents read in full; task list overview + current task loaded
+**Active work state:**
 
-**Active work understanding:**
-
-- **Current branch and task**: From CURRENT-SESSION.md
 - **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Next action**: What comes next per CURRENT-SESSION.md
-- **Blockers**: Any blockers or mismatches detected during initialization
+- **Current task**: Task being worked on per CURRENT-SESSION.md
+- **Blockers**: Any blockers or mismatches detected during initialization, or "none"
 
-Then await user direction — do not start work until the user provides it.
+**Next action:** What comes next per CURRENT-SESSION.md
+
+Awaiting direction.
+
+**Formatting guidance:**
+
+- The header line confirms: protocol ran, active branch, and tree status — at a glance
+- **Next action** is standalone and prominent — it's the user's primary scanning target
+- Environment details (working directory, runtime, documents loaded) are implicit in a
+  successful initialization. Only surface environment information when something is wrong
+  (missing tools, failed verification, documents that couldn't be loaded)
 
 ### 4. If Context Seems Mismatched
 
