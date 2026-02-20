@@ -373,11 +373,12 @@ future refinement.
 
 - [ ] **5.2 Update workflows and conventions (D2, D3, D4)**
 
-    - [ ] 5.2.a Update `define-constitution.md` (D2, C13) — add ROADMAP as a step (foundational
-      planning artifact alongside other constitutional documents). Add base branch name and branch
-      protection level as setup-time decisions, written to `.arc/system/arc-config.yml` during project
-      bootstrap. Include brief guidance for each mode choice with cross-reference to
-      strategy-work-organization.md. Post-restructure path: `system/workflows/arc/setup/`
+    - [x] 5.2.a Split setup workflows and expand project definition (D2, C13) — replaced
+      single `define-constitution.md` with two ordered workflows:
+      `setup/01_initialize-arc.md` (ARC-level: verify init, arc-config context, agent setup)
+      and `setup/02_define-project.md` (project-level: META-PRD → TECHNICAL-OVERVIEW →
+      DEVELOPMENT-RULES → ROADMAP → PROJECT-STATUS, plus maintenance guidance). Updated all
+      cross-references (9 files). Establishes forward-compatible structure for CLI onboarding.
     - [ ] 5.2.b Formalize audience indicator convention in `.arc/README.md` (D3) — expand "Document
       Audiences" table, add note about `**Audience:**` headers, verify consistent application in
       existing files that partially use it

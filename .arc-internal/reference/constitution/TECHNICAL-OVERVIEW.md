@@ -34,7 +34,8 @@ framework. This architectural decision ensures:
 │   ├── githooks/              # Git hook scripts
 │   └── workflows/             # Process documentation
 │       ├── arc/               # ARC framework workflows
-│       │   ├── setup/define-constitution.md
+│       │   ├── setup/01_initialize-arc.md
+│       │   ├── setup/02_define-project.md
 │       │   ├── 1_create-prd.md
 │       │   ├── 2_generate-tasks.md
 │       │   ├── 3_process-task-loop.md

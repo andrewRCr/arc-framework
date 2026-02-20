@@ -14,7 +14,7 @@ See [Work Organization Strategy][work-org] for the complete
 decision tree.
 
 **Note**: This workflow covers work-level PRDs, not the project-wide META-PRD. For constitutional
-documents, use [define-constitution.md](setup/define-constitution.md).
+documents, use [02_define-project.md](setup/02_define-project.md).
 
 ---
 

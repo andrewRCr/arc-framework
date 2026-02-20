@@ -171,7 +171,8 @@ All paths relative to `.arc/`.
 | `arc/1_create-prd.md`                        | Framework      | Core workflow.             |
 | `arc/2_generate-tasks.md`                    | Framework      | Core workflow.             |
 | `arc/3_process-task-loop.md`                 | Framework      | Core workflow.             |
-| `arc/setup/define-constitution.md`           | Framework      | Setup workflow.            |
+| `arc/setup/01_initialize-arc.md`             | Framework      | Setup workflow.            |
+| `arc/setup/02_define-project.md`             | Framework      | Setup workflow.            |
 | `arc/supplemental/activate-work-unit.md`     | Framework      | Supplemental workflow.     |
 | `arc/supplemental/agent-pre-merge-review.md` | Framework      | Supplemental workflow.     |
 | `arc/supplemental/archive-completed.md`      | Framework      | Supplemental workflow.     |
