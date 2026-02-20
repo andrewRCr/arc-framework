@@ -1,10 +1,10 @@
 # Task List: Structural Readiness Pass
 
-**PRD:** `.arc-internal/backlog/technical/prd-structural-readiness-pass.md`
+**PRD:** `.arc-internal/active/technical/prd-structural-readiness-pass.md`
 **Created:** 2026-02-20
 **Branch:** `technical/structural-readiness-pass`
 **Base Branch:** `main`
-**Status:** Pending
+**Status:** In Progress
 
 ## Overview
 

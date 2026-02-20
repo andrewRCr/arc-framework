@@ -80,7 +80,11 @@ with distribution system design as the primary focus area.
 
 ## Currently Active
 
-*No active work units.*
+- **Structural Readiness Pass** (technical) - Restructure `.arc/` template system and `.arc-internal/`
+  workspace for distribution readiness: directory splits, file renames, content splits, configurable
+  branching model, team coordination content
+    - Task list: `.arc-internal/active/technical/tasks-structural-readiness-pass.md`
+    - Branch: `technical/structural-readiness-pass`
 
 ## Upcoming Priorities
 
@@ -91,12 +95,6 @@ with distribution system design as the primary focus area.
    - Pristine copy + three-way merge for non-destructive updates
    - Interactive init with token replacement, conditional content, agent selection
    - Plan: `backlog/feature/plan-distribution-and-update-system.md`
-
-2. **Structural Analysis Pass** (Prerequisite for distribution)
-   - Audit all `.arc/` files for stable vs configurable content separation
-   - Cross-cutting concept dependency mapping
-   - File classification inventory (framework/configurable/scaffolded/project-owned)
-   - Results feed into focused work unit for specific restructuring
 
 ### Medium Priority
 

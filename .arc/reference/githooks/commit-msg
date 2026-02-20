@@ -70,6 +70,8 @@ if ! echo "$commit_msg" | grep -qE '^Context: '; then
     echo "   Context: tasks-design-system.md (incidental - discovered during code review)"
     echo "   Context: tasks-data-pipeline.md (planning)"
     echo "   Context: tasks-theme-system.md (maintenance)"
+    echo "   Context: tasks-structural-pass.md (activation)"
+    echo "   Context: tasks-auth-system.md (archival)"
     echo "   Context: maintenance (atomic / no associated task list)"
     echo "   Context: refactor (no associated task list)"
     echo "   Context: documentation (atomic / no associated task list)"
@@ -130,8 +132,8 @@ else
         # Matches: (incidental - discovered during Task 2.3), (incidental - discovered during code review)
         elif echo "$context_line" | grep -qE '\(incidental - discovered during (Task [0-9]+(\.[0-9A-Za-z]+)+|code review)\)$'; then
             :
-        # Matches: (planning), (maintenance)
-        elif echo "$context_line" | grep -qE '\((planning|maintenance)\)$'; then
+        # Matches: (planning), (activation), (maintenance), (archival)
+        elif echo "$context_line" | grep -qE '\((planning|activation|maintenance|archival)\)$'; then
             :
         else
             echo -e "${RED}Error: Invalid task reference format in Context: line${NC}"
@@ -146,7 +148,7 @@ else
             echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
             echo "   - (incidental - discovered during Task X.Y)"
             echo "   - (incidental - discovered during code review)"
-            echo "   - (planning) or (maintenance) - task list planning/maintenance"
+            echo "   - (planning), (activation), (maintenance), or (archival) - task list lifecycle"
             echo ""
             echo "   Note: Parenthetical is REQUIRED for all commits"
             echo ""
@@ -164,7 +166,7 @@ else
         echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
         echo "   - Context: tasks-[name].md (incidental - discovered during Task X.Y)"
         echo "   - Context: tasks-[name].md (incidental - discovered during code review)"
-        echo "   - Context: tasks-[name].md (planning) or (maintenance)"
+        echo "   - Context: tasks-[name].md (planning), (activation), (maintenance), or (archival)"
         echo "   - Context: [category] (no associated task list)"
         echo "   - Context: [category] (atomic / no associated task list)"
         echo ""

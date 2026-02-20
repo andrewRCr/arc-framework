@@ -51,7 +51,9 @@ With task list:
 - `Context: tasks-[filename].md (Tasks X.Y, A.B)` — non-contiguous
 - `Context: tasks-[filename].md (Tasks X.Y; planning)` — task completion + extra task list work
 - `Context: tasks-[filename].md (incidental - discovered during Task X.Y)` — incidental fix
-- `Context: tasks-[filename].md (planning)` — task list metadata only
+- `Context: tasks-[filename].md (planning)` — task list planning/creation
+- `Context: tasks-[filename].md (activation)` — backlog to active transition
+- `Context: tasks-[filename].md (archival)` — active to archive transition
 
 Without task list:
 
