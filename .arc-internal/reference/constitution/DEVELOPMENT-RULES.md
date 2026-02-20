@@ -1,5 +1,6 @@
 # Development Rules - ARC Agentic Development Framework
 
+<!-- Version tracks project rule evolution, not the ARC framework version. -->
 **Version:** 0.3.0-dev | **Updated:** 2025-12-26 | **Hash:** `8c5f2a91`
 
 Core development rules and quality standards for the ARC framework. These rules are **non-negotiable** and must be followed
@@ -307,7 +308,7 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 - All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
 - Template-first documents with comprehensive inline guidance and framework defaults
-- Examples clearly marked as `.example.md` and copy-ready
+- Templates clearly marked as `.template.md` and copy-ready
 - READMEs required for each directory
 - ALWAYS run markdown linting after updating any documentation files
 

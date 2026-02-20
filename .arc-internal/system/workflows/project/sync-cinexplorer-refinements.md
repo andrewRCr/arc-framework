@@ -32,7 +32,7 @@ Frequency naturally adjusts based on CineXplorer development activity.
 - `.arc/active/CURRENT-SESSION.md` - **Format/structure changes only** (new stable sections, protocol additions)
     - ⚠️ **Not temporal content**: Ignore session-specific work details, branch names, current tasks
     - ⚠️ **Only sync structural improvements**: Session Startup Protocol, section organization, standard sections
-    - Note: File is gitignored everywhere except `.example.md` version
+    - Note: File is gitignored everywhere except `.template.md` version
 - `.arc/README.md` - Directory overview (if improvements are generic)
 
 ### What NOT to Sync (Exclude)
@@ -163,9 +163,9 @@ Determine target location:
 
 **Naming conventions**:
 
-- `.example.md` suffix for template files in `.arc/`
+- `.template.md` suffix for template files in `.arc/`
 - No suffix for actual workflow/reference docs
-- Consider lean variants (e.g., `AI-SHARED-LEAN.example.md`)
+- Consider lean variants (e.g., `AI-SHARED-LEAN.template.md`)
 
 **4.4 Update Cross-References**
 
@@ -224,9 +224,9 @@ git --no-pager diff
 Stage related files together (e.g., all Phase 1 files):
 
 ```bash
-git add .arc/reference/QUICK-REFERENCE.example.md
+git add .arc/reference/QUICK-REFERENCE.template.md
 git add .arc-internal/reference/QUICK-REFERENCE.md
-git add .arc/reference/constitution/DEVELOPMENT-RULES.example.md  # If updated
+git add .arc/reference/constitution/DEVELOPMENT-RULES.template.md  # If updated
 ```
 
 **6.3 Commit Message Planning**
@@ -279,7 +279,7 @@ Some files benefit from multiple variants:
 
 - **Template version**: Heavy guidance for first-time users
 - **Lean version**: Streamlined for experienced users
-- Example: `AI-SHARED.example.md` vs `AI-SHARED-LEAN.example.md`
+- Example: `AI-SHARED.template.md` vs `AI-SHARED-LEAN.template.md`
 
 ### Watch for Emerging Patterns
 

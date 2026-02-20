@@ -12,7 +12,7 @@ Recommended flow:
 2. Bring `templates/` if you plan to generate the ready-made documents.
 3. Replace UPPER_SNAKE tokens (e.g., `{{PROJECT_NAME}}`, `{{DEFAULT_BRANCH}}`).
 4. Optionally copy `profiles/` and merge the relevant profile guidance into your local `DEVELOPMENT-RULES`.
-5. Delete or keep `*.example.md` as learning aids.
+5. Delete or keep `*.template.md` as learning aids.
 
 Token catalog (starter): `{{PROJECT_NAME}}`, `{{PRIMARY_STACK}}`, `{{DEFAULT_BRANCH}}`,
 `{{FEATURE_BRANCH_PREFIX}}`, `{{DOCKER_COMPOSE_FILE}}`, `{{BACKEND_TEST_CMD}}`, `{{FRONTEND_TEST_CMD}}`,

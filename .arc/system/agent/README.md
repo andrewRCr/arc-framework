@@ -51,7 +51,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 
 ## Files in This Directory
 
-### AGENTS.example.md
+### AGENTS.template.md
 
 **Purpose**: Central reference card for all AI tools
 
@@ -69,7 +69,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 - Project-specific friction points
 - Repository layout and conventions
 
-### CLAUDE.example.md
+### CLAUDE.template.md
 
 **Purpose**: Claude-specific guidance (minimal template)
 
@@ -83,7 +83,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 
 **When to customize**: Add Claude-specific guidance for your project (typically 5-10 bullet points)
 
-### GEMINI.example.md
+### GEMINI.template.md
 
 **Purpose**: Gemini-specific guidance (minimal template)
 
@@ -97,7 +97,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 
 **When to customize**: Add Gemini-specific guidance for your project (typically 5-10 bullet points)
 
-### WARP.example.md
+### WARP.template.md
 
 **Purpose**: Warp terminal-specific guidance (minimal template)
 
@@ -111,7 +111,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 
 **When to customize**: Add Warp-specific guidance for your project (typically 5-10 bullet points)
 
-### copilot-instructions.example.md
+### copilot-instructions.template.md
 
 **Purpose**: GitHub Copilot-specific guidance (minimal template)
 
@@ -140,10 +140,10 @@ for another tool (e.g., Cursor, Windsurf, or a future tool):
 
 ### For New Projects
 
-1. **Copy all `.example.md` files** from this directory to your project's `.arc/system/agent/`
-2. **Rename files** by removing `.example` extension:
-   - `AGENTS.example.md` → `AGENTS.md`
-   - `CLAUDE.example.md` → `CLAUDE.md`
+1. **Copy all `.template.md` files** from this directory to your project's `.arc/system/agent/`
+2. **Rename files** by removing `.template` extension:
+   - `AGENTS.template.md` → `AGENTS.md`
+   - `CLAUDE.template.md` → `CLAUDE.md`
    - etc.
 3. **Customize AGENTS.md first** with your project-specific:
    - Technology stack

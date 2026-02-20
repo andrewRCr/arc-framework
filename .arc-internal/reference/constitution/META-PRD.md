@@ -140,7 +140,7 @@ disciplined alternative to more permissive AI development approaches.
 
 - `.arc/` contains the deployable template system (permanent, versioned)
 - `.arc-internal/` for framework development workspace (internal use only)
-- Clear naming conventions (`.example.md` for template-first documents, `.profile.md` for overlays)
+- Clear naming conventions (`.template.md` for template-first documents, `.profile.md` for overlays)
 - Legacy `templates/` directory being consolidated into `.arc/` structure
 
 ### Compatibility

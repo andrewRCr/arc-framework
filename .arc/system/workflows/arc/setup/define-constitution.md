@@ -22,7 +22,7 @@ with inline guidance — the questions below help you think through what matters
 Your project's vision, scope, and success criteria — the "why" and "what" that guides all other
 decisions.
 
-**Template**: [META-PRD.example.md](../../../../reference/constitution/META-PRD.example.md)
+**Template**: [META-PRD.template.md](../../../../reference/constitution/META-PRD.template.md)
 
 **Think through**:
 
@@ -36,7 +36,7 @@ decisions.
 Your technology stack, architectural patterns, and technical constraints — the "how" behind the
 project.
 
-**Template**: [TECHNICAL-OVERVIEW.example.md](../../../../reference/constitution/TECHNICAL-OVERVIEW.example.md)
+**Template**: [TECHNICAL-OVERVIEW.template.md](../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md)
 
 **Think through**:
 
@@ -49,7 +49,7 @@ project.
 
 Code standards, quality gates, and development protocols — the rules that keep the codebase healthy.
 
-**Template**: [DEVELOPMENT-RULES.example.md](../../../../reference/constitution/DEVELOPMENT-RULES.example.md)
+**Template**: [DEVELOPMENT-RULES.template.md](../../../../reference/constitution/DEVELOPMENT-RULES.template.md)
 
 **Think through**:
 
@@ -62,7 +62,7 @@ Code standards, quality gates, and development protocols — the rules that keep
 
 Progress tracking for initiatives and milestones — a snapshot of where the project stands.
 
-**Template**: [PROJECT-STATUS.example.md](../../../../reference/constitution/PROJECT-STATUS.example.md)
+**Template**: [PROJECT-STATUS.template.md](../../../../reference/constitution/PROJECT-STATUS.template.md)
 
 **Think through**:
 
@@ -70,7 +70,7 @@ Progress tracking for initiatives and milestones — a snapshot of where the pro
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
 
-During project setup, these templates become your constitutional documents (dropping the `.example`
+During project setup, these templates become your constitutional documents (dropping the `.template`
 suffix).
 
 ---

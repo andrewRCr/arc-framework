@@ -9,7 +9,7 @@ context, and active work tracking, implemented as portable markdown documents.
 
 ## Directory Structure
 
-Template files ship as `.example.md` — rename by removing `.example` during setup.
+Template files ship as `.template.md` — rename by removing `.template` during setup.
 
 ```text
 .arc/

@@ -130,30 +130,43 @@ changes to preserve git history tracking.
 **Purpose:** Rename `.example.md` files to `.template.md` to reflect actual function, and clean up version
 conventions. Renames committed before content changes.
 
-- [ ] **2.1 Rename `.example.md` files to `.template.md`**
+- [x] **2.1 Rename `.example.md` files to `.template.md`**
 
-    **Goal:** Mechanical `git mv` renames across `.arc/`.
+    Renamed 16 `.example.md` → `.template.md` via `git mv` across `.arc/` (active/, backlog/,
+    reference/constitution/, reference/, system/agent/). Deleted `completion-sample.example.md`
+    (redundant with inline template in `archive-completed.md` workflow). Verified
+    `.markdownlint-cli2.jsonc` — no `.example.md` references (uses `**/*.md` globs). Full
+    project lint: 0 violations across 90 files.
 
-    - Rename all 16 `.example.md` files to `.template.md` (use post-Phase 1 paths under `system/`
-      and `reference/`)
-    - Special case: `reference/archive/technical/completion-sample.example.md` →
-      `completion-sample.md` (it's a sample, not a template)
-    - Check `.markdownlint-cli2.jsonc` for `.example.md` references and update if found
-    - No `.arc-internal/` renames needed (live files don't use `.example.md` suffix)
+- [x] **2.2 Update documentation referencing `.example.md` naming convention**
 
-- [ ] **2.2 Update documentation referencing `.example.md` naming convention**
+    Updated 13 files across `.arc/` and `.arc-internal/` with `.example.md` → `.template.md`:
 
-    - `.arc/README.md`: update any mentions of `.example.md` convention to `.template.md`
-    - `.arc/system/agent/README.md`: update naming convention references
-    - `.arc/system/workflows/arc/setup/define-constitution.md`: update references to template files
-    - Grep for remaining `.example.md` mentions in non-archive files; update to `.template.md`
+    - `.arc/README.md`: convention description
+    - `.arc/system/agent/README.md`: all headings, adoption guide, copy instructions (12 refs)
+    - `.arc/system/workflows/arc/setup/define-constitution.md`: 4 template links + suffix text
+    - `.github/workflows/ci.yml`: `find` command for naming validation
+    - `ADOPTION.md`: adoption step reference
+    - `README.md`: fixed stale `.arc/README.example.md` → `.arc/README.md`
+    - `.arc-internal/reference/constitution/`: TECHNICAL-OVERVIEW (directory tree, 16 refs),
+      META-PRD, PROJECT-STATUS, DEVELOPMENT-RULES
+    - `.arc-internal/system/workflows/project/`: sync-cinexplorer-refinements (5 refs),
+      sync-with-arc-framework (1 ref)
+    - `.arc-internal/backlog/technical/BACKLOG-TECHNICAL.md`: marked naming convention item
+      as resolved
 
-- [ ] **2.3 Update version and maintenance conventions (B5)**
+    Remaining `.example.md` references (13 files) are all in archive, active task/PRD
+    meta-references, or planning docs describing the rename work — appropriate to leave as
+    historical records. Full project lint: 0 violations across 90 files.
 
-    - Remove version footer from `system/workflows/arc/supplemental/maintain-docs.md`
-    - Reframe DEVELOPMENT-RULES version header guidance: from "framework versioning" to "project
-      rule evolution tracking"
-    - Update in both `.arc/` template and `.arc-internal/` live version
+- [x] **2.3 Update version and maintenance conventions (B5)**
+
+    - Removed version footer from `maintain-docs.md`
+    - Reframed "Version Control for Behavioral Rules" → "Version Tracking for Project Rules" in
+      `maintain-docs.md`: clarified version tracks project rule evolution not ARC framework version,
+      removed semver-specific language ("increment minor version")
+    - Added inline HTML comments to both `DEVELOPMENT-RULES.template.md` and live
+      `DEVELOPMENT-RULES.md` clarifying what the version header tracks
 
 ### **Phase 3:** Content Splits (A1–A4)
 

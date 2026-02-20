@@ -17,20 +17,20 @@ framework. This architectural decision ensures:
 .arc/                           # The deployable template system
 ├── reference/                 # Framework reference documentation
 │   ├── constitution/          # Core project templates
-│   │   ├── META-PRD.example.md
-│   │   ├── PROJECT-STATUS.example.md
-│   │   ├── DEVELOPMENT-RULES.example.md
-│   │   └── TECHNICAL-OVERVIEW.example.md
+│   │   ├── META-PRD.template.md
+│   │   ├── PROJECT-STATUS.template.md
+│   │   ├── DEVELOPMENT-RULES.template.md
+│   │   └── TECHNICAL-OVERVIEW.template.md
 │   ├── adr/                   # Architecture decision records
 │   ├── research/              # Technical research documents
 │   └── strategies/            # Pattern documentation
 ├── system/                    # Agent-facing operational files
 │   ├── agent/                 # AI agent collaboration templates
-│   │   ├── AGENTS.example.md
-│   │   ├── CLAUDE.example.md
-│   │   ├── GEMINI.example.md
-│   │   ├── WARP.example.md
-│   │   └── copilot-instructions.example.md
+│   │   ├── AGENTS.template.md
+│   │   ├── CLAUDE.template.md
+│   │   ├── GEMINI.template.md
+│   │   ├── WARP.template.md
+│   │   └── copilot-instructions.template.md
 │   ├── githooks/              # Git hook scripts
 │   └── workflows/             # Process documentation
 │       ├── arc/               # ARC framework workflows
@@ -44,15 +44,15 @@ framework. This architectural decision ensures:
 │   ├── feature/               # Feature work templates
 │   ├── technical/             # Technical work templates
 │   ├── incidental/            # Incidental work templates
-│   ├── ATOMIC-TASKS.example.md  # Small one-off tasks
-│   └── CURRENT-SESSION.example.md
+│   ├── ATOMIC-TASKS.template.md  # Small one-off tasks
+│   └── CURRENT-SESSION.template.md
 └── backlog/                   # Future work pipeline
-    ├── ROADMAP.example.md     # Sequencing strategy
-    ├── TASK-INBOX.example.md  # Zero-friction capture
+    ├── ROADMAP.template.md     # Sequencing strategy
+    ├── TASK-INBOX.template.md  # Zero-friction capture
     ├── feature/               # Feature backlog
-    │   └── BACKLOG-FEATURE.example.md
+    │   └── BACKLOG-FEATURE.template.md
     └── technical/             # Technical backlog
-        └── BACKLOG-TECHNICAL.example.md
+        └── BACKLOG-TECHNICAL.template.md
 
 .arc-internal/                 # Framework development workspace
 ├── active/                    # Current framework development

@@ -343,7 +343,7 @@ git add .arc/
 
 # Or stage selectively
 git add .arc/system/workflows/
-git add .arc/reference/constitution/DEVELOPMENT-RULES.example.md
+git add .arc/reference/constitution/DEVELOPMENT-RULES.template.md
 ```
 
 **7.3 Commit Message**

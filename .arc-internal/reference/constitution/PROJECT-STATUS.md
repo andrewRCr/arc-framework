@@ -72,7 +72,7 @@ with distribution system design as the primary focus area.
 
 - Systematic content quality improvement across all `.arc/` template files (37 files)
 - Agnosticism: removed project-type bias, agent-specific content from generic docs
-- Template standardization: structure + guidance + tokens approach across all `.example.md` files
+- Template standardization: structure + guidance + tokens approach across all `.template.md` files
 - Streamlined heavyweight docs: atomic-commit (-70%), maintain-task-notes (-58%), task-list-formatting (-35%)
 - Co-development guidance, deferred review protocol, layered commit architecture
 - Structural observations captured for B.3 in `plan-structural-analysis-pass.md`

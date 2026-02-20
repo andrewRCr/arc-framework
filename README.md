@@ -161,6 +161,6 @@ See the `LICENSE` file for the full license text.
 
 ## 🔗 Related Assets
 
-- `.arc/README.example.md` for an in-repo tour.
+- `.arc/README.md` for an in-repo tour.
 - `templates/` to spin up new artifacts quickly.
 - `profiles/` to tailor the framework to your stack.

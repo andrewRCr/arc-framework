@@ -1,5 +1,7 @@
 # Development Rules - {{PROJECT_NAME}}
 
+<!-- Version tracks your project's rule evolution, not the ARC framework version.
+     Increment when rules change substantively. Use any scheme that works for your team. -->
 **Version:** {{VERSION}} | **Updated:** {{DATE}} | **Hash:** `{{HASH}}`
 
 Core development rules and quality standards for {{PROJECT_NAME}}. These rules are **non-negotiable** and must be

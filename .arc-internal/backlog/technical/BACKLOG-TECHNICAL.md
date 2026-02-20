@@ -52,11 +52,9 @@
 
 ## Lower Priority / Ideas
 
-- **Reconsider `.example.md` naming convention** — as templates shift from "filled-in examples"
-  (old CineXplorer content) to "structure + guidance + tokens" (current approach), `.template.md`
-  may be more accurate. Also consider providing actual filled-in examples separately (in the npm
-  package or docs site, not the install directory) so adopters can see what a mature document
-  looks like. Related: `plan-distribution-and-update-system.md`
+- ~~**Reconsider `.example.md` naming convention**~~ — Resolved: renamed to `.template.md`
+  in `tasks-structural-readiness-pass.md` (Tasks 2.1–2.2). External filled-in examples deferred
+  to distribution/docs-site work.
 - Documentation site (GitHub Pages for browseable docs)
 - Community contribution pipeline (PR templates, issue forms)
 - Compatibility testing across agent platforms

@@ -23,7 +23,7 @@ When constitutional documents change, update related files to keep documentation
 
 **Update these files:**
 
-- Version number in DEVELOPMENT-RULES.md header (increment minor version, update hash)
+- Version number in DEVELOPMENT-RULES.md header (increment version, update hash)
 - All `agent/*.md` files - If protocols or quality standards change
 - Team communication about rule changes (if applicable)
 
@@ -80,15 +80,17 @@ When updating `agent/` docs:
 
 **Rationale**: AI instructions are read every session. Keep them focused on active work context.
 
-### Version Control for Behavioral Rules
+### Version Tracking for Project Rules
 
-**DEVELOPMENT-RULES.md versioning:**
+**DEVELOPMENT-RULES.md version header:**
 
-- Increment version number for any substantive change
-- Update hash (use simple format: `h{random_chars}`)
-- AI confirms version during session initialization
+- Increment version when project rules change substantively
+- Update hash (short hex string for quick identity check)
+- AI notes version during session initialization
 
-**Why**: If AI behavior regresses, version tracking helps identify whether rules changed or interpretation failed.
+**Why**: Tracking your project's rule evolution helps identify when behavioral changes stem from
+rule updates versus interpretation drift. This version tracks your project's rules, not the ARC
+framework version — use any versioning scheme that works for your team.
 
 ## Common Maintenance Tasks
 
@@ -143,5 +145,3 @@ When updating `agent/` docs:
 - Any future documentation about documentation
 
 ---
-
-**Version**: 2025-10-24.1 (Initial extraction from AGENTS.md)
