@@ -173,39 +173,36 @@ conventions. Renames committed before content changes.
 **Purpose:** Separate framework methodology from project-configurable content in high-impact files. Reduces
 merge conflict surface for framework updates.
 
-- [ ] **3.1 Create `strategy-development-methodology.md` (A1)**
+- [x] **3.1 Create `strategy-development-methodology.md` (A1)**
 
-    **Goal:** New strategy doc containing ~230 lines of framework-universal operational rules extracted from
-    DEVELOPMENT-RULES.
+    Created `.arc/reference/strategies/arc/strategy-development-methodology.md` (354 lines).
+    Extracted all 11 framework-universal methodology sections from DEVELOPMENT-RULES: Commit
+    Standards, Quality Gate Failure Protocol, Leave It Cleaner, Session Documentation Control,
+    Verification Protocol, Strategy Document Protocol, Session Context Management, Core Document
+    Reference Protocol, Task Management Protocol, Test-First Protocol, Code Documentation
+    Standards. Added introduction with scope/relationship framing, table of contents, and
+    Relationship to Other Documentation section. Cross-references use generic path descriptions
+    (not relative links) since the strategy doc is consumed from varying locations. Updated
+    STRATEGY-INDEX.md with new entry. Lint clean.
 
-    - Create `.arc/reference/strategies/arc/strategy-development-methodology.md`
-    - Content to extract (see notes doc Deliverable 2 for line-by-line content map):
-        - Commit Standards (control, format, atomicity, enforcement)
-        - Quality Gate Failure Protocol
-        - Leave It Cleaner Protocol
-        - Session Documentation Control
-        - Verification Protocol
-        - Strategy Document Protocol
-        - Session Context Management
-        - Core Document Reference Protocol
-        - Task Management Protocol (one task at a time, granularity, implied permission)
-        - Test-First Protocol
-        - Code Documentation Standards
-    - Add introduction, table of contents, and cross-references to related docs
-    - Use existing strategy docs (e.g., `strategy-quality-gates.md`) as format reference
+- [x] **3.2 Slim DEVELOPMENT-RULES template and live versions (A2, A3)**
 
-- [ ] **3.2 Slim DEVELOPMENT-RULES template and live versions (A2, A3)**
+    Removed all 11 extracted methodology sections from both files. Template: 404 → 130 lines
+    (-68%). Live: 405 → 136 lines (-66%). Replaced quality gate tiers table with summary text
+    + cross-reference to `strategy-quality-gates.md`. Added methodology strategy cross-reference
+    to header of both files. Updated cross-references in 8 files:
 
-    **Goal:** Remove extracted methodology from both files. Replace quality gate table with cross-reference.
-    Verify each is self-contained.
+    - Session-init (both versions): added methodology strategy as item 4 in reading list,
+      renumbered items 5-9, updated DEVELOPMENT-RULES description
+    - Slash commands (3 files): commit format reference → methodology strategy
+    - archive-completed.md, manage-incidental-work.md: commit format/standards references
+    - CLAUDE.md: Session Context Management reference
+    - maintain-docs.md: "Always Read" list, quality-gates strategy failure protocol reference
+    - strategy-quality-gates.md: failure protocol reference
 
-    - `.arc/reference/constitution/DEVELOPMENT-RULES.template.md`: remove methodology sections, add
-      cross-reference to `strategy-development-methodology.md`
-    - `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md`: parallel removal and cross-reference
-    - A3: Replace Quality Gate Tiers table in both files with summary + cross-reference to
-      `strategy-quality-gates.md` (eliminates duplication from notes doc Deliverable 4)
-    - Verify remaining content is self-contained: header, quality gates with project commands, testing
-      requirements, code quality principles, architecture documentation, reference links
+    Remaining content verified self-contained: header, quality gates with project commands,
+    testing requirements, code quality principles, architecture documentation, reference links.
+    Full project lint: 0 violations across 91 files.
 
 - [ ] **3.3 Create `strategy-backlog-organization.md` (A4)**
 
@@ -221,12 +218,29 @@ merge conflict surface for framework updates.
 
     **Goal:** Route "see DEVELOPMENT-RULES" references to the correct file based on content.
 
-    - Agent files: add `strategy-development-methodology.md` reference where methodology is discussed
-    - Session-init reading list: add `strategy-development-methodology.md` to loading order
-    - `commit-msg` hook: update help text referencing DEVELOPMENT-RULES format details → point to
-      methodology strategy
-    - Workflow and strategy docs: audit references to DEVELOPMENT-RULES sections that moved
-    - Grep verification: search for `DEVELOPMENT-RULES` mentions, verify each points to correct file
+    **Already completed in Task 3.2** (do not repeat):
+
+    - Session-init reading list: methodology strategy added as item 4 (both versions)
+    - CLAUDE.md: Session Context Management reference updated
+    - Slash commands (3): commit format references → methodology strategy
+    - archive-completed.md, manage-incidental-work.md: commit format/standards references
+    - maintain-docs.md: "Always Read" list updated
+    - strategy-quality-gates.md: failure protocol reference updated
+    - `commit-msg` hook: verified — has no DEVELOPMENT-RULES references (task assumption was wrong)
+
+    **Remaining work:**
+
+    - Githooks: `pre-commit` (lines 165, 185) references Code Documentation Standards (extracted);
+      `README.md` (line 23) references commit message standard — route to methodology strategy
+    - Strategy docs: audit `strategy-task-list-formatting.md`, `strategy-work-organization.md` for
+      references to extracted sections
+    - Workflow docs: audit `atomic-commit.md`, `2_generate-tasks.md`, `maintain-task-notes.md`
+    - Agent templates (`.arc/system/agent/*.template.md`): audit for references to extracted sections
+    - Internal agent files (`copilot-instructions.md`, `WARP.md`, `GEMINI.md`): same audit
+    - `.claude/agents/documentation-reviewer.md`: audit
+    - Grep verification: 48 files reference DEVELOPMENT-RULES; ~12 are archive (skip),
+      ~10 already updated, ~10 are meta-references (task/PRD/backlog). Remaining ~16 need
+      audit to confirm each reference points to the correct file post-split
 
 ### **Phase 4:** Cross-Cutting Concept Updates (C1–C13)
 
