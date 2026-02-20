@@ -442,59 +442,118 @@ only — no automation or assignment tooling.
 **Purpose:** Comprehensive Tier 3 validation of all structural changes, cross-references, and success
 criteria.
 
-- [ ] **7.1 Run full markdown linting**
+- [x] **7.1 Run full markdown linting**
 
-    - `npx --yes markdownlint-cli2 "**/*.md"` — zero violations required
-    - Fix any issues found
+    97 files linted, 0 errors. Zero violations confirmed.
 
-- [ ] **7.2 Cross-reference verification**
+- [x] **7.2 Cross-reference verification**
 
-    - Grep for stale path patterns: `reference/agent/`, `reference/workflows/`, `reference/githooks/`,
-      `.example.md`
-    - Verify no broken internal links (spot-check key documents: session-init, CLAUDE agent file,
-      DEVELOPMENT-RULES, README, getting-started)
-    - Verify hooks path references correct `system/githooks/` location
+    Grepped for all four stale path patterns across `**/*.md`:
 
-- [ ] **7.3 Validate success criteria against PRD**
+    - `reference/agent/` — zero live hits (only historical notes in task list/PRD)
+    - `reference/workflows/` — two stale path mentions in `CHANGELOG.md` (lines 12, 17);
+      all other hits are archive or task list historical notes. CHANGELOG paths are
+      historical descriptions — noted, not fixed
+    - `reference/githooks/` — zero live hits (only archive/notes)
+    - `.example.md` — zero actual files remain (`glob **/*.example.md` = 0); all text
+      hits are historical descriptions (PRD, roadmap, resolved backlog items)
 
-    - Walk through each PRD success criterion and verify
-    - Structural: directory purposes clear, no `.example.md` files, zero lint violations
-    - Work model: 1:1 rule removed, workflows support many-to-one, templates support multi-branch
-    - Branching model: no hardcoded `main` references, config file exists with both settings,
-      planning branch workflow documented, three protection modes documented with decision
-      guidance, githook reads config and adjusts per mode, define-constitution includes branch
-      model setup decisions
-    - Merge conflict surface: DEVELOPMENT-RULES slimmed, methodology in strategy doc
-    - First-pass content: `getting-started.md`, team docs, audience indicators, new strategy docs
-      exist and indexed
-    - Cross-references: zero broken references confirmed
+    Spot-checked 10 key documents for broken reference-style links: session-init, CLAUDE.md,
+    DEVELOPMENT-RULES, process-task-loop, strategy-work-organization, strategy-development-methodology,
+    strategy-quality-gates, strategy-task-list-formatting, strategy-file-classification, README.
+    All link targets resolve correctly. Links in `.arc/` strategy docs to `DEVELOPMENT-RULES.md`
+    (not `.template.md`) are correct-by-design — they target post-adoption file names.
+
+    Hooks path: `git config core.hooksPath` = `.arc/system/githooks` (correct), all documentation
+    references consistent.
+
+- [x] **7.3 Validate success criteria against PRD**
+
+    Walked through all PRD success criteria (lines 326-376). Verified each against actual
+    repo state using grep, glob, file reads, and link target resolution. Results annotated
+    in the Success Criteria section below using three-state model (`[x]`/`[~]`/`[ ]`).
 
 ---
 
 ## Success Criteria
 
-- [ ] Every `.arc/` top-level directory has a single clear purpose expressible in one sentence
-- [ ] `reference/` contains only project knowledge (no operational machinery)
-- [ ] `system/` contains only ARC operational components (no project knowledge)
-- [ ] No `.example.md` files remain (all renamed to `.template.md` or appropriate alternative)
-- [ ] Zero markdown linting violations across all files
-- [ ] The 1:1 branch-to-task-list rule is removed from all documents
-- [ ] `activate-work-unit.md` and `archive-completed.md` support the many-to-one model
-- [ ] Task list templates support multiple branches
-- [ ] No hardcoded `main` references in any workflow, strategy, or template file
-- [ ] `.arc/system/arc-config.yml` exists with `base_branch` and `branch_protection` settings
-- [ ] Planning branch workflow documented in `strategy-work-organization.md` with clear lifecycle
-- [ ] Three branch protection modes documented with decision guidance
-- [ ] Pre-commit githook reads config and adjusts behavior per mode
-- [ ] `define-constitution` includes branch model setup-time decisions
-- [ ] Solo mode structure unchanged from current (no regression)
-- [ ] Team mode structure established with clear documentation
-- [ ] DEVELOPMENT-RULES template contains only project-configurable content (~170 lines)
-- [ ] Framework methodology in strategy doc that adopters don't customize
-- [ ] Quality Gate Tiers table not duplicated between DEVELOPMENT-RULES and strategy doc
-- [ ] `getting-started.md` exists with adoption story and "what to customize" guidance
-- [ ] Team coordination conventions documented and findable
-- [ ] All new strategy docs exist, have complete content, and are indexed in STRATEGY-INDEX.md
-- [ ] Zero broken internal references (grep verification)
-- [ ] All paths in session-init, agent files, and workflows reflect new structure
-- [ ] Ready for activation and implementation
+**Structural:**
+
+- [x] Every `.arc/` top-level directory has a single clear purpose expressible in one sentence
+  — active (current work), backlog (future work), reference (project knowledge), system (ARC
+  operational components), team (team member state)
+- [x] `reference/` contains only project knowledge (no operational machinery)
+  — confirmed: constitution/, strategies/, adr/, archive/, research/, QUICK-REFERENCE.template.md
+- [x] `system/` contains only ARC operational components (no project knowledge)
+  — confirmed: agent/, commands/, githooks/, workflows/, arc-config.yml, README.md
+- [x] No `.example.md` files remain (all renamed to `.template.md` or appropriate alternative)
+  — `glob **/*.example.md` returns zero results
+- [x] Zero markdown linting violations across all files
+  — 97 files linted, 0 errors (Task 7.1)
+
+**Work model:**
+
+- [x] The 1:1 branch-to-task-list rule is removed from all documents
+  — now described as "natural default but not a rule" in strategy-work-organization.md
+- [x] `activate-work-unit.md` and `archive-completed.md` support the many-to-one model
+  — activate: "Additional branches may be created during work"; archive: triggers on
+  "all tasks marked complete", not branch deletion
+- [x] Task list templates support multiple branches
+  — `Branch(es):` field in planned work template, comma-separated per conventions
+- [x] Solo mode structure unchanged from current (no regression)
+- [x] Team mode structure established with clear documentation
+  — `team/` directory with README.md, CURRENT-SESSION.template.md, ATOMIC-TASKS.template.md;
+  strategy-team-coordination.md covers ownership, branching patterns, external trackers
+
+**Branching model:**
+
+- [x] No hardcoded `main` references in any workflow, strategy, or template file
+  — remaining `main` instances are config defaults (arc-config.yml value, pre-commit fallback)
+  and one semantic use in agent-pre-merge-review ("not main" as general guidance). All workflow
+  and strategy references use base branch concept with arc-config.yml pointer.
+- [x] `.arc/system/arc-config.yml` exists with `base_branch` and `branch_protection` settings
+  — PRD originally specified `.arc/config.yml` + `.arc/config.template.yml`; implementation
+  placed at `system/arc-config.yml` with inline comments (single file, classified as
+  Configurable in file taxonomy)
+- [x] Planning branch workflow documented in `strategy-work-organization.md` with clear lifecycle
+  — dedicated section with full lifecycle (create → artifacts → PR → merge → delete → activate)
+- [x] Three branch protection modes documented with decision guidance
+  — unprotected/partial/full with comparison table and "start with partially protected" guidance
+- [x] Pre-commit githook reads config and adjusts behavior per mode
+  — `arc_config_get` function reads config, case statement handles all three modes
+  (silent/warning/error), graceful fallback when no config exists
+- [~] `define-constitution` includes branch model setup-time decisions
+  — Superseded: setup was split into `01_initialize-arc.md` (ARC-level) +
+  `02_define-project.md` (project-level). Branch model decisions are in `01_initialize-arc.md`,
+  not the define-constitution equivalent. Functionally equivalent — branch config is covered
+  during setup.
+
+**Merge conflict surface:**
+
+- [x] DEVELOPMENT-RULES template contains only project-configurable content (~170 lines)
+  — 130 lines (tighter than ~170 estimate; content was further refined during implementation)
+- [x] Framework methodology in strategy doc that adopters don't customize
+  — `strategy-development-methodology.md` (ships as-is, not a template)
+- [x] Quality Gate Tiers table not duplicated between DEVELOPMENT-RULES and strategy doc
+  — DEVELOPMENT-RULES has summary paragraph + cross-reference; full table only in
+  strategy-quality-gates.md
+
+**First-pass content:**
+
+- [~] `getting-started.md` exists with adoption story and "what to customize" guidance
+  — Superseded: Task 5.1 replaced in-repo getting-started with external docs site decision
+  (MkDocs Material + GitHub Pages). Adoption story and onboarding content deferred to
+  Phase D public release planning.
+- [x] Team coordination conventions documented and findable
+  — `strategy-team-coordination.md` + `team/README.md`, both indexed in STRATEGY-INDEX
+- [x] All new strategy docs exist, have complete content, and are indexed in STRATEGY-INDEX.md
+  — development-methodology, file-classification, backlog-organization, team-coordination
+  all present and indexed
+
+**Cross-references:**
+
+- [x] Zero broken internal references (grep verification)
+  — Task 7.2: grepped four stale patterns, spot-checked 10 key documents, all clean.
+  Note: two stale path descriptions in CHANGELOG.md (historical entries, not links)
+- [x] All paths in session-init, agent files, and workflows reflect new structure
+- [x] Ready for activation and implementation
