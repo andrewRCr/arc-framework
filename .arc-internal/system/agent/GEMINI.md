@@ -1,9 +1,9 @@
 # GEMINI.md
 
 Minimal guidance for Gemini assistants. Shared context lives in [AGENTS](AGENTS.md);
-follow [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) v0.2.0-dev (hash: 4b3d89f2),
-[QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) v0.2.0-dev,
-and the [Process Task Loop](../../../.arc/system/workflows/arc/3_process-task-loop.md).
+follow [DEVELOPMENT-RULES][dev-rules] v0.2.0-dev (hash: 4b3d89f2),
+[QUICK-REFERENCE][quick-ref] v0.2.0-dev,
+and the [Process Task Loop][process-task-loop].
 
 ## Gemini-Specific Notes
 
@@ -14,3 +14,9 @@ and the [Process Task Loop](../../../.arc/system/workflows/arc/3_process-task-lo
 - **Summaries:** Provide compact answers with numbered action plans when asked for implementation steps.
 - **Cross-tool handoff:** When Gemini performs large audits, document the findings in CURRENT-SESSION.md so Claude/Copilot
   can continue seamlessly.
+
+---
+
+[dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
+[quick-ref]: ../../reference/QUICK-REFERENCE.md
+[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

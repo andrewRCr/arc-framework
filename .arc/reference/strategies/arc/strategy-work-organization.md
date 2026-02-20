@@ -533,7 +533,7 @@ of committing planning artifacts directly to the base branch.
 3. **Commit, push, and create PR** against base branch
 4. **Review** — team reviews plan, catches scoping issues before implementation starts
 5. **Merge and delete** planning branch (artifacts now on base branch)
-6. **Create implementation branch** via [activate-work-unit](../../../system/workflows/arc/supplemental/activate-work-unit.md)
+6. **Create implementation branch** via [activate-work-unit][activate-work-unit]
    workflow (moves artifacts from `backlog/` to `active/`)
 
 ### Key Points
@@ -591,7 +591,7 @@ Archive preserves structure with global sequence numbering:
 `{NN}_` prefix indicates completion order (global across all categories). Gaps within a category
 show where other categories' work completed. Reset to 01 each quarter.
 
-See [archive-completed.md](../../../system/workflows/arc/supplemental/archive-completed.md) for full archival workflow.
+See [archive-completed.md][archive-completed] for full archival workflow.
 
 ### Alignment
 
@@ -677,10 +677,22 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 
 ## Related Documentation
 
-- [DEVELOPMENT-RULES](../../constitution/DEVELOPMENT-RULES.md) — Development standards and git workflow
-- [2_generate-tasks.md](../../../system/workflows/arc/2_generate-tasks.md) — Task breakdown workflow
-- [3_process-task-loop.md](../../../system/workflows/arc/3_process-task-loop.md) — Task execution workflow
-- [atomic-commit.md](../../../system/workflows/arc/supplemental/atomic-commit.md) — Complex commit scenarios and atomicity
-- [manage-incidental-work.md](../../../system/workflows/arc/supplemental/manage-incidental-work.md) — Incidental work workflow
-- [agent-pre-merge-review.md](../../../system/workflows/arc/supplemental/agent-pre-merge-review.md) — Code review workflow
-- [weekly-review.md](../../../system/workflows/arc/supplemental/weekly-review.md) — Weekly backlog review process
+- [DEVELOPMENT-RULES][dev-rules] — Development standards and git workflow
+- [2_generate-tasks.md][generate-tasks] — Task breakdown workflow
+- [3_process-task-loop.md][process-task-loop] — Task execution workflow
+- [atomic-commit.md][atomic-commit] — Complex commit scenarios and atomicity
+- [manage-incidental-work.md][manage-incidental] — Incidental work workflow
+- [agent-pre-merge-review.md][pre-merge-review] — Code review workflow
+- [weekly-review.md][weekly-review] — Weekly backlog review process
+
+---
+
+[dev-rules]: ../../constitution/DEVELOPMENT-RULES.md
+[generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
+[process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
+[archive-completed]: ../../../system/workflows/arc/supplemental/archive-completed.md
+[atomic-commit]: ../../../system/workflows/arc/supplemental/atomic-commit.md
+[manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
+[pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md
+[weekly-review]: ../../../system/workflows/arc/supplemental/weekly-review.md

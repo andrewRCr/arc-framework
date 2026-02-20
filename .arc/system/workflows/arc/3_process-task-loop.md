@@ -13,7 +13,7 @@ It ensures consistent execution, quality control, and documentation of work.
   task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
 - **Branch/task list coupling:** Task lists in `.arc/active/` correspond to git branches (branch exists ↔ task list
   active). Archive task list immediately when branch deleted after merge. See
-  [Work Organization Strategy](../../../reference/strategies/arc/strategy-work-organization.md) for details.
+  [Work Organization Strategy][work-org] for details.
 - **Co-development awareness:** The developer may be working alongside you — editing files, running
   commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
   single-threaded, small-scope tasks keep the developer close enough to the work to contribute
@@ -23,7 +23,7 @@ It ensures consistent execution, quality control, and documentation of work.
 
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files - **Tier 1** (linting, type checking, related unit tests)
-       - See [Quality Gates Strategy](../../../reference/strategies/arc/strategy-quality-gates.md) for the tiered approach
+       - See [Quality Gates Strategy][quality-gates] for the tiered approach
        - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
        - When task list explicitly calls for quality gates (including E2E checkpoints), they are mandatory
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
@@ -161,3 +161,8 @@ If an atomic task becomes more complex than expected:
 3. **If approved**: Remove from ATOMIC-TASKS.md, continue via incidental workflow
 
 See [Incidental Work Management](#incidental-work-management) above.
+
+---
+
+[work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
+[quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md

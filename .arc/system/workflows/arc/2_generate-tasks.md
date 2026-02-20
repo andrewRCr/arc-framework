@@ -24,7 +24,7 @@ Review the existing codebase to understand what you're working with:
 - Files that will need modification
 - Testing patterns and quality standards in use
 
-Check [STRATEGY-INDEX.md](../../../reference/strategies/STRATEGY-INDEX.md) for project-level strategies relevant to
+Check [STRATEGY-INDEX.md][strategy-index] for project-level strategies relevant to
 this work (e.g., testing methodology, component patterns, service layer conventions). Read applicable
 strategies before designing phases — they directly influence task structure and approach.
 
@@ -45,13 +45,13 @@ For each phase, define specific, actionable sub-tasks:
 
 - Small enough to complete in a single work session (typically < 3 files modified)
 - Include quality checkpoints at appropriate stages
-  (see [Quality Gates Strategy](../../../reference/strategies/arc/strategy-quality-gates.md) for tier guidance)
+  (see [Quality Gates Strategy][quality-gates] for tier guidance)
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
 
 **Test-first ordering (critical):** For data models, API endpoints, business logic, and complex
 algorithms — write test sub-tasks BEFORE implementation sub-tasks. See
-[Development Methodology Strategy](../../../reference/strategies/arc/strategy-development-methodology.md)
+[Development Methodology Strategy][dev-methodology]
 Test-First Protocol for what requires test-first vs test-after.
 
 **If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`),
@@ -89,7 +89,7 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 ### Body
 
-See [strategy-task-list-formatting.md](../../../reference/strategies/arc/strategy-task-list-formatting.md) for
+See [strategy-task-list-formatting.md][task-list-formatting] for
 complete body structure (Overview, Scope, Tasks, Implementation Notes), formatting rules, test-first
 patterns, and annotated examples. Use its Quick Format Checklist to verify before saving.
 
@@ -103,3 +103,10 @@ When ready to begin implementation:
 active, update tracking
 
 This can be deferred if planning ahead. Activate when implementation is about to begin.
+
+---
+
+[strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
+[quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
+[dev-methodology]: ../../../reference/strategies/arc/strategy-development-methodology.md
+[task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md

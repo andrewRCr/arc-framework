@@ -10,7 +10,7 @@ ARC distinguishes two work types:
 - **Feature** — User-facing capabilities
 - **Technical** — Infrastructure, architecture, or process improvements
 
-See [Work Organization Strategy](../../../reference/strategies/arc/strategy-work-organization.md) for the complete
+See [Work Organization Strategy][work-org] for the complete
 decision tree.
 
 **Note**: This workflow covers work-level PRDs, not the project-wide META-PRD. For constitutional
@@ -120,3 +120,7 @@ Adapt emphasis based on work type — not every section carries equal weight for
 8. **Success Criteria** — How will you know this succeeded? Features might measure user impact;
    technical work might measure performance, reliability, or developer experience improvements.
 9. **Open Questions** — Unresolved questions or areas needing further investigation.
+
+---
+
+[work-org]: ../../../reference/strategies/arc/strategy-work-organization.md

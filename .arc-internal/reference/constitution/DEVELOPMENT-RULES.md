@@ -6,21 +6,21 @@
 Core development rules and quality standards for the ARC framework. These rules are **non-negotiable** and must be followed
 by all contributors, including AI assistants.
 
-**For command patterns and environment context**, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
-**For session initialization protocol**, see [session-init.md](../../system/workflows/arc/supplemental/session-init.md).
+**For command patterns and environment context**, see [QUICK-REFERENCE.md][quick-ref].
+**For session initialization protocol**, see [session-init.md][session-init].
 **For development methodology** (commit standards, verification, session management, task protocols), see
-[Development Methodology Strategy](../../../.arc/reference/strategies/arc/strategy-development-methodology.md).
+[Development Methodology Strategy][dev-methodology].
 
 ## Quality Gates (Zero Tolerance)
 
 Before any commit consideration, ALL of the following must pass with **zero exceptions**.
-For specific commands, see [QUICK-REFERENCE.md](../QUICK-REFERENCE.md).
+For specific commands, see [QUICK-REFERENCE.md][quick-ref].
 
 **Zero Tolerance Policy:** All errors, violations, and failures must be fixed. No exceptions.
 
 **Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
 integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
-pre-PR (Tier 3). See [Quality Gates Strategy](../../../.arc/reference/strategies/arc/strategy-quality-gates.md)
+pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates]
 for complete tier definitions, escalation guidance, and task list integration.
 
 1. **Markdown Linting**: Zero violations
@@ -117,7 +117,7 @@ understanding system constraints.
 - Decisions obvious from reading code (standard CRUD, framework conventions)
 - Temporary or experimental choices
 
-**Format and guidance:** See [ADR Methodology Strategy](../../../.arc/reference/strategies/arc/strategy-adr-methodology.md)
+**Format and guidance:** See [ADR Methodology Strategy][adr-methodology]
 
 ADRs are immutable once accepted - new decisions require new ADRs that supersede old ones.
 
@@ -125,12 +125,23 @@ ADRs are immutable once accepted - new decisions require new ADRs that supersede
 
 This document provides project-specific rules and standards. See related documentation:
 
-- [Development Methodology Strategy](../../../.arc/reference/strategies/arc/strategy-development-methodology.md) -
+- [Development Methodology Strategy][dev-methodology] -
   Commit standards, verification, session management, task protocols
-- [Quality Gates Strategy](../../../.arc/reference/strategies/arc/strategy-quality-gates.md) - Tiered quality gate system
-- [QUICK-REFERENCE.md](../QUICK-REFERENCE.md) - Environment context, command patterns, and tool usage
-- [Task Processing Workflow](../../../.arc/system/workflows/arc/3_process-task-loop.md) - Detailed task execution workflow
-- [Commit Workflow](../../../.arc/system/workflows/arc/supplemental/atomic-commit.md) - Complex commit scenarios,
+- [Quality Gates Strategy][quality-gates] - Tiered quality gate system
+- [QUICK-REFERENCE.md][quick-ref] - Environment context, command patterns, and tool usage
+- [Task Processing Workflow][process-task-loop] - Detailed task execution workflow
+- [Commit Workflow][atomic-commit] - Complex commit scenarios,
   atomicity analysis
-- [AI Agent Reference Card](../../system/agent/AGENTS.md) - Complete project context for AI
-- [ADR Methodology Strategy](../../../.arc/reference/strategies/arc/strategy-adr-methodology.md) - ADR guidance
+- [AI Agent Reference Card][agents] - Complete project context for AI
+- [ADR Methodology Strategy][adr-methodology] - ADR guidance
+
+---
+
+[quick-ref]: ../QUICK-REFERENCE.md
+[session-init]: ../../system/workflows/arc/supplemental/session-init.md
+[dev-methodology]: ../../../.arc/reference/strategies/arc/strategy-development-methodology.md
+[quality-gates]: ../../../.arc/reference/strategies/arc/strategy-quality-gates.md
+[adr-methodology]: ../../../.arc/reference/strategies/arc/strategy-adr-methodology.md
+[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md
+[atomic-commit]: ../../../.arc/system/workflows/arc/supplemental/atomic-commit.md
+[agents]: ../../system/agent/AGENTS.md

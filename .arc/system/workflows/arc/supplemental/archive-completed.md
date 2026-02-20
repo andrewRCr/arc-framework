@@ -16,7 +16,7 @@ trigger — branch cleanup happens independently as PRs merge.
 For multi-branch work units (stacked PRs, team sub-branches), archive once when all tasks
 complete, even if individual branches are merged incrementally.
 
-See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-work-organization.md) for the
+See [Work Organization Strategy][work-org] for the
 complete task list and branch relationship model.
 
 ## Workflow Overview
@@ -323,7 +323,7 @@ Context: tasks-fix-auth-edge-cases.md (maintenance)"
 **Sequence numbering:** Numbers are global across all categories, assigned in completion order (not start
 order). Gaps within a category reflect interleaved work in other categories. Reset to 01 each quarter.
 
-**Categorization:** See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-work-organization.md)
+**Categorization:** See [Work Organization Strategy][work-org]
 for feature vs technical vs incidental decision rules.
 
 ---
@@ -380,3 +380,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
 
 **Key principle:** The strikethrough + decision point note creates clear audit trail showing intentional
 architectural pivot, not abandoned work.
+
+---
+
+[work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md

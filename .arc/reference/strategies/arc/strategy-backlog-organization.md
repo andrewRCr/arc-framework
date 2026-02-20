@@ -70,5 +70,10 @@ Atomic tasks aren't archived (deleted after completion) — the commit message I
 ## Related Documentation
 
 - [Work Organization Strategy](strategy-work-organization.md) — Work categories, git workflow, archive structure
-- [Weekly Review Workflow](../../../system/workflows/arc/supplemental/weekly-review.md) — Backlog processing workflow
-- [ATOMIC-TASKS Template](../../../active/ATOMIC-TASKS.template.md) — Atomic task template with completion protocol
+- [Weekly Review Workflow][weekly-review] — Backlog processing workflow
+- [ATOMIC-TASKS Template][atomic-tasks-template] — Atomic task template with completion protocol
+
+---
+
+[weekly-review]: ../../../system/workflows/arc/supplemental/weekly-review.md
+[atomic-tasks-template]: ../../../active/ATOMIC-TASKS.template.md

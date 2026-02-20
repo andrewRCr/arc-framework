@@ -332,6 +332,26 @@ work. This makes the protocol visible during execution.
   ❌ "The user approved the approach", "Pending user review", "User requested we defer this"\
   ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
 
+- **Link style**: Use reference-style links for all cross-file references. Collect link
+  definitions at the end of the file after a `---` separator. The separator doubles as a
+  consistent EOF indicator — link definitions are invisible in rendered output, so the
+  horizontal rule is the last visible element.
+
+  ```markdown
+  See [DEVELOPMENT-RULES][dev-rules] for quality standards and the
+  [work organization strategy][work-org] for branching guidance.
+
+  ---
+
+  [dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
+  [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
+  ```
+
+  **Conventions:**
+    - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
+    - One `---` + link block per file, always at the very end
+    - Short links (same directory or one level up) may remain inline at author discretion
+
 ---
 
 ## Relationship to Other Documentation

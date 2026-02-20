@@ -22,7 +22,7 @@ with inline guidance — the questions below help you think through what matters
 Your project's vision, scope, and success criteria — the "why" and "what" that guides all other
 decisions.
 
-**Template**: [META-PRD.template.md](../../../../reference/constitution/META-PRD.template.md)
+**Template**: [META-PRD.template.md][meta-prd-template]
 
 **Think through**:
 
@@ -36,7 +36,7 @@ decisions.
 Your technology stack, architectural patterns, and technical constraints — the "how" behind the
 project.
 
-**Template**: [TECHNICAL-OVERVIEW.template.md](../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md)
+**Template**: [TECHNICAL-OVERVIEW.template.md][tech-overview-template]
 
 **Think through**:
 
@@ -49,7 +49,7 @@ project.
 
 Code standards, quality gates, and development protocols — the rules that keep the codebase healthy.
 
-**Template**: [DEVELOPMENT-RULES.template.md](../../../../reference/constitution/DEVELOPMENT-RULES.template.md)
+**Template**: [DEVELOPMENT-RULES.template.md][dev-rules-template]
 
 **Think through**:
 
@@ -62,7 +62,7 @@ Code standards, quality gates, and development protocols — the rules that keep
 
 Progress tracking for initiatives and milestones — a snapshot of where the project stands.
 
-**Template**: [PROJECT-STATUS.template.md](../../../../reference/constitution/PROJECT-STATUS.template.md)
+**Template**: [PROJECT-STATUS.template.md][project-status-template]
 
 **Think through**:
 
@@ -94,3 +94,10 @@ suffix).
 - **TECHNICAL-OVERVIEW**: Do documented patterns reflect current practice? Any new constraints?
 - **DEVELOPMENT-RULES**: Are quality gates catching real issues? Any standards that aren't working?
 - **PROJECT-STATUS**: Are milestones current? Does it accurately reflect project state?
+
+---
+
+[meta-prd-template]: ../../../../reference/constitution/META-PRD.template.md
+[tech-overview-template]: ../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md
+[dev-rules-template]: ../../../../reference/constitution/DEVELOPMENT-RULES.template.md
+[project-status-template]: ../../../../reference/constitution/PROJECT-STATUS.template.md

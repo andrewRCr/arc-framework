@@ -20,7 +20,7 @@ updating all tracking documents. This bridges the gap between task generation an
 
 > **Mode-specific:** In unprotected mode, planning branches are optional — artifacts may
 > have been committed directly to the base branch. See
-> [Branch Protection Modes](../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes).
+> [Branch Protection Modes][work-org-protection].
 
 ## Steps
 
@@ -47,7 +47,7 @@ git checkout -b {feature|technical}/{branch-name}
 This creates the primary implementation branch. Branch name typically matches the work unit
 name (e.g., `feature/user-authentication`). Additional branches may be created during work
 for stacked PRs or team sub-branches — see
-[Task Lists and Branches](../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches).
+[Task Lists and Branches][work-org-branches].
 
 ### Step 3: Move Documents to Active
 
@@ -156,3 +156,8 @@ Before proceeding to task execution, verify:
 With the work unit activated, proceed to task execution:
 
 **→ [3_process-task-loop.md](../3_process-task-loop.md)** - Execute tasks one at a time with quality gates
+
+---
+
+[work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
+[work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches

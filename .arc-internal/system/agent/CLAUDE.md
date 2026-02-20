@@ -4,9 +4,9 @@ Guidance for Claude when working in the ARC framework repository. For shared rul
 canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
-- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) v0.3.0-dev (hash: 8c5f2a91) – Non-negotiable standards
-- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) v0.3.0-dev – Environment context and command patterns
-- [Process Task Loop](../../../.arc/system/workflows/arc/3_process-task-loop.md) – One-subtask workflow
+- [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91) – Non-negotiable standards
+- [QUICK-REFERENCE][quick-ref] v0.3.0-dev – Environment context and command patterns
+- [Process Task Loop][process-task-loop] – One-subtask workflow
 
 ## Claude-Specific Notes
 
@@ -49,7 +49,7 @@ canonical docs:
 
 ## Deferred Review
 
-The [process-task-loop](../../../.arc/system/workflows/arc/3_process-task-loop.md) normally requires a mandatory stop
+The [process-task-loop][process-task-loop] normally requires a mandatory stop
 after each task for user review. When the user explicitly requests continuation through a specific set of tasks,
 that stop is deferred for the specified scope. The user defines the scope — never self-invoke this. See the
 process-task-loop "Deferred review" note for the protocol.
@@ -78,3 +78,9 @@ than risking insufficient context for review, iteration, commits, and session ha
 **Why this matters:** The external-research-analyst agent can autonomously perform multiple fetches, synthesize
 information, and handle expanding research scope. Using it for broader research tasks is more efficient than
 sequential WebFetch calls in the main conversation.
+
+---
+
+[dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
+[quick-ref]: ../../reference/QUICK-REFERENCE.md
+[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

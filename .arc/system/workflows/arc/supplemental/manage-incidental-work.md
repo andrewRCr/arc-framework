@@ -85,7 +85,7 @@ Examples:
 - Implementation notes as work proceeds
 
 **Formatting standards**: Follow
-[strategy-task-list-formatting.md](../../../../reference/strategies/arc/strategy-task-list-formatting.md) for task list
+[strategy-task-list-formatting.md][task-list-formatting] for task list
 structure, format, and examples. If your project has a testing methodology strategy, apply test-first
 protocol for bug fixes and business logic refactoring.
 
@@ -135,7 +135,7 @@ current branch.
 - **PR against parent branch**: `gh pr create --base parent-branch` (not main)
 - **Archive immediately** after branch merge — task list in `.arc/active/` ↔ branch exists
 
-See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-work-organization.md) for complete stacked
+See [Work Organization Strategy][work-org] for complete stacked
 branch workflow, merge strategy, and handling branch updates.
 
 ---
@@ -147,3 +147,8 @@ Incidental work follows standard workflows with no special procedures:
 - **Execution**: [3_process-task-loop.md](../3_process-task-loop.md) (one task at a time, same quality gates)
 - **Commits**: strategy-development-methodology.md § Commit Standards (same standards as feature/technical work)
 - **Archival**: [archive-completed.md](archive-completed.md) (archive immediately when branch deleted after merge)
+
+---
+
+[task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md

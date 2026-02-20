@@ -4,7 +4,7 @@
 
 **Purpose:** Guide for commit scenarios that need more than staging and committing. For straightforward
 commits (single task, clear scope), the commit format in
-[Development Methodology Strategy](../../../../reference/strategies/arc/strategy-development-methodology.md) and git hook
+[Development Methodology Strategy][dev-methodology] and git hook
 validation are sufficient — you don't need this workflow.
 
 ## When to Use This Workflow
@@ -125,4 +125,9 @@ git status               # Verify clean state
 - Incidental work commits to the current branch (no separate branches)
 - Preserve commit history when merging (no squash merge)
 - Clean up branches after successful merge
-- See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-work-organization.md) for details
+- See [Work Organization Strategy][work-org] for details
+
+---
+
+[dev-methodology]: ../../../../reference/strategies/arc/strategy-development-methodology.md
+[work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md

@@ -57,7 +57,7 @@ and becomes part of the work deliverable.
 
 - Path to the task list (e.g., `.arc/active/{category}/tasks-*.md`)
 - Path to the related notes file (e.g., `.arc/active/{category}/notes-*.md`)
-- Current project rules: [DEVELOPMENT-RULES](../../../../reference/constitution/DEVELOPMENT-RULES.md)
+- Current project rules: [DEVELOPMENT-RULES][dev-rules]
 
 ## Checklist
 
@@ -357,3 +357,7 @@ by topic. Find any specific decision or detail in <1 minute.
 ❌ **Skipping TOC for archival** — large notes file without navigation is unusable
 ❌ **Deleting instead of migrating** — lost context can't be recovered
 ❌ **Over-editing notes** — don't remove the exploration journey, that's valuable context
+
+---
+
+[dev-rules]: ../../../../reference/constitution/DEVELOPMENT-RULES.md
