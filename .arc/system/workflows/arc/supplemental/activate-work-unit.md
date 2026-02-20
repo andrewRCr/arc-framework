@@ -14,30 +14,40 @@ updating all tracking documents. This bridges the gap between task generation an
 - PRD exists in `.arc/backlog/{feature|technical}/prd-{name}.md`
 - Task list exists in `.arc/backlog/{feature|technical}/tasks-{name}.md`
 - Task list has `Status: Pending`
+- Planning branch PR merged (artifacts now on base branch)
 - Working tree is clean (all changes committed)
-- Currently on `main` branch
+- Currently on base branch (typically `main` — see `.arc/system/arc-config.yml`)
+
+> **Mode-specific:** In unprotected mode, planning branches are optional — artifacts may
+> have been committed directly to the base branch. See
+> [Branch Protection Modes](../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes).
 
 ## Steps
 
-### Step 1: Commit Planning Artifacts (if uncommitted)
+### Step 1: Verify Planning Artifacts on Base Branch
 
-If PRD and task list were just created and not yet committed:
+Planning artifacts should already be on the base branch — merged via planning branch PR
+(partially/fully protected mode) or committed directly (unprotected mode).
+
+**If artifacts are not yet on the base branch** (unprotected mode, just-created artifacts):
 
 ```bash
 git add .arc/backlog/{category}/prd-{name}.md .arc/backlog/{category}/tasks-{name}.md
 git commit -m "docs(arc): create PRD and task list for {Work Name}
 
 Context: planning (atomic / no associated task list)"
-git push origin main
 ```
 
-### Step 2: Create Feature Branch
+### Step 2: Create Implementation Branch
 
 ```bash
 git checkout -b {feature|technical}/{branch-name}
 ```
 
-Branch name should match the work unit name (e.g., `feature/content-polish-p2`).
+This creates the primary implementation branch. Branch name typically matches the work unit
+name (e.g., `feature/user-authentication`). Additional branches may be created during work
+for stacked PRs or team sub-branches — see
+[Task Lists and Branches](../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches).
 
 ### Step 3: Move Documents to Active
 
@@ -130,7 +140,7 @@ This is optional but recommended - establishes remote tracking early.
 
 Before proceeding to task execution, verify:
 
-- [ ] Feature branch created and checked out
+- [ ] Implementation branch created and checked out
 - [ ] PRD and task list moved to `.arc/active/{category}/`
 - [ ] Task list `Status` changed to `In Progress`
 - [ ] Task list PRD path updated to active location

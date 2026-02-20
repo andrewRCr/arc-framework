@@ -242,91 +242,89 @@ templates, and tooling.
 
 - [x] **4.1 Create `strategy-file-classification.md` (C1)**
 
-    Created `strategy-file-classification.md` (206 lines) as canonical file classification
-    reference. Taxonomy: Framework (37) / Configurable (12) / Scaffolded (11) / Project-owned (0
-    in template). Complete inventory of 60 files (58 existing + 2 planned: `config.yml`,
-    `config.template.yml`) organized by directory with post-restructure paths and `.template.md`
-    names. Each classification documents merge strategy implications for CLI update system.
-    Updated STRATEGY-INDEX.md with new entry.
+    Created `strategy-file-classification.md` as canonical file classification reference.
+    Taxonomy: Framework (37) / Configurable (10) / Scaffolded (11) / Project-owned (0 in
+    template). Complete inventory of 58 files organized by directory. Each classification
+    documents merge strategy implications for CLI update system. Updated STRATEGY-INDEX.md
+    with new entry. Config file (`system/arc-config.yml`) added to inventory in Task 4.3.
 
-- [ ] **4.2 Decouple branch-task list model and introduce base branch concept (C2, C8)**
+- [x] **4.2 Decouple branch-task list model and introduce base branch concept (C2, C8)**
 
-    **Goal:** Replace 1:1 enforcement with many-to-one guidance. Replace hardcoded `main` with
-    configurable "base branch" concept throughout `strategy-work-organization.md`.
+    Updated `strategy-work-organization.md` with many-to-one model and base branch concept:
 
-    - Remove the 1:1 "Key rule" (currently line ~349)
-    - Replace with guidance: task lists = unit of work planning, branches = unit of code delivery,
-      relationship is many-to-one
-    - Solo 1:1 pattern remains the default but is not enforced as a rule
-    - Add guidance for stacked PRs, team sub-branches, multi-branch scenarios
-    - Update Branch Lifecycle section and any other "Key rule" references
-    - Replace all hardcoded `main` references with "base branch" language (Git Workflow section,
-      stacked branch diagrams, merge examples)
-    - Note: base branch defaults to `main`, configured in `.arc/config.yml` (created in task 4.3)
+    - Replaced 1:1 "Key rule" (line 349) with archive-trigger guidance linked to new principle
+    - Added Core Principle #5 "Task Lists and Branches" — many-to-one relationship, three
+      multi-branch patterns (stacked PRs, team sub-branches, phased delivery), archive trigger
+    - Replaced 5 hardcoded `main` references with `<base-branch>` in diagrams and "base branch"
+      in prose (Stacked Branch Model, Merge Strategy, Git Workflow Example)
+    - Added base branch definition blockquote with config file forward-reference
+    - Added stacking cross-reference note for planned work patterns
 
-- [ ] **4.3 Create `.arc/config.yml` and config template (C9)**
+- [x] **4.3 Create `.arc/system/arc-config.yml` (C9)**
 
-    **Goal:** Introduce ARC's project-level configuration file.
+    Created `.arc/system/arc-config.yml` — ARC's first project-level configuration file:
 
-    - Create `.arc/config.template.yml` with defaults and explanatory comments:
-        - `base_branch: main` — configurable base branch name
-        - `branch_protection: partial` — options: `unprotected`, `partial`, `full`
-    - Create `.arc/config.yml` for framework project (`.arc-internal/` uses same)
-    - Keep format simple enough for line-based shell parsing (no nested structures)
-    - Document in `.arc/README.md` directory overview
-    - Update `strategy-file-classification.md`: add both config files to Root inventory table
-      and adjust summary counts
+    - Two settings with defaults: `base_branch: main`, `branch_protection: partial`
+    - Flat key-value YAML with explanatory comments, shell-parseable (no nesting)
+    - Configurable classification, single file (no template variant — no init-time tokens)
+    - Documented in `.arc/README.md` directory tree and `system/README.md` contents list
+    - Added `system/` section to `strategy-file-classification.md` inventory (also added
+      missing `system/README.md`); counts updated: Framework 38, Configurable 11, total 60
+    - Fixed 3 stale `system/config/config.yml` references in later tasks (4.7, 5.2.a,
+      verification checklist) and Task 4.1 forward-reference
+    - Task 4.2 forward-reference in `strategy-work-organization.md` already corrected
+      during design discussion
 
-- [ ] **4.4 Add planning branch workflow and branch protection modes (C10, C11)**
+- [x] **4.4 Add planning branch workflow and branch protection modes (C10, C11)**
 
-    **Goal:** Document ARC's default planning branch workflow and three configurable branch protection
-    modes in `strategy-work-organization.md`.
+    Added two new top-level sections to `strategy-work-organization.md` (sections 8-9,
+    existing sections renumbered 10-14 in ToC):
 
-    - **Planning branch workflow (C10):** New section documenting the `planning/*` branch lifecycle:
-      create from base → create PRD, task list, notes in `backlog/{category}/` → PR to base branch
-      → review → merge → delete planning branch → create implementation branch via
-      activate-work-unit. Note: planning branch name need not match final work unit name (scope
-      crystallizes during planning)
-    - **Branch protection modes (C11):** New section defining three modes with decision guidance
-      (team size, risk tolerance, CI/CD maturity):
-        - **Unprotected**: Branches optional. No base branch commit restrictions. Suited for solo
-          devs prioritizing speed
-        - **Partially protected** (default): Planned work units require planning + implementation
-          branches. Backlog capture, atomic tasks, maintenance may commit directly to base branch
-        - **Fully protected**: All changes require branches + PRs. No direct base branch commits.
-          Suited for teams with branch protection rules
-    - Include a summary table and a "choosing your mode" decision guide
+    - **Branch Protection Modes (C11):** Three modes (unprotected / partially protected /
+      fully protected) with mode summary table, per-mode details including planning branch
+      behavior and documented exceptions, and "Choosing Your Mode" decision guide (5-factor
+      comparison table). References `arc-config.yml` for configuration.
+    - **Planning Branch Workflow (C10):** 6-step lifecycle from branch creation through
+      activate-work-unit. Key points: name mismatch is normal (scope crystallizes during
+      planning), artifacts live in backlog until activation, mode-specific behavior noted.
+      Replaces undocumented pattern of committing planning artifacts directly to base branch.
 
-- [ ] **4.5 Update activation and archive workflows (C3, C4)**
+- [x] **4.5 Update activation and archive workflows (C3, C4)**
 
-    **Goal:** Align workflows with decoupled model, planning branch prerequisite, and base branch
-    concept.
+    Updated both workflows to align with decoupled model and base branch concept:
 
-    - `activate-work-unit.md` (C3): add planning branch merge as prerequisite, create
-      primary/integration branch, acknowledge additional branches may be created during work.
-      Replace hardcoded `main` with base branch references. Add mode-specific note: in unprotected
-      mode, planning branch step is optional
-    - `archive-completed.md` (C4): trigger on task completion (all tasks `[x]`), not branch deletion.
-      Branch cleanup happens independently as PRs merge
-    - Both files at `.arc/system/workflows/arc/supplemental/` (post-Phase 1 path)
+    - **activate-work-unit.md (C3):** Added planning branch PR as prerequisite with
+      mode-specific blockquote (optional in unprotected mode). Step 1 reframed from "commit
+      to main" to "verify artifacts on base branch". Step 2 renamed to "Create Implementation
+      Branch" with note about additional branches (stacked PRs, sub-branches). Replaced
+      hardcoded `main` with base branch reference pointing to `arc-config.yml`. Removed
+      `git push origin main`. Updated checklist terminology.
+    - **archive-completed.md (C4):** Archive Timing section rewritten — trigger is now task
+      completion (`[x]`), not branch deletion. Added multi-branch guidance (archive once when
+      all tasks complete). Phase 3 renamed from "On Parent Branch" to "After Merge". Updated
+      common pitfall from "archive before branch deletion" to "archive before tasks complete".
+      Removed hardcoded `main` reference.
 
-- [ ] **4.6 Update templates and strategy index (C5, C6, C7)**
+- [x] **4.6 Update templates and strategy index (C5, C6, C7)**
 
-    - Task list template header (C5): update `strategy-task-list-formatting.md` to support
-      `Branch(es):` field (or equivalent multi-branch syntax). `Base Branch:` field references
-      configured base branch concept rather than hardcoding `main`
-    - `PROJECT-STATUS.template.md` (C6): track active work by work unit name with branch(es) as
-      metadata, not branch as primary key
-    - `STRATEGY-INDEX.md` (C7): add entries for all new strategy docs —
-      `strategy-development-methodology.md`, `strategy-file-classification.md`,
-      `strategy-backlog-organization.md`
+    - **strategy-task-list-formatting.md (C5):** Feature/Technical header updated —
+      `Branch:` → `Branch(es):`, `Base Branch:` now references configured base branch
+      with `arc-config.yml` pointer. Added rules for multi-branch listing (comma-separated)
+      with cross-reference to Task Lists and Branches principle. Incidental header unchanged
+      (single branch, parent branch as base).
+    - **PROJECT-STATUS.template.md (C6):** `Branch:` → `Branch(es):` in Currently Active
+      section. Template already tracked by work unit name (branch was metadata) — syntax
+      now signals multi-branch support.
+    - **STRATEGY-INDEX.md (C7):** New strategy docs already indexed (Phase 3). Updated
+      work-organization description from "branch coupling" to "branching model (protection
+      modes, planning branches)" reflecting Phase 4 additions.
 
 - [ ] **4.7 Update pre-commit githook for config-aware branch protection (C12)**
 
     **Goal:** Make githook read configuration and adjust base-branch-commit behavior per mode.
 
     - Add config reading function: parse `base_branch` and `branch_protection` from
-      `.arc/config.yml` using shell-native parsing (grep + cut or similar, no YAML library)
+      `.arc/system/arc-config.yml` using shell-native parsing (grep + cut or similar, no YAML library)
     - Graceful degradation: if no config file or missing settings, default to `partial` protection
       and `main` as base branch (backward-compatible)
     - Adjust base-branch-commit check behavior:
@@ -370,7 +368,7 @@ future refinement.
 
     - [ ] 5.2.a Update `define-constitution.md` (D2, C13) — add ROADMAP as a step (foundational
       planning artifact alongside other constitutional documents). Add base branch name and branch
-      protection level as setup-time decisions, written to `.arc/config.yml` during project
+      protection level as setup-time decisions, written to `.arc/system/arc-config.yml` during project
       bootstrap. Include brief guidance for each mode choice with cross-reference to
       strategy-work-organization.md. Post-restructure path: `system/workflows/arc/setup/`
     - [ ] 5.2.b Formalize audience indicator convention in `.arc/README.md` (D3) — expand "Document
@@ -506,8 +504,7 @@ from ARC methodology workflows in `arc/`.
 - [ ] `activate-work-unit.md` and `archive-completed.md` support the many-to-one model
 - [ ] Task list templates support multiple branches
 - [ ] No hardcoded `main` references in any workflow, strategy, or template file
-- [ ] `.arc/config.yml` and `.arc/config.template.yml` exist with `base_branch` and
-  `branch_protection` settings
+- [ ] `.arc/system/arc-config.yml` exists with `base_branch` and `branch_protection` settings
 - [ ] Planning branch workflow documented in `strategy-work-organization.md` with clear lifecycle
 - [ ] Three branch protection modes documented with decision guidance
 - [ ] Pre-commit githook reads config and adjusts behavior per mode

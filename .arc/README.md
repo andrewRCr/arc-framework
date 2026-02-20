@@ -34,6 +34,7 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 │   ├── research/              # Technical research documents
 │   └── archive/               # Completed work (by work type, quarterly as volume grows)
 └── system/                    # Agent-facing operational files
+    ├── arc-config.yml         # Project settings (base branch, protection mode)
     ├── agent/                 # AI agent configuration (AGENTS.md + tool-specific files)
     ├── commands/              # Slash commands
     ├── githooks/              # Git hook scripts

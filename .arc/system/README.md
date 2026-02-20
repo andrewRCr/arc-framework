@@ -4,6 +4,7 @@ Framework operational files — agent configuration, workflows, git hooks, and C
 
 ## Contents
 
+- `arc-config.yml` — Project-level settings (base branch, branch protection mode)
 - `agent/` — AI agent configuration and guidance files
 - `commands/` — CLI command source files (future: consumed by distribution CLI)
 - `githooks/` — Git hook scripts for commit validation

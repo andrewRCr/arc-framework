@@ -131,6 +131,13 @@ All paths relative to `.arc/`.
 | `project/README.md`                       | Framework      | Guidance for creating project strategies.            |
 | `project/style/README.md`                 | Framework      | Guidance for style strategies.                       |
 
+### system/
+
+| File             | Classification | Notes                                                             |
+|------------------|----------------|-------------------------------------------------------------------|
+| `README.md`      | Framework      | System directory overview.                                        |
+| `arc-config.yml` | Configurable   | Project settings (base branch, protection mode). Shell-parseable. |
+
 ### system/agent/
 
 | File                               | Classification | Notes                                                        |
@@ -183,12 +190,12 @@ All paths relative to `.arc/`.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 37    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 10    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 38    | Three-way merge. Conflicts rare.                      |
+| Configurable   | 11    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 11    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 58.
+**Total template files:** 60.
 
 ---
 

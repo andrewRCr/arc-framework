@@ -3,8 +3,8 @@
 ## Purpose
 
 Authoritative guidance for organizing development work in ARC-based projects. Defines work categorization
-(feature/technical/incidental), git branch workflow including stacked branches, directory structure, commit
-patterns, and archive organization.
+(feature/technical/incidental), git branch workflow including stacked branches and configurable base branch,
+directory structure, commit patterns, and archive organization.
 
 Use this strategy when:
 
@@ -22,11 +22,13 @@ Use this strategy when:
 5. [Decision Rules](#decision-rules)
 6. [Incidental Work Model](#incidental-work-model)
 7. [Git Workflow](#git-workflow)
-8. [Directory Structure](#directory-structure)
-9. [Anti-Patterns](#anti-patterns)
-10. [Migration Guide](#migration-guide)
-11. [Backlog Organization](#backlog-organization) *(→ dedicated strategy)*
-12. [Related Documentation](#related-documentation)
+8. [Branch Protection Modes](#branch-protection-modes)
+9. [Planning Branch Workflow](#planning-branch-workflow)
+10. [Directory Structure](#directory-structure)
+11. [Anti-Patterns](#anti-patterns)
+12. [Migration Guide](#migration-guide)
+13. [Backlog Organization](#backlog-organization) *(→ dedicated strategy)*
+14. [Related Documentation](#related-documentation)
 
 ---
 
@@ -141,6 +143,21 @@ Planned vs unplanned work demands different processes:
 
 Incidental work often cascades (fixing A reveals B reveals C). Task lists provide traceability
 without branch management overhead.
+
+### 5. Task Lists and Branches
+
+Task lists are the unit of work planning; branches are the unit of code delivery. The relationship
+is many-to-one: a single task list may span multiple branches for reviewability or team collaboration.
+The solo 1:1 pattern — one task list, one branch — is the natural default but not a rule.
+
+Common multi-branch patterns:
+
+- **Stacked PRs:** Breaking a large task list into 2-3 branches for smaller, reviewable PRs
+- **Team sub-branches:** Multiple developers each working a branch against a shared integration branch
+- **Phased delivery:** Sequential branches delivering different phases of the same task list
+
+Archive triggers when all tasks in the task list are complete, not when any individual branch
+is merged or deleted. Branch cleanup happens independently as PRs merge.
 
 ---
 
@@ -309,12 +326,15 @@ Branch naming: `incidental/<name>` matching task list name (minus `tasks-` prefi
 
 ### Stacked Branch Model
 
-Child branches created off parent branches (not always from main). This follows the stacked
-development pattern (used at Meta, Google, and supported by tools like Graphite) adapted for
-discovered work rather than planned decomposition:
+Child branches created off parent branches (not always from the base branch). This follows the
+stacked development pattern (used at Meta, Google, and supported by tools like Graphite) adapted
+for discovered work rather than planned decomposition:
+
+> **Base branch** refers to the project's primary integration branch (typically `main`),
+> configurable via `.arc/system/arc-config.yml`.
 
 ```
-main
+<base-branch>
 └── technical/service-layer-modernization
     └── incidental/filter-integration-testing
         └── incidental/pagination-buffer-tracking
@@ -322,6 +342,9 @@ main
 
 Work discovered DURING parent work naturally depends on parent context. Stacking preserves causality
 and enables independent review/merge of each logical unit.
+
+Note: Stacking also applies to planned work — a task list may use multiple stacked branches for
+reviewable PRs (see [Task Lists and Branches](#5-task-lists-and-branches)).
 
 ### Branch Lifecycle
 
@@ -346,8 +369,9 @@ On Parent Branch (After Merge):
 13. Commit archive changes, resume parent work
 ```
 
-**Key rule:** Task list in `.arc/active/` ↔ Git branch exists. Archive immediately when branch
-is deleted.
+**Archive trigger:** A task list in `.arc/active/` is archived when all tasks are marked complete
+(`[x]`), not when a branch is deleted. Branch cleanup happens independently as PRs merge. For the
+full relationship model, see [Task Lists and Branches](#5-task-lists-and-branches).
 
 ### Merge Strategy
 
@@ -355,7 +379,7 @@ is deleted.
 
 ```bash
 # Example stack:
-main
+<base-branch>
 └── technical/service-layer
     └── incidental/filter-testing
         └── incidental/pagination-fixes
@@ -363,7 +387,7 @@ main
 # Merge order:
 # 1. pagination-fixes → filter-testing (PR, merge, archive)
 # 2. filter-testing → service-layer (PR, merge, archive)
-# 3. service-layer → main (PR, merge, archive)
+# 3. service-layer → <base-branch> (PR, merge, archive)
 ```
 
 Child work must be integrated into parent before parent can be considered complete.
@@ -418,8 +442,117 @@ git branch -d incidental/filter-integration-testing
 
 # Resume service layer work
 git commit -m "refactor: complete service extraction"
-# When complete → review, PR against main, merge, archive
+# When complete → review, PR against base branch, merge, archive
 ```
+
+---
+
+## Branch Protection Modes
+
+ARC defines three branch protection modes that determine what work requires branches and PRs.
+The active mode is configured in `.arc/system/arc-config.yml` (`branch_protection` setting).
+
+### Mode Summary
+
+| Mode                              | Planned Work       | Atomic Tasks / Backlog | Direct Base Branch Commits |
+|-----------------------------------|--------------------|------------------------|----------------------------|
+| **Unprotected**                   | Branches optional  | Commit directly        | Allowed                    |
+| **Partially protected** (default) | Branches required  | Commit directly        | Documented exceptions only |
+| **Fully protected**               | Branches required  | Micro-branches         | Not allowed                |
+
+### Unprotected
+
+Branches are optional for all work. No restrictions on base branch commits.
+
+**Best for:** Solo developers prioritizing speed. Prototyping phases where process overhead
+isn't justified.
+
+**Planning branches:** Optional. Planning artifacts can be committed directly to the base branch.
+
+**Trade-off:** Maximum speed, minimum traceability. No PR review gate — all review is local.
+
+### Partially Protected (Default)
+
+Planned work units (feature, technical) require branches — both planning branches for delivering
+artifacts and implementation branches for execution. Backlog capture, atomic tasks, and routine
+maintenance may commit directly to the base branch as documented exceptions.
+
+**Best for:** Solo developers and small teams wanting lightweight process with review gates on
+substantive work.
+
+**Planning branches:** Required for planned work.
+
+**Documented exceptions** (direct base branch commits allowed):
+
+- Backlog capture: `TASK-INBOX.md` additions, `ROADMAP.md` updates
+- Atomic tasks: Small one-off fixes tracked in `ATOMIC-TASKS.md`
+- Framework maintenance: Documentation updates, linting fixes
+
+### Fully Protected
+
+All changes require branches and PR review. No direct base branch commits. Atomic tasks and
+backlog capture use short-lived micro-branches.
+
+**Best for:** Teams with branch protection rules, CI/CD pipelines, and compliance requirements.
+
+**Planning branches:** Required for all planned work. Micro-branches for atomic tasks and
+backlog capture.
+
+**Trade-off:** Maximum traceability and review coverage. Higher overhead for small changes.
+
+### Choosing Your Mode
+
+| Factor              | Unprotected     | Partially Protected | Fully Protected        |
+|---------------------|-----------------|---------------------|------------------------|
+| Team size           | Solo            | Solo or small team  | Any team size          |
+| Risk tolerance      | High            | Moderate            | Low                    |
+| CI/CD maturity      | None / basic    | Basic to moderate   | Mature pipeline        |
+| Review culture      | Self-review     | Selective PR review | All changes reviewed   |
+| Overhead tolerance  | Minimal         | Moderate            | Accepts higher process |
+
+**Start with partially protected** (the default) unless you have a specific reason for another
+mode. Move to fully protected when branch protection rules are enabled or team size grows.
+Move to unprotected only for solo prototyping or experiments where traceability isn't needed.
+
+---
+
+## Planning Branch Workflow
+
+Planning branches (`planning/*`) deliver planning artifacts — PRDs, task lists, and notes —
+via PR for review before implementation begins. This is ARC's default mechanism for separating
+the "decide what to build" phase from the "build it" phase, replacing the undocumented pattern
+of committing planning artifacts directly to the base branch.
+
+### Lifecycle
+
+1. **Create planning branch** from base branch: `git checkout -b planning/<working-name>`
+2. **Create artifacts** in `backlog/{category}/`:
+   - `prd-<name>.md` (required for planned work)
+   - `tasks-<name>.md` (required)
+   - `notes-<name>.md` (optional)
+3. **Commit, push, and create PR** against base branch
+4. **Review** — team reviews plan, catches scoping issues before implementation starts
+5. **Merge and delete** planning branch (artifacts now on base branch)
+6. **Create implementation branch** via [activate-work-unit](../../../system/workflows/arc/supplemental/activate-work-unit.md)
+   workflow (moves artifacts from `backlog/` to `active/`)
+
+### Key Points
+
+- **Name mismatch is normal.** The planning branch name need not match the final work unit
+  name. `planning/auth-exploration` might produce `feature/jwt-authentication` once scope
+  crystallizes during planning review.
+
+- **Review before implementation.** The PR review gate catches scoping issues, missing
+  requirements, and architectural concerns before hours of implementation are invested.
+
+- **Artifacts live in backlog until activation.** Planning creates artifacts in
+  `backlog/{category}/`. The activate-work-unit workflow moves them to `active/{category}/`
+  when implementation begins.
+
+- **Mode-specific behavior:**
+    - **Unprotected:** Planning branches are optional — artifacts can be committed directly
+      to the base branch.
+    - **Partially / fully protected:** Planning branches are required for planned work units.
 
 ---
 

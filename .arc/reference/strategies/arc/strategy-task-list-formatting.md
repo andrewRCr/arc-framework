@@ -61,8 +61,8 @@ Task list headers provide essential metadata and context. Format varies by task 
 
 **PRD:** `.arc/active/{feature|technical}/prd-[name].md`
 **Created:** YYYY-MM-DD
-**Branch:** `{feature|technical}/[branch-name]`
-**Base Branch:** `main` (or parent branch if stacked)
+**Branch(es):** `{feature|technical}/[branch-name]`
+**Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
 **Status:** {Pending|In Progress|Complete}
 
 ## Overview
@@ -90,6 +90,10 @@ Task list headers provide essential metadata and context. Format varies by task 
 
 - Title uses `Task List:` (not "Incidental:")
 - PRD reference is absolute path from repo root
+- `Branch(es)` lists the primary implementation branch; add additional branches comma-separated
+  when using stacked PRs or team sub-branches (see
+  [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
+- Base Branch references the project's configured base branch, not a hardcoded name
 - Status values: `Pending` (planned), `In Progress` (active), `Complete` (done)
 - Overview section includes Purpose
 - Scope section defines boundaries (Will Do / Won't Do)

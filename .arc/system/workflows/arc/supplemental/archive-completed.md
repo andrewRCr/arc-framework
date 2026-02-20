@@ -7,13 +7,17 @@ history and context.
 
 **Archive Timing:**
 
-Task lists are archived **immediately when their corresponding git branch is deleted** (which occurs after merge
-completion). This creates conceptual coherence:
+Task lists are archived **when all tasks are marked complete** (`[x]`). Task completion is the
+trigger — branch cleanup happens independently as PRs merge.
 
-- Branch exists ↔ Task list in `.arc/active/`
-- Branch deleted → Task list archived to `.arc/reference/archive/`
+- All tasks `[x]` → Archive task list to `.arc/reference/archive/`
+- Branches merged and deleted → Independent cleanup (may happen before or after archival)
 
-See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-work-organization.md) for complete rationale.
+For multi-branch work units (stacked PRs, team sub-branches), archive once when all tasks
+complete, even if individual branches are merged incrementally.
+
+See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-work-organization.md) for the
+complete task list and branch relationship model.
 
 ## Workflow Overview
 
@@ -21,7 +25,7 @@ See [Work Organization Strategy](../../../../reference/strategies/arc/strategy-w
 
 1. **Phase 1: On Child Branch** - Complete work, clean docs, create completion metadata
 2. **Phase 2: Code Review & Merge** - Review, PR, merge to parent
-3. **Phase 3: On Parent Branch** - Delete child branch, archive files, commit
+3. **Phase 3: After Merge** - Archive files, update tracking, clean up branches
 
 **Key principle:** Documentation cleanup and completion metadata are part of the child branch deliverable,
 not a post-merge activity. This ensures PR reviewers see clean, well-organized docs.
@@ -218,9 +222,9 @@ git push
 
 ---
 
-## Phase 3: On Parent Branch (After Merge)
+## Phase 3: After Merge
 
-**Context:** PR is merged, you're now on the parent branch (e.g., a parent feature branch or `main`).
+**Context:** PR is merged, you're on the parent branch (e.g., the base branch or a parent feature branch).
 
 ### 9) Delete Child Branch
 
@@ -328,7 +332,7 @@ for feature vs technical vs incidental decision rules.
 
 - ❌ Skip doc hygiene → Run [maintain-task-notes.md](maintain-task-notes.md) Mode 2 first
 - ❌ Use `mv` instead of `git mv` → Loses file history
-- ❌ Archive before branch deletion → Delete branch first, then archive
+- ❌ Archive before tasks complete → All tasks must be `[x]` before archiving
 - ❌ Skip completion doc → ALL work gets `completion-{name}.md`
 
 ---

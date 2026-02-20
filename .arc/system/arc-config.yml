@@ -1,0 +1,20 @@
+# ARC Framework Configuration
+#
+# Project-level settings for ARC branching model and workflows.
+# Classified as Configurable — framework updates may add new settings;
+# your customizations are preserved via three-way merge.
+#
+# Format: Flat key-value pairs. Parsed by githooks using line-based
+# shell matching (grep + cut) — no nested structures.
+
+# The primary integration branch for the project.
+# All planned work branches are created from and merged back to this branch.
+base_branch: main
+
+# Branch protection level. Determines what requires branches and PRs.
+#   unprotected - Branches optional. No base branch commit restrictions.
+#   partial     - Planned work requires branches. Atomic tasks and backlog
+#                 capture may commit directly to the base branch.
+#   full        - All changes require branches and PR review.
+# See strategy-work-organization.md for detailed mode descriptions.
+branch_protection: partial
