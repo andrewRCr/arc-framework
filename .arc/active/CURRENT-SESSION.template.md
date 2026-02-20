@@ -47,6 +47,10 @@ See: `.arc/system/workflows/arc/supplemental/session-init.md`
 <!-- decisions made, things tried and ruled out, constraints discovered. -->
 <!-- OR: [none] — if the task list has all needed context. -->
 
+<!-- Working directory: If your project uses a non-standard working directory -->
+<!-- (e.g., monorepo subdirectory, workspace root differs from repo root), -->
+<!-- note it here so the next session starts in the right place. -->
+
 ---
 
 **Last Updated**: {{YYYY-MM-DD}} (brief update description)

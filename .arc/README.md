@@ -3,8 +3,6 @@
 This directory contains the ARC framework for your project — development methodology, shared
 context, and active work tracking, implemented as portable markdown documents.
 
-<!-- TODO: When getting-started content exists, point to it here alongside the repo README. -->
-
 **New to ARC?** See the [repository README](../README.md) for an overview of the framework.
 
 ## Directory Structure
@@ -48,11 +46,18 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 ARC documents serve different audiences — knowing this helps you understand what to read
 and what to leave for your agent:
 
-| Audience           | Documents                                                     | Who reads them                                                                                |
-|--------------------|---------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| **Agent-executed** | Session init/handoff, CURRENT-SESSION, process-task-loop      | Your AI agent follows these as operational procedures. Read them when customizing, not daily. |
-| **Shared context** | Constitution, strategies, ADRs, roadmap, backlogs, task lists | Both you and your agent. Establishes the common project baseline.                             |
-| **Human-facing**   | Repository README, getting-started materials                  | You, when evaluating or setting up the framework.                                             |
+| Audience            | Documents                                                     | Who reads them                                                          |
+|---------------------|---------------------------------------------------------------|-------------------------------------------------------------------------|
+| **Agent-executed**  | Session init/handoff, process-task-loop, commit workflow      | Your agent follows these as procedures. Read when customizing.          |
+| **Collaborative**   | Setup workflows, create-prd, generate-tasks                   | You and your agent work through these together.                         |
+| **Shared context**  | Constitution, strategies, ADRs, roadmap, backlogs, task lists | Both you and your agent. The common project baseline.                   |
+| **Human-driven**    | Weekly review                                                 | You conduct this, optionally with agent assistance.                     |
+| **Human-facing**    | Repository README, external documentation site                | You, when evaluating or onboarding to the framework.                    |
+
+**Audience headers in workflows:** All workflow files include an `**Audience:**` line at the
+top indicating who drives the process. This makes it clear at a glance whether a workflow is
+something your agent runs autonomously, something you work through together, or something
+you drive yourself.
 
 When your agent initializes each session, it reads several documents in full — constitution,
 development rules, quick reference, current session state. This is by design: agents start

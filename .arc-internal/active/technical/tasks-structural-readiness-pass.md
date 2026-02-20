@@ -371,7 +371,7 @@ future refinement.
     - Delete stale `plan-content-refinement-pass.md` (work completed and archived)
     - Absorb TASK-INBOX items into plan docs, update backlogs and roadmap cross-references
 
-- [ ] **5.2 Update workflows and conventions (D2, D3, D4)**
+- [x] **5.2 Update workflows and conventions (D2, D3, D4)**
 
     - [x] 5.2.a Split setup workflows and expand project definition (D2, C13) — replaced
       single `define-constitution.md` with two ordered workflows:
@@ -379,11 +379,15 @@ future refinement.
       and `setup/02_define-project.md` (project-level: META-PRD → TECHNICAL-OVERVIEW →
       DEVELOPMENT-RULES → ROADMAP → PROJECT-STATUS, plus maintenance guidance). Updated all
       cross-references (9 files). Establishes forward-compatible structure for CLI onboarding.
-    - [ ] 5.2.b Formalize audience indicator convention in `.arc/README.md` (D3) — expand "Document
-      Audiences" table, add note about `**Audience:**` headers, verify consistent application in
-      existing files that partially use it
-    - [ ] 5.2.c Add working directory note to CURRENT-SESSION template (D4) — note in "Additional
-      Context" section that working directory changes should be captured if relevant to the project
+
+    - [x] 5.2.b Formalize audience indicator convention in `.arc/README.md` (D3) — expanded
+      table from 3 to 5 audience types (added Collaborative, Human-driven), added note about
+      `**Audience:**` headers in workflow files, removed stale getting-started TODO, verified
+      all 14 workflow files already carry consistent audience headers
+
+    - [x] 5.2.c Add working directory note to CURRENT-SESSION template (D4) — added HTML
+      comment guidance in "Additional Context" section for projects with non-standard working
+      directories (monorepo subdirectories, workspace root differs from repo root)
 
 ### **Phase 6:** Team Adaptation (B6, F1–F3)
 
