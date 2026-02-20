@@ -372,6 +372,8 @@ only — no automation or assignment tooling.
     - Create template `CURRENT-SESSION.md` and `ATOMIC-TASKS.md` for team member directories
     - README content: directory purpose, per-member subdirectory convention (`team/{name}/`), how CLI
       init creates the structure
+    - Note: describe `team/{name}/` as default without precluding nested groupings
+      (e.g., `team/frontend/alice/`). Avoid language that implies flat-only structure
 
 - [ ] **6.2 Add team coordination guidance (F1, F2)**
 

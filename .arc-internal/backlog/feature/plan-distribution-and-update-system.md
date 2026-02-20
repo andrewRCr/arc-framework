@@ -390,6 +390,27 @@ Optional, lightweight agent workflows for common project management tools (Jira,
 - **Delivery:** Optional skills/workflows that ship with ARC but are inert unless configured
 - **Scope:** Low priority, future addition — only if it can be done without bloating the core
 
+## Notes from Structural Readiness Pass (B.3)
+
+Decisions made during `tasks-structural-readiness-pass.md` that affect CLI design:
+
+- **`.arc/config.yml`** — ARC's first project-level config file, introduced in B.3. Initial
+  settings: `base_branch` (default: `main`) and `branch_protection` (`unprotected` / `partial` /
+  `full`). The CLI should generate this during `arc init` as a setup-time decision and treat it
+  as "configurable" classification (merges on update). Simple YAML — no nested structures, must
+  be parseable by shell (githook reads it without a YAML library).
+- **Team directory nesting** — `team/` structure supports both flat (`team/{name}/`) and nested
+  (`team/{grouping}/{name}/`). CLI glob patterns for team member discovery must use `team/**/`
+  not `team/*/`.
+- **Planning branches** — ARC's default branching model now includes `planning/*` branches for
+  delivering planning artifacts (PRD, task list) via PR before implementation. The CLI doesn't
+  need to manage these directly, but should be aware of the pattern for any branch-related
+  tooling or documentation generation.
+- **Structural changes** — The B.3 work restructures `.arc/` significantly (`reference/` →
+  `reference/` + `system/` split, `.example.md` → `.template.md` rename, workflow reorg into
+  `arc/` + `project/` subdirs). The file system layout and file classification sections of this
+  plan doc will need a full refresh when CLI work gets its own PRD.
+
 ## Relationship to Other Plans
 
 - **Supersedes** (partially): `plan-public-release-repository-strategy.md` — Delivery mechanism
