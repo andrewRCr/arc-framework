@@ -122,17 +122,6 @@ git --no-pager diff --stat
 ✅ Focus on documentation quality
 ✅ Follow framework-specific workflows
 
-### Sync Confusion
-
-❌ Syncing active work or temporal content from CineXplorer
-❌ Forgetting to de-instance project-specific details
-❌ Skipping validation steps
-
-✅ Only sync stable `.arc/reference/` improvements
-✅ Only sync format/structure changes from CURRENT-SESSION
-✅ Always de-instance before committing
-✅ Follow sync-cinexplorer-refinements.md workflow
-
 ---
 
 **Version Note**: Commands assume repo root. This is a documentation-only framework with markdown linting
