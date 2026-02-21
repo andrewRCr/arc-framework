@@ -19,6 +19,11 @@ canonical docs:
 - **Large diffs:** If a change won't fit in context, propose a chunking strategy and wait for approval
 - **Session handoffs:** Explicitly state whether CURRENT-SESSION.md was updated or left unchanged
 - **Self-hosting:** Framework develops itself using ARC methodology - we are our own test case
+- **Staging verification:** After `git add` and before `git commit`, run `git diff --cached --stat`
+  to verify the staging area matches intent. Pre-staged files (from earlier `git rm` or `git add`)
+  can silently slip into commits, and intended files can be left out. The pre-commit `git status`
+  is orientation (what changes exist); the post-staging check is verification (what am I about to
+  commit).
 
 ## Context Window Management
 

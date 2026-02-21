@@ -20,6 +20,11 @@ Guidance for Claude when working in this repository. For shared rules and archit
   may not match auto-approve patterns even when the individual commands would be approved. Run
   independent commands as parallel tool calls instead of chaining them.
 - **Session handoffs:** Explicitly state whether CURRENT-SESSION.md was updated or left unchanged
+- **Staging verification:** After `git add` and before `git commit`, run `git diff --cached --stat`
+  to verify the staging area matches intent. Pre-staged files (from earlier `git rm` or `git add`)
+  can silently slip into commits, and intended files can be left out. The pre-commit `git status`
+  is orientation (what changes exist); the post-staging check is verification (what am I about to
+  commit).
 
 ## Context Window Management
 
