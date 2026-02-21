@@ -6,7 +6,7 @@ the ARC framework.
 ## Architecture
 
 The AI instructions follow a **minimal inheritance pattern** built around `AGENTS.md` — both an ARC convention
-and an industry standard (stewarded by the Linux Foundation's Agentic AI Foundation, adopted by 60,000+ projects).
+and an emerging industry standard (stewarded by the Linux Foundation's Agentic AI Foundation).
 
 ```
 AGENTS.md (central reference card — industry-standard format)
@@ -18,8 +18,8 @@ AGENTS.md (central reference card — industry-standard format)
 
 ### Why AGENTS.md as Hub
 
-`AGENTS.md` is an industry standard — tools like Gemini, Cursor, and Windsurf read it from project
-root. ARC uses the same format for interoperability but keeps files here in `.arc/system/agent/`
+`AGENTS.md` is an emerging industry standard — an increasing number of AI coding tools recognize it
+from the project root. ARC uses the same format for interoperability but keeps files here in `.arc/system/agent/`
 rather than at tool-native locations (see [File Placement](#file-placement) below). ARC's session-init
 workflow (manually invoked each session) handles the loading chain: AGENTS.md first for shared
 context, then the appropriate tool-specific file.

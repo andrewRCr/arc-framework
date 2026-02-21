@@ -69,8 +69,8 @@ For interactive sessions, provide numbered options to keep responses quick.
 
 Generate the PRD using the format below. Save to:
 
-- **Feature**: `.arc/backlog/feature/prd-{{FEATURE_NAME}}.md`
-- **Technical**: `.arc/backlog/technical/prd-{{FEATURE_NAME}}.md`
+- **Feature**: `.arc/backlog/feature/prd-{{WORK_NAME}}.md`
+- **Technical**: `.arc/backlog/technical/prd-{{WORK_NAME}}.md`
 
 **Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
 continue with [2_generate-tasks.md](2_generate-tasks.md).

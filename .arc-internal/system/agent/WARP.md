@@ -3,8 +3,8 @@
 Guidance for Warp terminal assistance. For shared rules and architecture, defer to the canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context, lookup guide, and collaboration principles
-- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) v0.2.0-dev (hash: 4b3d89f2) – Non-negotiable standards
-- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) v0.2.0-dev – Environment context and command patterns
+- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) v0.3.0-dev (hash: 8c5f2a91) – Non-negotiable standards
+- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) v0.3.0-dev – Environment context and command patterns
 
 ## Warp-Specific Notes
 

@@ -1,2 +1,2 @@
 description="Initializes a session and reviews critical agent context."
-prompt = "Initialize session using `.arc-internal/reference/workflows/supplemental/session-init.md`. **Critical first read**: `.arc-internal/reference/agent/AGENTS.md` (context)"
+prompt = "Initialize session using `.arc-internal/system/workflows/arc/supplemental/session-init.md`. **Critical first read**: `.arc-internal/system/agent/AGENTS.md` (context)"

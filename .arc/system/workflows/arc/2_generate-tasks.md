@@ -68,8 +68,8 @@ file (`notes-{name}.md`), not in the task list.
 
 **Save to:**
 
-- Feature: `.arc/backlog/feature/tasks-{{FEATURE_NAME}}.md`
-- Technical: `.arc/backlog/technical/tasks-{{FEATURE_NAME}}.md`
+- Feature: `.arc/backlog/feature/tasks-{{WORK_NAME}}.md`
+- Technical: `.arc/backlog/technical/tasks-{{WORK_NAME}}.md`
 
 Name should match the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
 

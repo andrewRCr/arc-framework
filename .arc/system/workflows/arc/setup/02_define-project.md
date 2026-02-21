@@ -99,8 +99,8 @@ against the roadmap.
 
 During project setup, these templates become your project documents (dropping the `.template`
 suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RULES) go in
-`reference/constitution/`. Planning artifacts (ROADMAP, PROJECT-STATUS) go in their
-respective locations (`backlog/`, `reference/constitution/`).
+`reference/constitution/`. ROADMAP goes in `backlog/`. PROJECT-STATUS goes in
+`reference/constitution/` alongside the other constitutional documents.
 
 ---
 

@@ -70,7 +70,7 @@ marked `[x]`. If any unchecked tasks found → STOP — use Mode 1 instead.
 
 **Update status metadata:**
 
-- Update `**Status**:` field in task file header (Mode 2: change to "COMPLETE", remove temporal notes)
+- Update `**Status**:` field in task file header (Mode 2: change to "Complete", remove temporal notes)
 - Add/update `**Completed**:` date in both files (YYYY-MM-DD format)
 - Note: All work uses separate `completion-{name}.md` (created in
   [archive-completed](archive-completed.md) workflow Phase 1, Step 3)
@@ -292,7 +292,7 @@ See "Compatibility Research" above for library evaluation.
 ### 6. Update Cross References
 
 - Confirm "Related Task/Notes" pointers are accurate in both files
-- Update status metadata: task file `**Status**: Completed`, notes file `**Status**: Complete`
+- Update status metadata: task file `**Status**: Complete`, notes file `**Status**: Complete`
 - Add completion date to both files
 - **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all
   references to it from the task file

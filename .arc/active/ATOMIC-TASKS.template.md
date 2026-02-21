@@ -7,7 +7,7 @@
 1. Add tasks with checkboxes under "Active" section
 2. When complete:
    - Mark `[x]` and add completion notes
-   - Move to `reference/archive/{{QUARTER}}/completed-atomic-{{QUARTER}}.md` (insert at top)
+   - Move to `../reference/archive/{{QUARTER}}/completed-atomic-{{QUARTER}}.md` (insert at top)
    - Add branch line after completion notes (with empty line separator):
 
      ```markdown
