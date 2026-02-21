@@ -16,8 +16,7 @@ trigger — branch cleanup happens independently as PRs merge.
 For multi-branch work units (stacked PRs, team sub-branches), archive once when all tasks
 complete, even if individual branches are merged incrementally.
 
-See [Work Organization Strategy][work-org] for the
-complete task list and branch relationship model.
+See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
 ## Workflow Overview
 
@@ -48,7 +47,6 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
     - [ ] PRD Open Questions resolved with brief notes on decisions made
 - [ ] All quality gates passed (documented as completed subtasks in task list)
 - [ ] Implementation verified in development environment (if applicable — documentation-only work may not need this)
-- [ ] PROJECT-STATUS reflects completion (if applicable — major features/technical work)
 
 ### 1b) Generated Code Sync Check (If Applicable)
 
@@ -79,6 +77,15 @@ evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), 
 **All work gets a completion document** (feature, technical, AND incidental). Create
 `completion-{name}.md` in the same directory as the task list. The completion doc doubles as your
 PR description draft — creating it as a persistent document ensures it's searchable beyond GitHub.
+
+**Required Reading Before Drafting**
+
+The completion doc must be accurate because it's used for PRs. Before writing:
+
+1. **Task list overview** (first ~100 lines) — Scope, context, what was planned
+2. **Final phase(s)** of task list — Actual completion state, follow-up work status
+3. **CLEANUP-PROGRESS data** (for large files) — Metrics collected during cleanup
+4. **Git log** for final commit hash — `git log -1 --oneline`
 
 **Template (identical for all work categories):**
 
@@ -127,17 +134,6 @@ PR description draft — creating it as a persistent document ensures it's searc
 
 {Any deferred items or future considerations - ONLY items still deferred at task end}
 ```
-
----
-
-**Required Reading Before Drafting**
-
-The completion doc must be accurate because it's used for PRs. Before writing:
-
-1. **Task list overview** (first ~100 lines) — Scope, context, what was planned
-2. **Final phase(s)** of task list — Actual completion state, follow-up work status
-3. **CLEANUP-PROGRESS data** (for large files) — Metrics collected during cleanup
-4. **Git log** for final commit hash — `git log -1 --oneline`
 
 ---
 

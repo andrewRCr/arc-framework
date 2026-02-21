@@ -294,7 +294,8 @@ See "Compatibility Research" above for library evaluation.
 - Confirm "Related Task/Notes" pointers are accurate in both files
 - Update status metadata: task file `**Status**: Completed`, notes file `**Status**: Complete`
 - Add completion date to both files
-- **If notes file was deleted:** Remove all references to it from task file
+- **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all
+  references to it from the task file
 - **If bottom-matter was removed:** Add `---` after final task to indicate intentional end
 
 ### 7. Quality Checks

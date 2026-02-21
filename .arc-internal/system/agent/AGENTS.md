@@ -25,7 +25,7 @@ a shared understanding and efficient workflows for software development projects
 
 - `.arc/` - Deployable template system (reference/, active/, backlog/)
 - `.arc-internal/` - Framework development workspace (constitution, workflows, active work)
-- Root-level documentation (README.md, ADOPTION.md, CHANGELOG.md, etc.)
+- Root-level documentation (README.md, ADOPTION.md, etc.)
 
 ## Critical Path Information
 
