@@ -4,17 +4,14 @@
 **Created:** 2026-02-20
 **Branch:** `technical/structural-readiness-pass`
 **Base Branch:** `main`
-**Status:** In Progress
+**Completed:** 2026-02-20
+**Status:** Complete
 
 ## Overview
 
 **Purpose:** Restructure the `.arc/` template system and parallel `.arc-internal/` workspace for distribution
 readiness and team viability — clean directory roles, reduced merge conflict surface, decoupled branch-task list
 model, configurable branching model with planning branches, and first-pass team coordination content.
-
-**Reference data:** `notes-structural-readiness-pass.md` (same directory) contains lookup tables needed during
-implementation: file classification inventory (46 files), DEVELOPMENT-RULES content map (line-by-line), and
-cross-cutting dependency map with blast radius per concept.
 
 ## Scope
 
@@ -189,7 +186,7 @@ merge conflict surface for framework updates.
 
     Removed all 11 extracted methodology sections from both files. Template: 404 → 130 lines
     (-68%). Live: 405 → 136 lines (-66%). Replaced quality gate tiers table with summary text
-    + cross-reference to `strategy-quality-gates.md`. Added methodology strategy cross-reference
+    - cross-reference to `strategy-quality-gates.md`. Added methodology strategy cross-reference
     to header of both files. Updated cross-references in 8 files:
 
     - Session-init (both versions): added methodology strategy as item 4 in reading list,
@@ -333,7 +330,7 @@ templates, and tooling.
     Grep sweep across all `.md` files and hook scripts for hardcoded `main` branch references.
     Found 2 stale references and fixed:
 
-    - `2_generate-tasks.md`: template header `**Base Branch:** `main`` → config-aware format
+    - `2_generate-tasks.md`: template header `**Base Branch:**` `main` → config-aware format
       matching strategy-task-list-formatting.md
     - `agent-pre-merge-review.md`: "main, parent branches" → "base branch, parent branches"
 
@@ -554,6 +551,6 @@ criteria.
 
 - [x] Zero broken internal references (grep verification)
   — Task 7.2: grepped four stale patterns, spot-checked 10 key documents, all clean.
-  Note: two stale path descriptions in CHANGELOG.md (historical entries, not links)
+  Note: CHANGELOG.md deleted during archival prep (file was stale)
 - [x] All paths in session-init, agent files, and workflows reflect new structure
 - [x] Ready for activation and implementation
