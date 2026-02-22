@@ -78,13 +78,24 @@ with distribution system design as the primary focus area.
 - Structural observations captured for B.3 in `plan-structural-analysis-pass.md`
 - Archive: `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
 
+### ✅ Structural Readiness Pass (February 2026)
+
+**Status**: Completed February 2026
+
+- Directory restructuring: `reference/` split into `reference/` + `system/` (agent, commands,
+  githooks, workflows)
+- File naming: 16 `.example.md` → `.template.md`
+- DEVELOPMENT-RULES separation: methodology extracted to strategy doc (template -68%)
+- New strategies: file-classification, backlog-organization, team-coordination,
+  development-methodology
+- Configurable branching model: `arc-config.yml`, planning branches, three protection modes
+- Team mode structure: `team/` directory, `(@name)` ownership, external tracker integration
+- Setup workflow split: `01_initialize-arc.md` + `02_define-project.md`
+- Archive: `.arc-internal/reference/archive/2026-q1/technical/02_structural-readiness-pass/`
+
 ## Currently Active
 
-- **Structural Readiness Pass** (technical) - Restructure `.arc/` template system and `.arc-internal/`
-  workspace for distribution readiness: directory splits, file renames, content splits, configurable
-  branching model, team coordination content
-    - Task list: `.arc-internal/active/technical/tasks-structural-readiness-pass.md`
-    - Branch: `technical/structural-readiness-pass`
+[none]
 
 ## Upcoming Priorities
 
@@ -131,4 +142,4 @@ with distribution system design as the primary focus area.
 
 ---
 
-*Last updated: 2026-02-19*
+*Last updated: 2026-02-22*
