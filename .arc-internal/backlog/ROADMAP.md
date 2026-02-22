@@ -1,7 +1,7 @@
 # Roadmap: ARC Framework Development
 
-**Purpose:** Internal planning artifact documenting sequencing strategy for framework development.
-Subject to change as we learn.
+**Purpose:** Internal planning artifact documenting sequencing strategy for framework
+development. Subject to change as we learn.
 
 **Last Updated:** 2026-02-22
 
@@ -18,69 +18,96 @@ Battle-test the framework through real project usage and sync refinements back.
 3. ✅ **arc-portfolio Dual-Maintenance** (February 2026) — Quality gates, letter numbering,
    commit tooling, workflow refinements
 
-### Phase B: Distribution Preparation (Current)
+### Phase B: Distribution Preparation ✅ Complete
 
 Prepare the framework for public distribution via package manager.
 
-1. **Distribution system design** ✅ — Plan captured in
-   `feature/plan-distribution-and-update-system.md`
-   - Pristine copy + three-way merge approach
-   - Interactive init with conditional content, presets, and agent selection
-   - Agent-driven consistency audit for cross-cutting concept management
-   - npm package delivery model
+1. ✅ **Distribution system design** — Pristine copy + three-way merge approach, interactive
+   init, agent-driven consistency audit, npm package delivery model
+2. ✅ **General refinement pass** (February 2026) — Content quality across `.arc/` docs;
+   6 phases, 62 files, ~3,900 lines net removed
+3. ✅ **Structural readiness pass** (February 2026) — Directory restructuring, file renames,
+   content splits, configurable branching model
 
-2. **General refinement pass** ✅ Complete (February 2026) — Content quality across `.arc/` docs
-   - 6 phases, 62 files, ~3,900 lines net removed
-   - Archive: `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
+### 1.0 Release: Work Unit Sequence (Current)
 
-3. **Structural readiness pass** ✅ Complete (February 2026)
-   - Directory restructuring, file renames, content splits, configurable branching model
-   - Archive: `.arc-internal/reference/archive/2026-q1/technical/02_structural-readiness-pass/`
+Four work units producing a stable, configurable, distributable 1.0 release. Each unit
+has a dedicated plan document in the backlog.
 
-### Phase C: CLI & Package Development
+**WU1: Core Philosophy & Configurability Architecture** — Design-only
 
-Build the distribution tooling.
+Define what ARC IS (non-negotiables vs. methods), design the configurability architecture
+(arc-config.yml expansion, workflow extension points, progressive adoption tiers), resolve
+the session model and agent-agnosticism questions. Produces ADRs and strategy documents
+that all downstream work references.
 
-1. **CLI prototype** — Minimal `init` + `update` with three-way merge
-2. **Init recipe system** — Declarative config for interactive setup options
-3. **Agent tooling packaging** — Selective install of `.claude/`, `.codex/`, `.gemini/`
-4. **Testing & validation** — Verify init/update flows across scenarios
+- Plan: `technical/plan-wu1-philosophy-configurability.md`
+- Upstream: none
+- Downstream: WU2, WU3, WU4
 
-### Phase D: Public Release
+**WU2: Methodology Completion & Structural Validation** — Implementation
 
-1. **Public repository setup** — Rename dev repo, create clean public repo
-2. **External documentation site** — MkDocs Material + GitHub Pages: conceptual orientation,
-   philosophy, examples, tutorials, comparison/positioning
-3. **README rewrite** — Value proposition, philosophy, "is this for me?" framing
-4. **Initial release** — npm publish, GitHub release
-5. **Community infrastructure** — Issue templates, contribution guidelines
+Apply WU1 decisions across all existing docs, hooks, and templates. Resolves all adoption
+dealbreakers and friction points identified in audits. Fixes multi-branch coupling language,
+adds team workflow adaptations, expands arc-config.yml, implements convention gaps. Ends with
+a structural validation pass (file classification, mixed-concern audit, cross-cutting
+dependency mapping) that feeds WU3.
+
+- Plan: `technical/plan-wu2-methodology-completion.md`
+- Upstream: WU1 (all ADRs)
+- Downstream: WU3, WU4
+
+**WU3: CLI & Distribution** — Implementation
+
+Build the `arc-framework` npm package: interactive init, three-way merge update system, agent
+tooling generation, manifest tracking. Exact 1.0 scope TBD during PRD creation.
+
+- Plan: `technical/plan-wu3-cli-distribution.md`
+- Upstream: WU1 (config schema), WU2 (structural validation, final file layout)
+- Downstream: WU4
+
+**WU4: Public Release** — Execution
+
+Repository split (private dev, public user-facing), MkDocs Material documentation site,
+README rewrite, community infrastructure, npm publish. Content creation can begin in
+parallel after WU1+WU2 complete.
+
+- Plan: `feature/plan-wu4-public-release.md`
+- Upstream: WU1 (philosophy), WU2 (final framework), WU3 (functional CLI)
+- Downstream: none
 
 ---
 
-## Dependency Analysis
+## Dependency Graph
 
 ```text
-Framework Maturation ──► Distribution Preparation
-                         (can't optimize structure without mature content)
+Phase A ──► Phase B ──► 1.0 Work Units:
+(complete)  (complete)
 
-  Within Distribution Prep:
-  General Refinement ──► Structural Readiness Pass
-  (clean content first)   (then restructure)
-
-Distribution Prep ─────► CLI & Package Development
-                         (can't build tooling without knowing file structure)
-
-CLI Development ───────► Public Release
-                         (can't release without distribution mechanism)
+  WU1 (Philosophy + Configurability)
+   │
+   ├──► WU2 (Methodology Completion)
+   │     │
+   │     ├──► WU3 (CLI & Distribution)
+   │     │     │
+   │     │     └──► WU4 (Public Release)
+   │     │           ▲
+   │     └───────────┘ (content creation can start after WU2)
+   │                 ▲
+   └─────────────────┘ (philosophy informs docs site + README)
 ```
 
-**Note:** Public repo setup can proceed in parallel with CLI development.
+**Parallelism:** WU4 docs site content and README drafts can begin after WU1+WU2 without
+waiting for WU3. Community infrastructure (issue templates, CoC, etc.) has no upstream
+dependencies.
 
 ---
 
 ## Related Documents
 
-- Distribution plan (Phase C): `feature/plan-distribution-and-update-system.md`
-- Public release plan (Phase D): `feature/plan-public-release.md`
+- WU1 plan: `technical/plan-wu1-philosophy-configurability.md`
+- WU2 plan: `technical/plan-wu2-methodology-completion.md`
+- WU3 plan: `technical/plan-wu3-cli-distribution.md`
+- WU4 plan: `feature/plan-wu4-public-release.md`
 - Active work: `.arc-internal/active/CURRENT-SESSION.md`
 - Constitution: `.arc-internal/reference/constitution/PROJECT-STATUS.md`

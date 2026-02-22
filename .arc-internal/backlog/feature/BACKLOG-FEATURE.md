@@ -6,55 +6,25 @@
 
 ---
 
-## High Priority
+## Unscheduled (Not Captured in 1.0 Work Units)
 
-### Distribution & Update System
+### Post-1.0 Content Ideas
 
-- **Problem:** No clean mechanism for users to install ARC or receive updates without manual
-  copy/sync and risk of losing customizations
-- **Approach:** npm package with CLI (`arc init` / `arc update`), pristine copy + three-way merge
-- **Status:** Initial planning complete
-- **Plan:** `plan-distribution-and-update-system.md`
-- **Next step:** Structural analysis pass (technical backlog) is prerequisite
-
-### Public Release & Adoption
-
-- **Problem:** Framework needs external documentation, polished README, and community infrastructure
-  before going public
-- **Approach:** MkDocs Material docs site for conceptual content, README rewrite for value
-  proposition, community templates for GitHub
-- **Status:** Initial planning
-- **Plan:** `plan-public-release.md`
-- **Sequencing:** Phase D — after CLI & distribution (Phase C)
-
----
-
-## Medium Priority
-
-### Interactive Init Experience
-
-- **Problem:** Setting up ARC for a new project requires manual template editing and placeholder
-  replacement
-- **Approach:** CLI-driven interactive setup with token replacement, conditional content inclusion,
-  selective agent tooling install
-- **Note:** This is part of the distribution system but called out separately as a significant
-  feature in its own right
-- **Related:** `plan-distribution-and-update-system.md` (Interactive Init section)
-- **Note — recommended environment settings:** Init or accompanying onboarding docs should
-  strongly recommend disabling auto-compact/context-summarization features in AI coding tools
-  (e.g., Claude Code's auto-compact). ARC sessions depend on constitutional context loaded at
-  session-init; automatic compaction degrades that context silently. Sessions should end with
-  explicit handoff, not context loss. (Origin: `tasks-content-refinement-pass.md` Task 6.2,
-  PRD req 35)
-
----
-
-## Lower Priority / Ideas
-
-- Integration examples for common tech stacks (React, Django, etc.)
-- Tutorial content and walkthrough materials
+- Integration examples for common tech stacks (React, Django, data pipelines, etc.)
+- Tutorial content and walkthrough materials beyond WU4 launch set
 - Example project showcasing ARC adoption from scratch
 
+These overlap with WU4 docs site scope but may exceed what ships at 1.0 launch.
+
 ---
 
-**Last reviewed:** 2026-02-17
+## Superseded by 1.0 Work Units
+
+- ~~Distribution & update system~~ → WU3 (`plan-wu3-cli-distribution.md`)
+- ~~Public release & adoption~~ → WU4 (`plan-wu4-public-release.md`)
+- ~~Interactive init experience~~ → WU3 interactive init section
+- ~~Auto-compact recommendation~~ → WU4 onboarding content
+
+---
+
+**Last reviewed:** 2026-02-22

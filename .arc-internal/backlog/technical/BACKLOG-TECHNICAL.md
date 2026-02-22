@@ -1,42 +1,27 @@
 # Technical Backlog - ARC Framework
 
-**Purpose:** Organized collection of technical work ideas - infrastructure, tooling, and quality improvements.
+**Purpose:** Organized collection of technical work ideas — infrastructure, tooling, and
+quality improvements.
 
 **Processing:** Items move here from `TASK-INBOX.md` during weekly review.
 
 ---
 
-## High Priority
+## Completed
 
 ### General Refinement Pass — ✅ Complete
 
 - **Status:** Completed February 2026 — merged via PR #3
 - **Archive:** `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
 
-### Structural Analysis Pass
+### Structural Readiness Pass — ✅ Complete
 
-- **Problem:** Current `.arc/` files mix framework-stable and project-configurable content at the
-  paragraph level, which would cause unnecessary merge conflicts during package manager updates
-- **Approach:** Audit all files, classify as framework/configurable/scaffolded/project-owned,
-  identify mixed-concern sections, map cross-cutting concept dependencies, propose restructuring
-- **Context:** Prerequisite for distribution system; results become a focused work unit
-- **Sequencing:** After general refinement pass
-- **Related:** `feature/plan-distribution-and-update-system.md`
-
-### README.md Refresh
-
-- **Problem:** README is outdated — still has emojis, references old structure, developer-focused
-  rather than adoption-focused
-- **Approach:** Remove emojis, align with current framework structure, reframe for public audience
-- **Starting point:** `arc-portfolio` repo has substantial framework description in `projects.ts`
-  data — written from a portfolio angle but provides good content foundation. Needs reframing
-  toward user-facing installation/usage focus.
-- **Context:** Can proceed independently of distribution work
-- **Plan:** Captured in `../feature/plan-public-release.md` (Phase D)
+- **Status:** Completed February 2026 — merged via PR #4
+- **Archive:** `.arc-internal/reference/archive/2026-q1/technical/02_structural-readiness-pass/`
 
 ---
 
-## Medium Priority
+## Unscheduled (Not Captured in 1.0 Work Units)
 
 ### CI/CD Improvements
 
@@ -47,35 +32,25 @@
 - **Automated template instantiation testing**
     - Problem: No CI verification that templates work when instantiated
     - Approach: CI that creates and validates instantiated templates
-    - Note: May evolve into CLI integration tests once distribution tooling exists
+    - Note: May evolve into CLI integration tests during WU3
+
+### Compatibility Testing Across Agent Platforms
+
+- Problem: ARC claims agent-agnosticism but isn't tested across platforms
+- Context: WU1 ADR 3 assesses agent-agnosticism; this would be the validation layer
+- Priority: Post-1.0
 
 ---
 
-## Lower Priority / Ideas
+## Superseded by 1.0 Work Units
 
-- ~~**Reconsider `.example.md` naming convention**~~ — Resolved: renamed to `.template.md`
-  in `tasks-structural-readiness-pass.md` (Tasks 2.1–2.2). External filled-in examples deferred
-  to distribution/docs-site work.
-- ~~Documentation site~~ → Decision made: MkDocs Material + GitHub Pages. Captured in
-  `../feature/plan-public-release.md` (Phase D)
-- Community contribution pipeline (PR templates, issue forms)
-- Compatibility testing across agent platforms
-
----
-
-## Archived / Superseded
-
-- ~~Migration tools for template updates~~ → Superseded by distribution CLI
-  (`plan-distribution-and-update-system.md`)
-- ~~Profile system enhancements~~ → Superseded by selective agent install during interactive init
+- ~~Structural analysis pass~~ → WU2 Cluster M (`plan-wu2-methodology-completion.md`)
+- ~~README.md refresh~~ → WU4 (`plan-wu4-public-release.md`)
+- ~~Migration tools for template updates~~ → WU3 (`plan-wu3-cli-distribution.md`)
+- ~~Profile system enhancements~~ → WU3 interactive init
+- ~~Documentation site~~ → WU4 docs site
+- ~~Community contribution pipeline~~ → WU4 community infrastructure
 
 ---
 
-## Related Documents
-
-- Distribution plan: `../feature/plan-distribution-and-update-system.md`
-- Public release plan: `../feature/plan-public-release.md`
-
----
-
-**Last reviewed:** 2026-02-17
+**Last reviewed:** 2026-02-22
