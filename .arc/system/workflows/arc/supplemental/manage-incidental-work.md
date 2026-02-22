@@ -145,7 +145,8 @@ branch workflow, merge strategy, and handling branch updates.
 Incidental work follows standard workflows with no special procedures:
 
 - **Execution**: [3_process-task-loop.md](../3_process-task-loop.md) (one task at a time, same quality gates)
-- **Commits**: [strategy-development-methodology.md][dev-methodology] § Commit Standards (same standards as feature/technical work)
+- **Commits**: [strategy-development-methodology.md][dev-methodology] § Commit Standards (same standards as
+  feature/technical work)
 - **Archival**: [archive-completed.md](archive-completed.md) (archive immediately when branch deleted after merge)
 
 ---
