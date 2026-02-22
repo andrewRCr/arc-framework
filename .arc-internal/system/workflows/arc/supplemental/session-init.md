@@ -1,0 +1,128 @@
+# Workflow: Session Initialization (Framework Development)
+
+**Purpose**: Establish complete AI context at session start, ensuring the AI has all necessary environment information,
+project context, and behavioral guidance before beginning work.
+
+**When to use**: User-triggered at the start of every session (resuming features, starting new work, handling
+incidental tasks, etc.). The agent does not initiate this workflow on its own.
+
+**Session lifecycle assumption**: ARC sessions are bounded — they begin with this initialization workflow and end
+with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct response
+is to complete the current work item and hand off, not to compact or summarize prior context.
+
+## Steps
+
+### 1. Verify Environment
+
+**Check working directory:**
+
+```bash
+pwd
+# Expected: /home/andrew/dev/arc-agentic-dev-framework (repo root)
+```
+
+**Verify runtime status:**
+
+```bash
+# Documentation-only framework — no runtime containers, no services
+# Only tool needed: markdown linting via npx
+npx --yes markdownlint-cli --version
+```
+
+### 2. Load AI Context (read in order)
+
+**CRITICAL PRINCIPLE**: All documents are maintained to be lean, non-overlapping, and essential. Read everything
+in full EXCEPT the active task list (which is reference material). These docs are kept minimal by design - there's
+more value in having complete context upfront than discovering missing rules mid-session.
+
+**Read these documents to establish complete context (general → specific):**
+
+**Project identity and agent context:**
+
+1. `.arc-internal/system/agent/AGENTS.md` - **MUST READ IN FULL**
+   - Project overview, technology stack, and AI collaboration principles
+
+2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
+   - Path: `.arc-internal/system/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
+   - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
+   - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
+
+**Constitutional and process context:**
+
+3. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
+   - Quality gates, testing requirements, code quality principles, and project-specific rules
+
+4. `.arc/reference/strategies/arc/strategy-development-methodology.md` - **MUST READ IN FULL**
+   - Commit standards, verification protocol, session management, task management, and all
+     behavioral constraints (extracted from DEVELOPMENT-RULES for framework/project separation)
+
+5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
+   - Index of codified strategy guidance; establishes what domain-specific patterns exist
+
+6. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
+   - Environment context, command patterns, and quality gate commands
+
+7. `.arc/system/workflows/arc/3_process-task-loop.md` - **MUST READ IN FULL**
+   - Task execution protocol, quality gates, and documentation update requirements
+
+**Active work context:**
+
+8. `.arc-internal/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
+   - Current state: branch, task context, last completed work, blockers, and additional context
+   - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
+   - **If missing line number**: Stop and ask user to provide it before proceeding
+
+9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
+   - Path referenced in CURRENT-SESSION.md
+   - Example: `.arc-internal/active/technical/tasks-[work-unit-name].md`
+   - **Reading strategy**:
+     - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
+     - **ALWAYS read**: Current task section identified in CURRENT-SESSION.md (the specific task being worked on)
+       - **Use line number**: CURRENT-SESSION "Current Task" field includes line number (e.g., "Task 5.5 (line 1903)")
+       - **Direct jump**: Use Read tool with offset parameter to jump directly to that task
+       - **No scanning needed**: Line number enables precise navigation
+     - **Read on-demand**: Other phases and tasks as needed during work
+   - **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
+     large to internalize upfront. But you MUST read the overview + current task context.
+   - **What to extract**: Current phase, task details, acceptance criteria
+
+### 3. Confirm Orientation
+
+Confirm successful initialization. Use this structure:
+
+**ARC session initialized** · `{branch-name}` · {clean | uncommitted changes}
+
+**Active work state:**
+
+- **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
+- **Current task**: Task being worked on per CURRENT-SESSION.md
+- **Blockers**: Any blockers or mismatches detected during initialization, or "none"
+
+**Next action:** What comes next per CURRENT-SESSION.md
+
+Awaiting direction.
+
+**Formatting guidance:**
+
+- The header line confirms: protocol ran, active branch, and tree status — at a glance
+- **Next action** is standalone and prominent — it's the user's primary scanning target
+- Environment details (working directory, runtime, documents loaded) are implicit in a
+  successful initialization. Only surface environment information when something is wrong
+  (missing tools, failed verification, documents that couldn't be loaded)
+
+### 4. If Context Seems Mismatched
+
+If documented state (CURRENT-SESSION.md) doesn't match reality (git status, task list checkboxes, file state):
+
+1. **Stop immediately** - do not proceed with work
+2. **Report the mismatch** to user with specific details
+3. **Ask for guidance** on how to resolve the discrepancy
+4. **Wait for explicit direction** before taking any corrective action
+
+**Examples of mismatches:**
+
+- CURRENT-SESSION says "uncommitted files" but `git status` shows clean tree
+- CURRENT-SESSION references "Task 3.3" but task list shows it's already marked `[x]` complete
+- CURRENT-SESSION describes work in progress but git log shows it's been committed
+
+**Do not attempt to "fix" state on your own** - always involve the user when state is unclear.

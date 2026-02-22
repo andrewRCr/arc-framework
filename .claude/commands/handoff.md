@@ -1,1 +1,1 @@
-Let's update `.arc-internal/active/CURRENT-SESSION.md` using `.arc/reference/workflows/supplemental/session-handoff.md`.
+Let's update `.arc-internal/active/CURRENT-SESSION.md` using `.arc/system/workflows/arc/supplemental/session-handoff.md`.

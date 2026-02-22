@@ -34,10 +34,8 @@
     "**/.venv*/**",
     "**/venv/**",
     ".arc/reference/archive/**",
-    ".arc-internal/reference/archive/**",
-    ".arc-internal/active/**"
+    ".arc-internal/reference/archive/**"
   ],
 
-  "customRules": [],
-  "overrides": []
+  "customRules": []
 }

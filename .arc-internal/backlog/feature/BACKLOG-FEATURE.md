@@ -17,6 +17,16 @@
 - **Plan:** `plan-distribution-and-update-system.md`
 - **Next step:** Structural analysis pass (technical backlog) is prerequisite
 
+### Public Release & Adoption
+
+- **Problem:** Framework needs external documentation, polished README, and community infrastructure
+  before going public
+- **Approach:** MkDocs Material docs site for conceptual content, README rewrite for value
+  proposition, community templates for GitHub
+- **Status:** Initial planning
+- **Plan:** `plan-public-release.md`
+- **Sequencing:** Phase D — after CLI & distribution (Phase C)
+
 ---
 
 ## Medium Priority

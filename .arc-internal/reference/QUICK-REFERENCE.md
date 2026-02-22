@@ -12,13 +12,13 @@ Command patterns and environment context for framework development.
 - `QUICK-REFERENCE.md` (this file) - Environment and commands
 - `CURRENT-SESSION.md` (active/) - Work status and next actions
 
-**Key documentation:**
+**Key documentation** (paths relative to `.arc-internal/`):
 
-- `constitution/` - Project principles (META-PRD, DEVELOPMENT-RULES)
-- `workflows/` - Core process guides (define-constitution, create-prd, generate-tasks, process-task-loop)
-- `workflows/supplemental/` - Supporting workflows (atomic-commit, session-handoff, manage-incidental-work)
-- `strategies/` - Technical approaches (ADR methodology, task formatting, work organization)
-- `agent/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
+- `reference/constitution/` - Project principles (META-PRD, DEVELOPMENT-RULES)
+- `reference/strategies/` - Technical approaches (ADR methodology, task formatting, work organization)
+- `system/agent/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
+- `system/workflows/` - Core process guides (setup, create-prd, generate-tasks, process-task-loop)
+- `system/workflows/arc/supplemental/` - Supporting workflows (atomic-commit, session-handoff, manage-incidental-work)
 
 ---
 
@@ -121,17 +121,6 @@ git --no-pager diff --stat
 ✅ Use npx for markdown linting (always available)
 ✅ Focus on documentation quality
 ✅ Follow framework-specific workflows
-
-### Sync Confusion
-
-❌ Syncing active work or temporal content from CineXplorer
-❌ Forgetting to de-instance project-specific details
-❌ Skipping validation steps
-
-✅ Only sync stable `.arc/reference/` improvements
-✅ Only sync format/structure changes from CURRENT-SESSION
-✅ Always de-instance before committing
-✅ Follow sync-cinexplorer-refinements.md workflow
 
 ---
 

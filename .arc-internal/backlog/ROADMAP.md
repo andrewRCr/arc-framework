@@ -33,19 +33,11 @@ Prepare the framework for public distribution via package manager.
    - 6 phases, 62 files, ~3,900 lines net removed
    - Archive: `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
 
-3. **Structural analysis pass** — Audit `.arc/` files for distribution readiness
-   - File classification inventory (framework / configurable / scaffolded / project-owned)
-   - Identify mixed-concern files (stable vs configurable content interleaving)
-   - Cross-cutting concept dependency mapping
-   - Propose section-level separation to minimize merge conflicts
-   - Results become a focused PRD + task list for restructuring work
-
-4. **Structural optimization** — Execute restructuring based on audit findings
-   - Reduce interleaving of framework and project content
-   - Standardize file classification markers (for manifest)
-   - Clean up or remove per-file version stamps (manifest replaces these)
-
-5. **README.md refresh** — Reframe for public audience
+3. **Structural readiness pass** — **In Progress** (`technical/structural-readiness-pass`)
+   - Directory restructuring (`reference/` → `reference/` + `system/` split)
+   - File renames (`.example.md` → `.template.md`), content splits
+   - Configurable branching model, team coordination content
+   - Task list: `.arc-internal/active/technical/tasks-structural-readiness-pass.md`
 
 ### Phase C: CLI & Package Development
 
@@ -59,9 +51,11 @@ Build the distribution tooling.
 ### Phase D: Public Release
 
 1. **Public repository setup** — Rename dev repo, create clean public repo
-2. **Documentation polish** — Adoption-focused docs, getting started guide
-3. **Initial release** — npm publish, GitHub release
-4. **Community infrastructure** — Issue templates, contribution guidelines
+2. **External documentation site** — MkDocs Material + GitHub Pages: conceptual orientation,
+   philosophy, examples, tutorials, comparison/positioning
+3. **README rewrite** — Value proposition, philosophy, "is this for me?" framing
+4. **Initial release** — npm publish, GitHub release
+5. **Community infrastructure** — Issue templates, contribution guidelines
 
 ---
 
@@ -72,8 +66,8 @@ Framework Maturation ──► Distribution Preparation
                          (can't optimize structure without mature content)
 
   Within Distribution Prep:
-  General Refinement ──► Structural Audit ──► Structural Optimization
-  (clean content first)   (then evaluate)     (then restructure)
+  General Refinement ──► Structural Readiness Pass
+  (clean content first)   (then restructure)
 
 Distribution Prep ─────► CLI & Package Development
                          (can't build tooling without knowing file structure)
@@ -82,13 +76,13 @@ CLI Development ───────► Public Release
                          (can't release without distribution mechanism)
 ```
 
-**Note:** README refresh and public repo setup can proceed in parallel with CLI development.
+**Note:** Public repo setup can proceed in parallel with CLI development.
 
 ---
 
 ## Related Documents
 
-- Distribution plan: `feature/plan-distribution-and-update-system.md`
-- Public release plan: `technical/plan-public-release-repository-strategy.md`
+- Distribution plan (Phase C): `feature/plan-distribution-and-update-system.md`
+- Public release plan (Phase D): `feature/plan-public-release.md`
 - Active work: `.arc-internal/active/CURRENT-SESSION.md`
 - Constitution: `.arc-internal/reference/constitution/PROJECT-STATUS.md`

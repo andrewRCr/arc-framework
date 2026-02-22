@@ -33,7 +33,7 @@ jobs:
 
         echo "=== Validating file naming conventions ==="
         # Check naming conventions
-        find .arc -name "*.example.md" -not -path "templates/*" | head -5
+        find .arc -name "*.template.md" -not -path "templates/*" | head -5
         find templates -name "*.template.md" | head -5
         find profiles -name "*.profile.md" | head -5
 

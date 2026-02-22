@@ -18,13 +18,14 @@ templates and examples, this directory houses the live project documentation.
 │   ├── TASK-INBOX.md # Zero-friction capture for ideas
 │   ├── feature/      # Feature backlog and plans
 │   └── technical/    # Technical backlog and plans
-└── reference/        # Stable, long-term project documentation
-    ├── constitution/ # Live foundational documents (META-PRD, rules, architecture)
-    ├── strategies/   # Evolved implementation approaches and stable patterns
+├── reference/        # Stable, long-term project documentation
+│   ├── constitution/ # Live foundational documents (META-PRD, rules, architecture)
+│   ├── strategies/   # Evolved implementation approaches and stable patterns
+│   ├── adr/          # Architecture decision records
+│   ├── research/     # Technical research documents
+│   └── archive/      # Completed feature documentation and decisions
+└── system/           # Agent-facing operational files
     ├── agent/        # Agent configuration and context
-    ├── adr/          # Architecture decision records
-    ├── research/     # Technical research documents
-    ├── archive/      # Completed feature documentation and decisions
     └── workflows/    # Development process guidance
 ```
 
@@ -50,8 +51,8 @@ templates and examples, this directory houses the live project documentation.
 
 - **Project constitution**: `reference/constitution/` houses the live META-PRD, DEVELOPMENT-RULES,
   PROJECT-STATUS, and TECHNICAL-OVERVIEW
-- **AI configuration**: `reference/agent/` contains agent-specific context and instructions
-- **Process workflows**: `reference/workflows/` provides development process guidance
+- **AI configuration**: `system/agent/` contains agent-specific context and instructions
+- **Process workflows**: `system/workflows/` provides development process guidance
 - **Historical context**: `reference/archive/` preserves completed feature documentation
 - **Evolved patterns**: `reference/strategies/` captures learned approaches and stable patterns
 
@@ -80,7 +81,7 @@ and accumulated wisdom.
 2. **Track progress** on features through their PRDs and task lists in `active/feature/`
 3. **Plan future work** by organizing in `backlog/` (ROADMAP.md, backlogs)
 4. **Reference project knowledge** from `reference/constitution/` and other stable documentation
-5. **Follow development processes** using workflows in `reference/workflows/`
+5. **Follow development processes** using workflows in `system/workflows/`
 6. **Archive completed work** by moving finished features to `reference/archive/`
 
 This structure maintains project continuity across sessions while providing clear organization for both

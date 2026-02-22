@@ -7,7 +7,7 @@
 1. Add tasks with checkboxes under "Active" section
 2. When complete:
    - Mark `[x]` and add completion notes
-   - Move to `reference/archive/{quarter}/completed-atomic-{quarter}.md` (insert at top)
+   - Move to `../reference/archive/{quarter}/completed-atomic-{quarter}.md` (insert at top)
    - Add branch line after completion notes (with empty line separator):
 
      ```markdown
@@ -30,7 +30,9 @@
 
 ## Active
 
-*No active atomic tasks.*
+<!-- Items promoted to plan-arc-methodology-gaps.md (backlog/technical/) during
+     structural readiness pass code review — too large for atomic treatment,
+     collectively form a candidate work unit. -->
 
 <!-- General refinement pass escalated to task list: tasks-content-refinement-pass.md
      (in progress on branch technical/content-refinement-pass). -->
