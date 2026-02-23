@@ -1111,4 +1111,58 @@ is a good candidate: "ARC session" as a defined term with specific meaning.
 
 **Not an ADR-002 concern** — captured here for the strategy/WU4 phase.
 
+### Portable Behavioral Guidance (Skills) and ARC
+
+Skills (SKILL.md files) have become a near-universal convention across agent tools — Claude
+Code, Codex, Gemini CLI, Copilot all support them to some degree. They provide portable,
+self-contained behavioral guidance (e.g., TDD methodology, code review patterns) that works
+across repos and agents. ARC needs an explicit position on how they relate to its own
+guidance model.
+
+**Core distinction — the boundary is dependency:**
+
+- **ARC strategies/workflows** = project-integrated guidance. They cross-reference each other
+  (strategies reference quality gates, workflows reference strategies, task loop references
+  session lifecycle). This integration is how ARC delivers consistent, predictable results.
+- **Skills** = portable behavioral recipes. Self-contained by design — that's what makes them
+  portable. They don't know about ARC's task loop, quality tiers, or session model.
+- **The boundary:** If guidance depends on ARC concepts, it's a strategy or workflow. If it's
+  fully self-contained, it could be a skill — but ARC doesn't guarantee consistency for
+  guidance outside its integration model.
+
+**Key insight:** The moment you reference a skill from an ARC workflow (e.g., "when
+implementing, invoke /tdd"), you've created framework content with extra indirection. The
+content should just live in a project strategy at that point. The "skill" wrapper adds no
+value once it's integrated.
+
+**ARC's position (proposed, not mandated):**
+
+- ARC's consistency guarantees come from the handshake between documents — strategies,
+  workflows, quality gates referencing each other predictably
+- External portable guidance coexists naturally — it's complementary, not competing
+- If you need external guidance integrated with ARC's lifecycle, bring it into a project
+  strategy (user/team level, not ARC level). This is where it gains ARC's consistency
+  guarantees
+- If portable-and-standalone works for your use case, ARC doesn't block it — tier 3
+  (escape hatch) philosophy applies. ARC states its position and the tradeoff, doesn't
+  forbid the alternative
+- ARC won't mandate — teams who find skills reliable enough can use them directly
+
+**Existing coverage in ADR-002:** "Slash commands / invocation" classified as incidental,
+tracing to "reusable workflows" as the load-bearing principle. Skills are another invocation
+format in that column ("Commands vs. palette vs. natural language"). But ADR-002 addressed
+invocation *mechanisms*, not the broader question of ARC's relationship to portable
+behavioral guidance *conventions* that are becoming cross-agent standards.
+
+**TBD — Adapter workflow:**
+
+A lightweight workflow for adapting portable skills into ARC project strategies could provide
+a clear bridge for users who want both portability and integration. Steps would include:
+analyzing existing project strategies/workflows, identifying where skill content overlaps or
+fills gaps, and producing an integrated project strategy that incorporates the methodology.
+Not heavy — a checklist or short workflow at project level, not an ARC-level mandate.
+Evaluate during Phase 5 whether this adds enough value to include.
+
+**Addressed in:** Task 5.2 — `tasks-philosophy-configurability.md`
+
 ---

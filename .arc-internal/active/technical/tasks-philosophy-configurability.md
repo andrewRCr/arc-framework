@@ -345,14 +345,19 @@ principle/method distinction. (PRD Requirements 4, 5)
 
 - [ ] **5.2 Design external tool and platform compatibility**
 
-    **Goal:** Define how ARC coexists with external trackers and non-GitHub platforms.
-    (PRD Requirement 7)
+    **Goal:** Define how ARC coexists with external trackers, non-GitHub platforms, and
+    portable behavioral guidance conventions (skills). (PRD Requirement 7)
 
-    - Read `notes-philosophy-configurability.md` — team workflow gaps from audit
+    - Read `notes-philosophy-configurability.md` — team workflow gaps from audit +
+      portable guidance (skills) analysis
     - Catalog platform-specific assumptions in current docs (GitHub Actions, `gh` CLI,
       PR-based workflows)
     - Design: workflows reference practices not tools, extension points at tool
       boundaries, config declares tool choices
+    - Address portable behavioral guidance conventions (SKILL.md and similar): ARC's
+      position on coexistence, the dependency boundary (integrated = strategy,
+      standalone = external), and whether an adapter workflow for skill-to-strategy
+      conversion adds value
     - Ensure ARC built-in methods remain first-class
     - Draft ADR (external tool and platform compatibility)
 
