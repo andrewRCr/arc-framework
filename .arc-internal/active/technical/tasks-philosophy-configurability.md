@@ -159,57 +159,86 @@ gathered, evaluated for sufficiency, and supplemented if needed before moving on
 **Purpose:** Define ARC's non-negotiable principles vs. configurable methods — the keystone
 decision that everything else depends on. (PRD Requirement 1)
 
-- [ ] **2.1 Prepare core identity discussion**
+- [x] **2.1 Prepare core identity discussion**
 
     **Goal:** Ground the discussion in what ARC actually is today, not what we assume it is.
 
-    - Read current identity-defining docs:
-        - META-PRD philosophy section
-        - AGENTS.md collaboration principles
-        - `strategy-development-methodology.md` behavioral constraints
-        - Process task loop (one-task-at-a-time, review gates, deferred review)
-    - Read `notes-philosophy-configurability.md` — candidate non-negotiables, audit
-      findings (3 dealbreakers, 7 friction points, principle-vs-method analysis)
-    - Read `research-agent-landscape.md` — multi-agent and co-development context
-    - Read `research-attention-single-tasking.md` — empirical basis for
-      single-threaded attention claim
-    - Produce a working catalog: each current ARC practice listed with initial
-      principle/method classification for discussion
+    - Read all identity-defining sources: META-PRD philosophy, AGENTS.md principles,
+      development methodology strategy, process task loop, aspirational README, PRD use
+      cases. Cross-referenced with audit findings and Phase 1 research.
+    - Produced working catalog in `notes-philosophy-configurability.md` § "Working
+      Catalog: ARC Practice Classifications" — 30 practices across 5 groups (core
+      philosophy, task execution, commit/VCS, documentation, agent interaction) with
+      initial P/C/D classifications: 12 proposed principles, 14 proposed conventions,
+      4 needing discussion (focused execution scope, mandatory review stop granularity,
+      atomic commits vs. merge strategy, co-development model). Identified 4 key
+      discussion threads for Task 2.2.
 
-- [ ] **2.2 Discuss and draft core identity ADR**
+- [x] **2.2 Discuss and draft core identity ADR**
 
-    - [ ] **2.2.a Classify each candidate principle**
-        - Work through each candidate: spec-driven development, granular task tracking,
-          human-agent pairing, minimal parallelism, quality gates, session documentation,
-          git-native workflows
-        - For each: principle (tier 1 non-negotiable), convention (tier 2 configurable),
-          or escape hatch territory (tier 3)?
-        - Apply the audit's analytical lens: does blurring this boundary cause adoption
-          friction?
-        - Document rationale for each classification
+    - [x] **2.2.a Classify each candidate principle**
+        - All 7 candidates classified through interactive discussion. Decisions recorded in
+          `notes-philosophy-configurability.md` § "Task 2.2 Classification Decisions":
+        - **Spec-driven development:** P — foundational (not most distinctive). Planning
+          leads execution. Threshold left to team discretion; quick fixes can rely on
+          well-crafted git commits. Doc hierarchy is convention.
+        - **Human-agent pairing:** P — ARC's most distinctive characteristic. Tight
+          iterative feedback loops, micro-level review, co-development not delegation.
+          Review increment granularity is convention (per-task default, per-parent-task
+          acceptable; per-phase too loose). Terminology gap identified: "review increment"
+          proposed for the bounded autonomous chunk between reviews (distinct from "work
+          unit").
+        - **Focused execution:** P — separate from pairing but deeply linked. Three
+          pillars: cognitive science, human-for-humans, complementary strengths amplified
+          by frequency. "Feature, not a bug" reframe. Between strong and moderate framing.
+        - **Quality gates:** P (narrowly: verification required). Zero-tolerance, tiers,
+          tools all convention. "Leave it cleaner" is convention with a capture floor.
+        - **Context preservation:** P — recoverability through structured, human-controlled,
+          transparent mechanisms. Two types acknowledged (session-level, project-level).
+          Criteria on the mechanism's qualities, not the mechanism itself.
+        - **Git-native / traceability:** P (traceability principle); nearly all methods
+          are convention. Git assumed; non-git is escape hatch. All 3 audit dealbreakers
+          (commit format, footer, atomic/squash) resolved as convention. C6 (branch/task
+          coupling) demoted from default — artifact of solo workflow.
+        - **Granular task tracking:** P — planning leads execution at every level, never
+          the reverse. Markdown checkboxes are convention; external trackers acceptable.
 
-    - [ ] **2.2.b Position on multi-agent and autonomy spectrum**
-        - Ground the single-threaded attention claim in `research-attention-single-tasking.md`
-          evidence — cite, don't just assert
-        - Articulate why ARC favors human-agent coupling and single-threaded execution
-        - Acknowledge where orchestration and factory-style agents provide value
-        - Define where sequential agent handoffs fit (compatible with ARC)
-        - Establish tone: clear and honest, not preachy or dismissive
+    - [x] **2.2.b Position on multi-agent and autonomy spectrum**
+        - Position recorded in notes § "2.2.b." Core reframe: human single-threaded
+          attention is a feature, not a bug. Throughput is not the gold standard.
+        - Three-pillar evidence basis established. Orchestration value acknowledged for
+          bounded/deterministic domains. Sequential agent handoffs confirmed compatible.
+        - Tone: positive value claim ("if this is what you care about, ARC delivers"),
+          not comparative ("our approach is better"). No future predictions. Evidence-cited,
+          not dogmatic.
+        - Portfolio description captured as reference language for ADR drafting.
 
-    - [ ] **2.2.c Resolve co-development model question**
-        - Is "local CLI agent with filesystem co-development" a principle or a method?
-        - What's the deeper principle if it's a method?
-        - How does this affect cloud/remote agent compatibility?
+    - [x] **2.2.c Resolve co-development model question**
+        - **Decision:** Shared context with mutual visibility is principle; local CLI
+          mechanism is convention. CLI and IDE agents are within principle; async delegation
+          agents are outside ARC's design envelope.
+        - "Bookend pattern" acknowledged but not promoted: ARC planning + ARC integration
+          with delegation execution in between. Valid for bounded work, not the default
+          path. If delegation becomes the norm, ARC's distinctive value is lost.
+        - Key reframe: "co-developing rather than simply reviewing."
 
-    - [ ] **2.2.d Draft ADR**
-        - Write ADR following `strategy-adr-methodology.md` format
-        - File: `.arc-internal/reference/adr/adr-001-*.md` (title TBD based on discussion)
-        - Include all classifications, rationale, and consequences
+    - [x] **2.2.d Draft ADR**
+        - Drafted `adr-001-define-core-identity-and-principle-method-boundary.md` in
+          `.arc-internal/reference/adr/` following Nygard five-section format
+        - Single ADR covering all classifications (11 principles, 19 conventions),
+          multi-agent/autonomy positioning, and co-development model resolution
+        - Status: Proposed (pending review in Task 2.3)
+        - Passes markdownlint with zero violations
 
-- [ ] **2.3 Review and finalize core identity ADR**
-    - Iterate based on review feedback
-    - Ensure consequences section identifies what becomes easier/harder for WU2-WU4
-    - Lint ADR file
+- [x] **2.3 Review and finalize core identity ADR**
+    - One revision: reframed "countercultural/will face resistance" negative consequence
+      to "value proposition self-selects audience" — meaningful distinction between
+      resistance to ARC's philosophy (unlikely) vs. choosing different tradeoffs (natural)
+    - ADR status updated from Proposed to Accepted
+    - Consequences section covers WU2-WU4 implications (all dealbreakers resolved,
+      friction points addressed, clear agent compatibility envelope, convention count
+      flagged for WU2 design work)
+    - Zero lint violations
 
 ### **Phase 3:** Session & Agent Model
 
