@@ -557,4 +557,27 @@ user-facing.
 
 ---
 
+## Forward-Looking: Terminology Pass
+
+ARC's key concepts — session, review increment, work unit — would benefit from a deliberate
+terminology review during or after WU2. Memorable, consistently used terms reinforce concepts
+through repeated use and help adopters build shared vocabulary. Examples:
+
+- **"ARC session"** as a branded term with the specific meaning established in ADR-002
+  (bounded, intentional work period)
+- **"Review increment"** proposed in ADR-001 but not yet tested with adopters
+- **"Work unit"** established but could be more distinctive
+- Session-init's "ARC session initialized" confirmation already reinforces the session concept
+
+This is not a separate work item — it's a lens to apply during WU2 doc edits and WU4
+public-facing writing. When touching a document, consider whether key terms are used
+consistently and whether there are opportunities to strengthen recognition. The strategy
+document synthesis (WU1 Requirement 10) or WU4 adoption guides are natural homes for a
+consolidated terminology reference if one emerges.
+
+Origin: ADR-002 review discussion (`notes-philosophy-configurability.md`, "Forward-Looking:
+Terminology and Branding").
+
+---
+
 **Created:** 2026-02-22
