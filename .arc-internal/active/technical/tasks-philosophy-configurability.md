@@ -245,45 +245,44 @@ decision that everything else depends on. (PRD Requirement 1)
 **Purpose:** Resolve whether ARC's session model is a principle or method, and map workflow
 assumptions against the full agent spectrum. (PRD Requirements 2, 3)
 
-- [ ] **3.1 Evaluate session model**
+- [x] **3.1 Evaluate session model**
 
     **Goal:** Determine if the principle is "sessions with explicit boundaries" or "context must
     be recoverable." (PRD Requirement 2)
 
-    - Read current session docs: `session-init.md`, `session-handoff.md`,
-      `CURRENT-SESSION.template.md`, CLAUDE.md context window section
-    - Read `research-context-degradation.md` for session length evidence
-    - Read `research-agent-landscape.md` for how other agent types handle context
-    - Consider: IDE agents with persistent memory, large-context agents, cloud agents
-      with own-branch workflows
-    - Identify WU2 scope implications for each possible answer (method = make
-      configurable/optional; principle = clean up framing)
-    - Draft ADR (session model evaluation)
+    **Outcome:** Both — at different levels. The session *concept* (bounded, intentional work
+    periods) is principle-level, reinforcing focused execution (P3), context preservation (P5),
+    and the tight feedback loop (P2). Session *ceremonies* (init/handoff, specific docs, length
+    thresholds) are convention. Context quality management during sessions identified as a P5
+    expansion — preservation includes proactive quality management, not just recovery at
+    boundaries. Decided to consolidate Tasks 3.1 + 3.2 into a single ADR-002 (session model +
+    agent compatibility) since the session model IS the deepest agent-agnosticism question and
+    both share the same evidence base. Full analysis in `notes-philosophy-configurability.md`
+    (section "Task 3.1").
 
-- [ ] **3.2 Assess agent-agnosticism**
+- [x] **3.2 Assess agent-agnosticism + draft combined ADR-002**
 
-    **Goal:** Map ARC's workflow assumptions against the full agent spectrum and classify each
-    as load-bearing vs. incidental. (PRD Requirement 3)
+    **Goal:** Map ARC's workflow assumptions against the full agent spectrum, classify each as
+    load-bearing vs. incidental, and draft the combined ADR covering both session model (3.1
+    findings) and agent compatibility. (PRD Requirements 2, 3)
 
-    - Read current agent-specific docs: AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md,
-      `copilot-instructions.template.md`
-    - Read `research-agent-landscape.md` for the full agent spectrum
-    - Evaluate each assumption against each agent type:
-        - Conversational interaction
-        - Context window loading
-        - Turn-based execution
-        - Terminal-based co-development
-        - Local filesystem access
-        - Slash commands / skill invocation
-        - Deferred review protocol
-    - Classify each: load-bearing (fundamental) vs. incidental (Claude Code artifact)
-    - Identify adaptation points where workflows need flexibility
-    - Draft ADR (agent-agnosticism assessment)
+    **Outcome:** All seven workflow assumptions classified as incidental — each traces to a
+    load-bearing principle already in ADR-001, but the specific mechanism is shaped by Claude
+    Code. Combined ADR-002 drafted with five parts: (1) session as first-class concept, (2) P5
+    expansion for context quality management, (3) workflow assumption classification table,
+    (4) three-tier agent compatibility spectrum (CLI primary, IDE compatible, cloud/async
+    off-label), (5) agent file architecture confirmation. Key positioning: CLI conversational
+    agents are the natural fit and primary design target; cloud/async is explicitly "off-label"
+    for bounded work, not forbidden but not the expected norm. WARP.md staleness flagged for
+    WU2. Analysis captured in `notes-philosophy-configurability.md` (section "Task 3.2").
+    ADR-002 at `adr-002-session-model-and-agent-compatibility.md`, zero lint violations.
 
-- [ ] **3.3 Review and finalize Phase 3 ADRs**
-    - Iterate based on review feedback
-    - Ensure session model and agent-agnosticism ADRs are consistent with core identity ADR
-    - Lint all new ADR files
+- [x] **3.3 Review and finalize ADR-002**
+    Reviewed, one revision (session justification reframed: agent performance degradation as
+    primary evidence-based driver, removed false "infinite context" premise, corrected
+    misapplied cognitive science). Tier 2 risk updated to note planned pre-release IDE
+    validation. Terminology/branding opportunity captured in notes for strategy/WU4 phase.
+    Status set to Accepted.
 
 ### **Phase 4:** Configurability Mechanisms
 

@@ -922,4 +922,193 @@ building it — not just reviewed the output. This allows leveraging AI speed wi
 becoming a black box. Delegation-based approaches risk producing code that no human deeply
 understands, creating maintenance debt that compounds over time.
 
+## Task 3.1 — Session Model Evaluation
+
+**Core question (PRD Req 2):** Is the principle "sessions with explicit boundaries" or
+"context must be recoverable"?
+
+**Answer:** Both — at different levels. ADR-001 P5 already resolved that recoverability is
+the principle and specific ceremonies are convention. Task 3.1 analysis adds a layer: the
+*session concept itself* is principle-level, but for reasons deeper than context limits.
+
+### Session as First-Class Concept (Principle-Level)
+
+The session is the temporal container for focused work. It's a first-class concept in ARC,
+not just a technical necessity forced by context limits.
+
+**Three reasons sessions matter beyond context constraints:**
+
+1. **Human attention is the binding constraint, not agent context.** P3 (focused execution)
+   is about the human, not the agent. Even with infinite agent context, the human's effective
+   engagement has limits. A session is the natural unit of sustained human focus.
+
+2. **Sessions enforce methodology discipline.** Begin with context establishment, execute
+   within scope, end with explicit state capture. This rhythm reinforces P1 (spec-driven),
+   P7 (granular tracking), and P2 (tight feedback loop). Without session boundaries, work
+   drifts toward open-ended accumulation.
+
+3. **Sessions create natural review/commit points.** They force the question: "Is this work
+   done? Is it committed? What's the state?" Without that boundary, the answer is always
+   "in progress, kind of."
+
+**What varies (convention-level):**
+
+- **Why the session ends** — context limits (CLI), natural work boundary, human schedule,
+  task completion (cloud/async)
+- **How long it lasts** — governed by context quality guidance, human attention, work scope
+- **What ceremonies bookend it** — init/handoff (convention, varies by agent type)
+
+**What doesn't vary (principle-level):**
+
+- Work happens in bounded, intentional periods with explicit start and end states
+- Context quality is actively managed within the session (not just recovered at boundaries)
+- The session reinforces focused execution — it's where P3, P5, and P2 converge in practice
+
+### Context Quality Management — P5 Expansion
+
+P5 as written focuses on recoverability at boundaries. Context degradation research
+demonstrates that quality management *during* work is equally important:
+
+- Performance degrades 13.9%–85% as context fills, even with perfect retrieval
+- Effective capacity: 60–70% of advertised limits
+- 75–80% utilization sweet spot for general agentic work, lower for complex reasoning
+- Shorter windows with good compression outperform massive windows with naive accumulation
+- Complex reasoning (which ARC work IS) degrades faster than simple retrieval
+
+**Proposed P5 expansion:** Context must be recoverable across sessions (existing) AND
+context quality must be actively managed within sessions (new). This doesn't change P5's
+core statement — it acknowledges that preservation includes proactive management, not just
+recovery at boundaries. Specific thresholds and monitoring mechanisms remain convention.
+
+### Agent Spectrum — Session Concept Mapping
+
+| Agent Type                                      | Session concept                      | ARC session maps naturally?                  |
+|-------------------------------------------------|--------------------------------------|----------------------------------------------|
+| CLI (Claude Code, Aider, Codex CLI, Gemini CLI) | Conversation: launch → work → exit   | Yes — ARC's primary design target            |
+| IDE (Cursor, Windsurf, Copilot)                 | Thread within IDE, soft boundaries   | Yes with lighter ceremony                    |
+| IDE + memory (Augment Code)                     | Blurry — memories persist            | Session still valuable for focus discipline  |
+| Cloud/async (Jules, Codex cloud, Warp Oz)       | Task execution: dispatch → deliver   | Session = task; inherent boundaries          |
+| Auto-compaction (Amazon Q, Claude Code)         | Extended via mid-session compression | Compaction is a mini-boundary within session |
+
+**Key observation:** CLI/terminal model is where sustained, methodology-driven development
+workflows live. IDE agents are growing but augment editor workflows. Cloud/async agents are
+task dispatchers. ARC's session model maps most naturally to the CLI model, which is the
+leading model for the kind of work ARC is designed for.
+
+### WU2 Scope Implications
+
+Since the session *concept* is principle but *ceremonies* are convention:
+
+- **Reframe session docs** as ARC's default method for CLI/IDE agents, not the only way
+- **Soften session language** in framework docs from "conversation with start/end" to
+  "bounded work period with context management"
+- **Make ceremonies configurable** — lighter init for IDE agents, different handoff for
+  cloud/async
+- **Add context quality guidance** as principle-level ("monitor and manage context quality")
+- **Keep threshold specifics** as convention-level (75–80%, specific monitoring protocols)
+
+### ADR Consolidation Decision
+
+Tasks 3.1 and 3.2 will produce a single combined ADR-002 (session model + agent
+compatibility). Rationale: the session model IS the deepest agent-agnosticism question;
+both tasks share the same evidence base and produce WU2 implications for the same docs.
+Task 3.2's workflow assumption mapping is the supporting analysis. One coherent document
+avoids repetitive context and awkward cross-references between two thin ADRs.
+
+## Task 3.2 — Agent-Agnosticism Assessment
+
+### Workflow Assumption Classifications
+
+All seven assumptions evaluated are **incidental** (shaped by Claude Code experience), each
+tracing back to a load-bearing principle already captured in ADR-001:
+
+| Assumption                  | Classification     | Load-bearing principle behind it |
+| --------------------------- | ------------------ | -------------------------------- |
+| Conversational interaction  | Incidental         | P2 (iterative feedback)          |
+| Context window loading      | Incidental         | P5 (context preservation)        |
+| Turn-based execution        | Incidental         | P2 (review at increments)        |
+| Terminal co-development     | Incidental         | P11 (shared context)             |
+| Local filesystem access     | Mostly incidental* | P11 + P5 (shared artifacts)      |
+| Slash commands / invocation | Incidental         | Reusable workflows               |
+| Deferred review protocol    | Convention         | P2 (review flexibility)          |
+
+*\*Local filesystem access has a nuance: CURRENT-SESSION.md as a shared artifact between
+human and agent depends on filesystem co-location. Cloud agents with their own repo clone
+don't share this artifact during execution — only at the git level. This is another
+expression of P11's co-development envelope: CLI/IDE agents share it natively, cloud/async
+agents don't.*
+
+### What's Actually Load-Bearing
+
+1. Agent has project context before working (P5) — method varies
+2. Agent and human share context with mutual visibility (P11) — mechanism varies
+3. Review happens at meaningful increment boundaries (P2) — interaction model varies
+4. Agent can read and modify work artifacts — access mechanism varies
+5. Human can intervene during work, not just at completion (P2 + P11)
+6. Predefined workflows exist and are triggerable — invocation mechanism varies
+
+### Natural Fit Spectrum (Discussed)
+
+**"All seven incidental" is a strength** — ARC's methodology is genuinely agent-agnostic
+at the principle level, with adaptation needed only at ceremony/mechanism level.
+
+**But honest about natural fit:** CLI conversational agents (Claude Code, Codex CLI, Gemini
+CLI, Aider) are what ARC has in mind and where it shines. IDE conversational agents (Cursor,
+Windsurf, Copilot) are roughly equivalent — so long as you follow a session structure, the
+co-development loop functions. Better to be excellent for a clear subset than mediocre
+across all.
+
+**Cloud/async agents are "off-label use":** ARC can function at the boundaries (planning
+output serves as dispatch spec; quality gates and traceability serve as integration
+mechanism — the "bookend pattern" from ADR-001). But the core value proposition — iterative
+co-development with frequent micro review and input — is lost during the execution phase.
+Not forbidden, but explicitly an exception for certain kinds of bounded work, not the
+expected norm. ARC assumes this is an occasional complement, not typical core workflow. It's
+antithetical to ARC's design center, even if there are legitimate use cases.
+
+### Agent-Specific File Structure Assessment
+
+The hub-spoke pattern (AGENTS.md as entry point, agent files for truly unique guidance) is
+**sound and well-designed**. The README nails the intent.
+
+**Internal CLAUDE.md observation:** Thickest agent file because it carries both genuinely
+Claude-specific content (context thresholds, sub-agents) and ARC methodology restated for
+Claude context (session init, deferred review). The latter arguably belongs in shared docs
+but serves as focused agent-level reminders — reasonable tradeoff for the only battle-tested
+agent file.
+
+**WARP.md staleness:** Contains Docker-focused workflow references from earlier project
+state. Flag for WU2 cleanup — minor, incidental to this analysis.
+
+### WU2 Scope Implications (Agent-Agnosticism)
+
+- Workflow docs should express the *what* (agent needs context, review happens at
+  increments, workflows are triggerable) without over-prescribing the *how*
+- Session init/handoff ceremonies: configurable weight (full for CLI, lighter for IDE,
+  task-spec-based for cloud)
+- Agent-specific file templates: keep hub-spoke pattern, ensure supplements contain truly
+  agent-specific content only
+- WARP.md: refresh to remove stale Docker references
+- Explicitly frame CLI conversational agents as ARC's primary design target, IDE agents as
+  compatible, cloud/async as off-label for bounded use
+
+## Forward-Looking: Terminology and Branding
+
+**Context:** Emerged during ADR-002 review. ARC's key concepts — session, review increment,
+work unit — would benefit from deliberate terminology design. Memorable, branded terms
+reinforce concepts through repeated use and help adopters build shared vocabulary.
+
+**Examples of existing terminology that works:**
+
+- "ARC session initialized" (session-init confirmation) — already reinforces the session concept
+- "Work unit" (combined doc set: PRD + task list + notes) — established in ADR-001
+- "Review increment" (bounded autonomous execution chunk) — proposed in ADR-001, not yet tested
+
+**Opportunity:** Consider a terminology pass during strategy document synthesis (Requirement
+10) or WU4 (public-facing docs). Not about inventing jargon — about ensuring the terms ARC
+uses are consistent, intuitive, and recognizable. The session concept formalized in ADR-002
+is a good candidate: "ARC session" as a defined term with specific meaning.
+
+**Not an ADR-002 concern** — captured here for the strategy/WU4 phase.
+
 ---
