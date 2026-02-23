@@ -386,6 +386,10 @@ lost.
   strengths) provides durable, citable reasoning rather than assertion.
 - **Clear design foundation for WU2-WU4:** Downstream work units can implement against a stable set of principles rather
   than navigating ambiguous requirements.
+- **Practical co-development benefits:** Frequent review increments reduce costly rework (issues caught early, not after
+  large autonomous work blocks). Active developer involvement prevents codebase-as-black-box — the developer maintains
+  familiarity with implementation because they participated in building it, improving long-term maintainability. The
+  co-development model also sustains developer engagement rather than reducing them to reviewers of AI output.
 
 ### Negative
 

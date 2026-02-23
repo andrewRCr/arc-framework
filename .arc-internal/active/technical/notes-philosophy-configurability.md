@@ -895,4 +895,31 @@ Candidate: **review increment** — self-explanatory, generalizable, clearly dis
   default path must be strongly positioned: co-development is the norm, anything else is a
   departure from the system's core value proposition.
 
+## Practical Benefits for Strategy Document (Requirement 10)
+
+**Purpose:** Supporting arguments that strengthen the case for ARC's co-development model.
+These are practical validations of what the three pillars predict — better suited to the
+philosophy strategy document than the ADR itself.
+
+**Rework reduction through early detection:** Catching issues at the review increment level
+is dramatically cheaper than catching them after a large autonomous work block. The industry
+is discovering that "agent produces PR, human reviews" leads to significant rework — the
+review surface area is too large, issues compound, and often it's easier to redo than to fix.
+ARC's model is essentially continuous integration of human judgment, preventing compound errors
+from accumulating. Increased review increment frequency saves significant time on work-unit-level
+review time and effort.
+
+**Developer experience and engagement:** A documented burnout pattern is emerging where
+developers feel reduced to rubber-stamp reviewers of AI output. They lose engagement, lose
+context on their own codebase, and review quality degrades because disengaged review is
+ineffective review. ARC's co-development model keeps the developer actively contributing and
+learning — sustainable in a way that "review-only" is not.
+
+**Maintainability and codebase familiarity:** Co-development means the developer was there
+every step of the way during implementation. In days, weeks, or months when maintenance needs
+arise, the developer has a feel for how the implementation works because they participated in
+building it — not just reviewed the output. This allows leveraging AI speed without the codebase
+becoming a black box. Delegation-based approaches risk producing code that no human deeply
+understands, creating maintenance debt that compounds over time.
+
 ---
