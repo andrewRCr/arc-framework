@@ -43,27 +43,31 @@ gathered, evaluated for sufficiency, and supplemented if needed before moving on
 
 **Purpose:** Gather external evidence to ground ADR discussions in facts rather than assumptions.
 
-- [ ] **1.1 Research agent landscape**
+- [x] **1.1 Research agent landscape**
 
     **Goal:** Understand how IDE, cloud/remote, and factory-style agents work to inform session
     model and agent-agnosticism decisions (PRD requirements 1, 3).
 
-    - [ ] **1.1.a Gather agent landscape research**
-        - Prompt external research agent covering:
-            - IDE agents (Cursor, Windsurf) — context persistence, session boundaries,
-              file-level collaboration model
-            - Cloud/remote agents (Claude web, Codex desktop) — branching workflows,
-              async work patterns, handoff to humans
-            - Factory-style agents (Devin, SWE-agent, Copilot Workspace) — capabilities,
-              typical workflows, level of autonomy, human handoff points
-        - Save full output with references to `research-agent-landscape.md` in
-          `active/technical/`
+    - [x] **1.1.a Gather agent landscape research**
+        - Two research passes: (1) training-knowledge baseline, (2) web-verified supplemental
+          covering gaps identified in evaluation
+        - 17 tools across 4 categories: IDE-integrated (Cursor, Windsurf, Copilot,
+          Antigravity, Claude Code, Cline/Roo, Amazon Q, Augment Code), CLI (Aider),
+          cloud/remote (Codex, Jules, Warp Oz, Claude headless), factory-style (Devin,
+          SWE-Agent, OpenHands, Bolt.new/Lovable/v0)
+        - Merged into single `research-agent-landscape.md` in `active/technical/`
 
-    - [ ] **1.1.b Evaluate and supplement**
-        - Review research quality and coverage together
-        - Identify gaps or weak areas
-        - Run follow-up research prompts if needed
-        - Mark complete when evidence base is sufficient for requirements 1 and 3
+    - [x] **1.1.b Evaluate and supplement**
+        - Initial pass was training-knowledge only (web unavailable); identified gaps in
+          Codex, Copilot, Cursor, Jules coverage + missing tools (Antigravity, Warp Oz,
+          Aider, Amazon Q, Augment Code)
+        - Supplemental pass filled all gaps with web-verified sources
+        - Merged two docs into single authoritative file; trimmed to focus on ARC-relevant
+          operational details
+        - Mapped research against all downstream consumers (Phase 2 tasks 2.1/2.2.b/2.2.c,
+          Phase 3 tasks 3.1/3.2); coverage strong across all needs
+        - Two minor gaps (slash commands, deferred review patterns) assessed as better
+          addressed during ADR discussions than via additional research
 
 - [ ] **1.2 Research context degradation in large windows**
 
