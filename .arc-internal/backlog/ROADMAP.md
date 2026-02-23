@@ -3,7 +3,7 @@
 **Purpose:** Internal planning artifact documenting sequencing strategy for framework
 development. Subject to change as we learn.
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-23
 
 ---
 
@@ -34,14 +34,15 @@ Prepare the framework for public distribution via package manager.
 Four work units producing a stable, configurable, distributable 1.0 release. Each unit
 has a dedicated plan document in the backlog.
 
-**WU1: Core Philosophy & Configurability Architecture** — Design-only
+**WU1: Core Philosophy & Configurability Architecture** — Design-only · **In Progress**
 
 Define what ARC IS (non-negotiables vs. methods), design the configurability architecture
 (arc-config.yml expansion, workflow extension points, progressive adoption tiers), resolve
 the session model and agent-agnosticism questions. Produces ADRs and strategy documents
 that all downstream work references.
 
-- Plan: `technical/plan-wu1-philosophy-configurability.md`
+- Task list: `.arc-internal/active/technical/tasks-philosophy-configurability.md`
+- Branch: `technical/philosophy-configurability`
 - Upstream: none
 - Downstream: WU2, WU3, WU4
 

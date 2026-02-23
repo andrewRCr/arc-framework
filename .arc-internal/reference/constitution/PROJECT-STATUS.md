@@ -95,7 +95,10 @@ with distribution system design as the primary focus area.
 
 ## Currently Active
 
-[none]
+- **Core Philosophy & Configurability Architecture** (technical) — Design-only: resolve foundational
+  1.0 decisions via ADRs and strategy documents
+    - Task list: `.arc-internal/active/technical/tasks-philosophy-configurability.md`
+    - Branch: `technical/philosophy-configurability`
 
 ## Upcoming Priorities
 
@@ -142,4 +145,4 @@ with distribution system design as the primary focus area.
 
 ---
 
-*Last updated: 2026-02-22*
+*Last updated: 2026-02-23*

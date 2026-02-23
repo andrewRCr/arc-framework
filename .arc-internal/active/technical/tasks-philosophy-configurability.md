@@ -1,11 +1,11 @@
 # Task List: Core Philosophy & Configurability Architecture
 
-**PRD:** `.arc-internal/backlog/technical/prd-philosophy-configurability.md`
-**Notes:** `.arc-internal/backlog/technical/notes-philosophy-configurability.md`
+**PRD:** `.arc-internal/active/technical/prd-philosophy-configurability.md`
+**Notes:** `.arc-internal/active/technical/notes-philosophy-configurability.md`
 **Created:** 2026-02-23
 **Branch:** `technical/philosophy-configurability`
 **Base Branch:** `main`
-**Status:** Pending
+**Status:** In Progress
 
 ## Overview
 
