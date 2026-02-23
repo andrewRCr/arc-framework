@@ -121,34 +121,38 @@ gathered, evaluated for sufficiency, and supplemented if needed before moving on
           disclaimers added to prevent misinterpretation during ADR process
         - Coverage sufficient for requirement 9
 
-- [ ] **1.4 Research human attention and single-tasking**
+- [x] **1.4 Research human attention and single-tasking**
 
     **Goal:** Gather empirical evidence that human attention is single-threaded — the cognitive
     science foundation for ARC's minimal parallelism and one-task-at-a-time principles
     (PRD requirement 1, core philosophy strategy document).
 
-    - [ ] **1.4.a Gather attention/single-tasking research**
-        - Prompt external research agent covering:
-            - Empirical research on task-switching costs (cognitive psychology)
-            - Studies on attention splitting and concurrent task performance
-            - The multi-tasking myth — evidence that single-tasking outperforms
-              multi-tasking in knowledge work
-            - Any research specifically on monitoring multiple concurrent automated
-              processes (relevant to multi-agent supervision)
-            - Prefer peer-reviewed sources; note meta-analyses or landmark studies
-        - Save full output with references to `research-attention-single-tasking.md`
-          in `active/technical/`
+    - [x] **1.4.a Gather attention/single-tasking research**
+        - External research agent produced comprehensive report covering all 4 areas:
+          task-switching costs (Rogers & Monsell, Rubinstein/Meyer/Evans), attention
+          bottleneck theories (Broadbent, Welford, Pashler, Kahneman), multitasking
+          myth (Ophir/Nass/Wagner, Leroy attention residue, Gloria Mark interruptions),
+          and automation monitoring (vigilance decrement, ATC, supervisory control)
+        - ~20 peer-reviewed sources, multiple landmark studies and meta-analyses
+        - Saved to `research-attention-single-tasking.md` in `active/technical/`
 
-    - [ ] **1.4.b Evaluate and supplement**
-        - Review research quality — prioritize peer-reviewed, empirical sources
-        - Assess whether evidence is strong enough to cite in a philosophy document
-          (not just blog posts or conventional wisdom)
-        - Run follow-up prompts if needed (e.g., narrow to specific landmark studies)
-        - Mark complete when evidence base provides citable support for the
-          single-threaded attention claim
+    - [x] **1.4.b Evaluate and supplement**
+        - Initial pass had confirmation bias risk (asked for supporting evidence only);
+          ran targeted follow-up for counterevidence: supertaskers (Watson & Strayer),
+          EPIC model (Schumacher et al.), threaded cognition (Salvucci & Taatgen),
+          real-world domains (ATC, surgery), Ophir replication failures (Wiradhany &
+          Nieuwenstein)
+        - Integrated counterevidence as section 7 in research file; updated synthesis
+          (section 8) and references to reflect both passes
+        - Key refinement: strongest framing is "multitasking in novel knowledge work has
+          well-documented costs" rather than "humans can't multitask" — exceptions exist
+          but don't generalize to AI-assisted development
+        - Ophir et al. noted as weak pillar (replication issues); bottleneck, recovery
+          time, vigilance decrement, and ATC evidence are the strongest pillars
+        - Evidence base is citable for philosophy document and ADRs
 
-- [ ] **1.5 Run quality gates on research files**
-    - Lint all new research files
+- [x] **1.5 Run quality gates on research files**
+    - All 5 research files pass markdownlint with zero violations
 
 ### **Phase 2:** Core Identity
 
