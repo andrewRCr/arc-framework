@@ -195,7 +195,17 @@ guidance for multi-branch work unit scenarios.
   updated base after merge), session state update
 - Reference from `strategy-work-organization.md` section 5 and `process-task-loop.md`
 
-**D7. Add Branch(es) field update guidance** (Audit 2 Gap 9)
+**D7. Canonicalize atomicity check in process-task-loop.md** (WU1 incidental)
+
+- An atomicity check was added to step 4 of the internal `process-task-loop.md` during
+  WU1 to address recurring non-atomic commits (task work + unrelated fixes bundled)
+- WU2 should review the internal version and port to the canonical `.arc/` copy,
+  ensuring consistent language with the Commit Standards in
+  `strategy-development-methodology.md`
+- The check is lightweight (a prompt before staging, not a workflow invocation) and
+  complements the existing atomic-commit supplemental workflow for complex cases
+
+**D8. Add Branch(es) field update guidance** (Audit 2 Gap 9)
 
 - Add guidance to `rotate-branch.md` (new, D6) and `process-task-loop.md`: "When creating
   additional branches for a task list, update the `Branch(es)` field in the task list header"
