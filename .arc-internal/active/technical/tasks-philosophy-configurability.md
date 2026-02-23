@@ -69,50 +69,57 @@ gathered, evaluated for sufficiency, and supplemented if needed before moving on
         - Two minor gaps (slash commands, deferred review patterns) assessed as better
           addressed during ADR discussions than via additional research
 
-- [ ] **1.2 Research context degradation in large windows**
+- [x] **1.2 Research context degradation in large windows**
 
     **Goal:** Verify claims about context quality degradation before codifying session length
     guidance (PRD requirements 2, 3).
 
-    - [ ] **1.2.a Gather context degradation research**
-        - Prompt external research agent covering:
-            - Empirical evidence on LLM performance degradation as context length increases
-            - Studies or benchmarks comparing output quality at different context utilization
-              levels (e.g., 25% vs 50% vs 75% of window)
-            - Vendor guidance on optimal context usage from Anthropic, Google, OpenAI
-            - Relevance to session management in agentic coding workflows
-        - Save full output with references to `research-context-degradation.md` in
-          `active/technical/`
+    - [x] **1.2.a Gather context degradation research**
+        - External research agent gathered 28 sources: 12 peer-reviewed papers (TACL, EMNLP,
+          COLM venues), 6 vendor sources (Anthropic, OpenAI, Google), 8 practitioner reports
+        - Key landmark papers: Lost in the Middle (Liu et al.), RULER (NVIDIA), Context Rot
+          (Chroma), Context Length Alone Hurts (Amazon/EMNLP 2025)
+        - Saved to `research-context-degradation.md` in `active/technical/`
 
-    - [ ] **1.2.b Evaluate and supplement**
-        - Review research quality and coverage together
-        - Assess whether evidence supports ~200k focused session guidance or suggests
-          a different threshold
-        - Run follow-up prompts if needed
-        - Mark complete when evidence base is sufficient for requirements 2 and 3
+    - [x] **1.2.b Evaluate and supplement**
+        - Evidence strongly supports threshold-based session management: 75-80% utilization
+          sweet spot for general agentic work, 60-70% for complex reasoning
+        - No vendor provides explicit "stop at X%" — threshold derives from academic synthesis
+          and practitioner guidance (important nuance for ADR discussions)
+        - Counterintuitive finding: shorter windows with good compression outperform massive
+          windows with naive accumulation — directly supports ARC's session-bounded model
+        - Coverage sufficient for requirements 2 and 3; no follow-up needed
 
-- [ ] **1.3 Research development methodology landscape**
+- [x] **1.3 Research development methodology landscape**
 
     **Goal:** Understand Scrum/Kanban/hybrid prevalence and how structured documentation
     frameworks integrate with established methodologies (PRD requirement 9).
 
-    - [ ] **1.3.a Gather methodology landscape research**
-        - Prompt external research agent covering:
-            - Prevalence of Scrum, Kanban, hybrid, and other methodologies in professional
-              software teams (recent survey data if available)
-            - Key constructs: sprints, stories, story points, velocity, WIP limits,
-              ceremonies, backlogs, epics
-            - How structured documentation/planning frameworks layer on top of agile
-              workflows (precedents, patterns)
-            - Common friction points when introducing structured processes into agile teams
-        - Save full output with references to `research-dev-methodology.md` in
-          `active/technical/`
+    - [x] **1.3.a Gather methodology landscape research**
+        - External research agent produced two documents: comprehensive methodology
+          inventory (`research-dev-methodology.md`) and supplemental integration mapping
+          (`research-dev-methodology-integration-mapping.md`), both in `active/technical/`
+        - 25+ methodologies across agile, plan-driven, lean, and modern/emerging categories
+        - Tiered prevalence data from State of Agile (3k+), Stack Overflow (49k),
+          VersionOne, and other credible surveys
+        - Key constructs mapped per methodology family (planning artifacts, estimation,
+          ceremonies, tracking, roles, Definition of Done)
+        - Integration patterns analysis: what works (lightweight overlays, ceremony-neutral)
+          vs. what fails (heavyweight, prescriptive, ceremony-adding)
+        - AI-assisted development impact on methodology (velocity metrics, estimation,
+          code review bottlenecks)
 
-    - [ ] **1.3.b Evaluate and supplement**
-        - Review research quality and coverage together
-        - Identify concrete integration patterns applicable to ARC's constructs
-        - Run follow-up prompts if needed
-        - Mark complete when evidence base is sufficient for requirement 9
+    - [x] **1.3.b Evaluate and supplement**
+        - Comprehensive coverage confirmed across all tiers: Scrum (87%), Kanban (56%),
+          Scrumban (27%), SAFe (44% enterprise), Shape Up, Dual-Track, DevOps/SRE, XP,
+          Lean, plus niche frameworks (FDD, DSDM, Crystal, RUP, V-Model, Spiral)
+        - Supplemented with notable names initially absent: Spotify Model, Lean Startup,
+          Disciplined Agile (DA/DAD), Prince2 Agile
+        - Key finding for requirement 9: hybrid approaches winning (31.5% and growing),
+          ceremony fatigue is real, lightweight composable overlays succeed
+        - Integration mapping flagged as research input (not validated decisions) with
+          disclaimers added to prevent misinterpretation during ADR process
+        - Coverage sufficient for requirement 9
 
 - [ ] **1.4 Research human attention and single-tasking**
 
