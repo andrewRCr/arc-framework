@@ -93,12 +93,21 @@ with distribution system design as the primary focus area.
 - Setup workflow split: `01_initialize-arc.md` + `02_define-project.md`
 - Archive: `.arc-internal/reference/archive/2026-q1/technical/02_structural-readiness-pass/`
 
+### ✅ Core Philosophy & Configurability Architecture (February 2026)
+
+**Status**: Completed February 2026
+
+- 6 ADRs resolving all foundational 1.0 design decisions (ADR-001 through ADR-006)
+- Core philosophy strategy: 11 principles (P1-P11), philosophical foundation, positioning
+- Configurability architecture strategy: 19 conventions, 3 customization mechanisms, adoption profiles
+- 5 research files (agent landscape, context degradation, methodology, attention/single-tasking)
+- Constitutional doc refresh: META-PRD rewrite, AGENTS.md update
+- Archive: `.arc-internal/reference/archive/2026-q1/technical/03_philosophy-configurability/`
+- Research: `.arc-internal/reference/research/`
+
 ## Currently Active
 
-- **Core Philosophy & Configurability Architecture** (technical) — Design-only: resolve foundational
-  1.0 decisions via ADRs and strategy documents
-    - Task list: `.arc-internal/active/technical/tasks-philosophy-configurability.md`
-    - Branch: `technical/philosophy-configurability`
+[none]
 
 ## Upcoming Priorities
 
@@ -145,4 +154,4 @@ with distribution system design as the primary focus area.
 
 ---
 
-*Last updated: 2026-02-23*
+*Last updated: 2026-02-24*
