@@ -81,6 +81,35 @@ npx --yes markdown-table-prettify < input.md > output.md
 # Or use VS Code extension: "Markdown Table Prettifier"
 ```
 
+### Prettier (Markdown Formatting)
+
+Use `prettier` for bulk line-length wrapping (MD013) and table alignment (MD060). It's
+markdown-aware — won't break inside links, emphasis, or code spans.
+
+```bash
+# Format a file (prose wrap at 120 chars, matching markdownlint config)
+npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "path/to/file.md"
+
+# Preview without writing (pipe to temp file, diff, then copy if good)
+npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file.md" > /tmp/fmt.md
+```
+
+**When to use prettier vs. manual wrapping:**
+
+- **Prettier**: Bulk formatting — new files, agent-generated content, 10+ line-length
+  violations. Handles wrapping, table alignment, and indentation in one pass.
+- **Manual**: Surgical fixes — 1-5 violations where you can wrap at a natural break
+  point without reformatting surrounding prose.
+
+**Gotchas:**
+
+- Adjacent bold metadata lines (e.g., `**Date:**` / `**Purpose:**` on consecutive
+  lines) get merged into one paragraph. Add `\` line breaks or blank lines between
+  them, or fix manually after running prettier.
+- Converts `*emphasis*` to `_emphasis_` (stylistic, not a lint issue).
+- Re-indents code blocks inside list items to 4-space indent (correct per MD007 config,
+  but may change existing formatting).
+
 ---
 
 ## Quality Gate Commands

@@ -175,8 +175,40 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
     - "Include ADR workflow?" — optional files based on team practices
     - "Which AI agents?" — installs only selected agent directories (`.claude/`, `.codex/`,
       `.gemini/`)
-- **Presets (cross-cutting):** Pre-designed configurations for common setups (solo dev, small team,
-  etc.) — if WU1 defines these, init offers them as starting points before fine-tuning
+- **Adoption profiles (cross-cutting):** Three profiles pre-configure `arc-config.yml`
+  during init (per ADR-004). Profiles are an init convenience — after init, the config
+  file is directly editable. No persistent "profile" concept in the framework.
+
+  **Essentials** — Principles committed, enforcement relaxed:
+
+  ```yaml
+  commit.format: any
+  commit.context_footer: optional
+  hooks.commit_msg: disabled
+  hooks.pre_commit: enabled
+  merge.strategy: merge
+  branch.protection: unprotected
+  ```
+
+  **Recommended** (default) — Full convention set, all enforcement active:
+
+  ```yaml
+  commit.format: conventional
+  commit.context_footer: required
+  hooks.commit_msg: enabled
+  hooks.pre_commit: enabled
+  merge.strategy: merge
+  branch.protection: partial
+  ```
+
+  **Custom** — Interactive selection of individual settings with per-setting
+  guidance (purpose, default, alternatives).
+
+- **Post-init messaging differentiation:** Each profile produces different post-init
+  guidance. Essentials highlights the core workflow quartet (create-prd,
+  generate-tasks, process-task-loop, session-init). Recommended covers the full
+  system. Custom mirrors whichever profile the resulting config most resembles, with
+  notes on any non-default choices.
 
 Template rendering:
 
@@ -270,6 +302,24 @@ three separate directories in three different formats.
 
 The generation step runs as part of init and update — not as a standalone command. The generated
 files are agent-specific and classified as Framework (managed, can be updated).
+
+### Extension: Skill Integration Automation
+
+The same single-source-of-truth generation model extends naturally to skill integration.
+WU2 establishes the convention (trigger/content separation: ARC content in `.arc/`, thin
+trigger files in agent directories) and creates an `integrate-skill` workflow where the
+agent handles classification and adaptation. WU3's generation scripts handle the mechanical
+output: given canonical content in `.arc/`, produce the correct trigger file format for each
+configured agent tool.
+
+This means `arc-framework init` and `arc-framework update` manage both framework slash
+commands AND any team-integrated skills that followed the integrate-skill workflow. The
+manifest tracks both — they're the same file type (thin dispatchers) with the same update
+mechanics.
+
+The scope question for the WU3 PRD: whether skill trigger generation ships at 1.0 or is
+deferred. The slash command generation is required; skill generation is an extension of the
+same system but depends on teams actually using the integrate-skill workflow.
 
 ## The Manifest: `.arc-manifest.json`
 

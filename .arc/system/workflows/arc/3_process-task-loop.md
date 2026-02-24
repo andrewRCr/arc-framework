@@ -93,6 +93,12 @@ It ensures consistent execution, quality control, and documentation of work.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
      When committing, follow [Commit Workflow](supplemental/atomic-commit.md) guidelines.
 
+     **Atomicity check (before staging):** Do all changes serve one logical concern? Common
+     splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
+     list tracking updates (when they can stand alone), multiple completed tasks that touched
+     independent areas. When in doubt, smaller commits are better — split and ask. See
+     [Commit Standards][dev-methodology] for the full atomicity principle.
+
 ## Verification Phase
 
 Every task list ends with a verification phase as its final phase. The standard task-by-task
@@ -174,3 +180,4 @@ See [Incidental Work Management](#incidental-work-management) above.
 
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
+[dev-methodology]: ../../../reference/strategies/arc/strategy-development-methodology.md

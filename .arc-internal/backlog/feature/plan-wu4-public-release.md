@@ -118,9 +118,20 @@ files, and one Action. The work is content, not infrastructure.
 - **Tutorials and walkthroughs** — First ARC session walkthrough, creating your first task
   list, setting up quality gates for your stack. Guided, linear, goal-oriented.
 
-- **Comparison and positioning** — ARC vs just using CLAUDE.md, vs Cursor rules, vs other
-  frameworks. Helps with the "is this for me?" decision. Should be honest about tradeoffs
-  and use cases where ARC is a poor fit.
+- **Comparison and positioning** — ARC vs just using CLAUDE.md, vs Cursor rules, vs Skills
+  (SKILL.md), vs other frameworks. Helps with the "is this for me?" decision. Should be
+  honest about tradeoffs and use cases where ARC is a poor fit.
+
+  The Skills comparison deserves specific attention — it's the most likely "why not just
+  use skills?" question from adopters. Key framing: skills optimize for agent-only
+  consumption and token economy (split files, imperative instructions); ARC strategies
+  optimize for dual-audience use (human onboarding + agent guidance in one document).
+  Skills are portable but self-contained — no consistency guarantees across a project's
+  guidance. ARC strategies are integrated — they cross-reference each other, building
+  predictable behavior. Neither is wrong; they solve different problems. ARC provides a
+  path for both: bring skills in via the integrate-skill workflow, or use them standalone
+  alongside ARC (tier 3 coexistence). Source analysis: `notes-philosophy-configurability.md`
+  (Skills and ARC section) and plan-wu2 Cluster N.
 
 **Relationship to the repo:**
 

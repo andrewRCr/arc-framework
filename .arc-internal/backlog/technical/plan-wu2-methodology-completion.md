@@ -195,7 +195,17 @@ guidance for multi-branch work unit scenarios.
   updated base after merge), session state update
 - Reference from `strategy-work-organization.md` section 5 and `process-task-loop.md`
 
-**D7. Add Branch(es) field update guidance** (Audit 2 Gap 9)
+**D7. Canonicalize atomicity check in process-task-loop.md** (WU1 incidental)
+
+- An atomicity check was added to step 4 of the internal `process-task-loop.md` during
+  WU1 to address recurring non-atomic commits (task work + unrelated fixes bundled)
+- WU2 should review the internal version and port to the canonical `.arc/` copy,
+  ensuring consistent language with the Commit Standards in
+  `strategy-development-methodology.md`
+- The check is lightweight (a prompt before staging, not a workflow invocation) and
+  complements the existing atomic-commit supplemental workflow for complex cases
+
+**D8. Add Branch(es) field update guidance** (Audit 2 Gap 9)
 
 - Add guidance to `rotate-branch.md` (new, D6) and `process-task-loop.md`: "When creating
   additional branches for a task list, update the `Branch(es)` field in the task list header"
@@ -435,6 +445,179 @@ scope), documentation-driven (WU4 scope), or structural (WU3/CLI scope).
 - Minimum regardless of ADR 6 outcome: document the "one task at a time" deferred
   review escape hatch more prominently for experienced users (resolves Audit 1 M3)
 
+### Cluster N: Guidance Discovery & Skill Integration
+
+Items that improve how agents and humans discover relevant guidance, and formalize
+ARC's relationship with portable behavioral guidance conventions (skills). Informed by
+analysis comparing ARC's doc types (workflows, strategies) with the emerging Skills
+convention across agent tools.
+
+**Context:** ARC strategies and external skills share the same discovery weakness — both
+rely on the agent recognizing "I'm doing X and there's guidance for X." ARC's
+STRATEGY-INDEX is already a better solution than ambient skill discovery (explicit,
+loaded into context), but can be improved. Meanwhile, teams adopting ARC will bring
+existing skills and need a clear path for integration. The trigger/content separation
+already working in `.claude/commands/` (thin dispatchers pointing to `.arc/` workflows)
+is the right architectural pattern to formalize.
+
+**N1. Enrich STRATEGY-INDEX with trigger hints**
+
+- Add one-line "Consult when:" annotations to each entry in STRATEGY-INDEX, giving
+  agents (and humans) sharper matching criteria than a description alone
+- Example: `strategy-adr-methodology.md` — "Consult when: drafting or reviewing an ADR,
+  deciding whether to write one"
+- Dual-audience: helps agents connect task context to relevant strategies; helps humans
+  scanning the index quickly identify what's relevant to their current work
+- Low cost (one line per entry), high discoverability payoff
+
+**N2. Create WORKFLOW-INDEX**
+
+- New file: `.arc/system/workflows/WORKFLOW-INDEX.md` (or alongside STRATEGY-INDEX in
+  `reference/strategies/` — location TBD during execution)
+- Same pattern as STRATEGY-INDEX: lightweight catalog of available workflows with
+  one-line descriptions, organized by category (core lifecycle, supplemental)
+- Add to session-init.md load sequence (read every session for ambient awareness)
+- Purpose: agent connects user intent ("let's archive this") to the right workflow
+  (`archive-completed.md`) reliably, without having to memorize workflow names from
+  scattered document references
+- Also serves humans: new team members see the full workflow catalog at a glance
+- Include project workflows section (initially empty, populated by teams)
+
+**N3. Add strategy declaration guidance to generate-tasks workflow**
+
+- Small addition to `2_generate-tasks.md`: when writing task entries, note relevant
+  strategies from STRATEGY-INDEX (e.g., `**Strategies:** strategy-adr-methodology.md`)
+- Already happens informally in well-written task lists; codifying it makes the
+  connection reliable and explicit
+- The person writing the task list understands the domain — they're the right one to
+  connect task to strategy at planning time
+- Lightweight convention, not a mandatory field
+
+**N4. Formalize trigger/content separation convention**
+
+- Document the pattern: ARC content lives in `.arc/`, agent-specific trigger files
+  (slash commands, skills) are thin dispatchers in tool directories (`.claude/`,
+  `.codex/`, etc.)
+- This is how ARC's own skills already work — `resume-current.md` in `.claude/commands/`
+  is two lines pointing to `session-init.md`
+- Articulate as a convention in the development methodology or in a dedicated section
+  of the relevant strategy doc
+- Feeds WU3's slash command generation design (WU3 builds the automation; WU2
+  establishes the convention)
+
+**N5. Create integrate-skill supplemental workflow**
+
+- New file: `.arc/system/workflows/arc/supplemental/integrate-skill.md`
+- Agent-driven workflow for bringing external portable skills into ARC:
+    1. Agent reads the skill content
+    2. Classifies: procedural (→ project workflow), reference (→ project strategy),
+       blend (→ strategy with workflow aspects)
+    3. Assesses ARC integration: conflicts, complements, or fills gaps in existing
+       guidance
+    4. Proposes placement, adaptation scope, and trigger file creation to user
+    5. On approval: creates dual-audience ARC doc, creates thin trigger file(s),
+       updates STRATEGY-INDEX or WORKFLOW-INDEX as appropriate
+- The agent itself is the automation layer for the intelligence (classification,
+  adaptation); WU3's generation scripts handle the mechanical parts (generating
+  equivalent trigger files for multiple agent tools)
+- Key design goal: frictionless enough to actually be used — "I found this skill,
+  integrate it" as a single interaction, not a 7-step manual process
+
+**N6. Clarify `project/` directories as the skills landing zone**
+
+- Update READMEs in `.arc/reference/strategies/project/` and
+  `.arc/system/workflows/project/` to articulate their role as the home for
+  team-specific patterns, including adapted external skills
+- Currently these READMEs exist but don't connect to the skills story
+- After N5's workflow runs, adapted content lands here — making this explicit helps
+  teams understand the directory's purpose
+
+### Cluster O: Extension Point and Method Override Infrastructure
+
+Per ADR-003 (config + extensions) and ADR-005 (external compat + method overrides).
+Implements the two customization mechanisms beyond config settings: extension points
+(add behavior at workflow locations) and method overrides (replace default convention
+implementations). These are the mechanisms that complete the customization model
+alongside Cluster B's config expansion.
+
+**O1. Scaffold `arc-extensions.md`**
+
+- New file: `.arc/system/workflows/arc-extensions.md`
+- Classification: Configurable (preserved through three-way merge)
+- One section per preset extension point: workflow reference, trigger condition,
+  contract, and `[No extension configured]` placeholder
+- Candidate preset extension points (evaluate and finalize during implementation;
+  target 0-3 per workflow):
+
+  | Workflow          | Extension Point     | Contract Summary                                    |
+  |-------------------|---------------------|-----------------------------------------------------|
+  | process-task-loop | `post-task-quality` | Additional checks after Tier 1, before marking done |
+  | process-task-loop | `post-unit-quality` | Additional checks after Tier 2 at unit boundaries   |
+  | session-init      | `post-context-load` | Additional context loading after standard docs      |
+  | atomic-commit     | `pre-stage-review`  | Additional staging verification before commit       |
+
+**O2. Scaffold `arc-methods.md`**
+
+- New file: `.arc/system/workflows/arc-methods.md`
+- Classification: Configurable
+- Co-located with `arc-extensions.md` (both modify workflow behavior)
+- One section per preset method: workflow reference, trigger, contract, default
+  behavior, and `### Project Override` with `[No override configured]` placeholder
+- Candidate preset methods (evaluate and finalize during implementation; target
+  3-5 total across all workflows):
+
+  | Method                   | Workflow             | Default                          | Common Override               |
+  |--------------------------|----------------------|----------------------------------|-------------------------------|
+  | Task completion tracking | process-task-loop    | Mark `[x]` in markdown task list | Update Jira/Linear status     |
+  | Quality gate commands    | process-task-loop    | Project-specific lint/test/build | Team CI suite, security scans |
+  | Session state mechanism  | session-init/handoff | CURRENT-SESSION.md read/write    | IDE persistent memory, etc.   |
+  | Commit context format    | atomic-commit        | `Context: tasks-*.md (Task X.Y)` | `Closes JIRA-XXX`, `Fixes #N` |
+
+**O3. Insert extension point markers into workflows**
+
+- Block-style markers at each preset location, bounded by horizontal rules:
+
+  ```markdown
+  ---
+  **Extension Point — [Name]** · `#[anchor]`
+  Contract: [when it fires and what it's allowed to do]
+  See: [arc-extensions.md](../arc-extensions.md#[anchor])
+  ---
+  ```
+
+**O4. Insert method markers into workflows**
+
+- Same visual pattern as extension points:
+
+  ```markdown
+  ---
+  **Method — [Name]** · `#[anchor]`
+  Contract: [invariant that both default and override must satisfy]
+  Default: [ARC's built-in behavior]
+  See: [arc-methods.md](../arc-methods.md#[anchor])
+  ---
+  ```
+
+**O5. Add session-init config awareness step**
+
+- After standard document loading in `session-init.md`, add a lightweight step:
+  read `arc-config.yml` (note platform, custom patterns, non-default values) and
+  `arc-methods.md` (note any populated project overrides). Read-and-note — no
+  additional documents to internalize, just awareness carried through session.
+
+**O6. Add custom pattern config settings** (extends Cluster B1)
+
+- `commit.format: custom` as new valid value (alongside `conventional`, `any`) —
+  triggers hook validation against `commit.custom_pattern` regex
+- `commit.custom_pattern` — regex setting for custom commit format validation
+- `commit.context_footer: custom` as new valid value — triggers validation against
+  `commit.context_pattern` regex
+- `commit.context_pattern` — regex setting for custom context footer validation
+- `platform.type` — informational platform declaration (`github` / `gitlab` /
+  `bitbucket`); agent-read, not consumed by hooks
+- Inline comment examples for common regex patterns (Jira prefix, ticket + type,
+  issue reference) to reduce authoring friction
+
 ### Cluster M: Structural Validation Pass
 
 Runs at the end of WU2, after all methodology changes are in place. Produces the inventory
@@ -468,13 +651,17 @@ WU3 (CLI design) needs to reason about file classification and update mechanics.
 
 ### Modified Files
 
-All existing files listed under Clusters A-K that receive edits. The exact set is
+All existing files listed under Clusters A-K and N that receive edits. The exact set is
 determined during execution as WU1 ADR decisions clarify scope; the inventory above
 identifies the candidates.
 
 ### New Files
 
 - `rotate-branch.md` — supplemental workflow for mid-work-unit branch rotation (D6)
+- `WORKFLOW-INDEX.md` — workflow catalog for session-init ambient awareness (N2)
+- `integrate-skill.md` — supplemental workflow for external skill integration (N5)
+- `arc-extensions.md` — extension point scaffolding at `system/workflows/` (O1)
+- `arc-methods.md` — method override scaffolding at `system/workflows/` (O2)
 - Any new `arc-config.yml` settings documentation if WU1 designates a companion
   reference doc rather than inline comments
 
@@ -544,6 +731,29 @@ user-facing.
   concern in `plan-arc-methodology-gaps.md`; remains out of scope for 1.0
 - No agent-agnosticism overhaul beyond what ADR 3 specifies — the audit item
   identified it as a lens, not a mandate for alternate workflow versions
+
+---
+
+## Forward-Looking: Terminology Pass
+
+ARC's key concepts — session, review increment, work unit — would benefit from a deliberate
+terminology review during or after WU2. Memorable, consistently used terms reinforce concepts
+through repeated use and help adopters build shared vocabulary. Examples:
+
+- **"ARC session"** as a branded term with the specific meaning established in ADR-002
+  (bounded, intentional work period)
+- **"Review increment"** proposed in ADR-001 but not yet tested with adopters
+- **"Work unit"** established but could be more distinctive
+- Session-init's "ARC session initialized" confirmation already reinforces the session concept
+
+This is not a separate work item — it's a lens to apply during WU2 doc edits and WU4
+public-facing writing. When touching a document, consider whether key terms are used
+consistently and whether there are opportunities to strengthen recognition. The strategy
+document synthesis (WU1 Requirement 10) or WU4 adoption guides are natural homes for a
+consolidated terminology reference if one emerges.
+
+Origin: ADR-002 review discussion (`notes-philosophy-configurability.md`, "Forward-Looking:
+Terminology and Branding").
 
 ---
 

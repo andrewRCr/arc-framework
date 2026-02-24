@@ -24,10 +24,8 @@ Thumbs.db
 .claude/settings.local.json
 .warp/
 
-# Personal reference documentation and notes (work-in-progress only)
-.arc-internal/active/*/notes-*
-.arc-internal/active/*/research-*
-.arc-internal/upcoming/notes/
+# explicitly temp-flagged internal docs
+.arc-internal/**/temp-*
 
 # Session handoff file (transient)
 .arc-internal/active/CURRENT-SESSION.md
