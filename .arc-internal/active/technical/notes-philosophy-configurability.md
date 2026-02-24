@@ -7,7 +7,10 @@ complete.
 
 **PRD:** `prd-philosophy-configurability.md`
 **ADRs:** `adr-001-define-core-identity-and-principle-method-boundary.md`,
-`adr-002-session-model-and-agent-compatibility.md`
+`adr-002-session-model-and-agent-compatibility.md`,
+`adr-003-design-configuration-and-extension-point-system.md`,
+`adr-004-define-progressive-adoption-tiers.md` (draft),
+`adr-005-design-external-tool-platform-compatibility.md` (draft)
 
 ---
 
@@ -24,47 +27,28 @@ The configurability architecture uses an **expanded config + workflow extension 
 
 This decision is an input to ADR candidates for requirements 4 and 5.
 
-### Two Adoption Tiers (Decided)
+### Two Adoption Tiers → Profile-Based Adoption (Evolved)
 
-Two tiers — basic and full — rather than three. Basic gets the methodology and value without all
-ceremony. Full is the complete system. Specifics of what's in each tier are TBD (requirement 6).
+Original decision: two tiers (basic and full). Evolved during Task 5.1 analysis into a
+profile-based model with a two-axis adoption framework. See "Two-Axis Adoption Model"
+below for the full analysis.
 
-## Config Starting Positions
+**Key evolution:** Tiers are not structural (different files) or purely documentation
+(same experience). They are config-driven profiles that control enforcement depth, with
+all files always installed. The system's coherence is preserved because the file set is
+identical — only config values and onboarding emphasis differ.
 
-### Current State
+## Config Starting Positions (Consumed by ADR-003)
 
-`arc-config.yml` currently has 2 settings:
+Absorbed into ADR-003. See `arc-config.yml` schema in ADR-003 Part 1 for the 7 initial
+settings (dotted keys, three setting categories, tier 3 selective representation).
 
-- `base_branch` — Base branch for PRs (default: `main`)
-- `branch_protection` — Whether base branch is protected (default: `true`)
+## Extension Point Starting Positions (Consumed by ADR-003)
 
-### Priority Additions (from audit)
+Absorbed into ADR-003. See ADR-003 Part 2 for the preset extension point system,
+`arc-extensions.md` design, and candidate extension points.
 
-Settings identified as high-priority for configurability:
-
-- Commit format (conventional commit type/scope requirements)
-- Context footer (format, whether required)
-- Merge strategy (rebase, squash, merge commit)
-- Hook toggles (enable/disable specific git hooks)
-
-### Format Constraints
-
-- Shell-parseable (hooks read config without a YAML library)
-- Flat key-value or shallow nesting
-- Must support the principle/method distinction — only methods appear in config
-
-## Extension Point Starting Positions
-
-### "Insert Your Steps Here" Markers
-
-Prior research recommended self-documenting markers in workflow prose documents:
-
-- No tooling required
-- Agents and humans both understand them
-- Contract (what the extension point allows) matters more than mechanism
-- Must be visible enough for discovery, unobtrusive enough for readability
-
-## Team Workflow Gaps (from multi-branch team audit)
+## Team Workflow Gaps (Consumed by ADR-005)
 
 - Task ownership for multi-developer scenarios
 - Parallel branch coordination
@@ -100,7 +84,7 @@ building it — not just reviewed the output. This allows leveraging AI speed wi
 becoming a black box. Delegation-based approaches risk producing code that no human deeply
 understands, creating maintenance debt that compounds over time.
 
-## Portable Behavioral Guidance (Skills) and ARC
+## Portable Behavioral Guidance (Skills) — Consumed by ADR-005
 
 Skills (SKILL.md files) have become a near-universal convention across agent tools — Claude
 Code, Codex, Gemini CLI, Copilot all support them to some degree. They provide portable,
@@ -152,6 +136,259 @@ fills gaps, and producing an integrated project strategy that incorporates the m
 Not heavy — a checklist or short workflow at project level, not an ARC-level mandate.
 Evaluate during Phase 5 whether this adds enough value to include. Implementation items
 captured in plan-wu2 (Cluster N) and plan-wu3 (Slash Command Generation extension).
+
+**Addressed in:** Task 5.2 — `tasks-philosophy-configurability.md`
+
+## Two-Axis Adoption Model (Task 5.1 Analysis)
+
+**Purpose:** Core analysis for ADR (Task 5.1, progressive adoption tiers). Captures the
+exploration and decision rationale for the profile-based approach.
+
+### The Central Tension
+
+ARC is a system — its value comes from cross-referenced, mutually-reinforcing documents.
+8 strategies reference each other, 12+ workflows reference strategies, session-init loads
+8+ documents in sequence. This integration is why it works, but it also means adopters
+can't casually remove pieces without breaking references and losing coherence.
+
+At the same time, 11 principles + 19 conventions + ~55 files is a substantial commitment.
+The goal: don't dilute the system in service of "take what you need," but don't require
+"take it or leave it" either.
+
+### Options Evaluated
+
+Five options were analyzed for how tiers could work in practice:
+
+**A. Structural (different files installed):** CLI installs a subset for "basic." Problem:
+cross-references break. STRATEGY-INDEX has dead entries, workflows link to missing
+strategies. Maintaining two parallel reference sets is a significant burden. Scaling up
+requires reinstallation. **Rejected.**
+
+**B. Documentation/framing only (same files, guided onboarding):** Everyone gets the same
+files. Tiers are a docs-site concept. Problem: doesn't address audit dealbreakers — hooks
+still enforce conventional commits regardless of tier. Necessary but insufficient on its
+own. **Partially adopted** (progressive docs guide is part of the solution).
+
+**C. Config-driven behavior toggle:** `adoption.tier` setting changes hook enforcement.
+Problem: config can toggle hooks (mechanical), but can't toggle workflow prose — agents
+read static docs and follow them. Conditional callouts ("if basic tier, skip this")
+throughout workflow docs would dilute quality for everyone. **Partially adopted** (config
+for hooks, not for prose).
+
+**D. Convention-à-la-carte:** No binary tiers. Adopters review ADR-001's convention table
+and decide which to keep, modify, or replace. Problem: operationally vague — "review 19
+conventions and make decisions" is not an onboarding experience. **Philosophically right**
+but needs a delivery mechanism.
+
+**E. Profile-based hybrid (selected):** Combines B, C, and D:
+
+1. Everyone gets the same files (system stays coherent)
+2. CLI init offers profiles that pre-configure convention settings
+3. Documentation provides the progressive path
+4. Config settings have real teeth (hooks respect them)
+5. Scaling up = tightening config (no reinstallation)
+
+### Profile Definitions
+
+**Essentials** — lighter hooks (format enforcement off, context footer optional),
+recommended focus areas highlighted in post-init guidance. Same ~55 files installed.
+`arc-config.yml` pre-configured: `commit.format: any`, `commit.context_footer: optional`,
+`hooks.commit_msg: disabled`.
+
+**Recommended** (default) — full convention set with sensible defaults. All enforcement
+active from day one.
+
+**Custom** — pick and choose individual settings via CLI prompts. The convention-à-la-carte
+approach (Option D) with CLI guidance rather than "read the ADR."
+
+### The Two-Axis Reframe
+
+During analysis, a critical gap emerged: profiles control *enforcement depth* (whether
+hooks block non-compliant behavior), but they don't address *method customization* (teams
+that want to do things *differently*, not just less strictly).
+
+Three adopter postures exist:
+
+1. "I don't care, do whatever" → `commit.format: any`. Agent produces quality output. Fine.
+2. "I want ARC's convention enforced" → `commit.format: conventional`. Hooks enforce. Fine.
+3. "I want something different, and I want THAT enforced" → No mechanism exists.
+
+Case 3 is real and common: Jira ticket references instead of Context footers, team-specific
+commit formats, external tracker as status-of-record instead of markdown checkboxes. These
+are active alternative practices, not absence of preference.
+
+This revealed that adoption flexibility requires two independent axes:
+
+**Axis 1 — Enforcement depth (profiles):** How strictly are conventions enforced? Controlled
+by `arc-config.yml` settings and hook behavior. Profiles pre-configure this axis.
+
+**Axis 2 — Method customization (overrides):** Which ARC default methods does the team
+replace with their own? Controlled by a structured override mechanism (see "Method Override
+Concept" below). Independent of enforcement — you can have relaxed enforcement with no
+overrides, or strict enforcement with multiple overrides.
+
+The axes are independent. Common combinations:
+
+- Essentials + no overrides = solo dev learning ARC (most common starting point)
+- Recommended + no overrides = team adopting ARC wholesale (ideal case)
+- Recommended + selective overrides = team with Jira/custom commit format
+- Essentials + heavy overrides = team evaluating ARC with existing practices
+
+### Prose vs. Config: The "Gentle Over-Delivery" Resolution
+
+ARC's workflow and strategy docs are static prose. They describe conventions as active
+defaults. If the agent loads `strategy-development-methodology.md` (which says "conventional
+commit format: required") but config says `commit.format: any`, the agent has conflicting
+signals.
+
+Resolution: **essentials means "same guidance, less enforcement."**
+
+- **Config** = enforcement boundary (will you be blocked?)
+- **Prose** = quality guidance (what's the recommended approach?)
+- The agent follows loaded guidance and produces quality output (well-formatted commits,
+  thorough documentation) regardless of profile
+- The difference: essentials adopters aren't *blocked* when they deviate
+
+This works because adopters choosing `commit.format: any` typically want to avoid
+*friction* (hook rejection), not *quality* (well-formatted commits). The agent producing
+good output even when not enforced is a feature — it may motivate the adopter to turn
+enforcement on later.
+
+**Where this breaks down:** When the adopter has an *active alternative preference* (Case 3
+above). If they want `[JIRA-XXX] description` format but the agent keeps producing
+`type(scope): description`, the gentle over-delivery becomes a gentle annoyance. This is
+where method overrides (Axis 2) become necessary — the agent reads the team's override and
+follows *that* instead of the ARC default.
+
+### What "Minimum Viable ARC" Means
+
+The 11 principles are the philosophical floor — honor all of them or you're not meaningfully
+using ARC. But the adoption question isn't "which principles?" (all of them) — it's "how
+much of ARC's provided machinery do you use to satisfy those principles?"
+
+An adopter could honor P7 (task tracking) with Jira, P6 (traceability) with informal but
+consistent commits, P5 (context preservation) with a lighter mechanism than full
+session-init/handoff. The principles are always the same. What varies is how much of ARC's
+convention set you adopt as-is vs. bring-your-own or configure away.
+
+### Scaling Up and Down
+
+Option E handles both naturally:
+
+- **Scaling up** (essentials → recommended): tighten config settings. No reinstallation,
+  no file additions. Agent already knows the conventions from loaded docs.
+- **Scaling down**: loosen config settings. WU2 Cluster J (archive ceremony scaling)
+  addresses ceremony weight by work complexity, orthogonal to tiers.
+
+### Gotchas Identified
+
+**Activation ceremony weight (low):** `activate-work-unit.md` Steps 5-6 (PROJECT-STATUS,
+ROADMAP) may feel heavy for essentials. Resolution: light prose callouts marking optional
+steps. Step 6 already says "if tracked."
+
+**55-file overwhelm (low):** Adopters see all files regardless of profile. Resolution:
+docs-site progressive guide (WU4) creates the "you are here" feeling. Agent navigates
+files — adopter doesn't need to know the tree.
+
+**No config toggle for prose ceremony (design question):** Config toggles hooks but
+can't toggle "write a completion doc." Resolution: ceremony scales by work complexity
+(WU2 Cluster J), not adoption tier. Essentials reduces enforcement friction, not
+process steps.
+
+**Addressed in:** Task 5.1 ADR (draft) — `tasks-philosophy-configurability.md`
+
+## Method Override Concept (Consumed by ADR-005)
+
+**Purpose:** Design direction for the method override mechanism. Captured during Task 5.1
+analysis as the second axis of adoption flexibility. Task 5.2 should design the specifics;
+this section captures the concept and rationale.
+
+### The Gap
+
+ADR-003 established two customization mechanisms:
+
+- **Config** toggles existing behavior (enforcement on/off, value selection)
+- **Extensions** add behavior at preset workflow points (additional steps)
+
+Neither handles: "ARC's default way of doing X is Y, but our team does Z instead." Teams
+with Jira, custom commit formats, or alternative context preservation mechanisms need a
+way to express "use this instead" — not just "use ours" or "don't enforce."
+
+### The Three-Mechanism Model
+
+| Mechanism       | What it does                               | Example                                    |
+|-----------------|--------------------------------------------|--------------------------------------------|
+| Config          | Toggles enforcement (mechanical)           | `commit.format: any` disables hook         |
+| Extension       | Adds steps to workflows                    | Post-task quality: also run Snyk scan      |
+| Method override | Replaces default convention implementation | Task completion: update Jira, not markdown |
+
+Config handles enforcement. Extensions handle additions. Method overrides handle
+replacements. Together they cover the full customization space without requiring teams to
+edit framework-owned files (which breaks update safety).
+
+### Sketch: How It Could Work
+
+Workflows reference *methods* — abstract operations with a default implementation. Teams
+override specific methods in a structured, team-controlled file. The agent reads the
+override and follows it instead of the default.
+
+**In a methods file** (e.g., `arc-methods.md` or a section in `arc-extensions.md`):
+
+```markdown
+## task-completion-tracking
+
+**Referenced by:** process-task-loop.md
+**When:** Agent marks a task as complete
+**Default:** Mark `[x]` in the markdown task list file, update task description
+**Contract:** Record that the specified task is complete. Status must be
+verifiable by both human and agent.
+
+### Project Override
+
+Update the Jira ticket to "Done" status via jira-cli. Markdown task list
+serves as the planning artifact; Jira is the status-of-record.
+```
+
+**In the workflow**, instead of hardcoding the default:
+
+```markdown
+**Second**: Mark task as complete (see task completion tracking method)
+```
+
+The agent follows the reference, reads the method (default or override), acts accordingly.
+Same cross-reference pattern as extensions.
+
+### Design Questions for Task 5.2
+
+- **Separate file or shared with extensions?** `arc-methods.md` vs. sections in
+  `arc-extensions.md`. Separate is cleaner conceptually (add vs. replace); shared reduces
+  file count and follows the "one customization file" pattern.
+- **How do hooks interact?** For methods with mechanical enforcement (commit format), the
+  hook needs to read the override pattern. Config value (`commit.format: custom`) + method
+  file (custom pattern definition) is one approach. Feasibility depends on shell-parseable
+  constraint.
+- **How many preset methods?** Similar question to extension points — 0-3 per workflow,
+  identified where teams have demonstrated or anticipated customization needs.
+- **Contract enforcement:** Can the contract be validated, or is it purely advisory? E.g.,
+  "status must be verifiable by both human and agent" — what happens if the override
+  doesn't satisfy the contract?
+- **Relationship to `project/` directories:** Method overrides are team-specific behavioral
+  guidance. Do they conceptually belong in `project/` (alongside project strategies and
+  workflows) or at the `system/workflows/` level (alongside extensions)?
+- **Session-init config awareness:** Should session-init explicitly read `arc-config.yml`
+  and method overrides, giving the agent a "profile-aware" context layer? Light addition:
+  one step that says "note settings that differ from ARC defaults and any active method
+  overrides."
+
+### Candidate Methods (Illustrative)
+
+| Convention               | Default                          | Common Override             |
+|--------------------------|----------------------------------|-----------------------------|
+| Task completion tracking | Mark `[x]` in markdown           | Update Jira/Linear status   |
+| Commit message format    | Conventional commits             | `[TICKET-XXX] description`  |
+| Context footer           | `Context: tasks-*.md (Task X.Y)` | `Closes #123` or Jira ref   |
+| Quality gate commands    | Markdown linting (framework)     | Project-specific test/lint  |
+| Session state mechanism  | CURRENT-SESSION.md               | IDE persistent memory, etc. |
 
 **Addressed in:** Task 5.2 — `tasks-philosophy-configurability.md`
 

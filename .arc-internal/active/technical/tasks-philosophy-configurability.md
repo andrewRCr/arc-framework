@@ -343,42 +343,42 @@ principle/method distinction. (PRD Requirements 4, 5)
 **Purpose:** Apply the configurability architecture to specific adoption scenarios.
 (PRD Requirements 6, 7, 8, 9)
 
-- [ ] **5.1 Define progressive adoption tiers**
+- [x] **5.1 Define progressive adoption tiers**
 
     **Goal:** Specify what's in basic vs. full ARC and how the distinction is implemented.
     (PRD Requirement 6)
 
-    - Consume all prior ADRs for principle/method boundary and config schema
-    - Resolve: structural difference (different files), documentation/framing difference
-      (same files, guided onboarding), or config-driven (`adoption_tier` setting)?
-    - Define what "basic" includes and what "full" adds
-    - Identify downstream impact: WU2 (workflow changes), WU3 (CLI init), WU4 (docs site)
-    - Draft ADR (progressive adoption tiers)
+    ADR-004 accepted. Key decisions:
 
-- [ ] **5.2 Design external tool and platform compatibility**
+    - Same files for all tiers (no structural difference — preserves cross-references)
+    - Profile-based config presets (essentials/recommended/custom) at CLI init
+    - Two-axis model: enforcement depth (profiles) + method customization (overrides,
+      ADR-005)
+    - "Same guidance, less enforcement" — agent follows quality practices regardless;
+      profiles control whether hooks block deviations
+    - Scaling up = tighten config; scaling down = loosen config
+
+- [x] **5.2 Design external tool and platform compatibility**
 
     **Goal:** Define how ARC coexists with external trackers, non-GitHub platforms, and
-    portable behavioral guidance conventions (skills). (PRD Requirement 7)
+    portable behavioral guidance conventions (skills). Also design the method override
+    mechanism required by ADR-004's two-axis adoption model. (PRD Requirement 7)
 
-    - Read `notes-philosophy-configurability.md` — team workflow gaps from audit +
-      portable guidance (skills) analysis
-    - Catalog platform-specific assumptions in current docs (GitHub Actions, `gh` CLI,
-      PR-based workflows)
-    - Design: workflows reference practices not tools, extension points at tool
-      boundaries, config declares tool choices
-    - Address portable behavioral guidance conventions (SKILL.md and similar): ARC's
-      position on coexistence, the dependency boundary (integrated = strategy,
-      standalone = external), and whether an adapter workflow for skill-to-strategy
-      conversion adds value
-    - Deeper analysis available: ARC strategies and skills share the same discovery
-      weakness (agent must recognize relevance); STRATEGY-INDEX with trigger hints
-      and a WORKFLOW-INDEX improve reliability. The trigger/content separation already
-      working in `.claude/commands/` (thin dispatchers → `.arc/` workflows) is the
-      right pattern to formalize. `project/` directories are the natural landing zone
-      for adapted skills. Implementation items captured in plan-wu2 (Cluster N) and
-      plan-wu3 (Slash Command Generation extension)
-    - Ensure ARC built-in methods remain first-class
-    - Draft ADR (external tool and platform compatibility)
+    ADR-005 accepted. Key decisions:
+
+    - **Method override mechanism**: dedicated `arc-methods.md` file, parallel to
+      `arc-extensions.md`. Completes three-mechanism model: config toggles, extensions
+      add, methods replace. Block-style markers in workflows at 3-5 major behavioral
+      override points (task completion, quality gates, session state, commit context).
+    - **Hook enforcement for custom formats**: `commit.format: custom` +
+      `commit.custom_pattern` regex in config. Full enforcement preserved.
+    - **Platform compatibility**: QUICK-REFERENCE bears tool command load (platform
+      commands section). Workflows keep GitHub commands inline with brief platform
+      notes. Config adds `platform.type` (informational).
+    - **Skills position**: dependency boundary (integrated = strategy, standalone =
+      skill). Coexistence acknowledged. `project/` directories as landing zone.
+    - **Session-init config awareness**: lightweight step to read config + methods
+      file, note overrides and platform. WU2 implementation.
 
 - [x] **5.3 Resolve merge strategy support**
 
@@ -409,9 +409,10 @@ principle/method distinction. (PRD Requirements 4, 5)
     - Draft ADR (development methodology compatibility)
 
 - [ ] **5.5 Review and finalize Phase 5 ADRs**
-    - Iterate based on review feedback
-    - Three ADRs expected (5.1, 5.2, 5.4); 5.3 already folded into ADR-003
-    - Check consistency with Phase 2-4 ADRs
+    - ~~Finalize ADR-004 and ADR-005 together~~ — both accepted (Tasks 5.1, 5.2)
+    - Finalize ADR for 5.4 (methodology compatibility)
+    - One ADR remaining (5.4); 5.1 and 5.2 accepted, 5.3 folded into ADR-003
+    - Check consistency of 5.4 ADR with Phase 2-4 ADRs and ADR-004/005
     - Lint all new ADR files
 
 ### **Phase 6:** Synthesis & Documentation
