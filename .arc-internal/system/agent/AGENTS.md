@@ -1,15 +1,17 @@
-# ARC Agentic Development Framework - AI Agent Reference Card
+# ARC Framework — AI Agent Reference Card
 
-**Version:** 2025-10-17 | **Maintained by:** Andrew | **Source of truth:** `.arc-internal/`
+**Version:** 2026-02-24 | **Maintained by:** Andrew | **Source of truth:** `.arc-internal/`
 
 ## Project Overview
 
-The ARC Agentic Development Framework is a structured documentation framework designed to facilitate collaboration
-between human developers and AI agents. By emphasizing spec-driven development and clear task breakdowns, it creates
-a shared understanding and efficient workflows for software development projects.
+The ARC Framework is a development methodology for human-AI collaboration. It structures how a
+developer and an AI agent work together through implementation — planning, executing, verifying,
+and preserving context across work sessions. The methodology is expressed as documentation:
+workflows, templates, strategies, and constitutional documents that live in `.arc/`.
 
 **Project Type**: Solo framework development with public release goals
-**Primary Goal**: Create a comprehensive, battle-tested methodology for AI-human development collaboration
+**Primary Goal**: Deliver a coherent, configurable methodology — 11 non-negotiable principles
+with strong default conventions that teams adapt to their context
 
 ## Project Snapshot
 
@@ -39,7 +41,7 @@ a shared understanding and efficient workflows for software development projects
 - **Self-hosting**: Framework development follows its own ARC methodology
 - **Zero tolerance**: All markdown linting violations must be fixed before commits
 
-## AI Collaboration Principles
+## Agent Working Guidelines
 
 **Working Approach:**
 
@@ -60,5 +62,5 @@ a shared understanding and efficient workflows for software development projects
 
 ---
 
-*This reference card is part of the ARC development framework internal documentation.
-It provides quick orientation for AI assistants working on framework development.*
+*This reference card is the shared entry point for all AI agents working on the ARC
+Framework. Agent-specific guidance lives in dedicated files (CLAUDE.md, GEMINI.md, etc.).*

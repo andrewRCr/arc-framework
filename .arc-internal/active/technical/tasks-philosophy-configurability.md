@@ -5,7 +5,8 @@
 **Created:** 2026-02-23
 **Branch:** `technical/philosophy-configurability`
 **Base Branch:** `main`
-**Status:** In Progress
+**Status:** Complete
+**Completed:** 2026-02-24
 
 ## Overview
 
@@ -463,58 +464,98 @@ validation lens instead.
     `arc-config.yml` file with inline comments is self-documenting.
     - File: `.arc/reference/strategies/arc/strategy-configurability-architecture.md`
 
-- [ ] **6.3 Update core internal documents**
+- [x] **6.3 Update core internal documents**
 
     **Goal:** Ensure WU2 inherits accurate constitutional context.
     (PRD Requirement 12)
 
-    - [ ] **6.3.a Update META-PRD**
-        - Refresh adoption model (stale "copies .arc/" language)
-        - Update philosophy framing to reflect principle/method distinction
-        - Remove "vibe coding" positioning — let philosophy stand on own terms
-        - Align with core philosophy strategy document
+    - [x] **6.3.a Update META-PRD**
+        - Wholesale rewrite — old document was deeply stale (vibe-coding framing,
+          CineXplorer references, manual-copy adoption model, fear-based control language)
+        - New structure follows META-PRD template adapted for self-hosting: Purpose
+          (with philosophical basis summary), Core Features (6 capability groups),
+          Out of Scope, User Flow, Success Metrics, Technical Requirements
+        - Grounded in both strategy documents; principles summarized compactly,
+          configurability model reflected throughout, adoption journey updated
+        - Internal-facing framing preserved — vision document for ourselves, not
+          adopter pitch
 
-    - [ ] **6.3.b Update AGENTS.md**
-        - Refresh project overview to reflect 1.0 direction
-        - Update collaboration principles based on core identity ADR
-        - Ensure AI collaboration section reflects agent-agnosticism findings
-        - Likely light scope — file is already lean
+    - [x] **6.3.b Update AGENTS.md**
+        - Title: "ARC Agentic Development Framework" → "ARC Framework" (naming decision)
+        - Project overview: rewritten to reflect methodology identity ("development
+          methodology for human-AI collaboration" vs. old "structured documentation
+          framework"); primary goal sharpened to reference principles + conventions
+        - Section heading: "AI Collaboration Principles" → "Agent Working Guidelines"
+          to avoid confusion with the 11 P1-P11 principles
+        - Footer: updated to describe hub-spoke role (shared entry point + agent files)
+        - Version date updated. Operational content (Project Snapshot, Critical Path,
+          working guidelines) unchanged — still accurate.
 
-    - [ ] **6.3.c Update agent-specific files if needed**
-        - Review CLAUDE.md, GEMINI.md, WARP.md, `copilot-instructions.template.md`
-        - Update only sections that actively conflict with WU1 decisions
-        - Scope: WU1-driven conflicts only, not general cleanup
-        - May be nil — ADRs established architectural decisions, not operational
-          changes. Operational updates (session-init config awareness, method
-          override reading) are WU2 implementation items.
+    - [x] **6.3.c Update agent-specific files if needed**
+        - Reviewed CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md
+        - **No WU1-driven conflicts found** — all content is operational guidance
+          specific to each agent's capabilities and environment. Nothing conflicts
+          with the architectural decisions from ADR-001 through ADR-006.
+        - WARP.md has pre-existing staleness (Docker references for a doc-only
+          framework) but that predates WU1 — not in scope here.
 
-- [ ] **6.4 Run quality gates and update STRATEGY-INDEX**
-    - Lint all new and modified files
-    - Verify cross-references between strategy docs and ADRs
-    - Add new strategy documents to STRATEGY-INDEX.md
+- [x] **6.4 Run quality gates and update STRATEGY-INDEX**
+    - Linting: verified incrementally throughout Phase 6 (all files zero violations)
+    - Cross-references: verified all reference-style and inline links in both
+      strategy docs, META-PRD, and AGENTS.md. All resolve correctly. Two links
+      inside code-block examples (`arc-extensions.md`, `arc-methods.md`) reference
+      WU2 deliverables that don't exist yet — expected, not broken.
+    - STRATEGY-INDEX: added `strategy-core-philosophy.md` and
+      `strategy-configurability-architecture.md` entries, alphabetically placed
 
 ### **Phase 7:** Verification
 
-- [ ] **7.1 Run Tier 3 quality gates**
-- [ ] **7.2 Validate success criteria against PRD**
+- [x] **7.1 Run Tier 3 quality gates**
+    - Markdown linting verified incrementally throughout all phases (zero violations).
+      Full-suite re-run skipped per developer direction — no new files since last
+      verified pass.
+- [x] **7.2 Validate success criteria against PRD**
+    - Walked all 7 PRD success criteria + 2 task-list additions against actual
+      outcomes. All met. Annotations added per verify-completion protocol.
 
 ---
 
 ## Success Criteria
 
-- [ ] All 9 design questions resolved with documented decisions (ADRs in
+- [x] All 9 design questions resolved with documented decisions (ADRs in
   `.arc-internal/reference/adr/`)
-- [ ] Sharp principle/method boundary — every current ARC practice unambiguously classified
+  — 6 ADRs (ADR-001 through ADR-006) covering all 9 PRD requirements. Consolidation
+  points: Reqs 2+3 → ADR-002, Reqs 4+5 → ADR-003, Reqs 7+8 → ADR-005.
+- [x] Sharp principle/method boundary — every current ARC practice unambiguously classified
   using the three-tier model (non-negotiable / convention / escape hatch)
-- [ ] Strategy documents actionable for WU2 (methodology implementation without further design
+  — 11 principles (P1-P11) in core philosophy strategy. 19 conventions with
+  configurability paths in configurability architecture strategy. Three-tier model
+  (principle / convention / escape hatch) with boundary test applied to all practices.
+- [x] Strategy documents actionable for WU2 (methodology implementation without further design
   decisions needed)
-- [ ] Config schema actionable for WU3 (CLI tooling can implement `arc init` and config
+  — Core philosophy strategy (~440 lines) + configurability architecture strategy (~590
+  lines). Convention inventory includes configurability paths. Extension point and method
+  override mechanisms fully specified with marker formats. Implementation artifacts routed
+  to WU2/WU3 plan-\* docs.
+- [x] Config schema actionable for WU3 (CLI tooling can implement `arc init` and config
   management)
-- [ ] Adopter scenarios validated — decisions hold for PRD use cases (validated during
+  — `arc-config.yml` design: dotted keys, flat-file shell-parseable format, all settings
+  defined. Profile definitions with config values. `arc init` flow described. Custom
+  pattern mechanism for hooks.
+- [x] Adopter scenarios validated — decisions hold for PRD use cases (validated during
   strategy synthesis, not as standalone pass)
-- [ ] ADRs internally consistent — no contradictions across decisions
-- [ ] Constitutional docs current — META-PRD, AGENTS.md, and agent files reflect WU1 decisions
-- [ ] All quality gates pass (markdown linting — 0 violations)
-- [ ] Ready for archival and WU2 activation
+  — Three validation scenarios in configurability architecture strategy (Scrum+Jira team,
+  factory-style agent bookend, essentials→recommended scaling). All passed without gaps.
+  Methodology compatibility validated in ADR-006 and core philosophy positioning.
+- [x] ADRs internally consistent — no contradictions across decisions
+  — Strategy synthesis (Phase 6) drew on all 6 ADRs. No contradictions surfaced. ADRs
+  cross-reference each other where decisions interact.
+- [x] Constitutional docs current — META-PRD, AGENTS.md, and agent files reflect WU1 decisions
+  — META-PRD: wholesale rewrite. AGENTS.md: targeted updates (naming, overview, heading).
+  Agent-specific files: reviewed, no WU1-driven conflicts.
+- [x] All quality gates pass (markdown linting — 0 violations)
+  — Verified incrementally throughout all phases.
+- [x] Ready for archival and WU2 activation
+  — All phases complete. All criteria met. Pending commit of Phase 6-7 work.
 
 ---
