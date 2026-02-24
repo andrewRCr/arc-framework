@@ -419,71 +419,82 @@ principle/method distinction. (PRD Requirements 4, 5)
 
 ### **Phase 6:** Synthesis & Documentation
 
-**Purpose:** Synthesize ADRs into strategy documents, validate against adopter scenarios, and
-refresh constitutional docs. (PRD Requirements 10, 11, 12)
+**Purpose:** Synthesize ADRs into strategy documents and refresh constitutional docs.
+(PRD Requirements 10, 11, 12)
+
+**Note on adopter-scenario validation (PRD Requirement 11):** Originally planned as
+standalone Task 6.3. Removed because ADRs already performed heavy scenario validation
+(ADR-004 adopter postures, ADR-005 external tracker scenarios, ADR-006 methodology
+walkthroughs). Synthesizing into strategy docs is itself a validation exercise — gaps
+and contradictions surface during synthesis. Tasks 6.1 and 6.2 include an explicit
+validation lens instead.
 
 - [ ] **6.1 Produce core philosophy strategy document**
 
     **Goal:** Create the authoritative document defining what ARC IS.
-    (PRD Requirement 10, part 1)
+    (PRD Requirement 10, part 1; incorporates Requirement 11 validation)
 
     - Synthesize across all ADRs: non-negotiable principles, philosophical positioning
       (multi-agent, co-development), identity and purpose
-    - Resolve open question: abstract principles only, or principles demonstrated
-      through architecture?
-    - File: `.arc-internal/reference/strategies/` (exact path TBD)
+    - Principles demonstrated through architecture — ADR-001 ties each principle to
+      conventions and consequences; strategy doc should ground principles in the
+      architectural decisions that embody them
+    - Incorporate practical benefits analysis from notes (rework reduction, developer
+      engagement, maintainability)
+    - **Validation lens:** As you synthesize, test against PRD adopter scenarios — do
+      the principles and positioning hold for Scrum teams, factory-style agents, teams
+      evaluating ARC? Flag gaps if found.
+    - File: `.arc/reference/strategies/arc/strategy-core-philosophy.md`
     - Must be readable standalone — an evaluating team should understand ARC's identity
       from this document alone
 
 - [ ] **6.2 Produce configurability architecture strategy document**
 
     **Goal:** Create the authoritative reference for ARC's configurability system.
-    (PRD Requirement 10, part 2)
+    (PRD Requirement 10, part 2; incorporates Requirement 11 validation)
 
-    - Synthesize across config, extension point, tier, and compatibility ADRs
-    - Cover: three-tier model, config schema, extension point conventions, adoption
-      tiers, external tool model, dev methodology mapping
+    - Synthesize across ADR-003 (config + extensions), ADR-004 (adoption tiers),
+      ADR-005 (external compat + method overrides), ADR-006 (methodology mapping)
+    - Cover: three-mechanism model (config / extensions / method overrides), config
+      schema, extension point conventions, adoption profiles, external tool model,
+      dev methodology positioning
+    - Config schema spec as a section within this strategy (ADR-003 already defined
+      concrete schema; standalone spec not warranted)
+    - **Validation lens:** Test configurability model against high-risk scenarios —
+      Jira-integrated team, factory-style agent, essentials-to-recommended scaling.
+      Flag gaps if found.
     - Must be actionable for WU2 (implement changes) and WU3 (CLI design)
-    - Evaluate whether a standalone config schema spec is warranted
+    - File: `.arc/reference/strategies/arc/strategy-configurability-architecture.md`
 
-- [ ] **6.3 Light adopter-scenario validation**
-
-    **Goal:** Stress-test decisions against real adoption scenarios before handing off
-    to WU2. (PRD Requirement 11)
-
-    - Walk through PRD use cases (or representative subset) against completed ADRs and
-      strategy docs
-    - For each scenario: do decisions hold? Gaps? Contradictions? Under-specified areas?
-    - Focus on high-risk scenarios:
-        - Scrum team (use case 4)
-        - Factory-style agent (use case 8)
-        - Team evaluating ARC (use case 12)
-    - Document gaps found; determine if they require ADR amendments or are WU2 concerns
-
-- [ ] **6.4 Update core internal documents**
+- [ ] **6.3 Update core internal documents**
 
     **Goal:** Ensure WU2 inherits accurate constitutional context.
     (PRD Requirement 12)
 
-    - [ ] **6.4.a Update META-PRD**
+    - [ ] **6.3.a Update META-PRD**
         - Refresh adoption model (stale "copies .arc/" language)
         - Update philosophy framing to reflect principle/method distinction
         - Remove "vibe coding" positioning — let philosophy stand on own terms
         - Align with core philosophy strategy document
 
-    - [ ] **6.4.b Update AGENTS.md**
+    - [ ] **6.3.b Update AGENTS.md**
         - Refresh project overview to reflect 1.0 direction
         - Update collaboration principles based on core identity ADR
         - Ensure AI collaboration section reflects agent-agnosticism findings
+        - Likely light scope — file is already lean
 
-    - [ ] **6.4.c Update agent-specific files as needed**
+    - [ ] **6.3.c Update agent-specific files if needed**
         - Review CLAUDE.md, GEMINI.md, WARP.md, `copilot-instructions.template.md`
-        - Update sections that conflict with WU1 decisions
-        - Scope: only changes driven by WU1 ADRs, not general cleanup
+        - Update only sections that actively conflict with WU1 decisions
+        - Scope: WU1-driven conflicts only, not general cleanup
+        - May be nil — ADRs established architectural decisions, not operational
+          changes. Operational updates (session-init config awareness, method
+          override reading) are WU2 implementation items.
 
-- [ ] **6.5 Run quality gates on all Phase 6 deliverables**
+- [ ] **6.4 Run quality gates and update STRATEGY-INDEX**
     - Lint all new and modified files
     - Verify cross-references between strategy docs and ADRs
+    - Add new strategy documents to STRATEGY-INDEX.md
 
 ### **Phase 7:** Verification
 
@@ -502,7 +513,8 @@ refresh constitutional docs. (PRD Requirements 10, 11, 12)
   decisions needed)
 - [ ] Config schema actionable for WU3 (CLI tooling can implement `arc init` and config
   management)
-- [ ] Adopter scenarios validated — decisions hold for PRD use cases without obvious gaps
+- [ ] Adopter scenarios validated — decisions hold for PRD use cases (validated during
+  strategy synthesis, not as standalone pass)
 - [ ] ADRs internally consistent — no contradictions across decisions
 - [ ] Constitutional docs current — META-PRD, AGENTS.md, and agent files reflect WU1 decisions
 - [ ] All quality gates pass (markdown linting — 0 violations)
