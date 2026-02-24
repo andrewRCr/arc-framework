@@ -755,6 +755,20 @@ consolidated terminology reference if one emerges.
 Origin: ADR-002 review discussion (`notes-philosophy-configurability.md`, "Forward-Looking:
 Terminology and Branding").
 
+### Workflow gap: research file archival
+
+The archive-completed workflow moves all active directory files to the work unit's archive
+directory. This doesn't account for reference material (research files) that has ongoing value
+beyond the source work unit. During WU1 archival, 5 research files were moved to a new
+`reference/research/` directory rather than bundled with the work unit archive — research is
+topic-organized and discoverable, not coupled to the work unit that commissioned it.
+
+The archive-completed workflow needs a step for routing reference material to `reference/research/`
+(or the adopter equivalent). This is a light addition — a decision point during Phase 3 archival:
+"Do any files in the active directory have reference value beyond this work unit?"
+
+Origin: WU1 archival (2026-02-24).
+
 ---
 
 **Created:** 2026-02-22
