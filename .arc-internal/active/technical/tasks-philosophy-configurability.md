@@ -380,20 +380,15 @@ principle/method distinction. (PRD Requirements 4, 5)
     - Ensure ARC built-in methods remain first-class
     - Draft ADR (external tool and platform compatibility)
 
-- [ ] **5.3 Resolve merge strategy support**
+- [x] **5.3 Resolve merge strategy support**
 
     **Goal:** Define how ARC's value proposition survives squash merging.
     (PRD Requirement 8)
 
-    - Read current commit docs: `strategy-development-methodology.md` commit standards,
-      `atomic-commit.md` workflow
-    - ADR-001 P6 and conventions table cover squash merge positioning (audit
-      dealbreaker #3 — atomic commits tied to merge strategy)
-    - Evaluate: standalone ADR or fold into config system ADR (Phase 4) as a
-      `merge_strategy` setting?
-    - If standalone: draft ADR addressing commit philosophy, archive adaptations,
-      documentation guidance
-    - If folded: update config system ADR and document decision here
+    Folded into ADR-003 (Phase 4) as `merge.strategy` config setting with behavioral
+    guidance per strategy. Merge as default (P6 traceability), rebase as convention,
+    squash as tier 3 escape hatch with adapted traceability guidance (shift to PR
+    descriptions). No standalone ADR needed.
 
 - [ ] **5.4 Design development methodology compatibility**
 
@@ -415,7 +410,7 @@ principle/method distinction. (PRD Requirements 4, 5)
 
 - [ ] **5.5 Review and finalize Phase 5 ADRs**
     - Iterate based on review feedback
-    - Ensure all four design questions are resolved (even if consolidated into fewer ADRs)
+    - Three ADRs expected (5.1, 5.2, 5.4); 5.3 already folded into ADR-003
     - Check consistency with Phase 2-4 ADRs
     - Lint all new ADR files
 
