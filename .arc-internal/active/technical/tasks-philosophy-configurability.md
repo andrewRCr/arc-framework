@@ -390,30 +390,32 @@ principle/method distinction. (PRD Requirements 4, 5)
     squash as tier 3 escape hatch with adapted traceability guidance (shift to PR
     descriptions). No standalone ADR needed.
 
-- [ ] **5.4 Design development methodology compatibility**
+- [x] **5.4 Design development methodology compatibility**
 
     **Goal:** Define how ARC coexists with Scrum, Kanban, and other established
-    methodologies. High priority. (PRD Requirement 9)
+    methodologies. (PRD Requirement 9)
 
-    - Read `research-dev-methodology.md` for methodology landscape and integration patterns
-    - Read current ARC work organization docs: `strategy-work-organization.md`,
-      `strategy-task-list-formatting.md`, `2_generate-tasks.md`, `3_process-task-loop.md`
-    - Map ARC constructs to methodology constructs:
-        - PRDs ↔ epics/stories
-        - Task lists ↔ sprint backlogs
-        - Tasks ↔ sprint items / Kanban cards
-        - One-task-at-a-time ↔ WIP limits / sprint velocity
-        - Quality gates ↔ definition of done
-    - Resolve: complementary layer (alongside Scrum/Kanban) or competing model?
-    - Aim for strong explicit support, not edge-case accommodation
-    - Draft ADR (development methodology compatibility)
+    - Absorbed all inputs: methodology research, ADR-001 through ADR-005, WU2-WU4 plans,
+      current ARC work organization docs, PRD, and notes file
+    - Core finding: ARC operates at the **execution pair** level (developer-agent
+      collaboration), not the team coordination level (Scrum/Kanban/Shape Up). These are
+      naturally complementary — different organizational levels addressing different concerns
+    - Produced broad compatibility analysis tracing adoption scenarios for Scrum, Kanban,
+      Scrumban, Shape Up, SAFe, solo/ad-hoc, and waterfall teams
+    - No fundamental incompatibilities found; ceremony weight perception is the primary
+      friction, addressed by organizational-level framing and ADR-004 profiles
+    - Drafted ADR-006 (`adr-006-establish-development-methodology-compatibility.md`):
+      positions ARC as complementary execution layer, provides construct mapping tables,
+      methodology-specific walkthroughs, ceremony weight framing, and AI methodology
+      disruption positioning
 
-- [ ] **5.5 Review and finalize Phase 5 ADRs**
+- [x] **5.5 Review and finalize Phase 5 ADRs**
     - ~~Finalize ADR-004 and ADR-005 together~~ — both accepted (Tasks 5.1, 5.2)
-    - Finalize ADR for 5.4 (methodology compatibility)
-    - One ADR remaining (5.4); 5.1 and 5.2 accepted, 5.3 folded into ADR-003
-    - Check consistency of 5.4 ADR with Phase 2-4 ADRs and ADR-004/005
-    - Lint all new ADR files
+    - ADR-006 (methodology compatibility) accepted and linted
+    - Consistency with Phase 2-4 ADRs and ADR-004/005 verified during drafting — ADR-006
+      references ADR-001 principles, ADR-003 configurability, ADR-004 profiles, and ADR-005
+      method overrides throughout
+    - All Phase 5 ADR files linted clean
 
 ### **Phase 6:** Synthesis & Documentation
 
