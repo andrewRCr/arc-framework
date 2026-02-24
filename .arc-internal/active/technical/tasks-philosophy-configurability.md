@@ -1,7 +1,6 @@
 # Task List: Core Philosophy & Configurability Architecture
 
 **PRD:** `.arc-internal/active/technical/prd-philosophy-configurability.md`
-**Notes:** `.arc-internal/active/technical/notes-philosophy-configurability.md`
 **Created:** 2026-02-23
 **Branch:** `technical/philosophy-configurability`
 **Base Branch:** `main`
@@ -556,6 +555,6 @@ validation lens instead.
 - [x] All quality gates pass (markdown linting — 0 violations)
   — Verified incrementally throughout all phases.
 - [x] Ready for archival and WU2 activation
-  — All phases complete. All criteria met. Pending commit of Phase 6-7 work.
+  — All phases complete. All criteria met.
 
 ---

@@ -1,7 +1,8 @@
 # PRD: Core Philosophy & Configurability Architecture
 
 **Type:** Technical
-**Updated:** 2026-02-23
+**Status:** Complete
+**Completed:** 2026-02-24
 
 ---
 
@@ -301,27 +302,25 @@ configurability architecture? Leave this to emerge during requirement 1 work.
 7. **Constitutional docs current** — META-PRD, AGENTS.md, and agent-specific files reflect WU1
    decisions; WU2 can reference them without encountering stale pre-1.0 framing
 
-## Open Questions
+## Open Questions (Resolved)
 
-1. **How many ADRs?** — 9 candidates may produce 5-9 actual ADRs depending on natural
-   consolidation during work. Exact count is a work output, not a constraint.
-2. **How many strategy documents?** — Minimum two (philosophy + configurability architecture).
-   Possible third (standalone config schema spec). Emerges during synthesis.
-3. **Philosophy doc scope** — Abstract principles only, or principles demonstrated through the
-   configurability architecture? To be resolved during ADR 1 work.
-4. **Multi-agent orchestration positioning** — How strongly should ARC's philosophy position
-   against autonomous multi-agent workflows? The stance must be clear and honest (ARC is built
-   on different premises) without being preachy or claiming orchestration has no valid use cases.
-   May also need to identify domains where human-agent coupling is strictly necessary vs. where
-   it's a preference. To be resolved during requirement 1.
-5. **ARC's co-development model as principle vs. method** — Is "local CLI agent with filesystem
-   co-development" a principle (defining ARC's identity) or a method (the current best
-   implementation of a deeper principle like "developer and agent share context in real time")?
-   Cloud/remote agents challenge this boundary. To be resolved during requirements 1 and 3.
-6. **ARC's work organization vs. established methodologies** — Is ARC's spec → PRD → tasks →
-   execute model a complementary layer (works alongside Scrum/Kanban) or a competing model
-   (replaces sprint planning)? The answer determines whether ARC is adoptable by the large
-   segment of teams using established methodologies, or whether it's limited to teams willing to
-   replace their entire workflow. To be resolved during requirement 9.
+1. **How many ADRs?** — 6 ADRs (ADR-001 through ADR-006). Consolidated from 9 candidates:
+   Reqs 2+3 → ADR-002, Reqs 4+5 → ADR-003, Reqs 7+8 → ADR-005.
+2. **How many strategy documents?** — Two: core philosophy + configurability architecture.
+   Config schema presented narratively within the configurability strategy rather than as a
+   standalone spec — the actual `arc-config.yml` with inline comments is self-documenting.
+3. **Philosophy doc scope** — Principles with conventions referenced under each, but the
+   configurability architecture is a separate companion document. Philosophy defines *what
+   ARC is*; configurability defines *how teams customize it*.
+4. **Multi-agent orchestration positioning** — Positive value claim, not comparative. ARC
+   optimizes for collaboration quality; delegation has legitimate uses for bounded work.
+   "Off-label" framing acknowledges without promoting. Evidence-cited, not dogmatic.
+5. **ARC's co-development model as principle vs. method** — Shared context with mutual
+   visibility is principle (P11). Local CLI is convention. CLI and IDE agents satisfy the
+   principle; async delegation agents are outside ARC's design envelope.
+6. **ARC's work organization vs. established methodologies** — Complementary layer. ARC
+   operates at the execution pair level (developer + agent); Scrum/Kanban operate at team
+   coordination level. Naturally complementary — different organizational levels addressing
+   different concerns. No fundamental incompatibilities found (ADR-006).
 
 ---
