@@ -429,24 +429,20 @@ walkthroughs). Synthesizing into strategy docs is itself a validation exercise �
 and contradictions surface during synthesis. Tasks 6.1 and 6.2 include an explicit
 validation lens instead.
 
-- [ ] **6.1 Produce core philosophy strategy document**
+- [x] **6.1 Produce core philosophy strategy document**
 
     **Goal:** Create the authoritative document defining what ARC IS.
     (PRD Requirement 10, part 1; incorporates Requirement 11 validation)
 
-    - Synthesize across all ADRs: non-negotiable principles, philosophical positioning
-      (multi-agent, co-development), identity and purpose
-    - Principles demonstrated through architecture — ADR-001 ties each principle to
-      conventions and consequences; strategy doc should ground principles in the
-      architectural decisions that embody them
-    - Incorporate practical benefits analysis from notes (rework reduction, developer
-      engagement, maintainability)
-    - **Validation lens:** As you synthesize, test against PRD adopter scenarios — do
-      the principles and positioning hold for Scrum teams, factory-style agents, teams
-      evaluating ARC? Flag gaps if found.
+    Produced `strategy-core-philosophy.md` (~440 lines) synthesizing all 6 ADRs. Structure:
+    identity statement, philosophical foundation (three pillars front-and-center), 11
+    principles grouped into core commitments / operational discipline / design commitments,
+    principle/convention boundary with examples, and positioning (execution layer, agent
+    compatibility, explicit boundaries). Practical benefits woven into relevant sections
+    rather than standalone pitch section. Adopter scenario validation passed — all 12 PRD
+    scenarios hold without gaps. Naming decision: "ARC" without acronym expansion for now
+    (backronym candidates noted for future consideration). TOC added for navigability.
     - File: `.arc/reference/strategies/arc/strategy-core-philosophy.md`
-    - Must be readable standalone — an evaluating team should understand ARC's identity
-      from this document alone
 
 - [ ] **6.2 Produce configurability architecture strategy document**
 
