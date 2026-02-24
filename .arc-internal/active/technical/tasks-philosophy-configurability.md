@@ -289,42 +289,54 @@ assumptions against the full agent spectrum. (PRD Requirements 2, 3)
 **Purpose:** Design the config system and extension point conventions that implement the
 principle/method distinction. (PRD Requirements 4, 5)
 
-- [ ] **4.1 Design configuration system**
+- [x] **4.1 Design configuration system**
 
     **Goal:** Define what goes in `arc-config.yml`, the schema, and format constraints.
     (PRD Requirement 4)
 
-    - Read current `arc-config.yml` and hook scripts that parse it
-    - Read `notes-philosophy-configurability.md` — config starting positions (current
-      2 settings, priority additions, format constraints, A+B hybrid decision)
-    - Consume principle/method classifications from Phase 2 ADR — only conventions
-      (tier 2) appear in config
-    - Design: setting categories, schema structure, shell-parseability approach
-    - Address tier 3 (escape hatch) design pattern — distinct from standard config?
-    - Consider consolidation: merge strategy (requirement 8) as a config setting
-    - Draft ADR (configuration system)
+    Consolidated with Task 4.2 into a single ADR (ADR-003) covering both config and
+    extension points — they are the two halves of the A+B hybrid configurability model.
+    Also folded in PRD Requirement 8 (merge strategy) as a config setting with behavioral
+    implications.
 
-- [ ] **4.2 Define extension point conventions**
+    **ADR-003 config design decisions:**
+
+    - Dotted keys for logical grouping (`branch.base`, `commit.format`) — shell-parseable
+      with existing `arc_config_get` function, no parser rewrite needed
+    - 7 initial settings: `branch.base`, `branch.protection`, `commit.format`,
+      `commit.context_footer`, `merge.strategy`, `hooks.pre_commit`, `hooks.commit_msg`
+    - Three-category filtering criteria for which conventions earn config settings
+      (runtime-checkable, file-customizable, behavioral guidance) — WU2 applies criteria
+      when adding settings
+    - Tier 3 escape hatches selectively representable in config when ARC can adapt behavior
+      (e.g., `merge.strategy: squash` triggers adapted traceability guidance)
+
+- [x] **4.2 Define extension point conventions**
 
     **Goal:** Design how extension points work in prose workflows.
     (PRD Requirement 5)
 
-    - Read `notes-philosophy-configurability.md` — extension point starting positions
-      ("insert your steps here" markers)
-    - Read several existing workflow docs to understand current prose structure
-      (process task loop, session init, atomic commit)
-    - Design: format, contract, placement conventions
-    - Clarify when to use extension points (add behavior) vs. config switches
-      (toggle behavior)
-    - Consider relationship to tier 3 escape hatches
-    - Draft ADR (extension point conventions)
-    - Evaluate whether requirements 4 and 5 should consolidate into a single ADR
+    Consolidated into ADR-003 with Task 4.1. Requirements 4 and 5 are complementary
+    mechanisms (config toggles behavior, extension points add behavior) and benefit from
+    a unified design that defines the boundary between them.
 
-- [ ] **4.3 Review and finalize Phase 4 ADRs**
-    - Iterate based on review feedback
-    - Ensure config and extension point designs are consistent and complementary
-    - If consolidated: verify both design questions are fully addressed
-    - Lint all new ADR files
+    **ADR-003 extension point design decisions:**
+
+    - Preset extension points at ARC-defined locations in workflow docs (0–3 per doc)
+    - Compact inline markers with contract and inline link to extensions file
+    - Extension content in `system/workflows/arc-extensions.md` — framework-owned
+      structure, project-filled content (Configurable classification, three-way merge)
+    - Pre-scaffolded template sections with `[No extension configured]` placeholder
+    - No status synchronization — agent follows link, reads section, acts on content
+    - Custom extension points elsewhere = tier 3 escape hatch
+    - Separate file chosen over same-file bottom sections for: update safety, clean
+      ownership boundary, discoverability, resistance to inline pressure
+
+- [x] **4.3 Review and finalize Phase 4 ADRs**
+    Consolidated ADR-003 covers both config and extension points. Reviewed during
+    drafting — design discussion refined: merge as default strategy (not rebase, for
+    P6 alignment), separate extensions file over same-file bottom sections, dotted keys
+    over nested YAML. Status set to Accepted. Lint passes clean.
 
 ### **Phase 5:** Adoption & Compatibility
 
