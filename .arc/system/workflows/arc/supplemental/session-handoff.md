@@ -268,3 +268,31 @@ Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when re
 
 After updating CURRENT-SESSION.md, verify it's clean markdown. If CURRENT-SESSION.md is gitignored,
 your linter may skip it by default — pass the path explicitly or use an IDE-integrated linter.
+
+### Confirm Handoff
+
+After updating CURRENT-SESSION.md and verifying markdown, deliver a verbal summary to the user.
+This is a quick confirmation for the human — CURRENT-SESSION.md is the durable artifact.
+
+**ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
+
+**Session summary:**
+
+- [What was accomplished — bullet per logical unit of work]
+- [Include commit hashes for committed work]
+
+**Uncommitted work:**
+
+- [Files/changes with logical commit grouping]
+
+**Next session:** [What comes next per CURRENT-SESSION.md]
+
+**Formatting guidance:**
+
+- Mirrors the session-init orientation summary — bookend pattern
+- **Session summary** is accomplishments, not a task list replay — focus on outcomes
+- **Uncommitted work** maps to commits: enough detail for the next session to
+  reconstruct proper atomic commits without re-reading diffs. Omit this section
+  entirely when all work is committed — less noise when there's nothing to report
+- **Next session** is standalone and prominent — same scanning target as init's
+  "Next action"
