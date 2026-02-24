@@ -445,6 +445,93 @@ scope), documentation-driven (WU4 scope), or structural (WU3/CLI scope).
 - Minimum regardless of ADR 6 outcome: document the "one task at a time" deferred
   review escape hatch more prominently for experienced users (resolves Audit 1 M3)
 
+### Cluster N: Guidance Discovery & Skill Integration
+
+Items that improve how agents and humans discover relevant guidance, and formalize
+ARC's relationship with portable behavioral guidance conventions (skills). Informed by
+analysis comparing ARC's doc types (workflows, strategies) with the emerging Skills
+convention across agent tools.
+
+**Context:** ARC strategies and external skills share the same discovery weakness — both
+rely on the agent recognizing "I'm doing X and there's guidance for X." ARC's
+STRATEGY-INDEX is already a better solution than ambient skill discovery (explicit,
+loaded into context), but can be improved. Meanwhile, teams adopting ARC will bring
+existing skills and need a clear path for integration. The trigger/content separation
+already working in `.claude/commands/` (thin dispatchers pointing to `.arc/` workflows)
+is the right architectural pattern to formalize.
+
+**N1. Enrich STRATEGY-INDEX with trigger hints**
+
+- Add one-line "Consult when:" annotations to each entry in STRATEGY-INDEX, giving
+  agents (and humans) sharper matching criteria than a description alone
+- Example: `strategy-adr-methodology.md` — "Consult when: drafting or reviewing an ADR,
+  deciding whether to write one"
+- Dual-audience: helps agents connect task context to relevant strategies; helps humans
+  scanning the index quickly identify what's relevant to their current work
+- Low cost (one line per entry), high discoverability payoff
+
+**N2. Create WORKFLOW-INDEX**
+
+- New file: `.arc/system/workflows/WORKFLOW-INDEX.md` (or alongside STRATEGY-INDEX in
+  `reference/strategies/` — location TBD during execution)
+- Same pattern as STRATEGY-INDEX: lightweight catalog of available workflows with
+  one-line descriptions, organized by category (core lifecycle, supplemental)
+- Add to session-init.md load sequence (read every session for ambient awareness)
+- Purpose: agent connects user intent ("let's archive this") to the right workflow
+  (`archive-completed.md`) reliably, without having to memorize workflow names from
+  scattered document references
+- Also serves humans: new team members see the full workflow catalog at a glance
+- Include project workflows section (initially empty, populated by teams)
+
+**N3. Add strategy declaration guidance to generate-tasks workflow**
+
+- Small addition to `2_generate-tasks.md`: when writing task entries, note relevant
+  strategies from STRATEGY-INDEX (e.g., `**Strategies:** strategy-adr-methodology.md`)
+- Already happens informally in well-written task lists; codifying it makes the
+  connection reliable and explicit
+- The person writing the task list understands the domain — they're the right one to
+  connect task to strategy at planning time
+- Lightweight convention, not a mandatory field
+
+**N4. Formalize trigger/content separation convention**
+
+- Document the pattern: ARC content lives in `.arc/`, agent-specific trigger files
+  (slash commands, skills) are thin dispatchers in tool directories (`.claude/`,
+  `.codex/`, etc.)
+- This is how ARC's own skills already work — `resume-current.md` in `.claude/commands/`
+  is two lines pointing to `session-init.md`
+- Articulate as a convention in the development methodology or in a dedicated section
+  of the relevant strategy doc
+- Feeds WU3's slash command generation design (WU3 builds the automation; WU2
+  establishes the convention)
+
+**N5. Create integrate-skill supplemental workflow**
+
+- New file: `.arc/system/workflows/arc/supplemental/integrate-skill.md`
+- Agent-driven workflow for bringing external portable skills into ARC:
+    1. Agent reads the skill content
+    2. Classifies: procedural (→ project workflow), reference (→ project strategy),
+       blend (→ strategy with workflow aspects)
+    3. Assesses ARC integration: conflicts, complements, or fills gaps in existing
+       guidance
+    4. Proposes placement, adaptation scope, and trigger file creation to user
+    5. On approval: creates dual-audience ARC doc, creates thin trigger file(s),
+       updates STRATEGY-INDEX or WORKFLOW-INDEX as appropriate
+- The agent itself is the automation layer for the intelligence (classification,
+  adaptation); WU3's generation scripts handle the mechanical parts (generating
+  equivalent trigger files for multiple agent tools)
+- Key design goal: frictionless enough to actually be used — "I found this skill,
+  integrate it" as a single interaction, not a 7-step manual process
+
+**N6. Clarify `project/` directories as the skills landing zone**
+
+- Update READMEs in `.arc/reference/strategies/project/` and
+  `.arc/system/workflows/project/` to articulate their role as the home for
+  team-specific patterns, including adapted external skills
+- Currently these READMEs exist but don't connect to the skills story
+- After N5's workflow runs, adapted content lands here — making this explicit helps
+  teams understand the directory's purpose
+
 ### Cluster M: Structural Validation Pass
 
 Runs at the end of WU2, after all methodology changes are in place. Produces the inventory
@@ -478,13 +565,15 @@ WU3 (CLI design) needs to reason about file classification and update mechanics.
 
 ### Modified Files
 
-All existing files listed under Clusters A-K that receive edits. The exact set is
+All existing files listed under Clusters A-K and N that receive edits. The exact set is
 determined during execution as WU1 ADR decisions clarify scope; the inventory above
 identifies the candidates.
 
 ### New Files
 
 - `rotate-branch.md` — supplemental workflow for mid-work-unit branch rotation (D6)
+- `WORKFLOW-INDEX.md` — workflow catalog for session-init ambient awareness (N2)
+- `integrate-skill.md` — supplemental workflow for external skill integration (N5)
 - Any new `arc-config.yml` settings documentation if WU1 designates a companion
   reference doc rather than inline comments
 

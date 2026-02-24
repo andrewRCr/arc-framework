@@ -271,6 +271,24 @@ three separate directories in three different formats.
 The generation step runs as part of init and update — not as a standalone command. The generated
 files are agent-specific and classified as Framework (managed, can be updated).
 
+### Extension: Skill Integration Automation
+
+The same single-source-of-truth generation model extends naturally to skill integration.
+WU2 establishes the convention (trigger/content separation: ARC content in `.arc/`, thin
+trigger files in agent directories) and creates an `integrate-skill` workflow where the
+agent handles classification and adaptation. WU3's generation scripts handle the mechanical
+output: given canonical content in `.arc/`, produce the correct trigger file format for each
+configured agent tool.
+
+This means `arc-framework init` and `arc-framework update` manage both framework slash
+commands AND any team-integrated skills that followed the integrate-skill workflow. The
+manifest tracks both — they're the same file type (thin dispatchers) with the same update
+mechanics.
+
+The scope question for the WU3 PRD: whether skill trigger generation ships at 1.0 or is
+deferred. The slash command generation is required; skill generation is an extension of the
+same system but depends on teams actually using the integrate-skill workflow.
+
 ## The Manifest: `.arc-manifest.json`
 
 Tracks everything needed for the update system to function:

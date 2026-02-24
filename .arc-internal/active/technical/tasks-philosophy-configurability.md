@@ -358,6 +358,13 @@ principle/method distinction. (PRD Requirements 4, 5)
       position on coexistence, the dependency boundary (integrated = strategy,
       standalone = external), and whether an adapter workflow for skill-to-strategy
       conversion adds value
+    - Deeper analysis available: ARC strategies and skills share the same discovery
+      weakness (agent must recognize relevance); STRATEGY-INDEX with trigger hints
+      and a WORKFLOW-INDEX improve reliability. The trigger/content separation already
+      working in `.claude/commands/` (thin dispatchers → `.arc/` workflows) is the
+      right pattern to formalize. `project/` directories are the natural landing zone
+      for adapted skills. Implementation items captured in plan-wu2 (Cluster N) and
+      plan-wu3 (Slash Command Generation extension)
     - Ensure ARC built-in methods remain first-class
     - Draft ADR (external tool and platform compatibility)
 
@@ -368,7 +375,8 @@ principle/method distinction. (PRD Requirements 4, 5)
 
     - Read current commit docs: `strategy-development-methodology.md` commit standards,
       `atomic-commit.md` workflow
-    - Read `notes-philosophy-configurability.md` — squash merge dealbreaker finding
+    - ADR-001 P6 and conventions table cover squash merge positioning (audit
+      dealbreaker #3 — atomic commits tied to merge strategy)
     - Evaluate: standalone ADR or fold into config system ADR (Phase 4) as a
       `merge_strategy` setting?
     - If standalone: draft ADR addressing commit philosophy, archive adaptations,
