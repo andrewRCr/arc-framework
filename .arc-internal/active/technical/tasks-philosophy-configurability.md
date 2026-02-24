@@ -444,22 +444,23 @@ validation lens instead.
     (backronym candidates noted for future consideration). TOC added for navigability.
     - File: `.arc/reference/strategies/arc/strategy-core-philosophy.md`
 
-- [ ] **6.2 Produce configurability architecture strategy document**
+- [x] **6.2 Produce configurability architecture strategy document**
 
     **Goal:** Create the authoritative reference for ARC's configurability system.
     (PRD Requirement 10, part 2; incorporates Requirement 11 validation)
 
-    - Synthesize across ADR-003 (config + extensions), ADR-004 (adoption tiers),
-      ADR-005 (external compat + method overrides), ADR-006 (methodology mapping)
-    - Cover: three-mechanism model (config / extensions / method overrides), config
-      schema, extension point conventions, adoption profiles, external tool model,
-      dev methodology positioning
-    - Config schema spec as a section within this strategy (ADR-003 already defined
-      concrete schema; standalone spec not warranted)
-    - **Validation lens:** Test configurability model against high-risk scenarios —
-      Jira-integrated team, factory-style agent, essentials-to-recommended scaling.
-      Flag gaps if found.
-    - Must be actionable for WU2 (implement changes) and WU3 (CLI design)
+    Synthesized ADR-003/004/005/006 into `strategy-configurability-architecture.md`
+    (~590 lines). Structure: customization model (three mechanisms + boundary tests),
+    full 19-convention inventory with configurability paths, adoption profiles
+    (essentials/recommended/custom with config values), configuration design (dotted
+    keys, setting categories, merge strategy as behavioral implications example),
+    extension points and method overrides (mechanism, markers, contracts), platform
+    compatibility (QUICK-REFERENCE approach, skills positioning), and three validation
+    scenarios (Jira team, factory-style agent bookend, essentials→recommended scaling).
+    All scenarios passed without gaps. Implementation-specific artifacts (candidate
+    extension/method tables, profile definitions) routed to WU2/WU3 plan-\* docs.
+    Config schema presented narratively rather than as reproduced spec — the actual
+    `arc-config.yml` file with inline comments is self-documenting.
     - File: `.arc/reference/strategies/arc/strategy-configurability-architecture.md`
 
 - [ ] **6.3 Update core internal documents**

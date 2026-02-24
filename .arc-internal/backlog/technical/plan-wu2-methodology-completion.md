@@ -532,6 +532,92 @@ is the right architectural pattern to formalize.
 - After N5's workflow runs, adapted content lands here — making this explicit helps
   teams understand the directory's purpose
 
+### Cluster O: Extension Point and Method Override Infrastructure
+
+Per ADR-003 (config + extensions) and ADR-005 (external compat + method overrides).
+Implements the two customization mechanisms beyond config settings: extension points
+(add behavior at workflow locations) and method overrides (replace default convention
+implementations). These are the mechanisms that complete the customization model
+alongside Cluster B's config expansion.
+
+**O1. Scaffold `arc-extensions.md`**
+
+- New file: `.arc/system/workflows/arc-extensions.md`
+- Classification: Configurable (preserved through three-way merge)
+- One section per preset extension point: workflow reference, trigger condition,
+  contract, and `[No extension configured]` placeholder
+- Candidate preset extension points (evaluate and finalize during implementation;
+  target 0-3 per workflow):
+
+  | Workflow          | Extension Point     | Contract Summary                                    |
+  |-------------------|---------------------|-----------------------------------------------------|
+  | process-task-loop | `post-task-quality` | Additional checks after Tier 1, before marking done |
+  | process-task-loop | `post-unit-quality` | Additional checks after Tier 2 at unit boundaries   |
+  | session-init      | `post-context-load` | Additional context loading after standard docs      |
+  | atomic-commit     | `pre-stage-review`  | Additional staging verification before commit       |
+
+**O2. Scaffold `arc-methods.md`**
+
+- New file: `.arc/system/workflows/arc-methods.md`
+- Classification: Configurable
+- Co-located with `arc-extensions.md` (both modify workflow behavior)
+- One section per preset method: workflow reference, trigger, contract, default
+  behavior, and `### Project Override` with `[No override configured]` placeholder
+- Candidate preset methods (evaluate and finalize during implementation; target
+  3-5 total across all workflows):
+
+  | Method                   | Workflow             | Default                          | Common Override               |
+  |--------------------------|----------------------|----------------------------------|-------------------------------|
+  | Task completion tracking | process-task-loop    | Mark `[x]` in markdown task list | Update Jira/Linear status     |
+  | Quality gate commands    | process-task-loop    | Project-specific lint/test/build | Team CI suite, security scans |
+  | Session state mechanism  | session-init/handoff | CURRENT-SESSION.md read/write    | IDE persistent memory, etc.   |
+  | Commit context format    | atomic-commit        | `Context: tasks-*.md (Task X.Y)` | `Closes JIRA-XXX`, `Fixes #N` |
+
+**O3. Insert extension point markers into workflows**
+
+- Block-style markers at each preset location, bounded by horizontal rules:
+
+  ```markdown
+  ---
+  **Extension Point — [Name]** · `#[anchor]`
+  Contract: [when it fires and what it's allowed to do]
+  See: [arc-extensions.md](../arc-extensions.md#[anchor])
+  ---
+  ```
+
+**O4. Insert method markers into workflows**
+
+- Same visual pattern as extension points:
+
+  ```markdown
+  ---
+  **Method — [Name]** · `#[anchor]`
+  Contract: [invariant that both default and override must satisfy]
+  Default: [ARC's built-in behavior]
+  See: [arc-methods.md](../arc-methods.md#[anchor])
+  ---
+  ```
+
+**O5. Add session-init config awareness step**
+
+- After standard document loading in `session-init.md`, add a lightweight step:
+  read `arc-config.yml` (note platform, custom patterns, non-default values) and
+  `arc-methods.md` (note any populated project overrides). Read-and-note — no
+  additional documents to internalize, just awareness carried through session.
+
+**O6. Add custom pattern config settings** (extends Cluster B1)
+
+- `commit.format: custom` as new valid value (alongside `conventional`, `any`) —
+  triggers hook validation against `commit.custom_pattern` regex
+- `commit.custom_pattern` — regex setting for custom commit format validation
+- `commit.context_footer: custom` as new valid value — triggers validation against
+  `commit.context_pattern` regex
+- `commit.context_pattern` — regex setting for custom context footer validation
+- `platform.type` — informational platform declaration (`github` / `gitlab` /
+  `bitbucket`); agent-read, not consumed by hooks
+- Inline comment examples for common regex patterns (Jira prefix, ticket + type,
+  issue reference) to reduce authoring friction
+
 ### Cluster M: Structural Validation Pass
 
 Runs at the end of WU2, after all methodology changes are in place. Produces the inventory
@@ -574,6 +660,8 @@ identifies the candidates.
 - `rotate-branch.md` — supplemental workflow for mid-work-unit branch rotation (D6)
 - `WORKFLOW-INDEX.md` — workflow catalog for session-init ambient awareness (N2)
 - `integrate-skill.md` — supplemental workflow for external skill integration (N5)
+- `arc-extensions.md` — extension point scaffolding at `system/workflows/` (O1)
+- `arc-methods.md` — method override scaffolding at `system/workflows/` (O2)
 - Any new `arc-config.yml` settings documentation if WU1 designates a companion
   reference doc rather than inline comments
 

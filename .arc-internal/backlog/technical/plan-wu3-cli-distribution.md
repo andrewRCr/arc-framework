@@ -175,8 +175,40 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
     - "Include ADR workflow?" — optional files based on team practices
     - "Which AI agents?" — installs only selected agent directories (`.claude/`, `.codex/`,
       `.gemini/`)
-- **Presets (cross-cutting):** Pre-designed configurations for common setups (solo dev, small team,
-  etc.) — if WU1 defines these, init offers them as starting points before fine-tuning
+- **Adoption profiles (cross-cutting):** Three profiles pre-configure `arc-config.yml`
+  during init (per ADR-004). Profiles are an init convenience — after init, the config
+  file is directly editable. No persistent "profile" concept in the framework.
+
+  **Essentials** — Principles committed, enforcement relaxed:
+
+  ```yaml
+  commit.format: any
+  commit.context_footer: optional
+  hooks.commit_msg: disabled
+  hooks.pre_commit: enabled
+  merge.strategy: merge
+  branch.protection: unprotected
+  ```
+
+  **Recommended** (default) — Full convention set, all enforcement active:
+
+  ```yaml
+  commit.format: conventional
+  commit.context_footer: required
+  hooks.commit_msg: enabled
+  hooks.pre_commit: enabled
+  merge.strategy: merge
+  branch.protection: partial
+  ```
+
+  **Custom** — Interactive selection of individual settings with per-setting
+  guidance (purpose, default, alternatives).
+
+- **Post-init messaging differentiation:** Each profile produces different post-init
+  guidance. Essentials highlights the core workflow quartet (create-prd,
+  generate-tasks, process-task-loop, session-init). Recommended covers the full
+  system. Custom mirrors whichever profile the resulting config most resembles, with
+  notes on any non-default choices.
 
 Template rendering:
 
