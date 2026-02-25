@@ -23,8 +23,11 @@ undocumented pre-PRD planning pipeline that ARC relies on heavily but has never 
 These are design questions, not implementation tasks. WU1.5 produces ADRs, strategy updates,
 and workflow change specifications. WU2 implements them.
 
-**Audit reference:** `audit-wu1.5-gap-discovery.md` — full methodology, evidence, convergence
-analysis, and classification framework.
+**Audit methodology:** Gaps were identified via 4 independent discovery methods (scenario walks,
+assumption extraction, pre-mortem, WU1 output review), cross-referenced against all WU1 ADRs.
+Findings were classified as genuinely new, already decided, or partially addressed. The audit
+artifact was consumed during PRD creation; all actionable content is captured in this PRD and
+the notes file.
 
 ## Goals
 
@@ -238,8 +241,6 @@ sequential numbering continuing from WU1 (ADR-007+), immutable once accepted. AD
 
 **Reference artifacts:**
 
-- `audit-wu1.5-gap-discovery.md` — primary reference. Contains full evidence, classification
-  framework, and convergence matrix for all gaps.
 - `notes-foundational-gap-closure.md` — context loading three-tier model, research seed
   sources, session state problem analysis, and analogous domain patterns.
 
