@@ -1,10 +1,10 @@
 # Task List: Foundational Gap Closure
 
-**PRD:** `.arc-internal/backlog/technical/prd-foundational-gap-closure.md`
+**PRD:** `.arc-internal/active/technical/prd-foundational-gap-closure.md`
 **Created:** 2026-02-25
 **Branch(es):** `technical/foundational-gap-closure`
 **Base Branch:** `main`
-**Status:** Not Started
+**Status:** In Progress
 
 ## Overview
 
