@@ -5,8 +5,9 @@ but must be resolved before WU2 implementation begins. WU1 focused on philosophy
 configurability architecture; WU1.5 catches operational and mechanical gaps that slipped
 through — questions that need design decisions, not implementation.
 
-**Status:** Draft
+**Status:** Phase 1 complete, Phase 2 pending
 **Created:** 2026-02-24
+**Phase 1 completed:** 2026-02-25
 
 ---
 
@@ -129,23 +130,73 @@ this broader effort.
 4. Structured chains vs. single files — does multi-document loading perform differently
    than monolithic context?
 
-### Potential Additional Gaps (Audit Targets)
+### Gap 3: First-Session Bootstrap
 
-These are candidates to examine during the audit pass — not confirmed gaps:
+**Problem:** Session-init assumes CURRENT-SESSION.md exists. No workflow addresses the
+first-ever session after ARC adoption — new adopters hit a dead end at step 8 ("MUST
+READ IN FULL") when the file doesn't exist. More broadly, no onboarding sequence connects
+setup completion (01_initialize-arc, 02_define-project) to productive work.
 
-- **Cross-platform path handling** — QUICK-REFERENCE has environment-specific paths. What's
-  the story when the same developer (or team) works across macOS, Windows/WSL, and Linux?
-  Is this already covered by the "QUICK-REFERENCE is file-customizable" classification, or
-  is there a gap?
-- **Session-init / agent-specific file interaction** — session-init references agent-specific
-  files (CLAUDE.md, GEMINI.md). If a developer switches agents between sessions (common in
-  multi-tool environments), does context transfer cleanly? Does CURRENT-SESSION capture
-  agent-specific state that doesn't apply to the next agent?
-- **Workflow completeness for the session lifecycle** — session-init exists as a supplemental
-  workflow; session-handoff exists. Is the full lifecycle (init → work → handoff → transfer →
-  init) coherent end-to-end, or are there implicit assumptions at the seams?
+**Discovered by:** Phase 1 audit (3 methods: scenario walks, assumption extraction,
+pre-mortem). See `audit-wu1.5-gap-discovery.md` Gap 3.
 
-The audit pass may surface others. These are starting points, not an exhaustive list.
+**Design question:** What should happen on the first session? Graceful handling in
+session-init, a separate first-session workflow, or setup creates initial session state?
+
+### Gap 4: Task Reference Stability
+
+**Problem:** CURRENT-SESSION.md uses line numbers as task anchors ("Task 5.5 (line 1903)").
+Line numbers shift when tasks are added or edited between sessions, silently breaking
+handoff references.
+
+**Discovered by:** Phase 1 audit (2 methods: scenario walks, assumption extraction).
+See `audit-wu1.5-gap-discovery.md` Gap 4.
+
+**Design question:** Replace with stable IDs/heading anchors, add verification guidance,
+or a different referencing mechanism?
+
+### Gap 5: Team Work Transfer Protocol
+
+**Problem:** No workflow exists for developer-to-developer handoff. Session-handoff
+captures state for the same developer's next session. Even with session state sharing
+solved (Gap 1), the *process* of work transfer is undefined.
+
+**Discovered by:** Phase 1 audit (2 methods: both scenario walk agents independently).
+See `audit-wu1.5-gap-discovery.md` Gap 5.
+
+**Design question:** Does ARC need a team handoff workflow distinct from session handoff?
+Does solving Gap 1 (session state portability) also solve this?
+
+### Additional Gaps (Phase 1 Audit)
+
+The audit surfaced 5 additional gaps of moderate severity. Full analysis in
+`audit-wu1.5-gap-discovery.md`:
+
+- **Gap 6: Method override dependencies** — interdependent methods treated as independent
+- **Gap 7: Config semantics in team mode** — personal vs. project-wide config unspecified
+- **Gap 8: Archive trigger with stacked branches** — ambiguous when multiple branches
+  serve one task list
+- **Gap 9: Session state mismatch recovery** — detected but no recovery protocol
+- **Gap 10: CURRENT-SESSION staleness detection** — no freshness check
+
+Gaps 6-7 are pre-mortem unique finds (lower confidence, may be addressable during WU2).
+Gaps 8-10 are assumption extraction finds (operational, likely resolvable through
+documentation updates).
+
+### Audit Target Resolution
+
+The following pre-audit candidates were evaluated:
+
+- **Cross-platform path handling** — Not confirmed as a foundational gap. QUICK-REFERENCE
+  is file-customizable (project-owned). ADR-005 handles platform variation through
+  QUICK-REFERENCE + `platform.type` config. Operational, not design-level.
+- **Session-init / agent-specific file interaction** — Partially addressed. ADR-002
+  classifies workflow assumptions as incidental; architecture supports agent switching.
+  Operational guidance missing but not a design gap. See audit doc "Partially Addressed."
+- **Workflow completeness for session lifecycle** — Confirmed as multiple gaps. First-
+  session bootstrap (#3), team work transfer (#5), mismatch recovery (#9), and staleness
+  detection (#10) are all session lifecycle gaps. The lifecycle has significant holes at
+  transitions.
 
 ---
 
@@ -281,27 +332,43 @@ in the main session context would consume most of a session on reading alone.
 - WU1 output review done in main context (requires cross-referencing prior session
   knowledge)
 
-**Output:** Updated gap inventory in this plan doc (add to Known Gaps section above),
-with provenance tracking — which method discovered each gap, and whether multiple methods
-independently confirmed it.
+**Output:** `audit-wu1.5-gap-discovery.md` — complete synthesis with provenance tracking,
+convergence analysis, and classification against WU1 ADRs. Gap inventory updated in
+this plan doc (Known Gaps section above).
+
+**Phase 1 result:** 10 gaps identified (2 previously known, 8 new). 5 "already decided"
+findings filtered out via ADR cross-referencing. 3 partially addressed findings noted.
+Dominant theme: session lifecycle gaps (5 of 10 gaps cluster around session state at
+different boundary types). See `audit-wu1.5-gap-discovery.md` for full analysis.
 
 ### Phase 2: Research — Empirical Grounding
 
 External research where needed to inform design decisions. Not every gap requires
-research — some may be resolvable from first principles or existing analogies.
+research — some are resolvable from first principles or existing analogies.
 
-**Gap 1 (session state):** Research how other frameworks handle session state portability,
-developer handoff, and the local-vs-shared state split. Look for established patterns
-rather than inventing from scratch.
+**Research track 1 — Session lifecycle design (Gaps 1, 3, 5, 9, 10):**
 
-**Gap 2 (context loading):** Execute the research plan from
-`plan-context-loading-architecture.md` — synthesize empirical findings on LLM context
-effectiveness, evaluate ARC's current model against evidence.
+Research how other frameworks handle session state portability, first-session bootstrap,
+developer handoff, and the local-vs-shared state split. These are facets of a single
+design space — one research effort covering the full session lifecycle is more efficient
+than separate investigations per gap. Look for established patterns rather than inventing
+from scratch.
 
-**Other gaps (from audit):** Research as needed based on audit findings.
+**Research track 2 — Context loading architecture (Gap 2):**
+
+Execute the research plan from `plan-context-loading-architecture.md` — synthesize
+empirical findings on LLM context effectiveness, evaluate ARC's current model against
+evidence. Independent of session lifecycle research.
+
+**Resolvable without research (Phase 2 → Phase 3 fast-track):**
+
+- Gap 4 (task reference stability) — decidable from first principles
+- Gap 6 (method override dependencies) — documentable as guidance
+- Gap 7 (config team semantics) — likely resolvable by documenting explicit choice
+- Gap 8 (archive trigger) — small scope strategy/workflow update
 
 **Output:** Research synthesis for each gap that required it. Research subagents
-(external-research-analyst) can run in parallel for independent gap investigations.
+(external-research-analyst) can run in parallel for independent investigations.
 
 ### Phase 3: Design Decisions
 
