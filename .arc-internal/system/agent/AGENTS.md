@@ -34,7 +34,7 @@ with strong default conventions that teams adapt to their context
 **Common Friction Points:**
 
 - **No runtime**: This is documentation-only - no Docker, no services, no backend/frontend to run
-- **Markdown linting is THE quality gate**: `npx --yes markdownlint-cli *.md .arc/**/*.md .arc-internal/**/*.md`
+- **Markdown linting is THE quality gate**: `npm run -s lint:md`
 - **Working directory**: Always at repository root (`/home/andrew/dev/arc-agentic-dev-framework/`)
 - **Commands in QUICK-REFERENCE**: All assume repo root - paths are already correct
 - **Template vs. Internal**: `.arc/` = templates for users (`reference/` + `system/`), `.arc-internal/` = framework-specific

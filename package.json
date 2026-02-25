@@ -1,0 +1,15 @@
+{
+  "name": "arc-agentic-dev-framework",
+  "private": true,
+  "version": "0.0.0",
+  "description": "ARC Framework development tooling",
+  "scripts": {
+    "lint:md": "markdownlint-cli2 \"**/*.md\"",
+    "lint:md:file": "markdownlint-cli2 --no-globs",
+    "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
+    "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs"
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "0.18.1"
+  }
+}

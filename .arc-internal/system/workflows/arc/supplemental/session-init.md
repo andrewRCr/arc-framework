@@ -25,8 +25,13 @@ pwd
 
 ```bash
 # Documentation-only framework — no runtime containers, no services
-# Only tool needed: markdown linting via npx
-npx --yes markdownlint-cli --version
+# Only tool needed: markdown linting (prefer pinned local dependency)
+if [ -x ./node_modules/.bin/markdownlint-cli2 ]; then
+  timeout 10s ./node_modules/.bin/markdownlint-cli2 --version >/dev/null || \
+    echo "Warning: local markdownlint-cli2 check timed out. Continue init and report blocker."
+else
+  echo "Warning: markdownlint-cli2 not installed locally. Run 'npm install' when network access is available."
+fi
 ```
 
 ### 2. Load AI Context (read in order)
