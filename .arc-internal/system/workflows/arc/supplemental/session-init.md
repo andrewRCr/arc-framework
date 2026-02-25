@@ -48,7 +48,7 @@ more value in having complete context upfront than discovering missing rules mid
    - Project overview, technology stack, and AI collaboration principles
 
 2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
-   - Path: `.arc-internal/system/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
+   - Path: `.arc-internal/system/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, CODEX.md)
    - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
    - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 
