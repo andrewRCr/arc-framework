@@ -71,25 +71,46 @@ and most architecturally significant gap cluster.
       team handoff patterns across dotenv/IDE configs, Terraform/Pulumi backends, Git-native
       mechanisms, and handoff workflow models.
 
-- [ ] **1.2 Design session state architecture and team transfer (Gaps 1, 5; PRD Req 1)**
+- [x] **1.2 Design session state architecture and team transfer (Gaps 1, 5; PRD Req 1)**
 
     **Goal:** Produce an ADR resolving session state portability and team transfer process.
+    Resolved as ADR-007: two-file decomposition (tracked WORK-STATUS.md + gitignored SESSION.md)
+    with git notes for portability via per-developer namespaces.
 
-    - [ ] **1.2.a Synthesize research into design options**
-        - Consume `research-session-lifecycle.md`
-        - Map found patterns to ARC's three scenarios
-        - Evaluate "project state + session state" decomposition against research
-        - Document 2-3 viable options with tradeoffs
+    - [x] **1.2.a Synthesize research into design options**
+        - Consumed `research-session-lifecycle.md`, mapped 9 pattern categories to ARC's
+          three scenarios (multi-machine solo, team handoff, team awareness)
+        - Validated project-state / session-state decomposition against cross-industry evidence
+        - Evaluated 3 options: (A) formalize gitignored single file + reconstruction,
+          (B) two-file decomposition with git notes portability, (C) promote state into task list
+        - Option C eliminated (couples to task list implementation, breaks for external trackers)
+        - Option B selected with refinements: per-developer note namespaces, configurable push
+          behavior, work-unit + branch fields in WORK-STATUS.md
+        - Iterative design exploration traced branch-switch seam, shared-branch scenarios,
+          team directory structure, and graceful degradation model
+        - Design exploration doc (`design-session-state-architecture.md`) created for
+          walkthrough, then deleted after ADR captured the decision
 
-    - [ ] **1.2.b Draft ADR (session state architecture)**
-        - Follow ADR strategy: Nygard five-section format, ADR-007+
-        - Cover both Gap 1 (portability mechanism) and Gap 5 (transfer process)
-        - Include consequences for session-init, session-handoff, and team-coordination workflows
-        - Evaluate against PRD use cases 1, 3, 5
+    - [x] **1.2.b Draft ADR (session state architecture)**
+        - ADR-007: `adr-007-design-session-state-portability-and-team-transfer.md`
+        - Six-part decision: two-file decomposition, git notes portability, configurable push,
+          workflow integration (session-init/handoff/rotate-branch/archival), setup/tooling,
+          graceful degradation
+        - Covers Gap 1 (portability via git notes + tracked WORK-STATUS.md) and Gap 5
+          (team transfer via per-developer note namespaces + structured handoff ceremony)
+        - Consequences address PRD scenarios, rebase limitation, HEAD-advancing edge case,
+          note accumulation, refspec misconfiguration
+        - `rotate-branch.md` (WU2 D6) identified as handler for multi-work-unit branch switching
+        - Automated note cleanup on archival specified (not optional)
 
-    - [ ] **1.2.c Cross-reference and lint**
-        - Verify consistency with ADR-002 (session model) and ADR-003 (config architecture)
-        - Lint all modified/created files
+    - [x] **1.2.c Cross-reference and lint**
+        - ADR-002: consistent — builds on session definition, mechanism-level changes classified
+          as incidental per workflow assumption table, terminology refined not contradicted
+        - ADR-003: consistent — new config settings follow dotted-key convention and satisfy
+          programmatic-consumption criteria; noted file classification update needed for WU2
+          (CURRENT-SESSION → WORK-STATUS + SESSION replacement in strategy-file-classification.md)
+        - Added file classification consequence to ADR-007 Negative section
+        - All modified files lint clean (ADR-007, task list, session-init)
 
 ### **Phase 2:** Context Loading Architecture (Gap 2)
 
