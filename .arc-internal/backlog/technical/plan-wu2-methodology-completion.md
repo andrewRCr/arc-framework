@@ -532,6 +532,61 @@ is the right architectural pattern to formalize.
 - After N5's workflow runs, adapted content lands here — making this explicit helps
   teams understand the directory's purpose
 
+> **Annotation (2026-02-25): Skills convergence and trigger mechanism design**
+>
+> Since ADR-005 and this plan were written, the Skills convention has accelerated
+> as the convergent trigger mechanism across major agent CLIs. Codex CLI deprecated
+> custom prompts entirely in favor of Skills. Claude Code now presents slash
+> commands as "loading a Skill" in the UI, suggesting internal convergence even
+> where the legacy format is preserved for backward compatibility.
+>
+> **Implications for N4 and WU3:**
+>
+> - The plan currently references "slash commands" as the trigger format in several
+>   places. Skills (SKILL.md with frontmatter metadata) are the more durable target.
+>   N4 should formalize trigger/content separation with Skills as the standardizing
+>   format, noting slash commands as a legacy/back-compat variant.
+> - Agent-specific *layout* remains divergent: Claude uses flat files in
+>   `.claude/commands/`, Codex uses nested directories in
+>   `.codex/skills/{name}/` with an additional `agents/openai.yaml` for UI
+>   metadata. Claude may already support (or soon introduce) a dedicated skills
+>   directory — the `.claude/commands/` path may be back-compat rather than the
+>   intended long-term location. This divergence confirms the WU3 generation
+>   script is necessary, not a convenience.
+> - **Research prerequisite**: Before implementing N4 or the WU3 generator, verify
+>   current behavior and format expectations for at least all common CLIs (Claude
+>   Code, Codex, Gemini CLI, Copilot). This ecosystem moves fast — assumptions
+>   from early 2026 may already be stale by execution time.
+> - The existing `.codex/skills/` files created during a Codex session serve as a
+>   concrete proof-of-concept for the trigger/content separation pattern across
+>   two agents.
+>
+> **Invocation model distinction — critical for ARC alignment:**
+>
+> Skills across all current agent tools are *user-triggered* (`/` for Claude,
+> `$` for Codex, etc.) — the user explicitly invokes them. They are not
+> "agent-invoked when applicable." This is an important distinction: ARC's
+> workflows and strategies are loaded into context and followed by the agent as
+> part of its operating instructions. Skills are manual dispatch. The trigger
+> files should be understood as user-facing entry points that invoke ARC content,
+> not as a mechanism for the agent to autonomously discover and apply guidance.
+> ARC's context-loading model (session-init reads strategies/workflows into
+> context) remains the primary guidance delivery mechanism; skills/triggers are
+> a complementary convenience layer for user-initiated actions.
+>
+> **Agent sandbox and tooling observation:**
+>
+> Codex CLI's sandboxed execution model exposed a fragility in session-init:
+> the `npx --yes markdownlint-cli2` verification step hung due to network
+> restrictions. Resolution was to pin the linting tool locally via
+> `package.json` and `npm install`, then rewrite the verification to prefer
+> local binaries with a timeout guard. This is the correct pattern — any
+> tooling referenced in
+> workflows should work offline after one-time setup. The trigger mechanism
+> design (N4, WU3) should carry this principle: generated trigger files must
+> not assume network access or tool-specific installation beyond what the
+> project's setup step provides.
+
 ### Cluster O: Extension Point and Method Override Infrastructure
 
 Per ADR-003 (config + extensions) and ADR-005 (external compat + method overrides).
