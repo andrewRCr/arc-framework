@@ -638,6 +638,10 @@ WU3 (CLI design) needs to reason about file classification and update mechanics.
   warranted or whether a comment/marker is sufficient
 - WU2's methodology changes may have introduced new mixed-concern sections; validate
   the post-WU2 state, not the pre-WU2 state
+- **Reclassification checkpoint (WU1.5):** Include an explicit reclassification pass —
+  WU2 changes may shift file classifications (e.g., expanded `arc-config.yml` from
+  Configurable toward Framework). Verify classifications against WU1.5's
+  file-classification strategy after all methodology changes land
 
 **L3. Cross-cutting dependency mapping**
 
@@ -709,9 +713,20 @@ user-facing.
 
 **Upstream:**
 
-- WU1 (Core Philosophy & Configurability Architecture) — all 8 ADRs must be
-  available before WU2 begins; specific clusters that block on specific ADRs are
-  noted in the change inventory above
+- WU1 (Core Philosophy & Configurability Architecture) — 6 ADRs + 2 strategy
+  documents must be available before WU2 begins; specific clusters that block on
+  specific ADRs are noted in the change inventory above
+- WU1.5 (Foundational Gap Closure) — ADRs, strategy updates, and workflow change
+  specifications that WU2 implements. Affected clusters:
+    - **Cluster C** (Session Model): Gap 1 (session state portability) and Gap 2
+      (context loading) outputs may change Cluster C's scope
+    - **Cluster E** (Team Workflow): Gap 5 (team work transfer) and Gap 7 (config
+      team semantics) may reshape E3 and related items
+    - **Cluster D**: Gap 8 (archive trigger) resolution may land as a workflow
+      update spec that D2 consumes; Gap 4 (task reference stability) affects
+      session-init and session-handoff references
+    - **Session workflows generally**: Gaps 3, 9, 10 (bootstrap, mismatch recovery,
+      staleness detection) produce session-init change specifications
 
 **Downstream:**
 
@@ -724,7 +739,7 @@ user-facing.
 
 ## Exclusions
 
-- No new ADRs — design decisions are WU1's scope; WU2 implements them
+- No new ADRs — design decisions are WU1 and WU1.5 scope; WU2 implements them
 - No CLI tooling — hooks are shell scripts, not CLI commands; that is WU3 scope
 - No docs site content — that is WU4 scope
 - No framework self-testing for configuration combinations — noted as a future
