@@ -116,18 +116,18 @@ and most architecturally significant gap cluster.
 
 **Purpose:** Research and resolve whether ARC's context loading model is empirically grounded.
 
-- [ ] **2.1 Research LLM context effectiveness (Gap 2)**
+- [x] **2.1 Research LLM context effectiveness (Gap 2)**
 
     **Goal:** Assess ARC's three-tier context loading model against empirical evidence.
 
-    - See `notes-foundational-gap-closure.md` § Context Loading Architecture for the full
-      three-tier model, 5 research questions, and seed sources
-    - Key seed: Gloaguen et al. (2026), "Evaluating AGENTS.md" + internal
-      `research-context-degradation.md`
-    - Research scope: LLM context window utilization, instruction-following with context volume,
-      "lost in the middle" effects, structured vs. monolithic context delivery
-    - Output: `research-context-loading.md`
-    - Lint output file
+    - Two-pass external research: (1) Gloaguen et al. paper + HN practitioner discussion,
+      (2) targeted research on 5 research questions from notes file
+    - Synthesized into `research-context-loading.md` — 31 sources across peer-reviewed
+      benchmarks, vendor guidance, practitioner reports, and bug reports
+    - Key finding shift: instruction count and conflict density matter more than token volume
+    - Evidence validates tiered structure, flags instruction conflict risk in Tier 1 and
+      procedural content vulnerability, identifies Tier 2 empirical gap
+    - Companion to existing `research-context-degradation.md` (general window behavior)
 
 - [ ] **2.2 Evaluate and resolve context loading design (Gap 2, PRD Req 2)**
 
@@ -138,6 +138,10 @@ and most architecturally significant gap cluster.
         - Assess each tier against empirical evidence
         - Identify any documents that evidence suggests should move between tiers
         - Determine output format: ADR (if architectural change) or strategy update (if validation)
+        - **In-process analysis started:** see `notes-foundational-gap-closure.md`
+          § In-Process Analysis: Context Loading Design — includes per-document Tier 1
+          assessment table, demotion candidates, evidence confidence classification
+          framework, cross-document conflict audit scope, and open questions for 2.2.b
 
     - [ ] **2.2.b Draft ADR or strategy update**
         - If ADR: Nygard format, sequential numbering
