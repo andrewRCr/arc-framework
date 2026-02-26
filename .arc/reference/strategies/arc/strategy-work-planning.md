@@ -70,7 +70,8 @@ permanent records.
 - Evolved iteratively as understanding deepens — expect messiness, dead ends, revisions
 - Deleted after the PRD is written and stable (the PRD captures what matters; the plan has served
   its purpose)
-- Multiple plans can feed a single PRD (many-to-one)
+- Multiple plans can feed a single PRD (many-to-one), and a single plan can produce multiple PRDs
+  (one-to-many) when exploration reveals natural scope boundaries within the problem space
 
 **What to capture (guidance, not requirements):**
 
@@ -167,8 +168,9 @@ execution. They define _what_ and _why_; task lists define _how_.
   enough to warrant it (P0/P1/P2 or similar)
 
 **Relationship to plans:** The PRD synthesizes and crystallizes what the plan explored. It doesn't
-preserve the exploration — it captures the conclusions. The plan can be deleted once the PRD is
-stable.
+preserve the exploration — it captures the conclusions. A plan is deleted once all PRDs it feeds are
+stable. One plan may produce multiple PRDs when the explored scope splits into distinct work units
+with different deliverables, dependencies, or review boundaries.
 
 ---
 
