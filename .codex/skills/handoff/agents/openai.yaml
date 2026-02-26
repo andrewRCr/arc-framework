@@ -1,0 +1,4 @@
+interface:
+  display_name: "Session Handoff"
+  short_description: "Update current session handoff notes"
+  default_prompt: "Use $handoff to update CURRENT-SESSION using the handoff workflow."

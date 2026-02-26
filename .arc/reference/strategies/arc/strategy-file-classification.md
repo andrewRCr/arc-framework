@@ -88,10 +88,17 @@ All paths relative to `.arc/`.
 
 ### reference/adr/
 
-| File              | Classification | Notes                                                         |
-|-------------------|----------------|---------------------------------------------------------------|
-| `README.md`       | Framework      | ADR conventions.                                              |
-| `adr-template.md` | Framework      | Copy-ready template. Users copy to create ADRs, don't modify. |
+| File        | Classification | Notes            |
+|-------------|----------------|------------------|
+| `README.md` | Framework      | ADR conventions. |
+
+### reference/templates/
+
+| File               | Classification | Notes                                      |
+|--------------------|----------------|--------------------------------------------|
+| `template-adr.md`  | Framework      | Copy-ready ADR template.                   |
+| `template-prd.md`  | Framework      | Copy-ready PRD template.                   |
+| `template-plan.md` | Framework      | Optional plan document starting structure. |
 
 ### reference/archive/
 

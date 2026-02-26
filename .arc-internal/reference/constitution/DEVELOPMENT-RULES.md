@@ -24,8 +24,8 @@ pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates]
 for complete tier definitions, escalation guidance, and task list integration.
 
 1. **Markdown Linting**: Zero violations
-   - Command: `npx --yes markdownlint-cli2 "**/*.md"`
-   - Auto-fix: `npx --yes markdownlint-cli2 --fix "**/*.md"`
+   - Command: `npm run -s lint:md`
+   - Auto-fix: `npm run -s lint:md:fix`
    - Config: `.markdownlint-cli2.jsonc`
 
 2. **CI Validation**: All checks pass
@@ -58,6 +58,8 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - Templates clearly marked as `.template.md` and copy-ready
 - READMEs required for each directory
 - ALWAYS run markdown linting after updating any documentation files
+- **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap
+  prematurely at 80 or 90.
 
 ### File Organization
 

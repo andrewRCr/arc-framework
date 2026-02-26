@@ -117,11 +117,11 @@ This is the enabling infrastructure for Cluster A and several items in other clu
   (resolves the template usability gap from `plan-arc-methodology-gaps.md`)
 - Scope per ADR 4: this is a method (language-specific checks), not a principle
 
-### Cluster C: Session Model Reframing
+### Cluster C: Session Model and Context Loading Architecture
 
-Scope depends on ADR 2 output. The minimum is a framing/documentation change. If ADR 2
-designates sessions as a configurable method, the scope expands to structural changes in
-workflow files.
+Scope depends on ADR 2 output for session model items. Context loading items are
+specified by WU1.5 Gap 2 resolution (see `notes-foundational-gap-closure.md` § Evaluation:
+Context Loading Design for full analysis and evidence base).
 
 **C1. Reframe session model documentation** (resolves Audit 1 S4; per ADR 2 decision)
 
@@ -134,6 +134,328 @@ workflow files.
 - If ADR 2 designates sessions as a configurable method: add appropriate config-driven
   opt-out or extensibility per the ADR decision; update workflow steps to reflect
   `session_model` configuration options
+
+**C2. Create `DEV-RULES.ARC.md`** (WU1.5 Gap 2 — core document restructure)
+
+- New file: `.arc/reference/constitution/DEV-RULES.ARC.md`
+- Classification: Reference (framework-owned, updated through merge)
+- Extract always-applicable behavioral rules from `strategy-dev-methodology.md`:
+  commit control, verification protocol, session documentation control, task management
+  protocol, strategy document protocol, core document reference protocol
+- Each rule is brief and actionable — a few lines, not a full reference section
+- Two categories of rules, visibly distinguished:
+    - **Non-negotiable** (principle-backed, P1-P11): no override path
+    - **Strong defaults** (convention-level): inline method-override pointer
+      ("Default: X. Override: `arc-methods.md#Y`")
+- Target: ~15-20 distinct instructions total
+- Include explicit Tier 2a triggers for on-demand content:
+    - "Before starting task execution, load the process-task-loop workflow"
+    - "Before complex commits, load the atomic-commit workflow"
+    - "For detailed format specs and elaboration, consult strategy-dev-methodology"
+- **Defaults filter:** During extraction, evaluate each rule against P1-P11 traceability.
+  Rules that don't trace to a principle are either (a) positioned as conventions with
+  explicit configurability paths, or (b) removed as author preference leakage
+
+**C3. Rename and slim `DEVELOPMENT-RULES.md` → `DEV-RULES.PROJECT.md`** (WU1.5 Gap 2)
+
+- Rename: `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+- Classification: Scaffolded (project-owned after init, unchanged)
+- Remove all ARC methodology content (now in DEV-RULES.ARC)
+- Retain only project-specific content: quality gates and commands, testing
+  requirements, file organization rules, architecture documentation guidance
+- Update references throughout codebase (session-init, CLAUDE.md, etc.)
+
+**C4. Slim `strategy-development-methodology.md` to domain reference** (WU1.5 Gap 2)
+
+- Remove always-applicable rules (moved to DEV-RULES.ARC)
+- Retain domain-specific reference elaboration:
+    - Commit message format details, examples, and edge cases
+    - Test-first decision tree and detailed protocol
+    - Code documentation standards and conventions
+    - Session context management detailed guidance
+- Add new section: **Context Loading Architecture** — tier model formalization:
+    - Define Tiers 1, 2a, 2b, 3 with reliability characteristics
+    - Evidence confidence classification (empirically validated / experience-validated
+      / first-principles) visible inline with each tier's description
+    - Instruction budget guideline: target <80 distinct instructions in Tier 1
+    - Adopter customization guidance (their project's Tier 1 may differ from
+      ARC's defaults)
+    - Maintenance practice: audit for instruction density and cross-document conflicts
+      when modifying Tier 1 documents
+- Document becomes Tier 2a content (triggered from DEV-RULES.ARC, no longer Tier 1)
+
+**C5. Redesign session-init document loading sequence** (WU1.5 Gap 2)
+
+- Rewrite `session-init.md` Step 2 (Load AI Context) to reflect the new Tier 1:
+    1. `AGENTS.md` — project identity, tech stack, working guidelines
+    2. Agent-specific file (e.g., `CLAUDE.md`) — capabilities, thresholds
+    3. `DEV-RULES.ARC.md` — ARC behavioral rules (replaces strategy-dev-methodology)
+    4. `DEV-RULES.PROJECT.md` — project-specific rules (replaces DEVELOPMENT-RULES)
+    5. `STRATEGY-INDEX.md` — index of strategy guidance (enables Tier 2b awareness)
+    6. `QUICK-REFERENCE.md` — environment context, command patterns
+    7. `CURRENT-SESSION.md` — active work state
+    8. Active task list (partial: overview + current task)
+- process-task-loop no longer in Tier 1 loading sequence; Tier 2a trigger in
+  DEV-RULES.ARC covers it ("before starting task execution, load the process-task-loop")
+- strategy-dev-methodology no longer in Tier 1; Tier 2a trigger in DEV-RULES.ARC
+  covers it ("for detailed format specs and elaboration")
+- Net effect: 8 documents (down from 9), ~47-73 instructions (down from ~80-125)
+- ⚑ **Agent switching note (WU1.5 PRD Req 11):** ADR-007's two-file split inherently
+  handles agent switching. `WORK-STATUS.md` is factual project state — fully agent-
+  agnostic, no adaptation needed. `SESSION.md` carries qualitative context about the
+  work, not the agent — agent-specific content there would be unusual in practice.
+  Add a brief acknowledgment in session-init's SESSION.md loading step: if SESSION.md
+  was written by a different agent, extract factual content and disregard any agent-
+  specific references (the incoming agent has its own guidance in its agent file).
+  No structural changes, no new workflow items — just awareness.
+
+**C6. Formalize Tier 2a trigger pattern in existing workflows** (WU1.5 Gap 2)
+
+- Audit all Tier 1 documents for ad-hoc cross-references to Tier 2 content
+- Convert to consistent Tier 2a trigger format: brief, explicit, actionable
+  ("Before X, load Y")
+- Ensure STRATEGY-INDEX entries include brief "when working on X" phrasing for
+  each strategy (strengthens Tier 2b → Tier 2a for the most common domains)
+- Interacts with Cluster O `post-context-load` extension point (O1) — that's
+  where adopters add their own Tier 2a triggers
+
+**C7. Handle first-session bootstrap and "no active work" state** (WU1.5 Gap 3)
+
+ADR-007 replaces `CURRENT-SESSION.md` with `WORK-STATUS.md` (tracked) + `SESSION.md`
+(gitignored). Session-init reads `WORK-STATUS.md` for orientation — but after initial
+setup (`01_initialize-arc.md` → `02_define-project.md`), no work unit is active yet. The
+same state recurs between work units (after archiving one, before activating the next).
+
+Changes:
+
+- **`01_initialize-arc.md`**: Scaffold `WORK-STATUS.md` during init verification with a
+  "no active work" default state. All fields present with empty/placeholder values:
+
+  ```markdown
+  **Work Unit**: [none]
+  **Branch**: main
+  **Task List**: [none]
+  **Current Task**: —
+  **Blockers**: [none]
+  **Next Action**: Create first PRD (see 1_create-prd.md)
+  ```
+
+  This makes `WORK-STATUS.md` always exist from first init — no "file missing" edge case.
+
+- **`session-init.md`**: Add a detection path for the "no active work" state in Step 2
+  (active work context). When `WORK-STATUS.md` has `Work Unit: [none]` or equivalent:
+    - Skip task list loading (no task list to load)
+    - In Step 3 (Confirm Orientation), report the state and point to the appropriate
+      next workflow: `1_create-prd.md` if no PRDs exist, `activate-work-unit.md` if a
+      backlog task list exists but isn't activated
+    - This is not a failure or mismatch — it's a legitimate, recurring project state
+
+- **`activate-work-unit.md`** Step 7: Update to reference `WORK-STATUS.md` instead of
+  `CURRENT-SESSION.md`. Activation populates the "no active work" placeholder with real
+  values (work unit name, branch, task list path, first task).
+
+- **`archive-completed.md`**: After archival, reset `WORK-STATUS.md` back to the "no
+  active work" state. This completes the lifecycle: init → activate → work → archive →
+  back to "no active work."
+
+- **`SESSION.md` handling**: Session-init already handles missing `SESSION.md` gracefully
+  per ADR-007 Part 4 (check local file → check git notes → start with clean template).
+  No additional first-session spec needed for `SESSION.md`.
+
+Note: C5 (session-init loading sequence redesign) currently references `CURRENT-SESSION.md`
+at step 7. When implementing C5 + C7 together, replace with `WORK-STATUS.md` and
+incorporate the "no active work" detection described here.
+
+**C8. Stabilize task references in WORK-STATUS.md** (WU1.5 Gap 4)
+
+`WORK-STATUS.md` (ADR-007's replacement for `CURRENT-SESSION.md`) references the current
+task. The existing convention uses task number + line number (e.g., "Task 4.1 (line 228)").
+Line numbers break on any edit above the referenced line — a routine occurrence during
+implementation. Task numbers break on phase restructuring — less common but not rare.
+Both are fragile anchors.
+
+**Convention change — triple-anchor reference format:**
+
+```
+Current Task: Task 4.1 — Design first-session bootstrap (line ~228)
+```
+
+Three signals with decreasing fragility:
+
+1. **Task title snippet** (stable) — survives renumbering and line shifts. Only changes
+   if the task's identity changes, which warrants updating the reference anyway. The
+   truly stable anchor.
+2. **Task number** (semi-stable) — survives line edits, breaks on phase restructure.
+   The primary search key for grep-based lookup.
+3. **Line number with tilde** (disposable hint) — `~` signals "approximate." Enables
+   the agent's Read tool offset parameter for fast direct-jump, but is not trusted as
+   authoritative.
+
+**Session-init lookup behavior (specify in `session-init.md`):**
+
+1. Jump to line hint (fast path — usually correct)
+2. Verify task number pattern at that location
+3. If mismatch: search file for task number pattern (handles line drift)
+4. If task number not found: search for title snippet (handles renumbering)
+5. If nothing matches: report to user — something fundamental changed
+
+Steps 1-2 cover the common case (line hint is still valid). Steps 3-4 handle the
+restructuring cases gracefully. Step 5 is the safety net.
+
+**Session-handoff write behavior (specify in `session-handoff.md`):**
+
+When writing the "Current Task" field, include all three anchors. The line number is
+best-effort — the agent reads the task list during handoff anyway, so capturing the
+current line number is trivial.
+
+**Workflow updates:**
+
+- **`session-init.md`**: Replace the hard requirement "VERIFY: Current Task field must
+  include line number" with the triple-anchor lookup protocol above. The current hard-stop
+  on missing line numbers becomes unnecessary — the title snippet provides a reliable
+  fallback.
+- **`session-handoff.md`**: Update the "Current Task" format in the handoff template and
+  examples to use triple-anchor format. Current examples show `Task 3.3 (line 247)` —
+  change to `Task 3.3 — Write unit tests (line ~247)`.
+- **`activate-work-unit.md`** Step 7: Update the "Current Task" format guidance to match.
+- **`WORK-STATUS.md` template** (from C7): Use triple-anchor format in the template and
+  field documentation.
+- **`strategy-task-list-formatting.md`**: No structural change to task list format itself.
+  Task numbering, letter scheme, and hierarchy are unaffected. Consider adding a brief
+  note under Task List Headers clarifying that task numbers are human-readable IDs, not
+  stable database keys — they may shift during implementation restructuring.
+
+**Commit message references unaffected:** The `Context: tasks-foo.md (Task 4.1)` format
+in commit messages is a historical record, not a navigational anchor. Task numbers in
+committed messages don't need updating when phases restructure — they're accurate as of
+the commit date. No change needed.
+
+Note: Implement C8 alongside C5 and C7 — all three touch session-init's active work
+context loading. The triple-anchor format applies to `WORK-STATUS.md` (C7's new file),
+read by the redesigned session-init sequence (C5), with the lookup protocol defined here.
+
+**C9. Add mismatch recovery protocol to session-init** (WU1.5 Gap 9)
+
+Session-init Step 4 currently treats all mismatches identically: stop and ask. No trust
+hierarchy, no severity classification, no self-recovery path. Gap 9 adds tiered recovery
+based on source reliability.
+
+**Trust hierarchy (highest to lowest):**
+
+1. **Git state** (`git status`, `git log`, branch existence) — live system, can't be stale
+2. **Task list checkboxes** — tracked file, committed atomically with work
+3. **WORK-STATUS.md** — tracked, updates with commits (ADR-007); high reliability
+4. **SESSION.md** — gitignored, only as fresh as last handoff; variable reliability
+
+**Tiered recovery model:**
+
+- **Auto-recover with notice** — when git state and task list agree, and only the session
+  document is behind. The correct state is unambiguous; session doc is simply stale.
+  Agent proceeds with the authoritative state and reports what it corrected.
+
+  Scenarios:
+    - Session doc says "uncommitted files" but `git status` shows clean → work was committed
+    - Session doc says "Task 3.2 current" but task list shows 3.2 `[x]`, 3.3 `[ ]` → task
+      was completed
+    - Session doc describes WIP but `git log` shows it committed → same as first scenario
+
+  Pattern: git + task list agree, session doc is the outlier. Not ambiguity — staleness.
+
+- **Stop and ask** — when the correct state requires human judgment. Agent reports the
+  mismatch with diagnostics (what each source says, which sources agree/disagree) but does
+  not act.
+
+  Scenarios:
+    - Session doc says branch X but current branch is Y → can't infer intent
+    - Session doc references a task list that doesn't exist → archived? deleted? moved?
+    - Git status shows uncommitted changes not mentioned in session doc → user's parallel
+      work? crashed session leftovers?
+
+  Pattern: ambiguous intent, multiple plausible explanations.
+
+**Workflow update (specify in `session-init.md`):**
+
+- Restructure Step 4 from a flat "stop and ask for everything" into the two-tier model
+- Add the trust hierarchy as a reference (agents use it to diagnose and report)
+- Auto-recovery reports use a consistent format: "Session doc said X. Git/task list show Y.
+  Proceeding with Y." — visible to user, not silent
+- Stop-and-ask reports include diagnostics: what each source says, which agree/disagree,
+  and possible explanations
+- Preserve the existing safety principle: "do not attempt to fix state on your own" for
+  the stop-and-ask tier; auto-recovery tier adds a bounded exception for unambiguous
+  staleness
+
+**ADR-007 interaction:** WORK-STATUS.md updates atomically with commits, so the
+auto-recoverable scenarios (1-3) become much rarer — the tracked state file stays
+current. The recovery protocol primarily fires for SESSION.md staleness or edge cases
+where handoff was skipped entirely. The trust hierarchy still applies: git > task list >
+WORK-STATUS.md > SESSION.md.
+
+Note: Implement C9 alongside C5 and C7 — session-init redesign (C5) is the natural home
+for this protocol. The mismatch detection step comes after context loading (C5's scope)
+and after task reference lookup (C8's scope), so it runs with full context available.
+
+**C10. Add staleness detection to session-init** (WU1.5 Gap 10)
+
+Session-init reads session state without freshness verification. If a developer skips
+handoff, the session doc may be sessions old with no warning — and the staleness may not
+produce a detectable mismatch (task hasn't changed, just context is missing from the
+skipped session). Gap 10 adds proactive staleness detection that runs before C9's
+mismatch recovery.
+
+**How ADR-007 narrows the problem:**
+
+- WORK-STATUS.md updates atomically with commits → inherently fresh for task state.
+  Staleness signals a workflow violation (rare) or non-task commits (normal).
+- SESSION.md (gitignored) only updates at handoff → staleness is the expected failure
+  mode when handoff is skipped. Missing qualitative context (debugging insights,
+  approach decisions, things tried) from the skipped session.
+
+**Staleness signal — commit hash anchor:**
+
+- `session-handoff.md` writes a "Commit at Handoff" field into SESSION.md with the
+  hash of HEAD at session end. Objective, no filesystem timestamp dependency.
+- Session-init compares this anchor against current HEAD:
+    - **Match**: SESSION.md is current — no staleness
+    - **Mismatch**: commits happened after the last handoff. Count the gap:
+      `git rev-list --count <anchor>..HEAD`
+- For WORK-STATUS.md: compare the last commit that touched it against HEAD:
+  `git log -1 --format=%H -- .arc/active/WORK-STATUS.md` vs HEAD.
+  Under ADR-007 these should match (atomic updates); drift is noteworthy.
+
+**Staleness is informational, not blocking:**
+
+- Staleness alone doesn't prevent initialization — incomplete context is better than
+  no context. The agent proceeds but with awareness.
+- Report format: "SESSION.md was last updated at `<hash>` ([N] commits ago).
+  Session context may be incomplete."
+- For WORK-STATUS.md drift: "WORK-STATUS.md last updated in `<hash>`, but HEAD is
+  [N] commits ahead. Task state may not reflect recent work." (This is the unusual
+  case — more prominent warning.)
+
+**Relationship to C9 (mismatch recovery):**
+
+- Staleness detection runs BEFORE mismatch recovery in the session-init sequence
+- If staleness is detected, the agent carries lower confidence in session doc content,
+  naturally increasing reliance on git state and task list (higher-trust sources in
+  C9's hierarchy)
+- Staleness without mismatch = "session doc is incomplete but not wrong" (report,
+  proceed). Staleness WITH mismatch = C9 handles it with informed confidence levels.
+
+**Workflow updates:**
+
+- **`session-init.md`**: Add a freshness check step between context loading (C5) and
+  mismatch detection (C9). Sequence: load context → check freshness → detect
+  mismatches → confirm orientation.
+- **`session-handoff.md`**: Add "Commit at Handoff" field to the handoff template.
+  Written automatically during handoff: `git rev-parse HEAD`. Lightweight addition
+  to existing handoff protocol.
+- **Orientation output (Step 3)**: If staleness detected, include in the orientation
+  summary (existing "Blockers" or a new "Warnings" line). Not a blocker — just
+  awareness.
+
+Note: Implement C10 alongside C5, C7, C8, and C9 — all touch the session-init
+sequence. C10 slots between context loading and mismatch detection.
 
 ### Cluster D: Multi-Branch Workflow Fixes
 
@@ -150,10 +472,16 @@ guidance for multi-branch work unit scenarios.
 - The existing "See Work Organization Strategy for details" link is good; ensure the summary
   no longer contradicts the source
 
-**D2. Add multi-branch archive guidance to archive-completed.md** (Audit 2 Gap 2)
+**D2. Add multi-branch archive guidance to archive-completed.md** (Audit 2 Gap 2; WU1.5 Gap 8)
 
+- ⚑ **WU1.5 Gap 8 design decision**: Archive trigger remains "all tasks `[x]`" — this
+  starts the end-of-work-unit sequence. The Phase 2→3 gate in archive-completed enforces
+  merge verification before the archive move (`git mv`). Three-operation model:
+    - **Rotate** (mid-work-unit): merge current branch, create next — `rotate-branch.md` (D6)
+    - **Complete** (all tasks `[x]`): write completion doc, enter archive-completed Phase 1
+    - **Archive** (after final merge): Phase 3 `git mv` — gated on Phase 2 merge
 - Add a "Multi-Branch Archive" section or callout in Phase 1 explaining the sequence:
-    - Intermediate branch merges: branch cleanup only (delete branch, no archive move)
+    - Intermediate branch merges: rotate-branch workflow (branch cleanup, no archive move)
     - Full archive workflow (docs cleanup, completion doc, archive move) runs once after
       the final branch merges and all tasks are complete
     - Completion doc covers the entire task list scope across all branches
@@ -184,8 +512,11 @@ guidance for multi-branch work unit scenarios.
   coincides with branch deletion)" or restructure to separate the two as independent
   actions
 
-**D6. Create rotate-branch.md supplemental workflow** (Audit 2 Gap 8; methodology-gaps plan)
+**D6. Create rotate-branch.md supplemental workflow** (Audit 2 Gap 8; methodology-gaps plan; WU1.5 Gap 8)
 
+- ⚑ **WU1.5 Gap 8 role**: rotate-branch is the "Rotate" operation in the three-operation
+  model (Rotate → Complete → Archive). It handles intermediate branch merges within a
+  work unit — explicitly distinct from archive-completed, which handles end-of-work-unit.
 - New file: `.arc/system/workflows/arc/supplemental/rotate-branch.md`
 - Cover the clean handoff from one branch to the next within a work unit (no archival,
   no completion doc, no PROJECT-STATUS/ROADMAP — those are end-of-work-unit concerns)
@@ -361,6 +692,55 @@ concerns (not adopter experience friction — those are Clusters A-F).
   `weekly-review.md`, PROJECT-STATUS template, and any workflow referencing the
   current path
 
+**G8. Extract PRD format from create-prd workflow to template** (WU1.5 Gap 11)
+
+- `1_create-prd.md` Step 4 currently defines the PRD format inline (~50 lines of section
+  descriptions). WU1.5 created `reference/templates/template-prd.md` as a copy-ready
+  template, so the workflow now duplicates the template
+- Replace inline format definition with reference to `template-prd.md`, keeping a brief
+  section summary in the workflow for orientation
+- Touchpoints: `1_create-prd.md` (Step 4 and PRD Format section)
+
+**G9. Strengthen create-prd discovery step** (WU1.5 Gap 11)
+
+- `1_create-prd.md` Step 3 provides question categories (Problem/Goal, Scope,
+  Requirements, Technical context, Unknowns) but no structured discovery protocol
+- Reference the discovery checklist from `strategy-work-planning.md` as the
+  "must-ask" questions before plan-to-PRD transition
+- Especially relevant for AI agents, who benefit from explicit prompts to ask
+  questions before generating output
+- Touchpoints: `1_create-prd.md` (Step 3)
+
+**G10. Reference planning lifecycle strategy from create-prd workflow** (WU1.5 Gap 11)
+
+- `1_create-prd.md` Step 1 mentions plan documents exist but provides no reference to
+  their convention
+- Add reference to `strategy-work-planning.md` for plan-\* doc naming, purpose,
+  and lifecycle conventions
+- Touchpoints: `1_create-prd.md` (Step 1)
+
+**G11. Enumerate deferred review stop conditions** (WU1.5 PRD Req 12)
+
+- `3_process-task-loop.md` deferred review section says "stop if anything unexpected
+  arises" without defining "unexpected." Agents interpret this inconsistently —
+  too cautious (stop on every minor issue) or too optimistic (plow through problems).
+- Add an enumerated threshold after the existing deferred review paragraph:
+
+  **Must stop** (continuing would waste work or create problems):
+    - Quality gate failure that can't be auto-fixed
+    - Blocking dependency on work outside the deferred scope
+    - Task requires design decisions not anticipated in the task description
+    - Scope significantly exceeds what the task description implies
+
+  **Continue with note** (unexpected but not blocking):
+    - Minor quality gate issues fixed inline (e.g., lint auto-fix)
+    - Task took longer than expected but completed successfully
+    - Minor deviation from task plan that doesn't affect subsequent tasks
+
+- Keep the enumeration concise — it's guidance, not an exhaustive ruleset. The
+  principle is: stop when continuing would produce work the user hasn't approved.
+- Touchpoints: `3_process-task-loop.md` (deferred review paragraph, lines 57-63)
+
 ### Cluster H: Minor Convention Adjustments
 
 **H1. Clarify reference-style link convention scope** (Audit 1 M1)
@@ -532,6 +912,61 @@ is the right architectural pattern to formalize.
 - After N5's workflow runs, adapted content lands here — making this explicit helps
   teams understand the directory's purpose
 
+> **Annotation (2026-02-25): Skills convergence and trigger mechanism design**
+>
+> Since ADR-005 and this plan were written, the Skills convention has accelerated
+> as the convergent trigger mechanism across major agent CLIs. Codex CLI deprecated
+> custom prompts entirely in favor of Skills. Claude Code now presents slash
+> commands as "loading a Skill" in the UI, suggesting internal convergence even
+> where the legacy format is preserved for backward compatibility.
+>
+> **Implications for N4 and WU3:**
+>
+> - The plan currently references "slash commands" as the trigger format in several
+>   places. Skills (SKILL.md with frontmatter metadata) are the more durable target.
+>   N4 should formalize trigger/content separation with Skills as the standardizing
+>   format, noting slash commands as a legacy/back-compat variant.
+> - Agent-specific *layout* remains divergent: Claude uses flat files in
+>   `.claude/commands/`, Codex uses nested directories in
+>   `.codex/skills/{name}/` with an additional `agents/openai.yaml` for UI
+>   metadata. Claude may already support (or soon introduce) a dedicated skills
+>   directory — the `.claude/commands/` path may be back-compat rather than the
+>   intended long-term location. This divergence confirms the WU3 generation
+>   script is necessary, not a convenience.
+> - **Research prerequisite**: Before implementing N4 or the WU3 generator, verify
+>   current behavior and format expectations for at least all common CLIs (Claude
+>   Code, Codex, Gemini CLI, Copilot). This ecosystem moves fast — assumptions
+>   from early 2026 may already be stale by execution time.
+> - The existing `.codex/skills/` files created during a Codex session serve as a
+>   concrete proof-of-concept for the trigger/content separation pattern across
+>   two agents.
+>
+> **Invocation model distinction — critical for ARC alignment:**
+>
+> Skills across all current agent tools are *user-triggered* (`/` for Claude,
+> `$` for Codex, etc.) — the user explicitly invokes them. They are not
+> "agent-invoked when applicable." This is an important distinction: ARC's
+> workflows and strategies are loaded into context and followed by the agent as
+> part of its operating instructions. Skills are manual dispatch. The trigger
+> files should be understood as user-facing entry points that invoke ARC content,
+> not as a mechanism for the agent to autonomously discover and apply guidance.
+> ARC's context-loading model (session-init reads strategies/workflows into
+> context) remains the primary guidance delivery mechanism; skills/triggers are
+> a complementary convenience layer for user-initiated actions.
+>
+> **Agent sandbox and tooling observation:**
+>
+> Codex CLI's sandboxed execution model exposed a fragility in session-init:
+> the `npx --yes markdownlint-cli2` verification step hung due to network
+> restrictions. Resolution was to pin the linting tool locally via
+> `package.json` and `npm install`, then rewrite the verification to prefer
+> local binaries with a timeout guard. This is the correct pattern — any
+> tooling referenced in
+> workflows should work offline after one-time setup. The trigger mechanism
+> design (N4, WU3) should carry this principle: generated trigger files must
+> not assume network access or tool-specific installation beyond what the
+> project's setup step provides.
+
 ### Cluster O: Extension Point and Method Override Infrastructure
 
 Per ADR-003 (config + extensions) and ADR-005 (external compat + method overrides).
@@ -573,6 +1008,38 @@ alongside Cluster B's config expansion.
   | Session state mechanism  | session-init/handoff | CURRENT-SESSION.md read/write    | IDE persistent memory, etc.   |
   | Commit context format    | atomic-commit        | `Context: tasks-*.md (Task X.Y)` | `Closes JIRA-XXX`, `Fixes #N` |
 
+- **Method dependency guidance** (WU1.5 Gap 6): Methods are presented as independent
+  choices, but some have dependencies. The `task-completion` and `commit-context-format`
+  methods are coupled — the default commit context format (`Context: tasks-*.md (Task X.Y)`)
+  assumes markdown task lists. Overriding task completion to use Jira/Linear without also
+  overriding commit context creates an inconsistency: commits reference a tracking system
+  the team doesn't use.
+
+  Include in each method definition:
+    - **`Related:`** field listing methods that are typically overridden together, with a
+      one-line explanation of why. Advisory — not a constraint, but a prompt for teams to
+      consider the coupling when overriding.
+    - For the `task-completion` / `commit-context-format` pair: "Overriding one typically
+      requires overriding the other — both reference the task tracking system."
+
+  The dependency guidance is advisory, consistent with how contracts work (ADR-005: "the
+  team is responsible for ensuring their override meets the contract"). The agent notes
+  the coupling during session-init config awareness (ADR-005 Part 6) and can flag it if
+  only one of a coupled pair is overridden.
+
+  Dependency map across preset methods:
+
+  | Method                 | Related                | Nature of coupling                          |
+  |------------------------|------------------------|---------------------------------------------|
+  | task-completion        | commit-context-format  | Both reference the task tracking system      |
+  | commit-context-format  | task-completion        | Both reference the task tracking system      |
+  | session-state          | (none)                 | Independent — mechanism is self-contained    |
+  | quality-gate-commands  | (none)                 | Independent — project-specific commands      |
+
+  Validation Scenario A in `strategy-configurability-architecture.md` already demonstrates
+  the correct pattern (Jira team overrides both). The dependency guidance makes this
+  coupling explicit and discoverable rather than implicit in examples.
+
 **O3. Insert extension point markers into workflows**
 
 - Block-style markers at each preset location, bounded by horizontal rules:
@@ -604,6 +1071,12 @@ alongside Cluster B's config expansion.
   read `arc-config.yml` (note platform, custom patterns, non-default values) and
   `arc-methods.md` (note any populated project overrides). Read-and-note — no
   additional documents to internalize, just awareness carried through session.
+- **WU1.5 interaction (Gap 2):** DEV-RULES.ARC includes inline method-override
+  pointers for convention-level rules (e.g., "Default: X. Override:
+  `arc-methods.md#Y`"). Ensure arc-methods.md preset methods (O2) are consistent
+  with the override pointers in DEV-RULES.ARC. The agent encounters the pointer
+  when reading DEV-RULES.ARC in Tier 1 and checks arc-methods.md during this
+  config awareness step.
 
 **O6. Add custom pattern config settings** (extends Cluster B1)
 
@@ -648,6 +1121,27 @@ WU3 (CLI design) needs to reason about file classification and update mechanics.
 - Identify concepts that span multiple files and map their blast radius
 - Which concepts, if changed, would require updates across N+ files?
 - Output informs WU3 CLI design: update commands need to know which files move together
+
+**L4. Content de-duplication audit** (WU1.5 observation)
+
+- Audit all `.arc/` documents for content that appears in multiple places. Over the
+  course of WU1 → WU1.5 → WU2, content migrates between documents (rules into
+  strategies, session guidance across ADR/workflow/strategy/agent files, archive
+  timing in both strategy and workflow). Each migration is intentional, but source
+  documents aren't always fully cleaned.
+- For each instance, classify:
+    - **Intentional reinforcement** — summary in one doc referencing detail in another
+      (e.g., archive trigger summary in strategy, full procedure in workflow). Mark with
+      "authoritative source" pointer so future edits know which copy to update first.
+    - **Accidental drift** — full or near-full copy that should be a cross-reference.
+      Trim to cross-reference.
+    - **Misplacement** — content in the wrong document given the post-WU2 structure.
+      Relocate.
+- Run after all WU2 content changes land (L1-L3 and all cluster work complete).
+  The post-WU2 document set is the near-final 1.0 shape — that's when this audit
+  has lasting value.
+- Natural companion to L2 (mixed-concern identification) and L3 (dependency mapping)
+  — same "verify the whole is coherent" pass.
 
 ---
 
@@ -718,15 +1212,42 @@ user-facing.
   specific ADRs are noted in the change inventory above
 - WU1.5 (Foundational Gap Closure) — ADRs, strategy updates, and workflow change
   specifications that WU2 implements. Affected clusters:
-    - **Cluster C** (Session Model): Gap 1 (session state portability) and Gap 2
-      (context loading) outputs may change Cluster C's scope
+    - **Cluster C** (Session Model + Context Loading): Gap 1 (session state
+      portability, ADR-007) and Gap 2 (context loading) outputs expand Cluster C
+      significantly. Gap 2 resolution adds C2-C6: core document restructure
+      (DEV-RULES.ARC/PROJECT twin docs), strategy-dev-methodology slimming,
+      session-init loading sequence redesign, tier model formalization, and
+      Tier 2a trigger pattern. See `notes-foundational-gap-closure.md`
+      § Evaluation: Context Loading Design for the full evidence base and
+      five design decisions.
     - **Cluster E** (Team Workflow): Gap 5 (team work transfer) and Gap 7 (config
       team semantics) may reshape E3 and related items
-    - **Cluster D**: Gap 8 (archive trigger) resolution may land as a workflow
-      update spec that D2 consumes; Gap 4 (task reference stability) affects
-      session-init and session-handoff references
+    - **Cluster D**: Gap 8 (archive trigger) resolved — three-operation model
+      (Rotate → Complete → Archive). Archive trigger stays "all tasks `[x]`";
+      Phase 2→3 gate enforces merge before archive move. Annotated on D2
+      (multi-branch guidance) and D6 (rotate-branch as intermediate operation)
+    - **Cluster C** (continued): Gap 4 (task reference stability) is specified as
+      C8 — triple-anchor reference format (title + number + ~line) with graceful
+      fallback lookup in session-init. Affects session-init, session-handoff,
+      activate-work-unit, and WORK-STATUS.md template
+    - **Cluster O** (Extensions/Methods): Gap 2 resolution specifies that
+      DEV-RULES.ARC includes inline method-override pointers — ensure
+      arc-methods.md preset methods (O2) are consistent with these pointers
+    - **Cluster G** (Convention/Workflow Gaps): Gap 11 (planning lifecycle) adds
+      G8-G10: extract PRD format to template, strengthen discovery step, reference
+      new planning lifecycle strategy from create-prd workflow. Also created
+      `reference/templates/` directory with centralized templates (template-adr,
+      template-prd, template-plan) and `strategy-work-planning.md`.
     - **Session workflows generally**: Gaps 3, 9, 10 (bootstrap, mismatch recovery,
-      staleness detection) produce session-init change specifications
+      staleness detection) produce session-init change specifications. Gap 3
+      (bootstrap) is specified as C7 — first-session bootstrap and "no active work"
+      state handling across init, session-init, activate-work-unit, and archive
+      workflows. Gap 9 (mismatch recovery) is specified as C9 — tiered recovery
+      model with trust hierarchy (git > task list > WORK-STATUS > SESSION); auto-
+      recover when git + task list agree and session doc is the outlier, stop-and-ask
+      for ambiguous cases. Gap 10 (staleness detection) is specified as C10 —
+      commit hash anchor in SESSION.md, freshness check before mismatch detection;
+      informational (not blocking), feeds confidence levels into C9's trust hierarchy.
 
 **Downstream:**
 

@@ -3,7 +3,7 @@
 **Purpose:** Internal planning artifact documenting sequencing strategy for framework
 development. Subject to change as we learn.
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-02-25
 
 ---
 
@@ -44,6 +44,17 @@ files, constitutional doc refresh. All foundational 1.0 decisions resolved.
 - Upstream: none
 - Downstream: WU2, WU3, WU4
 
+**WU1.5: Foundational Gap Closure** — In Progress
+
+Resolve 11 foundational design gaps (plus 3 partially addressed findings) identified by
+Phase 1 audit. Produces ADRs, strategy updates, and workflow change specifications that
+WU2 consumes. Research-dependent decisions (session state, context loading, planning
+lifecycle) plus first-principles fast-track decisions.
+
+- Task list: `active/technical/tasks-foundational-gap-closure.md`
+- Upstream: WU1 (all ADRs)
+- Downstream: WU2
+
 **WU2: Methodology Completion & Structural Validation** — Implementation
 
 Apply WU1 decisions across all existing docs, hooks, and templates. Resolves all adoption
@@ -53,7 +64,7 @@ a structural validation pass (file classification, mixed-concern audit, cross-cu
 dependency mapping) that feeds WU3.
 
 - Plan: `technical/plan-wu2-methodology-completion.md`
-- Upstream: WU1 (all ADRs)
+- Upstream: WU1 (all ADRs), WU1.5 (design decisions, workflow specs)
 - Downstream: WU3, WU4
 
 **WU3: CLI & Distribution** — Implementation
@@ -85,15 +96,19 @@ Phase A ──► Phase B ──► 1.0 Work Units:
 
   WU1 (Philosophy + Configurability)
    │
-   ├──► WU2 (Methodology Completion)
+   ├──► WU1.5 (Foundational Gap Closure) ◄── IN PROGRESS
    │     │
-   │     ├──► WU3 (CLI & Distribution)
+   │     ├──► WU2 (Methodology Completion)
    │     │     │
-   │     │     └──► WU4 (Public Release)
-   │     │           ▲
-   │     └───────────┘ (content creation can start after WU2)
-   │                 ▲
-   └─────────────────┘ (philosophy informs docs site + README)
+   │     │     ├──► WU3 (CLI & Distribution)
+   │     │     │     │
+   │     │     │     └──► WU4 (Public Release)
+   │     │     │           ▲
+   │     │     └───────────┘ (content creation can start after WU2)
+   │     │                 ▲
+   │     └─────────────────┘ (philosophy informs docs site + README)
+   │                       ▲
+   └───────────────────────┘
 ```
 
 **Parallelism:** WU4 docs site content and README drafts can begin after WU1+WU2 without

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Resume Current"
+  short_description: "Reload critical active-session context"
+  default_prompt: "Use $resume-current to reload AGENTS context and run session initialization."

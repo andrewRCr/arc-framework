@@ -23,11 +23,15 @@ pwd
 
 **Verify runtime status:**
 
+Documentation-only framework — no runtime containers, no services.
+Only tool needed: markdown linting (prefer pinned local dependency).
+
 ```bash
-# Documentation-only framework — no runtime containers, no services
-# Only tool needed: markdown linting via npx
-npx --yes markdownlint-cli --version
+ls ./node_modules/.bin/markdownlint-cli2
 ```
+
+If the file doesn't exist, report that `markdownlint-cli2` is not installed locally and suggest
+`npm install` when network access is available. Continue initialization either way.
 
 ### 2. Load AI Context (read in order)
 
@@ -43,7 +47,7 @@ more value in having complete context upfront than discovering missing rules mid
    - Project overview, technology stack, and AI collaboration principles
 
 2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
-   - Path: `.arc-internal/system/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, etc.)
+   - Path: `.arc-internal/system/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, CODEX.md)
    - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
    - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 

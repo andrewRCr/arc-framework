@@ -29,3 +29,5 @@ Thumbs.db
 
 # Session handoff file (transient)
 .arc-internal/active/CURRENT-SESSION.md
+# Local dependencies
+node_modules/

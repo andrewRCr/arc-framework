@@ -107,7 +107,11 @@ with distribution system design as the primary focus area.
 
 ## Currently Active
 
-[none]
+- **WU1.5: Foundational Gap Closure** (technical) - Resolve 11 foundational design gaps
+  (plus 3 partially addressed findings) identified by Phase 1 audit; produce ADRs, strategy
+  updates, and workflow change specifications for WU2
+    - Task list: `.arc-internal/active/technical/tasks-foundational-gap-closure.md`
+    - Branch: `technical/foundational-gap-closure`
 
 ## Upcoming Priorities
 

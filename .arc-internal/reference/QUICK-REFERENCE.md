@@ -44,7 +44,7 @@ Command patterns and environment context for framework development.
 
 **Quality Tools**:
 
-- Markdown linting via `npx --yes markdownlint-cli` (primary quality gate)
+- Markdown linting via pinned local `markdownlint-cli2` (`npm run lint:md`)
 - Git for version control
 
 ---
@@ -56,14 +56,17 @@ All commands from **repository root**.
 ### Markdown Linting
 
 ```bash
-# Lint all documentation
-npx --yes markdownlint-cli2 "**/*.md"
+# Install local tooling once (preferred)
+npm install
+
+# Lint all documentation (preferred: pinned local version)
+npm run -s lint:md
 
 # Lint specific file (use --no-globs to avoid re-processing config globs)
-npx --yes markdownlint-cli2 --no-globs "path/to/file.md"
+npm run -s lint:md:file -- "path/to/file.md"
 
 # Auto-fix specific file
-npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md"
+npm run -s lint:md:fix:file -- "path/to/file.md"
 
 # Lint specific directory
 npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
@@ -73,6 +76,7 @@ npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 
 - Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
 - Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
+- If local dependencies are unavailable, use fallback: `npx --yes markdownlint-cli2 ...`
 - `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) - use `markdown-table-prettify` instead:
 
 ```bash
@@ -118,7 +122,7 @@ Reference for DEVELOPMENT-RULES quality gates. Run before any commit.
 
 ```bash
 # 1. Markdown Linting (zero violations required)
-npx --yes markdownlint-cli2 "**/*.md"
+npm run -s lint:md
 
 # 2. Git Status Check
 git status
