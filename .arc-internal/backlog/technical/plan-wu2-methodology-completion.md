@@ -1122,6 +1122,27 @@ WU3 (CLI design) needs to reason about file classification and update mechanics.
 - Which concepts, if changed, would require updates across N+ files?
 - Output informs WU3 CLI design: update commands need to know which files move together
 
+**L4. Content de-duplication audit** (WU1.5 observation)
+
+- Audit all `.arc/` documents for content that appears in multiple places. Over the
+  course of WU1 → WU1.5 → WU2, content migrates between documents (rules into
+  strategies, session guidance across ADR/workflow/strategy/agent files, archive
+  timing in both strategy and workflow). Each migration is intentional, but source
+  documents aren't always fully cleaned.
+- For each instance, classify:
+    - **Intentional reinforcement** — summary in one doc referencing detail in another
+      (e.g., archive trigger summary in strategy, full procedure in workflow). Mark with
+      "authoritative source" pointer so future edits know which copy to update first.
+    - **Accidental drift** — full or near-full copy that should be a cross-reference.
+      Trim to cross-reference.
+    - **Misplacement** — content in the wrong document given the post-WU2 structure.
+      Relocate.
+- Run after all WU2 content changes land (L1-L3 and all cluster work complete).
+  The post-WU2 document set is the near-final 1.0 shape — that's when this audit
+  has lasting value.
+- Natural companion to L2 (mixed-concern identification) and L3 (dependency mapping)
+  — same "verify the whole is coherent" pass.
+
 ---
 
 ## Deliverables
