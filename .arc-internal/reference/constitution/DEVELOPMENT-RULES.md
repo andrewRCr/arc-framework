@@ -58,8 +58,8 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - Templates clearly marked as `.template.md` and copy-ready
 - READMEs required for each directory
 - ALWAYS run markdown linting after updating any documentation files
-- **Line length**: 120 characters for `.arc-internal/`, 100 for `.arc/` (enforced by per-directory
-  markdownlint config). Use the full target width — don't wrap prematurely at 80 or 90.
+- **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap
+  prematurely at 80 or 90.
 
 ### File Organization
 
