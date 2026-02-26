@@ -65,6 +65,9 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 - `.arc/` = the deployable template system (permanent, versioned)
 - `.arc-internal/` = framework development workspace (internal use only)
+- **No internal references in public docs**: Files in `.arc/` must never reference `.arc-internal/`
+  paths (ADRs, internal PRDs, internal workflows, etc.). Public docs are adoption-facing — adopters
+  won't have `.arc-internal/`. Use the public strategy doc or workflow equivalent instead.
 - Template-first documents in `.arc/reference/constitution/`, `.arc/system/agent/`
 - Core workflows in `.arc/system/workflows/`
 
