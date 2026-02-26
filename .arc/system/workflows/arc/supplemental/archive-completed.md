@@ -16,6 +16,17 @@ trigger — branch cleanup happens independently as PRs merge.
 For multi-branch work units (stacked PRs, team sub-branches), archive once when all tasks
 complete, even if individual branches are merged incrementally.
 
+**Multi-branch work units** follow three distinct operations:
+
+1. **Rotate** — Intermediate merge. A branch's scope is done but the task list has remaining work.
+   Merge the branch, set up the next one, continue working. No archival, no completion doc.
+   See [rotate-branch][rotate-branch] workflow.
+2. **Complete** — All tasks in the task list are marked `[x]`. The work unit is done.
+3. **Archive** — This workflow. Runs once after the final merge, when all tasks are complete.
+   Creates the completion doc, moves files to archive, updates tracking.
+
+Rotation may happen multiple times during a work unit; archival happens exactly once at the end.
+
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
 ## Workflow Overview
@@ -224,6 +235,11 @@ git push
 
 **Context:** PR is merged, you're on the parent branch (e.g., the base branch or a parent feature branch).
 
+> **Multi-branch verification:** If this work unit spanned multiple branches (stacked PRs, phased
+> delivery), confirm that **all** branches have been merged before proceeding with archival. Archival
+> is a one-time operation on the fully completed work unit — intermediate merges are handled by the
+> [rotate-branch][rotate-branch] workflow and do not trigger archival.
+
 ### 9) Delete Child Branch
 
 ```bash
@@ -387,3 +403,4 @@ architectural pivot, not abandoned work.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[rotate-branch]: rotate-branch.md

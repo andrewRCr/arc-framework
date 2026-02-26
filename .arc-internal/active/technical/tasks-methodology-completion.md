@@ -93,39 +93,48 @@ reflect resolved architectural decisions.
 
 **Purpose:** Create the rotate-branch workflow and complete multi-branch documentation.
 
-- [ ] **2.1 Create `rotate-branch.md` supplemental workflow**
+- [x] **2.1 Create `rotate-branch.md` supplemental workflow**
 
-    **Goal:** Define the "Rotate" operation in the three-operation model (Rotate → Complete →
-    Archive).
+    Created `.arc/system/workflows/arc/supplemental/rotate-branch.md` (139 lines) defining the
+    Rotate operation in the three-operation model (Rotate → Complete → Archive).
 
-    - New file: `.arc/system/workflows/arc/supplemental/rotate-branch.md`
-    - Required sections: decision criteria (when to rotate), pre-merge checklist (quality gate
-      tier, `Branch(es)` field update, PR description), next branch setup (from updated base),
-      session state update
-    - Explicitly distinct from archive-completed — no archival, no completion doc
-    - **Strategies:** `strategy-work-organization.md`, `strategy-quality-gates.md`
+    - Merge-focused scope: covers intermediate merges only (non-merge branch switching
+      handled by session-handoff → session-init composition)
+    - Sections: scenarios (stacked PRs, phased delivery, team sub-branches), 5-step
+      procedure (verify → prepare → merge → next branch → update tracking)
+    - Config-aware squash guidance: documents operational risk, recommends regular merge for
+      intermediate PRs, references strategy-configurability-architecture for full rationale
+    - Pre-PR quality gate: Tier 3 per quality gates strategy
+    - All references to public `.arc/` docs only (no internal doc references)
 
-- [ ] **2.2 Add multi-branch archive guidance to `archive-completed.md`**
+- [x] **2.2 Add multi-branch archive guidance to `archive-completed.md`**
 
-    - Add section explaining three-operation model (WU1.5 Gap 8 decision)
-    - Intermediate merges: rotate-branch (branch cleanup, no archive move)
-    - Full archive: runs once after final merge when all tasks complete
-    - Phase 2→3 gate enforces merge verification before archive move
+    Added two sections to `archive-completed.md`:
 
-- [ ] **2.3 Port atomicity check to canonical `process-task-loop.md`**
+    - **Archive Timing area**: Three-operation model (Rotate → Complete → Archive) with
+      one-line descriptions distinguishing each operation. Cross-references rotate-branch
+      workflow.
+    - **Phase 2→3 boundary**: Multi-branch verification gate — confirm all branches merged
+      before proceeding with archival. Blockquote callout consistent with existing style.
 
-    - Review check in `.arc-internal/system/workflows/arc/3_process-task-loop.md` (added WU1)
-    - Port to canonical `.arc/system/workflows/arc/3_process-task-loop.md`
-    - Ensure language matches Commit Standards in `strategy-development-methodology.md`
+- [x] **2.3 Port atomicity check to canonical `process-task-loop.md`**
 
-- [ ] **2.4 Add `Branch(es)` field update guidance**
+    Already present. Atomicity check was added directly to the canonical
+    `.arc/system/workflows/arc/3_process-task-loop.md` in `cfa0556` (WU1). No internal
+    version ever existed. Language verified aligned with Commit Standards in
+    `strategy-development-methodology.md` ("one logical concern" ↔ "one logical change").
 
-    - `rotate-branch.md` (2.1): include in pre-merge checklist
-    - `process-task-loop.md`: add note about updating field when creating additional branches
+- [x] **2.4 Add `Branch(es)` field update guidance**
 
-- [ ] **2.5 Run Tier 1 quality gates on Phase 2 changes**
-    - Lint all modified and new files
-    - Verify cross-references in new `rotate-branch.md`
+    - `rotate-branch.md`: Already included in step 2 pre-merge checklist and step 5
+      tracking update (done as part of 2.1)
+    - `process-task-loop.md`: Added Branch(es) field update note and rotate-branch
+      cross-reference to the branch/task list coupling bullet
+
+- [x] **2.5 Run Tier 1 quality gates on Phase 2 changes**
+    - Full suite: 123 files, 0 errors
+    - Cross-references verified: all reference-style links in rotate-branch.md,
+      archive-completed.md, and process-task-loop.md resolve to real files
 
 ### **Phase 3:** Core Document Restructure
 
@@ -331,6 +340,10 @@ recovery, staleness detection.
     - Make meta-project reference file extensions configurable
     - Add hook comments noting adopter adjustment needs
     - Update both `.arc/` and `.arc-internal/` copies
+    - **Internal hook addition**: Add check to `.arc-internal/` pre-commit that blocks
+      `.arc-internal/` references in staged `.arc/` files (public/internal boundary
+      enforcement — see DEVELOPMENT-RULES § File Organization). Public hook doesn't
+      need this check (adopters won't have `.arc-internal/`).
 
 - [ ] **5.4 Scaffold `arc-extensions.md`**
 

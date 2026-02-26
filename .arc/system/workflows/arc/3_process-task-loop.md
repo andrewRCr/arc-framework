@@ -13,7 +13,9 @@ It ensures consistent execution, quality control, and documentation of work.
   task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
-  happens independently as PRs merge. See [Work Organization Strategy][work-org] for the full
+  happens independently as PRs merge. When creating additional branches for an existing task list,
+  update the `**Branch(es):**` header field to include the new branch name. For intermediate merges,
+  see [rotate-branch][rotate-branch]. See [Work Organization Strategy][work-org] for the full
   relationship model.
 - **Co-development awareness:** The developer may be working alongside you — editing files, running
   commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
@@ -182,3 +184,4 @@ See [Incidental Work Management](#incidental-work-management) above.
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-methodology]: ../../../reference/strategies/arc/strategy-development-methodology.md
+[rotate-branch]: supplemental/rotate-branch.md
