@@ -16,6 +16,7 @@ These ship with the framework and cover development methodology applicable to an
 - `arc/strategy-core-philosophy.md` - Principles (P1-P11), philosophical foundation, positioning
 - `arc/strategy-development-methodology.md` - Commit standards, verification, session/task management
 - `arc/strategy-file-classification.md` - File taxonomy, merge strategies, complete inventory
+- `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration

@@ -437,6 +437,33 @@ concerns (not adopter experience friction — those are Clusters A-F).
   `weekly-review.md`, PROJECT-STATUS template, and any workflow referencing the
   current path
 
+**G8. Extract PRD format from create-prd workflow to template** (WU1.5 Gap 11)
+
+- `1_create-prd.md` Step 4 currently defines the PRD format inline (~50 lines of section
+  descriptions). WU1.5 created `reference/templates/template-prd.md` as a copy-ready
+  template, so the workflow now duplicates the template
+- Replace inline format definition with reference to `template-prd.md`, keeping a brief
+  section summary in the workflow for orientation
+- Touchpoints: `1_create-prd.md` (Step 4 and PRD Format section)
+
+**G9. Strengthen create-prd discovery step** (WU1.5 Gap 11)
+
+- `1_create-prd.md` Step 3 provides question categories (Problem/Goal, Scope,
+  Requirements, Technical context, Unknowns) but no structured discovery protocol
+- Reference the discovery checklist from `strategy-work-planning.md` as the
+  "must-ask" questions before plan-to-PRD transition
+- Especially relevant for AI agents, who benefit from explicit prompts to ask
+  questions before generating output
+- Touchpoints: `1_create-prd.md` (Step 3)
+
+**G10. Reference planning lifecycle strategy from create-prd workflow** (WU1.5 Gap 11)
+
+- `1_create-prd.md` Step 1 mentions plan documents exist but provides no reference to
+  their convention
+- Add reference to `strategy-work-planning.md` for plan-\* doc naming, purpose,
+  and lifecycle conventions
+- Touchpoints: `1_create-prd.md` (Step 1)
+
 ### Cluster H: Minor Convention Adjustments
 
 **H1. Clarify reference-style link convention scope** (Audit 1 M1)
@@ -871,6 +898,11 @@ user-facing.
     - **Cluster O** (Extensions/Methods): Gap 2 resolution specifies that
       DEV-RULES.ARC includes inline method-override pointers — ensure
       arc-methods.md preset methods (O2) are consistent with these pointers
+    - **Cluster G** (Convention/Workflow Gaps): Gap 11 (planning lifecycle) adds
+      G8-G10: extract PRD format to template, strengthen discovery step, reference
+      new planning lifecycle strategy from create-prd workflow. Also created
+      `reference/templates/` directory with centralized templates (template-adr,
+      template-prd, template-plan) and `strategy-work-planning.md`.
     - **Session workflows generally**: Gaps 3, 9, 10 (bootstrap, mismatch recovery,
       staleness detection) produce session-init change specifications
 

@@ -167,43 +167,58 @@ and most architecturally significant gap cluster.
 
 **Purpose:** Research, codify the planning pipeline convention, and create a PRD template.
 
-- [ ] **3.1 Research SE planning practices (Gap 11)**
+- [x] **3.1 Research SE planning practices (Gap 11)**
 
     **Goal:** Evaluate ARC's plan→PRD→tasks pipeline against established patterns.
 
-    - ARC-anchored scope: start from what ARC does, look for proven improvements, don't survey
-      radically different approaches
-    - Current lifecycle: backlog buckets → ephemeral `plan-*` docs → PRD → task list
-    - Research areas: design docs (Google, Amazon, Stripe conventions), RFCs, progressive
-      elaboration, pre-requirements planning artifacts in development frameworks
-    - Focus: techniques that improve content quality within existing stages, not additional
-      stages or ceremony
-    - Output: `research-planning-lifecycle.md`
-    - Lint output file
+    - Researched design doc conventions (Google, Amazon, Stripe), RFC processes (Rust,
+      Ember), development methodologies (Shape Up, Agile), progressive elaboration,
+      discovery/scoping techniques, PRD template evolution, and the codification spectrum
+    - Key finding: pre-requirements phase benefits most from *input quality guardrails*
+      (discovery checklists, problem framing) over *output templates* (mandatory sections)
+    - Shape Up's "pitch" is the closest analogue to ARC's plan-\* docs
+    - ARC's PRD template is well-aligned with modern practice; marginal improvements only
+    - Codification spectrum: light structure for exploration, heavy for execution — value
+      curve flattens quickly in exploratory phases
+    - Output: `research-planning-lifecycle.md` (30+ sources across 6 topic areas)
+    - Linted clean
 
-- [ ] **3.2 Codify planning lifecycle and create PRD template (Gap 11, PRD Req 3)**
+- [x] **3.2 Codify planning lifecycle and create PRD template (Gap 11, PRD Req 3)**
 
     **Goal:** Document the planning pipeline convention and produce a PRD template.
 
-    - [ ] **3.2.a Draft planning lifecycle convention**
-        - Consume `research-planning-lifecycle.md`
-        - Codify `plan-*` doc convention: purpose, structure, when to create, ephemeral nature,
-          graduation to PRD, many-to-one grouping
-        - Determine home: new strategy, or additions to development methodology / work organization
-        - Incorporate proven SE planning techniques identified in research
+    - [x] **3.2.a Draft planning lifecycle convention**
+        - Created `strategy-work-planning.md` — new strategy doc covering the full
+          pipeline (backlog → plan-\* → PRD → tasks), plan-\* doc conventions (naming,
+          ephemeral lifecycle with delete-on-graduation default, many-to-one PRD
+          relationship), discovery checklist (7 critical questions), PRD readiness
+          signals, PRD conventions, and anti-patterns
+        - Home decided: new strategy named to pair with `strategy-work-organization.md`
+          (both about work units). Added to STRATEGY-INDEX.
 
-    - [ ] **3.2.b Create PRD template**
-        - `prd-template.md` analogous to existing `adr-template.md`
-        - Inline guidance for each section (Introduction, Goals, Use Cases, Requirements, etc.)
-        - Reflect any improvements from research findings
-        - Place in `.arc/` template system (location per file classification conventions)
+    - [x] **3.2.b Create PRD template and establish templates directory**
+        - Created `reference/templates/` as centralized template home with `template-`
+          prefix naming convention (enables fuzzy-find)
+        - Moved `adr-template.md` → `templates/template-adr.md` (updated references in
+          DEVELOPMENT-RULES.template.md, strategy-adr-methodology.md ×2); added new
+          `reference/templates/` section to strategy-file-classification.md
+        - Created `template-prd.md` — copy-ready PRD template based on create-prd
+          workflow format with research-informed improvements: "why now" framing in
+          Introduction, P0/P1/P2 prioritization option for Requirements,
+          strengthened measurability guidance for Success Criteria, Open Questions
+          triage (pre-start vs. during-work)
+        - Created `template-plan.md` — optional lightweight plan structure
+          (Problem/Motivation, Alternatives, Unknowns/Assumptions, Scope Estimate)
 
-    - [ ] **3.2.c Evaluate create-prd workflow improvements**
-        - Assess whether discovery step (Step 3) needs strengthening
-        - Review workflow against research findings for other improvements
-        - Output: workflow update specification in WU2 plan doc
+    - [x] **3.2.c Evaluate create-prd workflow improvements**
+        - Added three WU2 specs to plan doc Cluster G: G8 (extract PRD format from
+          workflow to template reference), G9 (strengthen discovery step with
+          checklist reference), G10 (reference planning lifecycle strategy from
+          Step 1)
+        - Updated WU1.5 dependency section with Gap 11 outputs and affected cluster
 
-    - [ ] **3.2.d Lint all Phase 3 outputs**
+    - [x] **3.2.d Lint all Phase 3 outputs**
+        - All 9 created/modified files lint clean (zero violations)
 
 ### **Phase 4:** Fast-Track Design Decisions
 

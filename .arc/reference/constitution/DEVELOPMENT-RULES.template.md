@@ -109,7 +109,7 @@ understanding system constraints.
 - Temporary or experimental choices
 
 **Format and guidance:** See [ADR Methodology Strategy](../strategies/arc/strategy-adr-methodology.md)
-**Template:** See `.arc/reference/adr/adr-template.md`
+**Template:** See `.arc/reference/templates/template-adr.md`
 
 ADRs are immutable once accepted - new decisions require new ADRs that supersede old ones.
 
