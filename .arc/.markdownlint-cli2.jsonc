@@ -1,0 +1,13 @@
+{
+  // Override for .arc/ (template system / public-facing docs)
+  // Tighter line length for broader editor compatibility across adopting projects.
+  // Inherits all other rules from root config.
+
+  "config": {
+    "MD013": {
+      "line_length": 100,
+      "code_blocks": false,
+      "tables": false
+    }
+  }
+}
