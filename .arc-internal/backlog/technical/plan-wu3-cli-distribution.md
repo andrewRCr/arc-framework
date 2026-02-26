@@ -140,10 +140,12 @@ These need resolution during PRD or implementation:
   excluded. A framework update may add content to the excluded sections. Options: respect initial
   choices silently, surface choices for reconsideration (`arc init --reconfigure`), or prompt
   when conditional sections differ significantly.
-- **Markdown line length** — Lines rewrapped at init time (see init section) produce a different
-  pristine base than the raw framework source. Framework updates must be aware of this to avoid
-  spurious conflicts. Mitigation: rewrap both the new version and the pristine base before merging,
-  or store pre-wrap pristine.
+- **Markdown line length** — The framework standardizes on 120 characters (research confirmed this
+  as the GitHub diff viewport ceiling and practical IDE width; 80/100 are code-inherited defaults,
+  not documentation conventions). `arc-framework init` should install a markdownlint config with
+  the framework's rule set (120-char MD013, disabled code_blocks/tables, etc.) so adopter linting
+  matches the framework source. This eliminates spurious merge conflicts on update — the adopter's
+  formatting matches the pristine base without rewrapping.
 
 ### Merge Granularity and WU2 Dependency
 
@@ -215,9 +217,10 @@ Template rendering:
 - **Tokens:** `{{PROJECT_NAME}}`, `{{BASE_BRANCH}}`, `{{BACKEND_TEST_CMD}}` — string replacement
 - **Conditionals:** Sections included or excluded based on init choices (e.g., backend section
   excluded if no backend selected)
-- **Markdown line length:** Option to re-wrap content to a project-preferred line length at init
-  time. Recommended — produces cleaner three-way merges on future updates because the pristine
-  base matches the adopter's formatting expectations.
+- **Markdownlint config:** `init` installs a `.markdownlint-cli2.jsonc` (or equivalent) with the
+  framework's rule set — 120-char line length, standard rule overrides. Classification: Framework
+  (auto-updated). This ensures adopter linting matches framework conventions out of the box, and
+  the pristine base stays aligned across updates without rewrapping.
 
 Post-init, `.pristine/` stores the post-rendered, post-conditional result — what actually landed
 on disk.
