@@ -123,7 +123,11 @@ with distribution system design as the primary focus area.
 
 ## Currently Active
 
-[none]
+- **Methodology Completion** (technical) — Apply WU1/WU1.5 design decisions across ARC
+  methodology documentation: infrastructure files, core document restructuring, convention
+  and workflow gap closure
+    - Task list: `.arc-internal/active/technical/tasks-methodology-completion.md`
+    - Branch: `technical/methodology-completion`
 
 ## Upcoming Priorities
 

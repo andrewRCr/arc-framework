@@ -1,10 +1,10 @@
 # Task List: Methodology Completion
 
-**PRD:** `.arc-internal/backlog/technical/prd-methodology-completion.md`
+**PRD:** `.arc-internal/active/technical/prd-methodology-completion.md`
 **Created:** 2026-02-26
 **Branch(es):** `technical/methodology-completion`
 **Base Branch:** `main`
-**Status:** Not Started
+**Status:** In Progress
 
 ## Overview
 

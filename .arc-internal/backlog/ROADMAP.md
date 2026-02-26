@@ -55,16 +55,26 @@ lifecycle strategy, and 10 WU2 plan cluster items with concrete implementation s
 - Upstream: WU1 (all ADRs)
 - Downstream: WU2
 
-**WU2: Methodology Completion & Structural Validation** — Implementation
+**WU2: Methodology Completion** — 🔄 In Progress
 
-Apply WU1 decisions across all existing docs, hooks, and templates. Resolves all adoption
-dealbreakers and friction points identified in audits. Fixes multi-branch coupling language,
-adds team workflow adaptations, expands arc-config.yml, implements convention gaps. Ends with
-a structural validation pass (file classification, mixed-concern audit, cross-cutting
-dependency mapping) that feeds WU3.
+Apply WU1/WU1.5 design decisions across all existing docs, hooks, and templates. Resolves
+all adoption dealbreakers and friction points identified in audits. Fixes multi-branch
+coupling language, adds team workflow adaptations, expands arc-config.yml, implements
+convention gaps.
 
-- Plan: `technical/plan-wu2-methodology-completion.md`
+- PRD: `technical/prd-methodology-completion.md`
+- Task list: `technical/tasks-methodology-completion.md`
+- Branch: `technical/methodology-completion`
 - Upstream: WU1 (all ADRs), WU1.5 (design decisions, workflow specs)
+- Downstream: WU2b, WU3, WU4
+
+**WU2b: Structural Validation** — Pending (depends on WU2)
+
+Structural validation pass: file classification, mixed-concern audit, cross-cutting
+dependency mapping. Feeds WU3.
+
+- PRD: `technical/prd-structural-validation.md`
+- Upstream: WU2 (methodology changes)
 - Downstream: WU3, WU4
 
 **WU3: CLI & Distribution** — Implementation
@@ -94,33 +104,36 @@ parallel after WU1+WU2 complete.
 Phase A ──► Phase B ──► 1.0 Work Units:
 (complete)  (complete)
 
-  WU1 (Philosophy + Configurability)
+  WU1 (Philosophy + Configurability) ✅
    │
    ├──► WU1.5 (Foundational Gap Closure) ✅
    │     │
-   │     ├──► WU2 (Methodology Completion)
+   │     ├──► WU2 (Methodology Completion) 🔄
    │     │     │
-   │     │     ├──► WU3 (CLI & Distribution)
+   │     │     ├──► WU2b (Structural Validation)
    │     │     │     │
-   │     │     │     └──► WU4 (Public Release)
-   │     │     │           ▲
-   │     │     └───────────┘ (content creation can start after WU2)
-   │     │                 ▲
-   │     └─────────────────┘ (philosophy informs docs site + README)
-   │                       ▲
-   └───────────────────────┘
+   │     │     │     ├──► WU3 (CLI & Distribution)
+   │     │     │     │     │
+   │     │     │     │     └──► WU4 (Public Release)
+   │     │     │     │           ▲
+   │     │     └─────┴───────────┘ (content creation can start after WU2)
+   │     │                       ▲
+   │     └───────────────────────┘ (philosophy informs docs site + README)
+   │                             ▲
+   └─────────────────────────────┘
 ```
 
 **Parallelism:** WU4 docs site content and README drafts can begin after WU1+WU2 without
-waiting for WU3. Community infrastructure (issue templates, CoC, etc.) has no upstream
-dependencies.
+waiting for WU3. WU2b depends only on WU2 methodology changes landing. Community
+infrastructure (issue templates, CoC, etc.) has no upstream dependencies.
 
 ---
 
 ## Related Documents
 
 - WU1 plan: `technical/plan-wu1-philosophy-configurability.md`
-- WU2 plan: `technical/plan-wu2-methodology-completion.md`
+- WU2 PRD: `technical/prd-methodology-completion.md`
+- WU2b PRD: `technical/prd-structural-validation.md`
 - WU3 plan: `technical/plan-wu3-cli-distribution.md`
 - WU4 plan: `feature/plan-wu4-public-release.md`
 - Active work: `.arc-internal/active/CURRENT-SESSION.md`
