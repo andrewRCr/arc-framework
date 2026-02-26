@@ -258,7 +258,8 @@ accumulating stale metadata. Cleanup command: `git notes --ref=arc/session/{iden
 
 **One-time setup (part of `arc-init`, planned WU3):**
 
-1. Configure session identity: `session.identity` in `arc-config.yml`
+1. Configure session identity: `git config arc.session.identity {name}` (per-developer, stored in local git config
+   rather than `arc-config.yml` — see `strategy-configurability-architecture.md` § Config scope)
 2. Add notes fetch refspec: `git config --add remote.origin.fetch "+refs/notes/arc/session/*:refs/notes/arc/session/*"`
 3. Add `.arc/active/SESSION.md` (and `.arc/team/*/SESSION.md` for team config) to `.gitignore`
 
@@ -330,7 +331,7 @@ This degradation model means teams can adopt session portability incrementally �
   working behavior.
 - **Per-developer namespaces add conceptual overhead.** `refs/notes/arc/session/{identity}` is more complex
   than a single ref. The complexity is justified (prevents push conflicts in team scenarios) but adds setup
-  configuration (`session.identity`) and mental model overhead for understanding note isolation.
+  configuration (`arc.session.identity` in git config) and mental model overhead for understanding note isolation.
 - **Setup is required.** The refspec configuration, session identity, and gitignore updates are one-time setup
   but are easy to forget or misconfigure. `arc-init` (WU3) should handle this automatically, but until that
   tooling exists, teams need to follow manual setup steps.

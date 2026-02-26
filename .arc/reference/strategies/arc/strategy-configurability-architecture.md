@@ -263,6 +263,26 @@ strategy or workflow documents. No config setting needed because the guidance is
 programmatically by hooks, workflows, or agent processing, AND (b) the alternative — editing framework files directly —
 would create update safety or maintenance problems.
 
+### Config scope: project-wide by design
+
+`arc-config.yml` is a **project-level** file — all settings apply to the entire team. There is no per-developer
+layering mechanism. This is a deliberate design choice:
+
+- Every current setting (`branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`) is inherently project-wide.
+  The team agrees on commit format, branch protection, and merge strategy. Per-developer variation on these would
+  create inconsistency.
+- Per-developer values (e.g., session identity for git notes) route through **git config** (`git config
+  arc.session.identity alice`), which is already per-developer by design. Git config is the standard mechanism
+  for local, personal configuration in git-based projects.
+- Project-level defaults that individual developers may want to override (e.g., `session.notes_push`) follow the
+  same pattern: `arc-config.yml` sets the team default, git config provides a personal override. This is how git
+  itself handles project vs. personal settings.
+
+**Why not layered config:** A layered system (`arc-config.yml` → `team/{name}/config.yml`) would add resolution
+mechanics, documentation overhead, and implementation complexity for currently 1-2 per-developer settings. YAGNI
+applies. If per-developer config needs grow significantly, the `team/{name}/` directory is the natural home for a
+future personal config file — the architecture accommodates this without committing to it now.
+
 ### Settings with behavioral implications
 
 Most config settings are straightforward toggles. Some carry deeper implications for how workflows behave.

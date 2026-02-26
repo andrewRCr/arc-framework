@@ -225,38 +225,62 @@ and most architecturally significant gap cluster.
 **Purpose:** Resolve the 7 gaps that don't require external research. Strategy updates are
 written directly; workflow change specs are added to the WU2 plan doc for implementation.
 
-- [ ] **4.1 Design first-session bootstrap (Gap 3, PRD Req 4)**
+- [x] **4.1 Design first-session bootstrap (Gap 3, PRD Req 4)**
 
-    - Session-init assumes CURRENT-SESSION.md exists; no workflow bridges setup to first session
-    - Options: graceful handling in session-init, setup creates initial state, separate workflow
-    - Read: `session-init.md`, `01_initialize-arc.md`, `02_define-project.md`,
-      `CURRENT-SESSION.template.md`
-    - Output: workflow change spec in WU2 plan doc
-    - Lint modified files
+    Resolved as WU2 plan spec C7. Decision: Option A — init scaffolds `WORK-STATUS.md`
+    (ADR-007's tracked replacement for `CURRENT-SESSION.md`) with a "no active work" default
+    state. Session-init detects this state and provides orientation guidance rather than
+    failing. The same state recurs between work units (post-archive, pre-activate), so this
+    is a recurring lifecycle state, not a one-time bootstrap.
 
-- [ ] **4.2 Stabilize task references (Gap 4, PRD Req 5)**
+    - Spec covers 4 workflows: `01_initialize-arc.md` (scaffold), `session-init.md` (detect),
+      `activate-work-unit.md` (populate), `archive-completed.md` (reset)
+    - `SESSION.md` (gitignored) needs no special handling — ADR-007 Part 4 already specifies
+      graceful degradation for missing file
+    - Lint: zero violations
 
-    - Line-number-based task anchors in CURRENT-SESSION.md break when tasks are edited
-    - Options: stable task IDs, markdown heading anchors, verification guidance
-    - Read: `session-init.md` (line number references), `session-handoff.md` (anchor format),
-      `strategy-task-list-formatting.md` (task numbering scheme)
-    - Output: convention decision (strategy update or WU2 plan spec depending on scope)
-    - Lint modified files
+- [x] **4.2 Stabilize task references (Gap 4, PRD Req 5)**
 
-- [ ] **4.3 Document method override dependencies (Gap 6, PRD Req 6)**
+    Resolved as WU2 plan spec C8. Decision: triple-anchor reference format — task title
+    snippet (stable) + task number (semi-stable) + line number with tilde (disposable hint).
+    Example: `Task 4.1 — Design first-session bootstrap (line ~228)`.
 
-    - Coupled methods (task-completion ↔ commit-context-format) documented as independent
-    - Read: `strategy-configurability-architecture.md` (method overrides section), ADR-005
-    - Output: dependency guidance spec for `arc-methods.md` in WU2 plan doc (WU2 creates file)
-    - Lint modified files
+    - Session-init gets a graceful fallback lookup: line hint → verify number → search
+      number → search title → report mismatch. Handles both routine line drift and
+      occasional phase restructuring without hard-failing.
+    - No structural change to task list format — task numbering and hierarchy unaffected.
+      Numbers are human-readable IDs, not stable database keys.
+    - Commit message `Context:` references unaffected — historical record, not navigational.
+    - Spec integrates with C5 (session-init redesign) and C7 (WORK-STATUS.md bootstrap).
+    - Lint: zero violations
 
-- [ ] **4.4 Clarify config semantics in team mode (Gap 7, PRD Req 7)**
+- [x] **4.3 Document method override dependencies (Gap 6, PRD Req 6)**
 
-    - `arc-config.yml` described as singular project-level file; team mode config undefined
-    - Read: `strategy-configurability-architecture.md` (agent discovery), ADR-003,
-      `strategy-team-coordination.md`
-    - Output: strategy update (if project-wide by design) or ADR note (if layered needed)
-    - Lint modified files
+    Resolved as dependency guidance addition to WU2 plan spec O2 (`arc-methods.md`
+    scaffolding). Analysis: only one genuine coupling exists among the 4 preset methods —
+    `task-completion` ↔ `commit-context-format` (both reference the task tracking system).
+    The other two methods (`session-state`, `quality-gate-commands`) are independent.
+
+    - Added `Related:` field to method definition structure — advisory note listing
+      typically co-overridden methods with rationale
+    - Agent notes coupling during session-init config awareness (ADR-005 Part 6)
+    - Dependency map table in O2 makes all couplings (and independences) explicit
+    - Validation Scenario A already demonstrates correct pattern; guidance makes it
+      discoverable rather than implicit in examples
+    - Lint: zero violations
+
+- [x] **4.4 Clarify config semantics in team mode (Gap 7, PRD Req 7)**
+
+    Resolved as strategy update. Decision: `arc-config.yml` is **project-wide by design**.
+    Per-developer values (session identity) route through git config, which is already
+    per-developer. No layered config mechanism needed — YAGNI for 1-2 settings.
+
+    - Added "Config scope: project-wide by design" section to
+      `strategy-configurability-architecture.md` with rationale and upgrade path note
+    - Updated ADR-007 Part 5 setup: `session.identity` now uses `git config
+      arc.session.identity` instead of `arc-config.yml`
+    - Door left open: `team/{name}/` noted as future home for personal config if needs grow
+    - Lint: zero violations
 
 - [ ] **4.5 Clarify archive trigger for stacked branches (Gap 8, PRD Req 8)**
 

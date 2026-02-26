@@ -211,6 +211,121 @@ Context Loading Design for full analysis and evidence base).
 - Interacts with Cluster O `post-context-load` extension point (O1) — that's
   where adopters add their own Tier 2a triggers
 
+**C7. Handle first-session bootstrap and "no active work" state** (WU1.5 Gap 3)
+
+ADR-007 replaces `CURRENT-SESSION.md` with `WORK-STATUS.md` (tracked) + `SESSION.md`
+(gitignored). Session-init reads `WORK-STATUS.md` for orientation — but after initial
+setup (`01_initialize-arc.md` → `02_define-project.md`), no work unit is active yet. The
+same state recurs between work units (after archiving one, before activating the next).
+
+Changes:
+
+- **`01_initialize-arc.md`**: Scaffold `WORK-STATUS.md` during init verification with a
+  "no active work" default state. All fields present with empty/placeholder values:
+
+  ```markdown
+  **Work Unit**: [none]
+  **Branch**: main
+  **Task List**: [none]
+  **Current Task**: —
+  **Blockers**: [none]
+  **Next Action**: Create first PRD (see 1_create-prd.md)
+  ```
+
+  This makes `WORK-STATUS.md` always exist from first init — no "file missing" edge case.
+
+- **`session-init.md`**: Add a detection path for the "no active work" state in Step 2
+  (active work context). When `WORK-STATUS.md` has `Work Unit: [none]` or equivalent:
+    - Skip task list loading (no task list to load)
+    - In Step 3 (Confirm Orientation), report the state and point to the appropriate
+      next workflow: `1_create-prd.md` if no PRDs exist, `activate-work-unit.md` if a
+      backlog task list exists but isn't activated
+    - This is not a failure or mismatch — it's a legitimate, recurring project state
+
+- **`activate-work-unit.md`** Step 7: Update to reference `WORK-STATUS.md` instead of
+  `CURRENT-SESSION.md`. Activation populates the "no active work" placeholder with real
+  values (work unit name, branch, task list path, first task).
+
+- **`archive-completed.md`**: After archival, reset `WORK-STATUS.md` back to the "no
+  active work" state. This completes the lifecycle: init → activate → work → archive →
+  back to "no active work."
+
+- **`SESSION.md` handling**: Session-init already handles missing `SESSION.md` gracefully
+  per ADR-007 Part 4 (check local file → check git notes → start with clean template).
+  No additional first-session spec needed for `SESSION.md`.
+
+Note: C5 (session-init loading sequence redesign) currently references `CURRENT-SESSION.md`
+at step 7. When implementing C5 + C7 together, replace with `WORK-STATUS.md` and
+incorporate the "no active work" detection described here.
+
+**C8. Stabilize task references in WORK-STATUS.md** (WU1.5 Gap 4)
+
+`WORK-STATUS.md` (ADR-007's replacement for `CURRENT-SESSION.md`) references the current
+task. The existing convention uses task number + line number (e.g., "Task 4.1 (line 228)").
+Line numbers break on any edit above the referenced line — a routine occurrence during
+implementation. Task numbers break on phase restructuring — less common but not rare.
+Both are fragile anchors.
+
+**Convention change — triple-anchor reference format:**
+
+```
+Current Task: Task 4.1 — Design first-session bootstrap (line ~228)
+```
+
+Three signals with decreasing fragility:
+
+1. **Task title snippet** (stable) — survives renumbering and line shifts. Only changes
+   if the task's identity changes, which warrants updating the reference anyway. The
+   truly stable anchor.
+2. **Task number** (semi-stable) — survives line edits, breaks on phase restructure.
+   The primary search key for grep-based lookup.
+3. **Line number with tilde** (disposable hint) — `~` signals "approximate." Enables
+   the agent's Read tool offset parameter for fast direct-jump, but is not trusted as
+   authoritative.
+
+**Session-init lookup behavior (specify in `session-init.md`):**
+
+1. Jump to line hint (fast path — usually correct)
+2. Verify task number pattern at that location
+3. If mismatch: search file for task number pattern (handles line drift)
+4. If task number not found: search for title snippet (handles renumbering)
+5. If nothing matches: report to user — something fundamental changed
+
+Steps 1-2 cover the common case (line hint is still valid). Steps 3-4 handle the
+restructuring cases gracefully. Step 5 is the safety net.
+
+**Session-handoff write behavior (specify in `session-handoff.md`):**
+
+When writing the "Current Task" field, include all three anchors. The line number is
+best-effort — the agent reads the task list during handoff anyway, so capturing the
+current line number is trivial.
+
+**Workflow updates:**
+
+- **`session-init.md`**: Replace the hard requirement "VERIFY: Current Task field must
+  include line number" with the triple-anchor lookup protocol above. The current hard-stop
+  on missing line numbers becomes unnecessary — the title snippet provides a reliable
+  fallback.
+- **`session-handoff.md`**: Update the "Current Task" format in the handoff template and
+  examples to use triple-anchor format. Current examples show `Task 3.3 (line 247)` —
+  change to `Task 3.3 — Write unit tests (line ~247)`.
+- **`activate-work-unit.md`** Step 7: Update the "Current Task" format guidance to match.
+- **`WORK-STATUS.md` template** (from C7): Use triple-anchor format in the template and
+  field documentation.
+- **`strategy-task-list-formatting.md`**: No structural change to task list format itself.
+  Task numbering, letter scheme, and hierarchy are unaffected. Consider adding a brief
+  note under Task List Headers clarifying that task numbers are human-readable IDs, not
+  stable database keys — they may shift during implementation restructuring.
+
+**Commit message references unaffected:** The `Context: tasks-foo.md (Task 4.1)` format
+in commit messages is a historical record, not a navigational anchor. Task numbers in
+committed messages don't need updating when phases restructure — they're accurate as of
+the commit date. No change needed.
+
+Note: Implement C8 alongside C5 and C7 — all three touch session-init's active work
+context loading. The triple-anchor format applies to `WORK-STATUS.md` (C7's new file),
+read by the redesigned session-init sequence (C5), with the lookup protocol defined here.
+
 ### Cluster D: Multi-Branch Workflow Fixes
 
 Items that resolve residual 1:1 branch-to-task-list coupling language and add missing
@@ -731,6 +846,38 @@ alongside Cluster B's config expansion.
   | Session state mechanism  | session-init/handoff | CURRENT-SESSION.md read/write    | IDE persistent memory, etc.   |
   | Commit context format    | atomic-commit        | `Context: tasks-*.md (Task X.Y)` | `Closes JIRA-XXX`, `Fixes #N` |
 
+- **Method dependency guidance** (WU1.5 Gap 6): Methods are presented as independent
+  choices, but some have dependencies. The `task-completion` and `commit-context-format`
+  methods are coupled — the default commit context format (`Context: tasks-*.md (Task X.Y)`)
+  assumes markdown task lists. Overriding task completion to use Jira/Linear without also
+  overriding commit context creates an inconsistency: commits reference a tracking system
+  the team doesn't use.
+
+  Include in each method definition:
+    - **`Related:`** field listing methods that are typically overridden together, with a
+      one-line explanation of why. Advisory — not a constraint, but a prompt for teams to
+      consider the coupling when overriding.
+    - For the `task-completion` / `commit-context-format` pair: "Overriding one typically
+      requires overriding the other — both reference the task tracking system."
+
+  The dependency guidance is advisory, consistent with how contracts work (ADR-005: "the
+  team is responsible for ensuring their override meets the contract"). The agent notes
+  the coupling during session-init config awareness (ADR-005 Part 6) and can flag it if
+  only one of a coupled pair is overridden.
+
+  Dependency map across preset methods:
+
+  | Method                 | Related                | Nature of coupling                          |
+  |------------------------|------------------------|---------------------------------------------|
+  | task-completion        | commit-context-format  | Both reference the task tracking system      |
+  | commit-context-format  | task-completion        | Both reference the task tracking system      |
+  | session-state          | (none)                 | Independent — mechanism is self-contained    |
+  | quality-gate-commands  | (none)                 | Independent — project-specific commands      |
+
+  Validation Scenario A in `strategy-configurability-architecture.md` already demonstrates
+  the correct pattern (Jira team overrides both). The dependency guidance makes this
+  coupling explicit and discoverable rather than implicit in examples.
+
 **O3. Insert extension point markers into workflows**
 
 - Block-style markers at each preset location, bounded by horizontal rules:
@@ -893,8 +1040,11 @@ user-facing.
     - **Cluster E** (Team Workflow): Gap 5 (team work transfer) and Gap 7 (config
       team semantics) may reshape E3 and related items
     - **Cluster D**: Gap 8 (archive trigger) resolution may land as a workflow
-      update spec that D2 consumes; Gap 4 (task reference stability) affects
-      session-init and session-handoff references
+      update spec that D2 consumes
+    - **Cluster C** (continued): Gap 4 (task reference stability) is specified as
+      C8 — triple-anchor reference format (title + number + ~line) with graceful
+      fallback lookup in session-init. Affects session-init, session-handoff,
+      activate-work-unit, and WORK-STATUS.md template
     - **Cluster O** (Extensions/Methods): Gap 2 resolution specifies that
       DEV-RULES.ARC includes inline method-override pointers — ensure
       arc-methods.md preset methods (O2) are consistent with these pointers
@@ -904,7 +1054,10 @@ user-facing.
       `reference/templates/` directory with centralized templates (template-adr,
       template-prd, template-plan) and `strategy-work-planning.md`.
     - **Session workflows generally**: Gaps 3, 9, 10 (bootstrap, mismatch recovery,
-      staleness detection) produce session-init change specifications
+      staleness detection) produce session-init change specifications. Gap 3
+      (bootstrap) is specified as C7 — first-session bootstrap and "no active work"
+      state handling across init, session-init, activate-work-unit, and archive
+      workflows. Gaps 9 and 10 specs land as additional Cluster C items.
 
 **Downstream:**
 
