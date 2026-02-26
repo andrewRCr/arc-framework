@@ -200,6 +200,14 @@ Context Loading Design for full analysis and evidence base).
 - strategy-dev-methodology no longer in Tier 1; Tier 2a trigger in DEV-RULES.ARC
   covers it ("for detailed format specs and elaboration")
 - Net effect: 8 documents (down from 9), ~47-73 instructions (down from ~80-125)
+- ⚑ **Agent switching note (WU1.5 PRD Req 11):** ADR-007's two-file split inherently
+  handles agent switching. `WORK-STATUS.md` is factual project state — fully agent-
+  agnostic, no adaptation needed. `SESSION.md` carries qualitative context about the
+  work, not the agent — agent-specific content there would be unusual in practice.
+  Add a brief acknowledgment in session-init's SESSION.md loading step: if SESSION.md
+  was written by a different agent, extract factual content and disregard any agent-
+  specific references (the incoming agent has its own guidance in its agent file).
+  No structural changes, no new workflow items — just awareness.
 
 **C6. Formalize Tier 2a trigger pattern in existing workflows** (WU1.5 Gap 2)
 
@@ -326,6 +334,129 @@ Note: Implement C8 alongside C5 and C7 — all three touch session-init's active
 context loading. The triple-anchor format applies to `WORK-STATUS.md` (C7's new file),
 read by the redesigned session-init sequence (C5), with the lookup protocol defined here.
 
+**C9. Add mismatch recovery protocol to session-init** (WU1.5 Gap 9)
+
+Session-init Step 4 currently treats all mismatches identically: stop and ask. No trust
+hierarchy, no severity classification, no self-recovery path. Gap 9 adds tiered recovery
+based on source reliability.
+
+**Trust hierarchy (highest to lowest):**
+
+1. **Git state** (`git status`, `git log`, branch existence) — live system, can't be stale
+2. **Task list checkboxes** — tracked file, committed atomically with work
+3. **WORK-STATUS.md** — tracked, updates with commits (ADR-007); high reliability
+4. **SESSION.md** — gitignored, only as fresh as last handoff; variable reliability
+
+**Tiered recovery model:**
+
+- **Auto-recover with notice** — when git state and task list agree, and only the session
+  document is behind. The correct state is unambiguous; session doc is simply stale.
+  Agent proceeds with the authoritative state and reports what it corrected.
+
+  Scenarios:
+    - Session doc says "uncommitted files" but `git status` shows clean → work was committed
+    - Session doc says "Task 3.2 current" but task list shows 3.2 `[x]`, 3.3 `[ ]` → task
+      was completed
+    - Session doc describes WIP but `git log` shows it committed → same as first scenario
+
+  Pattern: git + task list agree, session doc is the outlier. Not ambiguity — staleness.
+
+- **Stop and ask** — when the correct state requires human judgment. Agent reports the
+  mismatch with diagnostics (what each source says, which sources agree/disagree) but does
+  not act.
+
+  Scenarios:
+    - Session doc says branch X but current branch is Y → can't infer intent
+    - Session doc references a task list that doesn't exist → archived? deleted? moved?
+    - Git status shows uncommitted changes not mentioned in session doc → user's parallel
+      work? crashed session leftovers?
+
+  Pattern: ambiguous intent, multiple plausible explanations.
+
+**Workflow update (specify in `session-init.md`):**
+
+- Restructure Step 4 from a flat "stop and ask for everything" into the two-tier model
+- Add the trust hierarchy as a reference (agents use it to diagnose and report)
+- Auto-recovery reports use a consistent format: "Session doc said X. Git/task list show Y.
+  Proceeding with Y." — visible to user, not silent
+- Stop-and-ask reports include diagnostics: what each source says, which agree/disagree,
+  and possible explanations
+- Preserve the existing safety principle: "do not attempt to fix state on your own" for
+  the stop-and-ask tier; auto-recovery tier adds a bounded exception for unambiguous
+  staleness
+
+**ADR-007 interaction:** WORK-STATUS.md updates atomically with commits, so the
+auto-recoverable scenarios (1-3) become much rarer — the tracked state file stays
+current. The recovery protocol primarily fires for SESSION.md staleness or edge cases
+where handoff was skipped entirely. The trust hierarchy still applies: git > task list >
+WORK-STATUS.md > SESSION.md.
+
+Note: Implement C9 alongside C5 and C7 — session-init redesign (C5) is the natural home
+for this protocol. The mismatch detection step comes after context loading (C5's scope)
+and after task reference lookup (C8's scope), so it runs with full context available.
+
+**C10. Add staleness detection to session-init** (WU1.5 Gap 10)
+
+Session-init reads session state without freshness verification. If a developer skips
+handoff, the session doc may be sessions old with no warning — and the staleness may not
+produce a detectable mismatch (task hasn't changed, just context is missing from the
+skipped session). Gap 10 adds proactive staleness detection that runs before C9's
+mismatch recovery.
+
+**How ADR-007 narrows the problem:**
+
+- WORK-STATUS.md updates atomically with commits → inherently fresh for task state.
+  Staleness signals a workflow violation (rare) or non-task commits (normal).
+- SESSION.md (gitignored) only updates at handoff → staleness is the expected failure
+  mode when handoff is skipped. Missing qualitative context (debugging insights,
+  approach decisions, things tried) from the skipped session.
+
+**Staleness signal — commit hash anchor:**
+
+- `session-handoff.md` writes a "Commit at Handoff" field into SESSION.md with the
+  hash of HEAD at session end. Objective, no filesystem timestamp dependency.
+- Session-init compares this anchor against current HEAD:
+    - **Match**: SESSION.md is current — no staleness
+    - **Mismatch**: commits happened after the last handoff. Count the gap:
+      `git rev-list --count <anchor>..HEAD`
+- For WORK-STATUS.md: compare the last commit that touched it against HEAD:
+  `git log -1 --format=%H -- .arc/active/WORK-STATUS.md` vs HEAD.
+  Under ADR-007 these should match (atomic updates); drift is noteworthy.
+
+**Staleness is informational, not blocking:**
+
+- Staleness alone doesn't prevent initialization — incomplete context is better than
+  no context. The agent proceeds but with awareness.
+- Report format: "SESSION.md was last updated at `<hash>` ([N] commits ago).
+  Session context may be incomplete."
+- For WORK-STATUS.md drift: "WORK-STATUS.md last updated in `<hash>`, but HEAD is
+  [N] commits ahead. Task state may not reflect recent work." (This is the unusual
+  case — more prominent warning.)
+
+**Relationship to C9 (mismatch recovery):**
+
+- Staleness detection runs BEFORE mismatch recovery in the session-init sequence
+- If staleness is detected, the agent carries lower confidence in session doc content,
+  naturally increasing reliance on git state and task list (higher-trust sources in
+  C9's hierarchy)
+- Staleness without mismatch = "session doc is incomplete but not wrong" (report,
+  proceed). Staleness WITH mismatch = C9 handles it with informed confidence levels.
+
+**Workflow updates:**
+
+- **`session-init.md`**: Add a freshness check step between context loading (C5) and
+  mismatch detection (C9). Sequence: load context → check freshness → detect
+  mismatches → confirm orientation.
+- **`session-handoff.md`**: Add "Commit at Handoff" field to the handoff template.
+  Written automatically during handoff: `git rev-parse HEAD`. Lightweight addition
+  to existing handoff protocol.
+- **Orientation output (Step 3)**: If staleness detected, include in the orientation
+  summary (existing "Blockers" or a new "Warnings" line). Not a blocker — just
+  awareness.
+
+Note: Implement C10 alongside C5, C7, C8, and C9 — all touch the session-init
+sequence. C10 slots between context loading and mismatch detection.
+
 ### Cluster D: Multi-Branch Workflow Fixes
 
 Items that resolve residual 1:1 branch-to-task-list coupling language and add missing
@@ -341,10 +472,16 @@ guidance for multi-branch work unit scenarios.
 - The existing "See Work Organization Strategy for details" link is good; ensure the summary
   no longer contradicts the source
 
-**D2. Add multi-branch archive guidance to archive-completed.md** (Audit 2 Gap 2)
+**D2. Add multi-branch archive guidance to archive-completed.md** (Audit 2 Gap 2; WU1.5 Gap 8)
 
+- ⚑ **WU1.5 Gap 8 design decision**: Archive trigger remains "all tasks `[x]`" — this
+  starts the end-of-work-unit sequence. The Phase 2→3 gate in archive-completed enforces
+  merge verification before the archive move (`git mv`). Three-operation model:
+    - **Rotate** (mid-work-unit): merge current branch, create next — `rotate-branch.md` (D6)
+    - **Complete** (all tasks `[x]`): write completion doc, enter archive-completed Phase 1
+    - **Archive** (after final merge): Phase 3 `git mv` — gated on Phase 2 merge
 - Add a "Multi-Branch Archive" section or callout in Phase 1 explaining the sequence:
-    - Intermediate branch merges: branch cleanup only (delete branch, no archive move)
+    - Intermediate branch merges: rotate-branch workflow (branch cleanup, no archive move)
     - Full archive workflow (docs cleanup, completion doc, archive move) runs once after
       the final branch merges and all tasks are complete
     - Completion doc covers the entire task list scope across all branches
@@ -375,8 +512,11 @@ guidance for multi-branch work unit scenarios.
   coincides with branch deletion)" or restructure to separate the two as independent
   actions
 
-**D6. Create rotate-branch.md supplemental workflow** (Audit 2 Gap 8; methodology-gaps plan)
+**D6. Create rotate-branch.md supplemental workflow** (Audit 2 Gap 8; methodology-gaps plan; WU1.5 Gap 8)
 
+- ⚑ **WU1.5 Gap 8 role**: rotate-branch is the "Rotate" operation in the three-operation
+  model (Rotate → Complete → Archive). It handles intermediate branch merges within a
+  work unit — explicitly distinct from archive-completed, which handles end-of-work-unit.
 - New file: `.arc/system/workflows/arc/supplemental/rotate-branch.md`
 - Cover the clean handoff from one branch to the next within a work unit (no archival,
   no completion doc, no PROJECT-STATUS/ROADMAP — those are end-of-work-unit concerns)
@@ -578,6 +718,28 @@ concerns (not adopter experience friction — those are Clusters A-F).
 - Add reference to `strategy-work-planning.md` for plan-\* doc naming, purpose,
   and lifecycle conventions
 - Touchpoints: `1_create-prd.md` (Step 1)
+
+**G11. Enumerate deferred review stop conditions** (WU1.5 PRD Req 12)
+
+- `3_process-task-loop.md` deferred review section says "stop if anything unexpected
+  arises" without defining "unexpected." Agents interpret this inconsistently —
+  too cautious (stop on every minor issue) or too optimistic (plow through problems).
+- Add an enumerated threshold after the existing deferred review paragraph:
+
+  **Must stop** (continuing would waste work or create problems):
+    - Quality gate failure that can't be auto-fixed
+    - Blocking dependency on work outside the deferred scope
+    - Task requires design decisions not anticipated in the task description
+    - Scope significantly exceeds what the task description implies
+
+  **Continue with note** (unexpected but not blocking):
+    - Minor quality gate issues fixed inline (e.g., lint auto-fix)
+    - Task took longer than expected but completed successfully
+    - Minor deviation from task plan that doesn't affect subsequent tasks
+
+- Keep the enumeration concise — it's guidance, not an exhaustive ruleset. The
+  principle is: stop when continuing would produce work the user hasn't approved.
+- Touchpoints: `3_process-task-loop.md` (deferred review paragraph, lines 57-63)
 
 ### Cluster H: Minor Convention Adjustments
 
@@ -1039,8 +1201,10 @@ user-facing.
       five design decisions.
     - **Cluster E** (Team Workflow): Gap 5 (team work transfer) and Gap 7 (config
       team semantics) may reshape E3 and related items
-    - **Cluster D**: Gap 8 (archive trigger) resolution may land as a workflow
-      update spec that D2 consumes
+    - **Cluster D**: Gap 8 (archive trigger) resolved — three-operation model
+      (Rotate → Complete → Archive). Archive trigger stays "all tasks `[x]`";
+      Phase 2→3 gate enforces merge before archive move. Annotated on D2
+      (multi-branch guidance) and D6 (rotate-branch as intermediate operation)
     - **Cluster C** (continued): Gap 4 (task reference stability) is specified as
       C8 — triple-anchor reference format (title + number + ~line) with graceful
       fallback lookup in session-init. Affects session-init, session-handoff,
@@ -1057,7 +1221,12 @@ user-facing.
       staleness detection) produce session-init change specifications. Gap 3
       (bootstrap) is specified as C7 — first-session bootstrap and "no active work"
       state handling across init, session-init, activate-work-unit, and archive
-      workflows. Gaps 9 and 10 specs land as additional Cluster C items.
+      workflows. Gap 9 (mismatch recovery) is specified as C9 — tiered recovery
+      model with trust hierarchy (git > task list > WORK-STATUS > SESSION); auto-
+      recover when git + task list agree and session doc is the outlier, stop-and-ask
+      for ambiguous cases. Gap 10 (staleness detection) is specified as C10 —
+      commit hash anchor in SESSION.md, freshness check before mismatch detection;
+      informational (not blocking), feeds confidence levels into C9's trust hierarchy.
 
 **Downstream:**
 

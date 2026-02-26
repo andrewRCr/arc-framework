@@ -282,50 +282,85 @@ written directly; workflow change specs are added to the WU2 plan doc for implem
     - Door left open: `team/{name}/` noted as future home for personal config if needs grow
     - Lint: zero violations
 
-- [ ] **4.5 Clarify archive trigger for stacked branches (Gap 8, PRD Req 8)**
+- [x] **4.5 Clarify archive trigger for stacked branches (Gap 8, PRD Req 8)**
 
-    - "Archive when all tasks complete" doesn't verify branch merge state
-    - Read: `strategy-work-organization.md` (archive timing), `archive-completed.md`
-    - Output: workflow change spec in WU2 plan doc
-    - Lint modified files
+    Resolved as workflow change spec in WU2 plan doc. Decision: archive trigger
+    stays "all tasks `[x]`" (unchanged). The gap was missing merge verification —
+    resolved via three-operation model that separates intermediate and final merges:
 
-- [ ] **4.6 Design session state mismatch recovery (Gap 9, PRD Req 9)**
+    - **Rotate** (mid-work-unit): `rotate-branch.md` (D6) — merge current branch,
+      create next, no archival
+    - **Complete** (all tasks `[x]`): write completion doc, enter archive-completed
+    - **Archive** (after final merge): Phase 2→3 gate enforces merge before `git mv`
 
-    - Session-init detects mismatches but only offers "stop and ask" — no recovery protocol
-    - Define trust hierarchy: git status vs. task list vs. CURRENT-SESSION.md
-    - Define tiered recovery: minor (auto-correct with notice) vs. major (stop and ask)
-    - Read: `session-init.md` (step 4, mismatch detection)
-    - Output: workflow change spec in WU2 plan doc
-    - Lint modified files
+    Annotated D2 (multi-branch archive guidance) and D6 (rotate-branch role) in
+    WU2 plan. Updated dependency section: Gap 8 annotation replaced speculative
+    "may land as" with concrete decision.
+    - Lint: zero violations
 
-- [ ] **4.7 Design staleness detection (Gap 10, PRD Req 10)**
+- [x] **4.6 Design session state mismatch recovery (Gap 9, PRD Req 9)**
 
-    - CURRENT-SESSION.md read without freshness check; stale state from skipped handoffs
-    - Define "stale": timestamp drift, commit count since last update, other signals
-    - Read: `session-init.md`, `strategy-development-methodology.md` (session documentation)
-    - Output: workflow change spec in WU2 plan doc
-    - Lint modified files
+    Resolved as workflow change spec C9 in WU2 plan doc. Decision: tiered recovery
+    based on source reliability, replacing the flat "stop and ask for everything" model.
+
+    - **Trust hierarchy**: git state > task list > WORK-STATUS.md > SESSION.md
+    - **Auto-recover with notice**: when git + task list agree and only the session
+      doc is behind (unambiguous staleness — e.g., session doc says "uncommitted" but
+      git shows clean, or says "Task 3.2 current" but task list shows 3.2 `[x]`)
+    - **Stop and ask**: when correct state requires human judgment (wrong branch,
+      missing task list, unexplained uncommitted changes)
+    - ADR-007 interaction: WORK-STATUS.md updates atomically with commits, making
+      auto-recoverable scenarios rarer; protocol primarily fires for SESSION.md
+      staleness or skipped handoffs
+    - Added C9 to Cluster C in WU2 plan; updated dependency section with concrete spec
+    - Lint: zero violations
+
+- [x] **4.7 Design staleness detection (Gap 10, PRD Req 10)**
+
+    Resolved as workflow change spec C10 in WU2 plan doc. Decision: commit hash anchor
+    for objective staleness detection, informational (not blocking), feeding into C9's
+    mismatch recovery trust hierarchy.
+
+    - **Staleness signal**: SESSION.md gets a "Commit at Handoff" field (HEAD hash at
+      session end). Session-init compares anchor against current HEAD — mismatch means
+      commits happened after last handoff. WORK-STATUS.md checked via last-touching
+      commit vs HEAD (drift is unusual under ADR-007's atomic update model).
+    - **Informational, not blocking**: staleness alone doesn't prevent initialization.
+      Agent reports gap count and proceeds with awareness. Staleness lowers confidence
+      in session doc, increasing reliance on git/task list per C9's trust hierarchy.
+    - **Sequence**: freshness check slots between context loading (C5) and mismatch
+      detection (C9) in session-init. C10 alongside C5/C7/C8/C9 implementation.
+    - **Handoff update**: session-handoff.md adds "Commit at Handoff" field to template
+    - Added C10 to Cluster C in WU2 plan; updated dependency section with concrete spec
+    - Lint: zero violations
 
 ### **Phase 5:** Partially Addressed Findings
 
 **Purpose:** Resolve the 3 remaining audit findings not fully covered by existing decisions.
 
-- [ ] **5.1 Define agent switching operational guidance (PRD Req 11)**
+- [x] **5.1 Define agent switching operational guidance (PRD Req 11)**
 
-    - ADR-002 supports switching architecturally; operational guidance is missing
-    - Define how incoming agent handles prior agent's context in CURRENT-SESSION.md
-    - Read: ADR-002 (Part 3, Part 5), `session-init.md`
-    - Output: workflow change spec in WU2 plan doc
-    - Lint modified files
+    Resolved as light annotation on C5 in WU2 plan doc. ADR-007's two-file split
+    inherently handles agent switching: WORK-STATUS.md is factual project state
+    (fully agent-agnostic), SESSION.md carries qualitative context about the work
+    (not the agent). Agent-specific content in SESSION.md would be unusual in
+    practice. Spec: add brief acknowledgment in session-init's SESSION.md loading
+    step — extract factual content, disregard agent-specific references. No
+    structural changes needed.
+    - Lint: zero violations
 
-- [ ] **5.2 Clarify deferred review scope bounds (PRD Req 12)**
+- [x] **5.2 Clarify deferred review scope bounds (PRD Req 12)**
 
-    - "Stop if anything unexpected arises" — threshold undefined
-    - Define what qualifies as "unexpected": quality gate failure, scope exceeding estimate,
-      blocking dependency, etc.
-    - Read: `3_process-task-loop.md` (deferred review section)
-    - Output: workflow change spec in WU2 plan doc
-    - Lint modified files
+    Resolved as workflow change spec G11 in WU2 plan doc. Enumerates the
+    "unexpected" threshold as two tiers:
+
+    - **Must stop**: quality gate failure (not auto-fixable), blocking dependency
+      outside deferred scope, unanticipated design decisions needed, scope
+      significantly exceeds task description
+    - **Continue with note**: minor auto-fixed issues, task took longer than
+      expected, minor plan deviation not affecting subsequent tasks
+    - Principle: stop when continuing would produce work the user hasn't approved
+    - Lint: zero violations
 
 ### **Phase 6:** Verification
 
