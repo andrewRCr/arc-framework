@@ -44,14 +44,14 @@ files, constitutional doc refresh. All foundational 1.0 decisions resolved.
 - Upstream: none
 - Downstream: WU2, WU3, WU4
 
-**WU1.5: Foundational Gap Closure** — In Progress
+**WU1.5: Foundational Gap Closure** — ✅ Complete (2026-02-26)
 
-Resolve 11 foundational design gaps (plus 3 partially addressed findings) identified by
-Phase 1 audit. Produces ADRs, strategy updates, and workflow change specifications that
-WU2 consumes. Research-dependent decisions (session state, context loading, planning
-lifecycle) plus first-principles fast-track decisions.
+Resolved 11 foundational design gaps and 3 partially addressed audit findings. Produced
+ADR-007 (session state), context loading architecture (5 design decisions), planning
+lifecycle strategy, and 10 WU2 plan cluster items with concrete implementation specs.
 
-- Task list: `active/technical/tasks-foundational-gap-closure.md`
+- Archive: `archive/2026-q1/technical/04_foundational-gap-closure/`
+- Research: `reference/research/` (4 files, 76+ sources)
 - Upstream: WU1 (all ADRs)
 - Downstream: WU2
 
@@ -96,7 +96,7 @@ Phase A ──► Phase B ──► 1.0 Work Units:
 
   WU1 (Philosophy + Configurability)
    │
-   ├──► WU1.5 (Foundational Gap Closure) ◄── IN PROGRESS
+   ├──► WU1.5 (Foundational Gap Closure) ✅
    │     │
    │     ├──► WU2 (Methodology Completion)
    │     │     │

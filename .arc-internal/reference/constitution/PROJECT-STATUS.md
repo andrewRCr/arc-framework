@@ -105,13 +105,25 @@ with distribution system design as the primary focus area.
 - Archive: `.arc-internal/reference/archive/2026-q1/technical/03_philosophy-configurability/`
 - Research: `.arc-internal/reference/research/`
 
+### ✅ Foundational Gap Closure (February 2026)
+
+**Status**: Completed February 2026
+
+- Resolved 11 foundational design gaps and 3 partially addressed audit findings
+- ADR-007: session state portability and team transfer (two-file decomposition + git notes)
+- Context loading architecture: validated three-tier model, five design decisions, instruction
+  budget framework
+- Planning lifecycle: `strategy-work-planning.md`, PRD template, workflow integration specs
+- 7 fast-track design decisions: bootstrap, task refs, method deps, config scope, archive
+  trigger, mismatch recovery, staleness detection
+- 3 research syntheses (76+ sources): session lifecycle, context loading, planning practices
+- 10 new WU2 plan cluster items with concrete implementation specs
+- Archive: `.arc-internal/reference/archive/2026-q1/technical/04_foundational-gap-closure/`
+- Research: `.arc-internal/reference/research/`
+
 ## Currently Active
 
-- **WU1.5: Foundational Gap Closure** (technical) - Resolve 11 foundational design gaps
-  (plus 3 partially addressed findings) identified by Phase 1 audit; produce ADRs, strategy
-  updates, and workflow change specifications for WU2
-    - Task list: `.arc-internal/active/technical/tasks-foundational-gap-closure.md`
-    - Branch: `technical/foundational-gap-closure`
+[none]
 
 ## Upcoming Priorities
 
@@ -158,4 +170,4 @@ with distribution system design as the primary focus area.
 
 ---
 
-*Last updated: 2026-02-24*
+*Last updated: 2026-02-26*
