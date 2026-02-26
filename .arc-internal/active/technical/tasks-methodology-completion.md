@@ -40,57 +40,54 @@ reflect resolved architectural decisions.
 
 **Purpose:** Clear noise from subsequent reviews with targeted edits to existing files.
 
-- [ ] **1.1 Apply cosmetic template fixes**
+- [x] **1.1 Apply cosmetic template fixes**
 
-    **Goal:** Resolve three one-line audit findings in template files.
+    Resolved three audit findings in template files.
 
-    - [ ] **1.1.a Update `strategy-task-list-formatting.md` incidental Branch field**
-        - Lines 116-117: change `**Branch:**` to `**Branch(es):**` in incidental task list header
-        - Add "additional branches comma-separated" note matching feature/technical rules
+    - [x] **1.1.a Update `strategy-task-list-formatting.md` incidental Branch field**
+        - Changed `**Branch:**` to `**Branch(es):**` in incidental header template and example
+        - Updated rules to add "additional branches comma-separated" note matching feature/technical
 
-    - [ ] **1.1.b Add team mode comment to `CURRENT-SESSION.template.md`**
-        - Add HTML comment near top: team mode path is `team/{name}/CURRENT-SESSION.md`
-        - Reference `strategy-team-coordination.md`
+    - [x] **1.1.b Add team mode comment to `CURRENT-SESSION.template.md`**
+        - Added HTML comment before Session Startup Protocol referencing team mode path and
+          `strategy-team-coordination.md`
 
-    - [ ] **1.1.c Add per-pair qualification to `AGENTS.template.md`**
-        - Append "(per developer-agent pair in team mode)" to one-task-at-a-time principle
+    - [x] **1.1.c Add per-pair qualification to `AGENTS.template.md`**
+        - Appended "(per developer-agent pair in team mode)" to one-task-at-a-time principle
 
-- [ ] **1.2 Adjust convention scope**
+- [x] **1.2 Adjust convention scope**
 
-    - [ ] **1.2.a Clarify reference-style link convention scope**
-        - In `strategy-development-methodology.md`: adjust from requirement to recommendation,
-          or scope enforcement to `.arc/` files only
+    - [x] **1.2.a Clarify reference-style link convention scope**
+        - Softened from requirement to recommendation in `strategy-development-methodology.md`:
+          "Use" → "Prefer". Aligns with ADR-003 file-customizable classification.
 
-    - [ ] **1.2.b Relax emoji prohibition in task planning**
-        - In `strategy-task-list-formatting.md`: change from "prohibited" to "discouraged"
+    - [x] **1.2.b Relax emoji prohibition in task planning**
+        - Changed from "Never" to "Discouraged" in `strategy-task-list-formatting.md`;
+          policy line updated to match
 
-- [ ] **1.3 Fix multi-branch coupling language**
+- [x] **1.3 Fix multi-branch coupling language**
 
-    **Goal:** Replace 1:1 branch-to-task-list language with the established many-to-one model
-    across four files.
+    Replaced 1:1 branch-to-task-list language with many-to-one model across four files.
 
-    - [ ] **1.3.a Fix `process-task-loop.md` coupling language**
-        - Lines 14-16: replace "branch exists ↔ task list active" with many-to-one model
-        - Replace "archive immediately when branch deleted" with "archive when all tasks
-          marked complete"
-        - Keep existing "See Work Organization Strategy" link
+    - [x] **1.3.a Fix `process-task-loop.md` coupling language**
+        - Replaced "branch exists ↔ task list active" with many-to-one model (stacked PRs,
+          team sub-branches, phased delivery). Archive trigger: all tasks complete.
 
-    - [ ] **1.3.b Fix `atomic-commit.md` blanket incidental statement**
-        - Line 125: replace "Incidental work commits to the current branch (no separate
-          branches)" with nuanced guidance referencing `manage-incidental-work.md`
+    - [x] **1.3.b Fix `atomic-commit.md` blanket incidental statement**
+        - Replaced blanket "no separate branches" with nuanced guidance: minor fixes on
+          current branch, larger work may use `incidental/<name>`. Added link to
+          `manage-incidental-work.md`.
 
-    - [ ] **1.3.c Fix `manage-incidental-work.md` coupling language**
-        - Line 136: replace "Archive immediately after branch merge" with "Archive when all
-          tasks complete — see archive-completed.md for timing"
+    - [x] **1.3.c Fix `manage-incidental-work.md` coupling language**
+        - Fixed both instances: conventions section and archival reference. Both now say
+          "archive when all tasks complete" with link to `archive-completed.md`.
 
-    - [ ] **1.3.d Fix `work-organization.md` lifecycle inconsistency**
-        - Lines 352-375: reconcile lifecycle steps (branch deletion → archival as causal) with
-          correct "archival triggers on task completion" model
-        - Add parenthetical: "(all tasks complete — in 1:1 scenarios this coincides with
-          branch deletion)"
+    - [x] **1.3.d Fix `work-organization.md` lifecycle inconsistency**
+        - Clarified lifecycle step 12 trigger ("all tasks complete") and added parenthetical
+          noting 1:1 coincidence with branch deletion for typical incidental work.
 
-- [ ] **1.4 Run Tier 1 quality gates on Phase 1 changes**
-    - `npm run -s lint:md` on all modified files
+- [x] **1.4 Run Tier 1 quality gates on Phase 1 changes**
+    - Full suite: 122 files, 0 errors
 
 ### **Phase 2:** Multi-Branch Workflows
 

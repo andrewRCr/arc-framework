@@ -122,7 +122,8 @@ git status               # Verify clean state
 
 - Verify correct branch before committing
 - Branch naming: `feature/[name]` for user-facing, `technical/[name]` for infrastructure
-- Incidental work commits to the current branch (no separate branches)
+- Incidental work: minor fixes commit to the current branch; larger incidental work may use
+  a dedicated `incidental/<name>` branch — see [manage-incidental-work.md][manage-incidental]
 - Preserve commit history when merging (no squash merge)
 - Clean up branches after successful merge
 - See [Work Organization Strategy][work-org] for details
@@ -131,3 +132,4 @@ git status               # Verify clean state
 
 [dev-methodology]: ../../../../reference/strategies/arc/strategy-development-methodology.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
+[manage-incidental]: manage-incidental-work.md

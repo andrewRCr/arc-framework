@@ -332,7 +332,7 @@ work. This makes the protocol visible during execution.
   ❌ "The user approved the approach", "Pending user review", "User requested we defer this"\
   ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
 
-- **Link style**: Use reference-style links for all cross-file references. Collect link
+- **Link style**: Prefer reference-style links for cross-file references. Collect link
   definitions at the end of the file after a `---` separator. The separator doubles as a
   consistent EOF indicator — link definitions are invisible in rendered output, so the
   horizontal rule is the last visible element.

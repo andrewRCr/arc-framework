@@ -1,5 +1,8 @@
 # Current Session
 
+<!-- Team mode: each developer-agent pair uses team/{name}/CURRENT-SESSION.md instead. -->
+<!-- See strategy-team-coordination.md for team session structure. -->
+
 ## Session Startup Protocol (AI: Execute First)
 
 **IMPORTANT**: Execute the complete session initialization workflow before reading work context below.

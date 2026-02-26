@@ -133,7 +133,8 @@ current branch.
 
 - **Branch naming**: `incidental/<name>` (matches task list slug — e.g., `incidental/auth-error-handling`)
 - **PR against parent branch**: `gh pr create --base parent-branch` (not main)
-- **Archive immediately** after branch merge — task list in `.arc/active/` ↔ branch exists
+- **Archive when all tasks complete** — branch cleanup happens independently as PRs merge.
+  See [archive-completed.md](archive-completed.md) for timing
 
 See [Work Organization Strategy][work-org] for complete stacked
 branch workflow, merge strategy, and handling branch updates.
@@ -147,7 +148,7 @@ Incidental work follows standard workflows with no special procedures:
 - **Execution**: [3_process-task-loop.md](../3_process-task-loop.md) (one task at a time, same quality gates)
 - **Commits**: [strategy-development-methodology.md][dev-methodology] § Commit Standards (same standards as
   feature/technical work)
-- **Archival**: [archive-completed.md](archive-completed.md) (archive immediately when branch deleted after merge)
+- **Archival**: [archive-completed.md](archive-completed.md) (archive when all tasks complete)
 
 ---
 

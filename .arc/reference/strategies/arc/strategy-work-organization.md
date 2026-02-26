@@ -365,14 +365,17 @@ Code Review & Merge:
 10. Address review findings, merge PR
 
 On Parent Branch (After Merge):
-11. Delete merged branch
-12. Archive: git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
+11. Delete merged branch (branch cleanup)
+12. Archive task list (all tasks complete):
+    git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
 13. Commit archive changes, resume parent work
 ```
 
 **Archive trigger:** A task list in `.arc/active/` is archived when all tasks are marked complete
-(`[x]`), not when a branch is deleted. Branch cleanup happens independently as PRs merge. For the
-full relationship model, see [Task Lists and Branches](#5-task-lists-and-branches).
+(`[x]`), not when a branch is deleted. Branch cleanup happens independently as PRs merge. In
+typical incidental work (1:1 branch-to-task-list), deletion and archival coincide — but the
+trigger is task completion, not branch deletion. For the full relationship model, see
+[Task Lists and Branches](#5-task-lists-and-branches).
 
 ### Merge Strategy
 

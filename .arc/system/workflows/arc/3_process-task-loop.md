@@ -11,9 +11,10 @@ It ensures consistent execution, quality control, and documentation of work.
 
 - **One task at a time:** Each checkbox in the task list is one work unit — whether it's a standalone
   task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
-- **Branch/task list coupling:** Task lists in `.arc/active/` correspond to git branches (branch exists ↔ task list
-  active). Archive task list immediately when branch deleted after merge. See
-  [Work Organization Strategy][work-org] for details.
+- **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
+  sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
+  happens independently as PRs merge. See [Work Organization Strategy][work-org] for the full
+  relationship model.
 - **Co-development awareness:** The developer may be working alongside you — editing files, running
   commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
   single-threaded, small-scope tasks keep the developer close enough to the work to contribute

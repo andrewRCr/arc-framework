@@ -112,7 +112,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 # Incidental: [Descriptive Title]
 
 **Created:** YYYY-MM-DD
-**Branch:** `incidental/[name]`
+**Branch(es):** `incidental/[name]`
 **Base Branch:** `[parent-branch-this-branched-from]`
 **Status:** {Pending|In Progress|Complete}
 
@@ -146,7 +146,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Rules:**
 
 - Title uses `Incidental:` prefix
-- Branch is this task list's own branch (e.g., `incidental/filter-testing`)
+- `Branch(es)` lists this task list's own branch; add additional branches comma-separated if needed
 - Base Branch is the parent branch this branched from (enables grep-based discovery of related work)
 - Status values: `Pending` (not started), `In Progress` (active), `Paused` (blocked by other work),
   `Complete` (done)
@@ -164,7 +164,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 # Incidental: CLI Output Encoding on Windows
 
 **Created:** 2025-10-29
-**Branch:** `incidental/cli-output-encoding`
+**Branch(es):** `incidental/cli-output-encoding`
 **Base Branch:** `feature/multi-format-export`
 **Status:** In Progress
 
@@ -377,9 +377,9 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
 
 ### Emoji Usage
 
-**Policy:** Avoid emojis in task planning; acceptable only in completion details.
+**Policy:** Discourage emojis in task planning; acceptable in completion details.
 
-- **Never** in task descriptions, phase headers, or Goal/Note lines
+- **Discouraged** in task descriptions, phase headers, and Goal/Note lines — prefer plain text
 - **Acceptable** in completion details (when marking tasks `[x]`): ❌ for explaining deviations
   from plan with rationale
 - Green checkmarks (✅) discouraged as redundant — task already marked `[x]`

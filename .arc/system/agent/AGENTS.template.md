@@ -55,6 +55,7 @@
   with your current task or seem unintentional.
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
 - **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
+  (per developer-agent pair in team mode)
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
 - **Verify before asserting** - Never guess file paths, implementation details, or content.
   Use search/read tools to verify, or ask clarifying questions when uncertain.
