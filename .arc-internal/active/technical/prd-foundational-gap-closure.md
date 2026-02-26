@@ -1,7 +1,8 @@
 # PRD: Foundational Gap Closure (WU1.5)
 
 **Type:** Technical
-**Updated:** 2026-02-25
+**Status:** Complete
+**Updated:** 2026-02-26
 
 ---
 
@@ -270,20 +271,19 @@ sequential numbering continuing from WU1 (ADR-007+), immutable once accepted. AD
    lifecycle has the same level of codification as task execution
 7. **Internally consistent** — WU1.5 outputs don't contradict WU1 ADRs or each other
 
-## Open Questions
+## Open Questions (Resolved)
 
-1. **How many ADRs will WU1.5 produce?** — Minimum 1 (session state portability is clearly
-   ADR-level). Context loading may warrant an ADR or may validate the current approach (strategy
-   update). Planning lifecycle output format depends on research. Consolidation possible where
-   gaps share design space (e.g., Gaps 1+5 as one ADR). Leave to emerge during execution.
+1. **How many ADRs will WU1.5 produce?** — One: ADR-007 (session state portability + team
+   transfer, consolidating Gaps 1+5). Context loading validated the current approach with
+   restructuring specs (C2-C6), not an ADR. Planning lifecycle became a strategy document.
 
 2. **Does solving session state portability (Gap 1) fully resolve team work transfer (Gap 5)?**
-   — Partially, at minimum. If session state becomes shareable, the transfer mechanism exists.
-   But the _process_ (what outgoing dev prepares, what incoming dev does) may still need
-   separate specification. Research findings will clarify.
+   — Yes. ADR-007 covers both: two-file decomposition provides the mechanism, per-developer
+   note namespaces provide the team transfer process. Team handoff ceremony specified in E3
+   (WU2 plan) builds on ADR-007's infrastructure.
 
-3. **What is the right home for planning lifecycle codification?** — Options: new strategy
-   document (`strategy-planning-lifecycle.md`), additions to the development methodology
-   strategy, or additions to the work organization strategy. Depends on scope of findings.
+3. **What is the right home for planning lifecycle codification?** — New strategy document:
+   `strategy-work-planning.md` in `.arc/reference/strategies/arc/`. Covers plan-\* conventions,
+   discovery checklist, PRD guidance. Companion template: `template-prd.md`.
 
 ---
