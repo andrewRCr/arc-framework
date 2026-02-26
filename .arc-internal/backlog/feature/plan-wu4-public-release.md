@@ -133,6 +133,21 @@ files, and one Action. The work is content, not infrastructure.
   alongside ARC (tier 3 coexistence). Source analysis: `notes-philosophy-configurability.md`
   (Skills and ARC section) and plan-wu2 Cluster N.
 
+  **Note:** The Skills positioning has evolved since this was written — thinking has moved
+  toward skills as ARC's likely trigger mechanism (replacing slash commands) with content
+  still internal to ARC. Review latest captured thinking before authoring this section.
+
+  A related "why not just..." question: **nested agent files throughout the codebase**
+  (e.g., `frontend/claude.md`, `api/agents.md`). This is a common and effective pattern —
+  proximity-based auto-loading gives Tier 1 reliability scoped to a domain. ARC's position:
+  we favor centralized guidance inside `.arc/` with explicit triggers (Tier 2a) because
+  (a) centralized content is discoverable and auditable, (b) cross-document consistency
+  is maintainable, (c) the approach is platform-independent (not all agents support
+  proximity-based loading). Nested agent files are acknowledged as a complementary
+  technique — not in conflict with ARC, but outside its consistency guarantees. Source
+  analysis: `notes-foundational-gap-closure.md` § Evaluation: Context Loading Design and
+  `research-instruction-reliability.md` (mechanism reliability spectrum).
+
 **Relationship to the repo:**
 
 - Repo README: value proposition + link to docs site for everything deeper
