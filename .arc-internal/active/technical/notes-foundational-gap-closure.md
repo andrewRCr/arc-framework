@@ -18,8 +18,8 @@ Documents read in full at every session start before work begins:
 
 1. `AGENTS.md` — project identity, tech stack, working guidelines
 2. Agent-specific file (e.g., `CLAUDE.md`) — capabilities, thresholds, agent-specific protocol
-3. `DEVELOPMENT-RULES.md` — quality gates, standards, non-negotiable rules
-4. `strategy-development-methodology.md` — behavioral constraints, commit/session/task protocols
+3. `DEVELOPMENT-RULES.md` — (project specific) quality gates, standards, non-negotiable rules
+4. `strategy-development-methodology.md` — (ARC-specific) behavioral constraints, commit/session/task protocols
 5. `STRATEGY-INDEX.md` — index of available strategy guidance (establishes Tier 2 awareness)
 6. `QUICK-REFERENCE.md` — environment context, command patterns
 7. `3_process-task-loop.md` — task execution protocol
@@ -71,7 +71,7 @@ distribution of context across tiers?
 2. **Instruction type effectiveness** — Do certain categories (constraints/rules, environment
    context, workflow procedures, project state) show different effectiveness profiles when loaded
    upfront vs. on-demand?
-3. **Indexing effectiveness** — Does making an agent *aware* that documentation exists (Tier 2)
+3. **Indexing effectiveness** — Does making an agent _aware_ that documentation exists (Tier 2)
    actually result in appropriate on-demand consultation, or does it get lost in context?
 4. **Structured chains vs. single files** — The Gloaguen et al. study examines single
    `AGENTS.md` files. Does structured, multi-document loading perform differently?
@@ -100,100 +100,215 @@ distribution of context across tiers?
 
 ---
 
-## In-Process Analysis: Context Loading Design (Task 2.2.a)
+## Evaluation: Context Loading Design (Task 2.2 — Complete)
 
-### Likely Output Format
+### Research Inputs
 
-**Strategy update, not ADR.** The three-tier model isn't changing architecturally — the research
-validates the structure. What changes is: empirical grounding, documented trade-offs,
-potential refinement of which documents live in which tier. A strategy update (or new strategy
-section) is the right vehicle. Candidate home: `strategy-development-methodology.md` or a
-dedicated context loading section in session-init guidance.
+Three research syntheses informed this evaluation:
+
+1. `research-context-loading.md` — 31 sources on context architecture (instruction count,
+   conflict, category effectiveness, structured vs. monolithic delivery, indexing patterns)
+2. `research-context-degradation.md` — 28 sources on window degradation (positioning effects,
+   effective capacity thresholds, compaction strategies)
+3. `research-instruction-reliability.md` — 17+ sources on instruction delivery mechanisms
+   (skill recognition, explicit vs. implicit triggers, the 85%→99% compliance gap)
+
+### Output Format Decision
+
+**WU2 change specifications, not ADR.** The three-tier model is validated structurally.
+The changes are: tier formalization, document restructure, and loading sequence redesign —
+all of which are implementation work for WU2. The tier model formalization will live in the
+slimmed `strategy-development-methodology.md` as a new section. The document restructure
+and session-init changes are specified as WU2 cluster additions.
 
 ### Evidence Confidence Classification
 
-A key design goal for the output: **transparent evidence classification** for each design
-choice. This supports trust-building with adopters and opens refinement avenues as broader
-usage yields new insights. Three tiers of confidence:
+Three tiers of confidence, to be surfaced in the strategy output where adopters encounter
+the guidance:
 
 - **Empirically validated** — supported by peer-reviewed research with citations.
-  Example: "instruction count degrades performance more than token count" (IFScale,
-  ManyIFEval). "Inter-category instruction conflicts are detected 18% less reliably"
-  (ConInstruct).
-- **Experience-validated** — proven through author usage across multiple work units, but
-  not independently validated by external research. Example: "Tier 2 indexing via
-  STRATEGY-INDEX.md results in appropriate on-demand consultation." The agentic RAG
-  literature shows the *pattern* works, but ARC's specific mechanism is untested outside
-  this project.
+  "Instruction count degrades performance more than token count" (IFScale, ManyIFEval).
+  "Inter-category conflicts detected 18% less reliably" (ConInstruct). "Explicit triggers
+  achieve 85-95% recognition vs. 60-75% for implicit awareness" (Implicit Intelligence).
+- **Experience-validated** — proven through author usage across multiple work units, not
+  independently validated. "Tier 2 indexing results in appropriate on-demand consultation."
+  The agentic RAG literature validates the pattern; ARC's specific mechanism is untested
+  outside this project.
 - **First-principles reasoning** — defensible design choice without direct evidence.
-  Example: document ordering within session-init. Positional bias research supports
-  the principle; ARC's specific ordering hasn't been A/B tested.
+  Document ordering within session-init; specific instruction budget target of <80.
 
-This classification should appear in the strategy output — not buried in research docs,
-but visible where adopters encounter the guidance. Being upfront about knowns/unknowns:
-(a) builds trust, (b) signals where community experience can contribute refinements,
-(c) prevents the framework from overstating its scientific backing.
+Being upfront about knowns/unknowns: (a) builds trust, (b) signals where community
+experience can contribute refinements, (c) prevents overstating scientific backing.
 
-### Per-Document Tier 1 Assessment
+### Key Reframing: Instruction Budget
 
-Evaluate each current Tier 1 document against the research findings:
+The reliability research introduced a critical concept: **instruction budget.** The "curse
+of instructions" (P(all) = P(individual)^n) means every distinct instruction in Tier 1
+competes for the same finite compliance capacity. Frontier models maintain reasonable
+compliance through ~50-100 instructions; degradation accelerates past 150-200.
 
-| # | Document | Category | Instruction Density | Conflict Risk | Tier 1 Justified? |
-|---|----------|----------|---------------------|---------------|-------------------|
-| 1 | AGENTS.md | narrative/identity | Low | Low | Yes — foundational |
-| 2 | Agent-specific (CLAUDE.md) | constraints + thresholds | Moderate | Low (self-contained) | Yes — agent-specific |
-| 3 | DEVELOPMENT-RULES.md | constraints/rules | High | Moderate (cross-ref) | Yes — non-negotiable |
-| 4 | strategy-dev-methodology | constraints/procedures | High | **High** (overlaps #3, #7) | Review — large, procedural |
-| 5 | STRATEGY-INDEX.md | index/metadata | Very low | None | Yes — enables Tier 2 |
-| 6 | QUICK-REFERENCE.md | environment/factual | Low | Low | Yes — cheap to include |
-| 7 | 3_process-task-loop.md | **procedural/imperative** | High | **High** (overlaps #4) | **Review** — strongest demotion candidate |
-| 8 | CURRENT-SESSION.md | state/factual | Low | Low | Yes — session-critical |
-| 9 | Task list (partial) | state/factual | Low | Low | Yes — work-critical |
+ARC's current Tier 1 (~9 documents) imposes roughly **80-125 distinct instructions** —
+approaching the threshold where even frontier models with threshold-decay patterns start
+losing compliance. The relevant metric is not token count or document count but the number
+of distinct behavioral constraints the agent must follow simultaneously.
 
-**Demotion candidates:**
+### Five Design Decisions
 
-- **process-task-loop (#7):** Most procedural document in Tier 1. Highest distraction risk
-  per the instructional distractions research. Overlaps significantly with dev-methodology (#4)
-  which already covers task management protocol. Could be demoted to Tier 2 with a brief
-  reference in Tier 1 ("follow the task processing workflow; load it before starting task
-  execution"). Counter-argument: agents need the completion protocol *before* starting their
-  first task, not after — late loading risks the exact backtracking that Tier 1 prevents.
+**Decision 1: Formalize the tier model as a first-class ARC concept**
 
-- **strategy-dev-methodology (#4):** Large document covering commit standards, session
-  management, verification, task management. Some of this overlaps with DEVELOPMENT-RULES (#3)
-  and process-task-loop (#7). Partial demotion possible — load the behavioral constraints
-  upfront, defer the procedural sections (commit format details, etc.) to Tier 2. But this
-  requires splitting the document's role, which adds complexity.
+The three tiers have never been named or defined. The evidence now supports formalizing
+them with explicit reliability characteristics and a critical new distinction:
 
-**Key design tension:** The backtracking-prevention rationale for Tier 1 ("if you don't know
-this rule, you'll violate it and have to redo work") is in tension with the instruction
-conflict evidence ("more upfront instructions = more silent misresolution"). The right
-balance is the minimum set that prevents backtracking — anything beyond that threshold is
-better served by Tier 2.
+| Tier | Mechanism                              | Recognition | Compliance (moderate) |
+| ---- | -------------------------------------- | ----------- | --------------------- |
+| 1    | Always loaded (session-init)           | 100%        | 75-85%                |
+| 2a   | Explicit trigger in Tier 1 doc         | 85-95%      | 75-85%                |
+| 2b   | Indexed awareness (no explicit cue)    | 60-75%      | 60-70% (combined)     |
+| 3    | Search-based discovery / user-directed | 20-40%      | Variable              |
 
-### Cross-Document Conflict Audit (TODO for 2.2.a)
+The Tier 2a/2b distinction is the key insight: "Tier 1 says 'load this when you
+encounter X'" is significantly more reliable than "agent knows this exists via an index."
+ARC already uses both patterns but doesn't distinguish them. Formalizing tells adopters
+which mechanism to use for which reliability requirement.
 
-The ConInstruct finding (18% inter-category detection gap) means we should explicitly check
-for conflicts between Tier 1 documents. Known overlap areas to audit:
+**Evidence confidence:** Empirically validated (IFScale, Implicit Intelligence, practitioner
+convergence). Specific percentages are approximate; the ordering is robust.
 
-- DEVELOPMENT-RULES § Commit Standards ↔ strategy-dev-methodology § Commit Standards
-- DEVELOPMENT-RULES § Task Management ↔ process-task-loop § Task Implementation
-- strategy-dev-methodology § Session Documentation Control ↔ process-task-loop § Completion
-  Protocol
-- Agent-specific files (CLAUDE.md) overrides or specializations of general rules
+**Decision 2: Demote process-task-loop to Tier 2a**
 
-The goal isn't to eliminate all overlap (some reinforcement is intentional) but to identify
-cases where the same topic is stated differently enough to create conflict detection failures.
+Process-task-loop is the strongest demotion candidate by every measure:
 
-### Open Questions for 2.2.b
+- Highest instructional distraction risk (procedural/imperative — 0.301 accuracy in
+  distraction studies vs. 0.738 for mathematical reasoning)
+- ~20-30 distinct instructions competing in the budget
+- Overlaps with strategy-dev-methodology on task management protocol
+- The counter-argument ("agents need it before starting work") is addressed by the
+  explicit trigger pattern: a brief reference in session-init fires before task execution
 
-1. Where does the evidence confidence classification live in the output? Inline with each
-   recommendation? A dedicated section? A companion document?
-2. Does process-task-loop get demoted or stay in Tier 1 with a "known trade-off" annotation?
-3. Should the strategy output include guidance for adopters on customizing tier assignment
-   (their project's Tier 1 may differ from ARC's)?
-4. How do we frame the Tier 2 mechanism honestly — "works in our experience, matches
-   industry patterns, but no published validation of this specific approach"?
+The demotion saves ~20-30 instructions from the Tier 1 budget while maintaining 85-95%
+recognition via explicit trigger (vs. the current 100% at the cost of instruction density).
+
+**Evidence confidence:** Empirically validated (instructional distractions study, category
+hierarchy research). Specific demotion target is experience-validated.
+
+**Decision 3: Restructure dev-rules / strategy-dev-methodology as co-located twin core docs**
+
+The current two-document relationship has problems:
+
+- `strategy-dev-methodology` contains both always-applicable rules AND domain-specific
+  reference — conflating "core doc" and "strategy" purposes
+- Overlap between dev-rules and the strategy creates ConInstruct conflict risk
+- ARC methodology rules are buried in a strategy file — low discoverability for adopters
+- The configurability architecture (method-overrides, extensions) now provides a better
+  mechanism for the ARC/project customization split than document separation
+
+**Resolution: co-located twin core docs:**
+
+- `DEV-RULES.ARC.md` (framework-owned, Reference classification): always-applicable
+  behavioral rules extracted from strategy-dev-methodology. Brief, actionable (~15-20
+  instructions). Non-negotiable rules (principle-backed) have no override path. Strong
+  defaults (convention-level) get inline method-override pointers.
+- `DEV-RULES.PROJECT.md` (project-owned, Scaffolded classification): project-specific
+  quality gates, testing requirements, file organization. Renamed from DEVELOPMENT-RULES.md.
+  ARC methodology content removed (now in DEV-RULES.ARC).
+- `strategy-dev-methodology.md` slimmed to domain-specific reference: commit format details,
+  test-first decision tree, code documentation conventions, and the tier model formalization.
+  Becomes Tier 2a content triggered from DEV-RULES.ARC.
+
+Both core docs co-located in `reference/constitution/`. Mixed ownership documented via
+file classification (existing pattern — same as `system/agent/` which mixes AGENTS.md
+framework-owned with project-customizable agent files).
+
+The "defaults beyond core philosophy" filter applies during the split: anything in the
+strategy that doesn't trace to P1-P11 either becomes a convention with an explicit
+configurability path or gets removed. This addresses the concern about author preference
+leakage.
+
+**Evidence confidence:** First-principles reasoning informed by ConInstruct (18%
+inter-category gap). The specific restructure is a design choice.
+
+**Decision 4: Formalize explicit trigger mechanism (Tier 2a pattern)**
+
+For any Tier 2 content where compliance needs to be high, embed an explicit trigger
+reference in a Tier 1 document. ARC already does this ad-hoc; the decision is to
+formalize it as the named Tier 2a pattern.
+
+Concrete triggers to formalize:
+
+- Session-init → process-task-loop ("before starting task execution")
+- DEV-RULES.ARC → atomic-commit workflow ("before complex commits")
+- DEV-RULES.ARC → strategy-dev-methodology ("for format details and elaboration")
+- STRATEGY-INDEX entries → brief "when working on X" phrasing per strategy
+
+Interacts with WU2 Cluster O `post-context-load` extension point — that's where adopters
+add their own Tier 2a triggers.
+
+**Evidence confidence:** Empirically validated (Implicit Intelligence: 48% baseline
+implicit vs. 85-95% explicit). ARC's specific trigger pattern is experience-validated.
+
+**Decision 5: Instruction density audit as a maintenance practice**
+
+Establish a Tier 1 instruction budget guideline:
+
+- **Target:** Under 80 distinct instructions (safety margin below the 150-200 model
+  threshold, accounting for user-turn and tool-description instructions that also compete)
+- **Maintenance:** When modifying Tier 1 documents, consider whether new content adds
+  instructions or informational context
+- **Audit criterion:** Can any two Tier 1 instructions contradict? (ConInstruct finding)
+
+**Evidence confidence:** Empirically validated (IFScale, ManyIFEval). Specific target
+number is first-principles reasoning calibrated against research thresholds.
+
+### Per-Document Tier 1 Assessment (Revised)
+
+Post-decision Tier 1 composition:
+
+| #   | Document                   | Category                 | ~Instructions | Status                   |
+| --- | -------------------------- | ------------------------ | ------------- | ------------------------ |
+| 1   | AGENTS.md                  | narrative/identity       | 5-8           | Stays — foundational     |
+| 2   | Agent-specific (CLAUDE.md) | constraints + thresholds | 10-15         | Stays — agent-specific   |
+| 3   | DEV-RULES.ARC.md (new)     | constraints/rules        | 15-20         | Replaces #3 + #4         |
+| 4   | DEV-RULES.PROJECT.md (new) | project-specific rules   | 10-15         | Slimmed from old #3      |
+| 5   | STRATEGY-INDEX.md          | index/metadata           | 2-3           | Stays — enables Tier 2   |
+| 6   | QUICK-REFERENCE.md         | environment/factual      | 5-8           | Stays — cheap            |
+| 7   | CURRENT-SESSION.md         | state/factual            | 0-2           | Stays — session-critical |
+| 8   | Task list (partial)        | state/factual            | 0-2           | Stays — work-critical    |
+
+**Estimated total: ~47-73 instructions** (down from ~80-125). Well within the <80
+target and comfortably below the 150-200 degradation threshold.
+
+**Demoted to Tier 2a:**
+
+- process-task-loop → triggered from session-init before task execution
+- strategy-dev-methodology → triggered from DEV-RULES.ARC for elaboration/reference
+
+### Cross-Document Conflict Audit (Resolved)
+
+The four overlap areas identified earlier are resolved by the restructure:
+
+- DEV-RULES § Commit Standards ↔ strategy-dev-methodology § Commit Standards →
+  **Eliminated.** Brief rule in DEV-RULES.ARC, format details in strategy (Tier 2a).
+- DEV-RULES § Task Management ↔ process-task-loop § Task Implementation →
+  **Eliminated.** Brief rule in DEV-RULES.ARC, full protocol in process-task-loop (Tier 2a).
+- strategy-dev-methodology § Session Doc Control ↔ process-task-loop § Completion Protocol →
+  **Eliminated.** Both documents restructured; session doc rule in DEV-RULES.ARC,
+  procedural detail in respective Tier 2a docs.
+- Agent-specific files overrides → **Unchanged.** CLAUDE.md specializations of general
+  rules remain valid; the general rules now live in DEV-RULES.ARC instead of being split
+  across two documents.
+
+### Open Questions Resolved
+
+1. _Where does evidence classification live?_ → Inline in the tier model formalization
+   section of the slimmed strategy-dev-methodology. Visible where adopters encounter
+   guidance, not buried in research docs.
+2. _Process-task-loop demoted or stays?_ → **Demoted to Tier 2a** with explicit trigger.
+3. _Adopter customization of tier assignment?_ → Yes — noted in the tier model
+   formalization. Adopters' Tier 1 may differ from ARC's defaults. The instruction budget
+   guideline helps them make informed decisions.
+4. _How to frame Tier 2 honestly?_ → Tier 2a/2b distinction addresses this. Tier 2a
+   (explicit triggers) is empirically grounded. Tier 2b (indexed awareness) is
+   experience-validated with honest framing of the evidence gap.
 
 ---
 
@@ -207,7 +322,7 @@ CURRENT-SESSION.md may be two things conflated into one:
   of this is already tracked elsewhere (task list checkboxes, commit messages). The unique
   additions: blockers, next-action pointer, off-task-list work path.
 - **Session state** — where I personally am, what I tried, debugging insights, context that
-  helps *my* next session but is inherently local and ephemeral.
+  helps _my_ next session but is inherently local and ephemeral.
 
 The first is shareable and arguably should be shared. The second is personal and arguably should
 stay local. Whether the solution is splitting the file, redesigning the handoff mechanism, or
@@ -215,7 +330,7 @@ something else entirely is the design question.
 
 ### Why Git Tracking Is Not Straightforward
 
-- **Ordering problem:** Session handoff happens *after* commits (it assesses git state and
+- **Ordering problem:** Session handoff happens _after_ commits (it assesses git state and
   reports on committed work). If tracked, the handoff always dirties the tree after clean
   commits. Options are all problematic: trailing "session state" commits pollute history;
   accepting perpetual dirty state confuses session-init; reordering handoff before commits

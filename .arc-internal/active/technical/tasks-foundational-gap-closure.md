@@ -129,28 +129,39 @@ and most architecturally significant gap cluster.
       procedural content vulnerability, identifies Tier 2 empirical gap
     - Companion to existing `research-context-degradation.md` (general window behavior)
 
-- [ ] **2.2 Evaluate and resolve context loading design (Gap 2, PRD Req 2)**
+- [x] **2.2 Evaluate and resolve context loading design (Gap 2, PRD Req 2)**
 
-    **Goal:** Produce an ADR or strategy update resolving the context loading design question.
+    **Goal:** Produce decided design changes for WU2 resolving the context loading question.
 
-    - [ ] **2.2.a Evaluate ARC's model against findings**
-        - Consume `research-context-loading.md`
-        - Assess each tier against empirical evidence
-        - Identify any documents that evidence suggests should move between tiers
-        - Determine output format: ADR (if architectural change) or strategy update (if validation)
-        - **In-process analysis started:** see `notes-foundational-gap-closure.md`
-          § In-Process Analysis: Context Loading Design — includes per-document Tier 1
-          assessment table, demotion candidates, evidence confidence classification
-          framework, cross-document conflict audit scope, and open questions for 2.2.b
+    - [x] **2.2.a Evaluate ARC's model against findings**
+        - Consumed three research inputs: `research-context-loading.md` (31 sources),
+          `research-context-degradation.md` (28 sources), and new
+          `research-instruction-reliability.md` (17+ sources on delivery mechanisms,
+          skill recognition, explicit vs. implicit triggers)
+        - Key reframing: instruction budget, not token/document count, is the primary
+          constraint. Current Tier 1 imposes ~80-125 instructions, approaching the
+          150-200 threshold where frontier models degrade
+        - Produced five design decisions: (1) formalize tier model with 2a/2b
+          distinction, (2) demote process-task-loop to Tier 2a, (3) restructure
+          dev-rules/strategy as co-located twin core docs (DEV-RULES.ARC/PROJECT),
+          (4) formalize explicit trigger mechanism, (5) instruction density audit
+        - Cross-document conflict audit resolved — all four overlap areas eliminated
+          by the restructure
+        - Full evaluation: `notes-foundational-gap-closure.md` § Evaluation: Context
+          Loading Design
 
-    - [ ] **2.2.b Draft ADR or strategy update**
-        - If ADR: Nygard format, sequential numbering
-        - If strategy update: identify target document and section
-        - Address all 5 research questions from `notes-foundational-gap-closure.md`
-
-    - [ ] **2.2.c Cross-reference and lint**
-        - Verify consistency with session-init workflow and strategy document protocol
-        - Lint all modified/created files
+    - [x] **2.2.b Write research file, WU2 change specs, and verify**
+        - Created `research-instruction-reliability.md` — reliability research
+          synthesis following established pattern (companion to context-loading and
+          context-degradation research docs)
+        - Added WU2 plan doc change specs: Cluster C expanded with C2-C6 (core
+          document restructure, strategy slimming, session-init redesign, tier
+          model formalization, Tier 2a trigger pattern)
+        - Annotated Cluster O (method-override interaction with DEV-RULES.ARC)
+        - Updated WU1.5 dependency section with specific Gap 2 outputs
+        - Verification (absorbed 2.2.c — no direct workflow/strategy edits to
+          cross-reference): all files linted clean, consistent terminology across
+          files, WU2 additions verified against existing clusters
 
 ### **Phase 3:** Planning Document Lifecycle (Gap 11)
 

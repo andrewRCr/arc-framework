@@ -117,11 +117,11 @@ This is the enabling infrastructure for Cluster A and several items in other clu
   (resolves the template usability gap from `plan-arc-methodology-gaps.md`)
 - Scope per ADR 4: this is a method (language-specific checks), not a principle
 
-### Cluster C: Session Model Reframing
+### Cluster C: Session Model and Context Loading Architecture
 
-Scope depends on ADR 2 output. The minimum is a framing/documentation change. If ADR 2
-designates sessions as a configurable method, the scope expands to structural changes in
-workflow files.
+Scope depends on ADR 2 output for session model items. Context loading items are
+specified by WU1.5 Gap 2 resolution (see `notes-foundational-gap-closure.md` § Evaluation:
+Context Loading Design for full analysis and evidence base).
 
 **C1. Reframe session model documentation** (resolves Audit 1 S4; per ADR 2 decision)
 
@@ -134,6 +134,82 @@ workflow files.
 - If ADR 2 designates sessions as a configurable method: add appropriate config-driven
   opt-out or extensibility per the ADR decision; update workflow steps to reflect
   `session_model` configuration options
+
+**C2. Create `DEV-RULES.ARC.md`** (WU1.5 Gap 2 — core document restructure)
+
+- New file: `.arc/reference/constitution/DEV-RULES.ARC.md`
+- Classification: Reference (framework-owned, updated through merge)
+- Extract always-applicable behavioral rules from `strategy-dev-methodology.md`:
+  commit control, verification protocol, session documentation control, task management
+  protocol, strategy document protocol, core document reference protocol
+- Each rule is brief and actionable — a few lines, not a full reference section
+- Two categories of rules, visibly distinguished:
+    - **Non-negotiable** (principle-backed, P1-P11): no override path
+    - **Strong defaults** (convention-level): inline method-override pointer
+      ("Default: X. Override: `arc-methods.md#Y`")
+- Target: ~15-20 distinct instructions total
+- Include explicit Tier 2a triggers for on-demand content:
+    - "Before starting task execution, load the process-task-loop workflow"
+    - "Before complex commits, load the atomic-commit workflow"
+    - "For detailed format specs and elaboration, consult strategy-dev-methodology"
+- **Defaults filter:** During extraction, evaluate each rule against P1-P11 traceability.
+  Rules that don't trace to a principle are either (a) positioned as conventions with
+  explicit configurability paths, or (b) removed as author preference leakage
+
+**C3. Rename and slim `DEVELOPMENT-RULES.md` → `DEV-RULES.PROJECT.md`** (WU1.5 Gap 2)
+
+- Rename: `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+- Classification: Scaffolded (project-owned after init, unchanged)
+- Remove all ARC methodology content (now in DEV-RULES.ARC)
+- Retain only project-specific content: quality gates and commands, testing
+  requirements, file organization rules, architecture documentation guidance
+- Update references throughout codebase (session-init, CLAUDE.md, etc.)
+
+**C4. Slim `strategy-development-methodology.md` to domain reference** (WU1.5 Gap 2)
+
+- Remove always-applicable rules (moved to DEV-RULES.ARC)
+- Retain domain-specific reference elaboration:
+    - Commit message format details, examples, and edge cases
+    - Test-first decision tree and detailed protocol
+    - Code documentation standards and conventions
+    - Session context management detailed guidance
+- Add new section: **Context Loading Architecture** — tier model formalization:
+    - Define Tiers 1, 2a, 2b, 3 with reliability characteristics
+    - Evidence confidence classification (empirically validated / experience-validated
+      / first-principles) visible inline with each tier's description
+    - Instruction budget guideline: target <80 distinct instructions in Tier 1
+    - Adopter customization guidance (their project's Tier 1 may differ from
+      ARC's defaults)
+    - Maintenance practice: audit for instruction density and cross-document conflicts
+      when modifying Tier 1 documents
+- Document becomes Tier 2a content (triggered from DEV-RULES.ARC, no longer Tier 1)
+
+**C5. Redesign session-init document loading sequence** (WU1.5 Gap 2)
+
+- Rewrite `session-init.md` Step 2 (Load AI Context) to reflect the new Tier 1:
+    1. `AGENTS.md` — project identity, tech stack, working guidelines
+    2. Agent-specific file (e.g., `CLAUDE.md`) — capabilities, thresholds
+    3. `DEV-RULES.ARC.md` — ARC behavioral rules (replaces strategy-dev-methodology)
+    4. `DEV-RULES.PROJECT.md` — project-specific rules (replaces DEVELOPMENT-RULES)
+    5. `STRATEGY-INDEX.md` — index of strategy guidance (enables Tier 2b awareness)
+    6. `QUICK-REFERENCE.md` — environment context, command patterns
+    7. `CURRENT-SESSION.md` — active work state
+    8. Active task list (partial: overview + current task)
+- process-task-loop no longer in Tier 1 loading sequence; Tier 2a trigger in
+  DEV-RULES.ARC covers it ("before starting task execution, load the process-task-loop")
+- strategy-dev-methodology no longer in Tier 1; Tier 2a trigger in DEV-RULES.ARC
+  covers it ("for detailed format specs and elaboration")
+- Net effect: 8 documents (down from 9), ~47-73 instructions (down from ~80-125)
+
+**C6. Formalize Tier 2a trigger pattern in existing workflows** (WU1.5 Gap 2)
+
+- Audit all Tier 1 documents for ad-hoc cross-references to Tier 2 content
+- Convert to consistent Tier 2a trigger format: brief, explicit, actionable
+  ("Before X, load Y")
+- Ensure STRATEGY-INDEX entries include brief "when working on X" phrasing for
+  each strategy (strengthens Tier 2b → Tier 2a for the most common domains)
+- Interacts with Cluster O `post-context-load` extension point (O1) — that's
+  where adopters add their own Tier 2a triggers
 
 ### Cluster D: Multi-Branch Workflow Fixes
 
@@ -659,6 +735,12 @@ alongside Cluster B's config expansion.
   read `arc-config.yml` (note platform, custom patterns, non-default values) and
   `arc-methods.md` (note any populated project overrides). Read-and-note — no
   additional documents to internalize, just awareness carried through session.
+- **WU1.5 interaction (Gap 2):** DEV-RULES.ARC includes inline method-override
+  pointers for convention-level rules (e.g., "Default: X. Override:
+  `arc-methods.md#Y`"). Ensure arc-methods.md preset methods (O2) are consistent
+  with the override pointers in DEV-RULES.ARC. The agent encounters the pointer
+  when reading DEV-RULES.ARC in Tier 1 and checks arc-methods.md during this
+  config awareness step.
 
 **O6. Add custom pattern config settings** (extends Cluster B1)
 
@@ -773,13 +855,22 @@ user-facing.
   specific ADRs are noted in the change inventory above
 - WU1.5 (Foundational Gap Closure) — ADRs, strategy updates, and workflow change
   specifications that WU2 implements. Affected clusters:
-    - **Cluster C** (Session Model): Gap 1 (session state portability) and Gap 2
-      (context loading) outputs may change Cluster C's scope
+    - **Cluster C** (Session Model + Context Loading): Gap 1 (session state
+      portability, ADR-007) and Gap 2 (context loading) outputs expand Cluster C
+      significantly. Gap 2 resolution adds C2-C6: core document restructure
+      (DEV-RULES.ARC/PROJECT twin docs), strategy-dev-methodology slimming,
+      session-init loading sequence redesign, tier model formalization, and
+      Tier 2a trigger pattern. See `notes-foundational-gap-closure.md`
+      § Evaluation: Context Loading Design for the full evidence base and
+      five design decisions.
     - **Cluster E** (Team Workflow): Gap 5 (team work transfer) and Gap 7 (config
       team semantics) may reshape E3 and related items
     - **Cluster D**: Gap 8 (archive trigger) resolution may land as a workflow
       update spec that D2 consumes; Gap 4 (task reference stability) affects
       session-init and session-handoff references
+    - **Cluster O** (Extensions/Methods): Gap 2 resolution specifies that
+      DEV-RULES.ARC includes inline method-override pointers — ensure
+      arc-methods.md preset methods (O2) are consistent with these pointers
     - **Session workflows generally**: Gaps 3, 9, 10 (bootstrap, mismatch recovery,
       staleness detection) produce session-init change specifications
 
