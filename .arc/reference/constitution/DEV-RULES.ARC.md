@@ -250,6 +250,8 @@ the relevant work — not during session initialization.
   work, interleaved concerns, atomicity analysis
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
   strategy documents
+- **For method overrides and defaults:** Load [`arc-methods.md`][arc-methods] → specific method
+  heading — configurable behavior (commit format, leave-it-cleaner, test-first)
 - **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
   Tier 1/2/3 boundaries, escalation guidance
 

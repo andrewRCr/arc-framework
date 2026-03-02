@@ -7,7 +7,8 @@ canonical docs:
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
 - [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91) – Project quality standards
 - [QUICK-REFERENCE][quick-ref] v0.3.0-dev – Environment context and command patterns
-- [Process Task Loop][process-task-loop] – One-subtask workflow
+
+Before starting task execution, load the [Process Task Loop][process-task-loop].
 
 ## Claude-Specific Notes
 

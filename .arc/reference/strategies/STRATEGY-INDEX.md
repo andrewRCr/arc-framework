@@ -11,15 +11,25 @@ work in their domains.
 These ship with the framework and cover development methodology applicable to any project.
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
+    - Consult when: writing an ADR, deciding whether a decision warrants one
 - `arc/strategy-backlog-organization.md` - Backlog structure, processing flow, atomic task conventions
+    - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption profiles
+    - Consult when: working on config, extensions, or methods infrastructure
 - `arc/strategy-core-philosophy.md` - Principles (P1-P11), philosophical foundation, positioning
+    - Consult when: resolving principle conflicts, checking P1–P11 definitions or rationale
 - `arc/strategy-file-classification.md` - File taxonomy, merge strategies, complete inventory
+    - Consult when: classifying new files, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
+    - Consult when: creating PRDs, setting up discovery phases, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
+    - Consult when: running quality gates beyond Tier 1, understanding tier boundaries or escalation
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
+    - Consult when: creating or restructuring task lists, formatting task entries
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration
+    - Consult when: working in team mode, setting up multi-agent coordination
 - `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival
+    - Consult when: creating branches, deciding work unit types, archiving completed work
 
 ## Project Strategies
 
@@ -52,4 +62,5 @@ doc upfront.
 
 ---
 
-**Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line.
+**Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line;
+add a "Consult when:" sub-item with trigger conditions.
