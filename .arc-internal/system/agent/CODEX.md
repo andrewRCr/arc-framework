@@ -20,8 +20,8 @@ context live in:
   to verify the staged set is atomic and intentional.
 - **Quality gates:** For markdown checks, prefer pinned tooling (`npm run -s lint:md`) rather than
   network-dependent ad hoc `npx` calls.
-- **Session docs discipline:** Do not edit `CURRENT-SESSION.md` unless user asks. When asked to
-  hand off, update it with concrete commit-level progress and immediate next action.
+- **Session docs discipline:** Do not edit `WORK-STATUS.md` or `SESSION.md` unless user asks. When asked to hand off,
+  update WORK-STATUS.md with current task and next action, and SESSION.md with concrete progress and context.
 - **Escalation expectation:** Some commands need permission or unrestricted execution
   (for example `npm install`). If a required command fails under sandbox constraints, re-run with
   escalation request.

@@ -43,7 +43,7 @@ during PRD creation. Some features described here may be post-1.0.
   Configurable, Scaffolded, Project-Owned) before WU3 can build the manifest and update system
 - Final directory layout — WU2 may shift files during methodology work; WU3 needs the settled layout
   before packaging
-- Session model file tracking infrastructure — ADR-007 splits `CURRENT-SESSION.md` into
+- Session model file tracking infrastructure — ADR-007 split `CURRENT-SESSION.md` into
   `WORK-STATUS.md` (tracked) and `SESSION.md` (gitignored). `arc-init` must set up:
     - **`.gitignore` entries**: `.arc/active/SESSION.md` (solo), `.arc/team/*/SESSION.md` (team)
     - **`.gitattributes` entry**: `.arc/active/WORK-STATUS.md merge=ours` — auto-resolves merge
@@ -66,7 +66,7 @@ Post-init, an adopter's project looks like this:
 ```
 .arc/
   reference/          <- Project knowledge (constitution, strategies, ADRs, research)
-  active/             <- Project-owned scaffolding (active task lists, CURRENT-SESSION)
+  active/             <- Project-owned scaffolding (active task lists, WORK-STATUS)
   backlog/            <- Project-owned scaffolding (backlog documents)
   system/             <- ARC operational components (workflows, githooks, agent files, config)
   team/               <- Team mode scaffolding (optional, installed on request)
@@ -95,7 +95,7 @@ about expected conflicts.
 |------------------|-------------------------------------------------------|------------------------------------------|
 | **Framework**    | Workflows, ARC strategies, githooks, slash commands   | Auto-merge; conflicts if user customized |
 | **Configurable** | DEV-RULES.PROJECT, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal|
-| **Scaffolded**   | CURRENT-SESSION, task lists, PRDs, ATOMIC-TASKS       | Never touched by updates                 |
+| **Scaffolded**   | WORK-STATUS, task lists, PRDs, ATOMIC-TASKS           | Never touched by updates                 |
 | **Project-Owned**| Project strategies, notes, completion docs            | Never touched; user-created content      |
 
 The manifest stores per-file classification. `arc-config.yml` is Framework-adjacent — it receives
@@ -180,7 +180,7 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
 - **Testing framework:** jest / vitest / pytest / other (populates workflow command references)
 - **Workflow options:**
     - `arc-config.yml` settings: base branch, branch protection mode
-    - CURRENT-SESSION tracking: git-tracked (visible to team) vs. gitignored (ephemeral)
+    - Session state model: WORK-STATUS.md (tracked) + SESSION.md (gitignored) per ADR-007
     - Work organization style (solo vs. team — controls whether `team/` directory is installed)
     - Merge strategy (informed by WU1 ADR 8)
 - **Content selection:**
@@ -383,8 +383,8 @@ At a minimum:
 - A migration command (or `arc init --reconfigure` with team mode enabled) handles the transition
   for existing solo installs
 
-The concrete change: CURRENT-SESSION.md moves from `.arc/active/` to `.arc/team/{name}/` in team
-mode. The migration must handle this rename without data loss.
+The concrete change: SESSION.md moves from `.arc/active/` to `.arc/team/{name}/` in team mode
+(WORK-STATUS.md stays shared in `active/`). The migration must handle this move without data loss.
 
 This is a scope question for the PRD — migration may be post-1.0 if solo-to-team can be handled
 manually with guidance documentation.

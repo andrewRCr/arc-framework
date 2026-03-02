@@ -47,7 +47,7 @@ framework. This architectural decision ensures:
 │   ├── technical/             # Technical work templates
 │   ├── incidental/            # Incidental work templates
 │   ├── ATOMIC-TASKS.template.md  # Small one-off tasks
-│   └── CURRENT-SESSION.template.md
+│   └── WORK-STATUS.template.md
 └── backlog/                   # Future work pipeline
     ├── ROADMAP.template.md     # Sequencing strategy
     ├── TASK-INBOX.template.md  # Zero-friction capture

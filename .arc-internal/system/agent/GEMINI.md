@@ -13,8 +13,8 @@ and the [Process Task Loop][process-task-loop].
 - **Surface limitations:** If Gemini cannot execute shell commands in the current environment, state that up front and offer
   alternatives (e.g., describe search strategies).
 - **Summaries:** Provide compact answers with numbered action plans when asked for implementation steps.
-- **Cross-tool handoff:** When Gemini performs large audits, document the findings in CURRENT-SESSION.md so Claude/Copilot
-  can continue seamlessly.
+- **Cross-tool handoff:** When Gemini performs large audits, document findings in SESSION.md so other agents can continue
+  seamlessly.
 
 ---
 

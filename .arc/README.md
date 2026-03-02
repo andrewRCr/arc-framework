@@ -12,7 +12,7 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 ```text
 .arc/
 ├── active/                    # Current work in progress
-│   ├── CURRENT-SESSION.md     # Agent orientation: what's active, what's next
+│   ├── WORK-STATUS.md         # Project state: current task, blockers, next action
 │   ├── ATOMIC-TASKS.md        # Small one-off tasks (no full task list needed)
 │   ├── feature/               # Active feature development
 │   ├── technical/             # Active technical/infrastructure work

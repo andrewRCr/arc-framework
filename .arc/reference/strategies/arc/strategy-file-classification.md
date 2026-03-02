@@ -38,7 +38,7 @@ section-level.
 Created once during `arc init` from template. User replaces all placeholder content with
 project-specific content. Never touched by framework updates.
 
-**Examples:** META-PRD, PROJECT-STATUS, CURRENT-SESSION, ROADMAP, backlog files.
+**Examples:** META-PRD, PROJECT-STATUS, WORK-STATUS, ROADMAP, backlog files.
 
 **Update behavior:** Skip entirely. These are project-owned after initialization.
 
@@ -68,7 +68,7 @@ All paths relative to `.arc/`.
 | File                                      | Classification       | Notes                                                                     |
 |-------------------------------------------|----------------------|---------------------------------------------------------------------------|
 | `ATOMIC-TASKS.template.md`                | Configurable (light) | Framework processing rules + user task content. Clean section separation. |
-| `CURRENT-SESSION.template.md`             | Scaffolded           | Template structure replaced entirely by user. Project-owned after init.   |
+| `WORK-STATUS.template.md`                 | Scaffolded           | Template structure replaced entirely by user. Project-owned after init.   |
 | `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Directory structure scaffolding.                                          |
 
 ### backlog/
@@ -151,6 +151,7 @@ All paths relative to `.arc/`.
 |------------------------------------|----------------|--------------------------------------------------------------|
 | `AGENTS.template.md`               | Configurable   | Framework principles + project-specific stack/layout.        |
 | `CLAUDE.template.md`               | Configurable   | Framework guidance + project-specific (MCP servers, agents). |
+| `CODEX.template.md`                | Configurable   | Mostly framework guidance with light customization.          |
 | `GEMINI.template.md`               | Configurable   | Mostly framework guidance with light customization.          |
 | `WARP.template.md`                 | Configurable   | Mostly framework guidance with light customization.          |
 | `copilot-instructions.template.md` | Configurable   | Mostly framework guidance with light customization.          |
@@ -199,11 +200,11 @@ All paths relative to `.arc/`.
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
 | Framework      | 38    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 11    | Three-way merge. Conflicts expected in user sections. |
+| Configurable   | 12    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 11    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 60.
+**Total template files:** 61.
 
 ---
 

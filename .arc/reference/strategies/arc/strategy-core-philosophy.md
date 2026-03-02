@@ -236,7 +236,7 @@ are the natural container for this. They bound degradation by providing reset po
 methodology discipline through the establish-execute-capture rhythm, and create natural review and
 commit points.
 
-*Conventions:* CURRENT-SESSION.md, session initialization and handoff ceremonies, specific context
+*Conventions:* WORK-STATUS.md + SESSION.md, session initialization and handoff ceremonies, specific context
 quality thresholds, and what triggers session end. Alternative mechanisms that satisfy the
 structured/human-controlled/transparent/predictable criteria are valid.
 

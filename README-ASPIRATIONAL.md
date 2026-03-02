@@ -98,8 +98,8 @@ ARC provides a preset directory of markdown documents organized into three tiers
 
 Your current development context:
 
-- **CURRENT-SESSION** — Agent orientation document: what's in progress, what's next,
-  uncommitted state. Updated at session boundaries.
+- **WORK-STATUS** — Project state pointer: current task, blockers, next action. Tracked in git.
+- **SESSION** — Personal working context: approach, decisions, things tried. Gitignored.
 - **PRDs and task lists** — Requirements and scoped work broken into reviewable subtasks
   with completion criteria. Organized by type: `feature/`, `technical/`, `incidental/`.
 - **ATOMIC-TASKS** — Small one-off items that don't need full task lists.
@@ -210,7 +210,7 @@ read and what to leave for your agent:
 
 | Audience           | Documents                                                         | Who reads them                                                                                                               |
 |--------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| **Agent-executed** | Session init, session handoff, CURRENT-SESSION, process-task-loop | Your AI agent follows these as operational procedures. You don't need to read them in the core loop — only when customizing. |
+| **Agent-executed** | Session init, session handoff, WORK-STATUS + SESSION, process-task-loop | Your AI agent follows these as operational procedures. You don't need to read them in the core loop — only when customizing. |
 | **Shared context** | Constitution, strategies, ADRs, roadmap, backlogs, task lists     | Both you and your agent. Establishes the common baseline.                                                                    |
 | **Human-facing**   | This README, getting-started materials                            | You, when evaluating or setting up the framework.                                                                            |
 
@@ -241,7 +241,7 @@ Agents lose all context between sessions. ARC handles this with a pair of workfl
   session: constitutional documents, development rules, current task state.
 - **Session handoff** captures everything needed to resume: completed work, uncommitted
   changes, blockers, next actions.
-- **CURRENT-SESSION** is the bridge between them, updated at handoff and read at
+- **WORK-STATUS** and **SESSION** are the bridge between them, updated at handoff and read at
   initialization.
 
 The result is that each session is independent but informed. No persistent agent

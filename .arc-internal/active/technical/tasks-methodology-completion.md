@@ -309,7 +309,7 @@ session-init — the structural heart of WU2.
     refs only remain in archive and working docs as historical context (file removed in
     3.3.b). `CURRENT-SESSION` migration (30+ files) extracted to new Task 3.8.
 
-- [ ] **3.8 Migrate CURRENT-SESSION references to WORK-STATUS.md / SESSION.md**
+- [x] **3.8 Migrate CURRENT-SESSION references to WORK-STATUS.md / SESSION.md**
 
     **Goal:** Complete the ADR-007 naming migration across all live documents so Phase 4
     builds on clean naming. Each reference needs semantic judgment: tracked project state
@@ -339,25 +339,67 @@ session-init — the structural heart of WU2.
         - `maintain-docs.md` — split into WORK-STATUS + SESSION entries
         - `01_initialize-arc.md` — scaffolding directory listing
 
-    - [ ] **3.8.c Update agent files (internal + templates)**
-        - Internal: CLAUDE.md, GEMINI.md, CODEX.md, WARP.md
-        - Templates: AGENTS.template.md, CLAUDE.template.md, WARP.template.md,
-          GEMINI.template.md
+    - [x] **3.8.c Update agent files (internal + templates)**
+        - Internal (4 files): CLAUDE.md (session startup ref → session-init, handoff →
+          generic "session state files"), GEMINI.md (cross-tool handoff → SESSION.md),
+          CODEX.md (session docs discipline → WORK-STATUS.md + SESSION.md split),
+          WARP.md (hand-offs → WORK-STATUS.md + SESSION.md)
+        - Templates (5 files): AGENTS.template.md (context check → WORK-STATUS.md),
+          CLAUDE.template.md (handoff → generic), WARP.template.md (hand-offs → split),
+          GEMINI.template.md (cross-tool handoff → SESSION.md)
+        - Created CODEX.template.md (missing template, modeled after internal CODEX.md
+          adapted to template conventions: inline links, DEV-RULES.PROJECT refs, new
+          session state naming)
 
-    - [ ] **3.8.d Update strategies and reference docs**
-        - Strategies: team-coordination, core-philosophy,
-          configurability-architecture, file-classification, backlog-organization
-        - Reference: QUICK-REFERENCE.md + .template.md, META-PRD,
-          TECHNICAL-OVERVIEW
+    - [x] **3.8.d Update strategies and reference docs**
+        - Strategies (5 files, 8 refs): backlog-organization (directory tree →
+          WORK-STATUS.md + SESSION.md), file-classification (2 refs: scaffolded
+          examples → WORK-STATUS, inventory row → WORK-STATUS.template.md),
+          core-philosophy (P5 conventions → WORK-STATUS.md + SESSION.md),
+          configurability-architecture (convention inventory row → two-file model),
+          team-coordination (2 refs: personal files → team/{name}/SESSION.md with
+          shared WORK-STATUS.md note, tracker table → SESSION.md)
+        - Reference (4 files, 6 refs): QUICK-REFERENCE.md (read list → WORK-STATUS.md),
+          META-PRD (handoff docs → WORK-STATUS.md + SESSION.md),
+          TECHNICAL-OVERVIEW (directory tree → WORK-STATUS.template.md),
+          QUICK-REFERENCE.template.md (3 refs: all → WORK-STATUS.md)
 
-    - [ ] **3.8.e Update READMEs, tool integrations, and backlog docs**
-        - READMEs: README.md, README-ASPIRATIONAL.md, .arc/README.md,
-          .arc-internal/README.md
-        - Tool integrations: `.claude/commands/handoff.md`,
-          `.codex/skills/handoff/SKILL.md`
-        - Backlog: ROADMAP.md, plan-wu3-cli-distribution.md
+    - [x] **3.8.e Update READMEs, tool integrations, and backlog docs**
+        - READMEs (4 files, 10 refs): README.md (2 refs: session continuity →
+          WORK-STATUS + SESSION, session context → WORK-STATUS),
+          README-ASPIRATIONAL.md (3 refs: active work listing → two separate
+          entries, agent-executed table → WORK-STATUS + SESSION, bridge →
+          both files), .arc/README.md (directory tree → WORK-STATUS.md),
+          .arc-internal/README.md (4 refs: tree → WORK-STATUS + SESSION,
+          tracks → split description, version controlled → SESSION.md,
+          start sessions → WORK-STATUS.md)
+        - Tool integrations (2 files): .claude/commands/handoff.md and
+          .codex/skills/handoff/SKILL.md — both updated to target
+          WORK-STATUS.md + SESSION.md
+        - Backlog (2 files, 7 refs): ROADMAP.md (active work → WORK-STATUS),
+          plan-wu3-cli-distribution.md (6 refs: dependency description → past
+          tense, directory tree → WORK-STATUS, classification table →
+          WORK-STATUS, init workflow option → ADR-007 model, team mode
+          migration → SESSION.md moves to team/{name}/). One intentional
+          remaining ref (line 46) describes the ADR-007 split historically
 
-- [ ] **3.9 Run Tier 2 quality gates**
+- [ ] **3.9 Split internal DEVELOPMENT-RULES.md**
+
+    **Goal:** Complete the DEV-RULES split for `.arc-internal/`. The public split
+    (DEV-RULES.ARC.md + DEV-RULES.PROJECT.md) landed in 3.1–3.2, but the internal
+    `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` was kept alive with
+    transitional references. Now that Phase 3 restructure is nearly complete, finish
+    the migration.
+
+    - Evaluate whether internal DEVELOPMENT-RULES.md becomes DEV-RULES.PROJECT.md
+      (project-specific gates only) or is simply replaced by a reference to the
+      public DEV-RULES.PROJECT.md
+    - Update internal agent file references (CLAUDE.md, GEMINI.md, CODEX.md,
+      WARP.md, copilot-instructions.md)
+    - Update session-init.md loading sequence (item 4)
+    - Update QUICK-REFERENCE.md, .arc-internal/README.md, TECHNICAL-OVERVIEW.md
+
+- [ ] **3.10 Run Tier 2 quality gates**
     - Full-project lint: `npm run -s lint:md`
     - Verify all cross-references resolve
     - Coherent unit boundary — structural foundation for subsequent phases
@@ -368,6 +410,20 @@ session-init — the structural heart of WU2.
 recovery, staleness detection.
 
 **Note:** All changes use ADR-007 model (WORK-STATUS.md + SESSION.md).
+
+- [ ] **4.0 Rename internal CURRENT-SESSION.md to WORK-STATUS.md + SESSION.md**
+
+    **Goal:** Complete the ADR-007 file rename for `.arc-internal/active/`. Phase 3
+    migrated all public references and templates; this task renames the actual internal
+    file and splits content.
+
+    - Rename `.arc-internal/active/CURRENT-SESSION.md` → `.arc-internal/active/WORK-STATUS.md`
+      (keep tracked state fields: branch, task list, current task, blockers, next action)
+    - Extract session context (completed this session, persistent context, additional
+      context) into `.arc-internal/active/SESSION.md` (gitignored)
+    - Update `.gitignore` if needed (SESSION.md gitignored, WORK-STATUS.md tracked)
+    - Update `.claude/commands/handoff.md` and `.codex/skills/handoff/SKILL.md` paths
+    - Verify session-init workflow resolves both files correctly
 
 - [ ] **4.1 Handle first-session bootstrap and "no active work" state**
 

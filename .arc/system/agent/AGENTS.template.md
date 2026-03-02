@@ -41,7 +41,7 @@
 - {{Friction point with context}}
 - {{Friction point with context}}
 - **Commands in `QUICK-REFERENCE.md`**: All assume repo root — adjust paths based on working directory
-- **Working directory**: Check `CURRENT-SESSION.md` for current context
+- **Working directory**: Check `WORK-STATUS.md` for current context
 
 ## AI Collaboration Principles
 

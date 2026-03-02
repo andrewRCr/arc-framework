@@ -12,14 +12,14 @@ Before starting task execution, load the [Process Task Loop][process-task-loop].
 
 ## Claude-Specific Notes
 
-- **Session startup:** Execute Session Startup Protocol in CURRENT-SESSION.md first (verify working directory at repo
-  root, no runtime containers, markdown linting available)
+- **Session startup:** Execute the session initialization workflow (`session-init.md`) first (verify working directory
+  at repo root, no runtime containers, markdown linting available)
 - **Path awareness:** Commands in QUICK-REFERENCE assume repo root - paths should already be correct
   (documentation-only framework)
 - **Summaries first:** Lead responses with concise bullet findings before deep dives
 - **Clarifying questions:** Offer numbered/lettered options to keep user replies short
 - **Large diffs:** If a change won't fit in context, propose a chunking strategy and wait for approval
-- **Session handoffs:** Explicitly state whether CURRENT-SESSION.md was updated or left unchanged
+- **Session handoffs:** Explicitly state whether session state files were updated or left unchanged
 - **Self-hosting:** Framework develops itself using ARC methodology - we are our own test case
 - **Staging verification:** After `git add` and before `git commit`, run `git diff --cached --stat`
   to verify the staging area matches intent. Pre-staged files (from earlier `git rm` or `git add`)

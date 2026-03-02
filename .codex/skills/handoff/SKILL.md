@@ -11,7 +11,7 @@ description: Update and finalize current session documentation for continuity ac
 
 2. Update current session notes.
 
-   - Apply that workflow to `.arc-internal/active/CURRENT-SESSION.md`.
+   - Apply that workflow to `.arc-internal/active/WORK-STATUS.md` and `.arc-internal/active/SESSION.md`.
 
 3. Keep documentation operational.
 

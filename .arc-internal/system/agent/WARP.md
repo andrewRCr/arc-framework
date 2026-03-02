@@ -16,5 +16,5 @@ Guidance for Warp terminal assistance. For shared rules and architecture, defer 
 - **Quality gates shorthand:** Reference the commands listed in QUICK-REFERENCE (assume repo root paths);
   surface them as PowerShell snippets when asked to run checks
 - **Environment checks:** Confirm whether the warp session has Docker and git access before proposing actions
-- **Hand-offs:** When finishing terminal automation, update CURRENT-SESSION.md (or state "no update required")
-  and mention any long-running commands left active
+- **Hand-offs:** When finishing terminal automation, update WORK-STATUS.md and SESSION.md (or state "no update
+  required") and mention any long-running commands left active

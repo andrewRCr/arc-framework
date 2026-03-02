@@ -17,7 +17,7 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 | {{Resource name}} | `{{path}}`                  | {{brief explanation}}              |
 | .arc docs         | `.arc/`                     | Development documentation          |
 
-**Working Directory Note**: Your working directory may vary. Check CURRENT-SESSION.md for
+**Working Directory Note**: Your working directory may vary. Check WORK-STATUS.md for
 current context and adjusted paths.
 
 ### Runtime Environment
@@ -156,7 +156,7 @@ git status
 
 ✅ Check `pwd` first
 ✅ Use absolute paths or correct relative paths
-✅ Reference CURRENT-SESSION.md for working directory context
+✅ Reference WORK-STATUS.md for working directory context
 
 ### Command Construction
 
@@ -173,5 +173,5 @@ git status
 
 ---
 
-**Commands assume repo root.** If working from a subdirectory, see CURRENT-SESSION.md
+**Commands assume repo root.** If working from a subdirectory, see WORK-STATUS.md
 for adjusted paths.

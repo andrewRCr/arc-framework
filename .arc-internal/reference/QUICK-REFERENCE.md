@@ -11,7 +11,7 @@ Command patterns and environment context for framework development.
 - `DEV-RULES.ARC.md` (.arc/reference/constitution/) - Framework development methodology
 - `DEVELOPMENT-RULES.md` (constitution/) - Project quality standards
 - `QUICK-REFERENCE.md` (this file) - Environment and commands
-- `CURRENT-SESSION.md` (active/) - Work status and next actions
+- `WORK-STATUS.md` (active/) - Project state and next actions
 
 **Key documentation** (paths relative to `.arc-internal/`):
 
