@@ -301,6 +301,20 @@ recovery, staleness detection.
         - Informational, not blocking — feeds confidence into mismatch recovery
         - Runs between context loading and mismatch detection
 
+- [ ] **4.4.x Formalize persistent context convention in `session-handoff.md`**
+
+    The handoff workflow already informally supports protected sections ("DO NOT
+    REMOVE UNTIL..."). Formalize as a first-class convention:
+
+    - Standard section name: `### Persistent Context` in SESSION.md
+    - Each entry has an explicit removal trigger (e.g., "Until Phase 3 restructure
+      completes", "Until auth migration lands on main")
+    - Handoff workflow: explicitly preserve persistent context sections — rewrite
+      ephemeral sections only
+    - SESSION.md template: include as optional block with guidance on when to use
+    - Session-init: read persistent context alongside ephemeral session state
+    - Scope: not tied to full work unit completion — triggers are per-entry
+
 - [ ] **4.5 Run Tier 1 quality gates on Phase 4 changes**
 
 ### **Phase 5:** Configuration and Customization Infrastructure
