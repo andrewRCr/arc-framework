@@ -257,13 +257,17 @@ session-init — the structural heart of WU2.
         - Skipped: archive files (historical), task list/PRD (self-referential)
         - Zero lint errors (124 files)
 
-- [ ] **3.4 Reframe session model documentation**
+- [x] **3.4 Reframe session model documentation**
 
-    - Per ADR-002: distinguish principle (context recoverability) from mechanism
-      (WORK-STATUS.md + SESSION.md)
-    - Session workflow docs: position as "best approach for ephemeral-context agents"
-    - Add config-driven opt-out/extensibility references
-    - Touchpoints: session-init, session-handoff (strategy-dev-methodology removed in 3.3)
+    Added "Design context" paragraph to three session workflow files distinguishing
+    P5 principle (context recoverability) from mechanism (structured document loading).
+
+    - session-init.md (public + internal): Added principle/mechanism framing, positioned
+      as optimized for ephemeral-context agents (CLI/IDE), referenced arc-methods.md
+      § session-state override path
+    - session-handoff.md: Updated Purpose to reference P5, added Design context paragraph
+      with same ephemeral-context framing and override reference
+    - All three files: added reference-style link definitions for arc-methods-session
 
 - [ ] **3.5 Redesign session-init loading sequence**
 
