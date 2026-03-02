@@ -288,23 +288,76 @@ session-init — the structural heart of WU2.
         - Added to SESSION.md loading item (item 8): extract factual content, disregard
           agent-specific references when SESSION.md was written by a different agent
 
-- [ ] **3.6 Formalize Tier 2a trigger pattern across Tier 1 documents**
+- [x] **3.6 Formalize Tier 2a trigger pattern across Tier 1 documents**
 
-    - Audit all Tier 1 docs for ad-hoc Tier 2 cross-references
-    - Convert to consistent format: "Before X, load Y"
-    - Strengthen STRATEGY-INDEX entries with "Consult when:" phrasing
+    Audited all 6 Tier 1 docs for ad-hoc Tier 2 cross-references (~17 found, 3 already
+    well-formed). Changes:
 
-- [ ] **3.7 Update cross-references from restructure**
+    - STRATEGY-INDEX.md: Added "Consult when:" sub-item to all 10 strategy entries with
+      explicit trigger conditions; updated maintenance note
+    - DEV-RULES.ARC.md: Added `arc-methods.md` to "When to Load Additional Guidance"
+      section (was referenced 4x inline but missing from the trigger index)
+    - CLAUDE.md: Moved `process-task-loop` out of Tier 1 "defer to" list into a standalone
+      trigger line ("Before starting task execution, load...")
+    - No changes needed: AGENTS.md (no Tier 2 refs), DEVELOPMENT-RULES.md (reference list
+      clearly framed as informational), QUICK-REFERENCE.md (directory listings only)
 
-    **Goal:** No broken or stale references after document restructure.
+- [x] **3.7 Update cross-references from restructure**
 
-    - Search for all references to `DEVELOPMENT-RULES`, `strategy-development-methodology`,
-      `CURRENT-SESSION`
-    - Update to new names: `DEV-RULES.ARC`, `DEV-RULES.PROJECT`, `WORK-STATUS.md`,
-      `SESSION.md`
-    - Verify link definitions at bottom of each modified file
+    Audited all three reference patterns. `DEVELOPMENT-RULES` refs already updated by
+    3.2.b (internal file intentionally kept alive). `strategy-development-methodology`
+    refs only remain in archive and working docs as historical context (file removed in
+    3.3.b). `CURRENT-SESSION` migration (30+ files) extracted to new Task 3.8.
 
-- [ ] **3.8 Run Tier 2 quality gates**
+- [ ] **3.8 Migrate CURRENT-SESSION references to WORK-STATUS.md / SESSION.md**
+
+    **Goal:** Complete the ADR-007 naming migration across all live documents so Phase 4
+    builds on clean naming. Each reference needs semantic judgment: tracked project state
+    → WORK-STATUS.md, personal session context → SESSION.md.
+
+    **Scope:** ~30 live files. Archive, ADR, and research files are historical — skip.
+
+    - [x] **3.8.a Split template and update team infrastructure**
+        - Created `.arc/active/WORK-STATUS.template.md` and `.arc/team/WORK-STATUS.template.md`
+          — tracked state fields only (branch, task list, current task, blockers, next action);
+          renamed "Session Information" → "Active Work"; moved Blockers from session context
+          into main state fields
+        - Removed both `CURRENT-SESSION.template.md` files (active/ and team/)
+        - Updated `.arc/team/README.md` — all CURRENT-SESSION refs → WORK-STATUS + SESSION,
+          tree diagram updated, solo/team paths, agent lookup, template note about SESSION.md
+
+    - [x] **3.8.b Update workflows**
+        - `session-handoff.md` — restructured format section into two target files
+          (WORK-STATUS.md for state fields, SESSION.md for context); split all 3
+          examples into separate code blocks per file; removed Blockers from SESSION
+          format; updated post-update and confirm sections
+        - `activate-work-unit.md` — Step 7 title/content, commit message, git add
+          path, checklist item (6 refs)
+        - `arc-methods.md` — session-state default method
+        - `atomic-commit.md` — "Read SESSION.md for uncommitted work"
+        - `maintain-task-notes.md` — context check note → SESSION.md
+        - `maintain-docs.md` — split into WORK-STATUS + SESSION entries
+        - `01_initialize-arc.md` — scaffolding directory listing
+
+    - [ ] **3.8.c Update agent files (internal + templates)**
+        - Internal: CLAUDE.md, GEMINI.md, CODEX.md, WARP.md
+        - Templates: AGENTS.template.md, CLAUDE.template.md, WARP.template.md,
+          GEMINI.template.md
+
+    - [ ] **3.8.d Update strategies and reference docs**
+        - Strategies: team-coordination, core-philosophy,
+          configurability-architecture, file-classification, backlog-organization
+        - Reference: QUICK-REFERENCE.md + .template.md, META-PRD,
+          TECHNICAL-OVERVIEW
+
+    - [ ] **3.8.e Update READMEs, tool integrations, and backlog docs**
+        - READMEs: README.md, README-ASPIRATIONAL.md, .arc/README.md,
+          .arc-internal/README.md
+        - Tool integrations: `.claude/commands/handoff.md`,
+          `.codex/skills/handoff/SKILL.md`
+        - Backlog: ROADMAP.md, plan-wu3-cli-distribution.md
+
+- [ ] **3.9 Run Tier 2 quality gates**
     - Full-project lint: `npm run -s lint:md`
     - Verify all cross-references resolve
     - Coherent unit boundary — structural foundation for subsequent phases
