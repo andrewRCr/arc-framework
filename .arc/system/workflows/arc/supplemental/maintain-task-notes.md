@@ -57,7 +57,7 @@ and becomes part of the work deliverable.
 
 - Path to the task list (e.g., `.arc/active/{category}/tasks-*.md`)
 - Path to the related notes file (e.g., `.arc/active/{category}/notes-*.md`)
-- Current project rules: [DEVELOPMENT-RULES][dev-rules]
+- Current project rules: [DEV-RULES.PROJECT][dev-rules]
 
 ## Checklist
 
@@ -361,4 +361,4 @@ by topic. Find any specific decision or detail in <1 minute.
 
 ---
 
-[dev-rules]: ../../../../reference/constitution/DEVELOPMENT-RULES.md
+[dev-rules]: ../../../../reference/constitution/DEV-RULES.PROJECT.md

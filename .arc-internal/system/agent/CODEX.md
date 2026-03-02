@@ -4,7 +4,8 @@ Guidance for Codex CLI when working in the ARC framework repository. Shared rule
 context live in:
 
 - [AGENTS](AGENTS.md)
-- [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91)
+- [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
+- [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91) – Project quality standards
 - [QUICK-REFERENCE][quick-ref] v0.3.0-dev
 - [Process Task Loop][process-task-loop]
 
@@ -27,6 +28,7 @@ context live in:
 
 ---
 
+[dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
 [dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

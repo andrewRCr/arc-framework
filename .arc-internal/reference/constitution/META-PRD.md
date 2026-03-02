@@ -104,7 +104,7 @@ The full philosophical argument, with research grounding, is in the
 ### Adopter journey
 
 1. Initialize ARC in project (`arc init`) — select adoption profile, configure conventions
-2. Define project: constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RULES),
+2. Define project: constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJECT),
    roadmap, project status
 3. First feature cycle: create PRD → generate task list → process tasks through the
    co-development loop with iterative review

@@ -11,7 +11,7 @@ Recommended flow:
 1. Copy the entire `.arc/` folder into your project as `.arc/`.
 2. Bring `templates/` if you plan to generate the ready-made documents.
 3. Replace UPPER_SNAKE tokens (e.g., `{{PROJECT_NAME}}`, `{{DEFAULT_BRANCH}}`).
-4. Optionally copy `profiles/` and merge the relevant profile guidance into your local `DEVELOPMENT-RULES`.
+4. Optionally copy `profiles/` and merge the relevant profile guidance into your local `DEV-RULES.PROJECT`.
 5. Delete or keep `*.template.md` as learning aids.
 
 Token catalog (starter): `{{PROJECT_NAME}}`, `{{PRIMARY_STACK}}`, `{{DEFAULT_BRANCH}}`,

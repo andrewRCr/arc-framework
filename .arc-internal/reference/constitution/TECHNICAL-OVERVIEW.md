@@ -19,7 +19,8 @@ framework. This architectural decision ensures:
 │   ├── constitution/          # Core project templates
 │   │   ├── META-PRD.template.md
 │   │   ├── PROJECT-STATUS.template.md
-│   │   ├── DEVELOPMENT-RULES.template.md
+│   │   ├── DEV-RULES.ARC.md
+│   │   ├── DEV-RULES.PROJECT.md
 │   │   └── TECHNICAL-OVERVIEW.template.md
 │   ├── adr/                   # Architecture decision records
 │   ├── research/              # Technical research documents
@@ -70,7 +71,7 @@ framework. This architectural decision ensures:
     ├── constitution/          # Internal constitutional documents
     │   ├── META-PRD.md           # Framework development PRD
     │   ├── PROJECT-STATUS.md     # Current progress tracking
-    │   ├── DEVELOPMENT-RULES.md  # Framework development rules
+    │   ├── DEVELOPMENT-RULES.md  # Framework project rules (pending DEV-RULES.PROJECT migration)
     │   └── TECHNICAL-OVERVIEW.md # This file
     ├── agent/                 # Internal AI instructions
     ├── adr/                   # Framework architecture decision records

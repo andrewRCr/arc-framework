@@ -8,13 +8,14 @@ Command patterns and environment context for framework development.
 
 **Read every session:**
 
-- `DEVELOPMENT-RULES.md` (constitution/) - Rules and quality standards
+- `DEV-RULES.ARC.md` (.arc/reference/constitution/) - Framework development methodology
+- `DEVELOPMENT-RULES.md` (constitution/) - Project quality standards
 - `QUICK-REFERENCE.md` (this file) - Environment and commands
 - `CURRENT-SESSION.md` (active/) - Work status and next actions
 
 **Key documentation** (paths relative to `.arc-internal/`):
 
-- `reference/constitution/` - Project principles (META-PRD, DEVELOPMENT-RULES)
+- `reference/constitution/` - Project principles (META-PRD, DEVELOPMENT-RULES, etc.)
 - `reference/strategies/` - Technical approaches (ADR methodology, task formatting, work organization)
 - `system/agent/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
 - `system/workflows/` - Core process guides (setup, create-prd, generate-tasks, process-task-loop)
@@ -118,7 +119,7 @@ npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file
 
 ## Quality Gate Commands
 
-Reference for DEVELOPMENT-RULES quality gates. Run before any commit.
+Reference for DEVELOPMENT-RULES / DEV-RULES.PROJECT quality gates. Run before any commit.
 
 ```bash
 # 1. Markdown Linting (zero violations required)

@@ -49,8 +49,8 @@ templates and examples, this directory houses the live project documentation.
 
 ### Reference & Knowledge Base
 
-- **Project constitution**: `reference/constitution/` houses the live META-PRD, DEVELOPMENT-RULES,
-  PROJECT-STATUS, and TECHNICAL-OVERVIEW
+- **Project constitution**: `reference/constitution/` houses the live META-PRD, DEVELOPMENT-RULES
+  (pending migration to DEV-RULES.PROJECT), PROJECT-STATUS, and TECHNICAL-OVERVIEW
 - **AI configuration**: `system/agent/` contains agent-specific context and instructions
 - **Process workflows**: `system/workflows/` provides development process guidance
 - **Historical context**: `reference/archive/` preserves completed feature documentation

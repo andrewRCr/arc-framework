@@ -108,7 +108,7 @@ npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md"
 
 ## Quality Gate Commands
 
-Reference commands for DEVELOPMENT-RULES quality gates. See
+Reference commands for DEV-RULES.PROJECT quality gates. See
 [Quality Gates Strategy](strategies/arc/strategy-quality-gates.md) for the tiered approach
 (when to run which level of checks).
 
@@ -160,7 +160,7 @@ git status
 
 ### Command Construction
 
-❌ Using commands from DEVELOPMENT-RULES without checking paths
+❌ Using commands from DEV-RULES.PROJECT without checking paths
 ❌ Assuming tools are globally available vs. project-local
 
 ✅ Use commands from this file (paths correct for repo root)

@@ -119,7 +119,7 @@ Stable, long-lived project knowledge:
 - **Constitution** — Foundational documents anchoring your project:
     - META-PRD (product vision and requirements)
     - TECHNICAL-OVERVIEW (architecture and stack)
-    - DEVELOPMENT-RULES (quality standards, commit protocols, collaboration rules)
+    - DEV-RULES.PROJECT (quality standards) and DEV-RULES.ARC (commit protocols, collaboration rules)
     - PROJECT-STATUS (current state and progress)
 - **Workflows** — Core development processes (PRD creation, task generation, task
   execution loop) and supplemental workflows (session handoff, atomic commits,
@@ -164,7 +164,7 @@ This creates a customized `.arc/` directory in your project.
 1. **Set up your project with your agent** — ARC provides a guided startup workflow
    that you run with your AI agent. Together you walk through the foundational
    documents: what you're building (META-PRD), your architecture (TECHNICAL-OVERVIEW),
-   and your development standards (DEVELOPMENT-RULES). The agent helps you fill these
+   and your development standards (DEV-RULES.PROJECT). The agent helps you fill these
    in based on your project, and the templates provide structure for what goes where.
 
 2. **Plan your first work** — Create a PRD for your first feature or task, then

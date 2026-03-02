@@ -3,7 +3,8 @@
 Guidance for Warp terminal assistance. For shared rules and architecture, defer to the canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
-- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) – Non-negotiable standards
+- [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
+- [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
 
 ## Warp-Specific Notes

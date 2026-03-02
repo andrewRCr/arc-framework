@@ -663,7 +663,7 @@ Incidental work gets task lists only. Notes files are optional, reserved for com
 ### For New Projects
 
 1. Create directory structure: `mkdir -p .arc/active/{feature,technical,incidental} .arc/backlog`
-2. Document decision rules in DEVELOPMENT-RULES.md (reference this strategy)
+2. Document decision rules in DEV-RULES.PROJECT.md (reference this strategy)
 3. Start using immediately — adopt conventions from first commit
 
 ### For Existing Projects
@@ -671,7 +671,7 @@ Incidental work gets task lists only. Notes files are optional, reserved for com
 1. **Complete current work** — Don't rename mid-flight
 2. **Create new structure** — Add `technical/` directory alongside `feature/`
 3. **Adopt going forward** — New work uses three-way split
-4. **Update documentation** — Reference this strategy from DEVELOPMENT-RULES.md and workflow guides
+4. **Update documentation** — Reference this strategy from DEV-RULES.PROJECT.md and workflow guides
 5. **Migrate gradually** — Archive old work as-is, new work uses new structure
 
 ---
@@ -692,7 +692,7 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 
 ## Related Documentation
 
-- [DEVELOPMENT-RULES][dev-rules] — Development standards and git workflow
+- [DEV-RULES.PROJECT][dev-rules] — Project quality standards and development rules
 - [2_generate-tasks.md][generate-tasks] — Task breakdown workflow
 - [3_process-task-loop.md][process-task-loop] — Task execution workflow
 - [atomic-commit.md][atomic-commit] — Complex commit scenarios and atomicity
@@ -703,7 +703,7 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 
 ---
 
-[dev-rules]: ../../constitution/DEVELOPMENT-RULES.md
+[dev-rules]: ../../constitution/DEV-RULES.PROJECT.md
 [team-coordination]: strategy-team-coordination.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md

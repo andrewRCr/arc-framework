@@ -94,7 +94,7 @@ about expected conflicts.
 | Classification   | Examples                                              | Update behavior                          |
 |------------------|-------------------------------------------------------|------------------------------------------|
 | **Framework**    | Workflows, ARC strategies, githooks, slash commands   | Auto-merge; conflicts if user customized |
-| **Configurable** | DEVELOPMENT-RULES, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal|
+| **Configurable** | DEV-RULES.PROJECT, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal|
 | **Scaffolded**   | CURRENT-SESSION, task lists, PRDs, ATOMIC-TASKS       | Never touched by updates                 |
 | **Project-Owned**| Project strategies, notes, completion docs            | Never touched; user-created content      |
 
@@ -393,7 +393,7 @@ manually with guidance documentation.
 
 The cross-cutting concept consistency audit is a workflow, not a CLI feature. When adopters
 customize ARC's framework files, related files may drift out of alignment — for example, if
-DEVELOPMENT-RULES changes a convention that's also referenced in agent files and workflows.
+DEV-RULES.PROJECT changes a convention that's also referenced in agent files and workflows.
 
 This is handled by an agent-driven workflow (likely in `system/workflows/`):
 

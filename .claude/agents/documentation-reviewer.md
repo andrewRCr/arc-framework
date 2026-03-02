@@ -13,7 +13,7 @@ Cross-document contradiction analysis requires strategic review of multiple file
 
 <example>
 Context: Session-init docs seem redundant and overlapping
-user: "Can you review DEVELOPMENT-RULES.md, 3-process-task-loop.md, and AGENTS.md for redundancy?"
+user: "Can you review DEV-RULES.PROJECT.md, 3-process-task-loop.md, and AGENTS.md for redundancy?"
 assistant: "I'll use the documentation-reviewer agent to map overlapping content and propose consolidation"
 <commentary>
 Strategic analysis of document overlap and information architecture.

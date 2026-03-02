@@ -1,7 +1,8 @@
 # GEMINI.md
 
 Minimal guidance for Gemini assistants. Shared context lives in [AGENTS](AGENTS.md);
-follow [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91),
+follow [DEV-RULES.ARC][dev-rules-arc],
+[DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91),
 [QUICK-REFERENCE][quick-ref] v0.3.0-dev,
 and the [Process Task Loop][process-task-loop].
 
@@ -17,6 +18,7 @@ and the [Process Task Loop][process-task-loop].
 
 ---
 
+[dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
 [dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

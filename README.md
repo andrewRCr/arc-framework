@@ -25,7 +25,7 @@ context disappears between sessions. A structured approach helps bring consisten
 **Constitutional Documents**— foundational documents establish direction and standards:
 
 - META-PRD (product requirement document) defines overall project vision, user flows, and success criteria
-- Supporting high-level documents (PROJECT-STATUS, TECHNICAL-ARCHITECTURE, DEVELOPMENT-RULES)
+- Supporting high-level documents (PROJECT-STATUS, TECHNICAL-ARCHITECTURE, DEV-RULES.PROJECT)
    provide ongoing context and constraints
 
 **Feature Development Cycle**— a core systematic loop guides feature work:
@@ -93,7 +93,9 @@ The framework operates through feedback loops that build on previous work:
 - **`.arc/reference/constitution/META-PRD.md`** — Product vision, success criteria, and high-level direction
 - **`.arc/reference/constitution/PROJECT-STATUS.md`** — Progress tracker for current initiatives and milestones
 - **`.arc/reference/constitution/TECHNICAL-ARCHITECTURE.md`** — Reference architecture and implementation patterns
-- **`.arc/reference/constitution/DEVELOPMENT-RULES.md`** — Code standards, quality gates, and development protocols
+- **`.arc/reference/constitution/DEV-RULES.ARC.md`** — Framework development methodology
+  (commit, verification, session/task rules)
+- **`.arc/reference/constitution/DEV-RULES.PROJECT.md`** — Project quality standards, quality gates, and architecture rules
 
 ### Planned Work (Feature & Technical)
 
