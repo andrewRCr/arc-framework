@@ -73,24 +73,28 @@ more value in having complete context upfront than discovering missing rules mid
 6. `.arc/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
    - Environment context, command patterns, and quality gate commands
 
-7. `.arc/system/workflows/arc/3_process-task-loop.md` - **MUST READ IN FULL**
-   - Task execution protocol, quality gates, and documentation update requirements
-
 **Active work context:**
 
-8. `.arc/active/CURRENT-SESSION.md` - **MUST READ IN FULL**
-   - Current state: branch, task context, last completed work, blockers, and additional context
+7. `.arc/active/WORK-STATUS.md` - **MUST READ IN FULL**
+   - Project state: branch, task list path, current task, blockers, and next action
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
+8. `.arc/active/SESSION.md` - **READ IF EXISTS** (gitignored — may not be present)
+   - Personal working context from prior session: approach, decisions, things tried, known risks
+   - If this file doesn't exist, skip — the session starts with tracked state only (WORK-STATUS.md)
+   - **Agent-switching note**: If SESSION.md was written during a session with a different agent, extract factual
+     content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
+     capability assumptions)
+
 9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
 
-- Path referenced in CURRENT-SESSION.md
+- Path referenced in WORK-STATUS.md
 - Example: `.arc/active/feature/tasks-[work-unit-name].md`
 - **Reading strategy**:
     - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
-    - **ALWAYS read**: Current task section identified in CURRENT-SESSION.md (the specific task being worked on)
-        - **Use line number**: CURRENT-SESSION "Current Task" field includes line number (e.g., "Task 5.5 (line 1903)")
+    - **ALWAYS read**: Current task section identified in WORK-STATUS.md (the specific task being worked on)
+        - **Use line number**: WORK-STATUS "Current Task" field includes line number (e.g., "Task 5.5 (line 1903)")
         - **Direct jump**: Use Read tool with offset parameter to jump directly to that task
         - **No scanning needed**: Line number enables precise navigation
     - **Read on-demand**: Other phases and tasks as needed during work
@@ -107,12 +111,12 @@ Confirm successful initialization. Use this structure:
 **Active work state:**
 
 - **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Current task**: Task being worked on per CURRENT-SESSION.md
+- **Current task**: Task being worked on per WORK-STATUS.md
 - **Blockers**: Any blockers or mismatches detected during initialization, or "none"
 
-**Next action:** What comes next per CURRENT-SESSION.md
+**Next action:** What comes next per WORK-STATUS.md
 
-Awaiting direction.
+Awaiting direction — proceed to Next Action?
 
 **Formatting guidance:**
 
@@ -124,7 +128,7 @@ Awaiting direction.
 
 ### 4. If Context Seems Mismatched
 
-If documented state (CURRENT-SESSION.md) doesn't match reality (git status, task list checkboxes, file state):
+If documented state (WORK-STATUS.md) doesn't match reality (git status, task list checkboxes, file state):
 
 1. **Stop immediately** - do not proceed with work
 2. **Report the mismatch** to user with specific details
@@ -133,9 +137,9 @@ If documented state (CURRENT-SESSION.md) doesn't match reality (git status, task
 
 **Examples of mismatches:**
 
-- CURRENT-SESSION says "uncommitted files" but `git status` shows clean tree
-- CURRENT-SESSION references "Task 3.3" but task list shows it's already marked `[x]` complete
-- CURRENT-SESSION describes work in progress but git log shows it's been committed
+- WORK-STATUS says "uncommitted files" but `git status` shows clean tree
+- WORK-STATUS references "Task 3.3" but task list shows it's already marked `[x]` complete
+- WORK-STATUS describes work in progress but git log shows it's been committed
 
 **Do not attempt to "fix" state on your own** - always involve the user when state is unclear.
 

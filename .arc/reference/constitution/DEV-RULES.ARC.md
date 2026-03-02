@@ -224,6 +224,19 @@ When referencing tasks in `.arc/` documentation, include both the task identifie
 list filename: "Task X.Y - `tasks-name.md`" or "Phase X - `tasks-name.md`". Use only the
 filename (no path) since task lists move between active/, backlog/, and archive/ directories.
 
+### Write for the reader, not the author · P9
+
+When removing or restructuring content, don't leave notes explaining what was removed or where
+it went — future readers have no context for the old state. Document what *is*, not what *was*.
+Historical context belongs in commit messages and task list completion notes, not in the living
+document.
+
+**Examples of reader-hostile patterns:**
+
+- "Previously this section covered X, which has moved to Y" (reader never saw X here)
+- "Removed the FooBar handler" as a code comment (reader doesn't know FooBar)
+- Explaining why an item is absent from a list (reader only sees the list as it is)
+
 ---
 
 ## When to Load Additional Guidance
