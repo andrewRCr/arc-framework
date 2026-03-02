@@ -113,7 +113,7 @@ your last fetch, preventing accidental overwrites of collaborators' work.
 ### 5) Update Tracking
 
 - [ ] Task list `**Branch(es):**` field includes the new branch name (if not updated in step 2)
-- [ ] CURRENT-SESSION.md `**Branch**` field updated to the new branch
+- [ ] WORK-STATUS.md updated to reflect the new branch and current task
 - [ ] Task list file is present and accessible on the new branch
 - [ ] Current task is identifiable — next unchecked item in the task list
 

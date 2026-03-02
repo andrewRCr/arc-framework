@@ -157,6 +157,10 @@ Common multi-branch patterns:
 - **Team sub-branches:** Multiple developers each working a branch against a shared integration branch
 - **Phased delivery:** Sequential branches delivering different phases of the same task list
 
+**Branch scope:** One planned work unit per branch. Switching work units implies switching branches.
+Incidental task lists may live alongside the primary work when they stay on the same branch by design.
+`WORK-STATUS.md` reflects whichever work unit is currently active.
+
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
 

@@ -259,8 +259,10 @@ recovery, staleness detection.
     - [ ] **4.1.c Update `activate-work-unit.md`**
         - Step 7: reference WORK-STATUS.md; activation populates placeholder with real values
 
-    - [ ] **4.1.d Update `archive-completed.md`**
-        - After archival: reset WORK-STATUS.md to "no active work" state
+    - [ ] **4.1.d Update `archive-completed.md` WORK-STATUS.md handling**
+        - Archival to base branch: reset WORK-STATUS.md to "no active work" state
+        - Archival to parent work branch (stacked incidental → parent): restore
+          WORK-STATUS.md to parent's work unit (resume, not reset)
 
 - [ ] **4.2 Stabilize task references with triple-anchor format**
 
@@ -401,6 +403,30 @@ recovery, staleness detection.
     - `activate-work-unit.md` Step 7: each developer updates own session file
     - `session-init.md` Step 2: team mode note for session state loading
     - Reference session model config setting per ADR-002
+
+- [ ] **6.2.x Document WORK-STATUS.md merge convention in `strategy-work-organization.md`**
+
+    Document the "base branch baseline" convention and merge resolution behavior
+    as a subsection of § Task Lists and Branches (adjacent to the "Branch scope"
+    paragraph added during WU2 Phase 3 prep):
+
+    - **Convention**: In protected modes, WORK-STATUS.md on the base branch is always
+      in its "no active work" default state. Work branches diverge; merges restore.
+      In unprotected mode, the base branch IS the workspace — WORK-STATUS.md
+      reflects active work.
+    - **Merge resolution rule**: `.gitattributes` `merge=ours` auto-resolves local
+      merges (keeps target branch version). For PR merges (server-side, no local
+      merge drivers), the resolution is always "take base" — deterministic, trivial.
+    - **Why it works**: Post-merge workflows (rotate-branch step 5, archive-completed
+      reset) always update WORK-STATUS.md immediately, so the auto-resolved content
+      is transient.
+    - **Protection mode awareness**: Convention adapts to mode — the merge driver is
+      mode-agnostic (`merge=ours` keeps target version regardless of content).
+    - Update `strategy-team-coordination.md` § "Session State Has No Conflicts" to
+      distinguish SESSION.md (personal, no conflicts) from WORK-STATUS.md (shared,
+      trivial conflicts with documented resolution).
+    - Rationale: flows from ADR-007 (WORK-STATUS.md tracked); not ADR-worthy itself
+      (implementation convention, not architectural decision).
 
 - [ ] **6.3 Add person-to-person task handoff protocol**
 
