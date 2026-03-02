@@ -10,6 +10,13 @@ incidental tasks, etc.). The agent does not initiate this workflow on its own.
 with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct response
 is to complete the current work item and hand off, not to compact or summarize prior context.
 
+**Design context**: Sessions implement P5 (Context Preservation) — the principle that work context must be
+recoverable across work boundaries. This workflow is the *mechanism*: structured document loading optimized for
+agents with ephemeral context (CLI and IDE conversational agents that start each session without memory of
+previous work). Agents with persistent memory or project-indexed context may need lighter initialization
+ceremonies; the principle still applies regardless of mechanism. The session state mechanism (what to read at
+init, what to write at handoff) is overridable via [`arc-methods.md` § session-state][arc-methods-session].
+
 ## Steps
 
 ### 1. Verify Environment
@@ -130,3 +137,5 @@ If documented state (CURRENT-SESSION.md) doesn't match reality (git status, task
 - CURRENT-SESSION describes work in progress but git log shows it's been committed
 
 **Do not attempt to "fix" state on your own** - always involve the user when state is unclear.
+
+[arc-methods-session]: ../../../../../.arc/system/workflows/arc-methods.md#session-state

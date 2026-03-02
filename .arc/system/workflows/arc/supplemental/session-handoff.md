@@ -2,9 +2,15 @@
 
 **Audience:** Agent-executed — your agent follows this to capture session state.
 
-**Purpose**: Capture session state in CURRENT-SESSION.md so the next session can resume with full context.
+**Purpose**: Capture session state so the next session can resume with full context. This is the counterpart to
+[session initialization][session-init] — together they implement P5 (Context Preservation) at session boundaries.
 
 **When to use**: User-triggered at the end of a session, or when transitioning between work contexts.
+
+**Design context**: This workflow is optimized for agents with ephemeral context — capturing state that would
+otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff ceremonies; the
+principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
+via [`arc-methods.md` § session-state][arc-methods-session].
 
 ## Handoff Protocol
 
@@ -296,3 +302,6 @@ This is a quick confirmation for the human — CURRENT-SESSION.md is the durable
   entirely when all work is committed — less noise when there's nothing to report
 - **Next session** is standalone and prominent — same scanning target as init's
   "Next action"
+
+[session-init]: session-init.md
+[arc-methods-session]: ../../arc-methods.md#session-state
