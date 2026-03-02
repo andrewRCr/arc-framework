@@ -269,19 +269,24 @@ session-init — the structural heart of WU2.
       with same ephemeral-context framing and override reference
     - All three files: added reference-style link definitions for arc-methods-session
 
-- [ ] **3.5 Redesign session-init loading sequence**
+- [x] **3.5 Redesign session-init loading sequence**
 
-    **Goal:** Implement new Tier 1 per WU1.5 Gap 2 specification.
+    Rewrote Step 2 loading sequence in both public and internal session-init files.
 
-    - [ ] **3.5.a Rewrite Step 2 (Load AI Context)**
-        - New sequence: AGENTS.md → agent file → DEV-RULES.ARC → DEV-RULES.PROJECT →
-          STRATEGY-INDEX → QUICK-REFERENCE → WORK-STATUS.md → active task list
-        - process-task-loop → Tier 2a (triggered from DEV-RULES.ARC)
-        - CURRENT-SESSION.md → WORK-STATUS.md per ADR-007
+    - [x] **3.5.a Rewrite Step 2 (Load AI Context)**
+        - New sequence (9 items): AGENTS.md → agent file → DEV-RULES.ARC → DEV-RULES.PROJECT →
+          STRATEGY-INDEX → QUICK-REFERENCE → WORK-STATUS.md → SESSION.md → active task list
+        - Removed process-task-loop from Tier 1 (already covered by DEV-RULES.ARC
+          § When to Load Additional Guidance — no note needed in session-init)
+        - CURRENT-SESSION.md → WORK-STATUS.md (item 7, tracked project state) + SESSION.md
+          (item 8, gitignored personal context, READ IF EXISTS)
+        - Updated all CURRENT-SESSION references in Steps 3 and 4 to WORK-STATUS
+        - Changed orientation ending: "Awaiting direction." → "Awaiting direction —
+          proceed to Next Action?" (reduces friction for common case)
 
-    - [ ] **3.5.b Add agent-switching awareness note**
-        - Per WU1.5 Req 11: if SESSION.md was written by different agent, extract factual
-          content and disregard agent-specific references
+    - [x] **3.5.b Add agent-switching awareness note**
+        - Added to SESSION.md loading item (item 8): extract factual content, disregard
+          agent-specific references when SESSION.md was written by a different agent
 
 - [ ] **3.6 Formalize Tier 2a trigger pattern across Tier 1 documents**
 
