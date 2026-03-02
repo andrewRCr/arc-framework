@@ -143,7 +143,7 @@ session-init — the structural heart of WU2.
 
 **Strategies:** `strategy-file-classification.md`, `strategy-configurability-architecture.md`
 
-- [ ] **3.1 Create `DEV-RULES.ARC.md`**
+- [x] **3.1 Create `DEV-RULES.ARC.md`**
 
     **Goal:** Extract always-applicable behavioral rules into a new framework-owned document.
 
@@ -383,26 +383,35 @@ session-init — the structural heart of WU2.
           migration → SESSION.md moves to team/{name}/). One intentional
           remaining ref (line 46) describes the ADR-007 split historically
 
-- [ ] **3.9 Split internal DEVELOPMENT-RULES.md**
+- [x] **3.9 Align internal constitution docs with public template structure**
 
-    **Goal:** Complete the DEV-RULES split for `.arc-internal/`. The public split
-    (DEV-RULES.ARC.md + DEV-RULES.PROJECT.md) landed in 3.1–3.2, but the internal
-    `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` was kept alive with
-    transitional references. Now that Phase 3 restructure is nearly complete, finish
-    the migration.
+    Renamed and restructured internal documents to mirror public templates — as if
+    the ARC framework were its own adopter starting from the template.
 
-    - Evaluate whether internal DEVELOPMENT-RULES.md becomes DEV-RULES.PROJECT.md
-      (project-specific gates only) or is simply replaced by a reference to the
-      public DEV-RULES.PROJECT.md
-    - Update internal agent file references (CLAUDE.md, GEMINI.md, CODEX.md,
-      WARP.md, copilot-instructions.md)
-    - Update session-init.md loading sequence (item 4)
-    - Update QUICK-REFERENCE.md, .arc-internal/README.md, TECHNICAL-OVERVIEW.md
+    - **DEV-RULES.PROJECT.md** (renamed from DEVELOPMENT-RULES.md, 153 → 113 lines):
+      Aligned section structure with public template (added Contents TOC, matched
+      heading names, removed redundant preamble). Removed Commit Standards (duplicated
+      DEV-RULES.ARC) and Reference Documentation (informational links). Added
+      Documentation Style subsection (was in public template, missing internally).
+    - **QUICK-REFERENCE.md** (163 → 137 lines): Removed "About This Reference
+      Directory" section (redundant with session-init loading sequence), version
+      header, and footer version note. Restructured Quality Gate Commands to match
+      template's tiered format (Tier 1 / Tier 3). Added reference-style link for
+      quality-gates strategy.
+    - **Interior version tags removed**: Dropped `v0.3.0-dev` and hash tags from
+      DEV-RULES.PROJECT.md and all 5 internal agent files (CLAUDE.md, GEMINI.md,
+      CODEX.md, WARP.md, copilot-instructions.md) — interior versioning doesn't
+      serve agents and creates maintenance burden.
+    - **Updated references** (11 files): agent files (5 — display text, link defs,
+      version tags), session-init.md (item 4), QUICK-REFERENCE.md (3 refs),
+      TECHNICAL-OVERVIEW.md (directory tree), .arc-internal/README.md, task list
+      (future task 5.3 ref)
 
-- [ ] **3.10 Run Tier 2 quality gates**
-    - Full-project lint: `npm run -s lint:md`
-    - Verify all cross-references resolve
-    - Coherent unit boundary — structural foundation for subsequent phases
+- [x] **3.10 Run Tier 2 quality gates**
+    - Full-project lint: 125 files, 0 errors
+    - Cross-references verified: no stale DEVELOPMENT-RULES.md links in live files
+      (remaining refs only in task list, PRD, CURRENT-SESSION — all self-referential)
+    - Coherent unit boundary — Phase 3 complete
 
 ### **Phase 4:** Session Workflow Overhaul
 
@@ -540,7 +549,7 @@ recovery, staleness detection.
     - Update both `.arc/` and `.arc-internal/` copies
     - **Internal hook addition**: Add check to `.arc-internal/` pre-commit that blocks
       `.arc-internal/` references in staged `.arc/` files (public/internal boundary
-      enforcement — see DEVELOPMENT-RULES § File Organization). Public hook doesn't
+      enforcement — see DEV-RULES.PROJECT § File Organization). Public hook doesn't
       need this check (adopters won't have `.arc-internal/`).
 
 - [ ] **5.4 Scaffold `arc-extensions.md`**

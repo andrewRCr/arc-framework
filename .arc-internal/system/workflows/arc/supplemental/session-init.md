@@ -63,7 +63,7 @@ more value in having complete context upfront than discovering missing rules mid
 3. `.arc/reference/constitution/DEV-RULES.ARC.md` - **MUST READ IN FULL**
    - Framework development methodology: commit standards, verification, session/task management
 
-4. `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
+4. `.arc-internal/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
    - Project quality gates, testing requirements, code quality, and architecture rules
 
 5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**

@@ -5,8 +5,8 @@ canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
-- [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91) – Project quality standards
-- [QUICK-REFERENCE][quick-ref] v0.3.0-dev – Environment context and command patterns
+- [DEV-RULES.PROJECT][dev-rules] – Project quality standards
+- [QUICK-REFERENCE][quick-ref] – Environment context and command patterns
 
 Before starting task execution, load the [Process Task Loop][process-task-loop].
 
@@ -89,6 +89,6 @@ sequential WebFetch calls in the main conversation.
 ---
 
 [dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
-[dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
+[dev-rules]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

@@ -4,8 +4,8 @@ Guidance for Warp terminal assistance. For shared rules and architecture, defer 
 
 - [AGENTS](AGENTS.md) – Project context, lookup guide, and collaboration principles
 - [DEV-RULES.ARC](../../../.arc/reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
-- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) v0.3.0-dev (hash: 8c5f2a91) – Project quality standards
-- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) v0.3.0-dev – Environment context and command patterns
+- [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
+- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
 
 ## Warp-Specific Notes
 

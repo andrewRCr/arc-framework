@@ -1,27 +1,6 @@
 # Quick Reference - ARC Agentic Development Framework
 
-**Version**: 0.3.0-dev | **Updated**: 2025-12-26
-
-Command patterns and environment context for framework development.
-
-## About This Reference Directory
-
-**Read every session:**
-
-- `DEV-RULES.ARC.md` (.arc/reference/constitution/) - Framework development methodology
-- `DEVELOPMENT-RULES.md` (constitution/) - Project quality standards
-- `QUICK-REFERENCE.md` (this file) - Environment and commands
-- `WORK-STATUS.md` (active/) - Project state and next actions
-
-**Key documentation** (paths relative to `.arc-internal/`):
-
-- `reference/constitution/` - Project principles (META-PRD, DEVELOPMENT-RULES, etc.)
-- `reference/strategies/` - Technical approaches (ADR methodology, task formatting, work organization)
-- `system/agent/` - AI-specific guidance (AGENTS.md, CLAUDE.md, GEMINI.md, WARP.md, copilot-instructions.md)
-- `system/workflows/` - Core process guides (setup, create-prd, generate-tasks, process-task-loop)
-- `system/workflows/arc/supplemental/` - Supporting workflows (atomic-commit, session-handoff, manage-incidental-work)
-
----
+Command patterns and environment context for the ARC framework.
 
 ## Environment & Path Context
 
@@ -35,7 +14,7 @@ Command patterns and environment context for framework development.
 | Template documents | `.arc/reference/`             | Template/example content for adopters |
 | Internal docs      | `.arc-internal/reference/`    | Framework-specific documentation      |
 | Active work        | `.arc-internal/active/`       | Current feature work                  |
-| Quality gate       | `npx --yes markdownlint-cli2` | Zero-tolerance linting                |
+| Quality gate       | `npm run -s lint:md`          | Zero-tolerance linting                |
 
 **Working Directory Note**: This is a documentation-only framework. All work happens at repository root.
 
@@ -45,7 +24,7 @@ Command patterns and environment context for framework development.
 
 **Quality Tools**:
 
-- Markdown linting via pinned local `markdownlint-cli2` (`npm run lint:md`)
+- Markdown linting via pinned local `markdownlint-cli2` (`npm run -s lint:md`)
 - Git for version control
 
 ---
@@ -78,7 +57,7 @@ npx --yes markdownlint-cli2 ".arc/reference/**/*.md"
 - Without `--no-globs`, markdownlint-cli2 processes config globs **in addition to** specified files
 - Use `--no-globs` when checking/fixing individual files to avoid processing entire workspace
 - If local dependencies are unavailable, use fallback: `npx --yes markdownlint-cli2 ...`
-- `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) - use `markdown-table-prettify` instead:
+- `markdownlint-cli2 --fix` does NOT fix MD060 (table alignment) — use `markdown-table-prettify` instead:
 
 ```bash
 # Fix table formatting (MD060 violations)
@@ -119,7 +98,17 @@ npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file
 
 ## Quality Gate Commands
 
-Reference for DEVELOPMENT-RULES / DEV-RULES.PROJECT quality gates. Run before any commit.
+Reference commands for DEV-RULES.PROJECT quality gates. See
+[Quality Gates Strategy][quality-gates] for the tiered approach (when to run which level of checks).
+
+### Incremental — Tier 1 (per-task)
+
+```bash
+# Lint specific file
+npm run -s lint:md:file -- "path/to/file.md"
+```
+
+### Full Suite — Tier 3 (per-phase / pre-PR)
 
 ```bash
 # 1. Markdown Linting (zero violations required)
@@ -152,11 +141,15 @@ git --no-pager diff --stat
 ❌ Looking for test suites (documentation doesn't have unit tests)
 ❌ Assuming venv or Docker are needed
 
-✅ Use npx for markdown linting (always available)
+✅ Use commands from this file (paths correct for repo root)
 ✅ Focus on documentation quality
 ✅ Follow framework-specific workflows
 
 ---
 
-**Version Note**: Commands assume repo root. This is a documentation-only framework with markdown linting
+**Commands assume repo root.** This is a documentation-only framework with markdown linting
 as the primary quality gate.
+
+---
+
+[quality-gates]: ../../.arc/reference/strategies/arc/strategy-quality-gates.md
