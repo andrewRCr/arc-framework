@@ -68,6 +68,7 @@ All paths relative to `.arc/`.
 | File                                      | Classification       | Notes                                                                     |
 |-------------------------------------------|----------------------|---------------------------------------------------------------------------|
 | `ATOMIC-TASKS.template.md`                | Configurable (light) | Framework processing rules + user task content. Clean section separation. |
+| `SESSION.template.md`                     | Framework            | Reference structure for gitignored SESSION.md. Agents follow at handoff.  |
 | `WORK-STATUS.template.md`                 | Scaffolded           | Template structure replaced entirely by user. Project-owned after init.   |
 | `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Directory structure scaffolding.                                          |
 
@@ -79,6 +80,15 @@ All paths relative to `.arc/`.
 | `TASK-INBOX.template.md`                  | Configurable (light) | Framework processing rules + user content. Clean section separation. |
 | `feature/BACKLOG-FEATURE.template.md`     | Scaffolded           | Template structure replaced entirely.                                |
 | `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded           | Template structure replaced entirely.                                |
+
+### team/
+
+| File                        | Classification       | Notes                                                                    |
+|-----------------------------|----------------------|--------------------------------------------------------------------------|
+| `README.md`                 | Framework            | Team directory overview and structure guidance.                          |
+| `ATOMIC-TASKS.template.md`  | Configurable (light) | Per-member atomic tasks. Same structure as `active/` variant.            |
+| `SESSION.template.md`       | Framework            | Reference structure for gitignored SESSION.md. Agents follow at handoff. |
+| `WORK-STATUS.template.md`   | Scaffolded           | Per-member project pointer. Same structure as `active/` variant.         |
 
 ### reference/
 
@@ -109,13 +119,13 @@ All paths relative to `.arc/`.
 
 ### reference/constitution/
 
-| File                             | Classification | Notes                                                            |
-|----------------------------------|----------------|------------------------------------------------------------------|
+| File                             | Classification | Notes                                                                   |
+|----------------------------------|----------------|-------------------------------------------------------------------------|
 | `DEV-RULES.ARC.md`               | Framework      | ARC development methodology (commit, verification, session/task rules). |
 | `DEV-RULES.PROJECT.md`           | Configurable   | Project quality gates, testing requirements, architecture rules.        |
-| `META-PRD.template.md`           | Scaffolded     | All content replaced by user.                                    |
-| `PROJECT-STATUS.template.md`     | Scaffolded     | All content replaced by user.                                    |
-| `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | All content replaced by user.                                    |
+| `META-PRD.template.md`           | Scaffolded     | All content replaced by user.                                           |
+| `PROJECT-STATUS.template.md`     | Scaffolded     | All content replaced by user.                                           |
+| `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | All content replaced by user.                                           |
 
 ### reference/research/
 
@@ -199,12 +209,12 @@ All paths relative to `.arc/`.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 38    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 12    | Three-way merge. Conflicts expected in user sections. |
-| Scaffolded     | 11    | Skip. Project-owned after init.                       |
+| Framework      | 41    | Three-way merge. Conflicts rare.                      |
+| Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
+| Scaffolded     | 12    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 61.
+**Total template files:** 66.
 
 ---
 

@@ -55,7 +55,7 @@ not configurable through any mechanism — they define what ARC is.
 
 ### Convention inventory
 
-ARC currently has 19 conventions across its 11 principles. Each convention has a default (what ARC provides out of the
+ARC currently has 20 conventions across its 11 principles. Each convention has a default (what ARC provides out of the
 box) and a configurability path (how teams adapt it).
 
 #### Core commitment conventions
@@ -75,7 +75,8 @@ box) and a configurability path (how teams adapt it).
 | --------------------------------------- | --------- | ----------------------------------- | ---------------------------------------------------- |
 | Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
 | Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
-| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Behavioral guidance — fix-now vs. capture-and-defer  |
+| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
+| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
 | Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
 | Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
 | Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
@@ -387,15 +388,19 @@ advisory, not mechanically enforced. The team is responsible for ensuring their 
 ```markdown
 ## task-completion
 
-**Workflow:** process-task-loop.md · **When:** Agent marks a task as complete\
-**Contract:** Record that the specified task is complete. Status must be
-verifiable by both human and agent.\
-**Default:** Mark `[x]` in the markdown task list file, update task description
-with completion notes.
+**Workflow:** process-task-loop.md · **When:** Agent marks a task as complete
 
-### Project Override
+**Contract:** Record that the specified task is complete. Status must be
+verifiable by both human and agent.
+
+### task-completion.override
 
 [No override configured]
+
+### task-completion.default
+
+Mark `[x]` in the markdown task list file, update task description
+with completion notes.
 ```
 
 When an override is populated, the agent follows the override instead of the default. The agent reads `arc-methods.md`

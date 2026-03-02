@@ -420,19 +420,25 @@ recovery, staleness detection.
 
 **Note:** All changes use ADR-007 model (WORK-STATUS.md + SESSION.md).
 
-- [ ] **4.0 Rename internal CURRENT-SESSION.md to WORK-STATUS.md + SESSION.md**
+- [x] **4.0 Rename internal CURRENT-SESSION.md to WORK-STATUS.md + SESSION.md**
 
-    **Goal:** Complete the ADR-007 file rename for `.arc-internal/active/`. Phase 3
-    migrated all public references and templates; this task renames the actual internal
-    file and splits content.
+    Completed ADR-007 two-file split for `.arc-internal/active/`.
 
-    - Rename `.arc-internal/active/CURRENT-SESSION.md` → `.arc-internal/active/WORK-STATUS.md`
-      (keep tracked state fields: branch, task list, current task, blockers, next action)
-    - Extract session context (completed this session, persistent context, additional
-      context) into `.arc-internal/active/SESSION.md` (gitignored)
-    - Update `.gitignore` if needed (SESSION.md gitignored, WORK-STATUS.md tracked)
-    - Update `.claude/commands/handoff.md` and `.codex/skills/handoff/SKILL.md` paths
-    - Verify session-init workflow resolves both files correctly
+    - Created `WORK-STATUS.md` (tracked) with project state fields matching public template
+    - Created `SESSION.md` (gitignored) with persistent context, session context, and
+      design notes carried forward from CURRENT-SESSION.md
+    - Updated `.gitignore`: replaced CURRENT-SESSION.md entry with SESSION.md + team
+      pattern (`.arc-internal/team/*/SESSION.md`)
+    - Updated Gemini handoff (`.gemini/commands/handoff.toml`): fixed stale file path and
+      workflow path reference
+    - Updated Codex handoff (`.codex/skills/handoff/agents/openai.yaml`): updated prompt
+      to reference both files
+    - Claude handoff (`.claude/commands/handoff.md`) and Codex SKILL.md already updated
+      in Phase 3
+    - Deleted CURRENT-SESSION.md
+    - Incidental: fixed strategy-configurability-architecture.md staleness — corrected
+      leave-it-cleaner configurability path, added missing test-first row (count 19→20),
+      updated method format example to dot-suffix pattern
 
 - [ ] **4.1 Handle first-session bootstrap and "no active work" state**
 

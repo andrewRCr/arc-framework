@@ -1,12 +1,15 @@
 # Work Status
 
-## Session Startup Protocol (AI: Execute First)
-
-**IMPORTANT**: Execute the complete session initialization workflow before reading work context below.
-
-See: `.arc/system/workflows/arc/supplemental/session-init.md`
-
----
+> **About this file:** Tracked project pointer — committed alongside task list updates in the
+> same atomic operation. Lightweight factual state so anyone on this branch can see where work
+> stands at a glance.
+>
+> **Companion:** [SESSION.md](SESSION.md) (gitignored, same directory) carries personal session
+> context — what was tried, decisions made, debugging insights. Together they implement P5
+> (Context Preservation). See `session-handoff.md` for the full update protocol.
+>
+> **Customization:** The session state mechanism is overridable — see `arc-methods.md` §
+> session-state.
 
 ## Active Work
 

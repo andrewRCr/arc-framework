@@ -31,11 +31,11 @@ to however you organize people.
 
 ## What Lives Where
 
-| Location       | Contains                         | Ownership                             |
-|----------------|----------------------------------|---------------------------------------|
-| `active/`      | Task lists, PRDs, work artifacts | Communal — shared by all team members |
+| Location       | Contains                           | Ownership                             |
+|----------------|------------------------------------|---------------------------------------|
+| `active/`      | Task lists, PRDs, work artifacts   | Communal — shared by all team members |
 | `team/{name}/` | WORK-STATUS, SESSION, ATOMIC-TASKS | Personal — one member's session state |
-| `backlog/`     | ROADMAP, backlogs, TASK-INBOX    | Communal — shared by all team members |
+| `backlog/`     | ROADMAP, backlogs, TASK-INBOX      | Communal — shared by all team members |
 
 **Why the separation:** Session state (WORK-STATUS, SESSION) is inherently per-person — two
 developers can't share a "current task" pointer. Splitting personal state into `team/`

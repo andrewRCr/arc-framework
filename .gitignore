@@ -27,7 +27,8 @@ Thumbs.db
 # explicitly temp-flagged internal docs
 .arc-internal/**/temp-*
 
-# Session handoff file (transient)
-.arc-internal/active/CURRENT-SESSION.md
+# Session context (personal, gitignored per ADR-007)
+.arc-internal/active/SESSION.md
+.arc-internal/team/*/SESSION.md
 # Local dependencies
 node_modules/

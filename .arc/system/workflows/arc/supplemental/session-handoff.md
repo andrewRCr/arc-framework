@@ -29,7 +29,8 @@ Session state is split across two files:
 
 - **WORK-STATUS.md** (tracked) — project state: branch, task list, current task, blockers, next action
 - **SESSION.md** (gitignored) — personal context: completed work, decisions, debugging insights,
-  things tried. Created only when there's context worth preserving; delete between work units.
+  things tried. Replaced each handoff (not appended). Created only when there's context worth
+  preserving; delete between work units.
 
 **Every handoff** — WORK-STATUS.md (state fields) and SESSION.md (session context, if any)
 
@@ -75,7 +76,7 @@ _Note: Current Task shows WHICH task you're on (stable). Next Action shows WHAT 
 **Update `.arc/active/SESSION.md`** (personal session context — gitignored):
 
 ```markdown
-### Completed This Session
+### Completed Work
 
 **CRITICAL: When documenting UNCOMMITTED work, use commit-level granularity.**
 
@@ -107,7 +108,7 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 2. [Step 2]
 3. Return to Task X.Y (line ~XXX in tasks-file.md)
 
-### Additional Context for Next Session
+### Additional Context
 
 [Supplemental information not in task list: debugging insights, decisions made, things tried/ruled out, constraints discovered]
 
@@ -153,7 +154,7 @@ WORK-STATUS.md:
 SESSION.md:
 
 ```markdown
-### Completed This Session
+### Completed Work
 
 - ✅ Task 3.5: Added schema validation for input records
 - ⚠️ Discovered connection timeout during integration testing
@@ -165,7 +166,7 @@ SESSION.md:
 3. Run full test suite to verify no regressions
 4. Return to Task 4.1 - Add retry logic (line 312 in tasks-data-pipeline.md)
 
-### Additional Context for Next Session
+### Additional Context
 
 - Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
 - Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections
@@ -191,12 +192,12 @@ WORK-STATUS.md:
 SESSION.md:
 
 ```markdown
-### Completed This Session
+### Completed Work
 
 - ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
 - ✅ Task 2.4: Response format documentation (committed a1b2c3d)
 
-### Additional Context for Next Session
+### Additional Context
 
 **Pre-task review needed:**
 
@@ -223,7 +224,7 @@ WORK-STATUS.md:
 SESSION.md:
 
 ```markdown
-### Completed This Session
+### Completed Work
 
 - ✅ Task 5.1: Parallelized test stages
 - ⚠️ Investigating intermittent test failures after parallelization (~30% failure rate)
@@ -232,7 +233,7 @@ SESSION.md:
 
 Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when resolved.
 
-### Additional Context for Next Session
+### Additional Context
 
 - Failures are non-deterministic, only appear in parallel execution
 - Ruled out: shared database state (tests use isolated transactions), file locking
