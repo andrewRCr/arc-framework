@@ -93,16 +93,16 @@ Edit `.arc/backlog/ROADMAP.md`:
 2. Update any plan file references to point to active task list
 3. Add "In Progress" indicator or similar
 
-### Step 7: Update CURRENT-SESSION.md
+### Step 7: Update WORK-STATUS.md
 
-Edit `.arc/active/CURRENT-SESSION.md`:
+Edit `.arc/active/WORK-STATUS.md`:
 
 1. Update **Branch** to feature branch name
 2. Update **Task List** path to active location
 3. Update **Following Task List** to `Yes`
 4. Update **Current Task** to first task (e.g., "Task 1.1 (line XX)")
 5. Update **Next Action** to describe first task
-6. Clear or update session context as appropriate
+6. Clear **Blockers** (set to `[none]`)
 
 ### Step 8: Commit Activation
 
@@ -111,18 +111,18 @@ git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/tasks-{name}.md \
        .arc/reference/constitution/PROJECT-STATUS.md \
        .arc/backlog/ROADMAP.md \
-       .arc/active/CURRENT-SESSION.md
+       .arc/active/WORK-STATUS.md
 git commit -m "docs(arc): activate {work-name} work unit
 
 - Move PRD and task list to active
-- Update PROJECT-STATUS, ROADMAP, CURRENT-SESSION
+- Update PROJECT-STATUS, ROADMAP, WORK-STATUS
 - Status: In Progress
 
 Context: {feature|technical}/{branch-name} / tasks-{name}.md"
 ```
 
 **Note:** Stage only the files actually modified. The list above covers the typical case — adjust
-based on which optional steps (ROADMAP, CURRENT-SESSION) applied.
+based on which optional steps (ROADMAP, WORK-STATUS) applied.
 
 ### Step 9: Push Feature Branch (Optional)
 
@@ -146,7 +146,7 @@ Before proceeding to task execution, verify:
 - [ ] Task list PRD path updated to active location
 - [ ] PROJECT-STATUS.md updated (Currently Active, Next Priority)
 - [ ] ROADMAP.md updated (if work unit tracked there)
-- [ ] CURRENT-SESSION.md updated (branch, task list, current task)
+- [ ] WORK-STATUS.md updated (branch, task list, current task)
 - [ ] All changes committed on feature branch
 
 ---

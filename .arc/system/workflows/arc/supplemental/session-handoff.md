@@ -21,27 +21,35 @@ via [`arc-methods.md` § session-state][arc-methods-session].
 1. `git status` — clean vs uncommitted changes
 2. `git log --oneline -10` — capture committed work
 3. Task list file — verify marked checkboxes reflect actual completion
-4. **Working directory** — if it changed during the session, update paths in CURRENT-SESSION.md
+4. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
 
 ### What to Update
 
-**Every handoff** — Session Information and Session Context sections (work status, tasks, commits, blockers)
+Session state is split across two files:
 
-**When context changes** — Working directory paths or environment expectations in CURRENT-SESSION.md
+- **WORK-STATUS.md** (tracked) — project state: branch, task list, current task, blockers, next action
+- **SESSION.md** (gitignored) — personal context: completed work, decisions, debugging insights,
+  things tried. Created only when there's context worth preserving; delete between work units.
+
+**Every handoff** — WORK-STATUS.md (state fields) and SESSION.md (session context, if any)
+
+**When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
 
 **Preserve protected sections** — Content marked "DO NOT REMOVE UNTIL..." or similar warnings stays until
 its stated condition is met
 
 ### Comprehensive Handoff Format
 
-Update `.arc/active/CURRENT-SESSION.md` before ending session:
+Update session state files before ending session:
 
 1. **First**: Check for protected sections (marked "DO NOT REMOVE UNTIL...") and preserve them
-2. **Second**: Check if working directory context changed and update paths in CURRENT-SESSION.md if needed
-3. **Then**: Update "Session Information" section and below with work progress:
+2. **Second**: Check if working directory context changed and update paths in WORK-STATUS.md if needed
+3. **Then**: Update both files with work progress:
+
+**Update `.arc/active/WORK-STATUS.md`** (tracked project state):
 
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: [current branch name, e.g., feature/config-parser]
 **Task List**: [path to task list, e.g., .arc/active/feature/tasks-config-parser.md]
@@ -54,16 +62,19 @@ Update `.arc/active/CURRENT-SESSION.md` before ending session:
 **Last Completed**: Task 3.2 - Add validation logic
   [OR for off-task-list: brief description, e.g., "Fixed connection timeout in batch processor"]
   [OR if work complete: "Backend Type Safety (Tasks 1-14, archived)"]
+**Blockers**: [none]
+  [OR: describe blockers, pending decisions, waiting on user clarification]
 **Next Action**: Start Task 3.3 - Write unit tests for validation logic
   [OR for off-task-list/preparatory: specific action description]
   [Can be preparatory work (strategy doc review, planning) even when Current Task shows task number]
 
-_Note: Current Task shows WHICH task you're on (stable). Next Action shows WHAT to do next (can be preparatory work before starting task, or specific subtask if already in progress)._
+_Note: Current Task shows WHICH task you're on (stable). Next Action shows WHAT to do next
+(can be preparatory work before starting task, or specific subtask if already in progress)._
+```
 
----
+**Update `.arc/active/SESSION.md`** (personal session context — gitignored):
 
-## Session Context & Status
-
+```markdown
 ### Completed This Session
 
 **CRITICAL: When documenting UNCOMMITTED work, use commit-level granularity.**
@@ -96,11 +107,6 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 2. [Step 2]
 3. Return to Task X.Y (line ~XXX in tasks-file.md)
 
-### Blockers
-
-[none]
-[OR: Describe blockers, pending decisions, waiting on user clarification]
-
 ### Additional Context for Next Session
 
 [Supplemental information not in task list: debugging insights, decisions made, things tried/ruled out, constraints discovered]
@@ -130,20 +136,23 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 **Example 1: Off-task-list with known path back**
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: feature/data-pipeline
 **Task List**: .arc/active/feature/tasks-data-pipeline.md
 **Following Task List**: No - fixing connection timeout in batch processor (will return to Task 4.1)
 **Current Task**: Task 4.1 (line 312) - Add retry logic to ingestion step
 **Last Completed**: Task 3.5 - Schema validation for input records
+**Blockers**: [none]
 **Next Action**: Fix connection timeout in batch processor (src/pipeline/batch.py:89)
+```
 
----
+SESSION.md:
 
-## Session Context & Status
-
+```markdown
 ### Completed This Session
 
 - ✅ Task 3.5: Added schema validation for input records
@@ -156,10 +165,6 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 3. Run full test suite to verify no regressions
 4. Return to Task 4.1 - Add retry logic (line 312 in tasks-data-pipeline.md)
 
-### Blockers
-
-[none]
-
 ### Additional Context for Next Session
 
 - Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
@@ -169,28 +174,27 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 **Example 2: Preparatory work before starting task**
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: technical/api-documentation
 **Task List**: .arc/active/technical/tasks-api-documentation.md
 **Following Task List**: Yes
 **Current Task**: Task 3.1 (line 203) - Document authentication endpoints
 **Last Completed**: Tasks 2.3-2.4 (Query parameter and response format sections)
+**Blockers**: [none]
 **Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
+```
 
----
+SESSION.md:
 
-## Session Context & Status
-
+```markdown
 ### Completed This Session
 
 - ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
 - ✅ Task 2.4: Response format documentation (committed a1b2c3d)
-
-### Blockers
-
-[none]
 
 ### Additional Context for Next Session
 
@@ -202,20 +206,23 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 **Example 3: Off-task-list with unclear path**
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: technical/ci-pipeline
 **Task List**: .arc/active/technical/tasks-ci-pipeline.md
 **Following Task List**: No - debugging intermittent test failures in CI (will return to Task 5.2)
 **Current Task**: Task 5.2 (line 287) - Add caching to build step
 **Last Completed**: Task 5.1 - Parallelize test stages
+**Blockers**: [none]
 **Next Action**: Continue debugging intermittent CI test failures
+```
 
----
+SESSION.md:
 
-## Session Context & Status
-
+```markdown
 ### Completed This Session
 
 - ✅ Task 5.1: Parallelized test stages
@@ -224,10 +231,6 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 ### Remaining Work Before Returning to Task List
 
 Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when resolved.
-
-### Blockers
-
-[none]
 
 ### Additional Context for Next Session
 
@@ -241,12 +244,19 @@ Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when re
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Last Completed**: [Task list name] (Tasks X-Y, archived)
+**Blockers**: [none]
 **Next Action**: Begin [new-task-list.md] starting with Task 1
+```
 
+SESSION.md:
+
+```markdown
 ### [Task List Name] - COMPLETE & ARCHIVED ✅
 
 **Status**: All tasks complete, task list archived
@@ -272,13 +282,13 @@ Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when re
 
 ### Post-Update Cleanup
 
-After updating CURRENT-SESSION.md, verify it's clean markdown. If CURRENT-SESSION.md is gitignored,
-your linter may skip it by default — pass the path explicitly or use an IDE-integrated linter.
+After updating session state files, verify clean markdown. If SESSION.md is gitignored, your linter
+may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
 ### Confirm Handoff
 
-After updating CURRENT-SESSION.md and verifying markdown, deliver a verbal summary to the user.
-This is a quick confirmation for the human — CURRENT-SESSION.md is the durable artifact.
+After updating WORK-STATUS.md and SESSION.md, deliver a verbal summary to the user. This is a quick
+confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
@@ -291,7 +301,7 @@ This is a quick confirmation for the human — CURRENT-SESSION.md is the durable
 
 - [Files/changes with logical commit grouping]
 
-**Next session:** [What comes next per CURRENT-SESSION.md]
+**Next session:** [What comes next per WORK-STATUS.md]
 
 **Formatting guidance:**
 

@@ -327,7 +327,7 @@ a specific topic in <1 minute.
 
 **Context check for completion doc creation:**
 
-If less than ~120k tokens remaining, stop here — commit cleanup work and note in CURRENT-SESSION.md
+If less than ~120k tokens remaining, stop here — commit cleanup work and note in SESSION.md
 that completion doc creation requires a fresh session. If sufficient context remains, proceed to
 [archive-completed](archive-completed.md) Phase 1, Step 3 (Create Completion Metadata). Delete
 CLEANUP-PROGRESS after completion doc is created.

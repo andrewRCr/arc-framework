@@ -196,7 +196,7 @@ writes session state
 
 ### session-state.default
 
-Read/write CURRENT-SESSION.md at session boundaries.
+Read/write WORK-STATUS.md and SESSION.md at session boundaries.
 
 ---
 

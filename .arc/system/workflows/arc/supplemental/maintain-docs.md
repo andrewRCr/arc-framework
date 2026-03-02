@@ -127,7 +127,8 @@ framework version — use any versioning scheme that works for your team.
 ### Always Read (Session Init)
 
 - `AGENTS.md` - Project context and lookup guide
-- `CURRENT-SESSION.md` - Active work state
+- `WORK-STATUS.md` - Active work state
+- `SESSION.md` - Personal session context (if exists)
 - `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
 - `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules
 - `3_process-task-loop.md` - Task execution workflow

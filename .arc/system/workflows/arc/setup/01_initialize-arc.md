@@ -42,7 +42,7 @@ decision matrix.
 
 Verify the `.arc/` directory was created with the expected structure:
 
-- `active/` — Current work tracking (CURRENT-SESSION, task lists)
+- `active/` — Current work tracking (WORK-STATUS, task lists)
 - `backlog/` — Future work pipeline (ROADMAP, backlogs, TASK-INBOX)
 - `reference/` — Constitutional documents, strategies, ADRs
 - `system/` — Agent configs, workflows, githooks, settings

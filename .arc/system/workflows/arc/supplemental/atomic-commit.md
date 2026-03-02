@@ -69,7 +69,7 @@ For accumulated work, multi-session commits, or interleaved changes — follow t
 
 ### 1. Check Session Handoff Notes
 
-Read CURRENT-SESSION.md for uncommitted work documentation. If the previous session documented
+Read SESSION.md for uncommitted work documentation. If the previous session documented
 uncommitted work at commit-level granularity (file mappings, task references, commit groupings),
 use that as your commit plan rather than reconstructing from scratch.
 

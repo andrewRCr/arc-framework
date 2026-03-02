@@ -1,4 +1,4 @@
-# Current Session
+# Work Status
 
 ## Session Startup Protocol (AI: Execute First)
 
@@ -8,7 +8,7 @@ See: `.arc/system/workflows/arc/supplemental/session-init.md`
 
 ---
 
-## Session Information
+## Active Work
 
 **Branch**: `{{branch-prefix}}/{{work-name}}`
 **Task List**: `.arc/active/{{category}}/tasks-{{work-name}}.md`
@@ -21,35 +21,10 @@ See: `.arc/system/workflows/arc/supplemental/session-init.md`
 **Last Completed**: Task X.Z - Brief description
 <!-- OR for off-task-list: brief description of what was completed -->
 <!-- OR if work complete: "{{Work Name}} (Tasks 1-N, archived)" -->
+**Blockers**: [none]
+<!-- OR: describe blockers, pending decisions, waiting on user clarification -->
 **Next Action**: Start Task X.Y - Brief description
 <!-- Can be preparatory work (strategy review, source reading) even when Current Task shows task number -->
-
----
-
-## Session Context & Status
-
-### Completed This Session
-
-<!-- When documenting UNCOMMITTED work, use commit-level granularity so the next session -->
-<!-- can recreate proper atomic commits from git diff: map accomplishments to logical -->
-<!-- commits, include task numbers, note incidental work separately. -->
-
-<!-- For committed work: simple list with commit hashes is sufficient. -->
-
-### Blockers
-
-[none]
-<!-- OR: describe blockers, pending decisions, waiting on user clarification -->
-
-### Additional Context for Next Session
-
-<!-- Supplemental information not in the task list: debugging insights, -->
-<!-- decisions made, things tried and ruled out, constraints discovered. -->
-<!-- OR: [none] — if the task list has all needed context. -->
-
-<!-- Working directory: If your project uses a non-standard working directory -->
-<!-- (e.g., monorepo subdirectory, workspace root differs from repo root), -->
-<!-- note it here so the next session starts in the right place. -->
 
 ---
 

@@ -13,14 +13,16 @@ Each team member gets a personal subdirectory containing their own session state
 ```text
 team/
 ├── README.md                          # This file
-├── CURRENT-SESSION.template.md        # Template: copied into member dirs
+├── WORK-STATUS.template.md            # Template: copied into member dirs
 ├── ATOMIC-TASKS.template.md           # Template: copied into member dirs
 ├── alice/
-│   ├── CURRENT-SESSION.md             # Alice's session state
-│   └── ATOMIC-TASKS.md                # Alice's one-off tasks
+│   ├── WORK-STATUS.md                 # Alice's tracked project state
+│   ├── SESSION.md                     # Alice's session context (gitignored)
+│   └── ATOMIC-TASKS.md               # Alice's one-off tasks
 └── bob/
-    ├── CURRENT-SESSION.md             # Bob's session state
-    └── ATOMIC-TASKS.md                # Bob's one-off tasks
+    ├── WORK-STATUS.md                 # Bob's tracked project state
+    ├── SESSION.md                     # Bob's session context (gitignored)
+    └── ATOMIC-TASKS.md               # Bob's one-off tasks
 ```
 
 **Naming convention:** `team/{name}/` is the default. Nested groupings
@@ -32,10 +34,10 @@ to however you organize people.
 | Location       | Contains                         | Ownership                             |
 |----------------|----------------------------------|---------------------------------------|
 | `active/`      | Task lists, PRDs, work artifacts | Communal — shared by all team members |
-| `team/{name}/` | CURRENT-SESSION, ATOMIC-TASKS    | Personal — one member's session state |
+| `team/{name}/` | WORK-STATUS, SESSION, ATOMIC-TASKS | Personal — one member's session state |
 | `backlog/`     | ROADMAP, backlogs, TASK-INBOX    | Communal — shared by all team members |
 
-**Why the separation:** Session state (CURRENT-SESSION) is inherently per-person — two
+**Why the separation:** Session state (WORK-STATUS, SESSION) is inherently per-person — two
 developers can't share a "current task" pointer. Splitting personal state into `team/`
 eliminates file-level merge conflicts between team members' sessions while keeping shared
 work artifacts in their natural communal locations.
@@ -55,12 +57,12 @@ execution.
 
 ## Solo vs. Team Mode
 
-**Solo (default):** Session state lives in `active/CURRENT-SESSION.md` and
-`active/ATOMIC-TASKS.md`. No `team/` directory needed.
+**Solo (default):** Session state lives in `active/WORK-STATUS.md` (tracked),
+`active/SESSION.md` (gitignored), and `active/ATOMIC-TASKS.md`. No `team/` directory needed.
 
 **Team:** Each member's session state moves to `team/{name}/`. The `active/` directory
 continues to hold communal work artifacts (task lists, PRDs). Solo session files
-(`active/CURRENT-SESSION.md`, `active/ATOMIC-TASKS.md`) are no longer used.
+(`active/WORK-STATUS.md`, `active/SESSION.md`, `active/ATOMIC-TASKS.md`) are no longer used.
 
 **Transition:** Migration from solo to team mode is handled by the CLI. See
 `plan-distribution-and-update-system.md` for implementation notes.
@@ -69,16 +71,18 @@ continues to hold communal work artifacts (task lists, PRDs). Solo session files
 
 Agents find their session state via a predictable path:
 
-- **Solo mode:** `active/CURRENT-SESSION.md`
-- **Team mode:** `team/{name}/CURRENT-SESSION.md` — the member name is established
-  at session start (configured in the agent's environment or provided by the developer)
+- **Solo mode:** `active/WORK-STATUS.md` + `active/SESSION.md`
+- **Team mode:** `team/{name}/WORK-STATUS.md` + `team/{name}/SESSION.md` — the member name
+  is established at session start (configured in the agent's environment or provided by the
+  developer)
 
-Session initialization (`session-init.md`) references CURRENT-SESSION.md by path.
-In team mode, the path simply changes from `active/` to `team/{name}/`.
+Session initialization (`session-init.md`) references WORK-STATUS.md and SESSION.md by path.
+In team mode, the paths simply change from `active/` to `team/{name}/`.
 
 ## Templates
 
 The `.template.md` files in this directory are copy sources — CLI copies them into
-`team/{name}/` when adding a member, renaming by removing `.template`. Agents don't
-interact with the templates directly; they work with the instantiated copies in member
+`team/{name}/` when adding a member, renaming by removing `.template`. SESSION.md has no
+template (it's gitignored and free-form, created by the session handoff workflow). Agents
+don't interact with the templates directly; they work with the instantiated copies in member
 directories.
