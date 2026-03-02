@@ -144,7 +144,7 @@ This document provides project-specific rules and standards. See related documen
 
 [quick-ref]: ../QUICK-REFERENCE.md
 [session-init]: ../../system/workflows/arc/supplemental/session-init.md
-[dev-methodology]: ../../../.arc/reference/strategies/arc/strategy-development-methodology.md
+[dev-methodology]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
 [quality-gates]: ../../../.arc/reference/strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../../../.arc/reference/strategies/arc/strategy-adr-methodology.md
 [process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

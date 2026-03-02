@@ -19,7 +19,7 @@ description: Commit current repository changes with atomic boundaries. Use when 
 3. Execute the chosen workflow.
 
    - For simple path: stage only files for one logical change and commit using the format
-     in `strategy-development-methodology.md` section "Commit Message Format".
+     in `DEV-RULES.ARC.md` section "Commit format".
    - For complex path: follow
      `.arc/system/workflows/arc/supplemental/atomic-commit.md` to analyze and split
      changes into atomic commits.

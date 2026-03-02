@@ -54,12 +54,11 @@ more value in having complete context upfront than discovering missing rules mid
 
 **Constitutional and process context:**
 
-3. `.arc/reference/constitution/DEVELOPMENT-RULES.md` - **MUST READ IN FULL**
-   - Quality gates, testing requirements, code quality principles, and project-specific rules
+3. `.arc/reference/constitution/DEV-RULES.ARC.md` - **MUST READ IN FULL**
+   - Framework development methodology: commit standards, verification, session/task management
 
-4. `.arc/reference/strategies/arc/strategy-development-methodology.md` - **MUST READ IN FULL**
-   - Commit standards, verification protocol, session management, task management, and all
-     behavioral constraints (extracted from DEVELOPMENT-RULES for framework/project separation)
+4. `.arc/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
+   - Project quality gates, testing requirements, code quality, and architecture rules
 
 5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
    - Index of codified strategy guidance; establishes what domain-specific patterns exist
@@ -78,18 +77,19 @@ more value in having complete context upfront than discovering missing rules mid
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
 9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
-   - Path referenced in CURRENT-SESSION.md
-   - Example: `.arc/active/feature/tasks-[work-unit-name].md`
-   - **Reading strategy**:
-     - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
-     - **ALWAYS read**: Current task section identified in CURRENT-SESSION.md (the specific task being worked on)
-       - **Use line number**: CURRENT-SESSION "Current Task" field includes line number (e.g., "Task 5.5 (line 1903)")
-       - **Direct jump**: Use Read tool with offset parameter to jump directly to that task
-       - **No scanning needed**: Line number enables precise navigation
-     - **Read on-demand**: Other phases and tasks as needed during work
-   - **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
+
+- Path referenced in CURRENT-SESSION.md
+- Example: `.arc/active/feature/tasks-[work-unit-name].md`
+- **Reading strategy**:
+    - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
+    - **ALWAYS read**: Current task section identified in CURRENT-SESSION.md (the specific task being worked on)
+        - **Use line number**: CURRENT-SESSION "Current Task" field includes line number (e.g., "Task 5.5 (line 1903)")
+        - **Direct jump**: Use Read tool with offset parameter to jump directly to that task
+        - **No scanning needed**: Line number enables precise navigation
+    - **Read on-demand**: Other phases and tasks as needed during work
+- **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
      large to internalize upfront. But you MUST read the overview + current task context.
-   - **What to extract**: Current phase, task details, acceptance criteria
+- **What to extract**: Current phase, task details, acceptance criteria
 
 ### 3. Confirm Orientation
 

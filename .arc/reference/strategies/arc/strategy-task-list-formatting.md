@@ -498,7 +498,7 @@ use separate phases per layer with test-first ordering in each, plus a cross-lay
 ```
 
 Tests written after implementation are harder, less effective, and violate the
-[Development Methodology Strategy](strategy-development-methodology.md) Test-First Protocol.
+[DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) § Test-first assessment.
 
 ---
 
@@ -800,7 +800,7 @@ should map to a verifiable criterion. These checkboxes are checked during the
 
 ## References
 
-- [Development Methodology Strategy](strategy-development-methodology.md) - Test-First Protocol
+- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) - Test-first assessment
 - [2_generate-tasks.md][generate-tasks] - Planned work task generation
 - [manage-incidental-work.md][manage-incidental] - Incidental work lifecycle
 - [3_process-task-loop.md][process-task-loop] - Task execution workflow

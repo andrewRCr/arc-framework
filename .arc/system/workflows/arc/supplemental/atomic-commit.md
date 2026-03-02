@@ -4,7 +4,7 @@
 
 **Purpose:** Guide for commit scenarios that need more than staging and committing. For straightforward
 commits (single task, clear scope), the commit format in
-[Development Methodology Strategy][dev-methodology] and git hook
+[DEV-RULES.ARC][dev-rules-arc] § Commit format and git hook
 validation are sufficient — you don't need this workflow.
 
 ## When to Use This Workflow
@@ -22,7 +22,7 @@ For simple, single-concern commits where you know what changed:
 1. `git status` — review pending changes
 2. `git --no-pager diff --stat` — overview of scope
 3. Stage files for one logical change
-4. Commit using the format from strategy-development-methodology.md (loaded at session init)
+4. Commit using the format from DEV-RULES.ARC.md § Commit format (loaded at session init)
 5. Git hooks validate automatically
 
 ## Atomicity Guide
@@ -111,7 +111,7 @@ Separate changes into atomic commits using the [groupings above](#atomicity-guid
 
 ### 6. Execute and Verify
 
-Stage and commit each group using the format from strategy-development-methodology.md. After all commits:
+Stage and commit each group using the format from DEV-RULES.ARC.md § Commit format. After all commits:
 
 ```bash
 git log --oneline -10    # Review commit messages
@@ -130,6 +130,6 @@ git status               # Verify clean state
 
 ---
 
-[dev-methodology]: ../../../../reference/strategies/arc/strategy-development-methodology.md
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [manage-incidental]: manage-incidental-work.md

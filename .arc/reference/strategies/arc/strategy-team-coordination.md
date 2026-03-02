@@ -198,5 +198,5 @@ them if they're useful, skip them if they'd drift from the tracker.
 ---
 
 [work-org]: strategy-work-organization.md
-[dev-methodology]: strategy-development-methodology.md
+[dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md

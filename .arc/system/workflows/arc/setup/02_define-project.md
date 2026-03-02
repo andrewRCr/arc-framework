@@ -48,19 +48,19 @@ project.
 - What are the critical performance requirements?
 - What security and reliability standards must be met?
 
-### Step 3: Define DEVELOPMENT-RULES
+### Step 3: Define DEV-RULES.PROJECT
 
 Your project's quality standards and development protocols — the rules specific to your
 codebase, tech stack, and team.
 
-**Template**: [DEVELOPMENT-RULES.template.md][dev-rules-template]
+**Template**: [DEV-RULES.PROJECT.md][dev-rules-template]
 
 **Note on scope:** ARC already provides framework-level development methodology — commit
 standards, session management, verification protocols, task execution rules — via
-[strategy-development-methodology.md][dev-methodology]. This is loaded automatically each
-session and applies universally across ARC projects. Your DEVELOPMENT-RULES complements
-this with project-specific content: quality gate commands for your tech stack, testing
-requirements, architecture rules, and any project-specific protocols.
+[DEV-RULES.ARC.md][dev-rules-arc]. This is loaded automatically each session and applies
+universally across ARC projects. Your DEV-RULES.PROJECT complements this with
+project-specific content: quality gate commands for your tech stack, testing requirements,
+architecture rules, and any project-specific protocols.
 
 **Think through**:
 
@@ -98,7 +98,7 @@ against the roadmap.
 - How often should status be reviewed and updated?
 
 During project setup, these templates become your project documents (dropping the `.template`
-suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RULES) go in
+suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJECT) go in
 `reference/constitution/`. ROADMAP goes in `backlog/`. PROJECT-STATUS goes in
 `reference/constitution/` alongside the other constitutional documents.
 
@@ -111,7 +111,7 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RUL
 **Update the relevant document when circumstances change:**
 
 - **Technology changes**: Update TECHNICAL-OVERVIEW.md
-- **Contributor or process changes**: Review and update DEVELOPMENT-RULES.md
+- **Contributor or process changes**: Review and update DEV-RULES.PROJECT.md
 - **Direction changes**: Revise META-PRD.md direction and success criteria
 - **Sequencing shifts**: Update ROADMAP.md phases and dependencies
 - **Performance issues**: Update architecture and development standards
@@ -122,7 +122,7 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RUL
 
 - **META-PRD**: Does the stated direction still match reality? Are success metrics still relevant?
 - **TECHNICAL-OVERVIEW**: Do documented patterns reflect current practice? Any new constraints?
-- **DEVELOPMENT-RULES**: Are quality gates catching real issues? Any standards that aren't working?
+- **DEV-RULES.PROJECT**: Are quality gates catching real issues? Any standards that aren't working?
 - **ROADMAP**: Is the sequencing still correct? Any completed phases to archive?
 - **PROJECT-STATUS**: Are milestones current? Does it accurately reflect project state?
 
@@ -131,7 +131,7 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RUL
 [init-arc]: 01_initialize-arc.md
 [meta-prd-template]: ../../../../reference/constitution/META-PRD.template.md
 [tech-overview-template]: ../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md
-[dev-rules-template]: ../../../../reference/constitution/DEVELOPMENT-RULES.template.md
-[dev-methodology]: ../../../../reference/strategies/arc/strategy-development-methodology.md
+[dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [roadmap-template]: ../../../../backlog/ROADMAP.template.md
 [project-status-template]: ../../../../reference/constitution/PROJECT-STATUS.template.md

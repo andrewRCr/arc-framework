@@ -208,7 +208,7 @@ fi
 # ============================================================================
 # CHECK 8: No meta-project references in production code
 # ============================================================================
-# Per strategy-development-methodology.md Code Documentation Standards:
+# Per DEV-RULES.ARC.md § Documentation Boundaries:
 # Never reference task IDs, phase numbers, or .arc/ documentation in production code
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
@@ -228,7 +228,7 @@ if [ -n "$meta_project_refs" ]; then
     echo -e "${RED}Error: Meta-project references found in production code:${NC}"
     echo "$meta_project_refs"
     echo ""
-    echo "   Per strategy-development-methodology.md: Code must be self-documenting without task/phase references"
+    echo "   Per DEV-RULES.ARC.md: Code must be self-documenting without task/phase references"
     echo "   Replace with descriptive comments explaining 'what' and 'why' independently"
     errors=$((errors + 1))
 fi

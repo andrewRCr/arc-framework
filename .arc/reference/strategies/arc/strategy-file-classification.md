@@ -27,7 +27,7 @@ Framework structure combined with project-specific content. Contains both ARC me
 (sections, rules, processing guidance) and user content (project stack, quality gate commands,
 custom sections). Clean section-level separation in most files.
 
-**Examples:** DEVELOPMENT-RULES, AGENTS, CLAUDE, QUICK-REFERENCE, STRATEGY-INDEX.
+**Examples:** DEV-RULES.PROJECT, AGENTS, CLAUDE, QUICK-REFERENCE, STRATEGY-INDEX.
 
 **Update behavior:** Three-way merge. Conflicts expected in project-specific sections — CLI
 highlights for user resolution. Framework sections auto-merge cleanly when separation is
@@ -111,7 +111,8 @@ All paths relative to `.arc/`.
 
 | File                             | Classification | Notes                                                            |
 |----------------------------------|----------------|------------------------------------------------------------------|
-| `DEVELOPMENT-RULES.template.md`  | Configurable   | Project quality gates, testing requirements, architecture rules. |
+| `DEV-RULES.ARC.md`               | Framework      | ARC development methodology (commit, verification, session/task rules). |
+| `DEV-RULES.PROJECT.md`           | Configurable   | Project quality gates, testing requirements, architecture rules.        |
 | `META-PRD.template.md`           | Scaffolded     | All content replaced by user.                                    |
 | `PROJECT-STATUS.template.md`     | Scaffolded     | All content replaced by user.                                    |
 | `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | All content replaced by user.                                    |
@@ -130,7 +131,6 @@ All paths relative to `.arc/`.
 | `STRATEGY-INDEX.md`                       | Configurable   | ARC strategies section + project strategies section. |
 | `arc/strategy-adr-methodology.md`         | Framework      | ARC methodology.                                     |
 | `arc/strategy-backlog-organization.md`    | Framework      | ARC methodology.                                     |
-| `arc/strategy-development-methodology.md` | Framework      | ARC methodology.                                     |
 | `arc/strategy-file-classification.md`     | Framework      | ARC methodology (this document).                     |
 | `arc/strategy-quality-gates.md`           | Framework      | ARC methodology.                                     |
 | `arc/strategy-task-list-formatting.md`    | Framework      | ARC methodology.                                     |
@@ -210,4 +210,4 @@ All paths relative to `.arc/`.
 ## Related Documentation
 
 - [Work Organization Strategy](strategy-work-organization.md) — Directory structure, work categories
-- [DEVELOPMENT-RULES](../../constitution/DEVELOPMENT-RULES.md) — Project quality standards
+- [DEV-RULES.PROJECT](../../constitution/DEV-RULES.PROJECT.md) — Project quality standards

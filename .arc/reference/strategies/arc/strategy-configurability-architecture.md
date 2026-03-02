@@ -605,6 +605,6 @@ essentials experience demonstrated the conventions in practice before enforcemen
 ---
 
 [core-philosophy]: strategy-core-philosophy.md
-[dev-methodology]: strategy-development-methodology.md
+[dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md

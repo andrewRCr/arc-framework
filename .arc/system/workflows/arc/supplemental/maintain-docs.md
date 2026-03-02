@@ -19,11 +19,11 @@ When constitutional documents change, update related files to keep documentation
 
 **Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
 
-### DEVELOPMENT-RULES.md Changes
+### DEV-RULES.PROJECT.md Changes
 
 **Update these files:**
 
-- Version number in DEVELOPMENT-RULES.md header (increment version, update hash)
+- Version number in DEV-RULES.PROJECT.md header (increment version, update hash)
 - All `agent/*.md` files - If protocols or quality standards change
 - Team communication about rule changes (if applicable)
 
@@ -82,7 +82,7 @@ When updating `agent/` docs:
 
 ### Version Tracking for Project Rules
 
-**DEVELOPMENT-RULES.md version header:**
+**DEV-RULES.PROJECT.md version header:**
 
 - Increment version when project rules change substantively
 - Update hash (short hex string for quick identity check)
@@ -128,8 +128,8 @@ framework version — use any versioning scheme that works for your team.
 
 - `AGENTS.md` - Project context and lookup guide
 - `CURRENT-SESSION.md` - Active work state
-- `DEVELOPMENT-RULES.md` - Quality gates and project-specific rules
-- `strategy-development-methodology.md` - Commit standards, verification, task protocols
+- `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
+- `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules
 - `3_process-task-loop.md` - Task execution workflow
 - `QUICK-REFERENCE.md` - Commands and environment
 

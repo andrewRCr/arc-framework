@@ -100,7 +100,7 @@ It ensures consistent execution, quality control, and documentation of work.
      splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
      list tracking updates (when they can stand alone), multiple completed tasks that touched
      independent areas. When in doubt, smaller commits are better — split and ask. See
-     [Commit Standards][dev-methodology] for the full atomicity principle.
+     [Commit Discipline][dev-rules-arc] for the full atomicity principle.
 
 ## Verification Phase
 
@@ -183,5 +183,5 @@ See [Incidental Work Management](#incidental-work-management) above.
 
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
-[dev-methodology]: ../../../reference/strategies/arc/strategy-development-methodology.md
+[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [rotate-branch]: supplemental/rotate-branch.md

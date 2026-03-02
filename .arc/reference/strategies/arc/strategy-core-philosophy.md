@@ -447,4 +447,4 @@ To be explicit about boundaries:
 ---
 
 [config-arch]: strategy-configurability-architecture.md
-[dev-methodology]: strategy-development-methodology.md
+[dev-methodology]: ../../constitution/DEV-RULES.ARC.md
