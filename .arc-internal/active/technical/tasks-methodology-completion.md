@@ -147,51 +147,115 @@ session-init — the structural heart of WU2.
 
     **Goal:** Extract always-applicable behavioral rules into a new framework-owned document.
 
-    - [ ] **3.1.a Extract rules from `strategy-development-methodology.md`**
-        - New file: `.arc/reference/constitution/DEV-RULES.ARC.md`
-        - Two visible categories: non-negotiable (principle-backed, P1-P11) and strong defaults
-          (convention-level, inline method-override pointer to `arc-methods.md`)
-        - Target ~15-20 distinct instructions
-        - Filter each rule against P1-P11 traceability during extraction
+    - [x] **3.1.a Extract rules from `strategy-development-methodology.md`**
 
-    - [ ] **3.1.b Add Tier 2a triggers**
-        - "Before starting task execution, load the process-task-loop workflow"
-        - "Before complex commits, load the atomic-commit workflow"
-        - "For detailed format specs, consult strategy-dev-methodology" (if surviving — see 3.3)
-        - Additional triggers as content dictates
+        Created `.arc/reference/constitution/DEV-RULES.ARC.md` (253 lines, Framework
+        classification). 15 distinct instructions across 5 domain sections + 1 trigger section.
+        Key design decisions made during implementation:
 
-- [ ] **3.2 Rename and slim `DEVELOPMENT-RULES.md` to `DEV-RULES.PROJECT.md`**
+        - Grouped by domain (Commit Discipline, Task Execution, Session Management, Verification
+          and Discovery, Documentation Boundaries), not by flexibility level
+        - `[configurable]` tag in headings for conventions with config/method override mechanisms;
+          all other rules stated without tag
+        - Configurable sections contain the **rule** and **pointer** only — not the default
+          implementation. Defaults live in `arc-methods.md` where the override mechanism can
+          replace them, preventing staleness when overrides are active
+        - Documentation style conventions (collaborative voice, reference-style links) moved to
+          DEV-RULES.PROJECT scope — they're project-level, overridden by editing the file
+        - "No meta-project references in code" and "task references in .arc/ docs" stay in ARC
+          as methodology boundary rules (P9), not style
+        - strategy-development-methodology.md will be removed (decision: redistribute, not keep)
+        - `arc-methods.md` must be scaffolded with `#commit-format`, `#commit-context-format`,
+          `#leave-it-cleaner`, `#test-first` sections containing the full defaults that were
+          extracted from this doc
 
-    - [ ] **3.2.a Rename and restructure**
-        - New path: `.arc/reference/constitution/DEV-RULES.PROJECT.md`
-        - Remove ARC methodology content (now in DEV-RULES.ARC)
-        - Retain: quality gates, testing requirements, file organization, architecture docs
+    - [x] **3.1.b Add Tier 2a triggers**
+        - Verified "When to Load Additional Guidance" section: 4 triggers cover on-demand loading
+          (process-task-loop, atomic-commit, STRATEGY-INDEX, quality-gates). Session-handoff,
+          rotate-branch, and blanket arc-methods.md considered and excluded (lifecycle workflow,
+          discoverable via process-task-loop, and inline pointers more precise, respectively)
+        - Flagged for 3.2: "Re-check core documents" subsection says "DEV-RULES" generically —
+          needs post-split refinement to distinguish ARC vs PROJECT re-check triggers
 
-    - [ ] **3.2.b Update all references to `DEVELOPMENT-RULES.md`**
-        - Search codebase for all references
-        - Update: session-init, CLAUDE.md, AGENTS.md, QUICK-REFERENCE, strategy docs
-        - Update `.arc/` template equivalents
+- [x] **3.2 Rename and slim `DEVELOPMENT-RULES.md` to `DEV-RULES.PROJECT.md`**
 
-- [ ] **3.3 Evaluate and restructure `strategy-development-methodology.md`**
+    - [x] **3.2.a Rename and restructure**
+        - Created `.arc/reference/constitution/DEV-RULES.PROJECT.md` (131 lines, zero lint errors)
+        - Removed: commit standards, methodology content (now in DEV-RULES.ARC)
+        - Retained: quality gates, testing requirements, code quality principles, file organization,
+          architecture documentation / ADRs
+        - Added Documentation Standards section: markdown quality (line length, linting) and
+          documentation style (collaborative voice, reference-style links) as ARC defaults
+        - Quality gate entries use generic examples with HTML comment guidance for customization
+        - Header references DEV-RULES.ARC for methodology rules
+        - Old `DEVELOPMENT-RULES.template.md` and `.arc-internal/` instance become obsolete (3.2.b)
 
-    **Goal:** Determine whether residual content justifies a standalone document after
-    DEV-RULES.ARC extraction.
+    - [x] **3.2.b Update all references to `DEVELOPMENT-RULES.md`**
+        - Deleted `.arc/reference/constitution/DEVELOPMENT-RULES.template.md` (replaced by DEV-RULES.PROJECT.md)
+        - Kept `.arc-internal/reference/constitution/DEVELOPMENT-RULES.md` alive (internal split deferred
+          until Phase 3 core restructure completes)
+        - Updated 28 files across public `.arc/`, internal `.arc-internal/`, and root-level docs:
+            - **Public agent templates**: CLAUDE, GEMINI, WARP, copilot-instructions, README — split
+            reference into DEV-RULES.ARC + DEV-RULES.PROJECT
+            - **Public workflows**: session-init (renumbered 3→10 for new split), 02_define-project,
+            maintain-docs, maintain-task-notes
+            - **Public strategies**: file-classification (inventory + counts updated), quality-gates,
+            work-organization
+            - **Public reference**: QUICK-REFERENCE.template.md
+            - **Internal agent files** (transitional): added DEV-RULES.ARC reference, relabeled
+            DEVELOPMENT-RULES as "Project quality standards" — CLAUDE, GEMINI, CODEX, WARP, copilot
+            - **Internal docs**: session-init, QUICK-REFERENCE, README, TECHNICAL-OVERVIEW (directory
+            trees), META-PRD
+            - **Root**: README.md, README-ASPIRATIONAL.md, ADOPTION.md
+            - **Other**: research-context-loading.md, documentation-reviewer agent, WU3/WU4 plan docs
+        - Skipped: archive files (historical), strategy-development-methodology.md (3.3.b scope),
+          PROJECT-STATUS.md milestone entries (historical), ADR-002 (immutable), task list/PRD
+          (self-referential)
+        - Zero lint errors after all changes
 
-    - [ ] **3.3.a Remove content extracted to DEV-RULES.ARC**
-        - Commit control, verification protocol, session documentation control, task management
-          protocol, strategy document protocol, core document reference protocol
+- [x] **3.3 Remove `strategy-development-methodology.md`**
 
-    - [ ] **3.3.b Evaluate remaining content for survival**
-        - Assess residual: commit format details, test-first tree, code documentation standards,
-          session context management, quality gate failure protocol, leave-it-cleaner protocol
-        - Consider discoverability and configurability — can adopters opt out of this guidance?
-        - Decide: keep as Tier 2a doc, redistribute to other homes, or combination
+    **Decision (made during 3.1.a):** Redistribute, not keep. After DEV-RULES.ARC extraction,
+    the only substantive residual is configurable default content (commit format spec, footer
+    patterns, leave-it-cleaner triage tree, test-first decision tree). These defaults belong
+    in `arc-methods.md` where the override mechanism can replace them — not in a standalone
+    strategy doc. A strategy with ~60 lines of reference content doesn't justify its Tier 1/2a
+    loading cost.
 
-    - [ ] **3.3.c Execute decision and document rationale**
-        - If keeping: add Context Loading Architecture section (tier model, evidence confidence,
-          instruction budget, maintenance practice), mark as Tier 2a
-        - If redistributing: move content to appropriate homes, remove file, update references
-        - Record decision in commit message
+    - [x] **3.3.a Scaffold `arc-methods.md` with extracted defaults**
+        - Created `.arc/system/workflows/arc-methods.md` (190 lines, zero lint errors)
+        - 7 methods using ADR-005 structure (Workflow/When/Contract/Default/Project Override):
+          `#commit-format`, `#commit-context-format`, `#leave-it-cleaner`, `#test-first`,
+          `#task-completion`, `#session-state`, `#quality-gate-commands`
+        - Defaults extracted from strategy-development-methodology.md (commit format spec,
+          footer patterns, severity triage tree, test-first decision tree)
+        - `#session-state` uses current CURRENT-SESSION.md naming — updates with 3.4
+        - `#quality-gate-commands` default points to DEV-RULES.PROJECT § Quality Gates
+          (inherently project-specific, no universal ARC default command set)
+        - No `.arc-internal/` references (public doc boundary respected)
+
+    - [x] **3.3.b Remove `strategy-development-methodology.md`**
+        - Deleted `.arc/reference/strategies/arc/strategy-development-methodology.md`
+        - Removed entry from STRATEGY-INDEX.md and strategy-file-classification.md inventory
+          (counts: Framework 38, total 60 — net zero after 3.2.b added DEV-RULES.ARC)
+        - Updated 22 cross-references across the codebase, redirecting to appropriate targets:
+            - **Commit format** refs → `DEV-RULES.ARC.md` § Commit format (atomic-commit.md,
+              archive-completed.md, githooks/README.md, agent command files)
+            - **Commit standards** refs → `DEV-RULES.ARC.md` § Commit Discipline
+              (process-task-loop.md, manage-incidental-work.md)
+            - **Test-first** refs → `DEV-RULES.ARC.md` § Test-first assessment
+              (2_generate-tasks.md, strategy-task-list-formatting.md, copilot-instructions.template.md)
+            - **Session context** refs → `DEV-RULES.ARC.md` § Session Management
+              (CLAUDE.template.md, internal CLAUDE.md)
+            - **Verification** refs → `DEV-RULES.ARC.md` § Verification and Discovery
+              (AGENTS.template.md)
+            - **Quality gate failure** refs → `DEV-RULES.ARC.md` (strategy-quality-gates.md)
+            - **Documentation boundaries** refs → `DEV-RULES.ARC.md` (githooks/pre-commit)
+            - **Link defs** updated: strategy-configurability-architecture, strategy-core-philosophy,
+              strategy-team-coordination, internal DEVELOPMENT-RULES.md
+        - Session-init loading sequences renumbered (items 5→9 in both public and internal)
+        - Skipped: archive files (historical), task list/PRD (self-referential)
+        - Zero lint errors (124 files)
 
 - [ ] **3.4 Reframe session model documentation**
 
@@ -199,7 +263,7 @@ session-init — the structural heart of WU2.
       (WORK-STATUS.md + SESSION.md)
     - Session workflow docs: position as "best approach for ephemeral-context agents"
     - Add config-driven opt-out/extensibility references
-    - Touchpoints: strategy-dev-methodology (if surviving), session-init, session-handoff
+    - Touchpoints: session-init, session-handoff (strategy-dev-methodology removed in 3.3)
 
 - [ ] **3.5 Redesign session-init loading sequence**
 
