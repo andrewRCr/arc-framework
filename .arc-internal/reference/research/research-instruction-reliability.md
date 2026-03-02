@@ -82,15 +82,15 @@ does the agent need to follow simultaneously?"
 
 ### 2.1 Summary Table
 
-| Mechanism                    | Recognition | Compliance (moderate) | Compliance (high, 150+) | Context Cost | Staleness Risk |
-|------------------------------|-------------|-----------------------|-------------------------|--------------|----------------|
-| System prompt                | 100%        | 75-85%                | 40-50%                  | High         | Medium         |
-| Auto-loaded docs (CLAUDE.md) | 100%        | 75-85%                | 40-50%                  | High         | Medium-High    |
-| Tool descriptions            | 100%        | 80-90%                | 50-60%                  | Medium       | Low            |
-| Explicit triggers (user/doc) | 85-95%      | 85-95%                | 50-70%                  | Low-Medium   | N/A            |
-| Skills + index (implicit)    | 60-75%      | 70-80% (if recognized) | 35-45%                 | Low          | Low            |
-| RAG/retrieval                | 50-70%      | 60-75%                | 30-50%                  | Variable     | High           |
-| Search-based discovery       | 20-40%      | Variable              | Variable                | None         | N/A            |
+| Mechanism                    | Recognition | Compliance (moderate)  | Compliance (high, 150+) | Context Cost | Staleness Risk |
+|------------------------------|-------------|------------------------|-------------------------|--------------|----------------|
+| System prompt                | 100%        | 75-85%                 | 40-50%                  | High         | Medium         |
+| Auto-loaded docs (CLAUDE.md) | 100%        | 75-85%                 | 40-50%                  | High         | Medium-High    |
+| Tool descriptions            | 100%        | 80-90%                 | 50-60%                  | Medium       | Low            |
+| Explicit triggers (user/doc) | 85-95%      | 85-95%                 | 50-70%                  | Low-Medium   | N/A            |
+| Skills + index (implicit)    | 60-75%      | 70-80% (if recognized) | 35-45%                  | Low          | Low            |
+| RAG/retrieval                | 50-70%      | 60-75%                 | 30-50%                  | Variable     | High           |
+| Search-based discovery       | 20-40%      | Variable               | Variable                | None         | N/A            |
 
 ### 2.2 Always-Present Mechanisms (System Prompt, Auto-Loaded Docs)
 

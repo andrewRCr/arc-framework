@@ -208,11 +208,11 @@ don't conflict.
 ARC documents serve different audiences — understanding this helps you know what to
 read and what to leave for your agent:
 
-| Audience           | Documents                                                         | Who reads them                                                                                                               |
-|--------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| **Agent-executed** | Session init, session handoff, WORK-STATUS + SESSION, process-task-loop | Your AI agent follows these as operational procedures. You don't need to read them in the core loop — only when customizing. |
-| **Shared context** | Constitution, strategies, ADRs, roadmap, backlogs, task lists     | Both you and your agent. Establishes the common baseline.                                                                    |
-| **Human-facing**   | This README, getting-started materials                            | You, when evaluating or setting up the framework.                                                                            |
+| Audience           | Documents                                                                 | Who reads them                                                                                                               |
+|--------------------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| **Agent-executed** | Session init, session handoff, WORK-STATUS + SESSION, process-task-loop   | Your AI agent follows these as operational procedures. You don't need to read them in the core loop — only when customizing. |
+| **Shared context** | Constitution, strategies, ADRs, roadmap, backlogs, task lists             | Both you and your agent. Establishes the common baseline.                                                                    |
+| **Human-facing**   | This README, getting-started materials                                    | You, when evaluating or setting up the framework.                                                                            |
 
 When your agent initializes each session, it reads several documents in full —
 constitution, development rules, quick reference, current session state. This is by

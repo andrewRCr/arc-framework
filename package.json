@@ -10,6 +10,6 @@
     "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs"
   },
   "devDependencies": {
-    "markdownlint-cli2": "0.18.1"
+    "markdownlint-cli2": "0.21.0"
   }
 }
