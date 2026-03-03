@@ -4,9 +4,9 @@
 framework adaptable without losing its identity. This is the companion to
 [strategy-core-philosophy.md][core-philosophy], which defines what ARC is.
 
-**Scope:** Configuration settings, extension points, method overrides, adoption profiles, platform compatibility, and
-the full convention inventory. For ARC's principles, philosophical foundation, and positioning, see the [core philosophy
-strategy][core-philosophy].
+**Scope:** Configuration settings, extension points, method overrides, adoption profiles, framework layers, platform
+compatibility, and the full convention inventory. For ARC's principles, philosophical foundation, and positioning, see
+the [core philosophy strategy][core-philosophy].
 
 ---
 
@@ -81,7 +81,7 @@ box) and a configurability path (how teams adapt it).
 | Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
 | Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
-| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state (ADR-007)    | Method override — substitute session mechanism       |
+| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state              | Method override — substitute session mechanism       |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
 
 #### Design commitment conventions
@@ -178,21 +178,33 @@ Post-init guidance covers the full system with appropriate progressive depth.
 **Custom** — Interactive selection of individual settings. Each setting is presented with its purpose, default, and
 alternatives. The adopter builds their own configuration by choosing values for each configurable convention.
 
-### Two-axis adoption model
+### Adoption flexibility model
 
-Profiles address one axis of adoption flexibility: **enforcement depth** — how strictly ARC's conventions are enforced.
-A second axis is necessary for complete flexibility: **method customization** — whether the team uses ARC's default
-methods or substitutes their own.
+Adoption flexibility has three independent axes:
 
-Three adopter postures exist:
+| Axis                 | What varies                    | Mechanism                      |
+|----------------------|--------------------------------|--------------------------------|
+| Enforcement depth    | How strictly conventions apply | Config values (arc-config.yml) |
+| Method customization | ARC defaults vs. team methods  | Overrides (arc-methods.md)     |
+| Functionality scope  | What features are installed    | Layer selection (pm.mode)      |
+
+**Enforcement depth** is what profiles address — three postures:
 
 1. "I don't care about format" → `commit.format: any`, agent produces quality output. **Profiles handle this.**
 2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce. **Profiles handle this.**
 3. "I want something _different_ enforced" → No mechanism in profiles alone. **Method overrides needed.**
 
-The two axes are independent. A team can use the recommended profile with selective method overrides (full ARC
-enforcement, Jira for task tracking). Or essentials with no overrides (relaxed enforcement, ARC defaults where active).
-The full customization space is the product of both axes.
+**Method customization** substitutes how ARC does things — a team using Jira for task tracking replaces the
+task-completion method. Independent of enforcement depth.
+
+**Functionality scope** controls what's installed. ARC decomposes into Core (always present) and optional PM layers:
+Solo PM (in-git project management for solo developers) or Team PM (team conventions and external tracker integration).
+Core contains the complete methodology engine — session management, task execution, commit discipline, specification
+workflows, branch management, and configuration infrastructure. PM layers are independent of each other and of the
+other two axes.
+
+All three axes are independent and composable. An Essentials adopter can be Core-only or Core + Solo PM. A Recommended
+team can use Core + Team PM with Jira method overrides. The full customization space is the product of all three axes.
 
 ### Scaling up and down
 
@@ -207,6 +219,11 @@ grows comfortable with conventions the agent has been demonstrating and decides 
 
 **Adding method overrides:** Independent of profile changes. A recommended-profile team that adopts Jira can add a
 task-completion-tracking method override without changing their enforcement profile.
+
+**Adding or removing PM layers:** Independent of enforcement and method changes. A Core-only user who wants in-git
+project management adds Solo PM via `arc init --reconfigure`. A team switching from Solo PM to Team PM reconfigures
+without affecting their enforcement profile or method overrides. Layer changes are structural choices made at init time;
+enforcement profiles and method overrides can change at any time.
 
 ---
 
@@ -233,6 +250,7 @@ merge.strategy: merge
 hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 platform.type: github
+pm.mode: solo
 ```
 
 **Why dotted keys:** Logical grouping (`branch.*`, `commit.*`) improves readability as settings grow, while preserving
@@ -552,6 +570,8 @@ tracking — the method override handles either pattern.
 
 **Profile:** Recommended (full enforcement, custom methods).
 
+**Layer:** Core + Team PM, or Core-only if the team's external tools fully replace in-git project management.
+
 ### Scenario B: Factory-style agent (bookend pattern)
 
 A team uses ARC for planning and integration but delegates bounded, well-specified execution to an async agent (Codex
@@ -596,9 +616,6 @@ essentials experience demonstrated the conventions in practice before enforcemen
 
 - **[Core philosophy strategy][core-philosophy]** — The companion to this document. Defines what ARC is: principles,
   philosophical foundation, positioning. This document defines how teams customize it.
-- **ADRs (`.arc-internal/reference/adr/`)** — The immutable decision records behind this strategy. ADR-003 (config +
-  extensions), ADR-004 (adoption tiers), ADR-005 (external compat + method overrides), and ADR-006 (methodology
-  compatibility) document the analysis, alternatives considered, and consequences for each design decision.
 - **[Development methodology strategy][dev-methodology]** — Operational rules for how work happens (commit standards,
   session management, task protocols). The conventions that this document's configuration system makes adjustable are
   defined and described there.

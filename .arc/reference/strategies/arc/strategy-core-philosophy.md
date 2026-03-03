@@ -437,9 +437,6 @@ To be explicit about boundaries:
 - **[Configurability architecture strategy][config-arch]** — The companion to this document. Covers
   config settings, extension points, method overrides, adoption profiles, and the full convention
   inventory. This document defines *what ARC is*; that document defines *how teams customize it*.
-- **ADRs (`.arc-internal/reference/adr/`)** — The immutable decision records behind this strategy.
-  ADR-001 through ADR-006 document the analysis, alternatives considered, and consequences for each
-  design decision. This strategy synthesizes those decisions into living guidance.
 - **[Development methodology strategy][dev-methodology]** — Operational rules for how work happens
   (commit standards, session management, task protocols). Complements this document's philosophical
   grounding with practical workflow constraints.

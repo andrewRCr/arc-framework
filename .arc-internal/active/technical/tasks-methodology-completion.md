@@ -547,20 +547,13 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
 **Strategies:** `strategy-configurability-architecture.md`
 
-- [ ] **5.0 Update `strategy-configurability-architecture.md` for ADR-008 layer model**
+- [x] **5.0 Update `strategy-configurability-architecture.md` for ADR-008 layer model**
 
-    **Goal:** Align the Phase 5 reference strategy doc with ADR-008 before building
-    infrastructure against it.
-
-    - § Two-axis adoption model → three-axis: add functionality scope (Core / Solo PM /
-      Team PM) as the layer selection axis alongside enforcement depth and method
-      customization
-    - § Adoption Profiles: note that profiles apply within installed layers
-    - § Configuration: add `pm.mode` to settings discussion and design examples
-    - § Profile definitions: add layer interaction context (e.g., Essentials + Core-only
-      vs. Recommended + Core + Solo PM)
-    - § Relationship to Other Documentation: add ADR-008 reference
-    - § Validation Scenarios: evaluate whether any scenario needs layer awareness
+    Updated strategy doc with three-axis adoption flexibility model (enforcement depth,
+    method customization, functionality scope), Core/PM layer descriptions, `pm.mode` in
+    config example, PM layer scaling paragraph, Scenario A layer note. Also cleaned all
+    internal references (ADR numbers, `.arc-internal/` paths) — strategy is adopter-facing
+    and must stand on its own without internal provenance.
 
 - [ ] **5.1 Expand `arc-config.yml` settings**
 
