@@ -41,6 +41,9 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
   `git diff <file>` — other tasks may have uncommitted work in the same file
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit
+- **Work status accuracy:** When committing completed task work, advance WORK-STATUS.md — update
+  Current Task, Last Completed, and Next Action to reflect the post-commit state. Stage alongside
+  the task list. Session handoff catches missed updates as a fallback, but commit-time is primary.
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the

@@ -210,6 +210,32 @@ if echo "$commit_msg" | grep -qE 'Related to:.*PRD'; then
 fi
 
 # ============================================================================
+# RULE 7: WORK-STATUS.md freshness (task not advanced)
+# ============================================================================
+# When committing a completed parent task (Context: "Task X.Y"), verify that
+# staged WORK-STATUS.md has been advanced past that task.
+# Only checks parent-level tasks (X.Y) — subtask commits (X.Y.z) don't
+# advance Current Task, so no warning needed.
+context_for_ws=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
+committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
+
+if [ -n "$committed_task_num" ]; then
+    ws_file=$(git diff --cached --name-only | grep -E '^\.(arc|arc-internal)/active/WORK-STATUS\.md$' | head -1 || true)
+    if [ -n "$ws_file" ]; then
+        ws_current_num=$(git show ":$ws_file" 2>/dev/null | \
+            grep -E '^\*\*Current Task\*\*' | \
+            grep -oE 'Task [0-9]+\.[0-9]+' | head -1 | \
+            grep -oE '[0-9]+\.[0-9]+' || true)
+        if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ]; then
+            echo -e "${YELLOW}Warning: WORK-STATUS.md may not be advanced${NC}"
+            echo "   Context references Task $committed_task_num but WORK-STATUS.md still shows it as Current Task"
+            echo "   If this task is complete, advance Current Task to the next task"
+            warnings=$((warnings + 1))
+        fi
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""
