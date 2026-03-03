@@ -563,32 +563,42 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     `.arc-internal/system/arc-config.yml`. Updated pre-commit hook key references to
     match new dotted format.
 
-- [ ] **5.2 Make commit-msg hooks configurable**
+- [x] **5.2 Make commit-msg hooks configurable**
 
-    - [ ] **5.2.a Update `.arc/system/githooks/commit-msg`**
-        - Read `commit.format`: conventional (default), custom pattern, disabled
-        - Read `commit.context_footer`: required (default), recommended (warn), disabled
-        - Support custom patterns via regex settings
+    - [x] **5.2.a Update `.arc/system/githooks/commit-msg`**
 
-    - [ ] **5.2.b Update `.arc-internal/system/githooks/commit-msg`**
-        - Mirror changes from 5.2.a (paired hook update)
+        Made hook fully config-aware using `arc_config_get` (same pattern as pre-commit).
+        `commit.format` supports conventional/custom/any; `commit.context_footer` supports
+        required/recommended/custom/disabled. `context_issue()` helper switches severity
+        (error vs warning) for required/recommended. Fixed search paths to `.arc/` only
+        (public hook — adopters won't have `.arc-internal/`). RULE 7 (WORK-STATUS freshness)
+        skipped when context footer is disabled/custom. Added `custom` to
+        `commit.context_footer` valid values in arc-config.yml (aligns with existing
+        `commit.context_pattern` comment).
 
-    - [ ] **5.2.c Update merge strategy references**
-        - Remove/qualify "no squash merge" in `atomic-commit.md` and
-          `strategy-work-organization.md`
-        - Update `archive-completed.md` merge command to reference config
-        - Add prose: how ARC's value survives squash merging
+    - [x] **5.2.b Create `.arc-internal/system/githooks/commit-msg`**
 
-- [ ] **5.3 Make pre-commit hook patterns extensible**
+        Created internal copy mirroring 5.2.a with framework-specific paths: reads
+        config from `.arc-internal/system/arc-config.yml`, searches both `.arc/` and
+        `.arc-internal/` active directories for task list files and WORK-STATUS.md.
 
-    - Make debug statement patterns configurable (currently JS/Python only)
-    - Make meta-project reference file extensions configurable
-    - Add hook comments noting adopter adjustment needs
-    - Update both `.arc/` and `.arc-internal/` copies
-    - **Internal hook addition**: Add check to `.arc-internal/` pre-commit that blocks
-      `.arc-internal/` references in staged `.arc/` files (public/internal boundary
-      enforcement — see DEV-RULES.PROJECT § File Organization). Public hook doesn't
-      need this check (adopters won't have `.arc-internal/`).
+    - [x] **5.2.c Update merge strategy references**
+
+        Replaced blanket "no squash merge" with config-aware guidance across three files.
+        `atomic-commit.md`: bullet now references `merge.strategy` setting with link to
+        configurability architecture § Merge Strategy for squash implications.
+        `archive-completed.md`: merge command comment references arc-config.yml setting.
+        `strategy-work-organization.md`: added "Merge method" paragraph to Merge Strategy
+        section covering all three strategies and traceability implications.
+
+- [x] **5.3 Make pre-commit hook patterns extensible**
+
+    Updated public hook: added `hooks.pre_commit` early exit, "Adopter:" comments on
+    `debug_patterns` array and `code_extensions` variable (extracted from inline grep),
+    fixed all search paths to `.arc/` only (CHECKs 6, 7, 9). Created internal copy at
+    `.arc-internal/system/githooks/pre-commit` with `.arc-internal/` config path, dual
+    `.arc/` + `.arc-internal/` search paths, and new CHECK 10 (public/internal boundary
+    enforcement — blocks `.arc-internal/` references in staged `.arc/` files).
 
 - [ ] **5.4 Scaffold `arc-extensions.md`**
 
