@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 5.1 — Expand arc-config.yml settings (line ~544)
-**Last Completed**: Phase 4 — Session Workflow Overhaul (Tasks 4.1-4.5)
+**Current Task**: Task 5.2 — Make commit-msg hooks configurable (line ~569)
+**Last Completed**: Task 5.1 — Expand arc-config.yml settings
 **Blockers**: [none]
-**Next Action**: Start Task 5.1 — add all ADR-003 designated settings to arc-config.yml
+**Next Action**: Start Task 5.2 — make commit-msg hook read commit.format and commit.context_footer from config
 
 ---
 

@@ -39,8 +39,8 @@ arc_config_get() {
     fi
 }
 
-base_branch=$(arc_config_get "base_branch" "main")
-branch_protection=$(arc_config_get "branch_protection" "partial")
+base_branch=$(arc_config_get "branch.base" "main")
+branch_protection=$(arc_config_get "branch.protection" "partial")
 
 echo -e "${GREEN}Running pre-commit checks...${NC}"
 

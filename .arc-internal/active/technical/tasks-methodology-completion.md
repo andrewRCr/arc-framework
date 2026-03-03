@@ -555,16 +555,13 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     internal references (ADR numbers, `.arc-internal/` paths) — strategy is adopter-facing
     and must stand on its own without internal provenance.
 
-- [ ] **5.1 Expand `arc-config.yml` settings**
+- [x] **5.1 Expand `arc-config.yml` settings**
 
-    **Goal:** Add all ADR-003 designated settings with inline documentation.
-
-    - Settings: `commit.format`, `commit.context_footer`, `commit.custom_pattern`,
-      `commit.context_pattern`, `merge.strategy`, `hooks.pre_commit`, `hooks.commit_msg`,
-      `platform.type`, `pm.mode` (ADR-008: `none | solo | team`)
-    - Shell-parseable flat/shallow format
-    - Inline comments: description, valid values, default
-    - Update both `.arc/system/arc-config.yml` and `.arc-internal/system/arc-config.yml`
+    Expanded from 2 settings to 11. Migrated key format from underscores (`base_branch`)
+    to dotted grouping (`branch.base`) per strategy doc design. All settings have inline
+    comments with description, valid values, and default. Created internal copy at
+    `.arc-internal/system/arc-config.yml`. Updated pre-commit hook key references to
+    match new dotted format.
 
 - [ ] **5.2 Make commit-msg hooks configurable**
 

@@ -1,20 +1,89 @@
 # ARC Framework Configuration
 #
-# Project-level settings for ARC branching model and workflows.
+# Project-level settings for ARC conventions.
+# Only conventions (tier 2) appear here — principles (tier 1) are non-negotiable.
+#
 # Classified as Configurable — framework updates may add new settings;
 # your customizations are preserved via three-way merge.
 #
-# Format: Flat key-value pairs. Parsed by githooks using line-based
-# shell matching (grep + cut) — no nested structures.
+# Format: Flat key-value pairs with dotted grouping. Parsed by githooks using
+# line-based shell matching (grep + cut) — no nested structures.
 
-# The primary integration branch for the project.
+# --- Branch Model ---
+
+# The primary integration branch.
 # All planned work branches are created from and merged back to this branch.
-base_branch: main
+branch.base: main
 
-# Branch protection level. Determines what requires branches and PRs.
+# Branch protection level.
 #   unprotected - Branches optional. No base branch commit restrictions.
 #   partial     - Planned work requires branches. Atomic tasks and backlog
 #                 capture may commit directly to the base branch.
 #   full        - All changes require branches and PR review.
-# See strategy-work-organization.md for detailed mode descriptions.
-branch_protection: partial
+# See strategy-work-organization.md § Branch Protection Modes.
+branch.protection: partial
+
+# --- Commit Discipline ---
+
+# Commit message format enforced by commit-msg hook.
+#   conventional - type(scope): description (default)
+#   custom       - validates against commit.custom_pattern regex
+#   any          - no format validation
+commit.format: conventional
+
+# Context footer requirement enforced by commit-msg hook.
+#   required    - Context: line must be present and valid (default)
+#   recommended - warns if missing, does not block
+#   disabled    - no context footer validation
+commit.context_footer: required
+
+# Custom commit format regex (used when commit.format: custom).
+# Examples:
+#   "^\[?[A-Z]+-[0-9]+\]? .+"              — Jira prefix
+#   "^[A-Z]+-[0-9]+ (feat|fix|chore): .+"  — ticket + type
+commit.custom_pattern:
+
+# Custom context footer regex (used when commit.context_footer: custom).
+# Examples:
+#   "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"  — Jira reference
+#   "^#[0-9]+ .+"                                 — GitHub issue
+commit.context_pattern:
+
+# --- Merge Strategy ---
+
+# How branches are integrated into the base branch.
+#   merge  - Merge commits preserve branch topology (default, most traceable)
+#   rebase - Linear history, commits replayed onto base
+#   squash - Single commit per branch (traceability shifts to PR descriptions)
+# See strategy-configurability-architecture.md § Settings with behavioral implications.
+merge.strategy: merge
+
+# --- Hooks ---
+
+# Pre-commit hook.
+#   enabled  - Runs all pre-commit checks (default)
+#   disabled - Skips pre-commit validation
+hooks.pre_commit: enabled
+
+# Commit-msg hook.
+#   enabled  - Validates commit message format and context footer (default)
+#   disabled - Skips commit message validation
+hooks.commit_msg: enabled
+
+# --- Platform ---
+
+# Git hosting platform.
+# Informational — read by agent for context, not consumed by hooks.
+# Affects which CLI commands the agent suggests (gh, glab, etc.).
+# See QUICK-REFERENCE for platform-specific command alternatives.
+#   github (default) | gitlab | bitbucket | azure-devops
+platform.type: github
+
+# --- Project Management ---
+
+# PM layer selection. Controls which project management features are installed.
+#   none - Core only, no in-git project management
+#   solo - Core + Solo PM (backlogs, roadmap, PROJECT-STATUS, ATOMIC-TASKS)
+#   team - Core + Team PM (per-developer atomic tasks, external tracker integration)
+# See strategy-configurability-architecture.md § Adoption flexibility model.
+pm.mode: solo

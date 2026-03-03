@@ -1,0 +1,40 @@
+# ARC Framework Configuration (Internal — Framework Development)
+#
+# Project-level settings for ARC conventions.
+# Only conventions (tier 2) appear here — principles (tier 1) are non-negotiable.
+#
+# This is the framework's own config (self-hosting). The public template
+# is at .arc/system/arc-config.yml — keep settings aligned unless this
+# project intentionally diverges.
+#
+# Format: Flat key-value pairs with dotted grouping. Parsed by githooks using
+# line-based shell matching (grep + cut) — no nested structures.
+
+# --- Branch Model ---
+
+branch.base: main
+branch.protection: partial
+
+# --- Commit Discipline ---
+
+commit.format: conventional
+commit.context_footer: required
+commit.custom_pattern:
+commit.context_pattern:
+
+# --- Merge Strategy ---
+
+merge.strategy: merge
+
+# --- Hooks ---
+
+hooks.pre_commit: enabled
+hooks.commit_msg: enabled
+
+# --- Platform ---
+
+platform.type: github
+
+# --- Project Management ---
+
+pm.mode: solo
