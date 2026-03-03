@@ -9,11 +9,11 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 4.1 (line 443) - Handle first-session bootstrap and "no active work" state
-**Last Completed**: ADR-008 impact assessment applied to task list, PRD, and WU3 plan (committed 804d1df)
+**Current Task**: Task 4.2 (line 470) - Stabilize task references with triple-anchor format
+**Last Completed**: Task 4.1 - Bootstrap and "no active work" state (committed 8fa45d9)
 **Blockers**: [none]
-**Next Action**: Execute Task 4.1.a — update `01_initialize-arc.md` with WORK-STATUS.md scaffolding
+**Next Action**: Start Task 4.2.a — define triple-anchor format and update `session-init.md`
 
 ---
 
-**Last Updated**: 2026-03-03 (ADR-008 impact assessment complete, resuming task work)
+**Last Updated**: 2026-03-03 (Task 4.1 complete)
