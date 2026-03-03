@@ -542,9 +542,25 @@ recovery, staleness detection.
 
 ### **Phase 5:** Configuration and Customization Infrastructure
 
-**Purpose:** Build the complete customization system — config, hooks, extensions, methods.
+**Purpose:** Build the complete customization system — config, hooks, extensions, methods —
+and apply ADR-008 Core/PM decomposition to workflows using the extension point infrastructure.
 
 **Strategies:** `strategy-configurability-architecture.md`
+
+- [ ] **5.0 Update `strategy-configurability-architecture.md` for ADR-008 layer model**
+
+    **Goal:** Align the Phase 5 reference strategy doc with ADR-008 before building
+    infrastructure against it.
+
+    - § Two-axis adoption model → three-axis: add functionality scope (Core / Solo PM /
+      Team PM) as the layer selection axis alongside enforcement depth and method
+      customization
+    - § Adoption Profiles: note that profiles apply within installed layers
+    - § Configuration: add `pm.mode` to settings discussion and design examples
+    - § Profile definitions: add layer interaction context (e.g., Essentials + Core-only
+      vs. Recommended + Core + Solo PM)
+    - § Relationship to Other Documentation: add ADR-008 reference
+    - § Validation Scenarios: evaluate whether any scenario needs layer awareness
 
 - [ ] **5.1 Expand `arc-config.yml` settings**
 
@@ -656,6 +672,10 @@ recovery, staleness detection.
     - [ ] **5.8.f Update `STRATEGY-INDEX.md` for layer awareness**
         - Note `strategy-backlog-organization.md` as Solo PM layer only
         - Add brief layer annotation convention
+
+    - [ ] **5.8.g Add layer annotations to `strategy-file-classification.md`**
+        - Add Core / Solo PM / Team PM layer classification to complete file inventory
+        - Aligns with ADR-008 Part 3 artifact classification
 
 - [ ] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
 
@@ -818,11 +838,11 @@ recovery, staleness detection.
     - Evaluate: behavioral norm, hook validation, or both
     - Implement selected approach for versioned source-of-truth docs
 
-- [ ] **7.5 Expand incidental context patterns in commit-msg hook**
+- [x] **7.5 Expand incidental context patterns in commit-msg hook**
 
-    - Assess overlap with Phase 5 custom pattern support first
-    - If not covered: expand patterns or generalize regex
-    - Update both hook copies
+    Pulled forward as incidental (pre-Phase 5) — blocking commits with freeform
+    discovery contexts. Generalized regex to `(incidental - discovered during .+)`.
+    Updated commit-msg hook (regex + error messages) and arc-methods.md format spec.
 
 - [ ] **7.6 Evaluate and resolve PROJECT-STATUS location**
 
