@@ -6,6 +6,7 @@ release.
 
 **Status:** Draft
 **Created:** 2026-02-22
+**Amended:** 2026-03-03 (ADR-008 PM layer dimension)
 
 ---
 
@@ -33,6 +34,9 @@ during PRD creation. Some features described here may be post-1.0.
 - Progressive adoption tiers — if WU1 defines structural differences between tiers (different files
   installed), WU3 must implement selective install; if tiers are documentation-only, WU3 is unaffected
 - Preset/profile definitions — WU3's init UX may offer preset options; WU1 defines what presets mean
+- **ADR-008 (Core/PM decomposition)** — Framework decomposes into Core + optional PM layers
+  (Solo PM, Team PM). WU3 must implement layer-aware init, manifest, update, and reconfigure.
+  Adoption profiles (ADR-004) apply within installed layers — the two axes are orthogonal.
 
 **From WU2 (Methodology Completion):**
 
@@ -67,7 +71,7 @@ Post-init, an adopter's project looks like this:
 .arc/
   reference/          <- Project knowledge (constitution, strategies, ADRs, research)
   active/             <- Project-owned scaffolding (active task lists, WORK-STATUS)
-  backlog/            <- Project-owned scaffolding (backlog documents)
+  backlog/            <- Solo PM only: backlog documents (ROADMAP, backlogs)
   system/             <- ARC operational components (workflows, githooks, agent files, config)
   team/               <- Team mode scaffolding (optional, installed on request)
   .pristine/          <- Hidden: exact copy of framework files as installed
@@ -95,8 +99,13 @@ about expected conflicts.
 |------------------|-------------------------------------------------------|------------------------------------------|
 | **Framework**    | Workflows, ARC strategies, githooks, slash commands   | Auto-merge; conflicts if user customized |
 | **Configurable** | DEV-RULES.PROJECT, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal|
-| **Scaffolded**   | WORK-STATUS, task lists, PRDs, ATOMIC-TASKS           | Never touched by updates                 |
+| **Scaffolded**   | WORK-STATUS, task lists, PRDs                         | Never touched by updates                 |
 | **Project-Owned**| Project strategies, notes, completion docs            | Never touched; user-created content      |
+
+**Layer-conditional files (ADR-008):** Some files exist only when a PM layer is installed.
+ATOMIC-TASKS.md (Scaffolded) is Solo PM or Team PM only. BACKLOG-\*.md, ROADMAP.md,
+PROJECT-STATUS.md (Scaffolded) are Solo PM only. strategy-backlog-organization.md (Framework)
+is Solo PM only. The manifest tracks each file's layer membership alongside its classification.
 
 The manifest stores per-file classification. `arc-config.yml` is Framework-adjacent — it receives
 new settings on update but existing user values are always preserved.
@@ -182,6 +191,12 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
     - `arc-config.yml` settings: base branch, branch protection mode
     - Session state model: WORK-STATUS.md (tracked) + SESSION-NOTES.md (gitignored) per ADR-007
     - Work organization style (solo vs. team — controls whether `team/` directory is installed)
+    - **PM layer selection (ADR-008):** "Include in-git project management?" Controls which
+      PM layer is installed:
+        - Solo + yes → Core + Solo PM (backlogs, roadmap, atomic tasks, project status)
+        - Team + yes → Core + Team PM (per-developer atomic tasks, branch inbox, tracker
+          integration)
+        - Either + no → Core only (bring your own planning tools)
     - Merge strategy (informed by WU1 ADR 8)
 - **Content selection:**
     - "Include ADR workflow?" — optional files based on team practices
@@ -216,6 +231,10 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
   **Custom** — Interactive selection of individual settings with per-setting
   guidance (purpose, default, alternatives).
 
+  **Note (ADR-008):** Adoption profiles apply within whatever layers are installed. An
+  Essentials user can be Core-only or Core + Solo PM. The profile controls enforcement
+  depth; PM layer selection controls functionality scope. Both choices are independent.
+
 - **Post-init messaging differentiation:** Each profile produces different post-init
   guidance. Essentials highlights the core workflow quartet (create-prd,
   generate-tasks, process-task-loop, session-init). Recommended covers the full
@@ -245,6 +264,7 @@ Output categories:
 - **Auto-merged:** Framework changes applied cleanly
 - **Conflicts:** Adopter and framework both changed the same region — requires manual resolution
 - **Skipped:** Scaffolded and Project-Owned files (not managed by update)
+- **Layer-absent:** Files belonging to an uninstalled PM layer (not in manifest, never touched)
 - **New files:** Framework files that didn't exist in the previous version
 
 On conflict, the CLI leaves standard git conflict markers in the file and reports which files need
@@ -347,18 +367,27 @@ Tracks everything needed for the update system to function:
     "branch_protection": "partial",
     "agents": ["claude"],
     "team_mode": false,
+    "pm_layer": "solo",
     "session_tracking": "gitignored"
   },
   "files": {
     ".arc/system/workflows/arc/activate-work-unit.md": {
       "classification": "Framework",
+      "layer": "core",
       "version": "1.0.0",
       "modified": false
     },
     ".arc/system/arc-config.yml": {
       "classification": "Configurable",
+      "layer": "core",
       "version": "1.0.0",
       "modified": true
+    },
+    ".arc/reference/strategies/arc/strategy-backlog-organization.md": {
+      "classification": "Framework",
+      "layer": "solo-pm",
+      "version": "1.0.0",
+      "modified": false
     }
   }
 }
@@ -366,12 +395,15 @@ Tracks everything needed for the update system to function:
 
 The `install_config` section records the adopter's init choices. This is used by `update` to handle
 conditional content and by `arc init --reconfigure` to offer re-running init with different choices.
+The `pm_layer` field (`"none"`, `"solo"`, or `"team"`) controls which PM layer's files are in scope.
+The per-file `layer` field enables layer-aware operations: `update` skips files from uninstalled
+layers, and `reconfigure` can add or remove layer files cleanly.
 
 Per-file version stamps embedded in markdown files become unnecessary with the manifest — the
 manifest is the authoritative source of per-file version information. WU2 should remove per-file
 version stamps from templates if they exist.
 
-## Solo-to-Team Migration
+## Solo-to-Team Migration and PM Layer Switching
 
 WU2's structural readiness work introduced a `team/` directory and solo-vs-team distinction. The
 CLI needs a migration path for projects that start solo and later add team members.
@@ -386,8 +418,23 @@ At a minimum:
 The concrete change: SESSION-NOTES.md moves from `.arc/active/` to `.arc/team/{name}/` in team mode
 (WORK-STATUS.md stays shared in `active/`). The migration must handle this move without data loss.
 
-This is a scope question for the PRD — migration may be post-1.0 if solo-to-team can be handled
-manually with guidance documentation.
+**PM layer migration (ADR-008):** `arc init --reconfigure` handles PM layer changes:
+
+- **Adding Solo PM:** Installs backlog templates (BACKLOG-FEATURE, BACKLOG-TECHNICAL, ROADMAP,
+  PROJECT-STATUS, ATOMIC-TASKS), strategy-backlog-organization.md. Updates manifest and pristine.
+- **Adding Team PM:** Installs per-developer ATOMIC-TASKS template, branch inbox method, external
+  tracker integration guidance. Updates manifest and pristine.
+- **Removing PM:** Deletes PM-layer files (with confirmation prompt). Updates manifest.
+- **Switching Solo PM → Team PM:** Removes Solo PM files, installs Team PM files. Data migration:
+  ATOMIC-TASKS.md content moves from `active/` to `team/{name}/`; backlog items need manual
+  transfer to an external tracker (guidance provided).
+- **Core-only → PM:** Straightforward addition (new files only, no conflicts).
+
+PM layer changes are independent of team mode changes — both can happen in the same `--reconfigure`
+invocation or separately.
+
+This is a scope question for the PRD — migration may be post-1.0 if solo-to-team and layer
+switching can be handled manually with guidance documentation.
 
 ## Agent-Driven Consistency Audit (Not CLI Logic)
 
@@ -442,7 +489,8 @@ the PRD is written:
 4. **Update system** — three-way merge implementation, conflict reporting, pristine update
 5. **Agent tooling** — slash command generation, multi-agent install selection
 6. **Remaining commands** — diff, status, reset
-7. **Interactive init polish** — full prompt set, presets, team mode, reconfigure
+7. **Interactive init polish** — full prompt set, presets, team mode, PM layer selection,
+   reconfigure (including PM layer switching per ADR-008)
 
 The PRD will determine which phases are in 1.0 scope and which are deferred.
 
@@ -463,6 +511,10 @@ The PRD will determine which phases are in 1.0 scope and which are deferred.
 
 - WU1 ADR 8 (Merge Strategy Support): Affects whether `merge_strategy` is an init prompt
 - WU1 Presets definition: Affects init UX but can be added after initial CLI scaffold
+- **WU2 ADR-008 (Core/PM decomposition):** Defines layer structure, `pm.mode` config, and
+  layer-conditional file sets. WU3 must implement layer-aware init, manifest, update, and
+  reconfigure. The decomposition is the primary input for PM-related init prompts and
+  manifest layer tracking.
 
 **Downstream:**
 

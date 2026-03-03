@@ -412,6 +412,60 @@ more prominently for experienced users.
 - **No agent-agnosticism overhaul** — ADR-002 classified workflow assumptions as incidental;
   WU2 applies that classification, it doesn't create alternate workflow versions.
 
+## Scope Amendment — ADR-008 (2026-03-03)
+
+ADR-008 (Decompose Framework into Core Methodology and Optional PM Layers) was written and
+accepted during WU2 execution. This was not anticipated — the original Non-Goals stated "No new
+ADRs." The decision emerged from a fundamental tension discovered during Phase 4 preparation:
+project management artifacts (backlogs, roadmap, TASK-INBOX, ATOMIC-TASKS) conflict with git's
+branching model and create cascading complexity in team-mode workflow paths.
+
+**What changed:**
+
+- Framework decomposes into Core (methodology, always installed) + Solo PM + Team PM (optional
+  layers). The boundary follows execution vs. planning: task lists are Core, backlogs are PM.
+- TASK-INBOX.md and weekly-review.md are removed from the framework entirely.
+- Task lists gain an "Atomic Tasks — {name}" section for WU off-plan work (Core), replacing
+  the need for standalone ATOMIC-TASKS.md during task list execution.
+- `arc-config.yml` gains `pm.mode` setting (`none | solo | team`).
+- Two new extension points: `post-work-unit-activate` and `post-work-unit-archive` bridge
+  Core workflows to PM layer behavior.
+- WORK-STATUS.md team location corrected: shared in `active/`, not per-developer in `team/`.
+
+**Requirements affected:**
+
+| Requirement | Impact |
+| --- | --- |
+| 9 (arc-extensions.md) | Add `post-work-unit-activate`, `post-work-unit-archive` presets |
+| 6 (arc-config.yml) | Add `pm.mode` setting |
+| 27 (team mode: activate + weekly-review) | weekly-review removed; activate-work-unit only |
+| 34 (PROJECT-STATUS location) | Now a Solo PM artifact; evaluation context changes |
+| 31 (intermediate status) | PM-specific applications (PROJECT-STATUS, ROADMAP) are Solo PM |
+| 11 (extension/method markers) | Add activate-work-unit and archive-completed touchpoints |
+
+**New requirements (from ADR-008):**
+
+- Extract PM steps from `activate-work-unit.md`, `archive-completed.md`, and
+  `setup/02_define-project.md` to extension points
+- Remove ATOMIC-TASKS.md section from `process-task-loop.md`
+- Remove PM artifact references from `atomic-commit.md` and `strategy-work-organization.md`
+- Update STRATEGY-INDEX for layer awareness
+- Remove TASK-INBOX.md references across Core files
+- Remove `weekly-review.md` workflow and references
+- Fix `team/README.md` and team templates for WORK-STATUS.md location
+- Add "Atomic Tasks — {name}" section to task list formatting strategy and template
+- Add conditional WORK-STATUS.md commit step to `session-handoff.md` (ADR-008 7d) — resolves
+  dangling dirty state during off-task-list work
+
+**Non-Goals update:** "No new ADRs" no longer holds — ADR-008 was necessary to resolve a
+structural tension that could not be deferred. The remaining non-goals are unchanged.
+
+**Success criteria additions:**
+
+- ADR-008 decomposition applied — Core workflows contain no direct PM artifact references
+- TASK-INBOX.md and weekly-review.md removed with all references cleaned up
+- Team templates corrected for WORK-STATUS.md shared location
+
 ## Technical Considerations
 
 **Sequencing:** The plan's Approach section defines the dependency-aware ordering: cosmetic fixes

@@ -20,6 +20,8 @@ reflect resolved architectural decisions.
 - Restructure core documents per context loading architecture (DEV-RULES split)
 - Overhaul session workflows (bootstrap, task references, mismatch recovery, staleness)
 - Build hook configurability and customization infrastructure (config, extensions, methods)
+- Apply ADR-008 Core/PM decomposition — extract PM steps to extension points, remove
+  TASK-INBOX and weekly-review from framework, fix team template errors
 - Add team mode awareness across workflow documentation
 - Close all convention and workflow gaps from methodology audit
 - Create guidance discovery infrastructure (WORKFLOW-INDEX, STRATEGY-INDEX enrichment)
@@ -512,6 +514,19 @@ recovery, staleness detection.
     - Session-init: read persistent context alongside ephemeral session state
     - Scope: not tied to full work unit completion — triggers are per-entry
 
+- [ ] **4.4.y Add conditional WORK-STATUS.md commit to `session-handoff.md`**
+
+    Per ADR-008 subordinate decision 7d: if WORK-STATUS.md is dirty and no other
+    commits are pending, commit it standalone before presenting the handoff summary.
+    Resolves the "dangling WORK-STATUS.md" gap during off-task-list work (evaluation
+    sessions, design discussions, pre-planning).
+
+    - Conditional step in handoff workflow: check `git diff --name-only` for
+      WORK-STATUS.md, commit if dirty and no other staged/unstaged changes pending
+    - Still under manual commit control — permission-gated like all commits
+    - Commit message convention: maintenance-scoped (e.g., `docs(arc): update
+      WORK-STATUS.md` with `(maintenance)` context)
+
 - [ ] **4.5 Run Tier 1 quality gates on Phase 4 changes**
 
 ### **Phase 5:** Configuration and Customization Infrastructure
@@ -526,7 +541,7 @@ recovery, staleness detection.
 
     - Settings: `commit.format`, `commit.context_footer`, `commit.custom_pattern`,
       `commit.context_pattern`, `merge.strategy`, `hooks.pre_commit`, `hooks.commit_msg`,
-      `platform.type`
+      `platform.type`, `pm.mode` (ADR-008: `none | solo | team`)
     - Shell-parseable flat/shallow format
     - Inline comments: description, valid values, default
     - Update both `.arc/system/arc-config.yml` and `.arc-internal/system/arc-config.yml`
@@ -563,7 +578,7 @@ recovery, staleness detection.
     - New file: `.arc/system/workflows/arc-extensions.md`
     - Section per preset point: workflow reference, trigger, contract, placeholder
     - Presets: `post-task-quality`, `post-unit-quality`, `post-context-load`,
-      `pre-stage-review`
+      `pre-stage-review`, `post-work-unit-activate`, `post-work-unit-archive` (ADR-008)
     - Evaluate during implementation — target 0-3 per workflow
 
 - [ ] **5.5 Scaffold `arc-methods.md` with method dependencies**
@@ -585,7 +600,8 @@ recovery, staleness detection.
 
     - [ ] **5.6.b Insert method markers**
         - Same visual pattern
-        - Touchpoints: process-task-loop, session-init, session-handoff, atomic-commit
+        - Touchpoints: process-task-loop, session-init, session-handoff, atomic-commit,
+          activate-work-unit, archive-completed (ADR-008 extension points)
 
 - [ ] **5.7 Add session-init config awareness step**
 
@@ -593,9 +609,70 @@ recovery, staleness detection.
     - Note non-default values and populated method overrides
     - Verify consistency with DEV-RULES.ARC method-override pointers
 
-- [ ] **5.8 Run Tier 2 quality gates**
+- [ ] **5.8 Apply ADR-008 Core/PM decomposition to workflows**
+
+    **Goal:** Extract PM-specific steps from Core workflows using the extension point
+    infrastructure built in 5.4-5.6. After this task, Core workflows contain no direct
+    PM artifact references — PM behavior flows through extension points.
+
+    - [ ] **5.8.a Extract PM steps from `activate-work-unit.md`**
+        - Steps 5 (PROJECT-STATUS) and 6 (ROADMAP) → `post-work-unit-activate`
+          extension point
+        - Renumber remaining steps (7→5, 8→6, 9→7)
+        - Update commit staging step to stop unconditionally staging PM files
+
+    - [ ] **5.8.b Extract PM step from `archive-completed.md`**
+        - Step 11 (PROJECT-STATUS/ROADMAP update) → `post-work-unit-archive`
+          extension point
+        - Step is already conditionally qualified ("skip for small incidental fixes"),
+          making extension point a natural fit
+
+    - [ ] **5.8.c Extract PM steps from `setup/02_define-project.md`**
+        - Steps 4 (ROADMAP) and 5 (PROJECT-STATUS) → PM layer initialization
+        - Simplify "Maintaining Project Documents" section
+        - Core setup: META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJECT (three steps)
+
+    - [ ] **5.8.d Remove ATOMIC-TASKS.md section from `process-task-loop.md`**
+        - Remove bounded section (~lines 166-178)
+        - Function replaced by task list "Atomic Tasks — {name}" section (Core,
+          see Task 7.11.x)
+
+    - [ ] **5.8.e Remove PM artifact references from supplemental workflows**
+        - `atomic-commit.md`: remove ATOMIC-TASKS.md reference (~line 99)
+        - `strategy-work-organization.md`: remove PM artifact bullets (TASK-INBOX,
+          ATOMIC-TASKS) from branch protection exception lists
+
+    - [ ] **5.8.f Update `STRATEGY-INDEX.md` for layer awareness**
+        - Note `strategy-backlog-organization.md` as Solo PM layer only
+        - Add brief layer annotation convention
+
+- [ ] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
+
+    **Goal:** Per ADR-008, both artifacts are cut from the framework entirely (not
+    made opt-in). TASK-INBOX was rarely used in practice; weekly-review depends on
+    TASK-INBOX and is entirely PM-scoped.
+
+    - [ ] **5.9.a Remove `weekly-review.md` and its references**
+        - Delete `.arc/system/workflows/arc/supplemental/weekly-review.md`
+        - Remove references from `strategy-work-organization.md` (lines ~702, ~715)
+        - Remove references from `strategy-backlog-organization.md` (lines ~74, ~79)
+
+    - [ ] **5.9.b Remove TASK-INBOX references from Core files**
+        - `setup/01_initialize-arc.md` (line ~46): update backlog directory description
+        - `strategy-file-classification.md`: remove TASK-INBOX classification entry
+        - `strategy-work-organization.md`: remove TASK-INBOX references (~lines 296, 495)
+        - Root `README.md`: remove from directory tree (~line 22)
+
+    - [ ] **5.9.c Clean up TASK-INBOX references in Solo PM files**
+        - `BACKLOG-FEATURE.template.md`: remove "from TASK-INBOX.md" processing reference
+        - `BACKLOG-TECHNICAL.template.md`: remove same
+        - `team/README.md`: remove TASK-INBOX references (~lines 38, 45-55)
+        - Note: these files will move to Solo PM layer in WU3, but reference cleanup
+          is correct regardless of layer placement
+
+- [ ] **5.10 Run Tier 2 quality gates**
     - Full-project lint: `npm run -s lint:md`
-    - Coherent unit boundary — complete customization system
+    - Coherent unit boundary — complete customization system + ADR-008 decomposition
 
 ### **Phase 6:** Team, External, and Adoption
 
@@ -639,6 +716,23 @@ recovery, staleness detection.
     - Rationale: flows from ADR-007 (WORK-STATUS.md tracked); not ADR-worthy itself
       (implementation convention, not architectural decision).
 
+- [ ] **6.2.y Fix `team/` templates and README per ADR-008**
+
+    Per ADR-008 subordinate decision 7c: WORK-STATUS.md is shared in `active/`,
+    not per-developer in `team/{name}/`. Current team/ docs incorrectly show
+    per-developer WORK-STATUS.md — a documentation error from the ADR-007 split.
+
+    - [ ] **6.2.y.a Update `team/README.md`**
+        - Fix directory tree: remove WORK-STATUS.md from per-developer dirs
+        - Fix file table: WORK-STATUS is shared in `active/`, not personal
+        - Fix explanation prose: clarify shared vs. personal file distinction
+        - Remove TASK-INBOX references (handled in 5.9.c, verify complete)
+
+    - [ ] **6.2.y.b Update team template set**
+        - Remove or repurpose WORK-STATUS.template.md from `team/`
+        - ATOMIC-TASKS in team mode is Team PM only — qualify or defer to layer
+        - SESSION-NOTES.template.md stays (personal state, Core)
+
 - [ ] **6.3 Add person-to-person task handoff protocol**
 
     - Outgoing: enhanced handoff with implementation context
@@ -651,11 +745,11 @@ recovery, staleness detection.
     - Task Management: "one task at a time" per developer-agent pair
     - Apply to whichever document hosts this content after Phase 3
 
-- [ ] **6.5 Add team mode to `activate-work-unit.md` and `weekly-review.md`**
+- [ ] **6.5 Add team mode to `activate-work-unit.md`**
 
-    - activate-work-unit: multiple branches for sub-branches, personal session files
-    - weekly-review: personal `team/{name}/ATOMIC-TASKS.md`; micro-branch for review
-      commits in fully protected mode
+    - Multiple branches for team sub-branches, each developer updates own session file
+    - Team-mode awareness for extension point behavior (PM handlers vary by layer)
+    - Note: weekly-review.md removed per ADR-008 (originally part of this task)
 
 - [ ] **6.6 Streamline dual-tracker workflow guidance**
 
@@ -666,6 +760,8 @@ recovery, staleness detection.
 - [ ] **6.7 Implement config-driven adoption tier behavior**
 
     - Per ADR-004: profiles (Essentials/Recommended/Custom) applied to identical files
+    - Per ADR-008: profiles apply within installed layers (enforcement depth ×
+      functionality scope are orthogonal axes)
     - Reduce ceremony for Essentials tier in relevant workflows
     - Document deferred review escape hatch more prominently
 
@@ -702,8 +798,8 @@ recovery, staleness detection.
 - [ ] **7.3 Add intermediate work-unit status**
 
     - Select label for "done but unmerged" state
-    - Standardize across: `archive-completed.md`, `agent-pre-merge-review.md`,
-      PROJECT-STATUS template, ROADMAP
+    - Standardize across Core: `archive-completed.md`, `agent-pre-merge-review.md`
+    - Solo PM: also standardize in PROJECT-STATUS template and ROADMAP
     - Set intermediate in Phase 1 (pre-merge), final in Phase 3 (post-merge)
 
 - [ ] **7.4 Address version reference drift**
@@ -719,9 +815,12 @@ recovery, staleness detection.
 
 - [ ] **7.6 Evaluate and resolve PROJECT-STATUS location**
 
+    - PROJECT-STATUS is a Solo PM artifact per ADR-008
     - Options: `.arc/` root, `reference/` root, or leave in `constitution/`
-    - If moved: update references in `02_define-project.md`, `archive-completed.md`,
-      `weekly-review.md`, PROJECT-STATUS template
+    - If moved: update references in Solo PM extension point handlers and
+      PROJECT-STATUS template
+    - Note: `weekly-review.md` removed per ADR-008; `02_define-project.md` and
+      `archive-completed.md` PM steps now in extension points (Phase 5)
 
 - [ ] **7.7 Update `1_create-prd.md` workflow**
 
@@ -775,6 +874,22 @@ recovery, staleness detection.
     - Natural home: section in existing document (file-classification strategy,
       DEV-RULES.ARC, or conventions section)
     - Include adopter guidance for naming their own artifacts
+
+- [ ] **7.11.x Add "Atomic Tasks — {name}" section to task list infrastructure**
+
+    Per ADR-008 subordinate decision 7a: task lists gain a dedicated section for
+    WU off-plan work (discoveries, small fixes). This is a Core artifact — replaces
+    the need for ATOMIC-TASKS.md during WU execution.
+
+    - [ ] **7.11.x.a Update `strategy-task-list-formatting.md`**
+        - Define "Atomic Tasks — {wu-name}" section convention
+        - Placement: after main tasks, before Success Criteria
+        - Format: flat checkbox list (simpler than numbered tasks)
+        - Purpose: captures WU-scoped off-plan work, archives with the task list
+
+    - [ ] **7.11.x.b Update task list template**
+        - Add empty "Atomic Tasks" section with inline guidance
+        - Present by default (empty), populated as needed during execution
 
 - [ ] **7.14 Run Tier 1 quality gates on Phase 7 changes**
 
