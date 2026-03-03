@@ -74,7 +74,7 @@ The full philosophical argument, with research grounding, is in the
 
 - Session model: bounded, intentional periods of agent-assisted work with explicit start and
   end states
-- Structured handoff documents (WORK-STATUS.md + SESSION.md) — human-controlled, transparent, and
+- Structured handoff documents (WORK-STATUS.md + SESSION-NOTES.md) — human-controlled, transparent, and
   predictable recovery across session boundaries
 - Active context quality management: monitoring utilization and recognizing degradation during
   work, not just recovering at boundaries

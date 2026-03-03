@@ -14,5 +14,5 @@ Guidance for Warp terminal assistance. For shared rules and architecture, defer 
   surface them as ready-to-run snippets when asked to run checks
 - **Environment checks:** Confirm available tooling (build tools, test runners, services) before
   proposing actions — check QUICK-REFERENCE for what's expected
-- **Hand-offs:** When finishing terminal automation, update WORK-STATUS.md and SESSION.md (or state "no update
+- **Hand-offs:** When finishing terminal automation, update WORK-STATUS.md and SESSION-NOTES.md (or state "no update
   required") and mention any long-running commands left active

@@ -150,7 +150,7 @@ developers reference and update them. This means:
 
 ### Session State Has No Conflicts
 
-`team/{name}/SESSION.md` and `team/{name}/ATOMIC-TASKS.md` are personal files —
+`team/{name}/SESSION-NOTES.md` and `team/{name}/ATOMIC-TASKS.md` are personal files —
 only one developer writes to each. This is the primary reason for the `team/` directory
 structure: eliminating file-level conflicts on session state. `WORK-STATUS.md` in `active/`
 is shared (one per branch, tracked in git).
@@ -169,7 +169,7 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 | Task assignment       | Primary (who owns what)      | Optional `(@name)` for convenience   |
 | Status tracking       | Primary (board view, sprint) | Checkbox state for agent context     |
 | Implementation detail | Not tracked                  | Subtasks, acceptance criteria, notes |
-| Session context       | Not tracked                  | SESSION.md, handoff state            |
+| Session context       | Not tracked                  | SESSION-NOTES.md, handoff state      |
 
 ### How They Complement Each Other
 

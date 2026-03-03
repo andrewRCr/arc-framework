@@ -71,7 +71,7 @@ that don't reflect the design decisions already made.
    Archive-completed runs only after all tasks complete (Complete + Archive operations).
    (Cluster D)
 
-6. **Skipped handoff recovery** — Session-init detects SESSION.md staleness via commit hash
+6. **Skipped handoff recovery** — Session-init detects SESSION-NOTES.md staleness via commit hash
    anchor (3 commits behind). Reports informational warning. Mismatch recovery auto-corrects
    where git + task list agree, stops and asks where intent is ambiguous. (Cluster C)
 
@@ -164,7 +164,7 @@ DEV-RULES.ARC method-override pointers and arc-methods.md preset methods.
 
 **13. Reframe session model documentation**
 Per ADR-002: in `strategy-development-methodology.md`, distinguish the principle (context must be
-recoverable) from the mechanism (CURRENT-SESSION.md / WORK-STATUS.md). In session workflows,
+recoverable) from the mechanism (CURRENT-SESSION-NOTES.md / WORK-STATUS.md). In session workflows,
 position current approach as "best approach for ephemeral-context agents," not a fundamental
 methodology element. Add config-driven session model opt-out/extensibility per ADR-002.
 
@@ -172,7 +172,7 @@ methodology element. Add config-driven session model opt-out/extensibility per A
 Per ADR-007: scaffold WORK-STATUS.md during `01_initialize-arc.md` with "no active work" defaults.
 Add detection path in session-init for `Work Unit: [none]` state — skip task list loading, report
 state, point to appropriate next workflow. Update `activate-work-unit.md` and
-`archive-completed.md` to write/reset WORK-STATUS.md. Handle SESSION.md gracefully per ADR-007
+`archive-completed.md` to write/reset WORK-STATUS.md. Handle SESSION-NOTES.md gracefully per ADR-007
 Part 4 (check local → check git notes → clean template).
 
 **15. Stabilize task references**
@@ -184,12 +184,12 @@ WORK-STATUS.md template.
 
 **16. Add mismatch recovery protocol**
 Replace session-init's flat "stop and ask for everything" with a tiered model. Trust hierarchy:
-git state > task list > WORK-STATUS.md > SESSION.md. Auto-recover with notice when git + task list
+git state > task list > WORK-STATUS.md > SESSION-NOTES.md. Auto-recover with notice when git + task list
 agree and session doc is the outlier (staleness, not ambiguity). Stop and ask when intent is
 ambiguous. Reports include diagnostics (what each source says, which agree/disagree).
 
 **17. Add staleness detection**
-Add commit hash anchor to SESSION.md (written during handoff: `git rev-parse HEAD`). Session-init
+Add commit hash anchor to SESSION-NOTES.md (written during handoff: `git rev-parse HEAD`). Session-init
 compares anchor against current HEAD; report commit gap count. For WORK-STATUS.md: compare last
 commit touching it against HEAD. Staleness is informational (not blocking) — feeds confidence
 levels into mismatch recovery. Runs between context loading and mismatch detection in session-init
@@ -354,7 +354,7 @@ delivery channels, not just hooks and workflows.
 
 **55. Document ARC naming conventions**
 ARC uses naming conventions that have emerged organically but are undocumented: ALL-CAPS for
-core documents (AGENTS.md, DEVELOPMENT-RULES.md, CURRENT-SESSION.md), `prd-{name}.md` and
+core documents (AGENTS.md, DEVELOPMENT-RULES.md, CURRENT-SESSION-NOTES.md), `prd-{name}.md` and
 `tasks-{name}.md` prefixes for standardized artifact types, `strategy-*` prefix for fuzzy-find
 discoverability, `template-*` for copy-ready starting points, `plan-*` for exploration docs.
 Workflows are an exception — numbered (`1_create-prd.md`, `3_process-task-loop.md`) without a
@@ -423,7 +423,7 @@ inform task list generation.
 **Paired hook updates:** Every hook change must update both `.arc/system/githooks/` and
 `.arc-internal/system/githooks/` in the same commit.
 
-**CURRENT-SESSION.md → WORK-STATUS.md + SESSION.md:** ADR-007 replaces CURRENT-SESSION.md with
+**CURRENT-SESSION-NOTES.md → WORK-STATUS.md + SESSION-NOTES.md:** ADR-007 replaces CURRENT-SESSION-NOTES.md with
 two files. All Cluster C requirements that reference session state files use the ADR-007 model.
 The transition itself (renaming, migrating content, updating all references) is part of this work.
 

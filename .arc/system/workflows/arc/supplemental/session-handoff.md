@@ -28,11 +28,11 @@ via [`arc-methods.md` § session-state][arc-methods-session].
 Session state is split across two files:
 
 - **WORK-STATUS.md** (tracked) — project state: branch, task list, current task, blockers, next action
-- **SESSION.md** (gitignored) — personal context: completed work, decisions, debugging insights,
+- **SESSION-NOTES.md** (gitignored) — personal context: completed work, decisions, debugging insights,
   things tried. Replaced each handoff (not appended). Created only when there's context worth
   preserving; delete between work units.
 
-**Every handoff** — WORK-STATUS.md (state fields) and SESSION.md (session context, if any)
+**Every handoff** — WORK-STATUS.md (state fields) and SESSION-NOTES.md (session context, if any)
 
 **When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
 
@@ -73,7 +73,7 @@ _Note: Current Task shows WHICH task you're on (stable). Next Action shows WHAT 
 (can be preparatory work before starting task, or specific subtask if already in progress)._
 ```
 
-**Update `.arc/active/SESSION.md`** (personal session context — gitignored):
+**Update `.arc/active/SESSION-NOTES.md`** (personal session context — gitignored):
 
 ```markdown
 ### Completed Work
@@ -151,7 +151,7 @@ WORK-STATUS.md:
 **Next Action**: Fix connection timeout in batch processor (src/pipeline/batch.py:89)
 ```
 
-SESSION.md:
+SESSION-NOTES.md:
 
 ```markdown
 ### Completed Work
@@ -189,7 +189,7 @@ WORK-STATUS.md:
 **Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
 ```
 
-SESSION.md:
+SESSION-NOTES.md:
 
 ```markdown
 ### Completed Work
@@ -221,7 +221,7 @@ WORK-STATUS.md:
 **Next Action**: Continue debugging intermittent CI test failures
 ```
 
-SESSION.md:
+SESSION-NOTES.md:
 
 ```markdown
 ### Completed Work
@@ -255,7 +255,7 @@ WORK-STATUS.md:
 **Next Action**: Begin [new-task-list.md] starting with Task 1
 ```
 
-SESSION.md:
+SESSION-NOTES.md:
 
 ```markdown
 ### [Task List Name] - COMPLETE & ARCHIVED ✅
@@ -283,12 +283,12 @@ SESSION.md:
 
 ### Post-Update Cleanup
 
-After updating session state files, verify clean markdown. If SESSION.md is gitignored, your linter
+After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
 ### Confirm Handoff
 
-After updating WORK-STATUS.md and SESSION.md, deliver a verbal summary to the user. This is a quick
+After updating WORK-STATUS.md and SESSION-NOTES.md, deliver a verbal summary to the user. This is a quick
 confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}

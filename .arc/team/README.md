@@ -17,11 +17,11 @@ team/
 ├── ATOMIC-TASKS.template.md           # Template: copied into member dirs
 ├── alice/
 │   ├── WORK-STATUS.md                 # Alice's tracked project state
-│   ├── SESSION.md                     # Alice's session context (gitignored)
+│   ├── SESSION-NOTES.md                     # Alice's session context (gitignored)
 │   └── ATOMIC-TASKS.md               # Alice's one-off tasks
 └── bob/
     ├── WORK-STATUS.md                 # Bob's tracked project state
-    ├── SESSION.md                     # Bob's session context (gitignored)
+    ├── SESSION-NOTES.md                     # Bob's session context (gitignored)
     └── ATOMIC-TASKS.md               # Bob's one-off tasks
 ```
 
@@ -58,11 +58,11 @@ execution.
 ## Solo vs. Team Mode
 
 **Solo (default):** Session state lives in `active/WORK-STATUS.md` (tracked),
-`active/SESSION.md` (gitignored), and `active/ATOMIC-TASKS.md`. No `team/` directory needed.
+`active/SESSION-NOTES.md` (gitignored), and `active/ATOMIC-TASKS.md`. No `team/` directory needed.
 
 **Team:** Each member's session state moves to `team/{name}/`. The `active/` directory
 continues to hold communal work artifacts (task lists, PRDs). Solo session files
-(`active/WORK-STATUS.md`, `active/SESSION.md`, `active/ATOMIC-TASKS.md`) are no longer used.
+(`active/WORK-STATUS.md`, `active/SESSION-NOTES.md`, `active/ATOMIC-TASKS.md`) are no longer used.
 
 **Transition:** Migration from solo to team mode is handled by the CLI. See
 `plan-distribution-and-update-system.md` for implementation notes.
@@ -71,18 +71,18 @@ continues to hold communal work artifacts (task lists, PRDs). Solo session files
 
 Agents find their session state via a predictable path:
 
-- **Solo mode:** `active/WORK-STATUS.md` + `active/SESSION.md`
-- **Team mode:** `team/{name}/WORK-STATUS.md` + `team/{name}/SESSION.md` — the member name
+- **Solo mode:** `active/WORK-STATUS.md` + `active/SESSION-NOTES.md`
+- **Team mode:** `team/{name}/WORK-STATUS.md` + `team/{name}/SESSION-NOTES.md` — the member name
   is established at session start (configured in the agent's environment or provided by the
   developer)
 
-Session initialization (`session-init.md`) references WORK-STATUS.md and SESSION.md by path.
+Session initialization (`session-init.md`) references WORK-STATUS.md and SESSION-NOTES.md by path.
 In team mode, the paths simply change from `active/` to `team/{name}/`.
 
 ## Templates
 
 The `.template.md` files in this directory are copy sources — CLI copies them into
-`team/{name}/` when adding a member, renaming by removing `.template`. SESSION.md has no
+`team/{name}/` when adding a member, renaming by removing `.template`. SESSION-NOTES.md has no
 template (it's gitignored and free-form, created by the session handoff workflow). Agents
 don't interact with the templates directly; they work with the instantiated copies in member
 directories.

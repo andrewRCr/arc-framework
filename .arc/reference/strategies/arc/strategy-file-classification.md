@@ -65,12 +65,12 @@ All paths relative to `.arc/`.
 
 ### active/
 
-| File                                      | Classification       | Notes                                                                     |
-|-------------------------------------------|----------------------|---------------------------------------------------------------------------|
-| `ATOMIC-TASKS.template.md`                | Configurable (light) | Framework processing rules + user task content. Clean section separation. |
-| `SESSION.template.md`                     | Framework            | Reference structure for gitignored SESSION.md. Agents follow at handoff.  |
-| `WORK-STATUS.template.md`                 | Scaffolded           | Template structure replaced entirely by user. Project-owned after init.   |
-| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Directory structure scaffolding.                                          |
+| File                                      | Classification       | Notes                                                                          |
+|-------------------------------------------|----------------------|--------------------------------------------------------------------------------|
+| `ATOMIC-TASKS.template.md`                | Configurable (light) | Framework processing rules + user task content. Clean section separation.      |
+| `SESSION-NOTES.template.md`               | Framework            | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
+| `WORK-STATUS.template.md`                 | Scaffolded           | Template structure replaced entirely by user. Project-owned after init.        |
+| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Directory structure scaffolding.                                               |
 
 ### backlog/
 
@@ -83,12 +83,12 @@ All paths relative to `.arc/`.
 
 ### team/
 
-| File                        | Classification       | Notes                                                                    |
-|-----------------------------|----------------------|--------------------------------------------------------------------------|
-| `README.md`                 | Framework            | Team directory overview and structure guidance.                          |
-| `ATOMIC-TASKS.template.md`  | Configurable (light) | Per-member atomic tasks. Same structure as `active/` variant.            |
-| `SESSION.template.md`       | Framework            | Reference structure for gitignored SESSION.md. Agents follow at handoff. |
-| `WORK-STATUS.template.md`   | Scaffolded           | Per-member project pointer. Same structure as `active/` variant.         |
+| File                        | Classification       | Notes                                                                          |
+|-----------------------------|----------------------|--------------------------------------------------------------------------------|
+| `README.md`                 | Framework            | Team directory overview and structure guidance.                                |
+| `ATOMIC-TASKS.template.md`  | Configurable (light) | Per-member atomic tasks. Same structure as `active/` variant.                  |
+| `SESSION-NOTES.template.md` | Framework            | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
+| `WORK-STATUS.template.md`   | Scaffolded           | Per-member project pointer. Same structure as `active/` variant.               |
 
 ### reference/
 
@@ -135,18 +135,18 @@ All paths relative to `.arc/`.
 
 ### reference/strategies/
 
-| File                                      | Classification | Notes                                                |
-|-------------------------------------------|----------------|------------------------------------------------------|
-| `README.md`                               | Framework      | Directory overview.                                  |
-| `STRATEGY-INDEX.md`                       | Configurable   | ARC strategies section + project strategies section. |
-| `arc/strategy-adr-methodology.md`         | Framework      | ARC methodology.                                     |
-| `arc/strategy-backlog-organization.md`    | Framework      | ARC methodology.                                     |
-| `arc/strategy-file-classification.md`     | Framework      | ARC methodology (this document).                     |
-| `arc/strategy-quality-gates.md`           | Framework      | ARC methodology.                                     |
-| `arc/strategy-task-list-formatting.md`    | Framework      | ARC methodology.                                     |
-| `arc/strategy-work-organization.md`       | Framework      | ARC methodology.                                     |
-| `project/README.md`                       | Framework      | Guidance for creating project strategies.            |
-| `project/style/README.md`                 | Framework      | Guidance for style strategies.                       |
+| File                                   | Classification | Notes                                                |
+|----------------------------------------|----------------|------------------------------------------------------|
+| `README.md`                            | Framework      | Directory overview.                                  |
+| `STRATEGY-INDEX.md`                    | Configurable   | ARC strategies section + project strategies section. |
+| `arc/strategy-adr-methodology.md`      | Framework      | ARC methodology.                                     |
+| `arc/strategy-backlog-organization.md` | Framework      | ARC methodology.                                     |
+| `arc/strategy-file-classification.md`  | Framework      | ARC methodology (this document).                     |
+| `arc/strategy-quality-gates.md`        | Framework      | ARC methodology.                                     |
+| `arc/strategy-task-list-formatting.md` | Framework      | ARC methodology.                                     |
+| `arc/strategy-work-organization.md`    | Framework      | ARC methodology.                                     |
+| `project/README.md`                    | Framework      | Guidance for creating project strategies.            |
+| `project/style/README.md`              | Framework      | Guidance for style strategies.                       |
 
 ### system/
 

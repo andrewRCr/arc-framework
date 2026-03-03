@@ -128,7 +128,7 @@ framework version — use any versioning scheme that works for your team.
 
 - `AGENTS.md` - Project context and lookup guide
 - `WORK-STATUS.md` - Active work state
-- `SESSION.md` - Personal session context (if exists)
+- `SESSION-NOTES.md` - Personal session context (if exists)
 - `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
 - `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules
 - `3_process-task-loop.md` - Task execution workflow

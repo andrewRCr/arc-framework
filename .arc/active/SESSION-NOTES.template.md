@@ -1,4 +1,4 @@
-# Session Context
+# Session Notes
 
 > **About this file:** Personal session context — gitignored. Companion to the tracked
 > [WORK-STATUS.md](WORK-STATUS.md) which carries the factual project pointer (branch, task,
@@ -13,7 +13,7 @@
 > (always / prompt / manual).
 >
 > **Customization:** The session state mechanism is overridable — see `arc-methods.md` §
-> session-state.
+> session-state. **Team mode:** This file lives at `.arc/team/{name}/SESSION-NOTES.md` instead.
 >
 > **Writing guide:** See `session-handoff.md` for detailed content guidance, examples, and
 > what to include vs. omit.

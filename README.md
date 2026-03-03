@@ -82,7 +82,7 @@ The framework operates through feedback loops that build on previous work:
    task lists
 4. **Iterative Execution** — Follow `.arc/system/workflows/arc/3_process-task-loop.md` for controlled
    AI-assisted single-task processing
-5. **Session Continuity** — Track project state in `WORK-STATUS.md` and session context in `SESSION.md` using
+5. **Session Continuity** — Track project state in `WORK-STATUS.md` and session context in `SESSION-NOTES.md` using
    `.arc/system/workflows/arc/supplemental/session-handoff.md` for seamless handoffs
 6. **Knowledge Integration** — Evolve decisions and patterns into permanent project memory for future cycles
 

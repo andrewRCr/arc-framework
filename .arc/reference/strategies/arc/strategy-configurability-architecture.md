@@ -33,7 +33,7 @@ Customizing conventions — not principles — is the entire scope of the config
 handle different kinds of customization, and existing project documentation absorbs a fourth concern:
 
 | Mechanism       | What It Does              | File                 | Example                                    |
-| --------------- | ------------------------- | -------------------- | ------------------------------------------ |
+|-----------------|---------------------------|----------------------|--------------------------------------------|
 | Config          | Toggles enforcement       | `arc-config.yml`     | `commit.format: any` disables hook check   |
 | Extension       | Adds steps to workflows   | `arc-extensions.md`  | Post-task quality: also run security scan  |
 | Method override | Replaces default behavior | `arc-methods.md`     | Task completion: update Jira, not markdown |
@@ -61,7 +61,7 @@ box) and a configurability path (how teams adapt it).
 #### Core commitment conventions
 
 | Convention                                                  | Principle | Default                  | Configurability Path                                 |
-| ----------------------------------------------------------- | --------- | ------------------------ | ---------------------------------------------------- |
+|-------------------------------------------------------------|-----------|--------------------------|------------------------------------------------------|
 | Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | File-customizable — edit templates                   |
 | Template-first documents                                    | P1        | Copy-ready templates     | File-customizable — edit template format and content |
 | Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope  |
@@ -72,7 +72,7 @@ box) and a configurability path (how teams adapt it).
 #### Operational discipline conventions
 
 | Convention                              | Principle | Default                             | Configurability Path                                 |
-| --------------------------------------- | --------- | ----------------------------------- | ---------------------------------------------------- |
+|-----------------------------------------|-----------|-------------------------------------|------------------------------------------------------|
 | Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
 | Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
 | Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
@@ -81,13 +81,13 @@ box) and a configurability path (how teams adapt it).
 | Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
 | Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
-| WORK-STATUS.md + SESSION.md             | P5        | Two-file session state (ADR-007)    | Method override — substitute session mechanism       |
+| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state (ADR-007)    | Method override — substitute session mechanism       |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
 
 #### Design commitment conventions
 
 | Convention                         | Principle | Default                                  | Configurability Path                         |
-| ---------------------------------- | --------- | ---------------------------------------- | -------------------------------------------- |
+|------------------------------------|-----------|------------------------------------------|----------------------------------------------|
 | Collaborative voice in docs        | P9        | Team perspective, no "user/AI" framing   | Behavioral guidance — documentation style    |
 | Reference-style markdown links     | P9        | Reference links, definitions at file end | Behavioral guidance — link formatting style  |
 | No meta-project references in code | P9        | Task IDs stay in `.arc/` docs            | Behavioral guidance — enforcement strictness |
@@ -430,7 +430,7 @@ For methods with mechanical enforcement (commit format, context footer), hooks r
 `arc-config.yml`. The `custom` config value bridges "I want enforcement" and "I want _different_ enforcement":
 
 | Setting value  | Hook behavior                                                |
-| -------------- | ------------------------------------------------------------ |
+|----------------|--------------------------------------------------------------|
 | `conventional` | Validates against ARC's built-in conventional commit pattern |
 | `custom`       | Validates against the team's `commit.custom_pattern` regex   |
 | `any`          | Skips format validation entirely                             |

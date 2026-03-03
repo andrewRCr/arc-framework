@@ -80,10 +80,10 @@ more value in having complete context upfront than discovering missing rules mid
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
-8. `.arc/active/SESSION.md` - **READ IF EXISTS** (gitignored — may not be present)
+8. `.arc/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - If this file doesn't exist, skip — the session starts with tracked state only (WORK-STATUS.md)
-   - **Agent-switching note**: If SESSION.md was written during a session with a different agent, extract factual
+   - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent, extract factual
      content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
      capability assumptions)
 

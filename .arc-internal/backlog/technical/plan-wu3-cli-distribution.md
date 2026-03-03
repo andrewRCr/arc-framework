@@ -43,9 +43,9 @@ during PRD creation. Some features described here may be post-1.0.
   Configurable, Scaffolded, Project-Owned) before WU3 can build the manifest and update system
 - Final directory layout — WU2 may shift files during methodology work; WU3 needs the settled layout
   before packaging
-- Session model file tracking infrastructure — ADR-007 split `CURRENT-SESSION.md` into
-  `WORK-STATUS.md` (tracked) and `SESSION.md` (gitignored). `arc-init` must set up:
-    - **`.gitignore` entries**: `.arc/active/SESSION.md` (solo), `.arc/team/*/SESSION.md` (team)
+- Session model file tracking infrastructure — ADR-007 split `CURRENT-SESSION-NOTES.md` into
+  `WORK-STATUS.md` (tracked) and `SESSION-NOTES.md` (gitignored). `arc-init` must set up:
+    - **`.gitignore` entries**: `.arc/active/SESSION-NOTES.md` (solo), `.arc/team/*/SESSION-NOTES.md` (team)
     - **`.gitattributes` entry**: `.arc/active/WORK-STATUS.md merge=ours` — auto-resolves merge
       conflicts by keeping the target branch version. Post-merge workflows (rotate-branch,
       archive-completed) always update WORK-STATUS.md immediately, making the auto-resolved
@@ -180,7 +180,7 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
 - **Testing framework:** jest / vitest / pytest / other (populates workflow command references)
 - **Workflow options:**
     - `arc-config.yml` settings: base branch, branch protection mode
-    - Session state model: WORK-STATUS.md (tracked) + SESSION.md (gitignored) per ADR-007
+    - Session state model: WORK-STATUS.md (tracked) + SESSION-NOTES.md (gitignored) per ADR-007
     - Work organization style (solo vs. team — controls whether `team/` directory is installed)
     - Merge strategy (informed by WU1 ADR 8)
 - **Content selection:**
@@ -383,7 +383,7 @@ At a minimum:
 - A migration command (or `arc init --reconfigure` with team mode enabled) handles the transition
   for existing solo installs
 
-The concrete change: SESSION.md moves from `.arc/active/` to `.arc/team/{name}/` in team mode
+The concrete change: SESSION-NOTES.md moves from `.arc/active/` to `.arc/team/{name}/` in team mode
 (WORK-STATUS.md stays shared in `active/`). The migration must handle this move without data loss.
 
 This is a scope question for the PRD — migration may be post-1.0 if solo-to-team can be handled

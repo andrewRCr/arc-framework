@@ -11,7 +11,7 @@ start and end states. It expanded P5 (Context Preservation) to include active qu
 ADR-003 established the configuration and extension point system. Both decisions left a structural question open:
 how does session state move across machine boundaries and developer boundaries?
 
-ARC's `CURRENT-SESSION.md` carries two kinds of information with different sharing needs:
+ARC's `CURRENT-SESSION-NOTES.md` carries two kinds of information with different sharing needs:
 
 - **Project state** — current task, blockers, next action. Useful to anyone touching this branch. Already
   partially tracked elsewhere (task list checkboxes, git log, branch name), but the curated pointer — "here's
@@ -20,7 +20,7 @@ ARC's `CURRENT-SESSION.md` carries two kinds of information with different shari
   notes they'd share in a five-minute walkthrough with a colleague taking over. Personal, narrative, and the
   hardest content to reconstruct from tracked artifacts alone.
 
-`CURRENT-SESSION.md` is currently gitignored (correct instinct — the research evidence is unambiguous that
+`CURRENT-SESSION-NOTES.md` is currently gitignored (correct instinct — the research evidence is unambiguous that
 ephemeral state doesn't belong in VCS). But this means it doesn't travel between machines or team members.
 Three scenarios expose the gap:
 
@@ -84,7 +84,7 @@ Key findings:
 ### Part 1: Two-File Decomposition
 
 We will split session information into two files with different tracking models, replacing the single
-`CURRENT-SESSION.md`.
+`CURRENT-SESSION-NOTES.md`.
 
 **`WORK-STATUS.md`** — tracked in git. A lightweight project pointer (~6-8 lines) carrying factual,
 branch-specific state:
@@ -106,7 +106,7 @@ branch-specific state:
 Because it updates _with_ commits rather than _after_ them, the tree stays clean. No trailing "session state"
 commits.
 
-**`SESSION.md`** — gitignored. Personal working context, scoped to the individual developer:
+**`SESSION-NOTES.md`** — gitignored. Personal working context, scoped to the individual developer:
 
 - Current focus and approach
 - Decisions made and rationale
@@ -114,7 +114,7 @@ commits.
 - Key files, line numbers, known risks
 - Notes for the next session
 
-`SESSION.md` is narrative and qualitative — the content a developer would share in a five-minute walkthrough
+`SESSION-NOTES.md` is narrative and qualitative — the content a developer would share in a five-minute walkthrough
 if someone were taking over. It's as messy or structured as the developer needs. A recommended starting
 structure (Current Focus / Approach & Context / For Next Session) provides consistency without rigidity.
 
@@ -126,16 +126,16 @@ lifecycles, different audiences, different tracking models.
 **File locations:**
 
 - Solo: Both in `.arc/active/` (simple, adjacent to task list artifacts)
-- Team: `WORK-STATUS.md` in `.arc/active/` (shared, one per branch). `SESSION.md` in `.arc/team/{member}/`
+- Team: `WORK-STATUS.md` in `.arc/active/` (shared, one per branch). `SESSION-NOTES.md` in `.arc/team/{member}/`
   (personal, one per developer). The team directory already houses per-developer configuration in ARC's team
   model.
 
-`SESSION.md` is gitignored in both configurations. `WORK-STATUS.md` is tracked in both.
+`SESSION-NOTES.md` is gitignored in both configurations. `WORK-STATUS.md` is tracked in both.
 
 ### Part 2: Git Notes for Session Context Portability
 
 We will use git notes — metadata attached to commits within git's object model — as the portability mechanism
-for `SESSION.md` content.
+for `SESSION-NOTES.md` content.
 
 **Why git notes:**
 
@@ -161,7 +161,7 @@ Per-developer namespaces prevent push conflicts entirely. Each developer pushes 
 other developers, independent of branch sharing patterns. To receive a handoff, the incoming developer fetches
 the outgoing developer's namespace.
 
-This maps naturally to ARC's team model: `.arc/team/{member}/SESSION.md` locally, `refs/notes/arc/session/{member}`
+This maps naturally to ARC's team model: `.arc/team/{member}/SESSION-NOTES.md` locally, `refs/notes/arc/session/{member}`
 in git notes. Same identity key in both places.
 
 **Core operations:**
@@ -181,9 +181,9 @@ git fetch origin refs/notes/arc/session/{identity}:refs/notes/arc/session/{ident
 ```
 
 Where `{identity}` is the developer's configured session identity, and `{session-file}` is the path to their
-`SESSION.md`.
+`SESSION-NOTES.md`.
 
-**Note format:** Raw markdown — the content of `SESSION.md` stored directly. Metadata (author, timestamp,
+**Note format:** Raw markdown — the content of `SESSION-NOTES.md` stored directly. Metadata (author, timestamp,
 branch) is derivable from git itself: author from the namespace path, timestamp from the notes ref commit,
 branch from the annotated commit's refs. Raw markdown is human-readable on `git notes show`, consistent with
 ARC's documentation-only identity, and requires no parsing.
@@ -213,11 +213,11 @@ their session context is worth sharing for this particular handoff. The session-
 
 **Session-init gains a session context loading step:**
 
-1. Read `WORK-STATUS.md` for project orientation (replaces reading `CURRENT-SESSION.md`)
-2. Check if `SESSION.md` exists locally
+1. Read `WORK-STATUS.md` for project orientation (replaces reading `CURRENT-SESSION-NOTES.md`)
+2. Check if `SESSION-NOTES.md` exists locally
     - **If yes and matches current branch context:** Use it (resuming on same machine)
     - **If no, or stale:** Check for git notes on HEAD (then walk ancestors if no note on HEAD)
-        - **If notes found:** Populate `SESSION.md`, announce provenance
+        - **If notes found:** Populate `SESSION-NOTES.md`, announce provenance
         - **If no notes:** Start with clean template — graceful degradation
 
 The ancestor-walk handles the case where HEAD advances past the noted commit (another developer pushes after
@@ -225,7 +225,7 @@ the note was saved). Session-init checks recent commits for notes rather than on
 
 **Session-handoff gains a save-and-push step:**
 
-1. Write `SESSION.md` with current context
+1. Write `SESSION-NOTES.md` with current context
 2. Update `WORK-STATUS.md` with final project state (if not already current from last commit)
 3. Save session context to git notes
 4. Push per `session.notes_push` configuration (always, prompt, or manual)
@@ -242,7 +242,7 @@ When a developer switches between branches (different work units or different ph
 the rotate-branch workflow is the natural handler for session context transitions:
 
 - Save notes on the current branch before switching
-- After checkout, session-init detects the stale `SESSION.md` (content references previous branch context)
+- After checkout, session-init detects the stale `SESSION-NOTES.md` (content references previous branch context)
   and loads notes from the new branch's HEAD
 
 This is a WU2 implementation concern — the rotate-branch workflow (D6 in the WU2 plan) should incorporate
@@ -261,7 +261,7 @@ accumulating stale metadata. Cleanup command: `git notes --ref=arc/session/{iden
 1. Configure session identity: `git config arc.session.identity {name}` (per-developer, stored in local git config
    rather than `arc-config.yml` — see `strategy-configurability-architecture.md` § Config scope)
 2. Add notes fetch refspec: `git config --add remote.origin.fetch "+refs/notes/arc/session/*:refs/notes/arc/session/*"`
-3. Add `.arc/active/SESSION.md` (and `.arc/team/*/SESSION.md` for team config) to `.gitignore`
+3. Add `.arc/active/SESSION-NOTES.md` (and `.arc/team/*/SESSION-NOTES.md` for team config) to `.gitignore`
 
 After setup, `git fetch` and `git pull` automatically include session notes. No explicit fetch commands needed
 for routine use.
@@ -301,7 +301,7 @@ This degradation model means teams can adopt session portability incrementally �
   into tracked pointer + gitignored context resolves the fundamental tension: project state travels with git
   automatically, session context travels on demand via notes. Different lifecycles, different mechanisms.
 - **Team handoff has a structured mechanism.** No software development tool currently provides structured
-  session context transfer. ARC's ceremony (write SESSION.md, save to notes, push) is modeled on
+  session context transfer. ARC's ceremony (write SESSION-NOTES.md, save to notes, push) is modeled on
   high-reliability handoff patterns (SBAR, On-Call Review) adapted for the development context. The
   handoff carries qualitative context — decisions, gotchas, approach notes — not just a task pointer.
 - **Multi-machine solo development just works.** With `session.notes_push: always` (the solo default), session
@@ -314,7 +314,7 @@ This degradation model means teams can adopt session portability incrementally �
   WORK-STATUS.md (tracked) is independently useful — it provides the project pointer without requiring notes
   adoption. The feature is additive, not migration-dependent.
 - **Awareness and handoff are distinguished.** WORK-STATUS.md serves the awareness use case (what's happening
-  on this branch) — visible in git, browsable on GitHub. SESSION.md via notes serves the handoff use case (how
+  on this branch) — visible in git, browsable on GitHub. SESSION-NOTES.md via notes serves the handoff use case (how
   do I continue this work) — available on demand, carries qualitative context. Different questions, different
   mechanisms, per the research finding that status update and context transfer are distinct concerns.
 
@@ -337,7 +337,7 @@ This degradation model means teams can adopt session portability incrementally �
   tooling exists, teams need to follow manual setup steps.
 - **File classification update needed.** `CURRENT-SESSION.template.md` is currently classified as Scaffolded
   in `strategy-file-classification.md`. This decision replaces it with `WORK-STATUS.md` (Scaffolded — tracked,
-  project-owned after init) and `SESSION.md` (gitignored, not framework-shipped as a tracked template). WU2
+  project-owned after init) and `SESSION-NOTES.md` (gitignored, not framework-shipped as a tracked template). WU2
   must update the file classification inventory to reflect the new file structure.
 
 ### Risks

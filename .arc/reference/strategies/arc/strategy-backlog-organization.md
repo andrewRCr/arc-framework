@@ -29,7 +29,7 @@ backlog/
 active/
   ATOMIC-TASKS.md            # Committed atomic tasks (checkboxes, ready to execute)
   WORK-STATUS.md             # Project state (tracked)
-  SESSION.md                 # Session context (gitignored)
+  SESSION-NOTES.md           # Session notes (gitignored)
   feature/  technical/  incidental/
 ```
 

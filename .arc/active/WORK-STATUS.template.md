@@ -4,7 +4,7 @@
 > same atomic operation. Lightweight factual state so anyone on this branch can see where work
 > stands at a glance.
 >
-> **Companion:** [SESSION.md](SESSION.md) (gitignored) carries personal session context — what
+> **Companion:** [SESSION-NOTES.md](SESSION-NOTES.md) (gitignored) carries personal session context — what
 > was tried, decisions made, debugging insights. Together they implement P5 (Context
 > Preservation). See `session-handoff.md` for the full update protocol.
 >

@@ -482,7 +482,7 @@ recovery, staleness detection.
     **Goal:** Replace flat "stop and ask" with tiered recovery.
 
     - Restructure Step 4 into two-tier model
-    - Trust hierarchy: git state > task list > WORK-STATUS.md > SESSION.md
+    - Trust hierarchy: git state > task list > WORK-STATUS.md > SESSION-NOTES.md
     - Auto-recover with notice: git + task list agree, session doc is outlier
     - Stop and ask: ambiguous intent, multiple plausible explanations
     - Report format: "Session doc said X. Git/task list show Y. Proceeding with Y."
@@ -490,10 +490,10 @@ recovery, staleness detection.
 - [ ] **4.4 Add staleness detection to `session-init.md`**
 
     - [ ] **4.4.a Add commit hash anchor to `session-handoff.md`**
-        - Write "Commit at Handoff" field into SESSION.md: `git rev-parse HEAD`
+        - Write "Commit at Handoff" field into SESSION-NOTES.md: `git rev-parse HEAD`
 
     - [ ] **4.4.b Add freshness check to `session-init.md`**
-        - Compare SESSION.md anchor against HEAD; report commit gap count
+        - Compare SESSION-NOTES.md anchor against HEAD; report commit gap count
         - WORK-STATUS.md: compare last commit touching it against HEAD
         - Informational, not blocking — feeds confidence into mismatch recovery
         - Runs between context loading and mismatch detection
@@ -503,12 +503,12 @@ recovery, staleness detection.
     The handoff workflow already informally supports protected sections ("DO NOT
     REMOVE UNTIL..."). Formalize as a first-class convention:
 
-    - Standard section name: `### Persistent Context` in SESSION.md
+    - Standard section name: `### Persistent Context` in SESSION-NOTES.md
     - Each entry has an explicit removal trigger (e.g., "Until Phase 3 restructure
       completes", "Until auth migration lands on main")
     - Handoff workflow: explicitly preserve persistent context sections — rewrite
       ephemeral sections only
-    - SESSION.md template: include as optional block with guidance on when to use
+    - SESSION-NOTES.md template: include as optional block with guidance on when to use
     - Session-init: read persistent context alongside ephemeral session state
     - Scope: not tied to full work unit completion — triggers are per-entry
 
@@ -634,7 +634,7 @@ recovery, staleness detection.
     - **Protection mode awareness**: Convention adapts to mode — the merge driver is
       mode-agnostic (`merge=ours` keeps target version regardless of content).
     - Update `strategy-team-coordination.md` § "Session State Has No Conflicts" to
-      distinguish SESSION.md (personal, no conflicts) from WORK-STATUS.md (shared,
+      distinguish SESSION-NOTES.md (personal, no conflicts) from WORK-STATUS.md (shared,
       trivial conflicts with documented resolution).
     - Rationale: flows from ADR-007 (WORK-STATUS.md tracked); not ADR-worthy itself
       (implementation convention, not architectural decision).
