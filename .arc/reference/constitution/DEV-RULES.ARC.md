@@ -130,9 +130,19 @@ During task list creation, place test tasks BEFORE implementation tasks for test
 
 ### Session state control · P2, P5
 
-- **AI never updates session state files** without explicit user instruction
-- Session state is a handoff document — only updated at session end when instructed
-- AI reports changes and progress; the user decides when and how session docs are updated
+Session state uses two files with different update triggers:
+
+- **WORK-STATUS.md** (tracked) — updated at commit time and session handoff only
+    - **Commit time**: Advance alongside task list changes (§ Commit Discipline, "Work status
+      accuracy"). Staged as part of the commit — not a separate operation.
+    - **Session handoff**: If dirty with no pending commit, propose a standalone commit.
+    - **Not at other times** — mid-session updates are churn. The next session recovers state
+      from committed WORK-STATUS.md, git log, and task list checkboxes.
+- **SESSION-NOTES.md** (gitignored) — written only at session handoff. Personal working context
+  for the next session.
+
+AI reports progress throughout the session; session state files capture the summary at commit
+and handoff boundaries.
 
 ### Context quality · P5
 
