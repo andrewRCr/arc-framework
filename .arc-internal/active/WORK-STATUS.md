@@ -9,11 +9,11 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 4.2 (line 470) - Stabilize task references with triple-anchor format
-**Last Completed**: Task 4.1 - Bootstrap and "no active work" state (committed 8fa45d9)
+**Current Task**: Task 4.3 — Add mismatch recovery protocol to session-init.md (line ~488)
+**Last Completed**: Task 4.2 — Stabilize task references with triple-anchor format
 **Blockers**: [none]
-**Next Action**: Start Task 4.2.a — define triple-anchor format and update `session-init.md`
+**Next Action**: Start Task 4.3 — restructure Step 4 into two-tier mismatch recovery
 
 ---
 
-**Last Updated**: 2026-03-03 (Task 4.1 complete)
+**Last Updated**: 2026-03-03 (Task 4.2 complete)

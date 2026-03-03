@@ -57,15 +57,15 @@ Update session state files before ending session:
   [OR: [none associated] for planning/boundary work between task lists]
 **Following Task List**: Yes
   [OR: No - [brief context, e.g., "fixing connection timeout in batch processor (will return to Task 4.5)"]]
-**Current Task**: Task 3.3 (line 247) - Write unit tests
-  [REQUIRED when following task list - enables direct jump to task during session init]
+**Current Task**: Task 3.3 — Write unit tests (line ~247)
+  [REQUIRED when following task list - triple-anchor format enables graduated lookup at session init]
   [Omit only if no task list or transitioning between task lists]
-**Last Completed**: Task 3.2 - Add validation logic
+**Last Completed**: Task 3.2 — Add validation logic
   [OR for off-task-list: brief description, e.g., "Fixed connection timeout in batch processor"]
   [OR if work complete: "Backend Type Safety (Tasks 1-14, archived)"]
 **Blockers**: [none]
   [OR: describe blockers, pending decisions, waiting on user clarification]
-**Next Action**: Start Task 3.3 - Write unit tests for validation logic
+**Next Action**: Start Task 3.3 — Write unit tests for validation logic
   [OR for off-task-list/preparatory: specific action description]
   [Can be preparatory work (strategy doc review, planning) even when Current Task shows task number]
 
@@ -106,7 +106,7 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 1. [Step 1]
 2. [Step 2]
-3. Return to Task X.Y (line ~XXX in tasks-file.md)
+3. Return to Task X.Y — Title (line ~XXX in tasks-file.md)
 
 ### Additional Context
 
@@ -119,7 +119,7 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 - **Remaining Work** - Only for off-task-list work when path back is known
     - List ALL steps if known, not just immediate next
-    - Critical: Captures full path back to task list (INCLUDING task number + line number - essential)
+    - Critical: Captures full path back to task list (use triple-anchor format: task number + title + line hint)
 - **Additional Context** - Supplemental info not in task list
     - Debugging: What tried, what ruled out, what suspected
     - Decisions: Choices made that inform approach
@@ -145,8 +145,8 @@ WORK-STATUS.md:
 **Branch**: feature/data-pipeline
 **Task List**: .arc/active/feature/tasks-data-pipeline.md
 **Following Task List**: No - fixing connection timeout in batch processor (will return to Task 4.1)
-**Current Task**: Task 4.1 (line 312) - Add retry logic to ingestion step
-**Last Completed**: Task 3.5 - Schema validation for input records
+**Current Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
+**Last Completed**: Task 3.5 — Schema validation for input records
 **Blockers**: [none]
 **Next Action**: Fix connection timeout in batch processor (src/pipeline/batch.py:89)
 ```
@@ -164,7 +164,7 @@ SESSION-NOTES.md:
 1. Fix connection timeout in batch processor (pool exhaustion under load)
 2. Add integration test for concurrent batch processing
 3. Run full test suite to verify no regressions
-4. Return to Task 4.1 - Add retry logic (line 312 in tasks-data-pipeline.md)
+4. Return to Task 4.1 — Add retry logic (line ~312 in tasks-data-pipeline.md)
 
 ### Additional Context
 
@@ -183,8 +183,8 @@ WORK-STATUS.md:
 **Branch**: technical/api-documentation
 **Task List**: .arc/active/technical/tasks-api-documentation.md
 **Following Task List**: Yes
-**Current Task**: Task 3.1 (line 203) - Document authentication endpoints
-**Last Completed**: Tasks 2.3-2.4 (Query parameter and response format sections)
+**Current Task**: Task 3.1 — Document authentication endpoints (line ~203)
+**Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
 **Blockers**: [none]
 **Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
 ```
@@ -215,8 +215,8 @@ WORK-STATUS.md:
 **Branch**: technical/ci-pipeline
 **Task List**: .arc/active/technical/tasks-ci-pipeline.md
 **Following Task List**: No - debugging intermittent test failures in CI (will return to Task 5.2)
-**Current Task**: Task 5.2 (line 287) - Add caching to build step
-**Last Completed**: Task 5.1 - Parallelize test stages
+**Current Task**: Task 5.2 — Add caching to build step (line ~287)
+**Last Completed**: Task 5.1 — Parallelize test stages
 **Blockers**: [none]
 **Next Action**: Continue debugging intermittent CI test failures
 ```
@@ -231,7 +231,7 @@ SESSION-NOTES.md:
 
 ### Remaining Work Before Returning to Task List
 
-Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when resolved.
+Path unclear - exploratory debugging. Will return to Task 5.2 — Add caching to build step (line ~287) when resolved.
 
 ### Additional Context
 

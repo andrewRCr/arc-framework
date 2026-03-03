@@ -79,8 +79,9 @@ more value in having complete context upfront than discovering missing rules mid
    - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
      Skip step 9 (task list loading). Session orientation will report this state and surface
      the Next Action from WORK-STATUS.md (typically: create a PRD or review backlog).
-   - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
-   - **If missing line number**: Stop and ask user to provide it before proceeding
+   - **Task reference format**: Current Task uses triple-anchor format —
+     `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
+     All three anchors should be present; any two are sufficient for reliable lookup.
 
 8. `.arc-internal/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
    - Personal working context from prior session: approach, decisions, things tried, known risks
@@ -98,9 +99,11 @@ more value in having complete context upfront than discovering missing rules mid
 - **Reading strategy**:
     - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
     - **ALWAYS read**: Current task section identified in WORK-STATUS.md (the specific task being worked on)
-        - **Use line number**: WORK-STATUS "Current Task" field includes line number (e.g., "Task 5.5 (line 1903)")
-        - **Direct jump**: Use Read tool with offset parameter to jump directly to that task
-        - **No scanning needed**: Line number enables precise navigation
+        - **Graduated lookup** using the triple-anchor reference from WORK-STATUS.md:
+          1. Jump to line hint (`line ~N`) — if task number matches at that location, done
+          2. Search for task number (e.g., `**4.2`) if line hint is stale
+          3. Search for title fragment if task was renumbered
+        - If none of the anchors resolve, report the mismatch (Step 4)
     - **Read on-demand**: Other phases and tasks as needed during work
 - **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
      large to internalize upfront. But you MUST read the overview + current task context.

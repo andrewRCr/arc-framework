@@ -18,8 +18,8 @@
 <!-- OR: [none associated] — for planning, boundary work, or sessions between task lists -->
 **Following Task List**: Yes
 <!-- OR: No - [brief context, e.g., "fixing connection timeout (will return to Task 4.5)"] -->
-**Current Task**: Task X.Y (line NNN) - Brief description
-<!-- REQUIRED when following task list — enables direct jump during session init -->
+**Current Task**: Task X.Y — Brief description (line ~NNN)
+<!-- REQUIRED when following task list — triple-anchor format enables graduated lookup at session init -->
 <!-- Omit only if no task list or transitioning between task lists -->
 **Last Completed**: Task X.Z - Brief description
 <!-- OR for off-task-list: brief description of what was completed -->

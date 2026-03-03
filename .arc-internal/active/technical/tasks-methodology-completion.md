@@ -469,21 +469,29 @@ recovery, staleness detection.
         - Parent branch case: restore parent work unit context
         - Added WORK-STATUS.md to step 12 commit staging
 
-- [ ] **4.2 Stabilize task references with triple-anchor format**
+- [x] **4.2 Stabilize task references with triple-anchor format**
 
-    **Goal:** Replace fragile line-number anchors with graduated lookup.
+    Replaced fragile line-number anchors with triple-anchor format across all session workflows.
 
-    - [ ] **4.2.a Define format and update `session-init.md`**
-        - Format: `Task 4.1 — Design bootstrap (line ~228)`
-        - Lookup protocol: line hint → verify number → search number → search title → report
-        - Replace hard requirement for line numbers with triple-anchor lookup
+    - [x] **4.2.a Define format and update `session-init.md`**
+        - Triple-anchor format: `Task 5.5 — Implement validation (line ~1903)`
+        - Step 7: replaced hard line-number requirement with format definition and
+          "any two anchors sufficient" guidance
+        - Step 9: replaced "Direct jump / No scanning needed" with graduated lookup
+          protocol (line hint → task number search → title search → mismatch report)
+        - Updated both `.arc/` and `.arc-internal/` copies
 
-    - [ ] **4.2.b Update `session-handoff.md`**
-        - Update Current Task format in template and examples
-        - `Task 3.3 (line 247)` → `Task 3.3 — Write unit tests (line ~247)`
+    - [x] **4.2.b Update `session-handoff.md`**
+        - Updated Current Task format in WORK-STATUS template and all three examples
+        - `Task 3.3 (line 247) - Write unit tests` → `Task 3.3 — Write unit tests (line ~247)`
+        - Updated Last Completed fields to use em dash consistently
+        - Updated SESSION-NOTES "Return to" references with triple-anchor format
+        - Updated "Remaining Work" guidance to reference triple-anchor format
 
-    - [ ] **4.2.c Update `activate-work-unit.md` and WORK-STATUS.md template**
-        - Step 7: use triple-anchor format in field documentation
+    - [x] **4.2.c Update `activate-work-unit.md` and WORK-STATUS.md templates**
+        - Step 7 item 4: triple-anchor format in Current Task example
+        - Updated both `.arc/active/WORK-STATUS.template.md` and `.arc/team/WORK-STATUS.template.md`
+        - Template comment updated: "enables graduated lookup" replacing "enables direct jump"
 
 - [ ] **4.3 Add mismatch recovery protocol to `session-init.md`**
 
