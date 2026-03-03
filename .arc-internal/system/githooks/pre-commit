@@ -1,8 +1,13 @@
 #!/bin/bash
 # Git pre-commit hook - Runs before commit is created
-# Location: .arc/system/githooks/pre-commit
+# Location: .arc-internal/system/githooks/pre-commit
 #
-# Setup: git config core.hooksPath .arc/system/githooks
+# Internal copy — mirrors .arc/system/githooks/pre-commit with framework-specific paths:
+#   - Reads config from .arc-internal/system/arc-config.yml
+#   - Searches both .arc/ and .arc-internal/ active directories
+#   - Adds CHECK 10: public/internal boundary enforcement
+#
+# Setup: git config core.hooksPath .arc-internal/system/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 
 set -e
@@ -16,13 +21,13 @@ NC='\033[0m' # No Color
 # ============================================================================
 # CONFIG: Read settings from arc-config.yml
 # ============================================================================
-# Reads a value from .arc/system/arc-config.yml using shell-native parsing.
+# Reads a value from .arc-internal/system/arc-config.yml using shell-native parsing.
 # Falls back to default if config file is missing or key is not found.
 # Usage: arc_config_get <key> <default>
 arc_config_get() {
     local key="$1"
     local default="$2"
-    local config_file=".arc/system/arc-config.yml"
+    local config_file=".arc-internal/system/arc-config.yml"
 
     if [ ! -f "$config_file" ]; then
         echo "$default"
@@ -70,7 +75,7 @@ if [ "$current_branch" = "$base_branch" ]; then
         full)
             echo -e "${RED}Error: Direct commits to $base_branch blocked (branch_protection: full)${NC}"
             echo "   All changes require a feature branch and PR review"
-            echo "   Config: .arc/system/arc-config.yml"
+            echo "   Config: .arc-internal/system/arc-config.yml"
             errors=$((errors + 1))
             ;;
         partial|*)
@@ -175,8 +180,8 @@ done
 # CHECK 6: Verify modified task lists are staged
 # ============================================================================
 # If committing code changes, check if related task lists should also be staged
-modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
-staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '\.(arc|arc-internal)/active/.*/tasks-.*\.md$' || true)
+staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '\.(arc|arc-internal)/active/.*/tasks-.*\.md$' || true)
 
 if [ -n "$modified_task_lists" ] && [ -z "$staged_task_lists" ]; then
     echo -e "${YELLOW}Warning: Modified task lists not staged:${NC}"
@@ -191,7 +196,7 @@ fi
 # Per strategy-task-list-formatting.md: Third level uses letters (1.1.a not 1.1.1)
 # Format: X.Y (parent) -> X.Y.a (subtask) -> X.Y.a.1 (fourth level, rare)
 task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -E '^\.arc/(active|backlog)/.*/tasks-.*\.md$' | \
+    grep -E '^\.(arc|arc-internal)/(active|backlog)/.*/tasks-.*\.md$' | \
     while read file; do
         # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
         # Pattern: checkbox followed by optional bold, then three numeric segments
@@ -221,6 +226,7 @@ fi
 code_extensions="ts|tsx|py|js|jsx"
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
+    grep -v "^\.arc-internal/" | \
     grep -v "^README\.md" | \
     grep -E "\.($code_extensions)$" | \
     while read file; do
@@ -246,14 +252,40 @@ fi
 # ============================================================================
 # If task lists are staged, WORK-STATUS.md should typically be staged too
 # (Current Task should advance to reflect the newly completed work)
-staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
-staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' || true)
+staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.(arc|arc-internal)/active/.*/tasks-.*\.md$' || true)
+staged_work_status=$(git diff --cached --name-only | grep -E '^\.(arc|arc-internal)/active/WORK-STATUS\.md$' || true)
 
 if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
     echo -e "${YELLOW}Warning: Task list staged but WORK-STATUS.md is not${NC}"
     echo "   Task list changes often mean the current task has advanced"
     echo "   Remember to update and stage WORK-STATUS.md"
     warnings=$((warnings + 1))
+fi
+
+# ============================================================================
+# CHECK 10: Public/internal boundary enforcement (internal hook only)
+# ============================================================================
+# Per DEV-RULES.PROJECT § File Organization:
+# Files in .arc/ must never reference .arc-internal/ paths. Public docs are
+# adoption-facing — adopters won't have .arc-internal/.
+internal_refs_in_public=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^\.arc/' | \
+    grep -v '^\.arc-internal/' | \
+    while read file; do
+        refs=$(grep -nF '.arc-internal/' "$file" 2>/dev/null || true)
+        if [ -n "$refs" ]; then
+            echo "$file:"
+            echo "$refs" | sed 's/^/     /'
+        fi
+    done)
+
+if [ -n "$internal_refs_in_public" ]; then
+    echo -e "${RED}Error: .arc-internal/ references found in public .arc/ files:${NC}"
+    echo "$internal_refs_in_public"
+    echo ""
+    echo "   Per DEV-RULES.PROJECT: Public .arc/ files must not reference .arc-internal/ paths"
+    echo "   Use the public equivalent (.arc/ strategy, workflow, or config path)"
+    errors=$((errors + 1))
 fi
 
 # ============================================================================
