@@ -76,6 +76,9 @@ more value in having complete context upfront than discovering missing rules mid
 
 7. `.arc-internal/active/WORK-STATUS.md` - **MUST READ IN FULL**
    - Project state: branch, task list path, current task, blockers, and next action
+   - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
+     Skip step 9 (task list loading). Session orientation will report this state and surface
+     the Next Action from WORK-STATUS.md (typically: create a PRD or review backlog).
    - **VERIFY**: If following task list, "Current Task" field must include line number (e.g., "Task 5.5 (line 1903)")
    - **If missing line number**: Stop and ask user to provide it before proceeding
 
@@ -87,6 +90,8 @@ more value in having complete context upfront than discovering missing rules mid
      capability assumptions)
 
 9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
+
+   **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task list to load.
 
 - Path referenced in WORK-STATUS.md
 - Example: `.arc-internal/active/technical/tasks-[work-unit-name].md`
@@ -116,6 +121,11 @@ Confirm successful initialization. Use this structure:
 **Next action:** What comes next per WORK-STATUS.md
 
 Awaiting direction — proceed to Next Action?
+
+**"No active work" variant:** When WORK-STATUS.md shows `Task List: [none]`, there is no active
+work unit. Use the same format — Current task is "none", Next action comes from WORK-STATUS.md
+(typically pointing to `1_create-prd.md`). This is the normal state after initialization or
+between work units.
 
 **Formatting guidance:**
 

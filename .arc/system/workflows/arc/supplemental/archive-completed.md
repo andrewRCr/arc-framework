@@ -280,11 +280,36 @@ Update `.arc/reference/constitution/PROJECT-STATUS.md` and `.arc/backlog/ROADMAP
 
 Skip for small incidental fixes — these updates are for major features and significant technical work.
 
+### 11b) Update WORK-STATUS.md
+
+Update `.arc/active/WORK-STATUS.md` to reflect the post-archival state.
+
+**Archiving to base branch** (normal case — work unit complete):
+
+Reset to "no active work" defaults:
+
+```markdown
+**Branch**: `main`
+**Task List**: [none]
+**Following Task List**: No
+**Current Task**: —
+**Last Completed**: {Work Name} (archived)
+**Blockers**: [none]
+**Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`
+```
+
+**Archiving to parent work branch** (stacked incidental returning to parent):
+
+Restore WORK-STATUS.md to the parent work unit's context — branch name, task list path,
+and current task from where work was interrupted. The parent's state is recoverable from
+the parent branch's task list and commit history.
+
 ### 12) Commit Archive Changes
 
 ```bash
 git add .arc/reference/archive/{quarter}/{category}/{name}/
 git add .arc/active/{category}/  # captures file deletions
+git add .arc/active/WORK-STATUS.md
 git add .arc/reference/constitution/PROJECT-STATUS.md  # if updated
 git add .arc/backlog/ROADMAP.md  # if updated
 ```

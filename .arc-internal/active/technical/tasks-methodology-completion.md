@@ -442,26 +442,32 @@ recovery, staleness detection.
       leave-it-cleaner configurability path, added missing test-first row (count 19→20),
       updated method format example to dot-suffix pattern
 
-- [ ] **4.1 Handle first-session bootstrap and "no active work" state**
+- [x] **4.1 Handle first-session bootstrap and "no active work" state**
 
     **Goal:** Session-init works cleanly from first init through between-work-unit gaps.
 
-    - [ ] **4.1.a Update `01_initialize-arc.md`**
-        - Scaffold WORK-STATUS.md during init with "no active work" defaults
-        - All fields present: Work Unit `[none]`, Branch `main`, Task List `[none]`,
-          Current Task `—`, Blockers `[none]`, Next Action → create-prd workflow
+    - [x] **4.1.a Update `01_initialize-arc.md`**
+        - Added "Verify Session State" section with "no active work" defaults
+        - All fields present: Branch `main`, Task List `[none]`, Current Task `—`,
+          Blockers `[none]`, Next Action → create-prd workflow
+        - Links to activate-work-unit and archive-completed for lifecycle context
+        - Notes SESSION-NOTES.md doesn't exist at init time
 
-    - [ ] **4.1.b Update `session-init.md` for "no active work" detection**
-        - When WORK-STATUS.md has `Work Unit: [none]`: skip task list loading, report
-          state, point to appropriate next workflow
+    - [x] **4.1.b Update `session-init.md` for "no active work" detection**
+        - Added detection in step 7: `Task List: [none]` triggers skip of step 9
+        - Added "Skip if" guard at top of step 9 (task list loading)
+        - Added "no active work" variant guidance in Confirm Orientation section
+        - Updated both `.arc/` and `.arc-internal/` copies
 
-    - [ ] **4.1.c Update `activate-work-unit.md`**
-        - Step 7: reference WORK-STATUS.md; activation populates placeholder with real values
+    - [x] **4.1.c Update `activate-work-unit.md`**
+        - Step 7: added context that activation transitions from "no active work" defaults
+        - Added Last Completed to the field update list (item 5)
 
-    - [ ] **4.1.d Update `archive-completed.md` WORK-STATUS.md handling**
-        - Archival to base branch: reset WORK-STATUS.md to "no active work" state
-        - Archival to parent work branch (stacked incidental → parent): restore
-          WORK-STATUS.md to parent's work unit (resume, not reset)
+    - [x] **4.1.d Update `archive-completed.md` WORK-STATUS.md handling**
+        - Added step 11b: reset WORK-STATUS.md post-archival
+        - Base branch case: reset to "no active work" defaults with Last Completed
+        - Parent branch case: restore parent work unit context
+        - Added WORK-STATUS.md to step 12 commit staging
 
 - [ ] **4.2 Stabilize task references with triple-anchor format**
 

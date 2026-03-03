@@ -47,6 +47,31 @@ Verify the `.arc/` directory was created with the expected structure:
 - `reference/` — Constitutional documents, strategies, ADRs
 - `system/` — Agent configs, workflows, githooks, settings
 
+### Verify Session State
+
+Confirm that `.arc/active/WORK-STATUS.md` exists with initial "no active work" defaults.
+This file is created during init — ready for the first work unit activation.
+
+**Expected initial state:**
+
+```markdown
+**Branch**: `main`
+**Task List**: [none]
+**Following Task List**: No
+**Current Task**: —
+**Last Completed**: —
+**Blockers**: [none]
+**Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`
+```
+
+If WORK-STATUS.md is missing or blank, create it from `.arc/active/WORK-STATUS.template.md`
+with the values above. SESSION-NOTES.md does not exist at init time (gitignored, created
+during first session handoff).
+
+WORK-STATUS.md is populated with real values when a work unit is activated
+([activate-work-unit.md][activate]) and reset to "no active work" when work is archived
+([archive-completed.md][archive]).
+
 ### Check Agent Configuration
 
 Confirm that agent-specific directories were created for your selected agents
@@ -64,3 +89,5 @@ and planning documents.
 ---
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
+[activate]: ../supplemental/activate-work-unit.md
+[archive]: ../supplemental/archive-completed.md

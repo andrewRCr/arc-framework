@@ -95,14 +95,16 @@ Edit `.arc/backlog/ROADMAP.md`:
 
 ### Step 7: Update WORK-STATUS.md
 
-Edit `.arc/active/WORK-STATUS.md`:
+Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active work" defaults
+(set during init or after archival) to active work unit values:
 
 1. Update **Branch** to feature branch name
 2. Update **Task List** path to active location
 3. Update **Following Task List** to `Yes`
 4. Update **Current Task** to first task (e.g., "Task 1.1 (line XX)")
-5. Update **Next Action** to describe first task
-6. Clear **Blockers** (set to `[none]`)
+5. Update **Last Completed** to previous work or `—` if first work unit
+6. Update **Next Action** to describe first task
+7. Clear **Blockers** (set to `[none]`)
 
 ### Step 8: Commit Activation
 

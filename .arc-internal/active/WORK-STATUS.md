@@ -8,12 +8,12 @@
 
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
-**Following Task List**: No — task list needs impact assessment from ADR-008 before resuming
+**Following Task List**: Yes
 **Current Task**: Task 4.1 (line 443) - Handle first-session bootstrap and "no active work" state
-**Last Completed**: ADR-008 accepted (decompose framework into Core and PM layers)
-**Blockers**: Task list impact assessment needed — ADR-008 changes scope of phases 4-7
-**Next Action**: Assess task list impact from ADR-008, adjust phases 4-7, then resume task work
+**Last Completed**: ADR-008 impact assessment applied to task list, PRD, and WU3 plan (committed 804d1df)
+**Blockers**: [none]
+**Next Action**: Execute Task 4.1.a — update `01_initialize-arc.md` with WORK-STATUS.md scaffolding
 
 ---
 
-**Last Updated**: 2026-03-03 (ADR-008 accepted, task list impact assessment needed)
+**Last Updated**: 2026-03-03 (ADR-008 impact assessment complete, resuming task work)
