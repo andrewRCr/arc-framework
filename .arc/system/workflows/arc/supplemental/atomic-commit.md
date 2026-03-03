@@ -126,7 +126,9 @@ git status               # Verify clean state
 - Branch naming: `feature/[name]` for user-facing, `technical/[name]` for infrastructure
 - Incidental work: minor fixes commit to the current branch; larger incidental work may use
   a dedicated `incidental/<name>` branch — see [manage-incidental-work.md][manage-incidental]
-- Preserve commit history when merging (no squash merge)
+- Merge using the project's `merge.strategy` setting (default: `merge` — preserves commit history).
+  With squash merging, traceability shifts from commits to PR descriptions —
+  see [Configurability Architecture][config-arch] § Merge Strategy for implications.
 - Clean up branches after successful merge
 - See [Work Organization Strategy][work-org] for details
 
@@ -134,4 +136,5 @@ git status               # Verify clean state
 
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
+[config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
 [manage-incidental]: manage-incidental-work.md

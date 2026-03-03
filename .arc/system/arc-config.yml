@@ -34,6 +34,7 @@ commit.format: conventional
 # Context footer requirement enforced by commit-msg hook.
 #   required    - Context: line must be present and valid (default)
 #   recommended - warns if missing, does not block
+#   custom      - validates against commit.context_pattern regex
 #   disabled    - no context footer validation
 commit.context_footer: required
 

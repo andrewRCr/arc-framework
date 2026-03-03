@@ -220,12 +220,12 @@ If code review results in significant changes:
 ### 8) Merge Pull Request
 
 ```bash
-# Via GitHub CLI
-gh pr merge {pr-number} --merge  # preserve commit history (no squash)
+# Via GitHub CLI — use flag matching merge.strategy in arc-config.yml
+gh pr merge {pr-number} --merge   # default; use --squash or --rebase per config
 
 # Or locally
 git checkout parent-branch
-git merge child-branch --no-ff  # preserve merge commit
+git merge child-branch --no-ff
 git push
 ```
 

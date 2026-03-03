@@ -400,6 +400,12 @@ trigger is task completion, not branch deletion. For the full relationship model
 
 Child work must be integrated into parent before parent can be considered complete.
 
+**Merge method:** Set via `merge.strategy` in arc-config.yml (default: `merge`). Merge commits preserve
+branch topology and granular commit history. With `rebase`, commits are replayed for linear history.
+With `squash`, individual commits collapse into one per branch — traceability shifts from commit messages
+to PR descriptions. See [Configurability Architecture][config-arch] § Merge Strategy for behavioral
+implications of each choice.
+
 ### Handling Branch Updates
 
 If the parent branch updates while working on a child:
@@ -713,3 +719,4 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md
 [weekly-review]: ../../../system/workflows/arc/supplemental/weekly-review.md
+[config-arch]: strategy-configurability-architecture.md
