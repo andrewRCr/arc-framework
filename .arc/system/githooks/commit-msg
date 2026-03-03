@@ -129,8 +129,9 @@ else
         # Matches: (Tasks 6.1.h, 6.2.a-d; maintenance), (Tasks 2.3.a-c; planning)
         elif echo "$context_line" | grep -qE '\(Tasks .+; (planning|maintenance)\)$'; then
             :
-        # Matches: (incidental - discovered during Task 2.3), (incidental - discovered during code review)
-        elif echo "$context_line" | grep -qE '\(incidental - discovered during (Task [0-9]+(\.[0-9A-Za-z]+)+|code review)\)$'; then
+        # Matches: (incidental - discovered during Task 2.3), (incidental - discovered during code review),
+        # (incidental - discovered during Phase 5 planning), etc. Freeform context after prefix.
+        elif echo "$context_line" | grep -qE '\(incidental - discovered during .+\)$'; then
             :
         # Matches: (planning), (activation), (maintenance), (archival)
         elif echo "$context_line" | grep -qE '\((planning|activation|maintenance|archival)\)$'; then
@@ -146,8 +147,7 @@ else
             echo "   - (Tasks X.Y, A.B, C.D) - non-contiguous tasks"
             echo "   - (Task X.Y; planning) or (Task X.Y; maintenance) - single task with extra work"
             echo "   - (Tasks X.Y, A.B; planning) - multiple tasks with extra work"
-            echo "   - (incidental - discovered during Task X.Y)"
-            echo "   - (incidental - discovered during code review)"
+            echo "   - (incidental - discovered during <context>) - freeform discovery context"
             echo "   - (planning), (activation), (maintenance), or (archival) - task list lifecycle"
             echo ""
             echo "   Note: Parenthetical is REQUIRED for all commits"
@@ -164,8 +164,7 @@ else
         echo "   Expected formats:"
         echo "   - Context: tasks-[name].md (Task X.Y)"
         echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
-        echo "   - Context: tasks-[name].md (incidental - discovered during Task X.Y)"
-        echo "   - Context: tasks-[name].md (incidental - discovered during code review)"
+        echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
         echo "   - Context: tasks-[name].md (planning), (activation), (maintenance), or (archival)"
         echo "   - Context: [category] (no associated task list)"
         echo "   - Context: [category] (atomic / no associated task list)"
