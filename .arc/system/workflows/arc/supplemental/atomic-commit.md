@@ -97,6 +97,8 @@ Examine changes that might not be immediately obvious — config files, document
 - Mark parent tasks `[x]` ONLY if ALL subtasks are complete
 - Update progress notes and add any discovered tasks
 - Archive completed atomic tasks per ATOMIC-TASKS.md format
+- **Update WORK-STATUS.md** — advance Current Task, Last Completed, and Next Action to
+  reflect the post-commit state (see [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy)
 
 ### 5. Plan Commit Sequence
 

@@ -85,6 +85,8 @@ more value in having complete context upfront than discovering missing rules mid
 
 8. `.arc-internal/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
    - Personal working context from prior session: approach, decisions, things tried, known risks
+   - **Persistent context**: The `## Persistent Context` section carries entries that survive across
+     handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
    - If this file doesn't exist, skip — the session starts with tracked state only (WORK-STATUS.md)
    - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent, extract factual
      content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
@@ -110,6 +112,20 @@ more value in having complete context upfront than discovering missing rules mid
 - **What to extract**: Current phase, task details, acceptance criteria
 
 ### 3. Confirm Orientation
+
+**Freshness check** (run before producing orientation — informational, not blocking):
+
+Assess how current the session documents are. This feeds confidence into mismatch
+recovery (Step 4).
+
+- **SESSION-NOTES.md**: If it has a `Commit at Handoff` field, compare that hash against
+  current HEAD. Report the gap count if commits have landed since handoff (e.g.,
+  "SESSION-NOTES written at abc1234, 3 commits behind HEAD").
+- **WORK-STATUS.md**: Run `git log -1 --format=%h -- .arc-internal/active/WORK-STATUS.md`
+  and compare against HEAD. Report if WORK-STATUS.md hasn't been updated across recent commits.
+
+Include freshness gaps in the orientation summary only when detected. A gap doesn't mean
+state is wrong — it means verify more carefully before trusting session documents.
 
 Confirm successful initialization. Use this structure:
 
@@ -140,19 +156,49 @@ between work units.
 
 ### 4. If Context Seems Mismatched
 
-If documented state (WORK-STATUS.md) doesn't match reality (git status, task list checkboxes, file state):
+If documented state doesn't match reality during initialization, use the trust hierarchy to
+determine the correct response.
 
-1. **Stop immediately** - do not proceed with work
-2. **Report the mismatch** to user with specific details
+**Trust hierarchy** (highest to lowest):
+
+1. **Git state** — `git status`, `git log`, file contents on disk
+2. **Task list** — checkbox state, task descriptions
+3. **WORK-STATUS.md** — tracked project pointer
+4. **SESSION-NOTES.md** — personal session context (gitignored, most volatile)
+
+**Tier 1 — Auto-recover with notice:**
+
+When higher-trust sources agree and a lower-trust source is the outlier, proceed with the
+ground truth and report the discrepancy in the orientation summary.
+
+Report format: "WORK-STATUS said X. Git/task list show Y. Proceeding with Y."
+
+Examples:
+
+- WORK-STATUS says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log
+  confirms the commit → proceed with Task 3.4 as current
+- SESSION-NOTES describes uncommitted work but `git status` is clean and git log shows
+  the work committed → proceed with committed state
+- WORK-STATUS says "Last Completed: Task 3.2" but task list shows 3.3 also marked `[x]` →
+  proceed with 3.3 as last completed
+
+**Tier 2 — Stop and ask:**
+
+When the mismatch is ambiguous — multiple plausible explanations, or sources at the same
+trust tier disagree with each other.
+
+1. **Stop immediately** — do not proceed with work
+2. **Report the mismatch** with specific details from each source
 3. **Ask for guidance** on how to resolve the discrepancy
 4. **Wait for explicit direction** before taking any corrective action
 
-**Examples of mismatches:**
+Examples:
 
-- WORK-STATUS says "uncommitted files" but `git status` shows clean tree
-- WORK-STATUS references "Task 3.3" but task list shows it's already marked `[x]` complete
-- WORK-STATUS describes work in progress but git log shows it's been committed
-
-**Do not attempt to "fix" state on your own** - always involve the user when state is unclear.
+- Git shows uncommitted changes to files not mentioned in any session doc — could be
+  co-development work, a partial task, or an interrupted session
+- WORK-STATUS references a task that doesn't exist in the task list — task may have been
+  renumbered, removed, or WORK-STATUS points to wrong task list
+- Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
+  conflicting signals at the same trust tier
 
 [arc-methods-session]: ../../../../../.arc/system/workflows/arc-methods.md#session-state

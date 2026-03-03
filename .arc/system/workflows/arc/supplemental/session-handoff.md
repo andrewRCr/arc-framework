@@ -20,8 +20,9 @@ via [`arc-methods.md` § session-state][arc-methods-session].
 
 1. `git status` — clean vs uncommitted changes
 2. `git log --oneline -10` — capture committed work
-3. Task list file — verify marked checkboxes reflect actual completion
-4. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
+3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
+4. Task list file — verify marked checkboxes reflect actual completion
+5. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
 
 ### What to Update
 
@@ -36,14 +37,17 @@ Session state is split across two files:
 
 **When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
 
-**Preserve protected sections** — Content marked "DO NOT REMOVE UNTIL..." or similar warnings stays until
-its stated condition is met
+**Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
+context that survives across handoffs. Each entry has an explicit removal trigger. During handoff,
+rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context) but preserve
+persistent context entries whose triggers haven't been met. Remove entries whose triggers are met.
 
 ### Comprehensive Handoff Format
 
 Update session state files before ending session:
 
-1. **First**: Check for protected sections (marked "DO NOT REMOVE UNTIL...") and preserve them
+1. **First**: Review `## Persistent Context` — preserve entries whose triggers aren't met, remove entries
+   whose triggers are met
 2. **Second**: Check if working directory context changed and update paths in WORK-STATUS.md if needed
 3. **Then**: Update both files with work progress:
 
@@ -113,6 +117,22 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 [Supplemental information not in task list: debugging insights, decisions made, things tried/ruled out, constraints discovered]
 
 [OR: [none] if task list has all needed context]
+
+### Persistent Context
+
+<!-- Entries that survive across handoffs. Each has an explicit removal trigger. -->
+<!-- Review at each handoff: remove entries whose triggers have been met. -->
+
+**[Entry name]:**
+*Remove when: [explicit trigger condition]*
+
+- [Context that must persist until trigger is met]
+
+---
+
+**Commit at Handoff**: `{{short-hash}}`
+
+**Last Updated**: {{YYYY-MM-DD}}
 ```
 
 **What to include:**
@@ -125,6 +145,10 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
     - Decisions: Choices made that inform approach
     - Constraints: User preferences, technical limitations
     - Goal: Don't repeat work, don't lose insights
+- **Persistent Context** - Context that must survive across multiple handoffs
+    - Each entry needs an explicit removal trigger (not tied to full work unit completion)
+    - Examples: design decisions to apply consistently, parked work items, naming conventions
+    - Review at each handoff: remove entries whose triggers are met
 
 **What NOT to include:**
 
@@ -285,6 +309,27 @@ SESSION-NOTES.md:
 
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
+
+### Conditional WORK-STATUS.md Commit
+
+If WORK-STATUS.md has been updated but no task commit is pending to carry it, offer to commit
+it standalone. This resolves the "dangling WORK-STATUS.md" gap during off-task-list sessions
+(evaluation, design discussions, pre-planning) where no task commit naturally includes it.
+
+**Trigger**: WORK-STATUS.md is dirty (`git diff --name-only` shows it) and no other
+staged/unstaged changes are pending that would form a task commit.
+
+**Action**: Propose a standalone commit to the user (manual commit control still applies):
+
+```bash
+git add .arc/active/WORK-STATUS.md
+git commit -m "docs(arc): update WORK-STATUS.md
+
+Context: maintenance (atomic / no associated task list)"
+```
+
+**Skip when**: WORK-STATUS.md will ride with a pending task commit (the normal case — see
+DEV-RULES.ARC § Work status accuracy).
 
 ### Confirm Handoff
 

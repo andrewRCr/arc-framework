@@ -32,4 +32,4 @@
 
 ---
 
-**Last Updated**: {{YYYY-MM-DD}} (brief update description)
+**Last Updated**: {{YYYY-MM-DD}}

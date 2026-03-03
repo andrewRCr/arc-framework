@@ -493,55 +493,52 @@ recovery, staleness detection.
         - Updated both `.arc/active/WORK-STATUS.template.md` and `.arc/team/WORK-STATUS.template.md`
         - Template comment updated: "enables graduated lookup" replacing "enables direct jump"
 
-- [ ] **4.3 Add mismatch recovery protocol to `session-init.md`**
+- [x] **4.3 Add mismatch recovery protocol to `session-init.md`**
 
-    **Goal:** Replace flat "stop and ask" with tiered recovery.
+    Restructured Step 4 into two-tier model with explicit trust hierarchy.
 
-    - Restructure Step 4 into two-tier model
     - Trust hierarchy: git state > task list > WORK-STATUS.md > SESSION-NOTES.md
-    - Auto-recover with notice: git + task list agree, session doc is outlier
-    - Stop and ask: ambiguous intent, multiple plausible explanations
-    - Report format: "Session doc said X. Git/task list show Y. Proceeding with Y."
+    - Tier 1 (auto-recover): higher-trust sources agree, lower-trust is outlier —
+      proceed with ground truth, report in orientation summary
+    - Tier 2 (stop and ask): ambiguous intent, same-tier disagreement
+    - Three examples per tier showing concrete scenarios
+    - Updated both `.arc/` and `.arc-internal/` copies
 
-- [ ] **4.4 Add staleness detection to `session-init.md`**
+- [x] **4.4 Add staleness detection to `session-init.md`**
 
-    - [ ] **4.4.a Add commit hash anchor to `session-handoff.md`**
-        - Write "Commit at Handoff" field into SESSION-NOTES.md: `git rev-parse HEAD`
+    - [x] **4.4.a Add commit hash anchor to `session-handoff.md`**
+        - Added `Commit at Handoff` field to SESSION-NOTES template in session-handoff.md
+        - Added `git rev-parse --short HEAD` as step 3 of Pre-Update Verification
+        - Updated both SESSION-NOTES.template.md files (active/ and team/) with field + comment
 
-    - [ ] **4.4.b Add freshness check to `session-init.md`**
-        - Compare SESSION-NOTES.md anchor against HEAD; report commit gap count
+    - [x] **4.4.b Add freshness check to `session-init.md`**
+        - Added freshness check as first part of Step 3 (Confirm Orientation)
+        - SESSION-NOTES.md: compare `Commit at Handoff` hash against HEAD, report gap count
         - WORK-STATUS.md: compare last commit touching it against HEAD
-        - Informational, not blocking — feeds confidence into mismatch recovery
-        - Runs between context loading and mismatch detection
+        - Informational, not blocking — feeds confidence into mismatch recovery (Step 4)
+        - Updated both `.arc/` and `.arc-internal/` copies
 
-- [ ] **4.4.x Formalize persistent context convention in `session-handoff.md`**
+- [x] **4.4.x Formalize persistent context convention in `session-handoff.md`**
 
-    The handoff workflow already informally supports protected sections ("DO NOT
-    REMOVE UNTIL..."). Formalize as a first-class convention:
+    Promoted informal "DO NOT REMOVE" pattern to first-class `## Persistent Context` section.
 
-    - Standard section name: `### Persistent Context` in SESSION-NOTES.md
-    - Each entry has an explicit removal trigger (e.g., "Until Phase 3 restructure
-      completes", "Until auth migration lands on main")
-    - Handoff workflow: explicitly preserve persistent context sections — rewrite
-      ephemeral sections only
-    - SESSION-NOTES.md template: include as optional block with guidance on when to use
-    - Session-init: read persistent context alongside ephemeral session state
-    - Scope: not tied to full work unit completion — triggers are per-entry
+    - session-handoff.md: updated "Preserve protected sections" → "Preserve persistent
+      context", updated step 1, added section to SESSION-NOTES template, added to
+      "What to include" guidance
+    - SESSION-NOTES.template.md: added `## Persistent Context` section with HTML
+      comment guidance (both active/ and team/ copies)
+    - session-init.md: added persistent context note to Step 2 item 8 (both copies)
+    - Each entry has explicit removal trigger, reviewed at each handoff
 
-- [ ] **4.4.y Add conditional WORK-STATUS.md commit to `session-handoff.md`**
+- [x] **4.4.y Add conditional WORK-STATUS.md commit to `session-handoff.md`**
 
-    Per ADR-008 subordinate decision 7d: if WORK-STATUS.md is dirty and no other
-    commits are pending, commit it standalone before presenting the handoff summary.
-    Resolves the "dangling WORK-STATUS.md" gap during off-task-list work (evaluation
-    sessions, design discussions, pre-planning).
+    Added "Conditional WORK-STATUS.md Commit" section between Post-Update Cleanup
+    and Confirm Handoff. Trigger: WORK-STATUS.md dirty with no pending task commit.
+    Action: propose standalone maintenance commit (permission-gated). Skip when
+    WORK-STATUS.md will ride with a task commit per DEV-RULES.ARC § Work status accuracy.
 
-    - Conditional step in handoff workflow: check `git diff --name-only` for
-      WORK-STATUS.md, commit if dirty and no other staged/unstaged changes pending
-    - Still under manual commit control — permission-gated like all commits
-    - Commit message convention: maintenance-scoped (e.g., `docs(arc): update
-      WORK-STATUS.md` with `(maintenance)` context)
-
-- [ ] **4.5 Run Tier 1 quality gates on Phase 4 changes**
+- [x] **4.5 Run Tier 1 quality gates on Phase 4 changes**
+    - Full suite (Tier 3): 129 files, 0 errors
 
 ### **Phase 5:** Configuration and Customization Infrastructure
 

@@ -34,6 +34,16 @@ file paths, and what changed. For committed work, a simple list with commit hash
 <!-- Debugging insights, decisions made, things tried and ruled out, constraints discovered. -->
 <!-- Use [none] if task list has all needed context. -->
 
+## Persistent Context
+
+<!-- Entries that survive across handoffs — not rewritten each session. -->
+<!-- Each entry has an explicit removal trigger. Review at each handoff: -->
+<!-- remove entries whose triggers have been met. -->
+<!-- Delete this section entirely if no persistent context is needed. -->
+
 ---
 
-**Last Updated**: {{YYYY-MM-DD}} (brief update description)
+**Commit at Handoff**: `{{short-hash}}`
+<!-- Record via: git rev-parse --short HEAD. Session-init uses this to detect staleness. -->
+
+**Last Updated**: {{YYYY-MM-DD}}
