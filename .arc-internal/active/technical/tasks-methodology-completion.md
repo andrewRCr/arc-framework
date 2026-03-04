@@ -932,22 +932,33 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         - Added step 10 "Route Research Files (If Applicable)" — decision point for copying
           files with lasting reference value to `.arc/reference/research/` before archival
 
-- [ ] **7.2 Research and establish document evolution guidance**
+- [x] **7.2 Research and establish document evolution guidance**
 
-    **Goal:** Define ADR/PRD amendment conventions.
+    Defined three-tier ADR amendment model (corrections, amendments, supersession) and PRD
+    document history convention. Research: external-research-analyst surveyed Nygard, AWS,
+    MADR, Henderson's ADR repo, Thoughtworks, Reforge — found universal consensus on typo
+    corrections, split field on strict immutability vs. living-document amendments.
 
-    - Research ADR amendment practices before designing
-    - ADRs: minor corrections vs. full supersession
-    - PRDs: post-implementation updates (amend, annotate, or leave historical)
-    - Add "Amending This Document" section convention to templates
-    - **Strategies:** `strategy-adr-methodology.md`
+    - `strategy-adr-methodology.md`: Added "Amending Accepted ADRs" section with three tiers,
+      annotation format, and choosing-the-right-tier table. Softened absolute "never edited"
+      language in Key Characteristics, Status note, and Accepted lifecycle to reference new section.
+    - `template-adr.md`: Added "Amending This Document" section with inline guidance comment
+    - `template-prd.md`: Added "Document History" section with version table and guidance comment
+    - `DEV-RULES.PROJECT.md`: Updated ADR immutability statement to reference three-tier model
 
-- [ ] **7.3 Add intermediate work-unit status**
+- [x] **7.3 Add intermediate work-unit status**
 
-    - Select label for "done but unmerged" state
-    - Standardize across Core: `archive-completed.md`, `agent-pre-merge-review.md`
-    - arc-in-git PM: also standardize in PROJECT-STATUS template and ROADMAP
-    - Set intermediate in Phase 1 (pre-merge), final in Phase 3 (post-merge)
+    Added `Integrated` as post-merge terminal status. Lifecycle: `Pending` → `In Progress` →
+    `Complete` (all tasks done, pre-merge) → `Integrated` (merged to base branch).
+
+    - `strategy-task-list-formatting.md`: Added `Integrated` to status values in both planned
+      and incidental task list formats (4 locations), with descriptions
+    - `archive-completed.md`: Added step 10 "Update Task List Status to Integrated" in Phase 3
+      (after merge, before archival). Steps renumbered 9→15 (was 9→14). PRD status stays
+      `Complete` (tracks plan fulfillment, not merge state)
+    - `agent-pre-merge-review.md`: No changes needed (no status value references)
+    - PROJECT-STATUS/ROADMAP templates: No changes needed (no work-unit status fields; PM
+      layer updates via post-archival extension point)
 
 - [ ] **7.4 Address version reference drift**
 

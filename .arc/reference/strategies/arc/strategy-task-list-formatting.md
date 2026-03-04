@@ -64,7 +64,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Created:** YYYY-MM-DD
 **Branch(es):** `{feature|technical}/[branch-name]`
 **Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
-**Status:** {Pending|In Progress|Complete}
+**Status:** {Pending|In Progress|Complete|Integrated}
 
 ## Overview
 
@@ -95,7 +95,8 @@ Task list headers provide essential metadata and context. Format varies by task 
   when using stacked PRs or team sub-branches (see
   [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
-- Status values: `Pending` (planned), `In Progress` (active), `Complete` (done)
+- Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
+  `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/supplemental/archive-completed.md))
 - Overview section includes Purpose
 - Scope section defines boundaries (Will Do / Won't Do)
 - Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) only when needed
@@ -114,7 +115,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Created:** YYYY-MM-DD
 **Branch(es):** `incidental/[name]`
 **Base Branch:** `[parent-branch-this-branched-from]`
-**Status:** {Pending|In Progress|Complete}
+**Status:** {Pending|In Progress|Complete|Integrated}
 
 ## Context
 
@@ -149,7 +150,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 - `Branch(es)` lists this task list's own branch; add additional branches comma-separated if needed
 - Base Branch is the parent branch this branched from (enables grep-based discovery of related work)
 - Status values: `Pending` (not started), `In Progress` (active), `Paused` (blocked by other work),
-  `Complete` (done)
+  `Complete` (all tasks done, pre-merge), `Integrated` (merged to base branch)
 - **Interrupts** field shows what task list/task was paused (backward pointer) OR `None` if fresh work
 - **When pausing parent work**, add `Paused At` and `Paused To` fields to the interrupted task list
   (forward pointer)

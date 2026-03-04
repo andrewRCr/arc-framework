@@ -10,9 +10,9 @@
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
 **Current Task**: [none — awaiting direction on next Phase 7 task]
-**Last Completed**: Task 7.1 — Update archive workflow documentation
+**Last Completed**: Task 7.3 — Add intermediate work-unit status
 **Blockers**: None
-**Next Action**: Continue Phase 7 — Task 7.2 (Research and establish document evolution guidance)
+**Next Action**: Continue Phase 7 — Task 7.4 (Address version reference drift)
 
 ---
 
