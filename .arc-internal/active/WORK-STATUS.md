@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 5.9 — Remove TASK-INBOX.md and weekly-review.md from framework (line ~767)
-**Last Completed**: Task 5.8R — Apply ADR-009 naming changes
+**Current Task**: Task 6.2 — Add team mode callouts to session workflows (line ~814)
+**Last Completed**: Task 6.1 — Add Workflow Adaptations section to team coordination strategy
 **Blockers**: [none]
-**Next Action**: Start Task 5.9 — remove TASK-INBOX and weekly-review artifacts and references
+**Next Action**: Start Task 6.2 — add team mode path callouts to session-handoff, activate-work-unit, session-init
 
 ---
 

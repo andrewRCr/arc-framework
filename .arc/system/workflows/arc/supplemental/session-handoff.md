@@ -313,14 +313,15 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 
 ### Conditional WORK-STATUS.md Commit
 
-If WORK-STATUS.md has been updated but no task commit is pending to carry it, offer to commit
-it standalone. This resolves the "dangling WORK-STATUS.md" gap during off-task-list sessions
-(evaluation, design discussions, pre-planning) where no task commit naturally includes it.
+If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
+commit it as part of the handoff. This resolves the "dangling WORK-STATUS.md" gap during
+off-task-list sessions (evaluation, design discussions, pre-planning) where no task commit
+naturally includes it. The handoff invocation is the approval — do not ask separately.
 
 **Trigger**: WORK-STATUS.md is dirty (`git diff --name-only` shows it) and no other
 staged/unstaged changes are pending that would form a task commit.
 
-**Action**: Propose a standalone commit to the user (manual commit control still applies):
+**Action**: Commit standalone as part of the handoff:
 
 ```bash
 git add .arc/active/WORK-STATUS.md

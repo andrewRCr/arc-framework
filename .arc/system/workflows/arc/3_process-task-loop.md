@@ -107,6 +107,11 @@ It ensures consistent execution, quality control, and documentation of work.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
      When committing, follow [Commit Workflow](supplemental/atomic-commit.md) guidelines.
 
+     **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
+     advance Current Task, Last Completed, and Next Action to reflect the post-commit state. Stage
+     it alongside the task list changes. This is the primary update mechanism; session handoff is
+     only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
+
      **Atomicity check (before staging):** Do all changes serve one logical concern? Common
      splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
      list tracking updates (when they can stand alone), multiple completed tasks that touched
