@@ -725,6 +725,33 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         Also added `· Solo PM` title marker and `**Layer:**` metadata to
         `strategy-backlog-organization.md` itself.
 
+- [ ] **5.8R Apply ADR-009 naming changes (Solo PM/Team PM → pm.mode values)**
+
+    **Goal:** Update all references from the superseded Solo PM / Team PM layer
+    naming to ADR-009's mode-based naming (`none`, `arc-in-git`, `external`).
+    Mechanical renaming plus prose updates in one strategy doc.
+
+    - [ ] **5.8R.a Update `arc-config.yml` pm.mode values and comments**
+        - Change `solo` → `arc-in-git`, `team` → `external`, add `none` as default
+        - Rewrite comment descriptions to match ADR-009 framing
+        - Spell out "Project Management" on first use per ADR-009 Part 4
+
+    - [ ] **5.8R.b Update `strategy-file-classification.md` layer annotations**
+        - Layer column values: "Solo PM" → "arc-in-git", remove "Team PM"
+          (team/ files that were Team PM: ATOMIC-TASKS becomes "arc-in-git",
+          others remain Core)
+        - Update intro paragraph to reference new mode names
+
+    - [ ] **5.8R.c Update layer references in STRATEGY-INDEX, backlog-org, define-project**
+        - `STRATEGY-INDEX.md`: "(Solo PM)" → "(arc-in-git)", update explanatory note
+        - `strategy-backlog-organization.md`: title marker and Layer metadata
+        - `02_define-project.md`: section headers "With Solo PM" → "With arc-in-git PM"
+
+    - [ ] **5.8R.d Update `strategy-configurability-architecture.md` layer descriptions**
+        - Rewrite § Functionality scope / adoption flexibility paragraphs
+        - Replace Solo PM / Team PM layer descriptions with pm.mode framing
+        - Update scenario examples that reference layer names
+
 - [ ] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
 
     **Goal:** Per ADR-008, both artifacts are cut from the framework entirely (not
