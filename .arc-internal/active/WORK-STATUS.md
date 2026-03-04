@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 5.6 — Integrate extension and method references into workflows (line ~621)
-**Last Completed**: Task 5.5 — Add method dependencies to arc-methods.md
+**Current Task**: Task 5.8 — Apply ADR-008 Core/PM decomposition to workflows (line ~674)
+**Last Completed**: Task 5.7 — Add session-init config awareness step
 **Blockers**: [none]
-**Next Action**: Start Task 5.6 — hybrid integration of extension/method references into workflows
+**Next Action**: Start Task 5.8 — extract PM-specific steps from Core workflows using extension points
 
 ---
 
