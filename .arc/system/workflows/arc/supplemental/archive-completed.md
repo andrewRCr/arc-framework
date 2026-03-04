@@ -129,6 +129,14 @@ The completion doc must be accurate because it's used for PRs. Before writing:
 - {Significant challenge overcome}
 - {Anything useful for similar future work}
 
+## Verification
+
+{Results from the verification phase — makes quality attestation visible in archive output}
+
+- **Quality gates**: {Tier 3 status — "all passed" or details on failures/waivers}
+- **Success criteria**: {For planned work: "X of Y met" with deviation/supersession notes.
+  For incidental/technical without PRD: "N/A — no PRD success criteria"}
+
 ## Related Documentation
 
 - {For planned work: PRD: `path/to/prd-{name}.md`}
@@ -214,8 +222,8 @@ If code review results in significant changes:
 
 - Update code as requested
 - **Update completion metadata if work outcomes changed** (completion doc should reflect final state)
+- **Re-run Tier 1 quality gates** on all modified files — mandatory after review-driven commits
 - Commit fixes with references to review findings
-- Re-run quality checks if necessary
 
 ### 8) Merge Pull Request
 
@@ -247,7 +255,21 @@ git branch -d {child-branch-name}
 git push origin --delete {child-branch-name}  # if pushed
 ```
 
-### 10) Archive Files
+### 10) Route Research Files (If Applicable)
+
+Before archiving, assess whether any work artifacts have reference value beyond this work unit —
+investigation notes, benchmark data, design explorations, research summaries. These files lose
+discoverability once buried in the archive directory.
+
+**Decision:** "Do any files have lasting reference value outside this work unit's context?"
+
+- **Yes** → Copy (not move) to `.arc/reference/research/` with a descriptive name. The original
+  stays with the archive for completeness. Note the routing in the completion doc's Related
+  Documentation section.
+- **No** → Proceed directly to archival. Most work units won't have research files — this step
+  is a quick assessment, not a gate.
+
+### 11) Archive Files
 
 **Create archive directory and move all files using git mv** (preserves history).
 
@@ -271,7 +293,7 @@ git mv .arc/active/{category}/notes-{name}.md .arc/reference/archive/{quarter}/{
 git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 ```
 
-### 11) Update WORK-STATUS.md
+### 12) Update WORK-STATUS.md
 
 Update `.arc/active/WORK-STATUS.md` to reflect the post-archival state.
 
@@ -295,14 +317,14 @@ Restore WORK-STATUS.md to the parent work unit's context — branch name, task l
 and current task from where work was interrupted. The parent's state is recoverable from
 the parent branch's task list and commit history.
 
-### 12) Post-Archival Extensions · `#post-work-unit-archive`
+### 13) Post-Archival Extensions · `#post-work-unit-archive`
 
 If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now. This is the
 primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at archival time.
 
 See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
 
-### 13) Commit Archive Changes
+### 14) Commit Archive Changes
 
 ```bash
 git add .arc/reference/archive/{quarter}/{category}/{name}/

@@ -916,19 +916,21 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
 **Purpose:** Close all remaining convention and workflow completeness gaps.
 
-- [ ] **7.1 Update archive workflow documentation**
+- [x] **7.1 Update archive workflow documentation**
 
-    **Goal:** Three related improvements to `archive-completed.md`.
+    Three improvements to `archive-completed.md`. Step numbers renumbered (9→14, was 9→13).
 
-    - [ ] **7.1.a Add verification section to completion doc template**
-        - Makes verified results visible in archive output
+    - [x] **7.1.a Add verification section to completion doc template**
+        - Added `## Verification` section between Implementation Highlights and Related
+          Documentation — captures Tier 3 QG status and success criteria summary
 
-    - [ ] **7.1.b Close post-review quality gate gap**
-        - Phase 2: add post-review QG re-run (mandatory Tier 1 after review-driven commits)
+    - [x] **7.1.b Close post-review quality gate gap**
+        - Changed step 7 from optional "Re-run quality checks if necessary" to mandatory
+          "Re-run Tier 1 quality gates" after review-driven commits
 
-    - [ ] **7.1.c Add research file routing**
-        - Phase 3: decision point — "Do any files have reference value beyond this work
-          unit?" Route to `reference/research/`
+    - [x] **7.1.c Add research file routing**
+        - Added step 10 "Route Research Files (If Applicable)" — decision point for copying
+          files with lasting reference value to `.arc/reference/research/` before archival
 
 - [ ] **7.2 Research and establish document evolution guidance**
 

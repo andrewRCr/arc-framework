@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: [none — Phase 6 complete]
-**Last Completed**: Task 6.8 — Run Tier 1 quality gates on Phase 6 changes
+**Current Task**: [none — awaiting direction on next Phase 7 task]
+**Last Completed**: Task 7.1 — Update archive workflow documentation
 **Blockers**: None
-**Next Action**: Begin Phase 7 (Convention Gaps and Methodology Polish) — Task 7.1
+**Next Action**: Continue Phase 7 — Task 7.2 (Research and establish document evolution guidance)
 
 ---
 
