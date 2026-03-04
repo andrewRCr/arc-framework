@@ -72,10 +72,11 @@ architecture rules, and any project-specific protocols.
 During project setup, these templates become your project documents (dropping the `.template`
 suffix). All three go in `reference/constitution/`.
 
-### With Solo PM (`pm.mode: solo`)
+### With arc-in-git PM (`pm.mode: arc-in-git`)
 
-If your project uses the Solo PM layer, create these additional documents during setup.
-Check `pm.mode` in [`arc-config.yml`][arc-config] — skip this section if set to `none`.
+If your project uses arc-in-git Project Management mode, create these additional documents
+during setup. Check `pm.mode` in [`arc-config.yml`][arc-config] — skip this section if
+set to `none`.
 
 #### Step 4: Plan ROADMAP
 
@@ -130,9 +131,9 @@ PROJECT-STATUS goes in `reference/constitution/`.
 - **TECHNICAL-OVERVIEW**: Do documented patterns reflect current practice? Any new constraints?
 - **DEV-RULES.PROJECT**: Are quality gates catching real issues? Any standards that aren't working?
 
-### With Solo PM
+### With arc-in-git PM
 
-If your project uses the Solo PM layer, also maintain:
+If your project uses arc-in-git PM mode, also maintain:
 
 - **Sequencing shifts**: Update ROADMAP.md phases and dependencies
 - **ROADMAP** (periodic): Is the sequencing still correct? Any completed phases to archive?

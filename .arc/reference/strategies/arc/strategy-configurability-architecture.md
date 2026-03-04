@@ -186,7 +186,7 @@ Adoption flexibility has three independent axes:
 |----------------------|--------------------------------|--------------------------------|
 | Enforcement depth    | How strictly conventions apply | Config values (arc-config.yml) |
 | Method customization | ARC defaults vs. team methods  | Overrides (arc-methods.md)     |
-| Functionality scope  | What features are installed    | Layer selection (pm.mode)      |
+| Functionality scope  | What features are installed    | PM mode selection (pm.mode)    |
 
 **Enforcement depth** is what profiles address — three postures:
 
@@ -197,14 +197,15 @@ Adoption flexibility has three independent axes:
 **Method customization** substitutes how ARC does things — a team with a custom session mechanism replaces
 the session-state method. Independent of enforcement depth.
 
-**Functionality scope** controls what's installed. ARC decomposes into Core (always present) and optional PM layers:
-Solo PM (in-git project management for solo developers) or Team PM (team conventions and external tracker integration).
-Core contains the complete methodology engine — session management, task execution, commit discipline, specification
-workflows, branch management, and configuration infrastructure. PM layers are independent of each other and of the
-other two axes.
+**Functionality scope** controls what's installed. ARC decomposes into Core (always present) and optional Project
+Management (PM) modes selected via `pm.mode` in `arc-config.yml`: `none` (Core only), `arc-in-git` (ARC's built-in PM
+suite — backlogs, roadmap, status tracking), or `external` (external tool integration). Core contains the complete
+methodology engine — session management, task execution, commit discipline, specification workflows, branch management,
+and configuration infrastructure. PM mode is independent of the other two axes.
 
-All three axes are independent and composable. An Essentials adopter can be Core-only or Core + Solo PM. A Recommended
-team can use Core + Team PM with Jira method overrides. The full customization space is the product of all three axes.
+All three axes are independent and composable. An Essentials adopter can use `pm.mode: none` or `pm.mode: arc-in-git`.
+A Recommended team can use `pm.mode: external` with Jira method overrides. The full customization space is the product
+of all three axes.
 
 ### Scaling up and down
 
@@ -220,10 +221,10 @@ grows comfortable with conventions the agent has been demonstrating and decides 
 **Adding method overrides:** Independent of profile changes. A recommended-profile team can add a session-state method
 override without changing their enforcement profile.
 
-**Adding or removing PM layers:** Independent of enforcement and method changes. A Core-only user who wants in-git
-project management adds Solo PM via `arc init --reconfigure`. A team switching from Solo PM to Team PM reconfigures
-without affecting their enforcement profile or method overrides. Layer changes are structural choices made at init time;
-enforcement profiles and method overrides can change at any time.
+**Changing PM mode:** Independent of enforcement and method changes. A `pm.mode: none` user who wants in-git project
+management switches to `pm.mode: arc-in-git` via `arc init --reconfigure`. A team moving to external tracking switches
+to `pm.mode: external` without affecting their enforcement profile or method overrides. PM mode changes are structural
+choices made at init time; enforcement profiles and method overrides can change at any time.
 
 ---
 
@@ -250,7 +251,7 @@ merge.strategy: merge
 hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 platform.type: github
-pm.mode: solo
+pm.mode: none
 ```
 
 **Why dotted keys:** Logical grouping (`branch.*`, `commit.*`) improves readability as settings grow, while preserving
@@ -564,7 +565,8 @@ broader project tracking.
 
 **Profile:** Recommended (full enforcement, custom methods).
 
-**Layer:** Core + Team PM, or Core-only if the team's external tools fully replace in-git project management.
+**PM mode:** `external` (Jira is the PM tool), or `none` if the team's external tools fully replace in-git project
+management without needing integration hooks.
 
 ### Scenario B: Factory-style agent (bookend pattern)
 

@@ -725,32 +725,45 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         Also added `· Solo PM` title marker and `**Layer:**` metadata to
         `strategy-backlog-organization.md` itself.
 
-- [ ] **5.8R Apply ADR-009 naming changes (Solo PM/Team PM → pm.mode values)**
+- [x] **5.8R Apply ADR-009 naming changes (Solo PM/Team PM → pm.mode values)**
 
-    **Goal:** Update all references from the superseded Solo PM / Team PM layer
-    naming to ADR-009's mode-based naming (`none`, `arc-in-git`, `external`).
-    Mechanical renaming plus prose updates in one strategy doc.
+    Applied ADR-009 naming across 8 files: arc-config.yml (public + internal),
+    strategy-file-classification.md, STRATEGY-INDEX.md, strategy-backlog-organization.md,
+    02_define-project.md, and strategy-configurability-architecture.md. All Solo PM/Team PM
+    references replaced with `pm.mode` values (`none`, `arc-in-git`, `external`).
 
-    - [ ] **5.8R.a Update `arc-config.yml` pm.mode values and comments**
-        - Change `solo` → `arc-in-git`, `team` → `external`, add `none` as default
-        - Rewrite comment descriptions to match ADR-009 framing
-        - Spell out "Project Management" on first use per ADR-009 Part 4
+    - [x] **5.8R.a Update `arc-config.yml` pm.mode values and comments**
 
-    - [ ] **5.8R.b Update `strategy-file-classification.md` layer annotations**
-        - Layer column values: "Solo PM" → "arc-in-git", remove "Team PM"
-          (team/ files that were Team PM: ATOMIC-TASKS becomes "arc-in-git",
-          others remain Core)
-        - Update intro paragraph to reference new mode names
+        Updated both public and internal configs. Rewrote PM section comments:
+        "PM layer selection" → "Project Management (PM) mode. Controls where
+        project management lives." Values: `none` (default), `arc-in-git`,
+        `external` with ADR-009 descriptions. Public template defaults to `none`;
+        internal (self-hosting) set to `arc-in-git`.
 
-    - [ ] **5.8R.c Update layer references in STRATEGY-INDEX, backlog-org, define-project**
-        - `STRATEGY-INDEX.md`: "(Solo PM)" → "(arc-in-git)", update explanatory note
-        - `strategy-backlog-organization.md`: title marker and Layer metadata
-        - `02_define-project.md`: section headers "With Solo PM" → "With arc-in-git PM"
+    - [x] **5.8R.b Update `strategy-file-classification.md` layer annotations**
 
-    - [ ] **5.8R.d Update `strategy-configurability-architecture.md` layer descriptions**
-        - Rewrite § Functionality scope / adoption flexibility paragraphs
-        - Replace Solo PM / Team PM layer descriptions with pm.mode framing
-        - Update scenario examples that reference layer names
+        Updated intro paragraph: removed "Team PM" from layer description, changed
+        `pm.mode: solo` → `pm.mode: arc-in-git`. Updated all 16 inventory tables:
+        "Solo PM" → "arc-in-git" (8 entries), "Team PM" → "arc-in-git" for
+        team/ATOMIC-TASKS (1 entry, per ADR-009 Part 2). Fixed table alignment
+        for all 6 tables containing arc-in-git entries.
+
+    - [x] **5.8R.c Update layer references in STRATEGY-INDEX, backlog-org, define-project**
+
+        `STRATEGY-INDEX.md`: "(Solo PM)" → "(arc-in-git)", explanatory note updated
+        to reference "arc-in-git Project Management mode" with `pm.mode: arc-in-git`.
+        `strategy-backlog-organization.md`: title "· Solo PM" → "· arc-in-git",
+        Layer metadata updated. `02_define-project.md`: both "With Solo PM" headers
+        → "With arc-in-git PM", prose updated to "arc-in-git PM mode".
+
+    - [x] **5.8R.d Update `strategy-configurability-architecture.md` layer descriptions**
+
+        Rewrote Functionality scope paragraph: Solo PM/Team PM layer descriptions →
+        `pm.mode` three-value framing (`none`, `arc-in-git`, `external`). Updated
+        adoption flexibility table ("Layer selection" → "PM mode selection"),
+        composability examples, scaling paragraph ("Adding or removing PM layers" →
+        "Changing PM mode"), config example (`pm.mode: solo` → `none`), and
+        Scenario A layer reference ("Core + Team PM" → `pm.mode: external`).
 
 - [ ] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
 
@@ -769,12 +782,12 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         - `strategy-work-organization.md`: remove TASK-INBOX references (~lines 296, 495)
         - Root `README.md`: remove from directory tree (~line 22)
 
-    - [ ] **5.9.c Clean up TASK-INBOX references in Solo PM files**
+    - [ ] **5.9.c Clean up TASK-INBOX references in arc-in-git PM files**
         - `BACKLOG-FEATURE.template.md`: remove "from TASK-INBOX.md" processing reference
         - `BACKLOG-TECHNICAL.template.md`: remove same
         - `team/README.md`: remove TASK-INBOX references (~lines 38, 45-55)
-        - Note: these files will move to Solo PM layer in WU3, but reference cleanup
-          is correct regardless of layer placement
+        - Note: these files will move to arc-in-git PM layer in WU3, but reference
+          cleanup is correct regardless of layer placement
 
 - [ ] **5.10 Run Tier 2 quality gates**
     - Full-project lint: `npm run -s lint:md`
@@ -905,7 +918,7 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
     - Select label for "done but unmerged" state
     - Standardize across Core: `archive-completed.md`, `agent-pre-merge-review.md`
-    - Solo PM: also standardize in PROJECT-STATUS template and ROADMAP
+    - arc-in-git PM: also standardize in PROJECT-STATUS template and ROADMAP
     - Set intermediate in Phase 1 (pre-merge), final in Phase 3 (post-merge)
 
 - [ ] **7.4 Address version reference drift**
@@ -921,9 +934,9 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
 - [ ] **7.6 Evaluate and resolve PROJECT-STATUS location**
 
-    - PROJECT-STATUS is a Solo PM artifact per ADR-008
+    - PROJECT-STATUS is an arc-in-git PM artifact per ADR-008/009
     - Options: `.arc/` root, `reference/` root, or leave in `constitution/`
-    - If moved: update references in Solo PM extension point handlers and
+    - If moved: update references in arc-in-git PM extension point handlers and
       PROJECT-STATUS template
     - Note: `weekly-review.md` removed per ADR-008; `02_define-project.md` and
       `archive-completed.md` PM steps now in extension points (Phase 5)

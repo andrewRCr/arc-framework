@@ -58,8 +58,8 @@ Never included in or affected by framework updates.
 All paths relative to `.arc/`.
 
 The **Layer** column indicates which framework layer owns each file: **Core** (always
-installed), **Solo PM** (`pm.mode: solo`), or **Team PM** (`pm.mode: team`). Layer
-classification is orthogonal to update classification — both axes apply independently.
+installed) or **arc-in-git** (`pm.mode: arc-in-git`). Layer classification is orthogonal
+to update classification — both axes apply independently.
 
 ### Root
 
@@ -69,30 +69,30 @@ classification is orthogonal to update classification — both axes apply indepe
 
 ### active/
 
-| File                                      | Classification       | Layer   | Notes                                                                          |
-|-------------------------------------------|----------------------|---------|--------------------------------------------------------------------------------|
-| `ATOMIC-TASKS.template.md`                | Configurable (light) | Solo PM | Framework processing rules + user task content. Clean section separation.      |
-| `SESSION-NOTES.template.md`               | Framework            | Core    | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
-| `WORK-STATUS.template.md`                 | Scaffolded           | Core    | Template structure replaced entirely by user. Project-owned after init.        |
-| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Core    | Directory structure scaffolding.                                               |
+| File                                      | Classification       | Layer      | Notes                                                                          |
+|-------------------------------------------|----------------------|------------|--------------------------------------------------------------------------------|
+| `ATOMIC-TASKS.template.md`                | Configurable (light) | arc-in-git | Framework processing rules + user task content. Clean section separation.      |
+| `SESSION-NOTES.template.md`               | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
+| `WORK-STATUS.template.md`                 | Scaffolded           | Core       | Template structure replaced entirely by user. Project-owned after init.        |
+| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Core       | Directory structure scaffolding.                                               |
 
 ### backlog/
 
-| File                                      | Classification       | Layer   | Notes                                                                |
-|-------------------------------------------|----------------------|---------|----------------------------------------------------------------------|
-| `ROADMAP.template.md`                     | Scaffolded           | Solo PM | All placeholders replaced by user content.                           |
-| `TASK-INBOX.template.md`                  | Configurable (light) | Solo PM | Framework processing rules + user content. Clean section separation. |
-| `feature/BACKLOG-FEATURE.template.md`     | Scaffolded           | Solo PM | Template structure replaced entirely.                                |
-| `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded           | Solo PM | Template structure replaced entirely.                                |
+| File                                      | Classification       | Layer      | Notes                                                                |
+|-------------------------------------------|----------------------|------------|----------------------------------------------------------------------|
+| `ROADMAP.template.md`                     | Scaffolded           | arc-in-git | All placeholders replaced by user content.                           |
+| `TASK-INBOX.template.md`                  | Configurable (light) | arc-in-git | Framework processing rules + user content. Clean section separation. |
+| `feature/BACKLOG-FEATURE.template.md`     | Scaffolded           | arc-in-git | Template structure replaced entirely.                                |
+| `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded           | arc-in-git | Template structure replaced entirely.                                |
 
 ### team/
 
-| File                        | Classification       | Layer   | Notes                                                                          |
-|-----------------------------|----------------------|---------|--------------------------------------------------------------------------------|
-| `README.md`                 | Framework            | Core    | Team directory overview and structure guidance.                                |
-| `ATOMIC-TASKS.template.md`  | Configurable (light) | Team PM | Per-member atomic tasks. Same structure as `active/` variant.                  |
-| `SESSION-NOTES.template.md` | Framework            | Core    | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
-| `WORK-STATUS.template.md`   | Scaffolded           | Core    | Per-member project pointer. Same structure as `active/` variant.               |
+| File                        | Classification       | Layer      | Notes                                                                          |
+|-----------------------------|----------------------|------------|--------------------------------------------------------------------------------|
+| `README.md`                 | Framework            | Core       | Team directory overview and structure guidance.                                |
+| `ATOMIC-TASKS.template.md`  | Configurable (light) | arc-in-git | Per-member atomic tasks. Same structure as `active/` variant.                  |
+| `SESSION-NOTES.template.md` | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
+| `WORK-STATUS.template.md`   | Scaffolded           | Core       | Per-member project pointer. Same structure as `active/` variant.               |
 
 ### reference/
 
@@ -123,13 +123,13 @@ classification is orthogonal to update classification — both axes apply indepe
 
 ### reference/constitution/
 
-| File                             | Classification | Layer   | Notes                                                                   |
-|----------------------------------|----------------|---------|-------------------------------------------------------------------------|
-| `DEV-RULES.ARC.md`               | Framework      | Core    | ARC development methodology (commit, verification, session/task rules). |
-| `DEV-RULES.PROJECT.md`           | Configurable   | Core    | Project quality gates, testing requirements, architecture rules.        |
-| `META-PRD.template.md`           | Scaffolded     | Core    | All content replaced by user.                                           |
-| `PROJECT-STATUS.template.md`     | Scaffolded     | Solo PM | All content replaced by user.                                           |
-| `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | Core    | All content replaced by user.                                           |
+| File                             | Classification | Layer      | Notes                                                                   |
+|----------------------------------|----------------|------------|-------------------------------------------------------------------------|
+| `DEV-RULES.ARC.md`               | Framework      | Core       | ARC development methodology (commit, verification, session/task rules). |
+| `DEV-RULES.PROJECT.md`           | Configurable   | Core       | Project quality gates, testing requirements, architecture rules.        |
+| `META-PRD.template.md`           | Scaffolded     | Core       | All content replaced by user.                                           |
+| `PROJECT-STATUS.template.md`     | Scaffolded     | arc-in-git | All content replaced by user.                                           |
+| `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | Core       | All content replaced by user.                                           |
 
 ### reference/research/
 
@@ -139,18 +139,18 @@ classification is orthogonal to update classification — both axes apply indepe
 
 ### reference/strategies/
 
-| File                                   | Classification | Layer   | Notes                                                |
-|----------------------------------------|----------------|---------|------------------------------------------------------|
-| `README.md`                            | Framework      | Core    | Directory overview.                                  |
-| `STRATEGY-INDEX.md`                    | Configurable   | Core    | ARC strategies section + project strategies section. |
-| `arc/strategy-adr-methodology.md`      | Framework      | Core    | ARC methodology.                                     |
-| `arc/strategy-backlog-organization.md` | Framework      | Solo PM | ARC methodology.                                     |
-| `arc/strategy-file-classification.md`  | Framework      | Core    | ARC methodology (this document).                     |
-| `arc/strategy-quality-gates.md`        | Framework      | Core    | ARC methodology.                                     |
-| `arc/strategy-task-list-formatting.md` | Framework      | Core    | ARC methodology.                                     |
-| `arc/strategy-work-organization.md`    | Framework      | Core    | ARC methodology.                                     |
-| `project/README.md`                    | Framework      | Core    | Guidance for creating project strategies.            |
-| `project/style/README.md`              | Framework      | Core    | Guidance for style strategies.                       |
+| File                                   | Classification | Layer      | Notes                                                |
+|----------------------------------------|----------------|------------|------------------------------------------------------|
+| `README.md`                            | Framework      | Core       | Directory overview.                                  |
+| `STRATEGY-INDEX.md`                    | Configurable   | Core       | ARC strategies section + project strategies section. |
+| `arc/strategy-adr-methodology.md`      | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-backlog-organization.md` | Framework      | arc-in-git | ARC methodology.                                     |
+| `arc/strategy-file-classification.md`  | Framework      | Core       | ARC methodology (this document).                     |
+| `arc/strategy-quality-gates.md`        | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-task-list-formatting.md` | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-work-organization.md`    | Framework      | Core       | ARC methodology.                                     |
+| `project/README.md`                    | Framework      | Core       | Guidance for creating project strategies.            |
+| `project/style/README.md`              | Framework      | Core       | Guidance for style strategies.                       |
 
 ### system/
 
@@ -188,24 +188,24 @@ classification is orthogonal to update classification — both axes apply indepe
 
 ### system/workflows/
 
-| File                                         | Classification | Layer   | Notes                      |
-|----------------------------------------------|----------------|---------|----------------------------|
-| `arc/1_create-prd.md`                        | Framework      | Core    | Core workflow.             |
-| `arc/2_generate-tasks.md`                    | Framework      | Core    | Core workflow.             |
-| `arc/3_process-task-loop.md`                 | Framework      | Core    | Core workflow.             |
-| `arc/setup/01_initialize-arc.md`             | Framework      | Core    | Setup workflow.            |
-| `arc/setup/02_define-project.md`             | Framework      | Core    | Setup workflow.            |
-| `arc/supplemental/activate-work-unit.md`     | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/agent-pre-merge-review.md` | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/archive-completed.md`      | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/atomic-commit.md`          | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/maintain-docs.md`          | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/maintain-task-notes.md`    | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/manage-incidental-work.md` | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/session-handoff.md`        | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/session-init.md`           | Framework      | Core    | Supplemental workflow.     |
-| `arc/supplemental/weekly-review.md`          | Framework      | Solo PM | Supplemental workflow.     |
-| `project/README.md`                          | Framework      | Core    | Project workflow guidance. |
+| File                                         | Classification | Layer      | Notes                      |
+|----------------------------------------------|----------------|------------|----------------------------|
+| `arc/1_create-prd.md`                        | Framework      | Core       | Core workflow.             |
+| `arc/2_generate-tasks.md`                    | Framework      | Core       | Core workflow.             |
+| `arc/3_process-task-loop.md`                 | Framework      | Core       | Core workflow.             |
+| `arc/setup/01_initialize-arc.md`             | Framework      | Core       | Setup workflow.            |
+| `arc/setup/02_define-project.md`             | Framework      | Core       | Setup workflow.            |
+| `arc/supplemental/activate-work-unit.md`     | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/agent-pre-merge-review.md` | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/archive-completed.md`      | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/atomic-commit.md`          | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/maintain-docs.md`          | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/maintain-task-notes.md`    | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/manage-incidental-work.md` | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/session-handoff.md`        | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/session-init.md`           | Framework      | Core       | Supplemental workflow.     |
+| `arc/supplemental/weekly-review.md`          | Framework      | arc-in-git | Supplemental workflow.     |
+| `project/README.md`                          | Framework      | Core       | Project workflow guidance. |
 
 ---
 
