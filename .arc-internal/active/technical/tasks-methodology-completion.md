@@ -806,10 +806,13 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
 **Strategies:** `strategy-team-coordination.md`, `strategy-configurability-architecture.md`
 
-- [ ] **6.1 Add Workflow Adaptations section to `strategy-team-coordination.md`**
+- [x] **6.1 Add Workflow Adaptations section to `strategy-team-coordination.md`**
 
-    - Concise mapping: which files change path, per-pair scoping, branch usage
-    - Brief reference table sufficient
+    Added Workflow Adaptations section as first substantive section with 6-row
+    reference table mapping solo → team mode changes: session notes path, work
+    status (shared), atomic tasks path (with pm.mode: arc-in-git footnote),
+    per-pair task scoping, ownership markers, branching patterns. Added key
+    distinction paragraph clarifying shared vs. personal file split.
 
 - [ ] **6.2 Add team mode callouts to session workflows**
 
@@ -852,11 +855,11 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         - Fix directory tree: remove WORK-STATUS.md from per-developer dirs
         - Fix file table: WORK-STATUS is shared in `active/`, not personal
         - Fix explanation prose: clarify shared vs. personal file distinction
-        - Remove TASK-INBOX references (handled in 5.9.c, verify complete)
+        - ~~Remove TASK-INBOX references~~ (done in 5.9.c)
 
     - [ ] **6.2.y.b Update team template set**
         - Remove or repurpose WORK-STATUS.template.md from `team/`
-        - ATOMIC-TASKS in team mode is Team PM only — qualify or defer to layer
+        - ATOMIC-TASKS in team mode requires `pm.mode: arc-in-git` — qualify in docs
         - SESSION-NOTES.template.md stays (personal state, Core)
 
 - [ ] **6.3 Add person-to-person task handoff protocol**
@@ -874,7 +877,7 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 - [ ] **6.5 Add team mode to `activate-work-unit.md`**
 
     - Multiple branches for team sub-branches, each developer updates own session file
-    - Team-mode awareness for extension point behavior (PM handlers vary by layer)
+    - Team-mode awareness for extension point behavior (PM handlers vary by `pm.mode`)
     - Note: weekly-review.md removed per ADR-008 (originally part of this task)
 
 - [ ] **6.6 Streamline dual-tracker workflow guidance**
@@ -886,7 +889,7 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 - [ ] **6.7 Implement config-driven adoption tier behavior**
 
     - Per ADR-004: profiles (Essentials/Recommended/Custom) applied to identical files
-    - Per ADR-008: profiles apply within installed layers (enforcement depth ×
+    - Per ADR-008/009: profiles apply within PM modes (enforcement depth ×
       functionality scope are orthogonal axes)
     - Reduce ceremony for Essentials tier in relevant workflows
     - Document deferred review escape hatch more prominently

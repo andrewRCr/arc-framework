@@ -16,10 +16,35 @@ structure, see `team/README.md`.
 
 ## Contents
 
-1. [Task Ownership](#task-ownership) — `(@name)` convention
-2. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
-3. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
-4. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
+1. [Workflow Adaptations](#workflow-adaptations) — what changes in team mode
+2. [Task Ownership](#task-ownership) — `(@name)` convention
+3. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
+4. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
+5. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
+
+---
+
+## Workflow Adaptations
+
+How standard ARC workflows adapt when team mode is active. Detailed conventions follow
+in subsequent sections and referenced documents.
+
+| Aspect                   | Solo (default)            | Team mode                                        |
+|--------------------------|---------------------------|--------------------------------------------------|
+| Session notes            | `active/SESSION-NOTES.md` | `team/{name}/SESSION-NOTES.md`                   |
+| Work status              | `active/WORK-STATUS.md`   | `active/WORK-STATUS.md` (shared, one per branch) |
+| ATOMIC-TASKS.md (1)      | `active/ATOMIC-TASKS.md`  | `team/{name}/ATOMIC-TASKS.md`                    |
+| One task at a time       | Single pair               | Per developer-agent pair (concurrent pairs OK)   |
+| Task ownership           | Implicit                  | `(@name)` markers in task lists                  |
+| Branching                | One branch per work unit  | Multiple patterns — see below                    |
+
+(1) The standalone ATOMIC-TASKS.md file requires `pm.mode: arc-in-git`. Atomic tasks as a
+concept (task list sections for off-plan work) are Core and always available.
+
+**Key distinction:** WORK-STATUS.md is shared in `active/` (one per branch, tracked in git).
+SESSION-NOTES.md and ATOMIC-TASKS.md are personal — they move to `team/{name}/` so that
+concurrent developers don't conflict on session state. See `team/README.md` for the full
+directory structure.
 
 ---
 
