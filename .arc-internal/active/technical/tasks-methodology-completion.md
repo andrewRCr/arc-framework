@@ -633,8 +633,8 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
        by conditional execution prose and `See:` link to arc-extensions.md section.
     2. **Methods are referenced inline in workflow prose** — replace hardcoded defaults
        with method references. The workflow says WHAT to do, the method says HOW.
-       Example: "Record task completion per the [task-completion method](...)" instead
-       of hardcoding "Mark `[x]` in task list file."
+       Example: "Format the commit per the [commit-format method](...)" instead
+       of hardcoding the conventional commit structure inline.
     3. **`task-completion` reclassified from method to extension** — see 5.6.c below.
 
     - [ ] **5.6.a Insert extension points as conditional workflow steps**
