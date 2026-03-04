@@ -74,7 +74,8 @@ changes by task; commit shared documentation (task list updates) last.
 ### One task at a time · P2, P7
 
 Each checkbox in the task list is one work unit — standalone task or subtask under a parent.
-The checkpoint is always at the checkbox level.
+The checkpoint is always at the checkbox level. In team mode, this applies per developer-agent
+pair — concurrent pairs may work on different tasks simultaneously.
 
 - **Complete one task at a time** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (quality checks pass)
@@ -139,7 +140,8 @@ Session state uses two files with different update triggers:
     - **Not at other times** — mid-session updates are churn. The next session recovers state
       from committed WORK-STATUS.md, git log, and task list checkboxes.
 - **SESSION-NOTES.md** (gitignored) — written only at session handoff. Personal working context
-  for the next session.
+  for the next session. In team mode, moves to `team/{name}/SESSION-NOTES.md` so concurrent
+  developers don't conflict on session state.
 
 AI reports progress throughout the session; session state files capture the summary at commit
 and handoff boundaries.

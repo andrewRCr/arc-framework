@@ -294,6 +294,21 @@ Neither replaces the other. A Jira ticket might say "Implement user authenticati
 the ARC task list breaks that into 15 subtasks with specific acceptance criteria that
 the human-agent pair works through one at a time.
 
+### Integration Mechanism
+
+ARC provides extension points at key workflow moments for syncing with external trackers.
+Configure these in [`arc-extensions.md`][arc-extensions]:
+
+- **`post-task-completion`** — fires after a task is marked `[x]`. Use to sync task status
+  to Jira, Linear, or GitHub Issues.
+- **`post-work-unit-activate`** — fires after a work unit moves from backlog to active. Use
+  to update sprint boards or project status.
+- **`post-work-unit-archive`** — fires after a work unit is archived. Use to close epics or
+  update project dashboards.
+
+No extension points are needed for task *assignment* — `(@name)` markers and external tracker
+assignment serve different audiences and don't need real-time sync.
+
 ### When `(@name)` Markers Are Optional
 
 If the external tracker owns assignment, `(@name)` markers in ARC task lists are
@@ -316,3 +331,4 @@ them if they're useful, skip them if they'd drift from the tracker.
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [session-handoff]: ../../../system/workflows/arc/supplemental/session-handoff.md
 [session-init]: ../../../system/workflows/arc/supplemental/session-init.md
+[arc-extensions]: ../../../system/workflows/arc-extensions.md

@@ -93,6 +93,11 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now. This is the
 primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at activation time.
 
+> **`pm.mode` awareness:** Extension behavior depends on the project's PM mode
+> (`arc-config.yml` → `pm.mode`). With `arc-in-git`, extensions typically update
+> PROJECT-STATUS.md and ROADMAP.md. With `external`, extensions may update an external
+> tracker. With `none`, no PM extensions are expected — the workflow proceeds naturally.
+
 See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
 ### Step 7: Commit Activation

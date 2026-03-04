@@ -11,6 +11,7 @@ It ensures consistent execution, quality control, and documentation of work.
 
 - **One task at a time:** Each checkbox in the task list is one work unit — whether it's a standalone
   task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
+  In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
   happens independently as PRs merge. When creating additional branches for an existing task list,
@@ -46,7 +47,9 @@ It ensures consistent execution, quality control, and documentation of work.
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
          detailed instructions) that no longer serves a purpose.
      - **Extensions** · `#post-task-completion`: If [post-task-completion extensions][arc-ext-task-completion] are
-       configured, execute them now. See [`arc-extensions.md` § post-task-completion][arc-ext-task-completion]
+       configured, execute them now. Teams using external trackers (Jira, Linear, GitHub Issues) use this
+       extension to sync task completion status — see [Team Coordination Strategy][team-coordination]
+       § External Tracker Integration. See [`arc-extensions.md` § post-task-completion][arc-ext-task-completion]
      - **Third**: Verify completion before reporting (use pre-report checklist below)
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
@@ -187,3 +190,4 @@ reporting completion.
 [arc-methods-tf]: ../arc-methods.md#test-first
 [arc-methods-lic]: ../arc-methods.md#leave-it-cleaner
 [arc-methods-qg]: ../arc-methods.md#quality-gate-commands
+[team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md

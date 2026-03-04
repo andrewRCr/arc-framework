@@ -872,23 +872,30 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     mode blockquotes pointing to the new section. Hybrid approach: full protocol in strategy
     doc, discoverable from workflows.
 
-- [ ] **6.4 Add per-pair qualifications**
+- [x] **6.4 Add per-pair qualifications**
 
-    - Session Documentation Control: personal session file in team mode
-    - Task Management: "one task at a time" per developer-agent pair
-    - Apply to whichever document hosts this content after Phase 3
+    Added team mode per-pair qualifications to three documents:
+    DEV-RULES.ARC.md § One task at a time (concurrent pairs may work different tasks),
+    DEV-RULES.ARC.md § Session state control (SESSION-NOTES.md moves to `team/{name}/`),
+    process-task-loop.md § Task Implementation (same per-pair note).
+    AGENTS.template.md and strategy-team-coordination.md already had coverage from
+    Tasks 1.1.c and Phase 5.
 
-- [ ] **6.5 Add team mode to `activate-work-unit.md`**
+- [x] **6.5 Add team mode to `activate-work-unit.md`**
 
-    - Multiple branches for team sub-branches, each developer updates own session file
-    - Team-mode awareness for extension point behavior (PM handlers vary by `pm.mode`)
-    - Note: weekly-review.md removed per ADR-008 (originally part of this task)
+    Added `pm.mode` awareness blockquote to Step 6 (post-activation extensions) explaining
+    how extension behavior varies by PM mode (arc-in-git, external, none). Team branching
+    and session state already covered by existing Step 2 and Step 5 callouts.
+    weekly-review.md already removed per ADR-008 in earlier phases.
 
-- [ ] **6.6 Streamline dual-tracker workflow guidance**
+- [x] **6.6 Streamline dual-tracker workflow guidance**
 
-    - Per ADR-005/ADR-006: ARC task lists as "working scratchpad" alongside external trackers
-    - Reference practice over tool in workflow prose
-    - Add extension points at task completion / status reporting if warranted
+    Added "Integration Mechanism" subsection to strategy-team-coordination.md § External
+    Tracker Integration listing the three extension points (`post-task-completion`,
+    `post-work-unit-activate`, `post-work-unit-archive`) as the integration mechanism.
+    Enhanced process-task-loop.md post-task-completion extension reference to surface the
+    dual-tracker pattern and link to team coordination strategy. Extension points already
+    existed — work was cross-referencing, not creating new infrastructure.
 
 - [ ] **6.7 Implement config-driven adoption tier behavior**
 
