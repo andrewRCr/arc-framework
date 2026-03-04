@@ -897,15 +897,20 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     dual-tracker pattern and link to team coordination strategy. Extension points already
     existed — work was cross-referencing, not creating new infrastructure.
 
-- [ ] **6.7 Implement config-driven adoption tier behavior**
+- [x] **6.7 Replace adoption profiles with strong defaults**
 
-    - Per ADR-004: profiles (Essentials/Recommended/Custom) applied to identical files
-    - Per ADR-008/009: profiles apply within PM modes (enforcement depth ×
-      functionality scope are orthogonal axes)
-    - Reduce ceremony for Essentials tier in relevant workflows
+    Wrote ADR-010 replacing Essentials/Recommended/Custom with strong defaults.
+    Updated ADR-004 status (Parts 2, 3, 6 superseded). Rewrote
+    strategy-configurability-architecture.md § Adoption Profiles → § Adoption Defaults
+    with two-axis model (enforcement depth dropped as named axis), updated Validation
+    Scenarios A/B/C. Updated cross-references in STRATEGY-INDEX and
+    strategy-core-philosophy (3 occurrences). Flagged WU3 plan profile section with
+    ADR-010 rework callout. All files lint clean.
     - Document deferred review escape hatch more prominently
 
-- [ ] **6.8 Run Tier 1 quality gates on Phase 6 changes**
+- [x] **6.8 Run Tier 1 quality gates on Phase 6 changes**
+
+    All 7 files (6 modified + 1 new ADR-010) pass markdownlint with 0 errors.
 
 ### **Phase 7:** Convention Gaps and Methodology Polish
 

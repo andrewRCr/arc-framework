@@ -202,22 +202,19 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
     - "Include ADR workflow?" — optional files based on team practices
     - "Which AI agents?" — installs only selected agent directories (`.claude/`, `.codex/`,
       `.gemini/`)
-- **Adoption profiles (cross-cutting):** Three profiles pre-configure `arc-config.yml`
-  during init (per ADR-004). Profiles are an init convenience — after init, the config
-  file is directly editable. No persistent "profile" concept in the framework.
+- **Adoption defaults (cross-cutting):** The framework ships with all enforcement
+  active (the former "Recommended" values). No named profiles or profile selection at
+  init. Adopters who want to relax enforcement edit `arc-config.yml` after init — the
+  file includes inline comments explaining each setting and its alternatives.
 
-  **Essentials** — Principles committed, enforcement relaxed:
+  > **ADR-010 rework needed:** ADR-010 superseded ADR-004's named profiles
+  > (Essentials/Recommended/Custom). This section's profile definitions and
+  > post-init messaging differentiation are obsolete. WU3 PRD should redesign
+  > this section around strong defaults with self-serve config discovery. A binary
+  > "relaxed start?" toggle may be reconsidered if CLI testing reveals cold-start
+  > friction (see ADR-010 Part 4).
 
-  ```yaml
-  commit.format: any
-  commit.context_footer: optional
-  hooks.commit_msg: disabled
-  hooks.pre_commit: enabled
-  merge.strategy: merge
-  branch.protection: unprotected
-  ```
-
-  **Recommended** (default) — Full convention set, all enforcement active:
+  Default init config (all enforcement active):
 
   ```yaml
   commit.format: conventional
@@ -228,18 +225,8 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
   branch.protection: partial
   ```
 
-  **Custom** — Interactive selection of individual settings with per-setting
-  guidance (purpose, default, alternatives).
-
-  **Note (ADR-008):** Adoption profiles apply within whatever layers are installed. An
-  Essentials user can be Core-only or Core + Solo PM. The profile controls enforcement
-  depth; PM layer selection controls functionality scope. Both choices are independent.
-
-- **Post-init messaging differentiation:** Each profile produces different post-init
-  guidance. Essentials highlights the core workflow quartet (create-prd,
-  generate-tasks, process-task-loop, session-init). Recommended covers the full
-  system. Custom mirrors whichever profile the resulting config most resembles, with
-  notes on any non-default choices.
+- **Post-init messaging:** Covers the full system with appropriate progressive depth.
+  No profile-differentiated messaging — all adopters receive the same guidance.
 
 Template rendering:
 

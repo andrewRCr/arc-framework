@@ -5,7 +5,7 @@ authoritative reference for ARC's identity. An evaluating team should be able to
 and understand what they're committing to.
 
 **Scope:** Philosophy, principles, and positioning. For the configurability architecture (config
-settings, extension points, method overrides, adoption profiles), see
+settings, extension points, method overrides, adoption defaults), see
 [strategy-configurability-architecture.md][config-arch].
 
 ---
@@ -363,7 +363,7 @@ A few examples to make this concrete:
   preserves.
 
 ARC currently has 19 conventions across the 11 principles. The full inventory and the configuration
-mechanisms (config settings, extension points, method overrides, adoption profiles) are covered in
+mechanisms (config settings, extension points, method overrides, adoption defaults) are covered in
 the [configurability architecture strategy][config-arch].
 
 ---
@@ -435,7 +435,7 @@ To be explicit about boundaries:
 ## Relationship to Other Documentation
 
 - **[Configurability architecture strategy][config-arch]** — The companion to this document. Covers
-  config settings, extension points, method overrides, adoption profiles, and the full convention
+  config settings, extension points, method overrides, adoption defaults, and the full convention
   inventory. This document defines *what ARC is*; that document defines *how teams customize it*.
 - **[Development methodology strategy][dev-methodology]** — Operational rules for how work happens
   (commit standards, session management, task protocols). Complements this document's philosophical

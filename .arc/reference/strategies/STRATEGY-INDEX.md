@@ -16,7 +16,7 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: writing an ADR, deciding whether a decision warrants one
 - `arc/strategy-backlog-organization.md` **(arc-in-git)** - Backlog structure, processing flow, atomic task conventions
     - Consult when: creating or reorganizing backlog structure, processing queued items
-- `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption profiles
+- `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults
     - Consult when: working on config, extensions, or methods infrastructure
 - `arc/strategy-core-philosophy.md` - Principles (P1-P11), philosophical foundation, positioning
     - Consult when: resolving principle conflicts, checking P1–P11 definitions or rationale

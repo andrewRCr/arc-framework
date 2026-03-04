@@ -4,7 +4,7 @@
 framework adaptable without losing its identity. This is the companion to
 [strategy-core-philosophy.md][core-philosophy], which defines what ARC is.
 
-**Scope:** Configuration settings, extension points, method overrides, adoption profiles, framework layers, platform
+**Scope:** Configuration settings, extension points, method overrides, adoption defaults, framework layers, platform
 compatibility, and the full convention inventory. For ARC's principles, philosophical foundation, and positioning, see
 the [core philosophy strategy][core-philosophy].
 
@@ -13,7 +13,7 @@ the [core philosophy strategy][core-philosophy].
 ## Contents
 
 - [The Customization Model](#the-customization-model) — mechanisms, boundary tests, convention inventory
-- [Adoption Profiles](#adoption-profiles) — enforcement calibration, scaling
+- [Adoption Defaults](#adoption-defaults) — enforcement calibration, scaling
 - [Configuration](#configuration) — `arc-config.yml` design and settings
 - [Extension Points](#extension-points) — adding behavior to workflows
 - [Method Overrides](#method-overrides) — replacing convention implementations
@@ -121,110 +121,79 @@ encountering method references or platform-specific operations.
 
 ---
 
-## Adoption Profiles
+## Adoption Defaults
 
-### Same guidance, less enforcement
+### Strong defaults
 
-ARC's workflow and strategy documents are static prose — they describe conventions as the recommended approach
-regardless of profile. The agent loads these documents during session initialization and follows the guidance they
-contain.
+ARC ships with all enforcement active — conventional commits, context footers, commit-msg hooks, branch protection. The
+defaults represent ARC's recommended configuration. Adopters who encounter friction adjust individual settings in
+`arc-config.yml` after experiencing the framework, rather than making enforcement decisions before their first session.
 
-This means an essentials adopter whose config says `commit.format: any` will still have an agent that produces
-well-formatted conventional commits — because the agent read the development methodology strategy, which describes
-conventional commits as the recommended format. The difference: the hook will not _reject_ non-conventional commits.
+`arc-config.yml` includes inline comments explaining each setting's purpose, default value, and alternatives. This
+self-documenting config file is the primary mechanism for adopters to discover what's adjustable and how to adjust it.
+
+### Same guidance, different enforcement
+
+ARC's workflow and strategy documents are static prose — they describe conventions as the recommended approach regardless
+of config settings. The agent loads these documents during session initialization and follows the guidance they contain.
+
+This means an adopter whose config says `commit.format: any` will still have an agent that produces well-formatted
+conventional commits — because the agent read the development methodology strategy, which describes conventional commits
+as the recommended format. The difference: the hook will not _reject_ non-conventional commits.
 
 **This is intentional.** The separation is:
 
 - **Config** = enforcement boundary (will you be blocked?)
 - **Prose** = quality guidance (what is the recommended approach?)
-- **Essentials** = same guidance, less enforcement
+- **Relaxing config** = same guidance, less enforcement
 
-Adopters choosing essentials typically want to avoid _friction_ (hook rejection, ceremony blocking), not _quality_
+Adopters who relax enforcement typically want to avoid _friction_ (hook rejection, ceremony blocking), not _quality_
 (well-formatted commits, thorough documentation). The agent producing quality output even when not enforced is a feature
 — it demonstrates the convention's value without creating barriers.
 
-### Profile definitions
-
-Profiles are a CLI init convenience — they pre-configure `arc-config.yml`. After init, the file is directly editable.
-There is no persistent "profile" concept in the framework; the config values are what matter.
-
-**Essentials** — Principles committed, enforcement relaxed, progressive path to deeper adoption.
-
-```yaml
-commit.format: any
-commit.context_footer: optional
-hooks.commit_msg: disabled
-hooks.pre_commit: enabled
-merge.strategy: merge
-branch.protection: unprotected
-```
-
-Post-init guidance emphasizes four workflows as the starting path: `create-prd`, `generate-tasks`, `process-task-loop`,
-and `session-init`.
-
-**Recommended** (default) — Full convention set with sensible defaults. All enforcement active.
-
-```yaml
-commit.format: conventional
-commit.context_footer: required
-hooks.commit_msg: enabled
-hooks.pre_commit: enabled
-merge.strategy: merge
-branch.protection: partial
-```
-
-Post-init guidance covers the full system with appropriate progressive depth.
-
-**Custom** — Interactive selection of individual settings. Each setting is presented with its purpose, default, and
-alternatives. The adopter builds their own configuration by choosing values for each configurable convention.
-
 ### Adoption flexibility model
 
-Adoption flexibility has three independent axes:
+Adoption flexibility has two independent axes:
 
-| Axis                 | What varies                    | Mechanism                      |
-|----------------------|--------------------------------|--------------------------------|
-| Enforcement depth    | How strictly conventions apply | Config values (arc-config.yml) |
-| Method customization | ARC defaults vs. team methods  | Overrides (arc-methods.md)     |
-| Functionality scope  | What features are installed    | PM mode selection (pm.mode)    |
-
-**Enforcement depth** is what profiles address — three postures:
-
-1. "I don't care about format" → `commit.format: any`, agent produces quality output. **Profiles handle this.**
-2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce. **Profiles handle this.**
-3. "I want something _different_ enforced" → No mechanism in profiles alone. **Method overrides needed.**
+| Axis                 | What varies                   | Mechanism                      |
+| -------------------- | ----------------------------- | ------------------------------ |
+| Method customization | ARC defaults vs. team methods | Overrides (arc-methods.md)     |
+| Functionality scope  | What features are installed   | PM mode selection (pm.mode)    |
 
 **Method customization** substitutes how ARC does things — a team with a custom session mechanism replaces
-the session-state method. Independent of enforcement depth.
+the session-state method, a team with Jira replaces commit context format. Independent of enforcement settings.
 
 **Functionality scope** controls what's installed. ARC decomposes into Core (always present) and optional Project
 Management (PM) modes selected via `pm.mode` in `arc-config.yml`: `none` (Core only), `arc-in-git` (ARC's built-in PM
 suite — backlogs, roadmap, status tracking), or `external` (external tool integration). Core contains the complete
 methodology engine — session management, task execution, commit discipline, specification workflows, branch management,
-and configuration infrastructure. PM mode is independent of the other two axes.
+and configuration infrastructure. PM mode is independent of method customization.
 
-All three axes are independent and composable. An Essentials adopter can use `pm.mode: none` or `pm.mode: arc-in-git`.
-A Recommended team can use `pm.mode: external` with Jira method overrides. The full customization space is the product
-of all three axes.
+Enforcement depth — how strictly conventions are applied — is not a named axis. It is simply "edit `arc-config.yml`."
+The settings exist, the inline comments explain them, and adopters adjust what creates friction. Three adopter postures:
 
-### Scaling up and down
+1. "I don't care about format" → `commit.format: any`, agent produces quality output
+2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce (the default)
+3. "I want something _different_ enforced" → Method overrides + custom config patterns
 
-The same-files, config-driven approach enables smooth scaling:
+### Scaling enforcement
 
-**Scaling up (essentials → recommended):** Tighten config settings. Change `commit.format: any` to
-`commit.format: conventional`, enable `hooks.commit_msg`. No file additions, no reinstallation. The agent already knows
-the conventions from loaded docs — enforcement catches up to guidance. This is the expected path: an essentials adopter
-grows comfortable with conventions the agent has been demonstrating and decides to enforce them.
+The same-files, config-driven approach enables smooth scaling in both directions:
 
-**Scaling down:** Loosen config settings. The reverse is equally smooth.
+**Tightening:** An adopter who started with relaxed settings (e.g., `commit.format: any`) tightens by editing
+`arc-config.yml` — change to `commit.format: conventional`, enable `hooks.commit_msg`. No file additions, no
+reinstallation. The agent already knows the conventions from loaded docs — enforcement catches up to guidance.
 
-**Adding method overrides:** Independent of profile changes. A recommended-profile team can add a session-state method
-override without changing their enforcement profile.
+**Loosening:** The reverse is equally smooth. An adopter who finds commit-msg hooks disruptive during early adoption
+sets `hooks.commit_msg: disabled`. The agent still produces quality output; enforcement is relaxed.
+
+**Adding method overrides:** Independent of enforcement changes. A team can add a session-state method override without
+changing any enforcement settings.
 
 **Changing PM mode:** Independent of enforcement and method changes. A `pm.mode: none` user who wants in-git project
 management switches to `pm.mode: arc-in-git` via `arc init --reconfigure`. A team moving to external tracking switches
-to `pm.mode: external` without affecting their enforcement profile or method overrides. PM mode changes are structural
-choices made at init time; enforcement profiles and method overrides can change at any time.
+to `pm.mode: external` without affecting enforcement settings or method overrides. PM mode changes are structural choices
+made at init time; enforcement settings and method overrides can change at any time.
 
 ---
 
@@ -563,7 +532,7 @@ it marks `[x]` in the task list (core behavior) and then updates Jira via the ex
 planning, and co-development are unchanged. The team uses ARC task lists as the execution artifact alongside Jira for
 broader project tracking.
 
-**Profile:** Recommended (full enforcement, custom methods).
+**Enforcement:** Default settings (full enforcement active), with custom methods for commit format and context footer.
 
 **PM mode:** `external` (Jira is the PM tool), or `none` if the team's external tools fully replace in-git project
 management without needing integration hooks.
@@ -573,8 +542,8 @@ management without needing integration hooks.
 A team uses ARC for planning and integration but delegates bounded, well-specified execution to an async agent (Codex
 cloud, Devin).
 
-**What they configure:** Standard recommended profile. No special configurability needed — the bookend pattern is about
-how the team _uses_ ARC, not how they configure it.
+**What they configure:** Default settings. No special configurability needed — the bookend pattern is about how the team
+_uses_ ARC, not how they configure it.
 
 **How it works:** ARC governs planning (PRDs, task decomposition with acceptance criteria) and integration (quality
 gates, PR review, traceability). The execution phase — where the async agent works autonomously — operates outside ARC's
@@ -585,26 +554,26 @@ result at integration.
 during delegated execution. The team accepts this tradeoff for bounded, deterministic work where the cost of reduced
 human involvement is low.
 
-**Profile:** Recommended. The bookend pattern is an acknowledged usage pattern, not a configuration choice.
+**Enforcement:** Default settings. The bookend pattern is an acknowledged usage pattern, not a configuration choice.
 
-### Scenario C: Essentials to recommended scaling
+### Scenario C: Relaxed to full enforcement scaling
 
-A solo developer starts with the essentials profile while learning ARC. After a few weeks, they decide to adopt full
+A solo developer relaxes a few enforcement settings during early adoption (`commit.format: any`,
+`hooks.commit_msg: disabled`) to reduce friction while learning ARC. After a few weeks, they decide to adopt full
 enforcement.
 
 **The scaling path:**
 
 1. Edit `arc-config.yml`: change `commit.format` from `any` to `conventional`, change `commit.context_footer` from
-   `optional` to `required`, enable `hooks.commit_msg`, change `branch.protection` from `unprotected` to `partial`
+   `optional` to `required`, enable `hooks.commit_msg`
 2. Done. No file additions, no reinstallation, no migration.
 
-**What changes:** Hooks now enforce commit format and context footers. Branch protection requires branches for planned
-work. The agent's behavior is largely unchanged — it was already following the conventions from loaded guidance.
-Enforcement catches up to what the agent was already doing.
+**What changes:** Hooks now enforce commit format and context footers. The agent's behavior is largely unchanged — it was
+already following the conventions from loaded guidance. Enforcement catches up to what the agent was already doing.
 
 **What the developer notices:** Commits that would have been accepted are now validated. The quality is the same (the
-agent was already producing conventional commits); the enforcement is new. The transition is smooth because the
-essentials experience demonstrated the conventions in practice before enforcement was activated.
+agent was already producing conventional commits); the enforcement is new. The transition is smooth because the relaxed
+period demonstrated the conventions in practice before enforcement was activated.
 
 ---
 

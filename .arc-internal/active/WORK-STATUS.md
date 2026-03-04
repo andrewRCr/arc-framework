@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 6.7 — Implement config-driven adoption tier behavior (line ~898)
-**Last Completed**: Task 6.6 — Streamline dual-tracker workflow guidance
-**Blockers**: Task 6.7 deferred — re-evaluating progressive adoption in light of ADR-008/009
-**Next Action**: Evaluate whether adoption profiles still add value after Core/PM decomposition
+**Current Task**: [none — Phase 6 complete]
+**Last Completed**: Task 6.8 — Run Tier 1 quality gates on Phase 6 changes
+**Blockers**: None
+**Next Action**: Begin Phase 7 (Convention Gaps and Methodology Polish) — Task 7.1
 
 ---
 
