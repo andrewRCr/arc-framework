@@ -600,35 +600,81 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     `.arc/` + `.arc-internal/` search paths, and new CHECK 10 (public/internal boundary
     enforcement — blocks `.arc-internal/` references in staged `.arc/` files).
 
-- [ ] **5.4 Scaffold `arc-extensions.md`**
+- [x] **5.4 Scaffold `arc-extensions.md`**
 
-    - New file: `.arc/system/workflows/arc-extensions.md`
-    - Section per preset point: workflow reference, trigger, contract, placeholder
-    - Presets: `post-task-quality`, `post-unit-quality`, `post-context-load`,
-      `pre-stage-review`, `post-work-unit-activate`, `post-work-unit-archive` (ADR-008)
-    - Evaluate during implementation — target 0-3 per workflow
+    Created `.arc/system/workflows/arc-extensions.md` with six preset extension points:
+    four general-purpose (`post-task-quality`, `post-unit-quality`, `post-context-load`,
+    `pre-stage-review`) and two Core→PM interface points (`post-work-unit-activate`,
+    `post-work-unit-archive` per ADR-008). Each section has workflow reference, fires
+    trigger, contract, and `[No extension configured]` placeholder. Structure mirrors
+    `arc-methods.md` (intro, classification, contents, `---`-separated sections,
+    reference-style links). All within 0–3 per workflow target (2/1/1/1/1).
 
-- [ ] **5.5 Scaffold `arc-methods.md` with method dependencies**
+- [x] **5.5 Add method dependencies to `arc-methods.md`**
 
-    **Goal:** Method override infrastructure with coupled-method awareness.
+    Added coupled-method awareness to the existing method infrastructure. Three
+    coupled methods get `**Related:**` fields with links and coupling rationale:
+    commit-format ↔ commit-context-format ↔ task-completion. Added "Method
+    Dependencies" section with table showing all 7 methods' relationships
+    (3 coupled, 4 independent). Contents updated to include the new section.
 
-    - New file: `.arc/system/workflows/arc-methods.md`
-    - Section per preset: workflow reference, trigger, contract, default, project override
-      placeholder
-    - Presets: task-completion, quality gates, session state, commit context format
-    - `Related:` field per WU1.5 Gap 6 (task-completion ↔ commit-context-format)
-    - Dependency map table
+- [ ] **5.6 Integrate extension and method references into workflows**
 
-- [ ] **5.6 Insert extension and method markers into workflows**
+    **Revised scope:** Initial attempt used `---`-bounded block markers (ADR-003 format).
+    Review found these feel like appendices rather than workflow steps — they don't
+    integrate with the step structure and conflict with hardcoded default behavior in
+    workflow prose. Reverted; redesigned as hybrid integration.
 
-    - [ ] **5.6.a Insert extension point markers**
-        - Block-style bounded by horizontal rules at preset locations
-        - Format: `**Extension Point — [Name]** · #[anchor]`, contract, link
+    **Design decisions (from session review):**
 
-    - [ ] **5.6.b Insert method markers**
-        - Same visual pattern
-        - Touchpoints: process-task-loop, session-init, session-handoff, atomic-commit,
-          activate-work-unit, archive-completed (ADR-008 extension points)
+    1. **Extension points become conditional numbered steps** with backtick tag for
+       grep-ability. No `---` blocks. Step heading format:
+       `### Step N: Post-Activation Extensions · #post-work-unit-activate` followed
+       by conditional execution prose and `See:` link to arc-extensions.md section.
+    2. **Methods are referenced inline in workflow prose** — replace hardcoded defaults
+       with method references. The workflow says WHAT to do, the method says HOW.
+       Example: "Record task completion per the [task-completion method](...)" instead
+       of hardcoding "Mark `[x]` in task list file."
+    3. **`task-completion` reclassified from method to extension** — see 5.6.c below.
+
+    - [ ] **5.6.a Insert extension points as conditional workflow steps**
+
+        Extension points become numbered steps with conditional framing ("if configured").
+        Backtick tag on step heading for grep-ability. Files and locations:
+
+        - process-task-loop.md: post-task-quality (after Tier 1, before mark complete),
+          post-unit-quality (after Tier 2, before reporting)
+        - session-init.md: post-context-load (after Step 2, before Step 3)
+        - atomic-commit.md: pre-stage-review (after staging, before commit)
+        - activate-work-unit.md: post-work-unit-activate (after Step 7, before commit)
+        - archive-completed.md: post-work-unit-archive (after Step 11b, before commit)
+
+    - [ ] **5.6.b Integrate method references into workflow prose**
+
+        Replace hardcoded default behavior with inline method references. The workflow
+        describes the action, links to the method for configurable HOW. Files:
+
+        - process-task-loop.md: quality-gate-commands (quality check steps),
+          leave-it-cleaner (quality issue handling), test-first (task start)
+        - atomic-commit.md: commit-format, commit-context-format (commit message steps)
+        - session-init.md: session-state (document loading)
+        - session-handoff.md: session-state (state writing)
+
+    - [ ] **5.6.c Reclassify `task-completion` from method to extension**
+
+        Task lists are Core execution artifacts (ADR-008) — marking `[x]` is
+        non-negotiable workflow behavior, not an overridable method. What's configurable
+        is *additional actions* when a task completes (update Jira, notify team, etc.).
+        That's additive behavior = extension, not replaceable behavior = method.
+
+        Steps:
+        - Remove `task-completion` section from `arc-methods.md`
+        - Add `post-task-completion` extension point to `arc-extensions.md`
+        - Update `commit-context-format` Related field (references task-completion)
+        - Update Method Dependencies table in `arc-methods.md`
+        - Update Contents in both files
+        - Integrate as conditional step in process-task-loop.md (part of 5.6.a)
+        - Verify no other docs reference the old task-completion method
 
 - [ ] **5.7 Add session-init config awareness step**
 

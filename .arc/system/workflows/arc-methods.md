@@ -15,6 +15,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 
 ## Contents
 
+- [Method Dependencies](#method-dependencies) — coupled override guidance
 - [commit-format](#commit-format) — message structure, types, scope, body
 - [commit-context-format](#commit-context-format) — context footer patterns
 - [leave-it-cleaner](#leave-it-cleaner) — severity triage, fix-vs-defer decisions
@@ -25,11 +26,30 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 
 ---
 
+## Method Dependencies
+
+Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
+when populating any `.override` section.
+
+| Method                | Related Methods                       | Coupling                                                   |
+| --------------------- | ------------------------------------- | ---------------------------------------------------------- |
+| commit-format         | commit-context-format                 | Both govern the commit message                             |
+| commit-context-format | commit-format, task-completion        | Footer references the task tracking system                 |
+| task-completion       | commit-context-format                 | Changing task tracking implies context footer should match |
+| leave-it-cleaner      | —                                     | Independent                                                |
+| test-first            | —                                     | Independent                                                |
+| session-state         | —                                     | Independent                                                |
+| quality-gate-commands | —                                     | Independent                                                |
+
+---
+
 ## commit-format
 
 **Workflow:** [atomic-commit.md][atomic-commit] · **When:** Agent writes a commit message
 
 **Contract:** Commits follow a consistent, communicative format that enables automated tooling and readable history.
+
+**Related:** [commit-context-format](#commit-context-format) — format changes may require context footer adaptation
 
 ### commit-format.override
 
@@ -63,6 +83,9 @@ in [`arc-config.yml`][arc-config]. See `system/githooks/README.md` for setup.
 
 **Contract:** Every commit includes a context footer linking it to its task or work context. Format must be
 grep-searchable across commit history.
+
+**Related:** [commit-format](#commit-format), [task-completion](#task-completion) — footer references the task
+tracking system and must fit the message structure
 
 ### commit-context-format.override
 
@@ -172,6 +195,9 @@ ordering visible during execution.
 **Workflow:** [process-task-loop.md][process-task-loop] · **When:** Agent marks a task as complete
 
 **Contract:** Record that the specified task is complete. Status must be verifiable by both human and agent.
+
+**Related:** [commit-context-format](#commit-context-format) — changing where tasks are tracked implies the context
+footer should reference the same system
 
 ### task-completion.override
 
