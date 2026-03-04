@@ -26,7 +26,8 @@ via [`arc-methods.md` § session-state][arc-methods-session].
 
 ### What to Update
 
-Session state is split across two files:
+Session state is split across two files (per the [session-state method][arc-methods-session] default — if your
+project overrides session-state, follow the override instead):
 
 - **WORK-STATUS.md** (tracked) — project state: branch, task list, current task, blockers, next action
 - **SESSION-NOTES.md** (gitignored) — personal context: completed work, decisions, debugging insights,

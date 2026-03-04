@@ -22,13 +22,21 @@ It ensures consistent execution, quality control, and documentation of work.
   single-threaded, small-scope tasks keep the developer close enough to the work to contribute
   directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
   your current task, flag the conflict and ask how to proceed.
+- **Test-first assessment:** Before implementing, assess whether tests should be written first per the
+  [test-first method][arc-methods-tf]. This informs task ordering — test tasks precede implementation
+  when test-first applies.
+- **Quality issue triage:** When you encounter pre-existing quality issues in files you're modifying,
+  follow the [leave-it-cleaner method][arc-methods-lic] for severity triage and fix-vs-defer decisions.
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
-     - **First**: Run incremental quality checks on modified files - **Tier 1** (linting, type checking, related unit tests)
+     - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
+       [quality-gate-commands method][arc-methods-qg]
        - See [Quality Gates Strategy][quality-gates] for the tiered approach
        - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
        - When task list explicitly calls for quality gates (including E2E checkpoints), they are mandatory
+     - **Extensions** · `#post-task-quality`: If [post-task-quality extensions][arc-ext-task-quality] are configured,
+       execute them before proceeding. See [`arc-extensions.md` § post-task-quality][arc-ext-task-quality]
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
@@ -37,6 +45,8 @@ It ensures consistent execution, quality control, and documentation of work.
        - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
          detailed instructions) that no longer serves a purpose.
+     - **Extensions** · `#post-task-completion`: If [post-task-completion extensions][arc-ext-task-completion] are
+       configured, execute them now. See [`arc-extensions.md` § post-task-completion][arc-ext-task-completion]
      - **Third**: Verify completion before reporting (use pre-report checklist below)
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
@@ -74,8 +84,9 @@ It ensures consistent execution, quality control, and documentation of work.
     - **First**: Mark the **parent task** as `[x]` in the task list file if it has subtasks (ensures docs
       reflect completion)
     - **Second**: Ensure new code has appropriate test coverage for new or modified logic
-    - **Third**: Run quality gates - **Tier 2** (full-project type-check, lint, format, unit tests, targeted E2E if
-      applicable, build)
+    - **Third**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
+    - **Extensions** · `#post-unit-quality`: If [post-unit-quality extensions][arc-ext-unit-quality] are configured,
+      execute them before proceeding. See [`arc-extensions.md` § post-unit-quality][arc-ext-unit-quality]
     - **Fourth**: Verify completion before reporting (use pre-report checklist below)
 
   3. Report completion to user
@@ -86,7 +97,7 @@ It ensures consistent execution, quality control, and documentation of work.
      - [ ] All subtasks marked [x] (if parent task with subtasks) or standalone task marked [x]
      - [ ] Parent task marked [x] in task list (if it has subtasks — phase headers don't get checkboxes)
      - [ ] Task list file edited and saved
-     - [ ] Tier 2 quality gates passed (full-project lint/type-check/format, unit tests, targeted E2E if applicable, build)
+     - [ ] Tier 2 quality gates passed (per quality-gate-commands method)
      - [ ] Ready to report completion to user
      ```
 
@@ -185,3 +196,9 @@ See [Incidental Work Management](#incidental-work-management) above.
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [rotate-branch]: supplemental/rotate-branch.md
+[arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
+[arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
+[arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality
+[arc-methods-tf]: ../arc-methods.md#test-first
+[arc-methods-lic]: ../arc-methods.md#leave-it-cleaner
+[arc-methods-qg]: ../arc-methods.md#quality-gate-commands

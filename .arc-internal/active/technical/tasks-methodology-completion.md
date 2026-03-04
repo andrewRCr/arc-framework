@@ -618,14 +618,11 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     Dependencies" section with table showing all 7 methods' relationships
     (3 coupled, 4 independent). Contents updated to include the new section.
 
-- [ ] **5.6 Integrate extension and method references into workflows**
+- [x] **5.6 Integrate extension and method references into workflows**
 
-    **Revised scope:** Initial attempt used `---`-bounded block markers (ADR-003 format).
-    Review found these feel like appendices rather than workflow steps — they don't
-    integrate with the step structure and conflict with hardcoded default behavior in
-    workflow prose. Reverted; redesigned as hybrid integration.
-
-    **Design decisions (from session review):**
+    Hybrid integration approach: extension points as conditional steps with backtick
+    `#anchor` tags, method references inline replacing hardcoded defaults, task-completion
+    reclassified from method to extension. See subtask completion notes for details.
 
     1. **Extension points become conditional numbered steps** with backtick tag for
        grep-ability. No `---` blocks. Step heading format:
@@ -637,50 +634,45 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
        of hardcoding the conventional commit structure inline.
     3. **`task-completion` reclassified from method to extension** — see 5.6.c below.
 
-    - [ ] **5.6.a Insert extension points as conditional workflow steps**
+    - [x] **5.6.a Insert extension points as conditional workflow steps**
 
-        Extension points become numbered steps with conditional framing ("if configured").
-        Backtick tag on step heading for grep-ability. Files and locations:
+        Inserted 6 extension points as conditional steps in 5 workflow files (+ internal
+        session-init.md). Format: heading/label with backtick `#anchor` tag for grep-ability,
+        conditional "if configured" prose, See link to arc-extensions.md section. Step
+        renumbering applied where needed (session-init 3→4→5, activate-work-unit 8→9→10,
+        archive-completed 12→13). Internal step references updated.
 
-        - process-task-loop.md: post-task-quality (after Tier 1, before mark complete),
-          post-unit-quality (after Tier 2, before reporting)
-        - session-init.md: post-context-load (after Step 2, before Step 3)
-        - atomic-commit.md: pre-stage-review (after staging, before commit)
-        - activate-work-unit.md: post-work-unit-activate (after Step 7, before commit)
-        - archive-completed.md: post-work-unit-archive (after Step 11b, before commit)
+    - [x] **5.6.b Integrate method references into workflow prose**
 
-    - [ ] **5.6.b Integrate method references into workflow prose**
+        Replaced hardcoded defaults with inline method references in 4 workflow files
+        (+ internal session-init.md). process-task-loop.md: added test-first and
+        leave-it-cleaner bullets, updated Tier 1/2 steps to reference quality-gate-commands
+        method. atomic-commit.md: updated purpose, Quick Commit Reference, and Complex
+        Analysis Path to reference commit-format and commit-context-format methods.
+        session-init.md + session-handoff.md: added session-state method override notes
+        to document loading and state writing sections.
 
-        Replace hardcoded default behavior with inline method references. The workflow
-        describes the action, links to the method for configurable HOW. Files:
+    - [x] **5.6.c Reclassify `task-completion` from method to extension**
 
-        - process-task-loop.md: quality-gate-commands (quality check steps),
-          leave-it-cleaner (quality issue handling), test-first (task start)
-        - atomic-commit.md: commit-format, commit-context-format (commit message steps)
-        - session-init.md: session-state (document loading)
-        - session-handoff.md: session-state (state writing)
+        Removed `task-completion` section from arc-methods.md (Contents, Method
+        Dependencies table row, commit-context-format Related field updated). Added
+        `post-task-completion` extension point to arc-extensions.md with contract
+        emphasizing additive behavior (core `[x]` marking is non-negotiable). Integrated
+        as conditional step in process-task-loop.md after **Second** (mark [x]).
 
-    - [ ] **5.6.c Reclassify `task-completion` from method to extension**
+        **Stale references noted:** `strategy-configurability-architecture.md` uses
+        task-completion as an illustrative example (§ Methods, § Markers in workflows)
+        and shows the old `---`-bounded marker format. Both examples need updating
+        as follow-up work.
 
-        Task lists are Core execution artifacts (ADR-008) — marking `[x]` is
-        non-negotiable workflow behavior, not an overridable method. What's configurable
-        is *additional actions* when a task completes (update Jira, notify team, etc.).
-        That's additive behavior = extension, not replaceable behavior = method.
+- [x] **5.7 Add session-init config awareness step**
 
-        Steps:
-        - Remove `task-completion` section from `arc-methods.md`
-        - Add `post-task-completion` extension point to `arc-extensions.md`
-        - Update `commit-context-format` Related field (references task-completion)
-        - Update Method Dependencies table in `arc-methods.md`
-        - Update Contents in both files
-        - Integrate as conditional step in process-task-loop.md (part of 5.6.a)
-        - Verify no other docs reference the old task-completion method
-
-- [ ] **5.7 Add session-init config awareness step**
-
-    - After standard document loading: read `arc-config.yml` and `arc-methods.md`
-    - Note non-default values and populated method overrides
-    - Verify consistency with DEV-RULES.ARC method-override pointers
+    Added Step 4 (Check Active Configuration) to both session-init files. Reads
+    arc-config.yml for non-default values and scans arc-methods.md for populated
+    overrides. Four sub-checks: config values, method overrides, platform awareness,
+    custom commit patterns. Described as read-and-note (not ceremony) — aligns with
+    strategy-configurability-architecture.md § Agent discovery. Steps renumbered
+    (4→5→6) in both template and internal copies.
 
 - [ ] **5.8 Apply ADR-008 Core/PM decomposition to workflows**
 

@@ -3,9 +3,9 @@
 **Audience:** Agent-executed at developer's direction — agent NEVER initiates commits without explicit approval.
 
 **Purpose:** Guide for commit scenarios that need more than staging and committing. For straightforward
-commits (single task, clear scope), the commit format in
-[DEV-RULES.ARC][dev-rules-arc] § Commit format and git hook
-validation are sufficient — you don't need this workflow.
+commits (single task, clear scope), the [commit-format][arc-methods-cf] and
+[commit-context-format][arc-methods-ccf] methods plus git hook validation are sufficient — you don't need
+this workflow.
 
 ## When to Use This Workflow
 
@@ -22,8 +22,10 @@ For simple, single-concern commits where you know what changed:
 1. `git status` — review pending changes
 2. `git --no-pager diff --stat` — overview of scope
 3. Stage files for one logical change
-4. Commit using the format from DEV-RULES.ARC.md § Commit format (loaded at session init)
-5. Git hooks validate automatically
+4. Pre-stage review extensions · `#pre-stage-review`: If [pre-stage-review extensions][arc-ext-pre-stage] are
+   configured, execute them now
+5. Commit using the [commit-format][arc-methods-cf] and [commit-context-format][arc-methods-ccf] methods
+6. Git hooks validate automatically
 
 ## Atomicity Guide
 
@@ -113,7 +115,8 @@ Separate changes into atomic commits using the [groupings above](#atomicity-guid
 
 ### 6. Execute and Verify
 
-Stage and commit each group using the format from DEV-RULES.ARC.md § Commit format. After all commits:
+Stage and commit each group using the [commit-format][arc-methods-cf] and
+[commit-context-format][arc-methods-ccf] methods. After all commits:
 
 ```bash
 git log --oneline -10    # Review commit messages
@@ -138,3 +141,6 @@ git status               # Verify clean state
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
 [manage-incidental]: manage-incidental-work.md
+[arc-ext-pre-stage]: ../../arc-extensions.md#pre-stage-review
+[arc-methods-cf]: ../../arc-methods.md#commit-format
+[arc-methods-ccf]: ../../arc-methods.md#commit-context-format

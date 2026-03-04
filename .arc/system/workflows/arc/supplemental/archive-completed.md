@@ -304,7 +304,14 @@ Restore WORK-STATUS.md to the parent work unit's context — branch name, task l
 and current task from where work was interrupted. The parent's state is recoverable from
 the parent branch's task list and commit history.
 
-### 12) Commit Archive Changes
+### 12) Post-Archival Extensions · `#post-work-unit-archive`
+
+If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now. This is the
+primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at archival time.
+
+See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
+
+### 13) Commit Archive Changes
 
 ```bash
 git add .arc/reference/archive/{quarter}/{category}/{name}/
@@ -429,3 +436,4 @@ architectural pivot, not abandoned work.
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [rotate-branch]: rotate-branch.md
+[arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive

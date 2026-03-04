@@ -47,7 +47,9 @@ pwd
 in full EXCEPT the active task list (which is reference material). These docs are kept minimal by design - there's
 more value in having complete context upfront than discovering missing rules mid-session.
 
-**Read these documents to establish complete context (general → specific):**
+**Read these documents to establish complete context (general → specific).** The document set below is the
+[session-state method][arc-methods-session] default. If your project overrides session-state, follow the
+override instead.
 
 **Project identity and agent context:**
 
@@ -106,18 +108,44 @@ more value in having complete context upfront than discovering missing rules mid
           1. Jump to line hint (`line ~N`) — if task number matches at that location, done
           2. Search for task number (e.g., `**4.2`) if line hint is stale
           3. Search for title fragment if task was renumbered
-        - If none of the anchors resolve, report the mismatch (Step 4)
+        - If none of the anchors resolve, report the mismatch (Step 6)
     - **Read on-demand**: Other phases and tasks as needed during work
 - **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
      large to internalize upfront. But you MUST read the overview + current task context.
 - **What to extract**: Current phase, task details, acceptance criteria
 
-### 3. Confirm Orientation
+### 3. Post-Context-Load Extensions · `#post-context-load`
+
+If [post-context-load extensions][arc-ext-post-context-load] are configured, execute them now. Use for
+team-specific documents, external tool state, or environment checks before orientation.
+
+See: [`arc-extensions.md` § post-context-load][arc-ext-post-context-load]
+
+### 4. Check Active Configuration
+
+Read `arc-config.yml` and scan `arc-methods.md` for active overrides. This is a read-and-note step — carry
+the awareness through the session and apply it when encountering method references or platform-specific
+operations.
+
+1. **Config values**: Read `.arc/system/arc-config.yml`. Note any settings that differ from defaults
+   (defaults are documented as inline comments in the file)
+2. **Method overrides**: Scan `.arc/system/workflows/arc-methods.md`. For each method, check if the
+   `.override` section is populated — if so, follow the override instead of the default when that
+   method is encountered in workflows
+3. **Platform awareness**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for
+   platform-appropriate commands
+4. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
+   active patterns from `commit.custom_pattern` / `commit.context_pattern`
+
+Include non-default configuration in the orientation summary only when present. Default configuration
+needs no mention — the agent already follows default conventions from loaded documents.
+
+### 5. Confirm Orientation
 
 **Freshness check** (run before producing orientation — informational, not blocking):
 
 Assess how current the session documents are. This feeds confidence into mismatch
-recovery (Step 4).
+recovery (Step 6).
 
 - **SESSION-NOTES.md**: If it has a `Commit at Handoff` field, compare that hash against
   current HEAD. Report the gap count if commits have landed since handoff (e.g.,
@@ -155,7 +183,7 @@ between work units.
   successful initialization. Only surface environment information when something is wrong
   (missing tools, failed verification, documents that couldn't be loaded)
 
-### 4. If Context Seems Mismatched
+### 6. If Context Seems Mismatched
 
 If documented state doesn't match reality during initialization, use the trust hierarchy to
 determine the correct response.
@@ -203,3 +231,4 @@ Examples:
   conflicting signals at the same trust tier
 
 [arc-methods-session]: ../../arc-methods.md#session-state
+[arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load

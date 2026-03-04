@@ -20,7 +20,6 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [commit-context-format](#commit-context-format) — context footer patterns
 - [leave-it-cleaner](#leave-it-cleaner) — severity triage, fix-vs-defer decisions
 - [test-first](#test-first) — decision tree by change type
-- [task-completion](#task-completion) — recording task completion
 - [session-state](#session-state) — reading and writing session state
 - [quality-gate-commands](#quality-gate-commands) — project quality gate definitions
 
@@ -31,15 +30,14 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
 when populating any `.override` section.
 
-| Method                | Related Methods                       | Coupling                                                   |
-| --------------------- | ------------------------------------- | ---------------------------------------------------------- |
-| commit-format         | commit-context-format                 | Both govern the commit message                             |
-| commit-context-format | commit-format, task-completion        | Footer references the task tracking system                 |
-| task-completion       | commit-context-format                 | Changing task tracking implies context footer should match |
-| leave-it-cleaner      | —                                     | Independent                                                |
-| test-first            | —                                     | Independent                                                |
-| session-state         | —                                     | Independent                                                |
-| quality-gate-commands | —                                     | Independent                                                |
+| Method                | Related Methods         | Coupling                         |
+| --------------------- | ----------------------- | -------------------------------- |
+| commit-format         | commit-context-format   | Both govern the commit message   |
+| commit-context-format | commit-format           | Both govern the commit message   |
+| leave-it-cleaner      | —                       | Independent                      |
+| test-first            | —                       | Independent                      |
+| session-state         | —                       | Independent                      |
+| quality-gate-commands | —                       | Independent                      |
 
 ---
 
@@ -84,8 +82,7 @@ in [`arc-config.yml`][arc-config]. See `system/githooks/README.md` for setup.
 **Contract:** Every commit includes a context footer linking it to its task or work context. Format must be
 grep-searchable across commit history.
 
-**Related:** [commit-format](#commit-format), [task-completion](#task-completion) — footer references the task
-tracking system and must fit the message structure
+**Related:** [commit-format](#commit-format) — both govern the commit message structure
 
 ### commit-context-format.override
 
@@ -187,25 +184,6 @@ Decision tree by change type.
 
 **During task list creation:** Place test tasks BEFORE implementation tasks for test-first work. This makes the
 ordering visible during execution.
-
----
-
-## task-completion
-
-**Workflow:** [process-task-loop.md][process-task-loop] · **When:** Agent marks a task as complete
-
-**Contract:** Record that the specified task is complete. Status must be verifiable by both human and agent.
-
-**Related:** [commit-context-format](#commit-context-format) — changing where tasks are tracked implies the context
-footer should reference the same system
-
-### task-completion.override
-
-[No override configured]
-
-### task-completion.default
-
-Mark `[x]` in the markdown task list file, update task description with completion notes.
 
 ---
 

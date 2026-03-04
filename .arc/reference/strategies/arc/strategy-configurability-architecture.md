@@ -36,7 +36,7 @@ handle different kinds of customization, and existing project documentation abso
 |-----------------|---------------------------|----------------------|--------------------------------------------|
 | Config          | Toggles enforcement       | `arc-config.yml`     | `commit.format: any` disables hook check   |
 | Extension       | Adds steps to workflows   | `arc-extensions.md`  | Post-task quality: also run security scan  |
-| Method override | Replaces default behavior | `arc-methods.md`     | Task completion: update Jira, not markdown |
+| Method override | Replaces default behavior | `arc-methods.md`     | Session state: custom format, not default  |
 | QUICK-REFERENCE | Environment/tool commands | `QUICK-REFERENCE.md` | `glab mr create` instead of `gh pr create` |
 
 ### Which mechanism do I use?
@@ -60,14 +60,14 @@ box) and a configurability path (how teams adapt it).
 
 #### Core commitment conventions
 
-| Convention                                                  | Principle | Default                  | Configurability Path                                 |
-|-------------------------------------------------------------|-----------|--------------------------|------------------------------------------------------|
-| Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | File-customizable — edit templates                   |
-| Template-first documents                                    | P1        | Copy-ready templates     | File-customizable — edit template format and content |
-| Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope  |
-| Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps          |
-| Deferred review                                             | P2        | User-defined scope       | Behavioral guidance — adjust scope and conditions    |
-| Markdown task list checkboxes                               | P7        | Markdown in git          | Method override — substitute external tracker        |
+| Convention                                                  | Principle | Default                  | Configurability Path                                  |
+|-------------------------------------------------------------|-----------|--------------------------|-------------------------------------------------------|
+| Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | File-customizable — edit templates                    |
+| Template-first documents                                    | P1        | Copy-ready templates     | File-customizable — edit template format and content  |
+| Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope   |
+| Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps           |
+| Deferred review                                             | P2        | User-defined scope       | Behavioral guidance — adjust scope and conditions     |
+| Markdown task list checkboxes                               | P7        | Markdown in git          | Extension — add tracker sync via post-task-completion |
 
 #### Operational discipline conventions
 
@@ -194,8 +194,8 @@ Adoption flexibility has three independent axes:
 2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce. **Profiles handle this.**
 3. "I want something _different_ enforced" → No mechanism in profiles alone. **Method overrides needed.**
 
-**Method customization** substitutes how ARC does things — a team using Jira for task tracking replaces the
-task-completion method. Independent of enforcement depth.
+**Method customization** substitutes how ARC does things — a team with a custom session mechanism replaces
+the session-state method. Independent of enforcement depth.
 
 **Functionality scope** controls what's installed. ARC decomposes into Core (always present) and optional PM layers:
 Solo PM (in-git project management for solo developers) or Team PM (team conventions and external tracker integration).
@@ -217,8 +217,8 @@ grows comfortable with conventions the agent has been demonstrating and decides 
 
 **Scaling down:** Loosen config settings. The reverse is equally smooth.
 
-**Adding method overrides:** Independent of profile changes. A recommended-profile team that adopts Jira can add a
-task-completion-tracking method override without changing their enforcement profile.
+**Adding method overrides:** Independent of profile changes. A recommended-profile team can add a session-state method
+override without changing their enforcement profile.
 
 **Adding or removing PM layers:** Independent of enforcement and method changes. A Core-only user who wants in-git
 project management adds Solo PM via `arc init --reconfigure`. A team switching from Solo PM to Team PM reconfigures
@@ -353,30 +353,30 @@ Each preset section includes: which workflow it extends, when it fires, what the
 ```markdown
 ## post-task-quality
 
-**Workflow:** process-task-loop.md · **Fires:** After Tier 1 checks pass, before
-marking task complete\
-**Contract:** Add quality checks that should run after every task completion.
-Steps added here run in addition to ARC's default Tier 1 checks, not instead
-of them.
+**Workflow:** process-task-loop.md · **Fires:** After Tier 1 checks pass,
+before marking task complete
+
+**Contract:** Add quality checks that run after every task completion. Steps
+here run in addition to ARC's default Tier 1 checks, not instead of them.
+Must return a clear pass/fail signal.
+
+### post-task-quality.steps
 
 [No extension configured]
 ```
 
-### Markers in workflows
+### References in workflows
 
-ARC workflows mark extension points with compact, inline blocks:
+Extension points appear as conditional steps in workflow documents, with a backtick anchor tag for grep-ability:
 
 ```markdown
----
-**Extension Point — Post-Task Quality Checks** · `#post-task-quality`
-Contract: Runs after Tier 1 checks pass, before marking task complete.
-See: [arc-extensions.md](../arc-extensions.md#post-task-quality)
----
+- **Extensions** · `#post-task-quality`: If [post-task-quality
+  extensions][arc-ext-task-quality] are configured, execute them
+  before proceeding.
 ```
 
-Markers are bounded by horizontal rules for visual distinction. The inline link lets agents and humans navigate directly
-to the extension content. The agent follows the link, reads the section, executes any steps found (or skips if
-placeholder), and returns to the workflow.
+The agent encounters the reference, follows the link to `arc-extensions.md`, reads the section, executes any steps found
+(or skips if placeholder), and returns to the workflow.
 
 ### Preset vs. custom
 
@@ -404,43 +404,37 @@ Each preset method defines a contract — the invariant that both the default an
 advisory, not mechanically enforced. The team is responsible for ensuring their override meets the contract.
 
 ```markdown
-## task-completion
+## commit-format
 
-**Workflow:** process-task-loop.md · **When:** Agent marks a task as complete
+**Workflow:** atomic-commit.md · **When:** Agent writes a commit message
 
-**Contract:** Record that the specified task is complete. Status must be
-verifiable by both human and agent.
+**Contract:** Commits follow a consistent, communicative format that
+enables automated tooling and readable history.
 
-### task-completion.override
+### commit-format.override
 
 [No override configured]
 
-### task-completion.default
+### commit-format.default
 
-Mark `[x]` in the markdown task list file, update task description
-with completion notes.
+Conventional commit format: `type(scope): description`
 ```
 
 When an override is populated, the agent follows the override instead of the default. The agent reads `arc-methods.md`
 during session initialization and carries the awareness through the session.
 
-### Markers in workflows
+### Method references in workflows
 
-Workflows reference overridable operations with block-style markers, following the same visual pattern as extension
-points:
+Method references appear as inline links in workflow prose. The workflow describes WHAT to do; the method defines HOW:
 
 ```markdown
----
-**Method — Task Completion Tracking** · `#task-completion`
-Contract: Record that the specified task is complete. Status verifiable by
-human and agent.
-Default: Mark `[x]` in the markdown task list file.
-See: [arc-methods.md](../arc-methods.md#task-completion)
----
+5. Commit using the [commit-format][arc-methods-cf] and
+   [commit-context-format][arc-methods-ccf] methods
 ```
 
-The agent encounters a method marker, follows the link, reads the corresponding section, and acts on whatever it finds —
-override content or default. Same cross-reference pattern used throughout ARC documentation.
+The agent encounters a method reference, follows the link, reads the corresponding section in `arc-methods.md`, and acts
+on whatever it finds — override content or default. Extension points use a similar inline pattern — see
+[References in workflows](#references-in-workflows) under Extension Points.
 
 ### Hook interaction
 
@@ -466,9 +460,9 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 Config provides common pattern examples as inline comments to reduce regex-authoring friction: Jira prefix,
 ticket-plus-type, issue reference.
 
-For behavioral methods (task completion, session state) that do not have mechanical hook enforcement, the override is
-purely agent-level: the agent reads the method override from `arc-methods.md` and follows it. No hook interaction
-needed.
+For behavioral methods (session state, leave-it-cleaner, test-first) that do not have mechanical hook enforcement, the
+override is purely agent-level: the agent reads the method override from `arc-methods.md` and follows it. No hook
+interaction needed.
 
 ### Preset vs. custom
 
@@ -560,13 +554,13 @@ completion to update Jira, not markdown checkboxes.
 
 - `commit.format: custom` with `commit.custom_pattern` matching their Jira format
 - `commit.context_footer: custom` with `commit.context_pattern` matching `Closes JIRA-XXX` or similar
-- Method override for task completion: "Update Jira ticket status to Done" replaces "Mark `[x]` in markdown task list"
+- Post-task-completion extension: update Jira ticket status after ARC marks `[x]`
 - Method override for commit context format: Jira ticket reference replaces ARC's `Context: tasks-*.md` footer
 
 **What stays the same:** All 11 principles honored. Quality gates still run. The agent still follows ARC's task loop —
-it just records completion in Jira instead of markdown. Session ceremonies, spec-driven planning, and co-development are
-unchanged. The team may still use ARC task lists as a working scratchpad alongside Jira, or rely solely on Jira for
-tracking — the method override handles either pattern.
+it marks `[x]` in the task list (core behavior) and then updates Jira via the extension. Session ceremonies, spec-driven
+planning, and co-development are unchanged. The team uses ARC task lists as the execution artifact alongside Jira for
+broader project tracking.
 
 **Profile:** Recommended (full enforcement, custom methods).
 

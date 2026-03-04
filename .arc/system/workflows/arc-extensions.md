@@ -18,6 +18,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 
 - [post-task-quality](#post-task-quality) — additional checks after each task
 - [post-unit-quality](#post-unit-quality) — additional checks at coherent unit boundaries
+- [post-task-completion](#post-task-completion) — additional actions after task marked complete
 - [post-context-load](#post-context-load) — additional context loading at session start
 - [pre-stage-review](#pre-stage-review) — additional staging verification before commit
 - [post-work-unit-activate](#post-work-unit-activate) — actions after work unit activation (PM layer interface)
@@ -54,10 +55,25 @@ signal.
 
 ---
 
+## post-task-completion
+
+**Workflow:** [process-task-loop.md][process-task-loop] · **Fires:** After task marked `[x]` and description updated,
+before verification and reporting
+
+**Contract:** Perform additional actions when a task is completed. ARC's core behavior (marking `[x]` in the task list
+file and updating the task description) is non-negotiable — this extension adds to it, not replaces it. Use for
+external tracker updates (Jira, Linear), team notifications, or custom ceremony steps.
+
+### post-task-completion.steps
+
+[No extension configured]
+
+---
+
 ## post-context-load
 
 **Workflow:** [session-init.md][session-init] · **Fires:** After standard document loading (Step 2), before
-orientation (Step 3)
+orientation (Step 4)
 
 **Contract:** Load additional project-specific context at session start. Use for team-specific documents, external
 tool state, or environment checks that agents should be aware of before beginning work.

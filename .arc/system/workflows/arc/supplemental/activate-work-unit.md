@@ -106,7 +106,14 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 6. Update **Next Action** to describe first task
 7. Clear **Blockers** (set to `[none]`)
 
-### Step 8: Commit Activation
+### Step 8: Post-Activation Extensions · `#post-work-unit-activate`
+
+If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now. This is the
+primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at activation time.
+
+See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
+
+### Step 9: Commit Activation
 
 ```bash
 git add .arc/active/{category}/prd-{name}.md \
@@ -126,7 +133,7 @@ Context: {feature|technical}/{branch-name} / tasks-{name}.md"
 **Note:** Stage only the files actually modified. The list above covers the typical case — adjust
 based on which optional steps (ROADMAP, WORK-STATUS) applied.
 
-### Step 9: Push Feature Branch (Optional)
+### Step 10: Push Feature Branch (Optional)
 
 Set upstream for the feature branch:
 
@@ -163,3 +170,4 @@ With the work unit activated, proceed to task execution:
 
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
+[arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
