@@ -16,7 +16,6 @@ templates and examples, this directory houses the live project documentation.
 │   └── SESSION-NOTES.md       # Personal session context (gitignored)
 ├── backlog/          # Future work pipeline
 │   ├── ROADMAP.md    # Sequencing strategy for framework development
-│   ├── TASK-INBOX.md # Zero-friction capture for ideas
 │   ├── feature/      # Feature backlog and plans
 │   └── technical/    # Technical backlog and plans
 ├── reference/        # Stable, long-term project documentation
@@ -44,7 +43,6 @@ templates and examples, this directory houses the live project documentation.
 ### Planning & Pipeline
 
 - **Roadmap**: `backlog/ROADMAP.md` documents sequencing strategy for framework development
-- **Task inbox**: `backlog/TASK-INBOX.md` for zero-friction idea capture
 - **Feature backlog**: `backlog/feature/BACKLOG-FEATURE.md` organizes future feature ideas
 - **Technical backlog**: `backlog/technical/BACKLOG-TECHNICAL.md` organizes technical improvements
 

@@ -3,7 +3,7 @@
 **Purpose:** Organized collection of technical work ideas — infrastructure, tooling, and
 quality improvements.
 
-**Processing:** Items move here from `TASK-INBOX.md` during weekly review.
+**Processing:** Items added from planning discussions, discovery during active work, or backlog review.
 
 ---
 

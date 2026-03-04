@@ -109,7 +109,6 @@ Your current development context:
 Your planning pipeline:
 
 - **ROADMAP** — Sequencing strategy for upcoming work
-- **TASK-INBOX** — Zero-friction capture for ideas (GTD-style inbox)
 - **Planning documents** — Rough plans that evolve into structured PRDs
 
 ### Reference (`reference/`)

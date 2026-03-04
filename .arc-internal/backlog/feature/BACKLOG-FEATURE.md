@@ -2,7 +2,7 @@
 
 **Purpose:** Organized collection of feature work ideas for the framework.
 
-**Processing:** Items move here from `TASK-INBOX.md` during weekly review.
+**Processing:** Items added from planning discussions, discovery during active work, or backlog review.
 
 ---
 

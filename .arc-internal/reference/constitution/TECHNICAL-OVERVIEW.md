@@ -1,171 +1,92 @@
-# Technical Architecture - ARC Agentic Development Framework
+# ARC Framework Technical Overview
 
-## Stack Overview (Documentation-Only System)
+This document outlines the technical architecture of the ARC Framework — the technology choices,
+component structure, and infrastructure that shape how the project is built and maintained.
+Both human contributors and AI agents reference this to make decisions consistent with the
+architecture.
 
-The ARC Framework is intentionally **not** a software application - it's a pure documentation and process
-framework. This architectural decision ensures:
+## 1. Overview
 
-- **Universal compatibility** - Works with any tech stack
-- **Minimal dependencies** - Only requires git, Node.js (NPX), and a markdown editor
-- **Easy adoption** - Simple copy-adapt integration
-- **No maintenance burden** - No code to update or security patches
-- **Template-first approach** - Rich, copy-ready documents with inline guidance
+The ARC Framework is a pure documentation and process system — not a software application. It
+defines how a developer and an AI agent collaborate through structured workflows, templates, and
+constitutional documents.
 
-### Core Components
+**Key characteristics:**
 
-```
-.arc/                           # The deployable template system
-├── reference/                 # Framework reference documentation
-│   ├── constitution/          # Core project templates
-│   │   ├── META-PRD.template.md
-│   │   ├── PROJECT-STATUS.template.md
-│   │   ├── DEV-RULES.ARC.md
-│   │   ├── DEV-RULES.PROJECT.md
-│   │   └── TECHNICAL-OVERVIEW.template.md
-│   ├── adr/                   # Architecture decision records
-│   ├── research/              # Technical research documents
-│   └── strategies/            # Pattern documentation
-├── system/                    # Agent-facing operational files
-│   ├── agent/                 # AI agent collaboration templates
-│   │   ├── AGENTS.template.md
-│   │   ├── CLAUDE.template.md
-│   │   ├── GEMINI.template.md
-│   │   ├── WARP.template.md
-│   │   └── copilot-instructions.template.md
-│   ├── githooks/              # Git hook scripts
-│   └── workflows/             # Process documentation
-│       ├── arc/               # ARC framework workflows
-│       │   ├── setup/01_initialize-arc.md
-│       │   ├── setup/02_define-project.md
-│       │   ├── 1_create-prd.md
-│       │   ├── 2_generate-tasks.md
-│       │   ├── 3_process-task-loop.md
-│       │   └── supplemental/
-│       └── project/           # Project-specific workflows
-├── active/                    # Current work templates
-│   ├── feature/               # Feature work templates
-│   ├── technical/             # Technical work templates
-│   ├── incidental/            # Incidental work templates
-│   ├── ATOMIC-TASKS.template.md  # Small one-off tasks
-│   └── WORK-STATUS.template.md
-└── backlog/                   # Future work pipeline
-    ├── ROADMAP.template.md     # Sequencing strategy
-    ├── TASK-INBOX.template.md  # Zero-friction capture
-    ├── feature/               # Feature backlog
-    │   └── BACKLOG-FEATURE.template.md
-    └── technical/             # Technical backlog
-        └── BACKLOG-TECHNICAL.template.md
+- **Documentation-only** — No runtime, no containers, no services. All artifacts are markdown
+- **Template-first** — Rich, copy-ready documents with inline guidance and framework defaults
+- **Self-hosting** — Framework development follows its own ARC methodology
+- **Configurable conventions** — 11 non-negotiable principles with strong defaults that teams
+  adapt via `arc-config.yml`, `arc-methods.md`, and `arc-extensions.md`
 
-.arc-internal/                 # Framework development workspace
-├── active/                    # Current framework development
-│   ├── feature/               # Feature work
-│   ├── technical/             # Technical infrastructure work
-│   ├── incidental/            # Incidental work
-│   └── ATOMIC-TASKS.md        # Small one-off framework tasks
-├── backlog/                   # Future framework work pipeline
-│   ├── ROADMAP.md             # Framework development sequencing
-│   ├── TASK-INBOX.md          # Idea capture
-│   ├── feature/               # Framework feature backlog
-│   └── technical/             # Framework technical backlog
-└── reference/                 # Framework internal documentation
-    ├── constitution/          # Internal constitutional documents
-    │   ├── META-PRD.md           # Framework development PRD
-    │   ├── PROJECT-STATUS.md     # Current progress tracking
-    │   ├── DEV-RULES.PROJECT.md  # Framework project rules (quality gates, file organization)
-    │   └── TECHNICAL-OVERVIEW.md # This file
-    ├── agent/                 # Internal AI instructions
-    ├── adr/                   # Framework architecture decision records
-    ├── research/              # Framework technical research
-    └── archive/               # Framework archives (quarterly, by work type)
+## 2. Architecture Components
 
-profiles/                      # Stack-specific overlays
-```
+### Deployable Template System (`.arc/`)
 
-## Testing Strategy
+The adopter-facing framework — everything here ships to users and is designed to be copied,
+customized, and committed to their repositories.
 
-Since this is a documentation system, testing focuses on:
+- **Constitution** (`reference/constitution/`) — Core project templates: META-PRD, DEV-RULES,
+  PROJECT-STATUS, TECHNICAL-OVERVIEW
+- **Strategies** (`reference/strategies/`) — Codified pattern guidance indexed by
+  STRATEGY-INDEX.md. `arc/` strategies ship with framework; `project/` strategies are
+  team-created
+- **ADRs** (`reference/adr/`) — Architecture decision records
+- **Research** (`reference/research/`) — Technical research with lasting reference value
+- **Archive** (`reference/archive/`) — Completed work by category, quarterly as volume grows
+- **Workflows** (`system/workflows/`) — Numbered lifecycle workflows (create-prd →
+  generate-tasks → process-task-loop) plus supplemental workflows (archival, commits,
+  sessions, incidental work). Customization via `arc-methods.md` (overridable defaults)
+  and `arc-extensions.md` (hook points)
+- **Configuration** (`system/arc-config.yml`) — Flat key-value project settings (branch model,
+  commit format, hooks, PM mode)
+- **Agent templates** (`system/agent/`) — Per-agent instruction files (AGENTS, CLAUDE, GEMINI,
+  CODEX, WARP, Copilot)
+- **Git hooks** (`system/githooks/`) — Commit message validation, format enforcement
+- **Active workspace** (`active/`) — Current work templates (WORK-STATUS, SESSION-NOTES,
+  ATOMIC-TASKS, category subdirectories)
+- **Backlog** (`backlog/`) — Future work pipeline (ROADMAP, category backlogs)
 
-### Template-First Document Validation
+### Framework Development Workspace (`.arc-internal/`)
 
-- **Copy-adapt testing** - Verify template-first documents can be easily copied and customized
-- **Framework defaults integration** - Ensure battle-tested defaults are properly embedded
-- **Profile overlay testing** - Ensure profiles enhance template-first documents correctly
-- **Real-world usage validation** - Test with actual projects (CineXplorer methodology validation)
+Internal to this repository — not shipped to adopters. Mirrors `.arc/` structure for framework
+development work, plus internal reference materials (QUICK-REFERENCE, project-specific
+DEV-RULES.PROJECT, internal ADRs, archives).
 
-### Documentation Quality
+### Customization Layer
 
-- **Markdown linting** - Ensure all files are well-formed with zero tolerance policy
-- **Link validation** - Verify internal references work across `.arc/` structure
-- **Template completeness** - Validate all sections are comprehensive and actionable
-- **Inline guidance quality** - Ensure template comments and guidance are clear
+Three mechanisms allow teams to adapt ARC without forking:
 
-### Workflow Verification
+- **`arc-config.yml`** — Settings: branch protection, commit format, hook toggles, PM mode
+- **`arc-methods.md`** — Overridable defaults for commit format, leave-it-cleaner triage,
+  test-first assessment, session state, quality gate commands
+- **`arc-extensions.md`** — Hook points for team-specific automation at task, unit, and
+  work-unit lifecycle boundaries
 
-- **Process walkthroughs** - Test each workflow end-to-end on real development work
-- **AI agent compatibility** - Ensure agents can follow structured instructions effectively
-- **Context preservation** - Verify session handoffs maintain continuity across AI/human transitions
-- **Constitutional integration** - Validate workflows integrate properly with constitutional documents
+## 3. Infrastructure
 
-### Automated Quality Gates
+- **Version Control**: Git (primary runtime dependency)
+- **Development Environment**: Cross-platform (Windows/WSL/Linux/Mac), all work at repo root
+- **Dependencies**: Node.js with pinned local `markdownlint-cli2` — `npm install` to set up,
+  `npm run -s lint:md` for quality gates
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — markdown linting, template structure
+  validation, internal link checking, ARC system structure validation
+- **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line
+  ending normalization
 
-- **Pre-commit validation** - NPX-based markdown linting
-- **CI pipeline validation** - Multi-stage GitHub Actions workflow
-- **Template structure checks** - Automated token and naming convention validation
-- **System integrity checks** - Core directory and file existence validation
+## 4. Testing Infrastructure
 
-## Tooling Architecture
+Documentation-only framework — no unit tests, integration tests, or test runners.
 
-### NPX-Based Approach
+### Quality Gates
 
-The system uses NPX for all external tooling to maintain a clean repository:
+- **Markdown linting** — `markdownlint-cli2` with zero-tolerance policy
+- **CI validation** — GitHub Actions validates linting, template structure, and link integrity
+  on push and PR
+- **Tiered approach** — Tier 1 (per-task, incremental), Tier 2 (coherent unit boundaries),
+  Tier 3 (phase completion / pre-PR full suite)
 
-- **On-demand execution** - Tools downloaded and cached by NPX as needed
-- **No package.json** - Avoids dependency management overhead
-- **No node_modules** - Keeps repository lightweight and focused
-- **Version flexibility** - Always uses latest stable versions of tools
-- **Clean CI** - No dependency installation or caching steps required
+### Methodology Validation
 
-### Configuration Files
-
-- **`.markdownlint.json`** - Markdown linting rules optimized for documentation
-- **`.gitignore`** - Excludes temporal workspace files and NPX cache
-- **`.github/workflows/ci.yml`** - Automated quality gates and validation
-
-## Documentation Structure Safety
-
-Pure markdown documentation system with structural consistency through:
-
-### Template-First Structure Validation
-
-- **Template completeness** - All template-first documents have comprehensive sections
-- **Framework defaults integration** - Battle-tested rules properly embedded
-- **Inline guidance consistency** - Clear customization instructions throughout
-- **Copy-ready validation** - Templates can be immediately used without external dependencies
-
-### Semantic Consistency
-
-- **Constitutional document alignment** - All documents reference and support each other
-- **Workflow integration** - Process documentation aligns with constitutional requirements
-- **Profile compatibility** - Stack-specific overlays enhance without conflicting
-
-## CI/CD
-
-### Current State
-
-- **Automated CI/CD** - GitHub Actions workflow (`.github/workflows/ci.yml`)
-- **NPX-based tooling** - No package.json or node_modules clutter
-- **Multi-stage validation**:
-    - Markdown linting via `markdownlint-cli2`
-    - Template structure validation
-    - Internal link checking
-    - ARC system structure validation
-- **Git-based version management** - Clean history with atomic commits
-
-### Future Considerations (1.0.0+)
-
-- **Enhanced link validation** - More sophisticated broken link detection
-- **Automated template instantiation testing** - CI that actually creates and validates instantiated templates
-- **Profile compatibility matrix** - Automated testing of profile overlays against base templates
-- **Documentation site generation** - GitHub Pages or similar for browseable system docs
-- **Community contribution pipeline** - PR templates, issue forms, and contribution guidelines
-- **System usage analytics** - Anonymous metrics on template adoption patterns
+- Self-hosting: framework development follows its own ARC methodology, providing continuous
+  real-world validation of workflows and conventions

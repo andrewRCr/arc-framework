@@ -27,7 +27,7 @@ with strong default conventions that teams adapt to their context
 
 - `.arc/` - Deployable template system (reference/, active/, backlog/)
 - `.arc-internal/` - Framework development workspace (constitution, workflows, active work)
-- Root-level documentation (README.md, ADOPTION.md, etc.)
+- Root-level documentation (README.md, LICENSE, etc.)
 
 ## Critical Path Information
 

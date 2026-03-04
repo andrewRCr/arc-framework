@@ -19,7 +19,6 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 │   └── incidental/            # Active maintenance and discovered work
 ├── backlog/                   # Future work pipeline
 │   ├── ROADMAP.md             # Sequencing strategy for upcoming work
-│   ├── TASK-INBOX.md          # Zero-friction idea capture
 │   ├── feature/               # Feature backlog
 │   └── technical/             # Technical backlog
 ├── reference/                 # Stable, long-lived documentation
