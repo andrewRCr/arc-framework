@@ -161,6 +161,15 @@ Common multi-branch patterns:
 Incidental task lists may live alongside the primary work when they stay on the same branch by design.
 `WORK-STATUS.md` reflects whichever work unit is currently active.
 
+**WORK-STATUS.md merge behavior:** In protected modes, WORK-STATUS.md on the base branch stays in
+its "no active work" default state — work branches diverge with active state, and merges restore
+the default. In unprotected mode, the base branch is the workspace and WORK-STATUS.md reflects
+active work directly. `.gitattributes` with `merge=ours` auto-resolves local merges by keeping
+the target branch version. For PR merges (server-side, where local merge drivers don't apply),
+the resolution is always "take base" — deterministic and trivial. Post-merge workflows
+([rotate-branch][rotate-branch], [archive-completed][archive-completed]) update WORK-STATUS.md
+immediately, so the auto-resolved content is transient.
+
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
 
@@ -714,3 +723,4 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md
 [config-arch]: strategy-configurability-architecture.md
+[rotate-branch]: ../../../system/workflows/arc/supplemental/rotate-branch.md

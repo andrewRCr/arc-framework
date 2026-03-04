@@ -1,5 +1,9 @@
 # Atomic Tasks
 
+> **Requires:** `pm.mode: arc-in-git` in `arc-config.yml`. This file is part of ARC's optional
+> Project Management (PM) suite. Without `arc-in-git`, use the "Atomic Tasks" section in task
+> lists for off-plan work instead.
+
 **Purpose:** Small, one-off tasks that are ready to execute (GTD "Next Actions").
 
 **How to use:**

@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 6.2 — Add team mode callouts to session workflows (line ~814)
-**Last Completed**: Task 6.1 — Add Workflow Adaptations section to team coordination strategy
+**Current Task**: Task 6.3 — Add person-to-person task handoff protocol (line ~873)
+**Last Completed**: Task 6.2.y — Fix team/ templates and README per ADR-008
 **Blockers**: [none]
-**Next Action**: Start Task 6.2 — add team mode path callouts to session-handoff, activate-work-unit, session-init
+**Next Action**: Start Task 6.3 — person-to-person task handoff protocol
 
 ---
 

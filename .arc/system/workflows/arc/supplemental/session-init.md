@@ -95,6 +95,11 @@ override instead.
      content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
      capability assumptions)
 
+> **Team mode:** SESSION-NOTES.md moves to `team/{name}/SESSION-NOTES.md` — read your personal
+> file, not the `active/` default path. WORK-STATUS.md stays in `active/` (shared, one per
+> branch). See [Team Coordination Strategy][team-coordination] § Workflow Adaptations for the
+> full solo → team mapping.
+
 9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
 
    **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task list to load.
@@ -232,3 +237,4 @@ Examples:
 
 [arc-methods-session]: ../../arc-methods.md#session-state
 [arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load
+[team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

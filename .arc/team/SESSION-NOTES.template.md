@@ -1,8 +1,8 @@
 # Session Notes
 
 > **About this file:** Personal session context — gitignored. Companion to the tracked
-> [WORK-STATUS.md](WORK-STATUS.md) which carries the factual project pointer (branch, task,
-> blockers). Together they implement P5 (Context Preservation).
+> [WORK-STATUS.md](../../active/WORK-STATUS.md) in `active/` which carries the factual project
+> pointer (branch, task, blockers). Together they implement P5 (Context Preservation).
 >
 > **Lifecycle:** Created during session handoff, consumed during session init. Delete between
 > work units — this is session-scoped context, not project documentation.

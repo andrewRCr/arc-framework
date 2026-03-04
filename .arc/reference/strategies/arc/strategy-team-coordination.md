@@ -173,12 +173,17 @@ developers reference and update them. This means:
   feature branches. Make structural changes (reordering, adding phases) on the
   integration branch or base branch where all members can pull them.
 
-### Session State Has No Conflicts
+### Session State Merge Behavior
 
-`team/{name}/SESSION-NOTES.md` and `team/{name}/ATOMIC-TASKS.md` are personal files —
-only one developer writes to each. This is the primary reason for the `team/` directory
-structure: eliminating file-level conflicts on session state. `WORK-STATUS.md` in `active/`
-is shared (one per branch, tracked in git).
+Personal files — `team/{name}/SESSION-NOTES.md` and `team/{name}/ATOMIC-TASKS.md` — have no
+merge conflicts by design. Only one developer writes to each. This is the primary reason for
+the `team/` directory structure.
+
+`WORK-STATUS.md` in `active/` is shared (one per branch, tracked in git). Merge conflicts on
+WORK-STATUS.md are trivial: `.gitattributes` with `merge=ours` auto-resolves local merges by
+keeping the target branch version; PR merges take the base branch version. Post-merge workflows
+update WORK-STATUS.md immediately, so the auto-resolved content is transient. See
+[Work Organization Strategy][work-org] § Task Lists and Branches for the full merge convention.
 
 ---
 

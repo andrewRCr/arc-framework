@@ -814,53 +814,53 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     per-pair task scoping, ownership markers, branching patterns. Added key
     distinction paragraph clarifying shared vs. personal file split.
 
-- [ ] **6.2 Add team mode callouts to session workflows**
+- [x] **6.2 Add team mode callouts to session workflows**
 
-    - `session-handoff.md`: update `team/{name}/` paths in team mode
-    - `activate-work-unit.md` Step 7: each developer updates own session file
-    - `session-init.md` Step 2: team mode note for session state loading
-    - Reference session model config setting per ADR-002
+    Added `> **Team mode:**` blockquote callouts to three workflow files, following the
+    existing `> **Mode-specific:**` pattern in activate-work-unit.md:
 
-- [ ] **6.2.x Document WORK-STATUS.md merge convention in `strategy-work-organization.md`**
+    - `session-init.md` Step 2: note after item 8 — SESSION-NOTES.md moves to
+      `team/{name}/`, WORK-STATUS.md stays shared in `active/`
+    - `session-handoff.md` § What to Update: note after two-file description —
+      same path distinction, notes that templates show solo (default) layout
+    - `activate-work-unit.md` after Step 5: shared WORK-STATUS.md activation,
+      other developers join via session-init with personal SESSION-NOTES.md
 
-    Document the "base branch baseline" convention and merge resolution behavior
-    as a subsection of § Task Lists and Branches (adjacent to the "Branch scope"
-    paragraph added during WU2 Phase 3 prep):
+    All three link to strategy-team-coordination.md § Workflow Adaptations via
+    reference-style links.
 
-    - **Convention**: In protected modes, WORK-STATUS.md on the base branch is always
-      in its "no active work" default state. Work branches diverge; merges restore.
-      In unprotected mode, the base branch IS the workspace — WORK-STATUS.md
-      reflects active work.
-    - **Merge resolution rule**: `.gitattributes` `merge=ours` auto-resolves local
-      merges (keeps target branch version). For PR merges (server-side, no local
-      merge drivers), the resolution is always "take base" — deterministic, trivial.
-    - **Why it works**: Post-merge workflows (rotate-branch step 5, archive-completed
-      reset) always update WORK-STATUS.md immediately, so the auto-resolved content
-      is transient.
-    - **Protection mode awareness**: Convention adapts to mode — the merge driver is
-      mode-agnostic (`merge=ours` keeps target version regardless of content).
-    - Update `strategy-team-coordination.md` § "Session State Has No Conflicts" to
-      distinguish SESSION-NOTES.md (personal, no conflicts) from WORK-STATUS.md (shared,
-      trivial conflicts with documented resolution).
-    - Rationale: flows from ADR-007 (WORK-STATUS.md tracked); not ADR-worthy itself
-      (implementation convention, not architectural decision).
+- [x] **6.2.x Document WORK-STATUS.md merge convention in `strategy-work-organization.md`**
 
-- [ ] **6.2.y Fix `team/` templates and README per ADR-008**
+    Added bold-led paragraph "WORK-STATUS.md merge behavior" to § Task Lists and
+    Branches, adjacent to "Branch scope." Covers base branch baseline convention
+    (protected vs. unprotected), `.gitattributes` `merge=ours` auto-resolution,
+    PR merge rule ("take base"), and post-merge transience (rotate-branch and
+    archive-completed update immediately). Added `[rotate-branch]` link reference.
 
-    Per ADR-008 subordinate decision 7c: WORK-STATUS.md is shared in `active/`,
-    not per-developer in `team/{name}/`. Current team/ docs incorrectly show
-    per-developer WORK-STATUS.md — a documentation error from the ADR-007 split.
+    Updated `strategy-team-coordination.md` § "Session State Has No Conflicts" →
+    renamed to "Session State Merge Behavior." Distinguishes personal files
+    (no conflicts by design) from shared WORK-STATUS.md (trivial, auto-resolved).
+    Cross-references work-organization strategy for the full merge convention.
 
-    - [ ] **6.2.y.a Update `team/README.md`**
-        - Fix directory tree: remove WORK-STATUS.md from per-developer dirs
-        - Fix file table: WORK-STATUS is shared in `active/`, not personal
-        - Fix explanation prose: clarify shared vs. personal file distinction
-        - ~~Remove TASK-INBOX references~~ (done in 5.9.c)
+- [x] **6.2.y Fix `team/` templates and README per ADR-008**
 
-    - [ ] **6.2.y.b Update team template set**
-        - Remove or repurpose WORK-STATUS.template.md from `team/`
-        - ATOMIC-TASKS in team mode requires `pm.mode: arc-in-git` — qualify in docs
-        - SESSION-NOTES.template.md stays (personal state, Core)
+    Per ADR-008 §7c: WORK-STATUS.md is shared in `active/`, not per-developer.
+
+    - [x] **6.2.y.a Update `team/README.md`**
+
+        Fixed directory tree (removed WORK-STATUS.md from per-developer dirs, added
+        `arc-in-git only` annotations), file table (WORK-STATUS row moved to shared
+        `active/`, personal row shows only SESSION-NOTES and ATOMIC-TASKS), Solo vs.
+        Team section (WORK-STATUS stays in `active/`, pm.mode qualifiers added),
+        Agent Lookup section (team mode shows shared WORK-STATUS + personal
+        SESSION-NOTES), and Templates section (lists each template with layer note).
+
+    - [x] **6.2.y.b Update team template set**
+
+        Removed `WORK-STATUS.template.md` from `team/` (git rm — shared in `active/`).
+        Added `pm.mode: arc-in-git` requirement blockquote to ATOMIC-TASKS.template.md.
+        Fixed SESSION-NOTES.template.md companion link to point to
+        `../../active/WORK-STATUS.md` instead of same-directory reference.
 
 - [ ] **6.3 Add person-to-person task handoff protocol**
 

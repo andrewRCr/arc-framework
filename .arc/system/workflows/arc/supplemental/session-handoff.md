@@ -34,6 +34,11 @@ project overrides session-state, follow the override instead):
   things tried. Replaced each handoff (not appended). Created only when there's context worth
   preserving; delete between work units.
 
+> **Team mode:** SESSION-NOTES.md moves to `team/{name}/SESSION-NOTES.md` (personal, per
+> developer). WORK-STATUS.md stays in `active/` (shared, one per branch). Paths in the
+> templates below show the solo (default) layout. See [Team Coordination
+> Strategy][team-coordination] § Workflow Adaptations.
+
 **Every handoff** — WORK-STATUS.md (state fields) and SESSION-NOTES.md (session context, if any)
 
 **When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
@@ -363,3 +368,4 @@ confirmation for the human — the session state files are the durable artifacts
 
 [session-init]: session-init.md
 [arc-methods-session]: ../../arc-methods.md#session-state
+[team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

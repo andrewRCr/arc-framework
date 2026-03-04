@@ -91,7 +91,6 @@ to update classification — both axes apply independently.
 | `README.md`                 | Framework            | Core       | Team directory overview and structure guidance.                                |
 | `ATOMIC-TASKS.template.md`  | Configurable (light) | arc-in-git | Per-member atomic tasks. Same structure as `active/` variant.                  |
 | `SESSION-NOTES.template.md` | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
-| `WORK-STATUS.template.md`   | Scaffolded           | Core       | Per-member project pointer. Same structure as `active/` variant.               |
 
 ### reference/
 
@@ -213,10 +212,10 @@ to update classification — both axes apply independently.
 |----------------|-------|-------------------------------------------------------|
 | Framework      | 40    | Three-way merge. Conflicts rare.                      |
 | Configurable   | 12    | Three-way merge. Conflicts expected in user sections. |
-| Scaffolded     | 12    | Skip. Project-owned after init.                       |
+| Scaffolded     | 11    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 64.
+**Total template files:** 63.
 
 ---
 

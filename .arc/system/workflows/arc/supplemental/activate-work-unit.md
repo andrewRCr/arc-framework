@@ -82,6 +82,12 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 6. Update **Next Action** to describe first task
 7. Clear **Blockers** (set to `[none]`)
 
+> **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
+> and the update applies to the whole branch. Other developers joining the work unit establish
+> their session context via `team/{name}/SESSION-NOTES.md` during their first
+> [session initialization][session-init]. See [Team Coordination Strategy][team-coordination]
+> § Workflow Adaptations.
+
 ### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 
 If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now. This is the
@@ -143,3 +149,5 @@ With the work unit activated, proceed to task execution:
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
 [arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
+[session-init]: session-init.md
+[team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
