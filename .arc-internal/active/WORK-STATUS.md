@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 5.8 — Apply ADR-008 Core/PM decomposition to workflows (line ~674)
-**Last Completed**: Task 5.7 — Add session-init config awareness step
+**Current Task**: Task 5.9 — Remove TASK-INBOX.md and weekly-review.md from framework (line ~718)
+**Last Completed**: Task 5.8 — Apply ADR-008 Core/PM decomposition to workflows
 **Blockers**: [none]
-**Next Action**: Start Task 5.8 — extract PM-specific steps from Core workflows using extension points
+**Next Action**: Draft ADR-009 (supersede ADR-008 three-layer model with none/arc-in-git/external), then start Task 5.9
 
 ---
 

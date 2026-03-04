@@ -271,16 +271,7 @@ git mv .arc/active/{category}/notes-{name}.md .arc/reference/archive/{quarter}/{
 git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 ```
 
-### 11) Update PROJECT-STATUS and ROADMAP
-
-Update `.arc/reference/constitution/PROJECT-STATUS.md` and `.arc/backlog/ROADMAP.md` if applicable:
-
-- **PROJECT-STATUS**: Update "Last Completed", remove from "Currently Active", add to "Completed Major Work"
-- **ROADMAP**: Mark completed with ✅ and completion date, update archive path
-
-Skip for small incidental fixes — these updates are for major features and significant technical work.
-
-### 11b) Update WORK-STATUS.md
+### 11) Update WORK-STATUS.md
 
 Update `.arc/active/WORK-STATUS.md` to reflect the post-archival state.
 
@@ -317,9 +308,10 @@ See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
 git add .arc/reference/archive/{quarter}/{category}/{name}/
 git add .arc/active/{category}/  # captures file deletions
 git add .arc/active/WORK-STATUS.md
-git add .arc/reference/constitution/PROJECT-STATUS.md  # if updated
-git add .arc/backlog/ROADMAP.md  # if updated
 ```
+
+**Note:** If [post-work-unit-archive extensions][arc-ext-post-archive] produced additional changes
+(e.g., PM layer artifacts), stage those as well.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer

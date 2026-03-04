@@ -172,26 +172,6 @@ reporting completion.
 
 ---
 
-## Atomic Tasks
-
-**For tasks tracked in:** `active/ATOMIC-TASKS.md`
-
-Atomic tasks are small, one-off work items (fixes, chores, quick refactors) that don't require
-formal task lists. The completion protocol (mark complete, archive, commit format) is documented in
-the `ATOMIC-TASKS.md` header.
-
-### When Atomic Tasks Grow
-
-If an atomic task becomes more complex than expected:
-
-1. **Stop** — don't continue as atomic work
-2. **Flag to user** — propose creating an incidental task list for proper tracking
-3. **If approved**: Remove from ATOMIC-TASKS.md, continue via incidental workflow
-
-See [Incidental Work Management](#incidental-work-management) above.
-
----
-
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md

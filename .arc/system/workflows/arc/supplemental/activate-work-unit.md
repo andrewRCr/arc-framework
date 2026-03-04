@@ -69,31 +69,7 @@ Edit `.arc/active/{category}/tasks-{name}.md`:
    **PRD:** `.arc/active/{category}/prd-{name}.md`
    ```
 
-### Step 5: Update PROJECT-STATUS.md
-
-Edit `.arc/reference/constitution/PROJECT-STATUS.md`:
-
-1. Update **Currently Active** section:
-
-   ```markdown
-   **Currently Active:**
-
-   - {Work Name} (feature|technical) - Brief description
-     - Task list: `.arc/active/{category}/tasks-{name}.md`
-     - Branch: `{feature|technical}/{branch-name}`
-   ```
-
-2. Update **Next Priority** section (remove the now-active item, promote next item if applicable)
-
-### Step 6: Update ROADMAP.md (if tracked)
-
-Edit `.arc/backlog/ROADMAP.md`:
-
-1. Update the work unit entry to indicate active status
-2. Update any plan file references to point to active task list
-3. Add "In Progress" indicator or similar
-
-### Step 7: Update WORK-STATUS.md
+### Step 5: Update WORK-STATUS.md
 
 Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active work" defaults
 (set during init or after archival) to active work unit values:
@@ -106,34 +82,32 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 6. Update **Next Action** to describe first task
 7. Clear **Blockers** (set to `[none]`)
 
-### Step 8: Post-Activation Extensions · `#post-work-unit-activate`
+### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 
 If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now. This is the
 primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at activation time.
 
 See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
-### Step 9: Commit Activation
+### Step 7: Commit Activation
 
 ```bash
 git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/tasks-{name}.md \
-       .arc/reference/constitution/PROJECT-STATUS.md \
-       .arc/backlog/ROADMAP.md \
        .arc/active/WORK-STATUS.md
 git commit -m "docs(arc): activate {work-name} work unit
 
 - Move PRD and task list to active
-- Update PROJECT-STATUS, ROADMAP, WORK-STATUS
+- Update WORK-STATUS
 - Status: In Progress
 
 Context: {feature|technical}/{branch-name} / tasks-{name}.md"
 ```
 
-**Note:** Stage only the files actually modified. The list above covers the typical case — adjust
-based on which optional steps (ROADMAP, WORK-STATUS) applied.
+**Note:** Stage only the files actually modified. If [post-work-unit-activate extensions][arc-ext-post-activate]
+produced additional changes (e.g., PM layer artifacts), stage those as well.
 
-### Step 10: Push Feature Branch (Optional)
+### Step 8: Push Feature Branch (Optional)
 
 Set upstream for the feature branch:
 
@@ -153,8 +127,6 @@ Before proceeding to task execution, verify:
 - [ ] PRD and task list moved to `.arc/active/{category}/`
 - [ ] Task list `Status` changed to `In Progress`
 - [ ] Task list PRD path updated to active location
-- [ ] PROJECT-STATUS.md updated (Currently Active, Next Priority)
-- [ ] ROADMAP.md updated (if work unit tracked there)
 - [ ] WORK-STATUS.md updated (branch, task list, current task)
 - [ ] All changes committed on feature branch
 

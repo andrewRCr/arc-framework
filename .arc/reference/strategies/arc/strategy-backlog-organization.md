@@ -1,8 +1,11 @@
-# Strategy: Backlog Organization
+# Strategy: Backlog Organization · Solo PM
 
 **Purpose:** Define the two-tier backlog structure, processing flow, and graduation model for
 pre-active work items. Covers TASK-INBOX capture, bucket files, atomic tasks, and commit
 context conventions.
+
+**Layer:** Solo PM (`pm.mode: solo`). This strategy applies only when the Solo Project
+Management layer is installed.
 
 **Scope:** Backlog directory structure, item lifecycle (capture → triage → graduation),
 and atomic task conventions. For active work organization (feature/technical/incidental

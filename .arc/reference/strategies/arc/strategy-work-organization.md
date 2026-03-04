@@ -488,8 +488,8 @@ isn't justified.
 ### Partially Protected (Default)
 
 Planned work units (feature, technical) require branches — both planning branches for delivering
-artifacts and implementation branches for execution. Backlog capture, atomic tasks, and routine
-maintenance may commit directly to the base branch as documented exceptions.
+artifacts and implementation branches for execution. Routine maintenance may commit directly to the
+base branch as a documented exception.
 
 **Best for:** Solo developers and small teams wanting lightweight process with review gates on
 substantive work.
@@ -498,19 +498,15 @@ substantive work.
 
 **Documented exceptions** (direct base branch commits allowed):
 
-- Backlog capture: `TASK-INBOX.md` additions, `ROADMAP.md` updates
-- Atomic tasks: Small one-off fixes tracked in `ATOMIC-TASKS.md`
 - Framework maintenance: Documentation updates, linting fixes
 
 ### Fully Protected
 
-All changes require branches and PR review. No direct base branch commits. Atomic tasks and
-backlog capture use short-lived micro-branches.
+All changes require branches and PR review. No direct base branch commits.
 
 **Best for:** Teams with branch protection rules, CI/CD pipelines, and compliance requirements.
 
-**Planning branches:** Required for all planned work. Micro-branches for atomic tasks and
-backlog capture.
+**Planning branches:** Required for all planned work.
 
 **Trade-off:** Maximum traceability and review coverage. Higher overhead for small changes.
 

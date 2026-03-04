@@ -69,7 +69,15 @@ architecture rules, and any project-specific protocols.
 - What architecture rules are specific to this project?
 - How will collaboration and code review work?
 
-### Step 4: Plan ROADMAP
+During project setup, these templates become your project documents (dropping the `.template`
+suffix). All three go in `reference/constitution/`.
+
+### With Solo PM (`pm.mode: solo`)
+
+If your project uses the Solo PM layer, create these additional documents during setup.
+Check `pm.mode` in [`arc-config.yml`][arc-config] — skip this section if set to `none`.
+
+#### Step 4: Plan ROADMAP
 
 Your execution strategy — what gets built in what order, and why. The ROADMAP captures
 sequencing decisions and dependency chains so you can plan work deliberately rather than
@@ -84,7 +92,9 @@ reactively.
 - What dependencies exist between work items?
 - What's explicitly deferred and why?
 
-### Step 5: Establish PROJECT-STATUS
+ROADMAP goes in `backlog/`.
+
+#### Step 5: Establish PROJECT-STATUS
 
 Progress tracking for initiatives and milestones — a snapshot of where the project stands
 against the roadmap.
@@ -97,10 +107,7 @@ against the roadmap.
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
 
-During project setup, these templates become your project documents (dropping the `.template`
-suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJECT) go in
-`reference/constitution/`. ROADMAP goes in `backlog/`. PROJECT-STATUS goes in
-`reference/constitution/` alongside the other constitutional documents.
+PROJECT-STATUS goes in `reference/constitution/`.
 
 ---
 
@@ -113,7 +120,6 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJE
 - **Technology changes**: Update TECHNICAL-OVERVIEW.md
 - **Contributor or process changes**: Review and update DEV-RULES.PROJECT.md
 - **Direction changes**: Revise META-PRD.md direction and success criteria
-- **Sequencing shifts**: Update ROADMAP.md phases and dependencies
 - **Performance issues**: Update architecture and development standards
 
 ### Periodic Review
@@ -123,11 +129,18 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJE
 - **META-PRD**: Does the stated direction still match reality? Are success metrics still relevant?
 - **TECHNICAL-OVERVIEW**: Do documented patterns reflect current practice? Any new constraints?
 - **DEV-RULES.PROJECT**: Are quality gates catching real issues? Any standards that aren't working?
-- **ROADMAP**: Is the sequencing still correct? Any completed phases to archive?
-- **PROJECT-STATUS**: Are milestones current? Does it accurately reflect project state?
+
+### With Solo PM
+
+If your project uses the Solo PM layer, also maintain:
+
+- **Sequencing shifts**: Update ROADMAP.md phases and dependencies
+- **ROADMAP** (periodic): Is the sequencing still correct? Any completed phases to archive?
+- **PROJECT-STATUS** (periodic): Are milestones current? Does it accurately reflect project state?
 
 ---
 
+[arc-config]: ../../../system/arc-config.yml
 [init-arc]: 01_initialize-arc.md
 [meta-prd-template]: ../../../../reference/constitution/META-PRD.template.md
 [tech-overview-template]: ../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md

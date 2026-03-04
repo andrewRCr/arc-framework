@@ -9,10 +9,12 @@ work in their domains.
 ## ARC Framework Strategies
 
 These ship with the framework and cover development methodology applicable to any project.
+Strategies marked **(Solo PM)** are only present when the Solo PM layer is installed
+(`pm.mode: solo` in `arc-config.yml`).
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
     - Consult when: writing an ADR, deciding whether a decision warrants one
-- `arc/strategy-backlog-organization.md` - Backlog structure, processing flow, atomic task conventions
+- `arc/strategy-backlog-organization.md` **(Solo PM)** - Backlog structure, processing flow, atomic task conventions
     - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption profiles
     - Consult when: working on config, extensions, or methods infrastructure

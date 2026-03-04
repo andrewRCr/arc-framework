@@ -674,46 +674,56 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     strategy-configurability-architecture.md § Agent discovery. Steps renumbered
     (4→5→6) in both template and internal copies.
 
-- [ ] **5.8 Apply ADR-008 Core/PM decomposition to workflows**
+- [x] **5.8 Apply ADR-008 Core/PM decomposition to workflows**
 
-    **Goal:** Extract PM-specific steps from Core workflows using the extension point
-    infrastructure built in 5.4-5.6. After this task, Core workflows contain no direct
-    PM artifact references — PM behavior flows through extension points.
+    Extracted all PM-specific steps from Core workflows using extension point
+    infrastructure. Core workflows now contain zero direct PM artifact references —
+    PM behavior flows through extension points and conditional sections.
 
-    - [ ] **5.8.a Extract PM steps from `activate-work-unit.md`**
-        - Steps 5 (PROJECT-STATUS) and 6 (ROADMAP) → `post-work-unit-activate`
-          extension point
-        - Renumber remaining steps (7→5, 8→6, 9→7)
-        - Update commit staging step to stop unconditionally staging PM files
+    - [x] **5.8.a Extract PM steps from `activate-work-unit.md`**
 
-    - [ ] **5.8.b Extract PM step from `archive-completed.md`**
-        - Step 11 (PROJECT-STATUS/ROADMAP update) → `post-work-unit-archive`
-          extension point
-        - Step is already conditionally qualified ("skip for small incidental fixes"),
-          making extension point a natural fit
+        Removed Steps 5 (PROJECT-STATUS) and 6 (ROADMAP). Renumbered 7→5
+        through 10→8. Cleaned PM files from commit staging example and checklist
+        summary. Updated staging note to reference extensions.
 
-    - [ ] **5.8.c Extract PM steps from `setup/02_define-project.md`**
-        - Steps 4 (ROADMAP) and 5 (PROJECT-STATUS) → PM layer initialization
-        - Simplify "Maintaining Project Documents" section
-        - Core setup: META-PRD, TECHNICAL-OVERVIEW, DEV-RULES.PROJECT (three steps)
+    - [x] **5.8.b Extract PM step from `archive-completed.md`**
 
-    - [ ] **5.8.d Remove ATOMIC-TASKS.md section from `process-task-loop.md`**
-        - Remove bounded section (~lines 166-178)
-        - Function replaced by task list "Atomic Tasks — {name}" section (Core,
-          see Task 7.11.x)
+        Removed Step 11 (PROJECT-STATUS/ROADMAP update), promoted 11b→11.
+        Cleaned PM files from commit staging step (Step 13), added extension
+        note for additional artifacts.
 
-    - [ ] **5.8.e Remove PM artifact references from supplemental workflows**
-        - `atomic-commit.md`: remove ATOMIC-TASKS.md reference (~line 99)
-        - `strategy-work-organization.md`: remove PM artifact bullets (TASK-INBOX,
-          ATOMIC-TASKS) from branch protection exception lists
+    - [x] **5.8.c Extract PM steps from `setup/02_define-project.md`**
 
-    - [ ] **5.8.f Update `STRATEGY-INDEX.md` for layer awareness**
-        - Note `strategy-backlog-organization.md` as Solo PM layer only
-        - Add brief layer annotation convention
+        Steps 4–5 (ROADMAP, PROJECT-STATUS) moved under conditional "With
+        Solo PM (`pm.mode: solo`)" section. Core setup is Steps 1–3 only.
+        Maintaining section partitioned: Core docs primary, PM docs under
+        "With Solo PM" subsection. Added arc-config.yml link reference.
 
-    - [ ] **5.8.g Add layer annotations to `strategy-file-classification.md`**
-        - Add Core / Solo PM / Team PM layer classification to complete file inventory
-        - Aligns with ADR-008 Part 3 artifact classification
+    - [x] **5.8.d Remove ATOMIC-TASKS.md section from `process-task-loop.md`**
+
+        Removed entire `## Atomic Tasks` section (lines 175–193) including
+        "When Atomic Tasks Grow" subsection. PM artifact reference in Core
+        workflow — function replaced by task list atomic section (Core).
+
+    - [x] **5.8.e Remove PM artifact references from supplemental workflows**
+
+        `atomic-commit.md`: removed ATOMIC-TASKS.md archival bullet.
+        `strategy-work-organization.md`: removed both PM exception bullets
+        (TASK-INBOX + ROADMAP, ATOMIC-TASKS) from partially protected mode,
+        updated summary sentence. Cleaned fully protected mode's PM-specific
+        micro-branch references. Left line 296 TASK-INBOX for 5.9.b scope.
+
+    - [x] **5.8.f Update `STRATEGY-INDEX.md` for layer awareness**
+
+        Added layer annotation convention with explanatory note. Marked
+        `strategy-backlog-organization.md` as **(Solo PM)**.
+
+    - [x] **5.8.g Add layer annotations to `strategy-file-classification.md`**
+
+        Added Layer column (Core / Solo PM / Team PM) to all 16 inventory
+        tables. Added explanatory paragraph in File Inventory section intro.
+        Also added `· Solo PM` title marker and `**Layer:**` metadata to
+        `strategy-backlog-organization.md` itself.
 
 - [ ] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
 
