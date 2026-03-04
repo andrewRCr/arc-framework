@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 6.3 — Add person-to-person task handoff protocol (line ~873)
-**Last Completed**: Task 6.2.y — Fix team/ templates and README per ADR-008
+**Current Task**: Task 6.4 — Add per-pair qualifications (line ~871)
+**Last Completed**: Task 6.3 — Add person-to-person task handoff protocol
 **Blockers**: [none]
-**Next Action**: Start Task 6.3 — person-to-person task handoff protocol
+**Next Action**: Evaluate and start Task 6.4 — per-pair qualifications
 
 ---
 

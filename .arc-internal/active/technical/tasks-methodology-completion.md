@@ -862,11 +862,15 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         Fixed SESSION-NOTES.template.md companion link to point to
         `../../active/WORK-STATUS.md` instead of same-directory reference.
 
-- [ ] **6.3 Add person-to-person task handoff protocol**
+- [x] **6.3 Add person-to-person task handoff protocol**
 
-    - Outgoing: enhanced handoff with implementation context
-    - Incoming: reads and bootstraps from ADR-007 infrastructure (git notes)
-    - Add to `strategy-team-coordination.md` or team variant in `session-handoff.md`
+    Added "Person-to-Person Task Handoff" section to `strategy-team-coordination.md` (between
+    Task Ownership and Team Branching Patterns) covering outgoing responsibilities (task
+    reassignment, writing for a different reader, pushing git notes), incoming bootstrap (fetch
+    outgoing notes, agent-switching filter, verify ownership), and async conventions. Added
+    lightweight cross-reference callouts in `session-handoff.md` and `session-init.md` team
+    mode blockquotes pointing to the new section. Hybrid approach: full protocol in strategy
+    doc, discoverable from workflows.
 
 - [ ] **6.4 Add per-pair qualifications**
 

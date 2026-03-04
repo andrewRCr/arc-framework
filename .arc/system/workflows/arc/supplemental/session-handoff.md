@@ -38,6 +38,11 @@ project overrides session-state, follow the override instead):
 > developer). WORK-STATUS.md stays in `active/` (shared, one per branch). Paths in the
 > templates below show the solo (default) layout. See [Team Coordination
 > Strategy][team-coordination] § Workflow Adaptations.
+>
+> **Person-to-person handoff:** If handing off to a different developer (not just ending your
+> own session), write SESSION-NOTES.md for someone with no prior context on this work and
+> reassign task ownership via `(@name)` markers. See [Team Coordination
+> Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
 
 **Every handoff** — WORK-STATUS.md (state fields) and SESSION-NOTES.md (session context, if any)
 

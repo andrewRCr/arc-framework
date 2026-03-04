@@ -18,9 +18,10 @@ structure, see `team/README.md`.
 
 1. [Workflow Adaptations](#workflow-adaptations) — what changes in team mode
 2. [Task Ownership](#task-ownership) — `(@name)` convention
-3. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
-4. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
-5. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
+3. [Person-to-Person Task Handoff](#person-to-person-task-handoff) — transferring work between developers
+4. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
+5. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
+6. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
 
 ---
 
@@ -84,6 +85,88 @@ which pair owns a task.
 Reassignment is a text edit — change the marker. No ceremony required. If using an external
 tracker for assignment (see [External Tracker Integration](#external-tracker-integration)),
 update the external tool as the source of truth and optionally update the ARC marker.
+
+---
+
+## Person-to-Person Task Handoff
+
+When one developer-agent pair transfers active work to another — vacation, rotation, workload
+rebalancing, or specialization change. Distinct from normal session handoff (same person, different
+session) in that the *reader changes*, not just the time boundary.
+
+Person-to-person handoff composes the existing [session-handoff][session-handoff] and
+[session-init][session-init] workflows with enhanced context for the different reader. No new
+ceremony — the standard workflows apply with the adjustments below.
+
+### Outgoing Responsibilities
+
+The outgoing developer runs a standard session handoff with these additions:
+
+1. **Reassign task ownership.** Update `(@name)` markers in the task list for the incoming
+   developer — at minimum the current task and immediate next tasks. This is visible to anyone
+   reading the task list and doesn't require fetching session notes.
+
+2. **Write SESSION-NOTES.md for a different reader.** Normal session notes assume "future me" as
+   the audience. For person-to-person handoff, write for someone with no prior context:
+   - **Decisions and rationale** — not just "what" but "why this approach"
+   - **Code landmarks** — key files, tricky sections, line numbers worth reading first
+   - **Known gotchas** — edge cases, data format quirks, things that look wrong but aren't
+   - **Approaches tried and abandoned** — prevents the incoming developer from re-exploring
+     dead ends
+   - **Priority guidance** — if multiple tasks remain, what ordering matters and why
+
+3. **Push session notes.** Ensure git notes are pushed so the incoming developer can fetch
+   them (see session-handoff workflow for the git notes save-and-push steps). With
+   `session.notes_push: prompt` (the team default), confirm the push when prompted.
+
+### Incoming Bootstrap
+
+The incoming developer runs a standard session-init with these additions:
+
+1. **Fetch the outgoing developer's notes.** If the outgoing developer pushed git notes, fetch
+   their namespace and load their context:
+
+   ```bash
+   # Fetch outgoing developer's session notes
+   git fetch origin refs/notes/arc/session/{outgoing}:refs/notes/arc/session/{outgoing}
+
+   # Read their context (inspect, don't overwrite your own SESSION-NOTES.md)
+   git notes --ref=arc/session/{outgoing} show HEAD
+   ```
+
+   This supplements WORK-STATUS.md with qualitative context — decisions, gotchas, and approach
+   notes that aren't captured in tracked artifacts.
+
+2. **Apply the agent-switching filter.** If the outgoing developer used a different AI agent,
+   extract factual content (file references, decisions, known risks) and disregard agent-specific
+   references (tool syntax, capability assumptions). Session-init's existing
+   [agent-switching guidance][session-init] applies here.
+
+3. **Verify task ownership.** Check the task list for `(@name)` markers confirming which tasks
+   are assigned to you. WORK-STATUS.md shows the branch-level current task; the markers show
+   your personal scope.
+
+4. **Confirm understanding.** Report your understanding in the session-init orientation summary.
+   If the outgoing developer is available, confirm before starting work. If not, the documents
+   should stand alone — see async conventions below.
+
+### Async Conventions
+
+Person-to-person handoff is designed to work asynchronously. The outgoing developer may not be
+available when the incoming developer starts. Design for this:
+
+- **Documents must stand alone.** SESSION-NOTES.md + WORK-STATUS.md should provide complete
+  orientation without verbal walkthrough. When writing for handoff, ask: "Would this make sense
+  to someone reading it cold?"
+- **WORK-STATUS.md provides minimum viable context.** Even without SESSION-NOTES.md, the project
+  pointer (branch, task list, current task, next action) is sufficient to start work. Session
+  notes are an enhancement, not a prerequisite.
+- **Graceful degradation applies.** If git notes weren't pushed or aren't available, fall back to
+  WORK-STATUS.md + task list + git log. Less context is not no context — the incoming developer
+  starts with tracked artifacts and builds understanding through the work itself.
+- **Questions are expected.** The incoming developer may need to leave questions in commit
+  messages, PR comments, or team channels. Not having the outgoing developer available is
+  normal, not a blocker.
 
 ---
 
@@ -231,3 +314,5 @@ them if they're useful, skip them if they'd drift from the tracker.
 [work-org]: strategy-work-organization.md
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[session-handoff]: ../../../system/workflows/arc/supplemental/session-handoff.md
+[session-init]: ../../../system/workflows/arc/supplemental/session-init.md

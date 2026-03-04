@@ -99,6 +99,11 @@ override instead.
 > file, not the `active/` default path. WORK-STATUS.md stays in `active/` (shared, one per
 > branch). See [Team Coordination Strategy][team-coordination] § Workflow Adaptations for the
 > full solo → team mapping.
+>
+> **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their
+> git notes namespace and apply the agent-switching filter to their SESSION-NOTES.md content.
+> See [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff for the
+> full incoming bootstrap protocol.
 
 9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
 
