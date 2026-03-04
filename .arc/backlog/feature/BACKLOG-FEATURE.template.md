@@ -2,8 +2,8 @@
 
 **Purpose:** Organized collection of feature work ideas and plans, prioritized for future development.
 
-**Processing:** Items move here from `TASK-INBOX.md` during weekly review. When ready to work on an item,
-create a PRD in `.arc/active/feature/` and begin the standard workflow.
+**Processing:** When ready to work on an item, create a PRD in `.arc/active/feature/` and begin the
+standard workflow.
 
 ---
 

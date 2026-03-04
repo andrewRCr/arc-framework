@@ -1,8 +1,7 @@
 # Strategy: Backlog Organization · arc-in-git
 
 **Purpose:** Define the two-tier backlog structure, processing flow, and graduation model for
-pre-active work items. Covers TASK-INBOX capture, bucket files, atomic tasks, and commit
-context conventions.
+pre-active work items. Covers bucket files, atomic tasks, and commit context conventions.
 
 **Layer:** arc-in-git (`pm.mode: arc-in-git`). This strategy applies only when arc-in-git
 Project Management mode is active.
@@ -18,7 +17,6 @@ categories, git workflow, directory structure), see
 
 ```text
 backlog/
-  TASK-INBOX.md              # Zero-friction capture (flat bullets, lean)
   ROADMAP.md                 # Sequencing strategy, order of operations
   feature/
     BACKLOG-FEATURE.md       # Feature ideas (sections, non-atomic work only)
@@ -39,13 +37,11 @@ active/
 ## Processing Flow
 
 ```text
-Capture → TASK-INBOX.md
-  ↓ Weekly Review
+New work idea
   ├─ Atomic & ready? → active/ATOMIC-TASKS.md
-  ├─ Quick (<5min)? → Do immediately
   ├─ Feature idea? → BACKLOG-FEATURE.md
   ├─ Technical idea? → BACKLOG-TECHNICAL.md
-  └─ Uncertain? → Leave in inbox
+  └─ Quick (<5min)? → Do immediately
 
 Bucket → plan-*.md (when scope clear) → prd-*.md (when ready, delete plan)
 ```
@@ -74,10 +70,8 @@ Atomic tasks aren't archived (deleted after completion) — the commit message I
 ## Related Documentation
 
 - [Work Organization Strategy](strategy-work-organization.md) — Work categories, git workflow, archive structure
-- [Weekly Review Workflow][weekly-review] — Backlog processing workflow
 - [ATOMIC-TASKS Template][atomic-tasks-template] — Atomic task template with completion protocol
 
 ---
 
-[weekly-review]: ../../../system/workflows/arc/supplemental/weekly-review.md
 [atomic-tasks-template]: ../../../active/ATOMIC-TASKS.template.md

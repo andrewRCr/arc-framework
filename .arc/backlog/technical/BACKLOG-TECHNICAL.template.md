@@ -3,8 +3,8 @@
 **Purpose:** Organized collection of technical work ideas and plans - infrastructure, tooling,
 modernization, and quality improvements.
 
-**Processing:** Items move here from `TASK-INBOX.md` during weekly review. When ready to work on an item,
-create a PRD/plan in `.arc/active/technical/` and begin the standard workflow.
+**Processing:** When ready to work on an item, create a PRD/plan in `.arc/active/technical/` and begin
+the standard workflow.
 
 ---
 

@@ -35,25 +35,12 @@ to however you organize people.
 |----------------|------------------------------------|---------------------------------------|
 | `active/`      | Task lists, PRDs, work artifacts   | Communal — shared by all team members |
 | `team/{name}/` | WORK-STATUS, SESSION, ATOMIC-TASKS | Personal — one member's session state |
-| `backlog/`     | ROADMAP, backlogs, TASK-INBOX      | Communal — shared by all team members |
+| `backlog/`     | ROADMAP, backlogs                  | Communal — shared by all team members |
 
 **Why the separation:** Session state (WORK-STATUS, SESSION) is inherently per-person — two
 developers can't share a "current task" pointer. Splitting personal state into `team/`
 eliminates file-level merge conflicts between team members' sessions while keeping shared
 work artifacts in their natural communal locations.
-
-### TASK-INBOX as Communal Capture
-
-`backlog/TASK-INBOX.md` is the shared capture point for the whole team — any member can
-add items. During weekly review (or equivalent triage cadence), captured items are either:
-
-- **Assigned to a member's ATOMIC-TASKS** — small tasks move to `team/{name}/ATOMIC-TASKS.md`
-  for personal tracking and execution
-- **Promoted to backlog** — larger items become planned work in `backlog/{category}/` with
-  PRDs and task lists, owned communally
-
-This keeps TASK-INBOX as a zero-friction inbox while routing work to the right place for
-execution.
 
 ## Solo vs. Team Mode
 

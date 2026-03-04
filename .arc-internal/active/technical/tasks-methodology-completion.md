@@ -765,32 +765,39 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         "Changing PM mode"), config example (`pm.mode: solo` → `none`), and
         Scenario A layer reference ("Core + Team PM" → `pm.mode: external`).
 
-- [ ] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
+- [x] **5.9 Remove TASK-INBOX.md and weekly-review.md from framework**
 
-    **Goal:** Per ADR-008, both artifacts are cut from the framework entirely (not
-    made opt-in). TASK-INBOX was rarely used in practice; weekly-review depends on
-    TASK-INBOX and is entirely PM-scoped.
+    Per ADR-008, both artifacts cut from framework entirely. Deleted weekly-review.md,
+    removed all TASK-INBOX and weekly-review references across 9 files (strategies,
+    workflows, templates, team README). Also cleaned up backlog-organization.md
+    processing flow (leave-it-cleaner) and updated file-classification summary counts.
 
-    - [ ] **5.9.a Remove `weekly-review.md` and its references**
-        - Delete `.arc/system/workflows/arc/supplemental/weekly-review.md`
-        - Remove references from `strategy-work-organization.md` (lines ~702, ~715)
-        - Remove references from `strategy-backlog-organization.md` (lines ~74, ~79)
+    - [x] **5.9.a Remove `weekly-review.md` and its references**
 
-    - [ ] **5.9.b Remove TASK-INBOX references from Core files**
-        - `setup/01_initialize-arc.md` (line ~46): update backlog directory description
-        - `strategy-file-classification.md`: remove TASK-INBOX classification entry
-        - `strategy-work-organization.md`: remove TASK-INBOX references (~lines 296, 495)
-        - Root `README.md`: remove from directory tree (~line 22)
+        Deleted `weekly-review.md`. Removed references from `strategy-work-organization.md`
+        (Related Documentation list + link def) and `strategy-backlog-organization.md`
+        (Related Documentation + link def). Also cleaned up TASK-INBOX references in
+        backlog-org (leave-it-cleaner): removed from purpose, structure diagram, and
+        rewrote processing flow to direct capture without inbox intermediary.
 
-    - [ ] **5.9.c Clean up TASK-INBOX references in arc-in-git PM files**
-        - `BACKLOG-FEATURE.template.md`: remove "from TASK-INBOX.md" processing reference
-        - `BACKLOG-TECHNICAL.template.md`: remove same
-        - `team/README.md`: remove TASK-INBOX references (~lines 38, 45-55)
-        - Note: these files will move to arc-in-git PM layer in WU3, but reference
-          cleanup is correct regardless of layer placement
+    - [x] **5.9.b Remove TASK-INBOX references from Core files**
 
-- [ ] **5.10 Run Tier 2 quality gates**
-    - Full-project lint: `npm run -s lint:md`
+        `01_initialize-arc.md`: removed "TASK-INBOX" from backlog description.
+        `strategy-file-classification.md`: removed TASK-INBOX row from backlog/
+        table, removed weekly-review.md row from workflows/ table, updated summary
+        counts (Framework 41→40, Configurable 13→12, Total 66→64).
+        `strategy-work-organization.md`: "Capture in TASK-INBOX" → "Capture in
+        backlog". Root `README.md`: no TASK-INBOX reference found (already clean).
+
+    - [x] **5.9.c Clean up TASK-INBOX references in arc-in-git PM files**
+
+        `BACKLOG-FEATURE.template.md` and `BACKLOG-TECHNICAL.template.md`: removed
+        "from TASK-INBOX.md during weekly review" from Processing lines.
+        `team/README.md`: removed TASK-INBOX from What Lives Where table, removed
+        entire "TASK-INBOX as Communal Capture" subsection (12 lines).
+
+- [x] **5.10 Run Tier 2 quality gates**
+    - Full-project lint: 130 files, 0 errors
     - Coherent unit boundary — complete customization system + ADR-008 decomposition
 
 ### **Phase 6:** Team, External, and Adoption

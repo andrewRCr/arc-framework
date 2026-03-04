@@ -81,7 +81,6 @@ to update classification — both axes apply independently.
 | File                                      | Classification       | Layer      | Notes                                                                |
 |-------------------------------------------|----------------------|------------|----------------------------------------------------------------------|
 | `ROADMAP.template.md`                     | Scaffolded           | arc-in-git | All placeholders replaced by user content.                           |
-| `TASK-INBOX.template.md`                  | Configurable (light) | arc-in-git | Framework processing rules + user content. Clean section separation. |
 | `feature/BACKLOG-FEATURE.template.md`     | Scaffolded           | arc-in-git | Template structure replaced entirely.                                |
 | `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded           | arc-in-git | Template structure replaced entirely.                                |
 
@@ -204,7 +203,6 @@ to update classification — both axes apply independently.
 | `arc/supplemental/manage-incidental-work.md` | Framework      | Core       | Supplemental workflow.     |
 | `arc/supplemental/session-handoff.md`        | Framework      | Core       | Supplemental workflow.     |
 | `arc/supplemental/session-init.md`           | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/weekly-review.md`          | Framework      | arc-in-git | Supplemental workflow.     |
 | `project/README.md`                          | Framework      | Core       | Project workflow guidance. |
 
 ---
@@ -213,12 +211,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 41    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 40    | Three-way merge. Conflicts rare.                      |
+| Configurable   | 12    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 12    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 66.
+**Total template files:** 64.
 
 ---
 

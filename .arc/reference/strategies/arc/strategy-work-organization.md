@@ -293,7 +293,7 @@ or separate branches.
 
 - Critical (user-impacting, service disruption) → `incidental/` with dedicated branch regardless
   of size; may warrant interrupting current work
-- Non-critical (cosmetic, low-impact) → Capture in TASK-INBOX for triage; may become planned
+- Non-critical (cosmetic, low-impact) → Capture in backlog for triage; may become planned
   `technical/` or `feature/` work
 
 Note: "incidental" in this strategy means work *discovered during development*. Production incidents
@@ -701,7 +701,6 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 - [manage-incidental-work.md][manage-incidental] — Incidental work workflow
 - [agent-pre-merge-review.md][pre-merge-review] — Code review workflow
 - [strategy-team-coordination.md][team-coordination] — Task ownership, team branching, external trackers
-- [weekly-review.md][weekly-review] — Weekly backlog review process
 
 ---
 
@@ -714,5 +713,4 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [atomic-commit]: ../../../system/workflows/arc/supplemental/atomic-commit.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md
-[weekly-review]: ../../../system/workflows/arc/supplemental/weekly-review.md
 [config-arch]: strategy-configurability-architecture.md

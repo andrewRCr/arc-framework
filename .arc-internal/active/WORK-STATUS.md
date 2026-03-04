@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Current Task**: Task 5.8R — Apply ADR-009 naming changes (line ~728)
-**Last Completed**: Task 5.8 — Apply ADR-008 Core/PM decomposition to workflows
+**Current Task**: Task 5.9 — Remove TASK-INBOX.md and weekly-review.md from framework (line ~767)
+**Last Completed**: Task 5.8R — Apply ADR-009 naming changes
 **Blockers**: [none]
-**Next Action**: Start Task 5.8R — update Solo PM/Team PM references to ADR-009 pm.mode naming
+**Next Action**: Start Task 5.9 — remove TASK-INBOX and weekly-review artifacts and references
 
 ---
 
