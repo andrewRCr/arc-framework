@@ -52,3 +52,17 @@ What becomes easier or more difficult as a result of this decision? List both po
 - List any concerns or risks that need monitoring
 - Mention follow-up work if required
 - Note dependencies on external factors
+
+## Amending This Document
+
+<!-- This ADR follows the three-tier amendment model from strategy-adr-methodology.md:
+
+- **Corrections** (typos, broken links, formatting): Fix directly — no ceremony needed.
+- **Amendments** (post-implementation learnings, clarifications that don't change the decision):
+  Append a dated annotation to the Consequences section:
+  **Amendment (YYYY-MM-DD):** [what changed and why]
+- **Supersession** (the decision itself changes): Write a new ADR and update this one's Status
+  to "Superseded by ADR-XXX."
+
+Delete this guidance comment when creating your ADR. The section heading can remain as a
+placeholder — remove it if no amendments accumulate, or keep it to collect dated annotations. -->

@@ -113,7 +113,8 @@ understanding system constraints.
 
 **Format and guidance:** See [ADR Methodology Strategy][adr-methodology]
 
-ADRs are immutable once accepted — new decisions require new ADRs that supersede old ones.
+ADRs are stable once accepted — corrections and amendments are permitted under the three-tier model
+in [ADR Methodology Strategy][adr-methodology], but the decision itself changes only through supersession.
 
 ---
 
