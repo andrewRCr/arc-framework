@@ -51,6 +51,11 @@ For each phase, define specific, actionable sub-tasks:
   (see [Quality Gates Strategy][quality-gates] for tier guidance)
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
+- **Note relevant strategies** when a phase or task touches a domain with codified guidance.
+  Add a `**Strategies:**` line under the phase header or task description listing applicable
+  strategy filenames (e.g., `**Strategies:** strategy-testing-methodology.md`). This helps the
+  executing agent know what to consult without re-scanning STRATEGY-INDEX. Lightweight
+  convention — use when it adds value, skip when the connection is obvious.
 
 **Test-first ordering (critical):** For data models, API endpoints, business logic, and complex
 algorithms — write test sub-tasks BEFORE implementation sub-tasks. See

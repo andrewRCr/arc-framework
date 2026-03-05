@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.1 — Enrich STRATEGY-INDEX with trigger hints (line ~1223)
-**Last Completed**: Task 7.14 — Run Tier 1 quality gates on Phase 7 changes
+**Next Task**: Task 8.4 — Formalize trigger/content separation convention (line ~1249)
+**Last Completed**: Task 8.3 — Add strategy declaration guidance to generate-tasks
 **Blockers**: None
-**Next Action**: Continue to Phase 8 — guidance discovery and skills
+**Next Action**: Continue Phase 8 — Task 8.4 (trigger/content separation)
 
 ---
 

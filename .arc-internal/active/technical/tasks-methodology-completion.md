@@ -1224,23 +1224,28 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
 **Purpose:** Improve guidance discoverability and formalize skill integration.
 
-- [ ] **8.1 Enrich STRATEGY-INDEX with trigger hints**
+- [x] **8.1 Enrich STRATEGY-INDEX with trigger hints**
 
-    - Add "Consult when:" annotation to each entry
-    - Dual-audience: agents match task context, humans scan quickly
+    Already complete — "Consult when:" annotations were added to all entries during
+    Phase 7 work (configurability audit, commit 28069ab).
 
-- [ ] **8.2 Create WORKFLOW-INDEX**
+- [x] **8.2 Create WORKFLOW-INDEX**
 
-    - New file: `.arc/system/workflows/WORKFLOW-INDEX.md`
-    - Catalog of workflows by category (core lifecycle, supplemental)
-    - Include project workflows section (initially empty)
-    - Add to session-init load sequence
+    Decided to skip. Workflows are well-served by existing discovery mechanisms:
+    numbered naming convention signals ordering, DEV-RULES.ARC § "When to Load
+    Additional Guidance" catalogs them, and cross-references between workflows
+    handle chaining. Unlike STRATEGY-INDEX (which agents proactively consult before
+    implementing), workflows are reactive — triggered by other workflows or user
+    invocation. A WORKFLOW-INDEX would be a prose version of `ls` with low marginal
+    value over the self-documenting directory structure. Adopters can create one
+    following STRATEGY-INDEX as a pattern if needed.
 
-- [ ] **8.3 Add strategy declaration guidance to `2_generate-tasks.md`**
+- [x] **8.3 Add strategy declaration guidance to `2_generate-tasks.md`**
 
-    - Note relevant strategies when writing task entries
-    - Example: `**Strategies:** strategy-adr-methodology.md`
-    - Lightweight convention, not mandatory
+    Added `**Strategies:**` line convention to Step 3 (Break Down into Sub-Tasks).
+    Placed as a bullet alongside existing guidance — use when it adds value, skip
+    when the connection is obvious. Closes the loop from Step 1 (check STRATEGY-INDEX)
+    by recording which strategies apply for the executing agent.
 
 - [ ] **8.4 Formalize trigger/content separation convention**
 
@@ -1297,6 +1302,6 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 - [ ] All audit findings addressed (adopter experience, multi-branch, methodology gaps)
 - [ ] ARC naming conventions documented
 - [ ] Strategy configurability audited — no prescriptive guidance without opt-out path
-- [ ] WORKFLOW-INDEX created; STRATEGY-INDEX enriched with trigger hints
+- [ ] STRATEGY-INDEX enriched with trigger hints; WORKFLOW-INDEX evaluated and intentionally skipped
 - [ ] Markdown linting passes with zero violations
 - [ ] No contradictions between modified documents; cross-references accurate
