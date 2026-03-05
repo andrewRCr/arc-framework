@@ -70,7 +70,8 @@ architecture rules, and any project-specific protocols.
 - How will collaboration and code review work?
 
 During project setup, these templates become your project documents (dropping the `.template`
-suffix). All three go in `reference/constitution/`.
+suffix). META-PRD and TECHNICAL-OVERVIEW go in `reference/`; DEV-RULES.PROJECT goes in
+`reference/constitution/`.
 
 ### With arc-in-git PM (`pm.mode: arc-in-git`)
 
@@ -108,7 +109,7 @@ against the roadmap.
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
 
-PROJECT-STATUS goes in `reference/constitution/`.
+PROJECT-STATUS goes in `reference/`.
 
 ---
 
@@ -143,9 +144,9 @@ If your project uses arc-in-git PM mode, also maintain:
 
 [arc-config]: ../../../system/arc-config.yml
 [init-arc]: 01_initialize-arc.md
-[meta-prd-template]: ../../../../reference/constitution/META-PRD.template.md
-[tech-overview-template]: ../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md
+[meta-prd-template]: ../../../../reference/META-PRD.template.md
+[tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.template.md
 [dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [roadmap-template]: ../../../../backlog/ROADMAP.template.md
-[project-status-template]: ../../../../reference/constitution/PROJECT-STATUS.template.md
+[project-status-template]: ../../../../reference/PROJECT-STATUS.template.md

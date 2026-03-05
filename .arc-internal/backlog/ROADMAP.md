@@ -137,4 +137,4 @@ infrastructure (issue templates, CoC, etc.) has no upstream dependencies.
 - WU3 plan: `technical/plan-wu3-cli-distribution.md`
 - WU4 plan: `feature/plan-wu4-public-release.md`
 - Active work: `.arc-internal/active/WORK-STATUS.md`
-- Constitution: `.arc-internal/reference/constitution/PROJECT-STATUS.md`
+- Project status: `.arc-internal/reference/PROJECT-STATUS.md`

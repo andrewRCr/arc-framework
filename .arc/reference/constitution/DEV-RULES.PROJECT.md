@@ -6,6 +6,11 @@ organization, and architecture rules.
 For ARC methodology rules (commit discipline, task execution, session management, verification), see
 [DEV-RULES.ARC][dev-rules-arc].
 
+**Domain-scoped rules:** Teams can split domain-specific rules into separate files — e.g.,
+`DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`. Domain rule files live alongside this file in
+`constitution/` and are loaded on-demand when work touches the relevant domain, not every session.
+Use this when a domain's rules are substantial enough to warrant separation.
+
 ---
 
 ## Contents
@@ -129,7 +134,8 @@ constraints.
 
 **Format and guidance:** See [ADR Methodology Strategy][adr-methodology]
 
-ADRs are immutable once accepted — new decisions require new ADRs that supersede old ones.
+ADRs are stable once accepted — corrections and amendments are permitted under the three-tier model
+in [ADR Methodology Strategy][adr-methodology], but the decision itself changes only through supersession.
 
 ---
 

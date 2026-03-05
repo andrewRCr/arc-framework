@@ -67,8 +67,10 @@ npx --yes markdown-table-prettify < input.md > output.md
 
 ### Prettier (Markdown Formatting)
 
-Use `prettier` for bulk line-length wrapping (MD013) and table alignment (MD060). It's
-markdown-aware — won't break inside links, emphasis, or code spans.
+Use `prettier` for bulk line-length wrapping (MD013). It's markdown-aware — won't
+break inside links, emphasis, or code spans. **Not recommended for MD060** (table
+alignment) — use `markdown-table-prettify` instead, which fixes tables without
+reformatting surrounding prose.
 
 ```bash
 # Format a file (prose wrap at 120 chars, matching markdownlint config)
@@ -81,7 +83,7 @@ npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file
 **When to use prettier vs. manual wrapping:**
 
 - **Prettier**: Bulk formatting — new files, agent-generated content, 10+ line-length
-  violations. Handles wrapping, table alignment, and indentation in one pass.
+  violations. Handles wrapping and indentation in one pass.
 - **Manual**: Surgical fixes — 1-5 violations where you can wrap at a natural break
   point without reformatting surrounding prose.
 

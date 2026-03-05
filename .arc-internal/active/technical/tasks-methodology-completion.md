@@ -960,10 +960,14 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     - PROJECT-STATUS/ROADMAP templates: No changes needed (no work-unit status fields; PM
       layer updates via post-archival extension point)
 
-- [ ] **7.4 Address version reference drift**
+- [x] **7.4 Address version reference drift**
 
-    - Evaluate: behavioral norm, hook validation, or both
-    - Implement selected approach for versioned source-of-truth docs
+    Evaluated: neither behavioral norm nor hook validation needed. ARC-owned docs will be
+    updated by CLI (WU3), eliminating cross-repo drift. Team branch drift is handled by
+    existing mechanisms (PR review, merge conflicts, task ownership). Version stamps add
+    maintenance burden without solving either problem. Removed vestigial `**Version:**` line
+    from internal AGENTS.md and aligned internal copy with template (missing principles,
+    section name, team mode qualifier, footer).
 
 - [x] **7.5 Expand incidental context patterns in commit-msg hook**
 
@@ -971,14 +975,41 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     discovery contexts. Generalized regex to `(incidental - discovered during .+)`.
     Updated commit-msg hook (regex + error messages) and arc-methods.md format spec.
 
-- [ ] **7.6 Evaluate and resolve PROJECT-STATUS location**
+- [x] **7.6 Reorganize `reference/constitution/` and resolve PROJECT-STATUS**
 
-    - PROJECT-STATUS is an arc-in-git PM artifact per ADR-008/009
-    - Options: `.arc/` root, `reference/` root, or leave in `constitution/`
-    - If moved: update references in arc-in-git PM extension point handlers and
-      PROJECT-STATUS template
-    - Note: `weekly-review.md` removed per ADR-008; `02_define-project.md` and
-      `archive-completed.md` PM steps now in extension points (Phase 5)
+    Reorganized `reference/constitution/`: orientation docs (META-PRD, PROJECT-STATUS,
+    TECHNICAL-OVERVIEW) promoted to `reference/` root for visibility. `constitution/`
+    now contains only rules docs (DEV-RULES.*) with opt-in domain-scoped rule file
+    support. PROJECT-STATUS tightened — removed overlap with ROADMAP, aligned with
+    template structure.
+
+    - [x] **7.6.a Move orientation docs to `reference/` root**
+        - Moved 3 templates + 3 internal copies from `constitution/` to `reference/`
+        - Removed vestigial `*Last updated*` from internal PROJECT-STATUS
+
+    - [x] **7.6.b Tighten PROJECT-STATUS / ROADMAP overlap**
+        - Template already clean (no overlap). Restructured internal PROJECT-STATUS:
+          aligned with template structure (Status Snapshot + Completed Major Work),
+          removed "Upcoming Priorities" and "Key Deliverables" sections, added
+          ROADMAP forward pointer, consolidated early history into single entry
+
+    - [x] **7.6.c Add domain-scoped rule file support**
+        - Added domain-scoped guidance to DEV-RULES.PROJECT template
+        - Added scan-and-note instruction to session-init step 4
+        - Updated `strategy-file-classification.md` with `DEV-RULES.{DOMAIN}.md` pattern
+        - Created `constitution/README.md` documenting the directory and pattern
+        - Also fixed stale ADR immutability statement in DEV-RULES.PROJECT template
+          (leave-it-cleaner: aligned with Task 7.2 three-tier amendment model)
+
+    - [x] **7.6.d Update all path references and strategies**
+        - Updated `02_define-project.md` (3 link defs + 2 location guidance lines)
+        - Updated `ROADMAP.md` and `archive/README.md` path references
+        - Verified: `backlog-organization`, `arc-extensions`, `maintain-docs`,
+          `activate-work-unit`, `archive-completed` use filename-only refs (no change)
+        - Archive references left as historical
+
+    - [x] **7.6.e Run Tier 1 quality gates on all changed files**
+        - Full suite: 126 files, 0 errors
 
 - [ ] **7.7 Update `1_create-prd.md` workflow**
 

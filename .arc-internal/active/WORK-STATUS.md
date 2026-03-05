@@ -10,10 +10,10 @@
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
 **Current Task**: [none — awaiting direction on next Phase 7 task]
-**Last Completed**: Task 7.3 — Add intermediate work-unit status
+**Last Completed**: Task 7.6 — Reorganize `reference/constitution/` and resolve PROJECT-STATUS
 **Blockers**: None
-**Next Action**: Continue Phase 7 — Task 7.4 (Address version reference drift)
+**Next Action**: Continue Phase 7 — Task 7.7 (Update `1_create-prd.md` workflow)
 
 ---
 
-**Last Updated**: 2026-03-04
+**Last Updated**: 2026-03-05

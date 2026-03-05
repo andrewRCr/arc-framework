@@ -68,6 +68,9 @@ override instead.
 
 4. `.arc/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
    - Project quality gates, testing requirements, code quality, and architecture rules
+   - **Domain rule files**: Scan `constitution/` for additional `DEV-RULES.*.md` files (e.g.,
+     `DEV-RULES.FRONTEND.md`). Note their domains — load on-demand when a task touches the
+     relevant domain, not at init time.
 
 5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
    - Index of codified strategy guidance; establishes what domain-specific patterns exist

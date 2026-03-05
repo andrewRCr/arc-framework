@@ -24,7 +24,7 @@ Single-document or pre-convention work uses flat placement within category direc
 ## Navigation
 
 - **Active work**: [`.arc-internal/active/`](../../active/)
-- **Project status**: [`constitution/PROJECT-STATUS.md`](../constitution/PROJECT-STATUS.md)
+- **Project status**: [`PROJECT-STATUS.md`](../PROJECT-STATUS.md)
 - **Archival process**: [`archive-completed.md`](../workflows/supplemental/archive-completed.md)
 
 ---

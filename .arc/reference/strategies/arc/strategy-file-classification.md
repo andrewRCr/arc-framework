@@ -78,11 +78,11 @@ to update classification — both axes apply independently.
 
 ### backlog/
 
-| File                                      | Classification       | Layer      | Notes                                                                |
-|-------------------------------------------|----------------------|------------|----------------------------------------------------------------------|
-| `ROADMAP.template.md`                     | Scaffolded           | arc-in-git | All placeholders replaced by user content.                           |
-| `feature/BACKLOG-FEATURE.template.md`     | Scaffolded           | arc-in-git | Template structure replaced entirely.                                |
-| `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded           | arc-in-git | Template structure replaced entirely.                                |
+| File                                      | Classification | Layer      | Notes                                      |
+|-------------------------------------------|----------------|------------|--------------------------------------------|
+| `ROADMAP.template.md`                     | Scaffolded     | arc-in-git | All placeholders replaced by user content. |
+| `feature/BACKLOG-FEATURE.template.md`     | Scaffolded     | arc-in-git | Template structure replaced entirely.      |
+| `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded     | arc-in-git | Template structure replaced entirely.      |
 
 ### team/
 
@@ -94,9 +94,12 @@ to update classification — both axes apply independently.
 
 ### reference/
 
-| File                          | Classification | Layer | Notes                                                                                 |
-|-------------------------------|----------------|-------|---------------------------------------------------------------------------------------|
-| `QUICK-REFERENCE.template.md` | Configurable   | Core  | Framework structure + project-specific commands and paths. Moderate conflict surface. |
+| File                             | Classification | Layer      | Notes                                                                                 |
+|----------------------------------|----------------|------------|---------------------------------------------------------------------------------------|
+| `QUICK-REFERENCE.template.md`    | Configurable   | Core       | Framework structure + project-specific commands and paths. Moderate conflict surface. |
+| `META-PRD.template.md`           | Scaffolded     | Core       | All content replaced by user.                                                         |
+| `PROJECT-STATUS.template.md`     | Scaffolded     | arc-in-git | All content replaced by user.                                                         |
+| `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | Core       | All content replaced by user.                                                         |
 
 ### reference/adr/
 
@@ -121,13 +124,11 @@ to update classification — both axes apply independently.
 
 ### reference/constitution/
 
-| File                             | Classification | Layer      | Notes                                                                   |
-|----------------------------------|----------------|------------|-------------------------------------------------------------------------|
-| `DEV-RULES.ARC.md`               | Framework      | Core       | ARC development methodology (commit, verification, session/task rules). |
-| `DEV-RULES.PROJECT.md`           | Configurable   | Core       | Project quality gates, testing requirements, architecture rules.        |
-| `META-PRD.template.md`           | Scaffolded     | Core       | All content replaced by user.                                           |
-| `PROJECT-STATUS.template.md`     | Scaffolded     | arc-in-git | All content replaced by user.                                           |
-| `TECHNICAL-OVERVIEW.template.md` | Scaffolded     | Core       | All content replaced by user.                                           |
+| File                    | Classification | Layer | Notes                                                                   |
+|-------------------------|----------------|-------|-------------------------------------------------------------------------|
+| `DEV-RULES.ARC.md`      | Framework      | Core  | ARC development methodology (commit, verification, session/task rules). |
+| `DEV-RULES.PROJECT.md`  | Configurable   | Core  | Project quality gates, testing requirements, architecture rules.        |
+| `DEV-RULES.{DOMAIN}.md` | Configurable   | Core  | Optional domain-scoped rules (e.g., FRONTEND, AUTH). Loaded on-demand.  |
 
 ### reference/research/
 
@@ -186,23 +187,23 @@ to update classification — both axes apply independently.
 
 ### system/workflows/
 
-| File                                         | Classification | Layer      | Notes                      |
-|----------------------------------------------|----------------|------------|----------------------------|
-| `arc/1_create-prd.md`                        | Framework      | Core       | Core workflow.             |
-| `arc/2_generate-tasks.md`                    | Framework      | Core       | Core workflow.             |
-| `arc/3_process-task-loop.md`                 | Framework      | Core       | Core workflow.             |
-| `arc/setup/01_initialize-arc.md`             | Framework      | Core       | Setup workflow.            |
-| `arc/setup/02_define-project.md`             | Framework      | Core       | Setup workflow.            |
-| `arc/supplemental/activate-work-unit.md`     | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/agent-pre-merge-review.md` | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/archive-completed.md`      | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/atomic-commit.md`          | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/maintain-docs.md`          | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/maintain-task-notes.md`    | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/manage-incidental-work.md` | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/session-handoff.md`        | Framework      | Core       | Supplemental workflow.     |
-| `arc/supplemental/session-init.md`           | Framework      | Core       | Supplemental workflow.     |
-| `project/README.md`                          | Framework      | Core       | Project workflow guidance. |
+| File                                         | Classification | Layer | Notes                      |
+|----------------------------------------------|----------------|-------|----------------------------|
+| `arc/1_create-prd.md`                        | Framework      | Core  | Core workflow.             |
+| `arc/2_generate-tasks.md`                    | Framework      | Core  | Core workflow.             |
+| `arc/3_process-task-loop.md`                 | Framework      | Core  | Core workflow.             |
+| `arc/setup/01_initialize-arc.md`             | Framework      | Core  | Setup workflow.            |
+| `arc/setup/02_define-project.md`             | Framework      | Core  | Setup workflow.            |
+| `arc/supplemental/activate-work-unit.md`     | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/agent-pre-merge-review.md` | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/archive-completed.md`      | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/atomic-commit.md`          | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/maintain-docs.md`          | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/maintain-task-notes.md`    | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/manage-incidental-work.md` | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/session-handoff.md`        | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/session-init.md`           | Framework      | Core  | Supplemental workflow.     |
+| `project/README.md`                          | Framework      | Core  | Project workflow guidance. |
 
 ---
 
