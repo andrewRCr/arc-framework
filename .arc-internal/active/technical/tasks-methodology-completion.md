@@ -1114,13 +1114,13 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
         Full suite: 126 files, 0 errors.
 
-- [ ] **7.8 Enumerate deferred review stop conditions**
+- [x] **7.8 Enumerate deferred review stop conditions**
 
-    - In `3_process-task-loop.md` deferred review section (lines 57-63)
-    - "Must stop": QG failure, blocking dependency, unanticipated design decisions,
-      scope excess
-    - "Continue with note": auto-fixed lint, longer than expected, minor deviation
-    - Keep concise — guidance, not exhaustive ruleset
+    Added two-tier stop condition guidance to deferred review section in
+    `3_process-task-loop.md`. "Must stop" (QG failure, blocking dependency, design
+    decisions needing input, scope excess) vs. "Continue with note" (auto-fixable lint,
+    slower than expected, minor plan deviation). Replaced vague "anything unexpected"
+    with actionable criteria.
 
 - [ ] **7.9 Scale archive ceremony to work size**
 

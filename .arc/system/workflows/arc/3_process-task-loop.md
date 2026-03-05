@@ -74,9 +74,16 @@ It ensures consistent execution, quality control, and documentation of work.
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      Complete only the specified work — update the task list and run quality gates after each
-     task, but continue to the next without waiting for approval. Stop when the specified scope
-     is complete or if anything unexpected arises. Leave sufficient context for the user to
-     review, iterate, commit, and hand off when they return.
+     task, but continue to the next without waiting for approval. Leave sufficient context for
+     the user to review, iterate, commit, and hand off when they return.
+
+     Stop when the specified scope is complete, or earlier if a stop condition is met:
+
+     - **Must stop:** quality gate failure that can't be auto-fixed, blocking dependency on
+       another task or external input, unanticipated design decision that needs user input,
+       or scope significantly exceeding expectations for the task
+     - **Continue with note:** auto-fixable lint issues (fix and note), task taking longer
+       than expected but progressing, minor deviation from plan that doesn't change outcomes
 
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
      the last subtask under a parent (all subtasks now `[x]`), or a standalone task that touches

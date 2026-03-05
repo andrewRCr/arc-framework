@@ -10,9 +10,9 @@
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
 **Current Task**: [none — awaiting direction on next Phase 7 task]
-**Last Completed**: Task 7.7R — Audit and fix Core/arc-in-git boundary in workflows
+**Last Completed**: Task 7.8 — Enumerate deferred review stop conditions
 **Blockers**: None
-**Next Action**: Continue Phase 7 — Task 7.8 (Enumerate deferred review stop conditions)
+**Next Action**: Continue Phase 7 — Task 7.9 (Scale archive ceremony to work size)
 
 ---
 
