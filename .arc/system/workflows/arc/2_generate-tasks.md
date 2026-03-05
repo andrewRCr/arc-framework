@@ -98,9 +98,9 @@ In arc-in-git mode, [activation][activate-work-unit] updates both paths when doc
 ### Body
 
 See [strategy-task-list-formatting.md][task-list-formatting] for
-complete body structure (Overview, Scope, Tasks, Verification Phase, Success Criteria), formatting
-rules, test-first patterns, and annotated examples. Use its Quick Format Checklist to verify
-before saving.
+complete body structure (Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success
+Criteria), formatting rules, test-first patterns, and annotated examples. Use its Quick Format
+Checklist to verify before saving.
 
 ---
 

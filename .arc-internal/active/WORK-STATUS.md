@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.11.x — Add "Atomic Tasks — {name}" section to task list infrastructure (line ~1201)
-**Last Completed**: Task 7.13 — Document ARC naming conventions
+**Next Task**: Task 8.1 — Enrich STRATEGY-INDEX with trigger hints (line ~1223)
+**Last Completed**: Task 7.14 — Run Tier 1 quality gates on Phase 7 changes
 **Blockers**: None
-**Next Action**: Read ADR-008 for context, then implement Task 7.11.x
+**Next Action**: Continue to Phase 8 — guidance discovery and skills
 
 ---
 

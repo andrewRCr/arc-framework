@@ -1198,23 +1198,27 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     Also updated `STRATEGY-INDEX.md` to include naming conventions as a consultation
     trigger for the file classification strategy.
 
-- [ ] **7.11.x Add "Atomic Tasks — {name}" section to task list infrastructure**
+- [x] **7.11.x Add "Atomic Tasks — {name}" section to task list infrastructure**
 
     Per ADR-008 subordinate decision 7a: task lists gain a dedicated section for
-    WU off-plan work (discoveries, small fixes). This is a Core artifact — replaces
-    the need for ATOMIC-TASKS.md during WU execution.
+    WU off-plan work (discoveries, small fixes). Core artifact replacing ATOMIC-TASKS.md
+    during WU execution.
 
-    - [ ] **7.11.x.a Update `strategy-task-list-formatting.md`**
-        - Define "Atomic Tasks — {wu-name}" section convention
-        - Placement: after main tasks, before Success Criteria
-        - Format: flat checkbox list (simpler than numbered tasks)
-        - Purpose: captures WU-scoped off-plan work, archives with the task list
+    - [x] **7.11.x.a Update `strategy-task-list-formatting.md`**
+        - Added new "Atomic Tasks Section" with convention definition, format, rules,
+          and scope guard
+        - Placement: after verification phase, before Success Criteria (with `---` separator)
+        - Flat checkbox list with parenthetical context for traceability
+        - Added to ToC, Quick Format Checklist, structural requirements list
+        - Updated annotated example with empty Atomic Tasks section + Success Criteria
 
-    - [ ] **7.11.x.b Update task list template**
-        - Add empty "Atomic Tasks" section with inline guidance
-        - Present by default (empty), populated as needed during execution
+    - [x] **7.11.x.b Update task list template**
+        - Updated `2_generate-tasks.md` body structure reference to include Atomic Tasks
+        - Annotated example in strategy doc serves as the canonical template (empty section
+          with inline HTML comment guidance)
 
-- [ ] **7.14 Run Tier 1 quality gates on Phase 7 changes**
+- [x] **7.14 Run Tier 1 quality gates on Phase 7 changes**
+    - Full suite: 126 files, 0 errors
 
 ### **Phase 8:** Guidance Discovery and Skills
 
