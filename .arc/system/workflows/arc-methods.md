@@ -68,6 +68,9 @@ Conventional commit format.
 
 **Scope:** Lowercase functional area (e.g., `auth`, `api`, `tests`, `config`, `arc`, `deps`).
 
+**Subject line:** Describe the change, not the task. Don't include task references, phase numbers, or other
+traceability metadata — the `Context:` footer handles that (see [commit-context-format](#commit-context-format)).
+
 **Body:** 10–15 lines max (20–25 for milestones). Focus on WHY and IMPACT, not what changed.
 
 **Enforcement:** Git hooks validate format when `commit.format` is `conventional` or `custom`
