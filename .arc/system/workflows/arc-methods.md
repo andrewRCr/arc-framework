@@ -58,7 +58,7 @@ when populating any `.override` section.
 Conventional commit format.
 
 ```text
-<type>(scope): Brief description (50-72 chars, imperative mood)
+<type>(scope): Brief description (max 72 chars total, imperative mood)
 
 - Key change or rationale (1-2 lines per bullet)
 - Impact if significant

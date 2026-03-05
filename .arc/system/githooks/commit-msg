@@ -113,7 +113,9 @@ case "$commit_format" in
 esac
 
 # ============================================================================
-# RULE 2: Subject Line Length (50-72 chars)
+# RULE 2: Subject Line Length (max 72, warn at 60)
+# Git's traditional 50-char guideline assumes plain subjects. Conventional
+# commit prefixes (type(scope): ) consume 8-15 chars, so we warn at 60.
 # ============================================================================
 if [ "$subject_length" -lt 10 ]; then
     echo -e "${RED}Error: Subject line too short (${subject_length} chars, minimum 10)${NC}"
@@ -121,8 +123,8 @@ if [ "$subject_length" -lt 10 ]; then
 elif [ "$subject_length" -gt 72 ]; then
     echo -e "${RED}Error: Subject line too long (${subject_length} chars, maximum 72)${NC}"
     errors=$((errors + 1))
-elif [ "$subject_length" -gt 50 ]; then
-    echo -e "${YELLOW}Warning: Subject line is ${subject_length} chars (recommended max 50, hard limit 72)${NC}"
+elif [ "$subject_length" -gt 60 ]; then
+    echo -e "${YELLOW}Warning: Subject line is ${subject_length} chars (recommended max 60, hard limit 72)${NC}"
     warnings=$((warnings + 1))
 fi
 
