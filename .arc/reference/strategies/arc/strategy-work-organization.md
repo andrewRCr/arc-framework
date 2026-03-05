@@ -578,7 +578,13 @@ of committing planning artifacts directly to the base branch.
 - **Mode-specific behavior:**
     - **Unprotected:** Planning branches are optional — artifacts can be committed directly
       to the base branch.
-    - **Partially / fully protected:** Planning branches are required for planned work units.
+    - **Partially protected:** Planning branches are the default for planned work. Solo
+      developers who find the planning branch → PR → merge → activate cycle too heavy for
+      self-authored plans can commit planning artifacts directly to base — this falls under
+      the documented exception for documentation updates. The value of planning branches
+      scales with team size: solo review of your own PRD adds less than team review does.
+    - **Fully protected:** Planning branches are required — all changes need branches and
+      PR review.
 
 ---
 

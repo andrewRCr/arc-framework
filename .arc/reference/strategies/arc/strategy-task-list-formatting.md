@@ -47,6 +47,49 @@ Before finalizing any task list, verify:
 
 ---
 
+## Structural Requirements vs. Style Conventions
+
+Not all formatting guidance carries equal weight. Some elements are **structural** — tooling,
+hooks, and workflows depend on them. Others are **style conventions** — they produce better task
+lists but aren't mechanically enforced. Understanding the boundary helps adopters know what they
+can relax without breaking anything.
+
+### Structural (tooling depends on these)
+
+These elements are parsed by git hooks, workflows, or session initialization. Deviating from
+them may cause hook failures, workflow mismatches, or context loading errors.
+
+- **Checkbox syntax**: `- [ ]` / `- [x]` — workflows track completion state
+- **Task numbering pattern**: `X.Y` (parent), `X.Y.a` (subtask) — pre-commit hook validates
+  letter numbering at third level (`[configurable]`: `hooks.task_numbering` in `arc-config.yml`)
+- **Phase header format**: `### **Phase X:** Description` — used for phase counting and navigation
+- **Header metadata fields**: `**Status:**`, `**Branch(es):**`, `**PRD:**` — parsed by workflows
+  and session initialization
+- **File naming**: `tasks-{name}.md` in `active/` or `backlog/` — hook file matching, WORK-STATUS
+  references
+- **Success criteria markers**: `[x]`, `[ ]`, `[~]` — verification workflow reads these
+
+### Style (human-facing quality)
+
+These conventions improve readability, consistency, and maintainability. They represent ARC's
+recommended practices but aren't enforced by tooling. Adopters can adjust these to team
+preference without breaking workflows.
+
+- Bold formatting on task descriptions
+- Goal/Note line placement and formatting
+- Blank lines between subtasks with detail bullets
+- Test-first task ordering within phases
+- Backticks on technical terms
+- Emoji policy
+- Indentation depth (4-space convention)
+- Detail bullet conventions (unnumbered, no checkboxes)
+- Revision numbering (R scheme)
+
+The rest of this document covers both categories together — structural requirements are the
+baseline, style conventions build on them.
+
+---
+
 ## Task List Headers
 
 Task list headers provide essential metadata and context. Format varies by task list type.

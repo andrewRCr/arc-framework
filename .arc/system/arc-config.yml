@@ -71,6 +71,13 @@ hooks.pre_commit: enabled
 #   disabled - Skips commit message validation
 hooks.commit_msg: enabled
 
+# Task numbering format check in pre-commit hook.
+# Per strategy-task-list-formatting.md: third level uses letters (1.1.a not 1.1.1).
+#   error   - Block commit on violations (default)
+#   warning - Warn but allow commit
+#   off     - Skip check entirely
+hooks.task_numbering: error
+
 # --- Platform ---
 
 # Git hosting platform.

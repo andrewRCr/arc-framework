@@ -1141,16 +1141,31 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
       mode — not every branch is a work unit, archive workflow only applies to work with
       task lists.
 
-- [ ] **7.10 Evaluate planning branch independence**
+- [x] **7.10 Evaluate planning branch independence**
 
-    - Assess whether `planning_branches` setting independent of protection mode adds value
-    - If needed: add config setting. If adequate: document reasoning
+    Assessed: no separate config setting needed. The implicit coupling to branch.protection
+    is adequate — the realistic independence scenario (solo dev under partial wanting to skip
+    planning PRs) is already accommodated by the documented exceptions for documentation
+    updates. Made this explicit in `strategy-work-organization.md` § Planning Branch Workflow
+    so solo developers under partial protection know direct planning commits are legitimate.
+    Expanded mode-specific behavior from two bullets to three (unprotected / partial / full)
+    with nuanced guidance per mode.
 
-- [ ] **7.11 Separate parseable minimum from full task list format**
+- [x] **7.11 Separate parseable minimum from full task list format**
 
-    - In `strategy-task-list-formatting.md`: document "parseable minimum" vs. recommended full
-    - Make task numbering check configurable: error (default) / warning / off
-    - Add setting to `arc-config.yml`
+    Framed as "structural requirements vs. style conventions" rather than a separate minimal
+    template — clearer for adopters to understand which elements are load-bearing.
+
+    - `strategy-task-list-formatting.md`: Added "Structural Requirements vs. Style Conventions"
+      section after Quick Format Checklist. Structural: checkbox syntax, task numbering,
+      phase headers, metadata fields, file naming, success criteria markers. Style: bold
+      formatting, goal lines, test-first ordering, emoji policy, indentation, etc.
+    - `arc-config.yml`: Added `hooks.task_numbering` setting (`error` | `warning` | `off`,
+      default `error`)
+    - `pre-commit` hook: Made Check 7 config-aware — reads `hooks.task_numbering`, skips
+      check on `off`, downgrades to warning on `warning`
+    - `githooks/README.md`: Documented configurability on the task numbering check and
+      added cross-reference to strategy doc
 
 - [ ] **7.12 Audit strategy configurability and opt-out paths**
 
