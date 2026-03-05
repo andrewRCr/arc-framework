@@ -1011,17 +1011,41 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     - [x] **7.6.e Run Tier 1 quality gates on all changed files**
         - Full suite: 126 files, 0 errors
 
-- [ ] **7.7 Update `1_create-prd.md` workflow**
+- [x] **7.7 Update `1_create-prd.md` workflow**
 
-    - [ ] **7.7.a Extract PRD format to template reference**
-        - Step 4: replace inline definition with reference to `template-prd.md`
-        - Keep brief orientation summary
+    - [x] **7.7.a Extract PRD format to template reference**
+        - Replaced 45-line inline PRD format with reference to `template-prd.md`
+        - Template is richer (priority levels, document history, inline guidance)
+        - Fixed save path: `backlog/` → `active/` (PRDs are created when work activates)
 
-    - [ ] **7.7.b Strengthen discovery step**
-        - Step 3: reference discovery checklist from `strategy-work-planning.md`
+    - [x] **7.7.b Strengthen discovery step**
+        - Added discovery checklist reference to Step 3
 
-    - [ ] **7.7.c Reference planning lifecycle**
-        - Step 1: reference `strategy-work-planning.md` for plan-\* conventions
+    - [x] **7.7.c Reference planning lifecycle**
+        - Added `strategy-work-planning.md` reference to Step 1 for plan-\* conventions
+
+- [ ] **7.7R Audit and fix Core/arc-in-git boundary in workflows**
+
+    Discovered during 7.7: `1_create-prd.md` (Core workflow) references `backlog/` paths
+    and `plan-*` conventions that only exist in arc-in-git mode. Likely not isolated.
+
+    **Phase 1 — Audit and evaluate:**
+
+    - Audit all Core workflows and strategies for unconditional references to arc-in-git
+      artifacts (backlog/, plan-\*, ROADMAP, PROJECT-STATUS, ATOMIC-TASKS)
+    - Audit `strategy-work-planning.md` — mixed-layer doc (discovery checklist is Core,
+      planning pipeline is arc-in-git)
+    - Evaluate approach for conditional steps: inline conditionals vs. extension points
+      vs. CLI-managed content vs. separate workflow variants
+    - Consider mode-switching implications (what happens if pm.mode changes?)
+    - Produce inventory of violations and recommended fix approach for each
+
+    **Phase 2 — Implement fixes** (add subtasks after audit):
+
+    - Subtasks TBD based on audit findings — expect at minimum:
+    - Make `1_create-prd.md` Step 1 mode-aware (plan-\* check only in arc-in-git)
+    - Add `strategy-work-planning.md` to file-classification inventory (missing)
+    - Address any mixed-layer strategy docs identified in audit
 
 - [ ] **7.8 Enumerate deferred review stop conditions**
 
