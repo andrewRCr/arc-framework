@@ -254,12 +254,14 @@ to update classification — both axes apply independently.
 | `copilot-instructions.template.md` | Configurable   | Core  | Mostly framework guidance with light customization.          |
 | `README.md`                        | Framework      | Core  | Agent system architecture documentation.                     |
 
-### system/commands/
+### system/skills/
 
-| File        | Classification | Layer | Notes                     |
-|-------------|----------------|-------|---------------------------|
-| `README.md` | Framework      | Core  | Commands directory guide. |
-| `.gitkeep`  | Scaffolded     | Core  | Directory scaffolding.    |
+| File                   | Classification | Layer | Notes                                                            |
+|------------------------|----------------|-------|------------------------------------------------------------------|
+| `README.md`            | Framework      | Core  | Skills directory guide.                                          |
+| `arc-resume/SKILL.md`  | Framework      | Core  | Session initialization trigger. Generated to tool-specific dirs. |
+| `arc-commit/SKILL.md`  | Framework      | Core  | Atomic commit trigger. Generated to tool-specific dirs.          |
+| `arc-handoff/SKILL.md` | Framework      | Core  | Session handoff trigger. Generated to tool-specific dirs.        |
 
 ### system/githooks/
 

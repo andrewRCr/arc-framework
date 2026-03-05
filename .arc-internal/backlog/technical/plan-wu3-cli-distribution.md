@@ -6,7 +6,8 @@ release.
 
 **Status:** Draft
 **Created:** 2026-02-22
-**Amended:** 2026-03-03 (ADR-008 PM layer dimension), 2026-03-05 (ADR-011 SKILL.md trigger mechanism)
+**Amended:** 2026-03-03 (ADR-008 PM layer dimension), 2026-03-05 (ADR-011 SKILL.md trigger mechanism,
+ADR-011 amendment — directory and invocation corrections)
 
 ---
 
@@ -97,7 +98,7 @@ about expected conflicts.
 
 | Classification   | Examples                                              | Update behavior                          |
 |------------------|-------------------------------------------------------|------------------------------------------|
-| **Framework**    | Workflows, ARC strategies, githooks, slash commands   | Auto-merge; conflicts if user customized |
+| **Framework**    | Workflows, ARC strategies, githooks, generated skills | Auto-merge; conflicts if user customized |
 | **Configurable** | DEV-RULES.PROJECT, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal|
 | **Scaffolded**   | WORK-STATUS, task lists, PRDs                         | Never touched by updates                 |
 | **Project-Owned**| Project strategies, notes, completion docs            | Never touched; user-created content      |
@@ -298,15 +299,14 @@ arc-framework/
 The `framework/` directory in the package is the source of truth for framework files. This is
 what gets copied during `init` and what `update` merges from.
 
-The `agents/` directory contains canonical SKILL.md definitions for ARC's workflow triggers.
-During init, skills are generated into tool-specific directories based on the user's agent
-selection.
+The `skills/` directory contains canonical SKILL.md definitions for ARC's workflow triggers.
+During init, skills are generated into tool-specific directories (and optionally `.agents/skills/`)
+based on the user's agent selection and skills directory configuration.
 
 ## Skill Generation
 
-> **ADR-011** established SKILL.md (agentskills.io standard) as ARC's trigger mechanism and
-> `.agents/skills/` as the canonical directory. This section describes how WU3 implements that
-> decision.
+> **ADR-011** established SKILL.md (agentskills.io standard) as ARC's trigger mechanism. This
+> section describes how WU3 implements that decision.
 
 ARC workflow triggers are SKILL.md files — thin dispatchers that point to ARC content in `.arc/`.
 The framework ships canonical skill definitions in the npm package. `arc-framework init` generates
@@ -314,21 +314,30 @@ tool-specific copies based on the user's agent selection.
 
 ### Single Source of Truth
 
-Canonical skill definitions live once in the package (in `framework/skills/` or similar). Each
-skill is a SKILL.md file with standard agentskills.io frontmatter (`name`, `description`) and
-minimal instructions pointing to the relevant `.arc/` workflow.
+Canonical skill definitions live in `.arc/system/skills/` in the deployed project and in the npm
+package source. Each skill is a SKILL.md file with standard agentskills.io frontmatter (`name`,
+`description`) and minimal instructions pointing to the relevant `.arc/` workflow. The deployed
+canonical files are Framework-classified and updated via three-way merge like other `.arc/`
+content.
 
 `arc-framework init` generates per-tool output:
 
-- **Claude Code**: `.claude/skills/<name>/SKILL.md` (with Claude-specific extended frontmatter
-  where needed — `disable-model-invocation`, `context: fork`, etc.)
-- **Codex CLI**: `.agents/skills/<name>/SKILL.md` + `agents/openai.yaml` (UI metadata)
-- **Gemini CLI**: `.gemini/skills/<name>/SKILL.md` + `.gemini/commands/<name>.toml` (for
-  explicit `/command` invocation alongside natural-language skill triggering)
-- **GitHub Copilot**: `.github/skills/<name>/SKILL.md`
-- **Cursor**: `.cursor/commands/<name>.md` (adapted format)
-- **Cross-tool fallback**: `.agents/skills/<name>/SKILL.md` (always generated — recognized by
-  most tools as the neutral standard location)
+- **Claude Code**: `.claude/skills/<name>/SKILL.md` (with `disable-model-invocation: true` for
+  arc-* skills, and other Claude-specific frontmatter where needed)
+- **Codex CLI**: `.agents/skills/<name>/SKILL.md` + `agents/openai.yaml` (UI metadata).
+  Codex also scans `.codex/skills/` but `.agents/` is the preferred cross-tool location.
+- **Gemini CLI**: `.agents/skills/<name>/SKILL.md` (Gemini prefers `.agents/` with precedence
+  over `.gemini/skills/`) + `.gemini/commands/<name>.toml` (for explicit `/command` invocation)
+- **GitHub Copilot**: `.github/skills/<name>/SKILL.md` (also scans `.agents/skills/`)
+- **Cursor**: `.cursor/skills/<name>/SKILL.md` (also scans `.agents/skills/`)
+- **Windsurf**: `.windsurf/skills/<name>/SKILL.md` (does NOT scan `.agents/skills/`)
+
+**Skills directory configurability:** The default strategy generates `.agents/skills/` (cross-tool
+convention, scanned by Codex, Gemini, Cursor, Copilot) plus tool-specific directories for tools
+that don't scan it (Claude Code, Windsurf). Users who prefer tool-specific directories only (no
+`.agents/` dir) can configure this — useful when a user has a single tool or an existing
+`.codex/skills/` directory they want to keep. This is an `arc-config.yml` setting with the
+cross-tool default.
 
 `arc-framework update` regenerates when skill definitions change. Generated files are classified
 as Framework (managed, auto-updated).
@@ -337,10 +346,11 @@ as Framework (managed, auto-updated).
 
 The generation step is not purely "copy SKILL.md to N directories." Per-tool differences include:
 
-- **Frontmatter extension**: Claude Code supports fields like `disable-model-invocation`,
-  `context: fork`, `allowed-tools` that other tools gracefully ignore
+- **Invocation control frontmatter**: ARC's arc-* skills use `disable-model-invocation: true` to
+  prevent auto-loading (these are explicit user actions, not background context). This field is a
+  de facto standard across Claude Code, VS Code/Copilot, and Cursor but not part of the
+  agentskills.io spec — tools that don't recognize it ignore it harmlessly
 - **Supplemental files**: Codex requires `agents/openai.yaml`; Gemini uses `.toml` commands
-- **Format adaptation**: Cursor's `.cursor/commands/*.md` has its own structure conventions
 - **Path rendering**: Skill instructions reference `.arc/` paths — if the install directory is
   customized (see [Configurable Install Directory](#configurable-install-directory)), these paths
   must be rendered with the correct base

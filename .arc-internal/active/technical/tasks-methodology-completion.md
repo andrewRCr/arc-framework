@@ -1249,17 +1249,36 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
 
 - [x] **8.4 Adopt SKILL.md as trigger mechanism (ADR-011)**
 
-    Researched the AI coding tool trigger mechanism landscape (26+ tools now support
-    SKILL.md via agentskills.io standard, published Dec 2025 under Linux Foundation).
-    Wrote ADR-011 capturing the decision: SKILL.md thin dispatchers in `.agents/skills/`
-    as canonical location, ARC content stays in `.arc/`, WU3 generates tool-specific
-    copies. Established `arc-` prefix naming convention for framework skills with
-    action-oriented names. Default 1.0 set: `arc-resume`, `arc-commit`, `arc-handoff`.
-    Created canonical `.agents/skills/` with all 5 skills (3 framework + 2 project).
-    `arc-commit` includes WORK-STATUS staging reminder. Updated WU3 plan doc: replaced
-    "Slash Command Generation" with "Skill Generation" section, updated npm package
-    structure, added configurable install directory section. Existing `.claude/commands/`
-    and `.codex/skills/` retained as legacy until WU3 consolidates.
+    Researched the AI coding tool trigger mechanism landscape (30+ tools support
+    SKILL.md via agentskills.io standard, published Dec 2025, maintained by Anthropic).
+    Wrote ADR-011 capturing the decision: SKILL.md thin dispatchers with ARC content
+    staying in `.arc/`, WU3 generates tool-specific copies. Established `arc-` prefix
+    naming convention for framework skills with action-oriented names. Default 1.0 set:
+    `arc-resume`, `arc-commit`, `arc-handoff`.
+
+    **Amended post-completion:** Verification revealed several factual errors in the
+    original research and architecture gaps:
+
+    - **Governance:** agentskills.io is maintained by Anthropic (open standard), NOT
+      governed by the Linux Foundation / Agentic AI Foundation. ADR-011 corrected.
+    - **Directory scanning:** `.agents/skills/` is NOT universally scanned. Claude Code
+      and Windsurf only scan their own dirs. ADR-011 updated with scanning reality table.
+    - **Manual invocation:** Skills are manually invocable in Claude Code via `/name`
+      (confirmed working after earlier bugs resolved), but `disable-model-invocation: true`
+      frontmatter needed to prevent auto-loading. This field is a de facto standard across
+      Claude Code, VS Code/Copilot, and Cursor — not part of the agentskills.io spec.
+    - **Canonical location:** Moved from `.agents/skills/` to `.arc/system/skills/` —
+      parallels `.arc/system/agent/` pattern (source of truth inside `.arc/`, generated
+      copies outside). `.arc/system/commands/` renamed to `skills/`.
+    - **Tool-specific copies:** Created `.claude/skills/` with `disable-model-invocation`
+      for arc-* skills. Deleted legacy `.claude/commands/`. `.agents/skills/` retained as
+      cross-tool generated copy (Codex, Gemini, Cursor, Copilot scan it).
+    - **Personal vs framework skills:** Only arc-resume, arc-commit, arc-handoff are
+      framework skills in `.arc/system/skills/`. optimize-doc and research are personal
+      skills (in `.claude/skills/` only, not canonical).
+    - WU3 plan updated: skills directory configurability, corrected generation targets,
+      `disable-model-invocation` in generator spec.
+    - File classification strategy updated: `system/commands/` → `system/skills/`.
 
 - [~] **8.5 Create `integrate-skill.md` supplemental workflow** — Deferred
 

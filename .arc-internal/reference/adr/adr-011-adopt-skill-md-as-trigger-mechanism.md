@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted · Amended 2026-03-05 (governance, directory, invocation corrections)
 
 ## Context
 
@@ -20,26 +20,42 @@ directories with duplicated intent in different formats.
 **Landscape convergence (early 2026):** The AI coding tool ecosystem has converged on a shared standard faster than
 anticipated:
 
-- **SKILL.md** (published December 2025 at agentskills.io, governed by the Agentic AI Foundation under the Linux
-  Foundation) defines a markdown file with YAML frontmatter as the standard format for AI agent skills.
-- **26+ tools** now recognize SKILL.md, including Claude Code, Codex CLI, Gemini CLI, GitHub Copilot (CLI + VS Code),
+- **SKILL.md** (published December 2025 at agentskills.io, maintained by Anthropic as an open standard) defines a
+  markdown file with YAML frontmatter as the standard format for AI agent skills.
+- **30+ tools** now recognize SKILL.md, including Claude Code, Codex CLI, Gemini CLI, GitHub Copilot (CLI + VS Code),
   Cursor, Warp, Windsurf, Roo Code, Mistral, OpenCode, Aider, and others.
-- **`.agents/skills/<name>/SKILL.md`** is emerging as the cross-tool neutral directory. Most tools scan it alongside
-  their own directory (`.claude/skills/`, `.github/skills/`, `.gemini/skills/`, etc.).
+- **`.agents/skills/<name>/SKILL.md`** is a de facto cross-tool directory convention. Several tools scan it (Codex CLI,
+  Gemini CLI, Cursor, GitHub Copilot), but not all — Claude Code scans only `.claude/skills/` and Windsurf scans only
+  `.windsurf/skills/`. The agentskills.io specification defines the SKILL.md file format but does not mandate a
+  directory convention.
 - **Progressive disclosure** is built into the spec: frontmatter (name + description) loads at startup (~100 tokens);
   full instructions load on activation; supporting files (`scripts/`, `references/`, `assets/`) load on demand.
 
 **Tool-specific notes:**
 
-- **Claude Code**: Recognizes both `.claude/commands/*.md` (legacy) and `.claude/skills/*/SKILL.md`. The UI now reports
-  "skill was successfully loaded" for both. Skills are the recommended path; commands remain supported.
+- **Claude Code**: Recognizes `.claude/skills/*/SKILL.md` (recommended) and `.claude/commands/*.md` (legacy, still
+  works). Skills appear in the `/` slash command menu and are manually invocable as `/skill-name`. Does NOT scan
+  `.agents/skills/`. Supports `disable-model-invocation` and `user-invocable` frontmatter extensions.
 - **Codex CLI**: Uses `$skill-name` invocation (not `/`). Recognizes `.agents/skills/` and `.codex/skills/`.
   Supplements SKILL.md with `agents/openai.yaml` for UI metadata and invocation policy.
 - **Gemini CLI**: Dual system — TOML custom commands (`.gemini/commands/*.toml`) for explicit invocation, plus
-  SKILL.md agent skills for natural-language triggering. Recognizes `.agents/skills/`.
-- **Cursor**: Custom commands via `.cursor/commands/*.md`. Does not yet scan `.agents/skills/` natively but supports
-  agent skills through its extension system.
-- **Copilot**: Recognizes `.github/skills/` and `.agents/skills/`. Recent addition (December 2025).
+  SKILL.md agent skills. Scans `.agents/skills/` (with precedence) and `.gemini/skills/`.
+- **Cursor**: Recognizes `.cursor/skills/` and `.agents/skills/`. Supports `user-invocable` and
+  `disable-model-invocation` frontmatter. Skills appear in `/` menu.
+- **GitHub Copilot**: Recognizes `.github/skills/` and `.agents/skills/`. Supports `user-invocable` frontmatter.
+  Skills invocable as `/skill-name`.
+- **Windsurf**: Recognizes `.windsurf/skills/` only. Does NOT scan `.agents/skills/`.
+
+**Invocation control (de facto standard, not in spec):** The agentskills.io specification defines only format fields
+(`name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`). Two invocation-control fields have
+emerged as de facto standards across Claude Code, VS Code/Copilot, and Cursor:
+
+- `disable-model-invocation: true` — Prevents auto-loading; skill is manual-only (`/skill-name`)
+- `user-invocable: false` — Hides from `/` menu; model can still auto-invoke
+
+Both default to their permissive value (model invocation enabled, user invocation enabled). Tools that don't recognize
+these fields ignore them harmlessly. ARC skills intended for explicit user invocation (arc-resume, arc-commit,
+arc-handoff) use `disable-model-invocation: true` to prevent unnecessary context consumption.
 
 **Alternatives considered:**
 
@@ -72,17 +88,34 @@ autocomplete lists and directory listings. Names are action-oriented (what the u
 - `arc-commit` — Atomic commit with WORK-STATUS staging (during session)
 - `arc-handoff` — Session handoff (end of session)
 
-### Part 2: `.agents/skills/` as the Canonical Directory
+### Part 2: Skill Directory Strategy
 
-Canonical skill files live in `.agents/skills/<skill-name>/SKILL.md` — the cross-tool standard location recognized by
-the broadest set of tools. This is the single source of truth.
+Canonical skill definitions live in `.arc/system/skills/<skill-name>/SKILL.md` — inside the ARC directory tree,
+alongside `.arc/system/agent/` (agent config) and `.arc/system/githooks/` (git hooks). This follows ARC's
+consistent pattern: source of truth in `.arc/system/`, tool-specific copies generated outside.
 
-For tools that do not yet scan `.agents/skills/`, WU3's CLI generates copies in tool-specific directories
-(`.claude/skills/`, `.github/skills/`, `.gemini/skills/`, `.cursor/commands/`, etc.) during `arc init` and
-`arc update`. The generated copies are classified as Framework (managed, auto-updated).
+WU3's CLI generates tool-discoverable copies during `arc init` and `arc update` based on the user's selected
+tooling. Generated copies are classified as Framework (managed, auto-updated).
 
-**Pre-WU3 (current state):** We maintain `.agents/skills/` as canonical alongside `.claude/commands/` as a legacy
-directory. The legacy files will be consolidated by WU3's generation step.
+**Tool-specific generation targets:**
+
+| Tool           | Generated to        | `.agents/skills/` scanning                |
+|----------------|---------------------|-------------------------------------------|
+| Claude Code    | `.claude/skills/`   | No                                        |
+| Codex CLI      | `.agents/skills/`   | Yes (primary)                             |
+| Gemini CLI     | `.agents/skills/`   | Yes (preferred over `.gemini/skills/`)    |
+| Cursor         | `.cursor/skills/`   | Yes                                       |
+| GitHub Copilot | `.github/skills/`   | Yes                                       |
+| Windsurf       | `.windsurf/skills/` | No                                        |
+
+**`.agents/skills/` as cross-tool convention:** Several tools scan `.agents/skills/` (Codex, Gemini, Cursor,
+Copilot), making it a useful generation target for multi-tool projects. By default, WU3 generates to
+`.agents/skills/` alongside tool-specific directories. Users who prefer tool-specific directories only (no
+`.agents/` dir) can configure this via `arc-config.yml`.
+
+**Pre-WU3 (current state):** We maintain `.arc/system/skills/` as canonical, `.agents/skills/` as a cross-tool
+copy, and `.claude/skills/` for Claude Code (the primary development tool). WU3 replaces this manual duplication
+with generation.
 
 ### Part 3: Trigger/Content Separation Convention
 
@@ -91,12 +124,13 @@ pointers:
 
 ```markdown
 ---
-name: resume-current
+name: arc-resume
 description: Initialize and resume the active working session...
+disable-model-invocation: true
 ---
 # Resume Current
-1. Read `.arc-internal/system/agent/AGENTS.md`
-2. Run `.arc-internal/system/workflows/arc/supplemental/session-init.md`
+1. Read `.arc/system/agent/AGENTS.md`
+2. Run `.arc/system/workflows/arc/supplemental/session-init.md`
 3. Confirm readiness
 ```
 
@@ -110,11 +144,12 @@ This separation ensures:
 
 WU3's CLI replaces manual trigger maintenance with generation:
 
-- Canonical skill definitions live in the framework package (source of truth)
-- `arc init` generates skills for the user's selected tools (`.claude/skills/`, `.agents/skills/`, etc.)
-- `arc update` regenerates when skill definitions change
+- Canonical skill definitions live in `.arc/system/skills/` (deployed project) and the npm package (distribution)
+- `arc init` generates tool-discoverable copies for the user's selected tools
+- `arc update` regenerates when canonical definitions change
 - The manifest tracks generated skills alongside other managed files
 - Tool-specific supplements (Codex `agents/openai.yaml`, Gemini `.toml` commands) are generated as needed
+- Tool-specific frontmatter extensions (e.g., `disable-model-invocation: true`) are added during generation
 
 The same generation model extends to team-integrated skills that follow an integrate-skill workflow — the manifest
 tracks both framework skills and integrated skills with the same update mechanics.
@@ -123,24 +158,24 @@ tracks both framework skills and integrated skills with the same update mechanic
 
 ### Positive
 
-- **Cross-tool compatibility.** A single skill definition works across 26+ tools. Adding support for a new tool
+- **Cross-tool compatibility.** A single skill definition works across 30+ tools. Adding support for a new tool
   means adding a generation target, not rewriting skills.
 - **Reduced maintenance.** Eliminates manual parallel maintenance of `.claude/commands/`, `.codex/skills/`, and
   future tool directories. One canonical source, generated outputs.
-- **Standards-aligned.** SKILL.md is an open standard with Linux Foundation governance and broad industry adoption.
-  ARC aligns with the ecosystem rather than maintaining a custom approach.
+- **Standards-aligned.** SKILL.md is an open standard maintained by Anthropic with broad industry adoption (30+
+  tools). ARC aligns with the ecosystem rather than maintaining a custom approach.
 - **Progressive disclosure.** The spec's metadata/instructions/resources layering matches ARC's thin-dispatcher
   pattern — agents load skill metadata cheaply at startup, full instructions only when activated.
-- **Forward-compatible.** New tools adopting the agentskills.io standard will work with ARC skills automatically
-  via `.agents/skills/`.
+- **Forward-compatible.** New tools adopting the agentskills.io standard can be supported by adding a generation
+  target. Tools that scan `.agents/skills/` work immediately if that target is enabled.
 
 ### Negative
 
-- **Directory sorting.** `.agents/` sorts above `.arc/` in file explorers. `.arc/` is the daily workspace;
-  `.agents/` is set-and-forget. The visual adjacency is an annoyance, not a blocker — the directories serve
-  different attention levels.
+- **Directory proliferation.** Generated skill directories (`.claude/skills/`, `.agents/skills/`, etc.) live
+  outside `.arc/`. This is inherent to the problem — tools scan their own directories, not `.arc/`. The canonical
+  source stays in `.arc/system/skills/`; generated copies are managed artifacts.
 - **Pre-WU3 transition period.** Until WU3 builds the generation system, we maintain both `.agents/skills/`
-  (canonical) and `.claude/commands/` (legacy for Claude Code backward compatibility). This is temporary
+  (canonical) and `.claude/skills/` (Claude Code copy with tool-specific frontmatter). This is temporary
   duplication with a clear end date.
 - **Tool-specific supplements.** Some tools require additional metadata beyond SKILL.md (Codex's
   `agents/openai.yaml`, Gemini's TOML commands). The generation model handles this, but it means the generator
@@ -149,11 +184,15 @@ tracks both framework skills and integrated skills with the same update mechanic
 ### Risks
 
 - **Standard evolution.** The agentskills.io spec is young (published December 2025). Breaking changes to the
-  spec would require updating canonical skills and the generator. Mitigation: the spec is governed by the Linux
-  Foundation with 26+ adopters — breaking changes are unlikely and would be well-signaled.
-- **`.agents/` adoption gaps.** Not all tools scan `.agents/skills/` yet (Cursor being the notable gap). The
-  generation model covers this by producing tool-specific copies, but it means `.agents/` alone is not
-  sufficient today.
+  spec would require updating canonical skills and the generator. Mitigation: 30+ adopters make breaking changes
+  unlikely and well-signaled, though governance is Anthropic-maintained (not Linux Foundation — only MCP was
+  donated to the Agentic AI Foundation).
+- **`.agents/` adoption gaps.** Not all tools scan `.agents/skills/` — Claude Code and Windsurf are notable gaps.
+  The generation model covers this by producing tool-specific copies, but `.agents/` alone is not sufficient.
+- **Invocation control fragility.** The `disable-model-invocation` and `user-invocable` frontmatter fields are
+  de facto standards across Claude Code, VS Code/Copilot, and Cursor — but not part of the agentskills.io spec.
+  Tools that don't recognize these fields default to auto-loading all skills, which may cause unintended context
+  consumption. ARC mitigates this by keeping skill dispatchers lightweight (~100 tokens each).
 
 ---
 
