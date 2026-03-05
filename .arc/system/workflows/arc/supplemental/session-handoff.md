@@ -29,7 +29,7 @@ via [`arc-methods.md` § session-state][arc-methods-session].
 Session state is split across two files (per the [session-state method][arc-methods-session] default — if your
 project overrides session-state, follow the override instead):
 
-- **WORK-STATUS.md** (tracked) — project state: branch, task list, current task, blockers, next action
+- **WORK-STATUS.md** (tracked) — project state: branch, task list, next task, blockers, next action
 - **SESSION-NOTES.md** (gitignored) — personal context: completed work, decisions, debugging insights,
   things tried. Replaced each handoff (not appended). Created only when there's context worth
   preserving; delete between work units.
@@ -72,9 +72,10 @@ Update session state files before ending session:
   [OR: [none associated] for planning/boundary work between task lists]
 **Following Task List**: Yes
   [OR: No - [brief context, e.g., "fixing connection timeout in batch processor (will return to Task 4.5)"]]
-**Current Task**: Task 3.3 — Write unit tests (line ~247)
-  [REQUIRED when following task list - triple-anchor format enables graduated lookup at session init]
-  [Omit only if no task list or transitioning between task lists]
+**Next Task**: Task 3.3 — Write unit tests (line ~247)
+  [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
+  [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
+  [Omit only when no task list exists or all tasks are complete.]
 **Last Completed**: Task 3.2 — Add validation logic
   [OR for off-task-list: brief description, e.g., "Fixed connection timeout in batch processor"]
   [OR if work complete: "Backend Type Safety (Tasks 1-14, archived)"]
@@ -82,10 +83,10 @@ Update session state files before ending session:
   [OR: describe blockers, pending decisions, waiting on user clarification]
 **Next Action**: Start Task 3.3 — Write unit tests for validation logic
   [OR for off-task-list/preparatory: specific action description]
-  [Can be preparatory work (strategy doc review, planning) even when Current Task shows task number]
+  [Freeform — can be preparatory work, off-task-list activity, or simply "start Next Task"]
 
-_Note: Current Task shows WHICH task you're on (stable). Next Action shows WHAT to do next
-(can be preparatory work before starting task, or specific subtask if already in progress)._
+_Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
+WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
 ```
 
 **Update `.arc/active/SESSION-NOTES.md`** (personal session context — gitignored):
@@ -180,7 +181,7 @@ WORK-STATUS.md:
 **Branch**: feature/data-pipeline
 **Task List**: .arc/active/feature/tasks-data-pipeline.md
 **Following Task List**: No - fixing connection timeout in batch processor (will return to Task 4.1)
-**Current Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
+**Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
 **Last Completed**: Task 3.5 — Schema validation for input records
 **Blockers**: [none]
 **Next Action**: Fix connection timeout in batch processor (src/pipeline/batch.py:89)
@@ -218,7 +219,7 @@ WORK-STATUS.md:
 **Branch**: technical/api-documentation
 **Task List**: .arc/active/technical/tasks-api-documentation.md
 **Following Task List**: Yes
-**Current Task**: Task 3.1 — Document authentication endpoints (line ~203)
+**Next Task**: Task 3.1 — Document authentication endpoints (line ~203)
 **Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
 **Blockers**: [none]
 **Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
@@ -250,7 +251,7 @@ WORK-STATUS.md:
 **Branch**: technical/ci-pipeline
 **Task List**: .arc/active/technical/tasks-ci-pipeline.md
 **Following Task List**: No - debugging intermittent test failures in CI (will return to Task 5.2)
-**Current Task**: Task 5.2 — Add caching to build step (line ~287)
+**Next Task**: Task 5.2 — Add caching to build step (line ~287)
 **Last Completed**: Task 5.1 — Parallelize test stages
 **Blockers**: [none]
 **Next Action**: Continue debugging intermittent CI test failures

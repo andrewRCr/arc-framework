@@ -81,11 +81,11 @@ override instead.
 **Active work context:**
 
 7. `.arc/active/WORK-STATUS.md` - **MUST READ IN FULL**
-   - Project state: branch, task list path, current task, blockers, and next action
+   - Project state: branch, task list path, next task, blockers, and next action
    - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
      Skip step 9 (task list loading). Session orientation will report this state and surface
      the Next Action from WORK-STATUS.md (typically: create a PRD or plan new work).
-   - **Task reference format**: Current Task uses triple-anchor format —
+   - **Task reference format**: Next Task uses triple-anchor format —
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
@@ -176,7 +176,7 @@ Confirm successful initialization. Use this structure:
 **Active work state:**
 
 - **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Current task**: Task being worked on per WORK-STATUS.md
+- **Next task**: Task to work on per WORK-STATUS.md (or "none" when no task list / all tasks complete)
 - **Blockers**: Any blockers or mismatches detected during initialization, or "none"
 
 **Next action:** What comes next per WORK-STATUS.md
@@ -184,7 +184,7 @@ Confirm successful initialization. Use this structure:
 Awaiting direction — proceed to Next Action?
 
 **"No active work" variant:** When WORK-STATUS.md shows `Task List: [none]`, there is no active
-work unit. Use the same format — Current task is "none", Next action comes from WORK-STATUS.md
+work unit. Use the same format — Next task is "none", Next action comes from WORK-STATUS.md
 (typically pointing to `1_create-prd.md`). This is the normal state after initialization or
 between work units.
 

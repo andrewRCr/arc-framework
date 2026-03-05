@@ -97,7 +97,7 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 1. Update **Branch** to feature branch name
 2. Update **Task List** path to active location
 3. Update **Following Task List** to `Yes`
-4. Update **Current Task** to first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
+4. Update **Next Task** to first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
 5. Update **Last Completed** to previous work or `—` if first work unit
 6. Update **Next Action** to describe first task
 7. Clear **Blockers** (set to `[none]`)

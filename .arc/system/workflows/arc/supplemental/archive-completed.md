@@ -363,7 +363,7 @@ Reset to "no active work" defaults:
 **Branch**: `main`
 **Task List**: [none]
 **Following Task List**: No
-**Current Task**: —
+**Next Task**: —
 **Last Completed**: {Work Name} (archived)
 **Blockers**: [none]
 **Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`

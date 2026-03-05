@@ -118,7 +118,7 @@ It ensures consistent execution, quality control, and documentation of work.
      When committing, follow [Commit Workflow](supplemental/atomic-commit.md) guidelines.
 
      **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
-     advance Current Task, Last Completed, and Next Action to reflect the post-commit state. Stage
+     advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage
      it alongside the task list changes. This is the primary update mechanism; session handoff is
      only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
 

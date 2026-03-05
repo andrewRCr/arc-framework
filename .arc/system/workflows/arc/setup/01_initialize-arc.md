@@ -58,7 +58,7 @@ This file is created during init — ready for the first work unit activation.
 **Branch**: `main`
 **Task List**: [none]
 **Following Task List**: No
-**Current Task**: —
+**Next Task**: —
 **Last Completed**: —
 **Blockers**: [none]
 **Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`

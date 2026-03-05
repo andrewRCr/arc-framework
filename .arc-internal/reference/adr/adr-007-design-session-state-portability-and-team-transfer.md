@@ -360,6 +360,14 @@ This degradation model means teams can adopt session portability incrementally �
   may not realize notes aren't syncing. `arc-init` automation (WU3) and session-init diagnostics ("no notes
   found — is refspec configured?") can surface this.
 
+### Amendments
+
+**Amendment (2026-03-05):** The "Current Task" field in WORK-STATUS.md was renamed to "Next Task" to resolve
+semantic ambiguity. Agents interpreted "current" as "in-progress" and set it to `[none]` at between-task
+boundaries, losing the task pointer. "Next Task" makes the intent unambiguous: always points to the next task
+to work on (or continue), never `[none]` when incomplete tasks remain. The field's purpose — direct navigation
+via triple-anchor format, out-of-order execution support — is unchanged.
+
 ---
 
 Context: tasks-foundational-gap-closure.md (Task 1.2)
