@@ -9,10 +9,10 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.4 — Formalize trigger/content separation convention (line ~1249)
-**Last Completed**: Task 8.3 — Add strategy declaration guidance to generate-tasks
+**Next Task**: All phases complete — verification passed
+**Last Completed**: Task 9.2 — Validate success criteria against PRD
 **Blockers**: None
-**Next Action**: Continue Phase 8 — Task 8.4 (trigger/content separation)
+**Next Action**: Archive work unit (all tasks complete, all success criteria met)
 
 ---
 

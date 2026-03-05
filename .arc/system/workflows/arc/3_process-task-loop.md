@@ -46,6 +46,10 @@ It ensures consistent execution, quality control, and documentation of work.
        - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
          detailed instructions) that no longer serves a purpose.
+       - **Deferred or superseded tasks**: When a task is intentionally skipped — deferred to a later work
+         unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
+         instead of `[x]`. Add a brief note explaining why (e.g., "Deferred to WU3", "Superseded by
+         ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
      - **Extensions** · `#post-task-completion`: If [post-task-completion extensions][arc-ext-task-completion] are
        configured, execute them now. Teams using external trackers (Jira, Linear, GitHub Issues) use this
        extension to sync task completion status — see [Team Coordination Strategy][team-coordination]

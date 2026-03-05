@@ -6,7 +6,7 @@ release.
 
 **Status:** Draft
 **Created:** 2026-02-22
-**Amended:** 2026-03-03 (ADR-008 PM layer dimension)
+**Amended:** 2026-03-03 (ADR-008 PM layer dimension), 2026-03-05 (ADR-011 SKILL.md trigger mechanism)
 
 ---
 
@@ -291,55 +291,70 @@ arc-framework/
     render/             <- Token substitution, conditional processing
     prompts/            <- Interactive init prompt definitions
   framework/            <- ARC framework source files (the methodology)
-  agents/               <- Agent-specific tooling
-    .claude/
-    .codex/
-    .gemini/
+  skills/               <- Canonical SKILL.md definitions (source of truth for generation)
   init-recipe.json      <- Describes interactive setup options, tokens, conditionals
 ```
 
 The `framework/` directory in the package is the source of truth for framework files. This is
 what gets copied during `init` and what `update` merges from.
 
-The `agents/` directory contains agent-specific slash command implementations. During init, only
-the selected agent directories are installed.
+The `agents/` directory contains canonical SKILL.md definitions for ARC's workflow triggers.
+During init, skills are generated into tool-specific directories based on the user's agent
+selection.
 
-## Slash Command Generation
+## Skill Generation
 
-Slash command content is currently duplicated across `.claude/`, `.codex/`, and `.gemini/` in
-different formats. The structural readiness pass flagged slash command deduplication as deferred
-to CLI work (Phase C).
+> **ADR-011** established SKILL.md (agentskills.io standard) as ARC's trigger mechanism and
+> `.agents/skills/` as the canonical directory. This section describes how WU3 implements that
+> decision.
 
-WU3 introduces a single-source-of-truth model:
+ARC workflow triggers are SKILL.md files — thin dispatchers that point to ARC content in `.arc/`.
+The framework ships canonical skill definitions in the npm package. `arc-framework init` generates
+tool-specific copies based on the user's agent selection.
 
-- Slash command definitions live once in the package (likely in `framework/system/commands/` or a
-  dedicated `commands-source/` directory)
-- `arc-framework init` generates the agent-specific formats from that source during installation
-- `arc-framework update` regenerates when slash command definitions change
+### Single Source of Truth
 
-This eliminates the current maintenance burden where adding a new slash command requires updating
-three separate directories in three different formats.
+Canonical skill definitions live once in the package (in `framework/skills/` or similar). Each
+skill is a SKILL.md file with standard agentskills.io frontmatter (`name`, `description`) and
+minimal instructions pointing to the relevant `.arc/` workflow.
 
-The generation step runs as part of init and update — not as a standalone command. The generated
-files are agent-specific and classified as Framework (managed, can be updated).
+`arc-framework init` generates per-tool output:
 
-### Extension: Skill Integration Automation
+- **Claude Code**: `.claude/skills/<name>/SKILL.md` (with Claude-specific extended frontmatter
+  where needed — `disable-model-invocation`, `context: fork`, etc.)
+- **Codex CLI**: `.agents/skills/<name>/SKILL.md` + `agents/openai.yaml` (UI metadata)
+- **Gemini CLI**: `.gemini/skills/<name>/SKILL.md` + `.gemini/commands/<name>.toml` (for
+  explicit `/command` invocation alongside natural-language skill triggering)
+- **GitHub Copilot**: `.github/skills/<name>/SKILL.md`
+- **Cursor**: `.cursor/commands/<name>.md` (adapted format)
+- **Cross-tool fallback**: `.agents/skills/<name>/SKILL.md` (always generated — recognized by
+  most tools as the neutral standard location)
 
-The same single-source-of-truth generation model extends naturally to skill integration.
-WU2 establishes the convention (trigger/content separation: ARC content in `.arc/`, thin
-trigger files in agent directories) and creates an `integrate-skill` workflow where the
-agent handles classification and adaptation. WU3's generation scripts handle the mechanical
-output: given canonical content in `.arc/`, produce the correct trigger file format for each
-configured agent tool.
+`arc-framework update` regenerates when skill definitions change. Generated files are classified
+as Framework (managed, auto-updated).
 
-This means `arc-framework init` and `arc-framework update` manage both framework slash
-commands AND any team-integrated skills that followed the integrate-skill workflow. The
-manifest tracks both — they're the same file type (thin dispatchers) with the same update
-mechanics.
+### What the Generator Handles
 
-The scope question for the WU3 PRD: whether skill trigger generation ships at 1.0 or is
-deferred. The slash command generation is required; skill generation is an extension of the
-same system but depends on teams actually using the integrate-skill workflow.
+The generation step is not purely "copy SKILL.md to N directories." Per-tool differences include:
+
+- **Frontmatter extension**: Claude Code supports fields like `disable-model-invocation`,
+  `context: fork`, `allowed-tools` that other tools gracefully ignore
+- **Supplemental files**: Codex requires `agents/openai.yaml`; Gemini uses `.toml` commands
+- **Format adaptation**: Cursor's `.cursor/commands/*.md` has its own structure conventions
+- **Path rendering**: Skill instructions reference `.arc/` paths — if the install directory is
+  customized (see [Configurable Install Directory](#configurable-install-directory)), these paths
+  must be rendered with the correct base
+
+### Team-Integrated Skills
+
+The same generation model extends to team-integrated skills. When a team follows a skill
+integration workflow to bring an external skill into their ARC project, the manifest tracks the
+integrated skill alongside framework skills. Both are thin dispatchers with the same update
+mechanics — `arc-framework update` regenerates all managed skills.
+
+The scope question for the WU3 PRD: whether team-integrated skill generation ships at 1.0 or
+is deferred. Framework skill generation is required; team skill generation is an extension of the
+same system.
 
 ## The Manifest: `.arc-manifest.json`
 
@@ -474,7 +489,7 @@ the PRD is written:
 2. **Template system** — token substitution, conditional processing, init-recipe.json format
 3. **Pristine and manifest** — `.pristine/` creation, `.arc-manifest.json` schema and write
 4. **Update system** — three-way merge implementation, conflict reporting, pristine update
-5. **Agent tooling** — slash command generation, multi-agent install selection
+5. **Agent tooling** — skill generation (SKILL.md per ADR-011), multi-agent install selection
 6. **Remaining commands** — diff, status, reset
 7. **Interactive init polish** — full prompt set, presets, team mode, PM layer selection,
    reconfigure (including PM layer switching per ADR-008)
@@ -564,6 +579,34 @@ reconfigure.
 **Recommendation:** Evaluate during WU3 PRD creation. If WU3 is already touching workflow rendering
 and conditional processing, extracting this logic to arc-methods is low incremental cost. If WU3
 focuses purely on packaging and update mechanics, defer to a post-1.0 methodology refinement.
+
+## Configurable Install Directory
+
+**Status:** For PRD evaluation — not committed as a design decision.
+
+The framework defaults to `.arc/` as the install directory. Some teams may prefer a different name or location:
+
+- **Visible directory**: `arc/` instead of `.arc/` (dotfiles hidden in some editors/OS defaults)
+- **Subdirectory placement**: `docs/.arc/` or `docs/arc/` (team already has a `docs/` directory)
+- **Custom name**: Any directory name the team prefers
+
+**Viability assessment:** Most cross-references within `.arc/` use relative paths — these work regardless of the
+parent directory name or location. The files that reference `.arc/` as an absolute path from repo root (agent files,
+DEV-RULES, README, session-init) are a bounded set (~8-12 files). A `{{ARC_DIR}}` token in the template engine
+handles these during init and update.
+
+**Considerations:**
+
+- The `.pristine/` copy and manifest would need to track the configured directory name
+- Skill generation must render `.arc/` path references with the configured value
+- Documentation and onboarding materials reference `.arc/` extensively — the template engine handles rendered files,
+  but community resources, blog posts, and external references will always say `.arc/`
+- The dotfile prefix (`.arc/`) is a feature for some (clean explorer) and friction for others (hidden from view).
+  Making this configurable satisfies both without taking sides.
+
+**Recommendation:** Include as an init prompt with `.arc/` as the strong default. The template rendering
+infrastructure needed for other init features (project name, base branch, test commands) handles this naturally —
+it's one more token, not a new system.
 
 ## Exclusions
 

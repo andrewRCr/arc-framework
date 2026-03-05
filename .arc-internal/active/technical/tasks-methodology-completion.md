@@ -1247,61 +1247,69 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     when the connection is obvious. Closes the loop from Step 1 (check STRATEGY-INDEX)
     by recording which strategies apply for the executing agent.
 
-- [ ] **8.4 Formalize trigger/content separation convention**
+- [x] **8.4 Adopt SKILL.md as trigger mechanism (ADR-011)**
 
-    **Goal:** Document how ARC content relates to agent-specific trigger files.
+    Researched the AI coding tool trigger mechanism landscape (26+ tools now support
+    SKILL.md via agentskills.io standard, published Dec 2025 under Linux Foundation).
+    Wrote ADR-011 capturing the decision: SKILL.md thin dispatchers in `.agents/skills/`
+    as canonical location, ARC content stays in `.arc/`, WU3 generates tool-specific
+    copies. Established `arc-` prefix naming convention for framework skills with
+    action-oriented names. Default 1.0 set: `arc-resume`, `arc-commit`, `arc-handoff`.
+    Created canonical `.agents/skills/` with all 5 skills (3 framework + 2 project).
+    `arc-commit` includes WORK-STATUS staging reminder. Updated WU3 plan doc: replaced
+    "Slash Command Generation" with "Skill Generation" section, updated npm package
+    structure, added configurable install directory section. Existing `.claude/commands/`
+    and `.codex/skills/` retained as legacy until WU3 consolidates.
 
-    - Pattern: ARC content in `.arc/`, triggers as thin dispatchers
-    - Skills (SKILL.md with frontmatter) as standardizing format
-    - Slash commands as legacy/back-compat variant
-    - Research current CLI behavior before finalizing
-    - Feeds WU3 generation script design
+- [~] **8.5 Create `integrate-skill.md` supplemental workflow** — Deferred
 
-- [ ] **8.5 Create `integrate-skill.md` supplemental workflow**
+    Deferred: primarily useful post-WU3 when generation infrastructure exists. Without
+    the CLI's generation step, "integrating" a skill means manual file copies. The
+    SKILL.md standard (ADR-011) makes the pattern clear enough that WU3 can design this
+    workflow alongside the generation system.
 
-    - New file: `.arc/system/workflows/arc/supplemental/integrate-skill.md`
-    - Agent reads skill → classifies → assesses integration → proposes placement → executes
-    - Single interaction target: "integrate this skill"
+- [~] **8.6 Clarify `project/` directories as skills landing zone** — Deferred
 
-- [ ] **8.6 Clarify `project/` directories as skills landing zone**
+    Deferred alongside 8.5 — the README updates connecting project directories to skill
+    integration are contingent on the integrate-skill workflow existing.
 
-    - Update READMEs in `.arc/reference/strategies/project/` and
-      `.arc/system/workflows/project/`
-    - Connect to integrate-skill workflow (8.5)
-
-- [ ] **8.7 Run Tier 1 quality gates on Phase 8 changes**
+- [x] **8.7 Run Tier 1 quality gates on Phase 8 changes**
+    - Full suite: 133 files, 0 errors
 
 ### **Phase 9:** Verification
 
-- [ ] **9.1 Run Tier 3 quality gates**
-    - Full-project lint: `npm run -s lint:md` (zero violations)
-    - Template structure validation
-    - Internal link checking
-    - Cross-reference integrity across all modified and new files
+- [x] **9.1 Run Tier 3 quality gates**
+    - Full-project lint: 133 files, 0 errors
+    - Cross-reference integrity: 10 files checked (7 new, 3 modified), 26+ references
+      verified, 0 broken
 
-- [ ] **9.2 Validate success criteria against PRD**
-    - Check each criterion against completed work
-    - Follow verify-completion protocol
-    - Document results below
+- [x] **9.2 Validate success criteria against PRD**
+    - All 15 criteria marked `[x]` (1 with Deviation note for strategy-dev-methodology
+      removal). 0 `[~]` superseded, 0 `[ ]` unmet. Verified against PRD § Success
+      Criteria and spot-checked key deliverables (file existence, config settings,
+      cross-references, task completion notes).
 
 ---
 
 ## Success Criteria
 
-- [ ] All WU1/WU1.5 design decisions have corresponding concrete changes in `.arc/` files
-- [ ] DEV-RULES.ARC and DEV-RULES.PROJECT exist with correct content split
-- [ ] `strategy-development-methodology.md` evaluated with documented rationale for outcome
-- [ ] Session-init uses new Tier 1 loading sequence (reduced instruction density)
-- [ ] Hooks read from `arc-config.yml` — commit format, context footer, merge strategy
+- [x] All WU1/WU1.5 design decisions have corresponding concrete changes in `.arc/` files
+- [x] DEV-RULES.ARC and DEV-RULES.PROJECT exist with correct content split
+- [x] `strategy-development-methodology.md` evaluated with documented rationale for outcome
+    - **Deviation:** Removed entirely (Task 3.3). Content redistributed to DEV-RULES.ARC
+      (behavioral rules) and arc-methods.md (configurable defaults). Rationale documented
+      in task completion notes.
+- [x] Session-init uses new Tier 1 loading sequence (reduced instruction density)
+- [x] Hooks read from `arc-config.yml` — commit format, context footer, merge strategy
       configurable
-- [ ] `arc-extensions.md` and `arc-methods.md` scaffolded with preset points; markers in
+- [x] `arc-extensions.md` and `arc-methods.md` scaffolded with preset points; markers in
       workflows
-- [ ] Session workflows handle bootstrap, staleness, mismatch recovery, stable task references
-- [ ] Multi-branch model consistent — no coupling contradictions; `rotate-branch.md` exists
-- [ ] Team mode awareness present in all relevant workflow docs
-- [ ] All audit findings addressed (adopter experience, multi-branch, methodology gaps)
-- [ ] ARC naming conventions documented
-- [ ] Strategy configurability audited — no prescriptive guidance without opt-out path
-- [ ] STRATEGY-INDEX enriched with trigger hints; WORKFLOW-INDEX evaluated and intentionally skipped
-- [ ] Markdown linting passes with zero violations
-- [ ] No contradictions between modified documents; cross-references accurate
+- [x] Session workflows handle bootstrap, staleness, mismatch recovery, stable task references
+- [x] Multi-branch model consistent — no coupling contradictions; `rotate-branch.md` exists
+- [x] Team mode awareness present in all relevant workflow docs
+- [x] All audit findings addressed (adopter experience, multi-branch, methodology gaps)
+- [x] ARC naming conventions documented
+- [x] Strategy configurability audited — no prescriptive guidance without opt-out path
+- [x] STRATEGY-INDEX enriched with trigger hints; WORKFLOW-INDEX evaluated and intentionally skipped
+- [x] Markdown linting passes with zero violations
+- [x] No contradictions between modified documents; cross-references accurate

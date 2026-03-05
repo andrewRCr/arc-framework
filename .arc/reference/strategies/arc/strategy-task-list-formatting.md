@@ -61,7 +61,8 @@ can relax without breaking anything.
 These elements are parsed by git hooks, workflows, or session initialization. Deviating from
 them may cause hook failures, workflow mismatches, or context loading errors.
 
-- **Checkbox syntax**: `- [ ]` / `- [x]` — workflows track completion state
+- **Checkbox syntax**: `- [ ]` / `- [x]` / `- [~]` — workflows track completion state (`[~]` =
+  intentionally deferred or superseded)
 - **Task numbering pattern**: `X.Y` (parent), `X.Y.a` (subtask) — pre-commit hook validates
   letter numbering at third level (`[configurable]`: `hooks.task_numbering` in `arc-config.yml`)
 - **Phase header format**: `### **Phase X:** Description` — used for phase counting and navigation
