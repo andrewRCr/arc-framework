@@ -1,4 +1,4 @@
-# Strategy: Backlog Organization · arc-in-git
+# Strategy: Backlog Organization · `arc-in-git`
 
 **Purpose:** Define the two-tier backlog structure, processing flow, and graduation model for
 pre-active work items. Covers bucket files, atomic tasks, and commit context conventions.

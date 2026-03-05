@@ -1024,28 +1024,95 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     - [x] **7.7.c Reference planning lifecycle**
         - Added `strategy-work-planning.md` reference to Step 1 for plan-\* conventions
 
-- [ ] **7.7R Audit and fix Core/arc-in-git boundary in workflows**
+- [x] **7.7R Audit and fix Core/arc-in-git boundary in workflows**
 
-    Discovered during 7.7: `1_create-prd.md` (Core workflow) references `backlog/` paths
-    and `plan-*` conventions that only exist in arc-in-git mode. Likely not isolated.
+    Discovered during 7.7: Core workflows unconditionally reference arc-in-git artifacts
+    (backlog/ paths, plan-\* conventions). Audit confirmed this is pervasive — affects 3
+    workflows, 1 strategy doc, and 2 reference docs.
 
-    **Phase 1 — Audit and evaluate:**
+    **Approach decided:** Inline pm.mode conditionals in existing workflows (single source
+    of truth). Long-term, WU3 CLI may extract save-path logic to arc-methods.md for cleaner
+    architecture — noted in plan-wu3-cli-distribution.md for strong consideration.
 
-    - Audit all Core workflows and strategies for unconditional references to arc-in-git
-      artifacts (backlog/, plan-\*, ROADMAP, PROJECT-STATUS, ATOMIC-TASKS)
-    - Audit `strategy-work-planning.md` — mixed-layer doc (discovery checklist is Core,
-      planning pipeline is arc-in-git)
-    - Evaluate approach for conditional steps: inline conditionals vs. extension points
-      vs. CLI-managed content vs. separate workflow variants
-    - Consider mode-switching implications (what happens if pm.mode changes?)
-    - Produce inventory of violations and recommended fix approach for each
+    **Key boundary decisions:**
 
-    **Phase 2 — Implement fixes** (add subtasks after audit):
+    - plan-\* documents are Core (exploration artifacts, valuable in any mode); location
+      varies by mode (backlog/ in arc-in-git, active/ in none/external)
+    - template-plan.md ships with Core installs
+    - Workflows use inline conditionals, not separate variants per mode
+    - activate-work-unit.md simplifies in pm.mode: none (no backlog steps) but still
+      provides value (branch creation, WORK-STATUS update, status change)
 
-    - Subtasks TBD based on audit findings — expect at minimum:
-    - Make `1_create-prd.md` Step 1 mode-aware (plan-\* check only in arc-in-git)
-    - Add `strategy-work-planning.md` to file-classification inventory (missing)
-    - Address any mixed-layer strategy docs identified in audit
+    - [x] **7.7R.a Audit Core workflows and strategies for arc-in-git boundary violations**
+
+        Comprehensive audit of all Core workflows, strategies, templates, and reference
+        docs. Produced violation inventory with severity ratings and fix recommendations.
+
+        **Violations found (HIGH):** `1_create-prd.md` (hardcoded backlog/ path for plan-\*
+        check), `2_generate-tasks.md` (save paths and header template assume backlog/),
+        `activate-work-unit.md` (purpose, prerequisites, Steps 1/3 all assume backlog/).
+        **MEDIUM-HIGH:** `strategy-work-planning.md` (pipeline diagram, plan-\* lifecycle
+        tied to backlog/). **MEDIUM:** `session-init.md` ("review backlog" guidance),
+        `.arc/README.md` (directory tree shows arc-in-git dirs as standard, weekly review
+        audience row).
+
+        **Already correct patterns:** `02_define-project.md` (explicit pm.mode gate),
+        `strategy-backlog-organization.md` (marked arc-in-git in title), extension points
+        in activate/archive workflows (pm.mode awareness), `strategy-file-classification.md`
+        (two-axis inventory), `STRATEGY-INDEX.md` (flags arc-in-git strategies).
+
+        **Approach evaluated:** Inline conditionals preferred over separate workflow variants
+        (less maintenance, consistent with WU3 CLI installing mode-aware files rather than
+        mode-specific files). Extension points already handle PM-layer hooks correctly.
+        Long-term extraction to arc-methods.md noted for WU3 consideration.
+
+    - [x] **7.7R.b Make `1_create-prd.md` mode-aware**
+
+        Step 1 now directs agent to check pm.mode for plan-\* file location (backlog/ for
+        arc-in-git, active/ for none/external). Removed hardcoded backlog/ path. Kept
+        specific plan-\*.md artifact reference — the concept is Core, only location varies.
+        Removed "speculative PRD" paragraph (better suited to strategy doc).
+
+    - [x] **7.7R.c Make `2_generate-tasks.md` mode-aware**
+
+        Save paths now branch by pm.mode (backlog/ for arc-in-git, active/ for
+        none/external). Header template PRD path changed to active/ (where it lives during
+        execution) with note explaining arc-in-git activation update.
+
+    - [x] **7.7R.d Make `activate-work-unit.md` mode-aware**
+
+        Added Mode Detection section at top. Prerequisites split into all-modes and
+        arc-in-git-additional. Steps 1 and 3 marked "arc-in-git only" with skip
+        instructions. Step 4 PRD path update marked arc-in-git only. Commit step shows
+        both staging variants. Checklist simplified. Also fixed "Status: Pending" →
+        "Status: Not Started" to match task list template convention.
+
+    - [x] **7.7R.e Add layer awareness to `strategy-work-planning.md`**
+
+        Added Layer header: "Core with arc-in-git extensions." Pipeline diagram changed
+        from "Backlog item" to "Idea" with blockquote explaining arc-in-git adds structured
+        backlog stage. Plan Documents convention now mode-aware for location. Lifecycle no
+        longer assumes backlog item as trigger. Backlog-org references flagged
+        **(arc-in-git)**.
+
+    - [x] **7.7R.f Fix `.arc/README.md` and `session-init.md` references**
+
+        README: ATOMIC-TASKS.md and backlog/ annotated "arc-in-git pm.mode only" in
+        directory tree. Removed "Weekly review" audience row. Updated "Shared context"
+        examples. session-init.md (both template and internal): "review backlog" → "plan
+        new work."
+
+    - [x] **7.7R.g Add arc-methods save-path extraction consideration to WU3 plan**
+
+        Added "For Strong Consideration" section to plan-wu3-cli-distribution.md covering:
+        current state (inline conditionals in 3 workflows), proposed work-unit-paths and
+        activation-steps methods, benefits (single source of truth, reconfigure simplicity),
+        migration path from inline conditionals, and relationship to
+        `arc init --reconfigure`.
+
+    - [x] **7.7R.h Run Tier 1 quality gates on all modified files**
+
+        Full suite: 126 files, 0 errors.
 
 - [ ] **7.8 Enumerate deferred review stop conditions**
 

@@ -25,19 +25,22 @@ with existing vision and technical direction.
 
 ### Step 1: Check for Existing Planning Artifacts
 
-Check if a `plan-*.md` file exists for this work in `.arc/backlog/` (under the appropriate `feature/`
-or `technical/` subdirectory). Plan documents are the primary pre-PRD planning
-artifact — they capture research, resolved decisions, and approach before work becomes active.
-See [Work Planning Strategy][work-planning] for the full planning pipeline and `plan-*` conventions.
+Check if a `plan-*.md` document exists for this work. Plan documents capture resolved decisions,
+alternatives considered, and approach direction before requirements crystallize into a PRD. See
+[Work Planning Strategy][work-planning] for `plan-*` conventions and the discovery checklist.
+
+Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
+
+- **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog as part of the planning
+  pipeline and graduate to PRDs when ready
+- **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
+  into (no backlog directory)
 
 **If a plan exists**: Read it as your primary context. It may reference supplemental `notes-*.md`
 files with additional detail — read those too. Focus discovery (Step 3) on gaps and ambiguities
 rather than broad exploration.
 
 **If no plan exists**: Proceed directly to discovery.
-
-PRDs are created when work becomes active, not speculatively — plan documents prevent requirements
-from going stale by capturing evolving understanding during the planning phase.
 
 ### Step 2: Determine Work Category
 
@@ -86,3 +89,4 @@ continue with [2_generate-tasks.md](2_generate-tasks.md).
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [template-prd]: ../../../reference/templates/template-prd.md
+[arc-config]: ../../arc-config.yml

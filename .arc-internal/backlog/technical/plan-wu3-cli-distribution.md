@@ -508,6 +508,63 @@ The PRD will determine which phases are in 1.0 scope and which are deferred.
 - **WU4 (Public Release):** Docs site installation guide references CLI commands; README
   installation instructions depend on the published package name and commands
 
+## For Strong Consideration: Extract Save-Path Logic to arc-methods
+
+**Context:** WU2 Task 7.7R (Core/arc-in-git boundary audit, `tasks-methodology-completion.md`)
+identified that several Core workflows contain inline `pm.mode` conditionals for file save paths
+and activation steps. The inline approach works but creates maintenance surface area across
+multiple workflow files. This section proposes a cleaner architecture for WU3 to evaluate.
+
+**Current state (WU2 inline conditionals):**
+
+Three workflows have inline pm.mode checks:
+
+- `1_create-prd.md` — where to look for plan-\*.md files
+- `2_generate-tasks.md` — where to save task lists (backlog/ vs. active/)
+- `activate-work-unit.md` — whether to run backlog → active migration steps
+
+Each workflow checks `arc-config.yml` → `pm.mode` and branches. The logic is small (a few lines
+per workflow) but duplicated — every workflow independently implements "if arc-in-git, use backlog/;
+otherwise, use active/."
+
+**Proposed: arc-methods extraction:**
+
+Extract the mode-dependent logic into arc-methods.md as one or two new methods:
+
+- **`work-unit-paths`** — Given a work category (feature/technical) and pm.mode, returns the
+  correct directory for planning artifacts (plan-\*.md, PRDs, task lists) at each lifecycle stage.
+  Default: `active/{category}/` for none/external, `backlog/{category}/` → `active/{category}/`
+  graduation for arc-in-git.
+- **`activation-steps`** *(optional)* — The set of steps needed to transition a work unit to
+  active. Default: branch creation + status updates for none/external; adds backlog verification
+  and git mv for arc-in-git.
+
+**Benefits:**
+
+- Single source of truth for path logic (instead of 3 inline copies)
+- `arc init --reconfigure` pm.mode changes only need to update arc-methods.md, not patch
+  individual workflows
+- Teams with non-standard directory structures can override the method
+- Consistent with the existing arc-methods pattern (commit-format, leave-it-cleaner, etc.)
+
+**Migration path from inline conditionals:**
+
+1. Add the new method(s) to arc-methods.md with the current inline logic as the default
+2. Update workflows to reference the method instead of inline checks
+3. Inline conditionals become the method's `.default` section
+4. Teams can override via `.override` for custom directory structures
+
+**Relationship to `arc init --reconfigure`:**
+
+When a user switches pm.mode (e.g., none → arc-in-git), the CLI currently needs to handle file
+migration. With method extraction, the CLI updates arc-methods.md defaults and the workflows
+automatically follow the new paths. This is cleaner than patching workflow files during
+reconfigure.
+
+**Recommendation:** Evaluate during WU3 PRD creation. If WU3 is already touching workflow rendering
+and conditional processing, extracting this logic to arc-methods is low incremental cost. If WU3
+focuses purely on packaging and update mechanics, defer to a post-1.0 methodology refinement.
+
 ## Exclusions
 
 - No changes to methodology documents (WU2 scope)

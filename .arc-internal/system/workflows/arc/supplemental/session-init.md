@@ -80,7 +80,7 @@ override instead.
    - Project state: branch, task list path, current task, blockers, and next action
    - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
      Skip step 9 (task list loading). Session orientation will report this state and surface
-     the Next Action from WORK-STATUS.md (typically: create a PRD or review backlog).
+     the Next Action from WORK-STATUS.md (typically: create a PRD or plan new work).
    - **Task reference format**: Current Task uses triple-anchor format —
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.

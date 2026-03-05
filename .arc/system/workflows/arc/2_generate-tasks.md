@@ -66,10 +66,10 @@ Combine phases and sub-tasks into the final task list following the format descr
 Implementation notes, technical context, and design rationale belong in the dedicated notes
 file (`notes-{name}.md`), not in the task list.
 
-**Save to:**
+**Save to** (location depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- Feature: `.arc/backlog/feature/tasks-{{WORK_NAME}}.md`
-- Technical: `.arc/backlog/technical/tasks-{{WORK_NAME}}.md`
+- **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
+- **none / external** (no backlog): `.arc/active/{category}/tasks-{{WORK_NAME}}.md`
 
 Name should match the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
 
@@ -84,12 +84,16 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 ```markdown
 # Task List: [Work Name]
 
-**PRD:** `.arc/backlog/[category]/prd-[name].md`
+**PRD:** `.arc/[location]/[category]/prd-[name].md`
 **Created:** YYYY-MM-DD
 **Branch:** `feature/[name]` or `technical/[name]`
 **Base Branch:** base branch per `arc-config.yml` (typically `main`)
 **Status:** Not Started
 ```
+
+The PRD path should reflect the PRD's current location (matching the task list's save location).
+In arc-in-git mode, [activation][activate-work-unit] updates both paths when documents move to
+`active/`.
 
 ### Body
 
@@ -115,3 +119,5 @@ This can be deferred if planning ahead. Activate when implementation is about to
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[arc-config]: ../../arc-config.yml
+[activate-work-unit]: supplemental/activate-work-unit.md

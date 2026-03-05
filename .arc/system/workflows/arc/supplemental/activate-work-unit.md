@@ -4,27 +4,45 @@
 
 ## Purpose
 
-Transition a planned work unit (PRD + task list) from backlog to active status, establishing the branch and
+Transition a work unit (PRD + task list) to active status, establishing the implementation branch and
 updating all tracking documents. This bridges the gap between task generation and task execution.
 
 **When to use:** After generating a task list (`2_generate-tasks.md`) when ready to begin implementation.
 
+## Mode Detection
+
+Check [`arc-config.yml`][arc-config] → `pm.mode` to determine which activation path applies:
+
+- **arc-in-git**: Documents live in `backlog/` and must be moved to `active/`. Steps 1 and 3 apply.
+- **none / external**: Documents are already in `active/` (saved there by `2_generate-tasks.md`).
+  Skip Steps 1 and 3.
+
+The remaining steps (branch creation, status update, WORK-STATUS, extensions, commit) apply in all modes.
+
 ## Prerequisites
 
-- PRD exists in `.arc/backlog/{feature|technical}/prd-{name}.md`
-- Task list exists in `.arc/backlog/{feature|technical}/tasks-{name}.md`
-- Task list has `Status: Pending`
-- Planning branch PR merged (artifacts now on base branch)
-- Working tree is clean (all changes committed)
-- Currently on base branch (typically `main` — see `.arc/system/arc-config.yml`)
+**All modes:**
 
-> **Mode-specific:** In unprotected mode, planning branches are optional — artifacts may
+- PRD and task list exist for this work unit
+- Task list has `Status: Not Started`
+- Working tree is clean (all changes committed)
+- Currently on base branch (typically `main` — see [`arc-config.yml`][arc-config])
+
+**arc-in-git mode (additional):**
+
+- PRD exists in `.arc/backlog/{category}/prd-{name}.md`
+- Task list exists in `.arc/backlog/{category}/tasks-{name}.md`
+- Planning branch PR merged (artifacts now on base branch)
+
+> **Branch protection:** In unprotected mode, planning branches are optional — artifacts may
 > have been committed directly to the base branch. See
 > [Branch Protection Modes][work-org-protection].
 
 ## Steps
 
-### Step 1: Verify Planning Artifacts on Base Branch
+### Step 1: Verify Planning Artifacts on Base Branch · `arc-in-git` only
+
+> **Skip this step** if `pm.mode` is `none` or `external` — documents are already in `active/`.
 
 Planning artifacts should already be on the base branch — merged via planning branch PR
 (partially/fully protected mode) or committed directly (unprotected mode).
@@ -49,7 +67,9 @@ name (e.g., `feature/user-authentication`). Additional branches may be created d
 for stacked PRs or team sub-branches — see
 [Task Lists and Branches][work-org-branches].
 
-### Step 3: Move Documents to Active
+### Step 3: Move Documents to Active · `arc-in-git` only
+
+> **Skip this step** if `pm.mode` is `none` or `external` — documents are already in `active/`.
 
 Use `git mv` to preserve history:
 
@@ -62,8 +82,8 @@ git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
 
 Edit `.arc/active/{category}/tasks-{name}.md`:
 
-1. Change `Status: Pending` → `Status: In Progress`
-2. Update PRD path reference from `backlog` to `active`:
+1. Change `Status: Not Started` → `Status: In Progress`
+2. **(arc-in-git only)** Update PRD path reference from `backlog` to `active`:
 
    ```
    **PRD:** `.arc/active/{category}/prd-{name}.md`
@@ -102,17 +122,24 @@ See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
 ### Step 7: Commit Activation
 
+Stage all modified files and commit. The exact set depends on pm.mode:
+
 ```bash
+# arc-in-git: moved files + status updates
 git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/tasks-{name}.md \
        .arc/active/WORK-STATUS.md
+
+# none / external: status updates only (files already in active/)
+git add .arc/active/{category}/tasks-{name}.md \
+       .arc/active/WORK-STATUS.md
+
 git commit -m "docs(arc): activate {work-name} work unit
 
-- Move PRD and task list to active
-- Update WORK-STATUS
+- Update WORK-STATUS and task list status
 - Status: In Progress
 
-Context: {feature|technical}/{branch-name} / tasks-{name}.md"
+Context: tasks-{name}.md (activation)"
 ```
 
 **Note:** Stage only the files actually modified. If [post-work-unit-activate extensions][arc-ext-post-activate]
@@ -135,9 +162,8 @@ This is optional but recommended - establishes remote tracking early.
 Before proceeding to task execution, verify:
 
 - [ ] Implementation branch created and checked out
-- [ ] PRD and task list moved to `.arc/active/{category}/`
+- [ ] PRD and task list in `.arc/active/{category}/` (moved from backlog if arc-in-git)
 - [ ] Task list `Status` changed to `In Progress`
-- [ ] Task list PRD path updated to active location
 - [ ] WORK-STATUS.md updated (branch, task list, current task)
 - [ ] All changes committed on feature branch
 
@@ -154,5 +180,6 @@ With the work unit activated, proceed to task execution:
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
 [arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
+[arc-config]: ../../../arc-config.yml
 [session-init]: session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
