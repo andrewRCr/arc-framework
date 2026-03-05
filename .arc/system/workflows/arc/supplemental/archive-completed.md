@@ -89,6 +89,23 @@ evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), 
 `completion-{name}.md` in the same directory as the task list. The completion doc doubles as your
 PR description draft — creating it as a persistent document ensures it's searchable beyond GitHub.
 
+**Scaling the completion doc:** Planned work (feature, technical) always uses the standard template
+below. Incidental work scales by complexity:
+
+- **Standard template** — Substantial incidental work: multiple phases, significant scope, or
+  complex outcomes worth documenting in detail. Use the full template and verification checklist
+  below.
+- **Lightweight template** — Simple incidental work: typically single-phase with a handful of
+  tasks, straightforward outcomes. Use the
+  [lightweight template](#lightweight-completion-template) — Summary, Verification, and Follow-Up
+  only. Skip the standard verification checklist (the content is simple enough to verify by
+  inspection).
+
+Use judgment — the deciding factor is whether the work has enough substance to fill the standard
+template's sections meaningfully. If Implementation Highlights and Key Deliverables would be
+padding, use lightweight. When in doubt, use standard — more context is better than less in
+the archive.
+
 **Required Reading Before Drafting**
 
 The completion doc must be accurate because it's used for PRs. Before writing:
@@ -156,7 +173,39 @@ The completion doc must be accurate because it's used for PRs. Before writing:
 
 ---
 
-**Verification Checklist (MANDATORY)**
+#### Lightweight Completion Template
+
+For single-phase incidental work with ≤10 tasks. Omits sections that add little value at this
+scale (Key Deliverables, Implementation Highlights, Related Documentation). The task list itself
+serves as the detailed record.
+
+```markdown
+# Completion: {Work Name}
+
+**Completed**: YYYY-MM-DD
+**Branch**: {branch-name}
+**Category**: Incidental
+**Context**: {One-liner: "Discovered during X"}
+
+## Summary
+
+{2-3 sentences: What was accomplished and why it matters}
+
+## Verification
+
+- **Quality gates**: {Tier 3 status — "all passed" or details}
+- **Success criteria**: {N/A — no PRD success criteria}
+
+## Follow-Up Work
+
+{Any deferred items, or "None"}
+```
+
+No verification checklist — verify the summary against the task list by inspection.
+
+---
+
+**Verification Checklist (MANDATORY — standard template only)**
 
 Before considering the completion doc done, verify EVERY claim:
 
@@ -402,7 +451,7 @@ for feature vs technical vs incidental decision rules.
 - ❌ Skip doc hygiene → Run [maintain-task-notes.md](maintain-task-notes.md) Mode 2 first
 - ❌ Use `mv` instead of `git mv` → Loses file history
 - ❌ Archive before tasks complete → All tasks must be `[x]` before archiving
-- ❌ Skip completion doc → ALL work gets `completion-{name}.md`
+- ❌ Skip completion doc → ALL work gets `completion-{name}.md` (lightweight or standard)
 
 ---
 

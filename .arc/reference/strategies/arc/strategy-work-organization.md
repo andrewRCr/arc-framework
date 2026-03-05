@@ -519,6 +519,13 @@ All changes require branches and PR review. No direct base branch commits.
 
 **Trade-off:** Maximum traceability and review coverage. Higher overhead for small changes.
 
+**Branches without work units:** Under full protection, even small atomic fixes need branches. These
+branches may not have task lists, PRDs, or other ARC artifacts — they're just branches with commits
+and a PR. This is expected. The [archive-completed][archive-completed] workflow only applies to work
+units with task lists; branches without artifacts follow standard git lifecycle (merge, delete).
+See [manage-incidental-work][manage-incidental] for escalation guidance on when discovered work
+warrants a task list vs. a simple branch.
+
 ### Choosing Your Mode
 
 | Factor              | Unprotected     | Partially Protected | Fully Protected        |

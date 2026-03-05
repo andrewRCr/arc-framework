@@ -1122,11 +1122,24 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     slower than expected, minor plan deviation). Replaced vague "anything unexpected"
     with actionable criteria.
 
-- [ ] **7.9 Scale archive ceremony to work size**
+- [x] **7.9 Scale archive ceremony to work size**
 
-    - In `archive-completed.md`: simplified path for incidental work below threshold
-    - Simplified: move file to archive, update listing — no completion doc
-    - Reserve full ceremony for planned and substantial incidental work
+    Scaled archive ceremony across four files rather than eliminating the completion doc
+    entirely — all work units still get one, but the template scales. Original plan assumed
+    "no completion doc" for small work, but completion docs feed PR descriptions, so removal
+    isn't practical.
+
+    - `archive-completed.md`: Added lightweight completion template (Summary + Verification +
+      Follow-Up) for single-phase incidental work ≤10 tasks. Standard template unchanged for
+      planned work and substantial incidentals. Updated verification checklist scope.
+    - `maintain-task-notes.md`: Added "Lightweight (<100 lines)" tier to Mode 2 size
+      assessment — skip section-level evaluation, grep patterns sufficient.
+    - `manage-incidental-work.md`: Extended escalation model with "branch without a work
+      unit" tier for `branch.protection: full` — atomic tasks that need branches but not task
+      lists. No archive ceremony, standard git lifecycle.
+    - `strategy-work-organization.md`: Acknowledged micro-branches under Fully Protected
+      mode — not every branch is a work unit, archive workflow only applies to work with
+      task lists.
 
 - [ ] **7.10 Evaluate planning branch independence**
 

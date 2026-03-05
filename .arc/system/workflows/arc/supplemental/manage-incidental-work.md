@@ -126,10 +126,21 @@ Related to: .arc/active/technical/tasks-api-modernization.md
 
 ## Git Branch for Incidental Work
 
-Incidental work with a dedicated task list gets its own branch. Atomic tasks and inline fixes stay on the
-current branch.
+Incidental work with a dedicated task list gets its own branch. Atomic tasks and inline fixes
+typically stay on the current branch.
 
-**Conventions:**
+**Exception — fully protected repositories:** Under `branch.protection: full`, all changes require
+branches. An atomic task unrelated to the current branch's scope needs its own branch even without
+a task list. This is a **branch without a work unit** — no task list, no PRD, no archive ceremony:
+
+- Create a branch (`incidental/<brief-slug>` or `fix/<brief-slug>`)
+- Commit the fix with a descriptive message and `Context:` footer
+- PR against the parent branch, merge, delete the branch
+- No archival workflow — there are no work unit artifacts to archive
+
+This is normal under full protection. Not every branch is a work unit.
+
+**Conventions (task list branches):**
 
 - **Branch naming**: `incidental/<name>` (matches task list slug — e.g., `incidental/auth-error-handling`)
 - **PR against parent branch**: `gh pr create --base parent-branch` (not main)

@@ -100,8 +100,13 @@ is based on where the referenced file lives:
 
 **Assess file size (Mode 2 only):**
 
-- **Small (<1000 lines):** Single-pass review — proceed normally
-- **Large (≥1000 lines):** Process phase-by-phase. Create a brief progress tracker
+- **Lightweight (~100 lines or less):** The two-step section/fine-grained process in Step 3
+  is likely unnecessary. A single pass with the temporal grep patterns (Step 3, Mode 2,
+  Step B) is usually sufficient — files this small rarely accumulate the structural noise
+  that section-level evaluation targets. Use judgment: a short file with dense multi-phase
+  content may still benefit from section evaluation.
+- **Small (~100–1000 lines):** Single-pass review — proceed normally
+- **Large (~1000+ lines):** Process phase-by-phase. Create a brief progress tracker
   (`.arc/active/{category}/CLEANUP-PROGRESS-{name}.md`) to track which phases are cleaned and
   collect completion doc metrics incrementally. Delete tracker after completion doc is created.
 
