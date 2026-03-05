@@ -74,5 +74,5 @@
 
 ---
 
-*This reference card is part of the ARC development framework. It provides
-quick orientation for AI assistants working on this project.*
+*This reference card is the shared entry point for all AI agents working on this project.
+Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md).*

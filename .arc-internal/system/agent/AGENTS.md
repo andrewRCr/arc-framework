@@ -1,7 +1,5 @@
 # ARC Framework — AI Agent Reference Card
 
-**Version:** 2026-02-24 | **Maintained by:** Andrew | **Source of truth:** `.arc-internal/`
-
 ## Project Overview
 
 The ARC Framework is a development methodology for human-AI collaboration. It structures how a
@@ -41,7 +39,7 @@ with strong default conventions that teams adapt to their context
 - **Self-hosting**: Framework development follows its own ARC methodology
 - **Zero tolerance**: All markdown linting violations must be fixed before commits
 
-## Agent Working Guidelines
+## AI Collaboration Principles
 
 **Working Approach:**
 
@@ -53,7 +51,13 @@ with strong default conventions that teams adapt to their context
   with your current task or seem unintentional.
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
 - **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
+  (per developer-agent pair in team mode)
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
+- **Verify before asserting** - Never guess file paths, implementation details, or content.
+  Use search/read tools to verify, or ask clarifying questions when uncertain.
+  See `DEV-RULES.ARC.md` § Verification and Discovery.
+- **Check strategy guidance** - Before implementing in codified domains, consult the relevant
+  strategy doc. See `STRATEGY-INDEX.md` for available guidance.
 
 **Communication:**
 
@@ -62,5 +66,5 @@ with strong default conventions that teams adapt to their context
 
 ---
 
-*This reference card is the shared entry point for all AI agents working on the ARC
-Framework. Agent-specific guidance lives in dedicated files (CLAUDE.md, GEMINI.md, etc.).*
+*This reference card is the shared entry point for all AI agents working on this project.
+Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md).*
