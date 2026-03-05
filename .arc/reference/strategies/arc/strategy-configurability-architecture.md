@@ -4,9 +4,10 @@
 framework adaptable without losing its identity. This is the companion to
 [strategy-core-philosophy.md][core-philosophy], which defines what ARC is.
 
-**Scope:** Configuration settings, extension points, method overrides, adoption defaults, framework layers, platform
-compatibility, and the full convention inventory. For ARC's principles, philosophical foundation, and positioning, see
-the [core philosophy strategy][core-philosophy].
+**Scope:** Configuration settings, extension points, method overrides, content-level customization (project strategies,
+workflows, domain-specific rules), adoption defaults, framework layers, platform compatibility, and the full convention
+inventory. For ARC's principles, philosophical foundation, and positioning, see the
+[core philosophy strategy][core-philosophy].
 
 ---
 
@@ -45,12 +46,38 @@ handle different kinds of customization, and existing project documentation abso
 - If it adds **new steps** at a workflow point → **extension**
 - If it **replaces** how ARC does something with how the team does it → **method override**
 - If it changes **which CLI tool** to use for an operation → **QUICK-REFERENCE**
+- If it adds **domain-specific guidance** for your project → **project strategy**
+- If it adds **project-specific procedures** not covered by ARC → **project workflow**
+- If it extends **project standards** for a specific domain → **domain-specific dev-rules**
 
 Config, extensions, and method overrides are the three customization mechanisms. QUICK-REFERENCE is not a "mechanism" in
 the same sense — it is existing project documentation that naturally absorbs platform command variation.
 
-**None of these mechanisms apply to principles.** Config settings exist for conventions. Extension points exist at
-convention-level workflow boundaries. Method overrides replace convention-level implementations. Principles (tier 1) are
+Beyond mechanisms, adopters extend ARC through **content-level customization** — creating their own files that add
+domain-specific guidance, project-specific procedures, or extended standards:
+
+| Content Channel       | What It Does                   | Location              | Example                                           |
+|-----------------------|--------------------------------|-----------------------|---------------------------------------------------|
+| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns    |
+| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist         |
+| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`      |
+| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.md`, `GEMINI.md` for agent-specific notes |
+
+These are project-owned files — adopters create them, ARC doesn't ship them (except agent-specific templates).
+`DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows,
+and domain-specific rules are loaded on demand when work touches their domain. This is intentional — the value of
+domain-specific files is reducing instruction load on the agent, not organizing for file size. A project strategy for
+authentication carries the same weight as an ARC strategy when the agent is doing auth work.
+
+**DEV-RULES.PROJECT splitting:** `DEV-RULES.PROJECT.md` can be split into domain-specific files
+(`DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`, etc.) as project standards grow. The base file remains the entry point
+with cross-project standards; domain files extend it for specific areas. The agent consults domain-specific rules when
+working in that domain, similar to how codebase-scoped agent files (e.g., placing agent instructions in a `/frontend`
+subdirectory) scope guidance to the relevant context.
+
+**None of these mechanisms or content channels apply to principles.** Config settings exist for conventions. Extension
+points exist at convention-level workflow boundaries. Method overrides replace convention-level implementations.
+Content-level customization adds project-specific guidance alongside ARC's framework guidance. Principles (tier 1) are
 not configurable through any mechanism — they define what ARC is.
 
 ### Convention inventory
@@ -155,10 +182,10 @@ Adopters who relax enforcement typically want to avoid _friction_ (hook rejectio
 
 Adoption flexibility has two independent axes:
 
-| Axis                 | What varies                   | Mechanism                      |
-| -------------------- | ----------------------------- | ------------------------------ |
-| Method customization | ARC defaults vs. team methods | Overrides (arc-methods.md)     |
-| Functionality scope  | What features are installed   | PM mode selection (pm.mode)    |
+| Axis                 | What varies                   | Mechanism                   |
+|----------------------|-------------------------------|-----------------------------|
+| Method customization | ARC defaults vs. team methods | Overrides (arc-methods.md)  |
+| Functionality scope  | What features are installed   | PM mode selection (pm.mode) |
 
 **Method customization** substitutes how ARC does things — a team with a custom session mechanism replaces
 the session-state method, a team with Jira replaces commit context format. Independent of enforcement settings.

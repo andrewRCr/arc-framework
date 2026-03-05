@@ -20,8 +20,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: working on config, extensions, or methods infrastructure
 - `arc/strategy-core-philosophy.md` - Principles (P1-P11), philosophical foundation, positioning
     - Consult when: resolving principle conflicts, checking P1–P11 definitions or rationale
-- `arc/strategy-file-classification.md` - File taxonomy, merge strategies, complete inventory
-    - Consult when: classifying new files, determining merge strategies
+- `arc/strategy-file-classification.md` - File taxonomy, naming conventions, merge strategies, complete inventory
+    - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
     - Consult when: creating PRDs, setting up discovery phases, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints

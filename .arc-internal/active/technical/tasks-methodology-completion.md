@@ -1167,21 +1167,36 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     - `githooks/README.md`: Documented configurability on the task numbering check and
       added cross-reference to strategy doc
 
-- [ ] **7.12 Audit strategy configurability and opt-out paths**
+- [x] **7.12 Audit strategy configurability and opt-out paths**
 
     **Goal:** Ensure configurability architecture covers all guidance channels.
 
-    - Audit ARC-shipped strategies for prescriptive content without override mechanism
-    - Extract to overridable mechanism or reframe as recommendation
-    - Verify ADR-003 architecture covers strategies, not just hooks and workflows
+    Audited all 10 ARC strategies. Findings: most prescriptive content is either already
+    configurable (pm.mode, branch.protection, hooks.task_numbering), appropriately
+    foundational (work categories, ADR format, quality tiers), or internal framework
+    concerns (file classification). No strategies needed content extracted or reframed.
 
-- [ ] **7.13 Document ARC naming conventions**
+    The real gap was in `strategy-configurability-architecture.md` — it listed four
+    customization mechanisms but didn't acknowledge content-level customization channels.
+    Added content-level customization table (project strategies, project workflows,
+    domain-specific dev-rules, agent-specific files) with on-demand loading model.
+    Extended "Which mechanism do I use?" decision guide. Documented DEV-RULES.PROJECT
+    splitting pattern and the instruction-load rationale for domain-specific files.
 
-    - Document reasoning: ALL-CAPS core docs, `prd-*/tasks-*/strategy-*/template-*/plan-*`
-      prefixes, workflow numbering exception
-    - Natural home: section in existing document (file-classification strategy,
-      DEV-RULES.ARC, or conventions section)
-    - Include adopter guidance for naming their own artifacts
+- [x] **7.13 Document ARC naming conventions**
+
+    Added comprehensive "Naming Conventions" section to `strategy-file-classification.md` —
+    the natural home since it's already the file taxonomy doc. Covers:
+
+    - ALL-CAPS vs. lowercase distinction (hubs vs. instances)
+    - Complete prefix pattern table with 10 prefixes, who creates them, examples
+    - `.template.md` suffix vs. `template-` prefix distinction
+    - Workflow numbering (pipeline = numbered, supplemental = unnumbered)
+    - Directory naming patterns
+    - Adopter guidance for naming their own artifacts
+
+    Also updated `STRATEGY-INDEX.md` to include naming conventions as a consultation
+    trigger for the file classification strategy.
 
 - [ ] **7.11.x Add "Atomic Tasks — {name}" section to task list infrastructure**
 

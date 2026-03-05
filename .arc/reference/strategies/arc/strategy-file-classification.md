@@ -4,8 +4,8 @@
 The CLI update system uses these classifications to determine merge strategy per file during
 `arc update`.
 
-**Scope:** Classification definitions, merge strategy implications, and complete file inventory.
-For directory structure and work organization, see
+**Scope:** Classification definitions, naming conventions, merge strategy implications, and
+complete file inventory. For directory structure and work organization, see
 [Work Organization Strategy](strategy-work-organization.md).
 
 ---
@@ -50,6 +50,90 @@ Never included in or affected by framework updates.
 **Examples:** ADRs, task lists, PRDs, notes files, project strategy docs, research docs.
 
 **Update behavior:** Ignore. CLI never reads or writes these files.
+
+---
+
+## Naming Conventions
+
+ARC uses consistent naming patterns across all files. Understanding these patterns helps adopters
+name their own artifacts and recognize what a file is from its name alone.
+
+### ALL-CAPS vs. lowercase
+
+**ALL-CAPS** files are organizational hubs — files you navigate *to* for project-wide context.
+They're dashboards, indexes, and governance documents that serve as stable reference points.
+
+Examples: `WORK-STATUS.md`, `AGENTS.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
+`STRATEGY-INDEX.md`, `README.md`, `META-PRD.md`, `ROADMAP.md`
+
+**Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
+They're work artifacts that follow a naming template.
+
+Examples: `prd-authentication.md`, `tasks-api-modernization.md`, `strategy-work-organization.md`
+
+**The distinction:** ALL-CAPS signals "there's one of these per project/directory, and it's a
+coordination point." Lowercase prefix signals "there can be many of these, and the prefix tells
+you what kind."
+
+### Prefix patterns
+
+| Prefix        | What It Is               | Created By | Example                           |
+|---------------|--------------------------|------------|-----------------------------------|
+| `prd-`        | Product Requirements Doc | User/agent | `prd-authentication.md`           |
+| `tasks-`      | Task list                | User/agent | `tasks-api-modernization.md`      |
+| `completion-` | Completion record        | Agent      | `completion-api-modernization.md` |
+| `notes-`      | Work unit notes          | Agent      | `notes-api-modernization.md`      |
+| `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-wu3-cli-distribution.md`    |
+| `strategy-`   | Strategy document        | Framework  | `strategy-work-organization.md`   |
+| `research-`   | Research document        | User/agent | `research-context-loading.md`     |
+| `adr-`        | Architecture Decision    | User/agent | `adr-001-define-core-identity.md` |
+| `template-`   | Copy-ready template      | Framework  | `template-prd.md`                 |
+| `completed-`  | Quarterly summary        | Agent      | `completed-atomic-2026-q1.md`     |
+
+Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug across files — the
+slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
+the same work unit.
+
+### Template suffix: `.template.md`
+
+Files in the `.arc/` template system that get instantiated during `arc init` use a `.template.md`
+suffix: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`, `AGENTS.template.md` becomes
+`AGENTS.md`. The suffix distinguishes "copy this to create yours" from "this is the actual file."
+
+The `template-` *prefix* (in `reference/templates/`) is different — those are copy-ready document
+templates used during work (e.g., `template-prd.md` is copied when creating a new PRD). They keep
+the prefix in use, not just at init time.
+
+### Workflow numbering
+
+Core pipeline workflows are numbered to indicate execution sequence:
+
+- `1_create-prd.md` → `2_generate-tasks.md` → `3_process-task-loop.md`
+
+Setup workflows use zero-padded numbers: `01_initialize-arc.md`, `02_define-project.md`.
+
+Supplemental workflows are **unnumbered** — they're invoked on demand at various points, not in a
+fixed sequence. The absence of a number signals "this is called when needed, not as a pipeline
+step."
+
+### Directory naming
+
+Lowercase, hyphenated, functional names throughout. Work categories (`feature/`, `technical/`,
+`incidental/`) are consistent across `active/`, `backlog/`, and `archive/`. Archive adds
+quarter-based grouping (`2026-q1/`) and sequence-numbered directories (`01_work-name/`) for
+completion ordering.
+
+### Adopter guidance
+
+When creating project-specific artifacts:
+
+- **Project strategies** follow the same `strategy-` prefix: `strategy-authentication.md`
+- **Project workflows** use descriptive names without numbers (unless they form a pipeline)
+- **Domain-specific dev-rules** follow `DEV-RULES.{DOMAIN}.md` in ALL-CAPS: `DEV-RULES.FRONTEND.md`
+- **ADRs** continue the sequential numbering: `adr-011-your-decision.md`
+- **Research docs** use the `research-` prefix: `research-performance-benchmarks.md`
+- **Work unit artifacts** always use the matching prefixes (`prd-`, `tasks-`, etc.) with a shared
+  slug
 
 ---
 

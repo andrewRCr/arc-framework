@@ -10,9 +10,9 @@
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
 **Current Task**: [none — awaiting direction on next Phase 7 task]
-**Last Completed**: Task 7.11 — Separate parseable minimum from full task list format
+**Last Completed**: Task 7.13 — Document ARC naming conventions
 **Blockers**: None
-**Next Action**: Continue Phase 7 — Task 7.12 (Audit strategy configurability and opt-out paths)
+**Next Action**: Continue Phase 7 — Task 7.11.x (Add "Atomic Tasks — {name}" section to task list infrastructure)
 
 ---
 
