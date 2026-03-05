@@ -10,9 +10,9 @@
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
 **Current Task**: [none — awaiting direction on next Phase 7 task]
-**Last Completed**: Task 7.6 — Reorganize `reference/constitution/` and resolve PROJECT-STATUS
+**Last Completed**: Task 7.7 — Update `1_create-prd.md` workflow
 **Blockers**: None
-**Next Action**: Continue Phase 7 — Task 7.7 (Update `1_create-prd.md` workflow)
+**Next Action**: Continue Phase 7 — Task 7.7R (Audit and fix Core/arc-in-git boundary)
 
 ---
 
