@@ -22,7 +22,7 @@ branch.base: main
 #                 capture may commit directly to the base branch.
 #   full        - All changes require branches and PR review.
 # See strategy-work-organization.md § Branch Protection Modes.
-branch.protection: partial
+branch.protection: full
 
 # --- Commit Discipline ---
 

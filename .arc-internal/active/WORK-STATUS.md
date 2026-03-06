@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `technical/methodology-completion`
-**Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
-**Following Task List**: Yes
-**Next Task**: All phases complete — integration in progress
-**Last Completed**: Atomic tasks — context footer, review restructuring, workflow renames
-**Blockers**: None
-**Next Action**: Run local code review per `integrate-work-unit.md` Phase 2, then push and PR
+**Branch**: `main`
+**Task List**: [none]
+**Following Task List**: No
+**Next Task**: —
+**Last Completed**: Methodology Completion (archived)
+**Blockers**: [none]
+**Next Action**: Refine PRD for WU2b (structural validation), then generate tasks → `1_create-prd.md`
 
 ---
 
