@@ -100,17 +100,18 @@ project-specific validations on staged content (security scanning, license heade
 
 ## pre-merge-review
 
-**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **Fires:** After Phase 1 docs are committed, before
-push and PR creation (between Steps 4 and 6)
+**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **Fires:** After the [pre-merge-review
+method][arc-methods-pmr] completes, before push and PR creation
 
-**Contract:** Add a structured review ceremony before pushing. Without this extension, integrate-work-unit
-proceeds directly from documentation cleanup to push and PR creation — no local review step runs. With this
-extension, you can define local review passes, AI review tool integration, structured PR review protocols, or
-any pre-merge ceremony your project needs.
+**Contract:** Add review ceremony on top of the default pre-merge review. The [pre-merge-review
+method][arc-methods-pmr] defines the base review activity (lightweight diff review by default, overridable);
+this extension adds additional steps. Both are gated by `review.pre_merge` in
+[`arc-config.yml`][arc-config] — when disabled, neither method nor extension fires.
 
-Use for: AI review tool integration (CodeRabbit, Copilot, etc.), local review before push, structured human
-review protocols, or multi-pass review strategies. When processing findings from any review source, use the
-[review-triage method][arc-methods-rt] for classification (fix/defer/reject/silent-fix).
+Use for: AI review tool integration (CodeRabbit, Copilot, etc.), multi-pass review strategies, structured
+human review protocols, or any additional ceremony beyond the method's review. When processing findings from
+any review source, use the [review-triage method][arc-methods-rt] for classification
+(fix/defer/reject/silent-fix).
 
 ### pre-merge-review.steps
 
@@ -156,5 +157,7 @@ workflow proceeds naturally.
 [commit-guide]: arc/supplemental/commit-guide.md
 [integrate-work-unit]: arc/supplemental/integrate-work-unit.md
 [arc-methods-rt]: arc-methods.md#review-triage
+[arc-methods-pmr]: arc-methods.md#pre-merge-review
+[arc-config]: ../arc-config.yml
 [activate-work-unit]: arc/supplemental/activate-work-unit.md
 [archive-work-unit]: arc/supplemental/archive-work-unit.md

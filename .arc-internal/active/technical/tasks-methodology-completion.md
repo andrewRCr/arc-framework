@@ -1355,6 +1355,17 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     - [x] Update all cross-references for each renamed file (archive files left as historical
       record)
 
+- [x] **Add pre-merge-review method and config setting**
+
+    Added `pre-merge-review` method to `arc-methods.md` with lightweight default (aggregate diff
+    review, research-informed checklist, AI-specific checks). Added `review.pre_merge:
+    enabled|disabled` config setting to `arc-config.yml`. Updated `pre-merge-review` extension
+    contract to clarify additive relationship to method (both gated by config). Updated
+    `integrate-work-unit.md` Step 5 with config → method → extension sequence. Removed brittle
+    convention counts from `strategy-core-philosophy.md` and
+    `strategy-configurability-architecture.md`; added convention to inventory table. Minor
+    phrasing fix in `review-triage` method (context-neutral "no explicit documentation needed").
+
 ---
 
 ## Success Criteria

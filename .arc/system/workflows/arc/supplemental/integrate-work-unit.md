@@ -110,13 +110,14 @@ integration use the same pattern.
 
 ### 5) Pre-Merge Review · `#pre-merge-review`
 
-If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them now. The
-extension defines your project's review ceremony — local review passes, AI review tool integration,
-or structured PR review protocols. Use the [review-triage method][arc-methods-rt]
-(fix/defer/reject/silent-fix) to classify findings from any review source. Commit fixes with the
-`(integration)` context footer.
+If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
-Without the extension, proceed directly to push and PR creation.
+1. Execute the [pre-merge-review method][arc-methods-pmr] — review the aggregate diff, classify
+   findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
+2. If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them
+3. Commit any fixes with the `(integration)` context footer
+
+When disabled, proceed directly to push and PR creation.
 
 ### 6) Push and Create PR
 
@@ -216,7 +217,9 @@ architectural pivot, not abandoned work.
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-methods-rt]: ../../arc-methods.md#review-triage
+[arc-methods-pmr]: ../../arc-methods.md#pre-merge-review
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
+[arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
 [rotate-branch]: rotate-branch.md
 [archive-work-unit]: archive-work-unit.md

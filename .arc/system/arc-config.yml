@@ -78,6 +78,16 @@ hooks.commit_msg: enabled
 #   off     - Skip check entirely
 hooks.task_numbering: error
 
+# --- Review ---
+
+# Pre-merge diff review before push.
+# Controls whether the agent reviews the aggregate diff before pushing.
+# The pre-merge-review method (arc-methods.md) defines the review activity;
+# this setting controls whether it runs.
+#   enabled  - Agent reviews aggregate diff before pushing (default)
+#   disabled - Skip local review; rely on PR-time review only
+review.pre_merge: enabled
+
 # --- Platform ---
 
 # Git hosting platform.

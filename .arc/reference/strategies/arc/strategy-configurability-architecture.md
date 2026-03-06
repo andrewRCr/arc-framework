@@ -82,8 +82,8 @@ not configurable through any mechanism — they define what ARC is.
 
 ### Convention inventory
 
-ARC currently has 20 conventions across its 11 principles. Each convention has a default (what ARC provides out of the
-box) and a configurability path (how teams adapt it).
+ARC's conventions span its core principles. Each convention has a default (what ARC provides out of the box) and a
+configurability path (how teams adapt it).
 
 #### Core commitment conventions
 
@@ -98,18 +98,19 @@ box) and a configurability path (how teams adapt it).
 
 #### Operational discipline conventions
 
-| Convention                              | Principle | Default                             | Configurability Path                                 |
-|-----------------------------------------|-----------|-------------------------------------|------------------------------------------------------|
-| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
-| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
-| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
-| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
-| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
-| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
-| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
-| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
-| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state              | Method override — substitute session mechanism       |
-| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
+| Convention                              | Principle | Default                             | Configurability Path                                  |
+|-----------------------------------------|-----------|-------------------------------------|-------------------------------------------------------|
+| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
+| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
+| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
+| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
+| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
+| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
+| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
+| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
+| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
+| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state              | Method override — substitute session mechanism        |
+| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 
 #### Design commitment conventions
 

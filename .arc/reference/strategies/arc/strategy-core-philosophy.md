@@ -362,9 +362,8 @@ A few examples to make this concrete:
   descriptions, but it sacrifices the granular commit history that the default merge strategy
   preserves.
 
-ARC currently has 19 conventions across the 11 principles. The full inventory and the configuration
-mechanisms (config settings, extension points, method overrides, adoption defaults) are covered in
-the [configurability architecture strategy][config-arch].
+The full convention inventory and the configuration mechanisms (config settings, extension points, method overrides,
+adoption defaults) are covered in the [configurability architecture strategy][config-arch].
 
 ---
 

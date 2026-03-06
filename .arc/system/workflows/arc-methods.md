@@ -21,6 +21,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [leave-it-cleaner](#leave-it-cleaner) — severity triage, fix-vs-defer decisions
 - [test-first](#test-first) — decision tree by change type
 - [session-state](#session-state) — reading and writing session state
+- [pre-merge-review](#pre-merge-review) — aggregate diff review before push
 - [review-triage](#review-triage) — classifying and acting on review findings
 - [quality-gate-commands](#quality-gate-commands) — project quality gate definitions
 
@@ -37,6 +38,7 @@ when populating any `.override` section.
 | commit-context-format | commit-format           | Both govern the commit message   |
 | leave-it-cleaner      | —                       | Independent                      |
 | test-first            | —                       | Independent                      |
+| pre-merge-review      | review-triage           | Uses review-triage for findings  |
 | review-triage         | —                       | Independent                      |
 | session-state         | —                       | Independent                      |
 | quality-gate-commands | —                       | Independent                      |
@@ -210,6 +212,56 @@ Read/write WORK-STATUS.md and SESSION-NOTES.md at session boundaries.
 
 ---
 
+## pre-merge-review
+
+**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **When:** After Phase 1 docs are committed, before push
+and PR creation
+
+**Contract:** Review aggregate changes before integration to catch cross-cutting issues that per-task review misses.
+Gated by `review.pre_merge` in [`arc-config.yml`][arc-config] — when disabled, skip entirely.
+
+**Related:** [review-triage](#review-triage) — use for finding classification
+
+### pre-merge-review.override
+
+[No override configured]
+
+### pre-merge-review.default
+
+Lightweight diff review before pushing. Catches issues that only emerge at the aggregate level — cross-task
+inconsistencies, documentation drift, cleanup artifacts. Research consistently shows that self-review before
+submission eliminates a significant proportion of review comments and catches issues that are trivial to fix
+but compound if left for reviewers.
+
+**Review the aggregate diff against the parent branch:**
+
+```bash
+git diff {parent-branch}...HEAD
+```
+
+**Check for:**
+
+- **Scope**: Does every change serve the stated purpose? Look for unrelated modifications within legitimately
+  changed files, not just accidentally staged files
+- **Consistency**: Cross-task inconsistencies in naming, patterns, or approaches that diverged during
+  incremental work
+- **Cleanup**: Debug artifacts (logging statements, commented-out code, temp scaffolding), dead code from
+  refactoring (unused imports, orphaned functions, stale references)
+- **Documentation drift**: Docs or comments that no longer match the implementation
+- **Unresolved markers**: TODO/FIXME items that should be resolved before merge
+
+**AI-assisted code** (when an agent performed implementation): Verify business logic correctness — does the
+aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
+code systematically underperforms on error cases and edge conditions.
+
+**Process findings** using the [review-triage method](#review-triage) (fix/defer/reject/silent-fix). Run Tier 3
+quality gates on modified files. Commit fixes with the `(integration)` context footer.
+
+For structured review workflows (multi-pass, AI tool integration, team review protocols), override this method
+or configure the [pre-merge-review extension][arc-ext-pre-merge-review] for additional ceremony.
+
+---
+
 ## review-triage
 
 **Workflow:** [integrate-work-unit.md][integrate-work-unit] · **When:** Agent processes findings from any code review
@@ -247,7 +299,7 @@ documented deferrals? code scheduled for replacement?), and impact (functionalit
 - Out of scope for current work
 - Reviewer misunderstands the context
 
-**SILENT FIX** (minor findings — no reply needed) if:
+**SILENT FIX** (minor findings — no explicit documentation needed) if:
 
 - Typo corrections, formatting improvements
 - Minor code quality enhancements
@@ -291,4 +343,5 @@ Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates.
 [session-init]: arc/supplemental/session-init.md
 [session-handoff]: arc/supplemental/session-handoff.md
 [arc-config]: ../arc-config.yml
+[arc-ext-pre-merge-review]: arc-extensions.md#pre-merge-review
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
