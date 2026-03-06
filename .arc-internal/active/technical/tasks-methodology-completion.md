@@ -1366,6 +1366,13 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     `strategy-configurability-architecture.md`; added convention to inventory table. Minor
     phrasing fix in `review-triage` method (context-neutral "no explicit documentation needed").
 
+- [x] **Add full-protection archival guidance and remove stale TASK-INBOX.md**
+
+    Added full protection mode callout to `archive-work-unit.md` — documents the "batch with
+    next activation" pattern (preferred) and standalone housekeeping branch alternative for
+    `branch.protection: full`. Removed stale `.arc-internal/backlog/TASK-INBOX.md` (TASK-INBOX
+    was removed from the framework in ADR-008 but the internal copy was missed).
+
 ---
 
 ## Success Criteria

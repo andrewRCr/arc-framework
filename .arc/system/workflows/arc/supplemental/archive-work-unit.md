@@ -11,6 +11,19 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
 metadata exists, code review is done, PR is merged.
 
+> **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
+> base branch. Two approaches:
+>
+> - **Batch with next activation** (preferred): Include archival of the completed work unit in the
+>   same branch that activates the next one. One PR covers both lifecycle transitions — archive old,
+>   activate new.
+> - **Standalone housekeeping branch**: Create a short-lived branch (e.g., `chore/archive-{name}`)
+>   for archival alone, when no next work unit is imminent.
+>
+> Under `partial` protection (the default), archive directly on the base branch as described below.
+
+<!-- -->
+
 > **Multi-branch verification:** If this work unit spanned multiple branches (stacked PRs, phased
 > delivery), confirm that **all** branches have been merged before proceeding. Archival is a one-time
 > operation on the fully completed work unit — intermediate merges are handled by the
