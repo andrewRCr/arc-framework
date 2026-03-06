@@ -9,11 +9,11 @@
 **Branch**: `technical/methodology-completion`
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
-**Next Task**: All phases complete — verification passed
-**Last Completed**: Task 9.2 — Validate success criteria against PRD
+**Next Task**: All phases complete — integration in progress
+**Last Completed**: Atomic task — decompose archive-completed into integrate + archive workflows
 **Blockers**: None
-**Next Action**: Archive work unit (all tasks complete, all success criteria met)
+**Next Action**: Add `(integration)` context footer pattern to hooks and arc-methods, then proceed with local code review per `integrate-work-unit.md` Phase 2
 
 ---
 
-**Last Updated**: 2026-03-05
+**Last Updated**: 2026-03-06
