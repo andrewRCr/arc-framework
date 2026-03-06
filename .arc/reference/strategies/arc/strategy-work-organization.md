@@ -519,6 +519,12 @@ All changes require branches and PR review. No direct base branch commits.
 
 **Trade-off:** Maximum traceability and review coverage. Higher overhead for small changes.
 
+**Lifecycle transitions:** Archival, planning, and activation all produce commits that can't go
+directly to the base branch. The natural pattern is **batching**: a single branch carries archival
+of the completed work unit alongside planning artifacts for the next one, merged via one PR. This
+avoids a standalone housekeeping PR for archival alone. See
+[Planning Branch Workflow](#planning-branch-workflow) for the batch lifecycle.
+
 **Branches without work units:** Under full protection, even small atomic fixes need branches. These
 branches may not have task lists, PRDs, or other ARC artifacts — they're just branches with commits
 and a PR. This is expected. The [integrate-work-unit][integrate-work-unit] workflow only applies to work
@@ -585,6 +591,19 @@ of committing planning artifacts directly to the base branch.
       scales with team size: solo review of your own PRD adds less than team review does.
     - **Fully protected:** Planning branches are required — all changes need branches and
       PR review.
+
+- **Batch transitions (fully protected):** Under full protection, planning branches commonly
+  carry prior work unit archival alongside new planning artifacts — one branch and PR covers
+  both lifecycle transitions. The sequence on the batch branch:
+    1. Archive completed work unit ([archive-work-unit][archive-work-unit])
+    2. Create PRD ([1_create-prd][create-prd])
+    3. Generate tasks ([2_generate-tasks][generate-tasks])
+    4. PR to base branch, merge
+    5. Activate new work unit from base branch ([activate-work-unit][activate-work-unit])
+
+  Each workflow's steps are unchanged — the batch branch is just the commit target instead of the
+  base branch. Activation happens after the batch PR merges (implementation branch is created from
+  the base branch, not the batch branch).
 
 ---
 
@@ -733,6 +752,7 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/supplemental/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/supplemental/archive-work-unit.md
+[create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [commit-guide]: ../../../system/workflows/arc/supplemental/commit-guide.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [config-arch]: strategy-configurability-architecture.md

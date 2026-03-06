@@ -126,7 +126,7 @@ Read `arc-config.yml` and scan `arc-methods.md` for active overrides. This is a 
 the awareness through the session and apply it when encountering method references or platform-specific
 operations.
 
-1. **Config values**: Read `.arc/system/arc-config.yml`. Note any settings that differ from defaults
+1. **Config values**: Read `.arc-internal/system/arc-config.yml`. Note any settings that differ from defaults
    (defaults are documented as inline comments in the file)
 2. **Method overrides**: Scan `.arc/system/workflows/arc-methods.md`. For each method, check if the
    `.override` section is populated — if so, follow the override instead of the default when that
@@ -170,9 +170,21 @@ Confirm successful initialization. Use this structure:
 Awaiting direction — proceed to Next Action?
 
 **"No active work" variant:** When WORK-STATUS.md shows `Task List: [none]`, there is no active
-work unit. Use the same format — Current task is "none", Next action comes from WORK-STATUS.md
-(typically pointing to `1_create-prd.md`). This is the normal state after initialization or
-between work units.
+work unit. Use the same format — Current task is "none", Next action comes from WORK-STATUS.md.
+This is the normal state after initialization or between work units.
+
+**Next work unit discovery (`pm.mode: arc-in-git`):** When no active work exists, assess
+readiness for the next work unit before producing the orientation summary:
+
+1. Read ROADMAP.md — identify the next queued or suggested item
+2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
+3. Report what exists and its readiness state in the orientation summary
+4. Propose next steps based on what was found — ask for confirmation before proceeding
+
+Planning readiness varies: a completed PRD may be ready for task generation, a draft PRD may
+need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
+entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
+and reports — the user decides how to proceed.
 
 **Formatting guidance:**
 

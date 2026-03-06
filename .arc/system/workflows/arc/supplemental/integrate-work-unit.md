@@ -153,6 +153,11 @@ git push
 
 **After merge:** Proceed to [archive-work-unit][archive-work-unit] for post-merge archival.
 
+> **Full protection (`branch.protection: full`):** Archival commits can't go directly to the base
+> branch. Create a batch branch from the base branch and run archive-work-unit there. The same
+> branch typically carries planning artifacts for the next work unit — see archive-work-unit for
+> the batch pattern.
+
 ---
 
 ## Common Pitfalls
