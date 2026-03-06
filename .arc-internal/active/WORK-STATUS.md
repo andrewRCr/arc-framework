@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 1.1 — Walk `.arc/` file tree and compare against inventory (line ~39)
+**Next Task**: Task 0.1 — Define lifecycle scenarios (line ~37)
 **Last Completed**: Methodology Completion (archived)
 **Blockers**: [none]
-**Next Action**: Begin Phase 1 inventory validation — Task 1.1
+**Next Action**: Begin Phase 0 navigability baseline — Task 0.1
 
 ---
 

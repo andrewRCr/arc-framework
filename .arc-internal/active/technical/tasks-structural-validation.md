@@ -14,6 +14,7 @@
 
 ### Will Do
 
+- Workflow navigability baseline and validation (bookend: before and after structural changes)
 - Validate file inventory (classification + layer) against actual file tree
 - Evaluate and resolve workflow and strategy directory organization
 - Audit Configurable files for clean merge boundaries
@@ -31,6 +32,53 @@
 ---
 
 ## Tasks
+
+### **Phase 0:** Workflow Navigability Baseline
+
+- [ ] **0.1 Define lifecycle scenarios**
+
+    **Goal:** Establish the scenario set used for both baseline and final validation passes.
+
+    - [ ] **0.1.a Identify common lifecycle paths**
+        - Fully protected batch: integrate-work-unit → activate-planning-branch →
+          archive-work-unit → create-prd → generate-tasks → integrate-planning-branch →
+          activate-work-unit
+        - Fully protected standalone archival: integrate-work-unit → activate-planning-branch →
+          archive-work-unit (no next WU)
+        - Partially protected: integrate-work-unit → archive-work-unit → create-prd →
+          generate-tasks → activate-work-unit
+        - Standalone planning (new session): session-init discovery → activate-planning-branch →
+          create-prd → generate-tasks → integrate-planning-branch → activate-work-unit
+        - Unprotected: integrate-work-unit → archive-work-unit → create-prd → generate-tasks →
+          activate-work-unit (all on main)
+
+    - [ ] **0.1.b Document scenario definitions for reuse in Phase 8**
+
+- [ ] **0.2 Walk each scenario through the workflow chain**
+
+    **Goal:** Establish a navigability baseline before structural changes. Feed findings into
+    Phases 2, 6.1, and 6.2.
+
+    - [ ] **0.2.a Walk each scenario step-by-step**
+        - Follow forward links from each workflow to the next
+        - At each transition: is the next step explicitly linked? Is the routing clear?
+        - At each conditional: is the agent's path obvious given its config?
+        - Track: number of documents loaded, conditional branches parsed, cross-reference hops
+
+    - [ ] **0.2.b Flag issues**
+        - Dead-ends (workflow ends without forward link to next step)
+        - Ambiguous routing (multiple plausible next steps, unclear which applies)
+        - Conditional overload (too many mode/protection variants in one section)
+        - Excessive cross-reference hops (agent must load 3+ docs to complete one operation)
+        - Document each finding with: scenario, workflow, specific location, severity
+
+    - [ ] **0.2.c Capture findings as input to later phases**
+        - Tag findings relevant to Phase 2 (directory evaluation): navigability issues caused
+          by file organization
+        - Tag findings relevant to Phase 6.1 (de-duplication): confusion from duplicated or
+          scattered guidance
+        - Tag findings relevant to Phase 6.2 (dependency map): cross-cutting concepts that
+          create conditional density
 
 ### **Phase 1:** Inventory Validation
 
@@ -246,6 +294,36 @@
 
 - [ ] **7.2 Validate success criteria against PRD**
 
+### **Phase 8:** Workflow Navigability Validation
+
+- [ ] **8.1 Re-walk lifecycle scenarios against post-structural-validation state**
+
+    **Goal:** Confirm that structural changes (file moves, cross-reference updates,
+    de-duplication, directory reorganization) haven't broken workflow navigability, and that
+    Phase 0 findings were addressed.
+
+    - [ ] **8.1.a Re-walk each scenario from Phase 0**
+        - Use the same scenario definitions from 0.1
+        - Follow the same methodology from 0.2.a (forward links, routing, conditionals)
+        - Note: file paths may have changed if Phase 2/3 moved workflows or strategies
+
+    - [ ] **8.1.b Verify Phase 0 findings were addressed**
+        - For each finding from 0.2.b: resolved, consciously accepted, or still open?
+        - Consciously accepted findings need documented rationale (e.g., "conditional density
+          is inherent to supporting multiple protection modes — no simplification possible
+          without dropping mode support")
+
+    - [ ] **8.1.c Check for new issues introduced by structural changes**
+        - File moves: do all cross-references resolve to the new paths?
+        - De-duplication: did trimming inline guidance create gaps where an agent now needs
+          to load an extra document mid-workflow?
+        - Directory changes: does the new structure help or hinder scenario navigation?
+
+    - [ ] **8.1.d Resolve or document remaining issues**
+        - Fix any new dead-ends or broken references
+        - Document accepted trade-offs in the completion doc
+        - Run Tier 1 quality gate on any modified files
+
 ---
 
 ## Atomic Tasks — Structural Validation
@@ -266,4 +344,6 @@
 - [ ] No unresolved content duplication in high-traffic document areas
 - [ ] Cross-cutting dependency map produced for WU3-relevant concepts
 - [ ] All quality gates pass (markdown linting — 0 violations)
+- [ ] Common lifecycle scenarios navigable without dead-ends, ambiguous routing, or excessive
+  conditional parsing
 - [ ] File tree is stable and ready for WU3 to hardcode paths
