@@ -1,10 +1,10 @@
 # Task List: Structural Validation
 
-**PRD:** `.arc-internal/backlog/technical/prd-structural-validation.md`
+**PRD:** `.arc-internal/active/technical/prd-structural-validation.md`
 **Created:** 2026-03-06
 **Branch(es):** `technical/structural-validation`
 **Base Branch:** `main`
-**Status:** Not Started
+**Status:** In Progress
 
 ## Overview
 

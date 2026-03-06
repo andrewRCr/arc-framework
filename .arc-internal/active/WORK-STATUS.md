@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `technical/plan-structural-validation`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
+**Branch**: `technical/structural-validation`
+**Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
+**Following Task List**: Yes
+**Next Task**: Task 1.1 — Walk `.arc/` file tree and compare against inventory (line ~39)
 **Last Completed**: Methodology Completion (archived)
 **Blockers**: [none]
-**Next Action**: Integrate planning branch → PR to main, then activate work unit
+**Next Action**: Begin Phase 1 inventory validation — Task 1.1
 
 ---
 
