@@ -18,8 +18,8 @@ that teams can adapt to their context.
 
 - **Core document restructure**: DEV-RULES split into ARC (behavioral rules) and PROJECT (quality
   gates), `strategy-development-methodology.md` redistributed to DEV-RULES.ARC + arc-methods.md
-- **Customization infrastructure**: `arc-config.yml` expanded from 2 to 11 settings, `arc-methods.md`
-  with 6 configurable methods, `arc-extensions.md` with 6 preset extension points, all integrated
+- **Customization infrastructure**: `arc-config.yml` expanded from 2 to 13 settings, `arc-methods.md`
+  with 7 configurable methods, `arc-extensions.md` with 8 preset extension points, all integrated
   into workflows
 - **Configurable hooks**: commit-msg and pre-commit hooks read from arc-config.yml — commit format,
   context footer, merge strategy, task numbering all configurable
