@@ -4,20 +4,22 @@ Guidance for Claude when working in the ARC framework repository. For shared rul
 canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
-- [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91) – Non-negotiable standards
-- [QUICK-REFERENCE][quick-ref] v0.3.0-dev – Environment context and command patterns
-- [Process Task Loop][process-task-loop] – One-subtask workflow
+- [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
+- [DEV-RULES.PROJECT][dev-rules] – Project quality standards
+- [QUICK-REFERENCE][quick-ref] – Environment context and command patterns
+
+Before starting task execution, load the [Process Task Loop][process-task-loop].
 
 ## Claude-Specific Notes
 
-- **Session startup:** Execute Session Startup Protocol in CURRENT-SESSION.md first (verify working directory at repo
-  root, no runtime containers, markdown linting available)
+- **Session startup:** Execute the session initialization workflow (`session-init.md`) first (verify working directory
+  at repo root, no runtime containers, markdown linting available)
 - **Path awareness:** Commands in QUICK-REFERENCE assume repo root - paths should already be correct
   (documentation-only framework)
 - **Summaries first:** Lead responses with concise bullet findings before deep dives
 - **Clarifying questions:** Offer numbered/lettered options to keep user replies short
 - **Large diffs:** If a change won't fit in context, propose a chunking strategy and wait for approval
-- **Session handoffs:** Explicitly state whether CURRENT-SESSION.md was updated or left unchanged
+- **Session handoffs:** Explicitly state whether session state files were updated or left unchanged
 - **Self-hosting:** Framework develops itself using ARC methodology - we are our own test case
 - **Staging verification:** After `git add` and before `git commit`, run `git diff --cached --stat`
   to verify the staging area matches intent. Pre-staged files (from earlier `git rm` or `git add`)
@@ -50,7 +52,7 @@ canonical docs:
 - 150k: Proactive check-in with user before hitting limits
 - Leaves buffer for commit workflows, quality gates, and session handoff if needed
 
-**See also:** Session Context Management section in strategy-development-methodology.md for agent-agnostic principles.
+**See also:** Session Management section in DEV-RULES.ARC.md for agent-agnostic principles.
 
 ## Deferred Review
 
@@ -86,6 +88,7 @@ sequential WebFetch calls in the main conversation.
 
 ---
 
-[dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
+[dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
+[dev-rules]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md

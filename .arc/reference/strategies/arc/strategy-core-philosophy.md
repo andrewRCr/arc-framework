@@ -5,7 +5,7 @@ authoritative reference for ARC's identity. An evaluating team should be able to
 and understand what they're committing to.
 
 **Scope:** Philosophy, principles, and positioning. For the configurability architecture (config
-settings, extension points, method overrides, adoption profiles), see
+settings, extension points, method overrides, adoption defaults), see
 [strategy-configurability-architecture.md][config-arch].
 
 ---
@@ -236,7 +236,7 @@ are the natural container for this. They bound degradation by providing reset po
 methodology discipline through the establish-execute-capture rhythm, and create natural review and
 commit points.
 
-*Conventions:* CURRENT-SESSION.md, session initialization and handoff ceremonies, specific context
+*Conventions:* WORK-STATUS.md + SESSION-NOTES.md, session initialization and handoff ceremonies, specific context
 quality thresholds, and what triggers session end. Alternative mechanisms that satisfy the
 structured/human-controlled/transparent/predictable criteria are valid.
 
@@ -362,9 +362,8 @@ A few examples to make this concrete:
   descriptions, but it sacrifices the granular commit history that the default merge strategy
   preserves.
 
-ARC currently has 19 conventions across the 11 principles. The full inventory and the configuration
-mechanisms (config settings, extension points, method overrides, adoption profiles) are covered in
-the [configurability architecture strategy][config-arch].
+The full convention inventory and the configuration mechanisms (config settings, extension points, method overrides,
+adoption defaults) are covered in the [configurability architecture strategy][config-arch].
 
 ---
 
@@ -435,11 +434,8 @@ To be explicit about boundaries:
 ## Relationship to Other Documentation
 
 - **[Configurability architecture strategy][config-arch]** — The companion to this document. Covers
-  config settings, extension points, method overrides, adoption profiles, and the full convention
+  config settings, extension points, method overrides, adoption defaults, and the full convention
   inventory. This document defines *what ARC is*; that document defines *how teams customize it*.
-- **ADRs (`.arc-internal/reference/adr/`)** — The immutable decision records behind this strategy.
-  ADR-001 through ADR-006 document the analysis, alternatives considered, and consequences for each
-  design decision. This strategy synthesizes those decisions into living guidance.
 - **[Development methodology strategy][dev-methodology]** — Operational rules for how work happens
   (commit standards, session management, task protocols). Complements this document's philosophical
   grounding with practical workflow constraints.
@@ -447,4 +443,4 @@ To be explicit about boundaries:
 ---
 
 [config-arch]: strategy-configurability-architecture.md
-[dev-methodology]: strategy-development-methodology.md
+[dev-methodology]: ../../constitution/DEV-RULES.ARC.md

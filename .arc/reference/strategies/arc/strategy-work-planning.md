@@ -1,13 +1,18 @@
 # Strategy: Work Planning
 
 **Purpose:** Codify the planning pipeline that takes work from initial idea through to structured
-requirements. Covers the full lifecycle: backlog items → plan documents → PRDs → task lists, with
+requirements. Covers the full lifecycle: idea → plan documents → PRDs → task lists, with
 conventions for each stage.
 
+**Layer:** Core with arc-in-git extensions. Plan documents, PRDs, task lists, and the discovery
+checklist are Core artifacts available in all PM modes. The backlog directory structure and
+graduation pipeline (backlog → active transitions) require `pm.mode: arc-in-git`. Sections with
+arc-in-git-specific content are marked below.
+
 **Scope:** Planning artifact conventions, discovery guidance, and stage transitions. For backlog
-structure and triage, see [Backlog Organization][backlog-org]. For active work categories and git
-workflow, see [Work Organization][work-org]. For task execution, see [Process Task
-Loop][process-loop].
+structure and triage, see [Backlog Organization][backlog-org] **(arc-in-git)**. For active work
+categories and git workflow, see [Work Organization][work-org]. For task execution, see [Process
+Task Loop][process-loop].
 
 ---
 
@@ -28,21 +33,25 @@ Work moves through increasing fidelity stages. Each stage has a purpose and an a
 structure — earlier stages are deliberately lighter than later ones.
 
 ```text
-Backlog item          →  plan-*.md           →  PRD                →  Task list
+Idea                  →  plan-*.md           →  PRD                →  Task list
 (problem identified)     (exploration)          (requirements)        (execution)
 
 Fidelity:  Low           Working draft          Structured            Detailed
-Structure: Bullet item   Freeform               Template-based        Workflow-governed
-Lifespan:  Until triaged Ephemeral (deleted)    Semi-permanent        Active → archived
+Structure: Informal      Freeform               Template-based        Workflow-governed
+Lifespan:  Transient     Ephemeral (deleted)    Semi-permanent        Active → archived
 ```
+
+> **arc-in-git mode** adds a structured first stage: backlog items in bucket files
+> (`BACKLOG-FEATURE.md`, `BACKLOG-TECHNICAL.md`) that capture and triage ideas before they enter
+> the pipeline. See [Backlog Organization][backlog-org] for the full graduation model.
 
 **Key principle:** Each stage's documentation should match its fidelity level. Requiring PRD-level
 structure in a plan document is premature formalization. Leaving a PRD at plan fidelity is
 under-specification.
 
 Not every piece of work needs every stage. Small, well-understood work can skip the plan stage and
-go directly from backlog to PRD. The plan stage exists for work that benefits from exploration
-before requirements crystallize.
+go directly to a PRD. The plan stage exists for work that benefits from exploration before
+requirements crystallize.
 
 ---
 
@@ -61,12 +70,18 @@ permanent records.
 
 ### Convention
 
-**Naming:** `plan-[descriptor].md` — category conveyed by directory placement (`backlog/feature/` or
-`backlog/technical/`).
+**Naming:** `plan-[descriptor].md` — category conveyed by directory placement.
+
+**Location** (depends on [`arc-config.yml`][arc-config] → `pm.mode`):
+
+- **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog and graduate to PRDs
+  through the [backlog processing flow][backlog-org]
+- **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
+  into (no backlog directory)
 
 **Lifecycle:**
 
-- Created when a backlog item needs exploration before it can become a PRD
+- Created when work needs exploration before it can become a PRD
 - Evolved iteratively as understanding deepens — expect messiness, dead ends, revisions
 - Deleted after the PRD is written and stable (the PRD captures what matters; the plan has served
   its purpose)
@@ -197,7 +212,7 @@ this.
 
 ## Related Documentation
 
-- [Backlog Organization][backlog-org] — Backlog structure, triage flow, atomic tasks
+- [Backlog Organization][backlog-org] — Backlog structure, triage flow, atomic tasks **(arc-in-git)**
 - [Work Organization][work-org] — Work categories, branching model, directory structure
 - [Create PRD Workflow][create-prd] — Step-by-step PRD creation process
 - [PRD Template][template-prd] — Copy-ready PRD starting point
@@ -214,3 +229,4 @@ this.
 [template-plan]: ../../templates/template-plan.md
 [adr-methodology]: strategy-adr-methodology.md
 [process-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[arc-config]: ../../../system/arc-config.yml

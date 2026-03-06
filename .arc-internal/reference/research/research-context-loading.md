@@ -235,7 +235,7 @@ Converging guidance on content placement:
 - Separating the two reduces ambiguity and instruction conflict.
 
 **Relevance:** ARC's Tier 1 documents span both categories — some are persistent constraints
-(DEVELOPMENT-RULES, AGENTS.md) and some are session-specific state (CURRENT-SESSION.md, active
+(DEV-RULES.ARC, DEV-RULES.PROJECT, AGENTS.md) and some are session-specific state (CURRENT-SESSION.md, active
 task context). The evidence suggests these should ideally occupy different prompt positions, though
 ARC's current delivery mechanism (sequential reads into the conversation) doesn't distinguish
 between system-level and session-level content.
@@ -304,7 +304,7 @@ load when the agent enters a relevant domain. This is a validated architecture.
 **What this means for ARC:** Within Tier 1, document **ordering matters**. The most critical
 constraints should appear early (primacy) or late (recency) in the loading sequence. Documents
 in the middle of the chain receive less attention weight. ARC's current session-init ordering
-(AGENTS.md → agent-specific → DEVELOPMENT-RULES → methodology → index → quick-ref →
+(AGENTS.md → agent-specific → DEV-RULES.ARC → DEV-RULES.PROJECT → index → quick-ref →
 process-task-loop → CURRENT-SESSION → task list) places behavioral constraints early and
 session state late — this is roughly aligned with the evidence, though it hasn't been
 deliberately optimized for positional effects.
@@ -405,7 +405,7 @@ Documented failure modes in long sessions:
   fresh processing each turn.
 
 **What this means for ARC:** Tier 1 documents that are static within a session (AGENTS.md,
-DEVELOPMENT-RULES, strategy methodology) benefit from prompt caching automatically when placed
+DEV-RULES.ARC, DEV-RULES.PROJECT) benefit from prompt caching automatically when placed
 early. Explicit mid-session re-reading of these documents is unlikely to add value beyond what
 caching already provides — and could consume context window budget unnecessarily.
 
@@ -421,7 +421,7 @@ Practitioner workarounds for drift include:
 - Starting a new conversation entirely when drift becomes unrecoverable.
 
 **Assessment:** ARC's existing "Core Document Reference Protocol" (re-read QUICK-REFERENCE or
-DEVELOPMENT-RULES when triggered by specific conditions) is a reasonable heuristic. The evidence
+DEV-RULES.PROJECT when triggered by specific conditions) is a reasonable heuristic. The evidence
 neither strongly supports nor contradicts it. Prompt caching makes static-document refresh
 largely redundant; the protocol's value is primarily for documents whose relevance is
 *situational* (e.g., re-reading commit standards before a complex commit).

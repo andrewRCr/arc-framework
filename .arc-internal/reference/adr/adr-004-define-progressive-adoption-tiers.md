@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Parts 2, 3, 6 superseded by ADR-010)
 
 ## Context
 

@@ -21,7 +21,8 @@ ADRs serve as:
 4. [Naming Conventions](#naming-conventions)
 5. [ADR Lifecycle](#adr-lifecycle)
 6. [Template](#template)
-7. [Relationship to Strategy Documents](#relationship-to-strategy-documents)
+7. [Amending Accepted ADRs](#amending-accepted-adrs)
+8. [Relationship to Strategy Documents](#relationship-to-strategy-documents)
 
 ---
 
@@ -34,7 +35,8 @@ along with its context and consequences.
 
 **Key Characteristics:**
 
-- **Immutable:** Once accepted, an ADR is never edited - new ADRs supersede old ones if decisions change
+- **Stable:** Once accepted, an ADR's decision is final — corrections and amendments are permitted but the
+  decision itself changes only through [supersession](#superseded). See [Amending Accepted ADRs](#amending-accepted-adrs)
 - **Sequential:** Numbered sequentially (001, 002, 003...), numbers never reused
 - **Concise:** Typically 1-2 pages, focusing on decision and context, not implementation details
 - **Discoverable:** Stored in version control alongside code, easily searchable
@@ -127,7 +129,8 @@ Every ADR follows this five-section structure:
 - `Deprecated` - Decision no longer valid but not replaced
 - `Superseded by ADR-XXX` - Decision replaced by a new ADR
 
-**Note:** Once status is `Accepted`, the ADR should never be edited except to change status.
+**Note:** Once status is `Accepted`, the ADR's decision is final. Corrections and amendments are permitted
+under specific rules — see [Amending Accepted ADRs](#amending-accepted-adrs).
 
 ### 3. Context
 
@@ -214,7 +217,7 @@ Document what becomes easier or harder as a result.
 1. Update Status from Proposed to Accepted
 2. Ensure Context and Decision sections are complete
 3. Commit alongside implementation (or just before starting)
-4. ADR is now immutable - no further edits except status changes
+4. ADR decision is now final — see [Amending Accepted ADRs](#amending-accepted-adrs) for what changes are permitted
 
 ### Deprecated
 
@@ -254,6 +257,71 @@ inline guidance for each section (Context, Decision, Consequences with Positive/
 
 ---
 
+## Amending Accepted ADRs
+
+An accepted ADR's **decision is final** — the Context, Decision, and original Consequences sections represent the
+point-in-time record and should not be rewritten. However, strict "never touch the file" immutability creates
+practical friction (typos persist, broken links accumulate, implementation learnings have nowhere to go).
+
+ARC uses a three-tier model that preserves the spirit of immutability while accommodating real-world needs:
+
+### Tier 1: Corrections — always permitted
+
+Fix without ceremony. No new ADR required.
+
+- Typos, grammar, and spelling errors
+- Broken links and updated file paths
+- Formatting fixes (markdown lint, whitespace)
+- Correcting factual errors in metadata (dates, names)
+
+**Rule:** The fix must not change the meaning of any section. If you're unsure whether a rewording changes
+meaning, treat it as a Tier 2 amendment.
+
+### Tier 2: Amendments — append-only with annotation
+
+Add new information without altering what's already written. Amendments go in the Consequences section (or a
+dedicated Amendments section if multiple accumulate) using a dated annotation:
+
+```markdown
+**Amendment (YYYY-MM-DD):** In practice, the batch size limit (Consequence #3) has not been
+a concern — upstream API raised its limit to 500 in v4.1.
+```
+
+**What qualifies:**
+
+- Post-implementation learnings that add context to consequences
+- Clarifications prompted by questions from new team members
+- Noting that a predicted risk did or did not materialize
+- Cross-references to later ADRs or strategy documents
+
+**What doesn't qualify** (use supersession instead):
+
+- Changing the Decision section
+- Rewriting Context to present a different framing
+- Removing or contradicting original consequences
+
+**Commit note:** Mention the amendment in the commit message (e.g., "amend ADR-007 with production
+latency observations").
+
+### Tier 3: Supersession — new ADR
+
+When the decision itself changes, write a new ADR and update the original's status. This is the existing
+[Superseded](#superseded) lifecycle process.
+
+### Choosing the right tier
+
+| Change                                      | Tier                                    |
+| ------------------------------------------- | --------------------------------------- |
+| Fix a typo in the Decision section          | Correction                              |
+| Update a broken link to an external API doc | Correction                              |
+| Note that a predicted risk didn't happen    | Amendment                               |
+| Add a cross-reference to a new ADR          | Amendment                               |
+| Reword the Decision for clarity             | Amendment (must not change meaning)     |
+| Reverse or significantly alter the decision | Supersession                            |
+| Choose a different technology than decided  | Supersession                            |
+
+---
+
 ## Relationship to Strategy Documents
 
 **Strategy Documents** (`.arc/reference/strategies/`):
@@ -267,7 +335,7 @@ inline guidance for each section (Context, Decision, Consequences with Positive/
 
 - Specific decisions made at a point in time
 - "What we chose for X situation"
-- Immutable once accepted
+- Decision is final once accepted (corrections and amendments permitted — see [above](#amending-accepted-adrs))
 - Raw material that can inform strategies
 
 **Relationship:**

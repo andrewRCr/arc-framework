@@ -157,6 +157,19 @@ Common multi-branch patterns:
 - **Team sub-branches:** Multiple developers each working a branch against a shared integration branch
 - **Phased delivery:** Sequential branches delivering different phases of the same task list
 
+**Branch scope:** One planned work unit per branch. Switching work units implies switching branches.
+Incidental task lists may live alongside the primary work when they stay on the same branch by design.
+`WORK-STATUS.md` reflects whichever work unit is currently active.
+
+**WORK-STATUS.md merge behavior:** In protected modes, WORK-STATUS.md on the base branch stays in
+its "no active work" default state — work branches diverge with active state, and merges restore
+the default. In unprotected mode, the base branch is the workspace and WORK-STATUS.md reflects
+active work directly. `.gitattributes` with `merge=ours` auto-resolves local merges by keeping
+the target branch version. For PR merges (server-side, where local merge drivers don't apply),
+the resolution is always "take base" — deterministic and trivial. Post-merge workflows
+([rotate-branch][rotate-branch], [archive-work-unit][archive-work-unit]) update WORK-STATUS.md
+immediately, so the auto-resolved content is transient.
+
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
 
@@ -289,7 +302,7 @@ or separate branches.
 
 - Critical (user-impacting, service disruption) → `incidental/` with dedicated branch regardless
   of size; may warrant interrupting current work
-- Non-critical (cosmetic, low-impact) → Capture in TASK-INBOX for triage; may become planned
+- Non-critical (cosmetic, low-impact) → Capture in backlog for triage; may become planned
   `technical/` or `feature/` work
 
 Note: "incidental" in this strategy means work *discovered during development*. Production incidents
@@ -355,7 +368,7 @@ On Child Branch:
 2. Create task list: .arc/active/incidental/tasks-<name>.md
 3. Work on branch, commit with task references
 4. Complete work (all tasks done, quality gates pass)
-5. Clean task list (maintain-task-notes.md Mode 2)
+5. Clean task list (clean-work-unit-files.md Mode 2)
 6. Create completion-{name}.md (summary + PR description draft)
 7. Commit documentation changes
 
@@ -365,14 +378,17 @@ Code Review & Merge:
 10. Address review findings, merge PR
 
 On Parent Branch (After Merge):
-11. Delete merged branch
-12. Archive: git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
+11. Delete merged branch (branch cleanup)
+12. Archive task list (all tasks complete):
+    git mv to .arc/reference/archive/{quarter}/incidental/{NN}_{name}/
 13. Commit archive changes, resume parent work
 ```
 
 **Archive trigger:** A task list in `.arc/active/` is archived when all tasks are marked complete
-(`[x]`), not when a branch is deleted. Branch cleanup happens independently as PRs merge. For the
-full relationship model, see [Task Lists and Branches](#5-task-lists-and-branches).
+(`[x]`), not when a branch is deleted. Branch cleanup happens independently as PRs merge. In
+typical incidental work (1:1 branch-to-task-list), deletion and archival coincide — but the
+trigger is task completion, not branch deletion. For the full relationship model, see
+[Task Lists and Branches](#5-task-lists-and-branches).
 
 ### Merge Strategy
 
@@ -392,6 +408,12 @@ full relationship model, see [Task Lists and Branches](#5-task-lists-and-branche
 ```
 
 Child work must be integrated into parent before parent can be considered complete.
+
+**Merge method:** Set via `merge.strategy` in arc-config.yml (default: `merge`). Merge commits preserve
+branch topology and granular commit history. With `rebase`, commits are replayed for linear history.
+With `squash`, individual commits collapse into one per branch — traceability shifts from commit messages
+to PR descriptions. See [Configurability Architecture][config-arch] § Merge Strategy for behavioral
+implications of each choice.
 
 ### Handling Branch Updates
 
@@ -475,8 +497,8 @@ isn't justified.
 ### Partially Protected (Default)
 
 Planned work units (feature, technical) require branches — both planning branches for delivering
-artifacts and implementation branches for execution. Backlog capture, atomic tasks, and routine
-maintenance may commit directly to the base branch as documented exceptions.
+artifacts and implementation branches for execution. Routine maintenance may commit directly to the
+base branch as a documented exception.
 
 **Best for:** Solo developers and small teams wanting lightweight process with review gates on
 substantive work.
@@ -485,21 +507,24 @@ substantive work.
 
 **Documented exceptions** (direct base branch commits allowed):
 
-- Backlog capture: `TASK-INBOX.md` additions, `ROADMAP.md` updates
-- Atomic tasks: Small one-off fixes tracked in `ATOMIC-TASKS.md`
 - Framework maintenance: Documentation updates, linting fixes
 
 ### Fully Protected
 
-All changes require branches and PR review. No direct base branch commits. Atomic tasks and
-backlog capture use short-lived micro-branches.
+All changes require branches and PR review. No direct base branch commits.
 
 **Best for:** Teams with branch protection rules, CI/CD pipelines, and compliance requirements.
 
-**Planning branches:** Required for all planned work. Micro-branches for atomic tasks and
-backlog capture.
+**Planning branches:** Required for all planned work.
 
 **Trade-off:** Maximum traceability and review coverage. Higher overhead for small changes.
+
+**Branches without work units:** Under full protection, even small atomic fixes need branches. These
+branches may not have task lists, PRDs, or other ARC artifacts — they're just branches with commits
+and a PR. This is expected. The [integrate-work-unit][integrate-work-unit] workflow only applies to work
+units with task lists; branches without artifacts follow standard git lifecycle (merge, delete).
+See [manage-incidental-work][manage-incidental] for escalation guidance on when discovered work
+warrants a task list vs. a simple branch.
 
 ### Choosing Your Mode
 
@@ -553,7 +578,13 @@ of committing planning artifacts directly to the base branch.
 - **Mode-specific behavior:**
     - **Unprotected:** Planning branches are optional — artifacts can be committed directly
       to the base branch.
-    - **Partially / fully protected:** Planning branches are required for planned work units.
+    - **Partially protected:** Planning branches are the default for planned work. Solo
+      developers who find the planning branch → PR → merge → activate cycle too heavy for
+      self-authored plans can commit planning artifacts directly to base — this falls under
+      the documented exception for documentation updates. The value of planning branches
+      scales with team size: solo review of your own PRD adds less than team review does.
+    - **Fully protected:** Planning branches are required — all changes need branches and
+      PR review.
 
 ---
 
@@ -592,7 +623,8 @@ Archive preserves structure with global sequence numbering:
 `{NN}_` prefix indicates completion order (global across all categories). Gaps within a category
 show where other categories' work completed. Reset to 01 each quarter.
 
-See [archive-completed.md][archive-completed] for full archival workflow.
+See [integrate-work-unit.md][integrate-work-unit] and [archive-work-unit.md][archive-work-unit] for full
+integration and archival workflows.
 
 ### Alignment
 
@@ -656,7 +688,7 @@ Incidental work gets task lists only. Notes files are optional, reserved for com
 ### For New Projects
 
 1. Create directory structure: `mkdir -p .arc/active/{feature,technical,incidental} .arc/backlog`
-2. Document decision rules in DEVELOPMENT-RULES.md (reference this strategy)
+2. Document decision rules in DEV-RULES.PROJECT.md (reference this strategy)
 3. Start using immediately — adopt conventions from first commit
 
 ### For Existing Projects
@@ -664,7 +696,7 @@ Incidental work gets task lists only. Notes files are optional, reserved for com
 1. **Complete current work** — Don't rename mid-flight
 2. **Create new structure** — Add `technical/` directory alongside `feature/`
 3. **Adopt going forward** — New work uses three-way split
-4. **Update documentation** — Reference this strategy from DEVELOPMENT-RULES.md and workflow guides
+4. **Update documentation** — Reference this strategy from DEV-RULES.PROJECT.md and workflow guides
 5. **Migrate gradually** — Archive old work as-is, new work uses new structure
 
 ---
@@ -685,24 +717,23 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 
 ## Related Documentation
 
-- [DEVELOPMENT-RULES][dev-rules] — Development standards and git workflow
+- [DEV-RULES.PROJECT][dev-rules] — Project quality standards and development rules
 - [2_generate-tasks.md][generate-tasks] — Task breakdown workflow
 - [3_process-task-loop.md][process-task-loop] — Task execution workflow
-- [atomic-commit.md][atomic-commit] — Complex commit scenarios and atomicity
+- [commit-guide.md][commit-guide] — Commit guide: atomicity, complex scenarios, quick reference
 - [manage-incidental-work.md][manage-incidental] — Incidental work workflow
-- [agent-pre-merge-review.md][pre-merge-review] — Code review workflow
 - [strategy-team-coordination.md][team-coordination] — Task ownership, team branching, external trackers
-- [weekly-review.md][weekly-review] — Weekly backlog review process
 
 ---
 
-[dev-rules]: ../../constitution/DEVELOPMENT-RULES.md
+[dev-rules]: ../../constitution/DEV-RULES.PROJECT.md
 [team-coordination]: strategy-team-coordination.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
-[archive-completed]: ../../../system/workflows/arc/supplemental/archive-completed.md
-[atomic-commit]: ../../../system/workflows/arc/supplemental/atomic-commit.md
+[integrate-work-unit]: ../../../system/workflows/arc/supplemental/integrate-work-unit.md
+[archive-work-unit]: ../../../system/workflows/arc/supplemental/archive-work-unit.md
+[commit-guide]: ../../../system/workflows/arc/supplemental/commit-guide.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
-[pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md
-[weekly-review]: ../../../system/workflows/arc/supplemental/weekly-review.md
+[config-arch]: strategy-configurability-architecture.md
+[rotate-branch]: ../../../system/workflows/arc/supplemental/rotate-branch.md

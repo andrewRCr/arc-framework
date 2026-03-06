@@ -4,16 +4,17 @@
 framework adaptable without losing its identity. This is the companion to
 [strategy-core-philosophy.md][core-philosophy], which defines what ARC is.
 
-**Scope:** Configuration settings, extension points, method overrides, adoption profiles, platform compatibility, and
-the full convention inventory. For ARC's principles, philosophical foundation, and positioning, see the [core philosophy
-strategy][core-philosophy].
+**Scope:** Configuration settings, extension points, method overrides, content-level customization (project strategies,
+workflows, domain-specific rules), adoption defaults, framework layers, platform compatibility, and the full convention
+inventory. For ARC's principles, philosophical foundation, and positioning, see the
+[core philosophy strategy][core-philosophy].
 
 ---
 
 ## Contents
 
 - [The Customization Model](#the-customization-model) — mechanisms, boundary tests, convention inventory
-- [Adoption Profiles](#adoption-profiles) — enforcement calibration, scaling
+- [Adoption Defaults](#adoption-defaults) — enforcement calibration, scaling
 - [Configuration](#configuration) — `arc-config.yml` design and settings
 - [Extension Points](#extension-points) — adding behavior to workflows
 - [Method Overrides](#method-overrides) — replacing convention implementations
@@ -33,10 +34,10 @@ Customizing conventions — not principles — is the entire scope of the config
 handle different kinds of customization, and existing project documentation absorbs a fourth concern:
 
 | Mechanism       | What It Does              | File                 | Example                                    |
-| --------------- | ------------------------- | -------------------- | ------------------------------------------ |
+|-----------------|---------------------------|----------------------|--------------------------------------------|
 | Config          | Toggles enforcement       | `arc-config.yml`     | `commit.format: any` disables hook check   |
 | Extension       | Adds steps to workflows   | `arc-extensions.md`  | Post-task quality: also run security scan  |
-| Method override | Replaces default behavior | `arc-methods.md`     | Task completion: update Jira, not markdown |
+| Method override | Replaces default behavior | `arc-methods.md`     | Session state: custom format, not default  |
 | QUICK-REFERENCE | Environment/tool commands | `QUICK-REFERENCE.md` | `glab mr create` instead of `gh pr create` |
 
 ### Which mechanism do I use?
@@ -45,48 +46,76 @@ handle different kinds of customization, and existing project documentation abso
 - If it adds **new steps** at a workflow point → **extension**
 - If it **replaces** how ARC does something with how the team does it → **method override**
 - If it changes **which CLI tool** to use for an operation → **QUICK-REFERENCE**
+- If it adds **domain-specific guidance** for your project → **project strategy**
+- If it adds **project-specific procedures** not covered by ARC → **project workflow**
+- If it extends **project standards** for a specific domain → **domain-specific dev-rules**
 
 Config, extensions, and method overrides are the three customization mechanisms. QUICK-REFERENCE is not a "mechanism" in
 the same sense — it is existing project documentation that naturally absorbs platform command variation.
 
-**None of these mechanisms apply to principles.** Config settings exist for conventions. Extension points exist at
-convention-level workflow boundaries. Method overrides replace convention-level implementations. Principles (tier 1) are
+Beyond mechanisms, adopters extend ARC through **content-level customization** — creating their own files that add
+domain-specific guidance, project-specific procedures, or extended standards:
+
+| Content Channel       | What It Does                   | Location              | Example                                           |
+|-----------------------|--------------------------------|-----------------------|---------------------------------------------------|
+| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns    |
+| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist         |
+| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`      |
+| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.md`, `GEMINI.md` for agent-specific notes |
+
+These are project-owned files — adopters create them, ARC doesn't ship them (except agent-specific templates).
+`DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows,
+and domain-specific rules are loaded on demand when work touches their domain. This is intentional — the value of
+domain-specific files is reducing instruction load on the agent, not organizing for file size. A project strategy for
+authentication carries the same weight as an ARC strategy when the agent is doing auth work.
+
+**DEV-RULES.PROJECT splitting:** `DEV-RULES.PROJECT.md` can be split into domain-specific files
+(`DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`, etc.) as project standards grow. The base file remains the entry point
+with cross-project standards; domain files extend it for specific areas. The agent consults domain-specific rules when
+working in that domain, similar to how codebase-scoped agent files (e.g., placing agent instructions in a `/frontend`
+subdirectory) scope guidance to the relevant context.
+
+**None of these mechanisms or content channels apply to principles.** Config settings exist for conventions. Extension
+points exist at convention-level workflow boundaries. Method overrides replace convention-level implementations.
+Content-level customization adds project-specific guidance alongside ARC's framework guidance. Principles (tier 1) are
 not configurable through any mechanism — they define what ARC is.
 
 ### Convention inventory
 
-ARC currently has 19 conventions across its 11 principles. Each convention has a default (what ARC provides out of the
-box) and a configurability path (how teams adapt it).
+ARC's conventions span its core principles. Each convention has a default (what ARC provides out of the box) and a
+configurability path (how teams adapt it).
 
 #### Core commitment conventions
 
-| Convention                                                  | Principle | Default                  | Configurability Path                                 |
-| ----------------------------------------------------------- | --------- | ------------------------ | ---------------------------------------------------- |
-| Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | File-customizable — edit templates                   |
-| Template-first documents                                    | P1        | Copy-ready templates     | File-customizable — edit template format and content |
-| Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope  |
-| Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps          |
-| Deferred review                                             | P2        | User-defined scope       | Behavioral guidance — adjust scope and conditions    |
-| Markdown task list checkboxes                               | P7        | Markdown in git          | Method override — substitute external tracker        |
+| Convention                                                  | Principle | Default                  | Configurability Path                                  |
+|-------------------------------------------------------------|-----------|--------------------------|-------------------------------------------------------|
+| Document hierarchy (META-PRD → PRD → tasks)                 | P1        | Full hierarchy           | File-customizable — edit templates                    |
+| Template-first documents                                    | P1        | Copy-ready templates     | File-customizable — edit template format and content  |
+| Per-task mandatory review stop                              | P2        | Stop after each checkbox | Behavioral guidance — adjust review increment scope   |
+| Completion protocol (check → mark → verify → report → stop) | P2        | Full ceremony            | Behavioral guidance — adjust protocol steps           |
+| Deferred review                                             | P2        | User-defined scope       | Behavioral guidance — adjust scope and conditions     |
+| Markdown task list checkboxes                               | P7        | Markdown in git          | Extension — add tracker sync via post-task-completion |
 
 #### Operational discipline conventions
 
-| Convention                              | Principle | Default                             | Configurability Path                                 |
-| --------------------------------------- | --------- | ----------------------------------- | ---------------------------------------------------- |
-| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
-| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
-| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Behavioral guidance — fix-now vs. capture-and-defer  |
-| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
-| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
-| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
-| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
-| CURRENT-SESSION.md                      | P5        | Dedicated session state file        | Method override — substitute session mechanism       |
-| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
+| Convention                              | Principle | Default                             | Configurability Path                                  |
+|-----------------------------------------|-----------|-------------------------------------|-------------------------------------------------------|
+| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
+| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
+| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
+| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
+| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
+| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
+| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
+| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
+| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
+| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state              | Method override — substitute session mechanism        |
+| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 
 #### Design commitment conventions
 
 | Convention                         | Principle | Default                                  | Configurability Path                         |
-| ---------------------------------- | --------- | ---------------------------------------- | -------------------------------------------- |
+|------------------------------------|-----------|------------------------------------------|----------------------------------------------|
 | Collaborative voice in docs        | P9        | Team perspective, no "user/AI" framing   | Behavioral guidance — documentation style    |
 | Reference-style markdown links     | P9        | Reference links, definitions at file end | Behavioral guidance — link formatting style  |
 | No meta-project references in code | P9        | Task IDs stay in `.arc/` docs            | Behavioral guidance — enforcement strictness |
@@ -120,92 +149,79 @@ encountering method references or platform-specific operations.
 
 ---
 
-## Adoption Profiles
+## Adoption Defaults
 
-### Same guidance, less enforcement
+### Strong defaults
 
-ARC's workflow and strategy documents are static prose — they describe conventions as the recommended approach
-regardless of profile. The agent loads these documents during session initialization and follows the guidance they
-contain.
+ARC ships with all enforcement active — conventional commits, context footers, commit-msg hooks, branch protection. The
+defaults represent ARC's recommended configuration. Adopters who encounter friction adjust individual settings in
+`arc-config.yml` after experiencing the framework, rather than making enforcement decisions before their first session.
 
-This means an essentials adopter whose config says `commit.format: any` will still have an agent that produces
-well-formatted conventional commits — because the agent read the development methodology strategy, which describes
-conventional commits as the recommended format. The difference: the hook will not _reject_ non-conventional commits.
+`arc-config.yml` includes inline comments explaining each setting's purpose, default value, and alternatives. This
+self-documenting config file is the primary mechanism for adopters to discover what's adjustable and how to adjust it.
+
+### Same guidance, different enforcement
+
+ARC's workflow and strategy documents are static prose — they describe conventions as the recommended approach regardless
+of config settings. The agent loads these documents during session initialization and follows the guidance they contain.
+
+This means an adopter whose config says `commit.format: any` will still have an agent that produces well-formatted
+conventional commits — because the agent read the development methodology strategy, which describes conventional commits
+as the recommended format. The difference: the hook will not _reject_ non-conventional commits.
 
 **This is intentional.** The separation is:
 
 - **Config** = enforcement boundary (will you be blocked?)
 - **Prose** = quality guidance (what is the recommended approach?)
-- **Essentials** = same guidance, less enforcement
+- **Relaxing config** = same guidance, less enforcement
 
-Adopters choosing essentials typically want to avoid _friction_ (hook rejection, ceremony blocking), not _quality_
+Adopters who relax enforcement typically want to avoid _friction_ (hook rejection, ceremony blocking), not _quality_
 (well-formatted commits, thorough documentation). The agent producing quality output even when not enforced is a feature
 — it demonstrates the convention's value without creating barriers.
 
-### Profile definitions
+### Adoption flexibility model
 
-Profiles are a CLI init convenience — they pre-configure `arc-config.yml`. After init, the file is directly editable.
-There is no persistent "profile" concept in the framework; the config values are what matter.
+Adoption flexibility has two independent axes:
 
-**Essentials** — Principles committed, enforcement relaxed, progressive path to deeper adoption.
+| Axis                 | What varies                   | Mechanism                   |
+|----------------------|-------------------------------|-----------------------------|
+| Method customization | ARC defaults vs. team methods | Overrides (arc-methods.md)  |
+| Functionality scope  | What features are installed   | PM mode selection (pm.mode) |
 
-```yaml
-commit.format: any
-commit.context_footer: optional
-hooks.commit_msg: disabled
-hooks.pre_commit: enabled
-merge.strategy: merge
-branch.protection: unprotected
-```
+**Method customization** substitutes how ARC does things — a team with a custom session mechanism replaces
+the session-state method, a team with Jira replaces commit context format. Independent of enforcement settings.
 
-Post-init guidance emphasizes four workflows as the starting path: `create-prd`, `generate-tasks`, `process-task-loop`,
-and `session-init`.
+**Functionality scope** controls what's installed. ARC decomposes into Core (always present) and optional Project
+Management (PM) modes selected via `pm.mode` in `arc-config.yml`: `none` (Core only), `arc-in-git` (ARC's built-in PM
+suite — backlogs, roadmap, status tracking), or `external` (external tool integration). Core contains the complete
+methodology engine — session management, task execution, commit discipline, specification workflows, branch management,
+and configuration infrastructure. PM mode is independent of method customization.
 
-**Recommended** (default) — Full convention set with sensible defaults. All enforcement active.
+Enforcement depth — how strictly conventions are applied — is not a named axis. It is simply "edit `arc-config.yml`."
+The settings exist, the inline comments explain them, and adopters adjust what creates friction. Three adopter postures:
 
-```yaml
-commit.format: conventional
-commit.context_footer: required
-hooks.commit_msg: enabled
-hooks.pre_commit: enabled
-merge.strategy: merge
-branch.protection: partial
-```
+1. "I don't care about format" → `commit.format: any`, agent produces quality output
+2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce (the default)
+3. "I want something _different_ enforced" → Method overrides + custom config patterns
 
-Post-init guidance covers the full system with appropriate progressive depth.
+### Scaling enforcement
 
-**Custom** — Interactive selection of individual settings. Each setting is presented with its purpose, default, and
-alternatives. The adopter builds their own configuration by choosing values for each configurable convention.
+The same-files, config-driven approach enables smooth scaling in both directions:
 
-### Two-axis adoption model
+**Tightening:** An adopter who started with relaxed settings (e.g., `commit.format: any`) tightens by editing
+`arc-config.yml` — change to `commit.format: conventional`, enable `hooks.commit_msg`. No file additions, no
+reinstallation. The agent already knows the conventions from loaded docs — enforcement catches up to guidance.
 
-Profiles address one axis of adoption flexibility: **enforcement depth** — how strictly ARC's conventions are enforced.
-A second axis is necessary for complete flexibility: **method customization** — whether the team uses ARC's default
-methods or substitutes their own.
+**Loosening:** The reverse is equally smooth. An adopter who finds commit-msg hooks disruptive during early adoption
+sets `hooks.commit_msg: disabled`. The agent still produces quality output; enforcement is relaxed.
 
-Three adopter postures exist:
+**Adding method overrides:** Independent of enforcement changes. A team can add a session-state method override without
+changing any enforcement settings.
 
-1. "I don't care about format" → `commit.format: any`, agent produces quality output. **Profiles handle this.**
-2. "I want ARC's convention enforced" → `commit.format: conventional`, hooks enforce. **Profiles handle this.**
-3. "I want something _different_ enforced" → No mechanism in profiles alone. **Method overrides needed.**
-
-The two axes are independent. A team can use the recommended profile with selective method overrides (full ARC
-enforcement, Jira for task tracking). Or essentials with no overrides (relaxed enforcement, ARC defaults where active).
-The full customization space is the product of both axes.
-
-### Scaling up and down
-
-The same-files, config-driven approach enables smooth scaling:
-
-**Scaling up (essentials → recommended):** Tighten config settings. Change `commit.format: any` to
-`commit.format: conventional`, enable `hooks.commit_msg`. No file additions, no reinstallation. The agent already knows
-the conventions from loaded docs — enforcement catches up to guidance. This is the expected path: an essentials adopter
-grows comfortable with conventions the agent has been demonstrating and decides to enforce them.
-
-**Scaling down:** Loosen config settings. The reverse is equally smooth.
-
-**Adding method overrides:** Independent of profile changes. A recommended-profile team that adopts Jira can add a
-task-completion-tracking method override without changing their enforcement profile.
+**Changing PM mode:** Independent of enforcement and method changes. A `pm.mode: none` user who wants in-git project
+management switches to `pm.mode: arc-in-git` via `arc init --reconfigure`. A team moving to external tracking switches
+to `pm.mode: external` without affecting enforcement settings or method overrides. PM mode changes are structural choices
+made at init time; enforcement settings and method overrides can change at any time.
 
 ---
 
@@ -232,6 +248,7 @@ merge.strategy: merge
 hooks.pre_commit: enabled
 hooks.commit_msg: enabled
 platform.type: github
+pm.mode: none
 ```
 
 **Why dotted keys:** Logical grouping (`branch.*`, `commit.*`) improves readability as settings grow, while preserving
@@ -334,30 +351,30 @@ Each preset section includes: which workflow it extends, when it fires, what the
 ```markdown
 ## post-task-quality
 
-**Workflow:** process-task-loop.md · **Fires:** After Tier 1 checks pass, before
-marking task complete\
-**Contract:** Add quality checks that should run after every task completion.
-Steps added here run in addition to ARC's default Tier 1 checks, not instead
-of them.
+**Workflow:** process-task-loop.md · **Fires:** After Tier 1 checks pass,
+before marking task complete
+
+**Contract:** Add quality checks that run after every task completion. Steps
+here run in addition to ARC's default Tier 1 checks, not instead of them.
+Must return a clear pass/fail signal.
+
+### post-task-quality.steps
 
 [No extension configured]
 ```
 
-### Markers in workflows
+### References in workflows
 
-ARC workflows mark extension points with compact, inline blocks:
+Extension points appear as conditional steps in workflow documents, with a backtick anchor tag for grep-ability:
 
 ```markdown
----
-**Extension Point — Post-Task Quality Checks** · `#post-task-quality`
-Contract: Runs after Tier 1 checks pass, before marking task complete.
-See: [arc-extensions.md](../arc-extensions.md#post-task-quality)
----
+- **Extensions** · `#post-task-quality`: If [post-task-quality
+  extensions][arc-ext-task-quality] are configured, execute them
+  before proceeding.
 ```
 
-Markers are bounded by horizontal rules for visual distinction. The inline link lets agents and humans navigate directly
-to the extension content. The agent follows the link, reads the section, executes any steps found (or skips if
-placeholder), and returns to the workflow.
+The agent encounters the reference, follows the link to `arc-extensions.md`, reads the section, executes any steps found
+(or skips if placeholder), and returns to the workflow.
 
 ### Preset vs. custom
 
@@ -385,39 +402,37 @@ Each preset method defines a contract — the invariant that both the default an
 advisory, not mechanically enforced. The team is responsible for ensuring their override meets the contract.
 
 ```markdown
-## task-completion
+## commit-format
 
-**Workflow:** process-task-loop.md · **When:** Agent marks a task as complete\
-**Contract:** Record that the specified task is complete. Status must be
-verifiable by both human and agent.\
-**Default:** Mark `[x]` in the markdown task list file, update task description
-with completion notes.
+**Workflow:** commit-guide.md · **When:** Agent writes a commit message
 
-### Project Override
+**Contract:** Commits follow a consistent, communicative format that
+enables automated tooling and readable history.
+
+### commit-format.override
 
 [No override configured]
+
+### commit-format.default
+
+Conventional commit format: `type(scope): description`
 ```
 
 When an override is populated, the agent follows the override instead of the default. The agent reads `arc-methods.md`
 during session initialization and carries the awareness through the session.
 
-### Markers in workflows
+### Method references in workflows
 
-Workflows reference overridable operations with block-style markers, following the same visual pattern as extension
-points:
+Method references appear as inline links in workflow prose. The workflow describes WHAT to do; the method defines HOW:
 
 ```markdown
----
-**Method — Task Completion Tracking** · `#task-completion`
-Contract: Record that the specified task is complete. Status verifiable by
-human and agent.
-Default: Mark `[x]` in the markdown task list file.
-See: [arc-methods.md](../arc-methods.md#task-completion)
----
+5. Commit using the [commit-format][arc-methods-cf] and
+   [commit-context-format][arc-methods-ccf] methods
 ```
 
-The agent encounters a method marker, follows the link, reads the corresponding section, and acts on whatever it finds —
-override content or default. Same cross-reference pattern used throughout ARC documentation.
+The agent encounters a method reference, follows the link, reads the corresponding section in `arc-methods.md`, and acts
+on whatever it finds — override content or default. Extension points use a similar inline pattern — see
+[References in workflows](#references-in-workflows) under Extension Points.
 
 ### Hook interaction
 
@@ -425,7 +440,7 @@ For methods with mechanical enforcement (commit format, context footer), hooks r
 `arc-config.yml`. The `custom` config value bridges "I want enforcement" and "I want _different_ enforcement":
 
 | Setting value  | Hook behavior                                                |
-| -------------- | ------------------------------------------------------------ |
+|----------------|--------------------------------------------------------------|
 | `conventional` | Validates against ARC's built-in conventional commit pattern |
 | `custom`       | Validates against the team's `commit.custom_pattern` regex   |
 | `any`          | Skips format validation entirely                             |
@@ -443,9 +458,9 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 Config provides common pattern examples as inline comments to reduce regex-authoring friction: Jira prefix,
 ticket-plus-type, issue reference.
 
-For behavioral methods (task completion, session state) that do not have mechanical hook enforcement, the override is
-purely agent-level: the agent reads the method override from `arc-methods.md` and follows it. No hook interaction
-needed.
+For behavioral methods (session state, leave-it-cleaner, test-first) that do not have mechanical hook enforcement, the
+override is purely agent-level: the agent reads the method override from `arc-methods.md` and follows it. No hook
+interaction needed.
 
 ### Preset vs. custom
 
@@ -537,23 +552,26 @@ completion to update Jira, not markdown checkboxes.
 
 - `commit.format: custom` with `commit.custom_pattern` matching their Jira format
 - `commit.context_footer: custom` with `commit.context_pattern` matching `Closes JIRA-XXX` or similar
-- Method override for task completion: "Update Jira ticket status to Done" replaces "Mark `[x]` in markdown task list"
+- Post-task-completion extension: update Jira ticket status after ARC marks `[x]`
 - Method override for commit context format: Jira ticket reference replaces ARC's `Context: tasks-*.md` footer
 
 **What stays the same:** All 11 principles honored. Quality gates still run. The agent still follows ARC's task loop —
-it just records completion in Jira instead of markdown. Session ceremonies, spec-driven planning, and co-development are
-unchanged. The team may still use ARC task lists as a working scratchpad alongside Jira, or rely solely on Jira for
-tracking — the method override handles either pattern.
+it marks `[x]` in the task list (core behavior) and then updates Jira via the extension. Session ceremonies, spec-driven
+planning, and co-development are unchanged. The team uses ARC task lists as the execution artifact alongside Jira for
+broader project tracking.
 
-**Profile:** Recommended (full enforcement, custom methods).
+**Enforcement:** Default settings (full enforcement active), with custom methods for commit format and context footer.
+
+**PM mode:** `external` (Jira is the PM tool), or `none` if the team's external tools fully replace in-git project
+management without needing integration hooks.
 
 ### Scenario B: Factory-style agent (bookend pattern)
 
 A team uses ARC for planning and integration but delegates bounded, well-specified execution to an async agent (Codex
 cloud, Devin).
 
-**What they configure:** Standard recommended profile. No special configurability needed — the bookend pattern is about
-how the team _uses_ ARC, not how they configure it.
+**What they configure:** Default settings. No special configurability needed — the bookend pattern is about how the team
+_uses_ ARC, not how they configure it.
 
 **How it works:** ARC governs planning (PRDs, task decomposition with acceptance criteria) and integration (quality
 gates, PR review, traceability). The execution phase — where the async agent works autonomously — operates outside ARC's
@@ -564,26 +582,26 @@ result at integration.
 during delegated execution. The team accepts this tradeoff for bounded, deterministic work where the cost of reduced
 human involvement is low.
 
-**Profile:** Recommended. The bookend pattern is an acknowledged usage pattern, not a configuration choice.
+**Enforcement:** Default settings. The bookend pattern is an acknowledged usage pattern, not a configuration choice.
 
-### Scenario C: Essentials to recommended scaling
+### Scenario C: Relaxed to full enforcement scaling
 
-A solo developer starts with the essentials profile while learning ARC. After a few weeks, they decide to adopt full
+A solo developer relaxes a few enforcement settings during early adoption (`commit.format: any`,
+`hooks.commit_msg: disabled`) to reduce friction while learning ARC. After a few weeks, they decide to adopt full
 enforcement.
 
 **The scaling path:**
 
 1. Edit `arc-config.yml`: change `commit.format` from `any` to `conventional`, change `commit.context_footer` from
-   `optional` to `required`, enable `hooks.commit_msg`, change `branch.protection` from `unprotected` to `partial`
+   `optional` to `required`, enable `hooks.commit_msg`
 2. Done. No file additions, no reinstallation, no migration.
 
-**What changes:** Hooks now enforce commit format and context footers. Branch protection requires branches for planned
-work. The agent's behavior is largely unchanged — it was already following the conventions from loaded guidance.
-Enforcement catches up to what the agent was already doing.
+**What changes:** Hooks now enforce commit format and context footers. The agent's behavior is largely unchanged — it was
+already following the conventions from loaded guidance. Enforcement catches up to what the agent was already doing.
 
 **What the developer notices:** Commits that would have been accepted are now validated. The quality is the same (the
-agent was already producing conventional commits); the enforcement is new. The transition is smooth because the
-essentials experience demonstrated the conventions in practice before enforcement was activated.
+agent was already producing conventional commits); the enforcement is new. The transition is smooth because the relaxed
+period demonstrated the conventions in practice before enforcement was activated.
 
 ---
 
@@ -591,9 +609,6 @@ essentials experience demonstrated the conventions in practice before enforcemen
 
 - **[Core philosophy strategy][core-philosophy]** — The companion to this document. Defines what ARC is: principles,
   philosophical foundation, positioning. This document defines how teams customize it.
-- **ADRs (`.arc-internal/reference/adr/`)** — The immutable decision records behind this strategy. ADR-003 (config +
-  extensions), ADR-004 (adoption tiers), ADR-005 (external compat + method overrides), and ADR-006 (methodology
-  compatibility) document the analysis, alternatives considered, and consequences for each design decision.
 - **[Development methodology strategy][dev-methodology]** — Operational rules for how work happens (commit standards,
   session management, task protocols). The conventions that this document's configuration system makes adjustable are
   defined and described there.
@@ -605,6 +620,6 @@ essentials experience demonstrated the conventions in practice before enforcemen
 ---
 
 [core-philosophy]: strategy-core-philosophy.md
-[dev-methodology]: strategy-development-methodology.md
+[dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md

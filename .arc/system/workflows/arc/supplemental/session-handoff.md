@@ -2,9 +2,15 @@
 
 **Audience:** Agent-executed — your agent follows this to capture session state.
 
-**Purpose**: Capture session state in CURRENT-SESSION.md so the next session can resume with full context.
+**Purpose**: Capture session state so the next session can resume with full context. This is the counterpart to
+[session initialization][session-init] — together they implement P5 (Context Preservation) at session boundaries.
 
 **When to use**: User-triggered at the end of a session, or when transitioning between work contexts.
+
+**Design context**: This workflow is optimized for agents with ephemeral context — capturing state that would
+otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff ceremonies; the
+principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
+via [`arc-methods.md` § session-state][arc-methods-session].
 
 ## Handoff Protocol
 
@@ -14,51 +20,79 @@
 
 1. `git status` — clean vs uncommitted changes
 2. `git log --oneline -10` — capture committed work
-3. Task list file — verify marked checkboxes reflect actual completion
-4. **Working directory** — if it changed during the session, update paths in CURRENT-SESSION.md
+3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
+4. Task list file — verify marked checkboxes reflect actual completion
+5. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
 
 ### What to Update
 
-**Every handoff** — Session Information and Session Context sections (work status, tasks, commits, blockers)
+Session state is split across two files (per the [session-state method][arc-methods-session] default — if your
+project overrides session-state, follow the override instead):
 
-**When context changes** — Working directory paths or environment expectations in CURRENT-SESSION.md
+- **WORK-STATUS.md** (tracked) — project state: branch, task list, next task, blockers, next action
+- **SESSION-NOTES.md** (gitignored) — personal context: completed work, decisions, debugging insights,
+  things tried. Replaced each handoff (not appended). Created only when there's context worth
+  preserving; delete between work units.
 
-**Preserve protected sections** — Content marked "DO NOT REMOVE UNTIL..." or similar warnings stays until
-its stated condition is met
+> **Team mode:** SESSION-NOTES.md moves to `team/{name}/SESSION-NOTES.md` (personal, per
+> developer). WORK-STATUS.md stays in `active/` (shared, one per branch). Paths in the
+> templates below show the solo (default) layout. See [Team Coordination
+> Strategy][team-coordination] § Workflow Adaptations.
+>
+> **Person-to-person handoff:** If handing off to a different developer (not just ending your
+> own session), write SESSION-NOTES.md for someone with no prior context on this work and
+> reassign task ownership via `(@name)` markers. See [Team Coordination
+> Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
+
+**Every handoff** — WORK-STATUS.md (state fields) and SESSION-NOTES.md (session context, if any)
+
+**When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
+
+**Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
+context that survives across handoffs. Each entry has an explicit removal trigger. During handoff,
+rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context) but preserve
+persistent context entries whose triggers haven't been met. Remove entries whose triggers are met.
 
 ### Comprehensive Handoff Format
 
-Update `.arc/active/CURRENT-SESSION.md` before ending session:
+Update session state files before ending session:
 
-1. **First**: Check for protected sections (marked "DO NOT REMOVE UNTIL...") and preserve them
-2. **Second**: Check if working directory context changed and update paths in CURRENT-SESSION.md if needed
-3. **Then**: Update "Session Information" section and below with work progress:
+1. **First**: Review `## Persistent Context` — preserve entries whose triggers aren't met, remove entries
+   whose triggers are met
+2. **Second**: Check if working directory context changed and update paths in WORK-STATUS.md if needed
+3. **Then**: Update both files with work progress:
+
+**Update `.arc/active/WORK-STATUS.md`** (tracked project state):
 
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: [current branch name, e.g., feature/config-parser]
 **Task List**: [path to task list, e.g., .arc/active/feature/tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Following Task List**: Yes
   [OR: No - [brief context, e.g., "fixing connection timeout in batch processor (will return to Task 4.5)"]]
-**Current Task**: Task 3.3 (line 247) - Write unit tests
-  [REQUIRED when following task list - enables direct jump to task during session init]
-  [Omit only if no task list or transitioning between task lists]
-**Last Completed**: Task 3.2 - Add validation logic
+**Next Task**: Task 3.3 — Write unit tests (line ~247)
+  [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
+  [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
+  [Omit only when no task list exists or all tasks are complete.]
+**Last Completed**: Task 3.2 — Add validation logic
   [OR for off-task-list: brief description, e.g., "Fixed connection timeout in batch processor"]
   [OR if work complete: "Backend Type Safety (Tasks 1-14, archived)"]
-**Next Action**: Start Task 3.3 - Write unit tests for validation logic
+**Blockers**: [none]
+  [OR: describe blockers, pending decisions, waiting on user clarification]
+**Next Action**: Start Task 3.3 — Write unit tests for validation logic
   [OR for off-task-list/preparatory: specific action description]
-  [Can be preparatory work (strategy doc review, planning) even when Current Task shows task number]
+  [Freeform — can be preparatory work, off-task-list activity, or simply "start Next Task"]
 
-_Note: Current Task shows WHICH task you're on (stable). Next Action shows WHAT to do next (can be preparatory work before starting task, or specific subtask if already in progress)._
+_Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
+WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
+```
 
----
+**Update `.arc/active/SESSION-NOTES.md`** (personal session context — gitignored):
 
-## Session Context & Status
-
-### Completed This Session
+```markdown
+### Completed Work
 
 **CRITICAL: When documenting UNCOMMITTED work, use commit-level granularity.**
 
@@ -88,30 +122,45 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 1. [Step 1]
 2. [Step 2]
-3. Return to Task X.Y (line ~XXX in tasks-file.md)
+3. Return to Task X.Y — Title (line ~XXX in tasks-file.md)
 
-### Blockers
-
-[none]
-[OR: Describe blockers, pending decisions, waiting on user clarification]
-
-### Additional Context for Next Session
+### Additional Context
 
 [Supplemental information not in task list: debugging insights, decisions made, things tried/ruled out, constraints discovered]
 
 [OR: [none] if task list has all needed context]
+
+### Persistent Context
+
+<!-- Entries that survive across handoffs. Each has an explicit removal trigger. -->
+<!-- Review at each handoff: remove entries whose triggers have been met. -->
+
+**[Entry name]:**
+*Remove when: [explicit trigger condition]*
+
+- [Context that must persist until trigger is met]
+
+---
+
+**Commit at Handoff**: `{{short-hash}}`
+
+**Last Updated**: {{YYYY-MM-DD}}
 ```
 
 **What to include:**
 
 - **Remaining Work** - Only for off-task-list work when path back is known
     - List ALL steps if known, not just immediate next
-    - Critical: Captures full path back to task list (INCLUDING task number + line number - essential)
+    - Critical: Captures full path back to task list (use triple-anchor format: task number + title + line hint)
 - **Additional Context** - Supplemental info not in task list
     - Debugging: What tried, what ruled out, what suspected
     - Decisions: Choices made that inform approach
     - Constraints: User preferences, technical limitations
     - Goal: Don't repeat work, don't lose insights
+- **Persistent Context** - Context that must survive across multiple handoffs
+    - Each entry needs an explicit removal trigger (not tied to full work unit completion)
+    - Examples: design decisions to apply consistently, parked work items, naming conventions
+    - Review at each handoff: remove entries whose triggers are met
 
 **What NOT to include:**
 
@@ -124,21 +173,24 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 **Example 1: Off-task-list with known path back**
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: feature/data-pipeline
 **Task List**: .arc/active/feature/tasks-data-pipeline.md
 **Following Task List**: No - fixing connection timeout in batch processor (will return to Task 4.1)
-**Current Task**: Task 4.1 (line 312) - Add retry logic to ingestion step
-**Last Completed**: Task 3.5 - Schema validation for input records
+**Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
+**Last Completed**: Task 3.5 — Schema validation for input records
+**Blockers**: [none]
 **Next Action**: Fix connection timeout in batch processor (src/pipeline/batch.py:89)
+```
 
----
+SESSION-NOTES.md:
 
-## Session Context & Status
-
-### Completed This Session
+```markdown
+### Completed Work
 
 - ✅ Task 3.5: Added schema validation for input records
 - ⚠️ Discovered connection timeout during integration testing
@@ -148,13 +200,9 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 1. Fix connection timeout in batch processor (pool exhaustion under load)
 2. Add integration test for concurrent batch processing
 3. Run full test suite to verify no regressions
-4. Return to Task 4.1 - Add retry logic (line 312 in tasks-data-pipeline.md)
+4. Return to Task 4.1 — Add retry logic (line ~312 in tasks-data-pipeline.md)
 
-### Blockers
-
-[none]
-
-### Additional Context for Next Session
+### Additional Context
 
 - Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
 - Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections
@@ -163,30 +211,29 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 **Example 2: Preparatory work before starting task**
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: technical/api-documentation
 **Task List**: .arc/active/technical/tasks-api-documentation.md
 **Following Task List**: Yes
-**Current Task**: Task 3.1 (line 203) - Document authentication endpoints
-**Last Completed**: Tasks 2.3-2.4 (Query parameter and response format sections)
+**Next Task**: Task 3.1 — Document authentication endpoints (line ~203)
+**Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
+**Blockers**: [none]
 **Next Action**: Review auth middleware source before documenting Task 3.1 endpoints
+```
 
----
+SESSION-NOTES.md:
 
-## Session Context & Status
-
-### Completed This Session
+```markdown
+### Completed Work
 
 - ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
 - ✅ Task 2.4: Response format documentation (committed a1b2c3d)
 
-### Blockers
-
-[none]
-
-### Additional Context for Next Session
+### Additional Context
 
 **Pre-task review needed:**
 
@@ -196,34 +243,33 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 
 **Example 3: Off-task-list with unclear path**
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Branch**: technical/ci-pipeline
 **Task List**: .arc/active/technical/tasks-ci-pipeline.md
 **Following Task List**: No - debugging intermittent test failures in CI (will return to Task 5.2)
-**Current Task**: Task 5.2 (line 287) - Add caching to build step
-**Last Completed**: Task 5.1 - Parallelize test stages
+**Next Task**: Task 5.2 — Add caching to build step (line ~287)
+**Last Completed**: Task 5.1 — Parallelize test stages
+**Blockers**: [none]
 **Next Action**: Continue debugging intermittent CI test failures
+```
 
----
+SESSION-NOTES.md:
 
-## Session Context & Status
-
-### Completed This Session
+```markdown
+### Completed Work
 
 - ✅ Task 5.1: Parallelized test stages
 - ⚠️ Investigating intermittent test failures after parallelization (~30% failure rate)
 
 ### Remaining Work Before Returning to Task List
 
-Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when resolved.
+Path unclear - exploratory debugging. Will return to Task 5.2 — Add caching to build step (line ~287) when resolved.
 
-### Blockers
-
-[none]
-
-### Additional Context for Next Session
+### Additional Context
 
 - Failures are non-deterministic, only appear in parallel execution
 - Ruled out: shared database state (tests use isolated transactions), file locking
@@ -235,12 +281,19 @@ Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when re
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
+WORK-STATUS.md:
+
 ```markdown
-## Session Information
+## Active Work
 
 **Last Completed**: [Task list name] (Tasks X-Y, archived)
+**Blockers**: [none]
 **Next Action**: Begin [new-task-list.md] starting with Task 1
+```
 
+SESSION-NOTES.md:
+
+```markdown
 ### [Task List Name] - COMPLETE & ARCHIVED ✅
 
 **Status**: All tasks complete, task list archived
@@ -266,13 +319,35 @@ Path unclear - exploratory debugging. Will return to Task 5.2 (line 287) when re
 
 ### Post-Update Cleanup
 
-After updating CURRENT-SESSION.md, verify it's clean markdown. If CURRENT-SESSION.md is gitignored,
-your linter may skip it by default — pass the path explicitly or use an IDE-integrated linter.
+After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
+may skip it by default — pass the path explicitly or use an IDE-integrated linter.
+
+### Conditional WORK-STATUS.md Commit
+
+If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
+commit it as part of the handoff. This resolves the "dangling WORK-STATUS.md" gap during
+off-task-list sessions (evaluation, design discussions, pre-planning) where no task commit
+naturally includes it. The handoff invocation is the approval — do not ask separately.
+
+**Trigger**: WORK-STATUS.md is dirty (`git diff --name-only` shows it) and no other
+staged/unstaged changes are pending that would form a task commit.
+
+**Action**: Commit standalone as part of the handoff:
+
+```bash
+git add .arc/active/WORK-STATUS.md
+git commit -m "docs(arc): update WORK-STATUS.md
+
+Context: maintenance (atomic / no associated task list)"
+```
+
+**Skip when**: WORK-STATUS.md will ride with a pending task commit (the normal case — see
+DEV-RULES.ARC § Work status accuracy).
 
 ### Confirm Handoff
 
-After updating CURRENT-SESSION.md and verifying markdown, deliver a verbal summary to the user.
-This is a quick confirmation for the human — CURRENT-SESSION.md is the durable artifact.
+After updating WORK-STATUS.md and SESSION-NOTES.md, deliver a verbal summary to the user. This is a quick
+confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
 
@@ -285,7 +360,7 @@ This is a quick confirmation for the human — CURRENT-SESSION.md is the durable
 
 - [Files/changes with logical commit grouping]
 
-**Next session:** [What comes next per CURRENT-SESSION.md]
+**Next session:** [What comes next per WORK-STATUS.md]
 
 **Formatting guidance:**
 
@@ -296,3 +371,7 @@ This is a quick confirmation for the human — CURRENT-SESSION.md is the durable
   entirely when all work is committed — less noise when there's nothing to report
 - **Next session** is standalone and prominent — same scanning target as init's
   "Next action"
+
+[session-init]: session-init.md
+[arc-methods-session]: ../../arc-methods.md#session-state
+[team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

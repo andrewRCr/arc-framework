@@ -3,8 +3,9 @@
 Guidance for Warp terminal assistance. For shared rules and architecture, defer to the canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context, lookup guide, and collaboration principles
-- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) v0.3.0-dev (hash: 8c5f2a91) – Non-negotiable standards
-- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) v0.3.0-dev – Environment context and command patterns
+- [DEV-RULES.ARC](../../../.arc/reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
+- [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
+- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
 
 ## Warp-Specific Notes
 
@@ -15,5 +16,5 @@ Guidance for Warp terminal assistance. For shared rules and architecture, defer 
 - **Quality gates shorthand:** Reference the commands listed in QUICK-REFERENCE (assume repo root paths);
   surface them as PowerShell snippets when asked to run checks
 - **Environment checks:** Confirm whether the warp session has Docker and git access before proposing actions
-- **Hand-offs:** When finishing terminal automation, update CURRENT-SESSION.md (or state "no update required")
-  and mention any long-running commands left active
+- **Hand-offs:** When finishing terminal automation, update WORK-STATUS.md and SESSION-NOTES.md (or state "no update
+  required") and mention any long-running commands left active

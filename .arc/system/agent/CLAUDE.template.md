@@ -3,7 +3,8 @@
 Guidance for Claude when working in this repository. For shared rules and architecture, defer to the canonical docs:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
-- [DEVELOPMENT-RULES](../../reference/constitution/DEVELOPMENT-RULES.md) – Non-negotiable standards
+- [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
+- [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
 - [Process Task Loop](../workflows/arc/3_process-task-loop.md) – One-task workflow
 
@@ -19,7 +20,7 @@ Guidance for Claude when working in this repository. For shared rules and archit
 - **Bash commands:** Keep shell commands simple and separate — chained commands (`&&`, `||`, pipes)
   may not match auto-approve patterns even when the individual commands would be approved. Run
   independent commands as parallel tool calls instead of chaining them.
-- **Session handoffs:** Explicitly state whether CURRENT-SESSION.md was updated or left unchanged
+- **Session handoffs:** Explicitly state whether session state files were updated or left unchanged
 - **Staging verification:** After `git add` and before `git commit`, run `git diff --cached --stat`
   to verify the staging area matches intent. Pre-staged files (from earlier `git rm` or `git add`)
   can silently slip into commits, and intended files can be left out. The pre-commit `git status`
@@ -51,7 +52,7 @@ Guidance for Claude when working in this repository. For shared rules and archit
 - 150k: Proactive check-in with user before hitting limits
 - Leaves buffer for commit workflows, quality gates, and session handoff if needed
 
-**See also:** Session Context Management section in strategy-development-methodology.md for agent-agnostic principles.
+**See also:** Session Management section in DEV-RULES.ARC.md for agent-agnostic principles.
 
 ## Deferred Review
 

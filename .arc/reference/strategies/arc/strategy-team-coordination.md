@@ -16,10 +16,36 @@ structure, see `team/README.md`.
 
 ## Contents
 
-1. [Task Ownership](#task-ownership) — `(@name)` convention
-2. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
-3. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
-4. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
+1. [Workflow Adaptations](#workflow-adaptations) — what changes in team mode
+2. [Task Ownership](#task-ownership) — `(@name)` convention
+3. [Person-to-Person Task Handoff](#person-to-person-task-handoff) — transferring work between developers
+4. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
+5. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
+6. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
+
+---
+
+## Workflow Adaptations
+
+How standard ARC workflows adapt when team mode is active. Detailed conventions follow
+in subsequent sections and referenced documents.
+
+| Aspect                   | Solo (default)            | Team mode                                        |
+|--------------------------|---------------------------|--------------------------------------------------|
+| Session notes            | `active/SESSION-NOTES.md` | `team/{name}/SESSION-NOTES.md`                   |
+| Work status              | `active/WORK-STATUS.md`   | `active/WORK-STATUS.md` (shared, one per branch) |
+| ATOMIC-TASKS.md (1)      | `active/ATOMIC-TASKS.md`  | `team/{name}/ATOMIC-TASKS.md`                    |
+| One task at a time       | Single pair               | Per developer-agent pair (concurrent pairs OK)   |
+| Task ownership           | Implicit                  | `(@name)` markers in task lists                  |
+| Branching                | One branch per work unit  | Multiple patterns — see below                    |
+
+(1) The standalone ATOMIC-TASKS.md file requires `pm.mode: arc-in-git`. Atomic tasks as a
+concept (task list sections for off-plan work) are Core and always available.
+
+**Key distinction:** WORK-STATUS.md is shared in `active/` (one per branch, tracked in git).
+SESSION-NOTES.md and ATOMIC-TASKS.md are personal — they move to `team/{name}/` so that
+concurrent developers don't conflict on session state. See `team/README.md` for the full
+directory structure.
 
 ---
 
@@ -59,6 +85,88 @@ which pair owns a task.
 Reassignment is a text edit — change the marker. No ceremony required. If using an external
 tracker for assignment (see [External Tracker Integration](#external-tracker-integration)),
 update the external tool as the source of truth and optionally update the ARC marker.
+
+---
+
+## Person-to-Person Task Handoff
+
+When one developer-agent pair transfers active work to another — vacation, rotation, workload
+rebalancing, or specialization change. Distinct from normal session handoff (same person, different
+session) in that the *reader changes*, not just the time boundary.
+
+Person-to-person handoff composes the existing [session-handoff][session-handoff] and
+[session-init][session-init] workflows with enhanced context for the different reader. No new
+ceremony — the standard workflows apply with the adjustments below.
+
+### Outgoing Responsibilities
+
+The outgoing developer runs a standard session handoff with these additions:
+
+1. **Reassign task ownership.** Update `(@name)` markers in the task list for the incoming
+   developer — at minimum the current task and immediate next tasks. This is visible to anyone
+   reading the task list and doesn't require fetching session notes.
+
+2. **Write SESSION-NOTES.md for a different reader.** Normal session notes assume "future me" as
+   the audience. For person-to-person handoff, write for someone with no prior context:
+   - **Decisions and rationale** — not just "what" but "why this approach"
+   - **Code landmarks** — key files, tricky sections, line numbers worth reading first
+   - **Known gotchas** — edge cases, data format quirks, things that look wrong but aren't
+   - **Approaches tried and abandoned** — prevents the incoming developer from re-exploring
+     dead ends
+   - **Priority guidance** — if multiple tasks remain, what ordering matters and why
+
+3. **Push session notes.** Ensure git notes are pushed so the incoming developer can fetch
+   them (see session-handoff workflow for the git notes save-and-push steps). With
+   `session.notes_push: prompt` (the team default), confirm the push when prompted.
+
+### Incoming Bootstrap
+
+The incoming developer runs a standard session-init with these additions:
+
+1. **Fetch the outgoing developer's notes.** If the outgoing developer pushed git notes, fetch
+   their namespace and load their context:
+
+   ```bash
+   # Fetch outgoing developer's session notes
+   git fetch origin refs/notes/arc/session/{outgoing}:refs/notes/arc/session/{outgoing}
+
+   # Read their context (inspect, don't overwrite your own SESSION-NOTES.md)
+   git notes --ref=arc/session/{outgoing} show HEAD
+   ```
+
+   This supplements WORK-STATUS.md with qualitative context — decisions, gotchas, and approach
+   notes that aren't captured in tracked artifacts.
+
+2. **Apply the agent-switching filter.** If the outgoing developer used a different AI agent,
+   extract factual content (file references, decisions, known risks) and disregard agent-specific
+   references (tool syntax, capability assumptions). Session-init's existing
+   [agent-switching guidance][session-init] applies here.
+
+3. **Verify task ownership.** Check the task list for `(@name)` markers confirming which tasks
+   are assigned to you. WORK-STATUS.md shows the branch-level current task; the markers show
+   your personal scope.
+
+4. **Confirm understanding.** Report your understanding in the session-init orientation summary.
+   If the outgoing developer is available, confirm before starting work. If not, the documents
+   should stand alone — see async conventions below.
+
+### Async Conventions
+
+Person-to-person handoff is designed to work asynchronously. The outgoing developer may not be
+available when the incoming developer starts. Design for this:
+
+- **Documents must stand alone.** SESSION-NOTES.md + WORK-STATUS.md should provide complete
+  orientation without verbal walkthrough. When writing for handoff, ask: "Would this make sense
+  to someone reading it cold?"
+- **WORK-STATUS.md provides minimum viable context.** Even without SESSION-NOTES.md, the project
+  pointer (branch, task list, current task, next action) is sufficient to start work. Session
+  notes are an enhancement, not a prerequisite.
+- **Graceful degradation applies.** If git notes weren't pushed or aren't available, fall back to
+  WORK-STATUS.md + task list + git log. Less context is not no context — the incoming developer
+  starts with tracked artifacts and builds understanding through the work itself.
+- **Questions are expected.** The incoming developer may need to leave questions in commit
+  messages, PR comments, or team channels. Not having the outgoing developer available is
+  normal, not a blocker.
 
 ---
 
@@ -148,11 +256,17 @@ developers reference and update them. This means:
   feature branches. Make structural changes (reordering, adding phases) on the
   integration branch or base branch where all members can pull them.
 
-### Session State Has No Conflicts
+### Session State Merge Behavior
 
-`team/{name}/CURRENT-SESSION.md` and `team/{name}/ATOMIC-TASKS.md` are personal files —
-only one developer writes to each. This is the primary reason for the `team/` directory
-structure: eliminating file-level conflicts on session state.
+Personal files — `team/{name}/SESSION-NOTES.md` and `team/{name}/ATOMIC-TASKS.md` — have no
+merge conflicts by design. Only one developer writes to each. This is the primary reason for
+the `team/` directory structure.
+
+`WORK-STATUS.md` in `active/` is shared (one per branch, tracked in git). Merge conflicts on
+WORK-STATUS.md are trivial: `.gitattributes` with `merge=ours` auto-resolves local merges by
+keeping the target branch version; PR merges take the base branch version. Post-merge workflows
+update WORK-STATUS.md immediately, so the auto-resolved content is transient. See
+[Work Organization Strategy][work-org] § Task Lists and Branches for the full merge convention.
 
 ---
 
@@ -168,7 +282,7 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 | Task assignment       | Primary (who owns what)      | Optional `(@name)` for convenience   |
 | Status tracking       | Primary (board view, sprint) | Checkbox state for agent context     |
 | Implementation detail | Not tracked                  | Subtasks, acceptance criteria, notes |
-| Session context       | Not tracked                  | CURRENT-SESSION, handoff state       |
+| Session context       | Not tracked                  | SESSION-NOTES.md, handoff state      |
 
 ### How They Complement Each Other
 
@@ -179,6 +293,21 @@ context — subtask breakdowns, acceptance criteria, completion notes, and sessi
 Neither replaces the other. A Jira ticket might say "Implement user authentication";
 the ARC task list breaks that into 15 subtasks with specific acceptance criteria that
 the human-agent pair works through one at a time.
+
+### Integration Mechanism
+
+ARC provides extension points at key workflow moments for syncing with external trackers.
+Configure these in [`arc-extensions.md`][arc-extensions]:
+
+- **`post-task-completion`** — fires after a task is marked `[x]`. Use to sync task status
+  to Jira, Linear, or GitHub Issues.
+- **`post-work-unit-activate`** — fires after a work unit moves from backlog to active. Use
+  to update sprint boards or project status.
+- **`post-work-unit-archive`** — fires after a work unit is archived. Use to close epics or
+  update project dashboards.
+
+No extension points are needed for task *assignment* — `(@name)` markers and external tracker
+assignment serve different audiences and don't need real-time sync.
 
 ### When `(@name)` Markers Are Optional
 
@@ -198,5 +327,8 @@ them if they're useful, skip them if they'd drift from the tracker.
 ---
 
 [work-org]: strategy-work-organization.md
-[dev-methodology]: strategy-development-methodology.md
+[dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[session-handoff]: ../../../system/workflows/arc/supplemental/session-handoff.md
+[session-init]: ../../../system/workflows/arc/supplemental/session-init.md
+[arc-extensions]: ../../../system/workflows/arc-extensions.md

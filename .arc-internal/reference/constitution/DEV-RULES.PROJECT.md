@@ -1,0 +1,123 @@
+# Development Rules (Project)
+
+Project-specific development standards for the ARC framework. Quality gates, testing requirements,
+documentation style, file organization, and architecture rules.
+
+For ARC methodology rules (commit discipline, task execution, session management, verification), see
+[DEV-RULES.ARC][dev-rules-arc].
+
+---
+
+## Contents
+
+- [Quality Gates](#quality-gates) — checks and enforcement
+- [Testing Requirements](#testing-requirements) — test strategy and coverage
+- [Code Quality Principles](#code-quality-principles) — engineering standards
+- [Documentation Standards](#documentation-standards) — markdown quality, style conventions
+- [File Organization](#file-organization) — directory structure and boundaries
+- [Architecture Documentation](#architecture-documentation) — ADRs and design records
+
+---
+
+## Quality Gates
+
+**Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
+
+**Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
+integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
+pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
+and task list integration.
+
+1. **Markdown Linting**: Zero violations
+   - Command: `npm run -s lint:md`
+   - Auto-fix: `npm run -s lint:md:fix`
+   - Config: `.markdownlint-cli2.jsonc`
+
+2. **CI Validation**: All checks pass
+   - GitHub Actions runs automatically on push/PR
+   - Markdown linting (zero violations policy)
+   - Template structure validation
+   - Internal link checking
+
+## Testing Requirements
+
+**N/A for documentation-only framework** — markdown linting serves as primary quality gate.
+
+## Code Quality Principles
+
+Apply standard software engineering principles:
+
+- **DRY** (don't repeat yourself)
+- **SOLID** (single responsibility, open/closed, dependency inversion)
+- **KISS** (keep it simple)
+- **YAGNI** (you aren't gonna need it)
+
+Separate concerns, prefer composition over duplication, favor readability when principles conflict.
+
+## Documentation Standards
+
+### Markdown quality
+
+- All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
+- Template-first documents with comprehensive inline guidance and framework defaults
+- Templates clearly marked as `.template.md` and copy-ready
+- READMEs required for each directory
+- Always run markdown linting after updating documentation files
+- **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely.
+
+### Documentation style
+
+- **Collaborative voice**: Commits, task lists, and project docs should read naturally from an author or team
+  perspective — not as a transcript of human-AI interaction. Write as the work's author would.
+    - ❌ "The user approved the approach", "Pending user review", "User requested we defer this"
+    - ✅ "Approved after review", "Pending review", "Decided to defer this to next phase"
+
+- **Reference-style links**: Prefer reference-style links for cross-file references. Collect link definitions at
+  the end of the file after a `---` separator. The separator doubles as a consistent EOF indicator — link
+  definitions are invisible in rendered output, so the horizontal rule is the last visible element.
+    - Reference names: lowercase, descriptive, hyphenated (e.g., `[dev-rules]`, `[process-loop]`)
+    - One `---` + link block per file, always at the very end
+    - Short links (same directory or one level up) may remain inline at author discretion
+
+## File Organization
+
+- `.arc/` = the deployable template system (permanent, versioned)
+- `.arc-internal/` = framework development workspace (internal use only)
+- **No internal references in public docs**: Files in `.arc/` must never reference `.arc-internal/`
+  paths (ADRs, internal PRDs, internal workflows, etc.). Public docs are adoption-facing — adopters
+  won't have `.arc-internal/`. Use the public strategy doc or workflow equivalent instead.
+- Template-first documents in `.arc/reference/constitution/`, `.arc/system/agent/`
+- Core workflows in `.arc/system/workflows/`
+
+## Architecture Documentation
+
+### Architecture Decision Records (ADRs)
+
+Document significant architectural decisions in ADRs (`.arc/reference/adr/`). ADRs capture the context,
+decision, and consequences of important design choices, serving as historical record and reference for
+understanding system constraints.
+
+**Write an ADR when:**
+
+- Decision affects system structure or external contracts
+- Multiple alternatives were considered
+- Decision driven by external constraint (API limitations, regulatory requirements)
+- Future developers will ask "why did we do it this way?"
+- Decision could be reversed later (context needed for reversal)
+
+**Don't write an ADR for:**
+
+- Purely tactical implementation choices (variable names, loop constructs)
+- Decisions obvious from reading code (standard CRUD, framework conventions)
+- Temporary or experimental choices
+
+**Format and guidance:** See [ADR Methodology Strategy][adr-methodology]
+
+ADRs are stable once accepted — corrections and amendments are permitted under the three-tier model
+in [ADR Methodology Strategy][adr-methodology], but the decision itself changes only through supersession.
+
+---
+
+[dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
+[quality-gates]: ../../../.arc/reference/strategies/arc/strategy-quality-gates.md
+[adr-methodology]: ../../../.arc/reference/strategies/arc/strategy-adr-methodology.md

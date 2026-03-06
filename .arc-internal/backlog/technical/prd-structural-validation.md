@@ -51,7 +51,7 @@ lightweight and will sharpen as WU2 implementation reveals the actual post-chang
    customizations or stale framework content. The mixed-concern audit prevents this.
 
 3. **Future maintainer editing a concept** — Changing how "archive trigger" works requires
-   updates in strategy-work-organization, archive-completed, process-task-loop, and
+   updates in strategy-work-organization, integrate-work-unit, archive-work-unit, process-task-loop, and
    rotate-branch. The dependency map shows this blast radius upfront.
 
 ## Requirements

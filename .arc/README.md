@@ -12,14 +12,13 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 ```text
 .arc/
 ├── active/                    # Current work in progress
-│   ├── CURRENT-SESSION.md     # Agent orientation: what's active, what's next
-│   ├── ATOMIC-TASKS.md        # Small one-off tasks (no full task list needed)
+│   ├── WORK-STATUS.md         # Project state: current task, blockers, next action
+│   ├── ATOMIC-TASKS.md        # Small one-off tasks (arc-in-git pm.mode only)
 │   ├── feature/               # Active feature development
 │   ├── technical/             # Active technical/infrastructure work
 │   └── incidental/            # Active maintenance and discovered work
-├── backlog/                   # Future work pipeline
+├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)
 │   ├── ROADMAP.md             # Sequencing strategy for upcoming work
-│   ├── TASK-INBOX.md          # Zero-friction idea capture
 │   ├── feature/               # Feature backlog
 │   └── technical/             # Technical backlog
 ├── reference/                 # Stable, long-lived documentation
@@ -51,8 +50,7 @@ and what to leave for your agent:
 |---------------------|---------------------------------------------------------------|-------------------------------------------------------------------------|
 | **Agent-executed**  | Session init/handoff, process-task-loop, commit workflow      | Your agent follows these as procedures. Read when customizing.          |
 | **Collaborative**   | Setup workflows, create-prd, generate-tasks                   | You and your agent work through these together.                         |
-| **Shared context**  | Constitution, strategies, ADRs, roadmap, backlogs, task lists | Both you and your agent. The common project baseline.                   |
-| **Human-driven**    | Weekly review                                                 | You conduct this, optionally with agent assistance.                     |
+| **Shared context**  | Constitution, strategies, ADRs, task lists, project status    | Both you and your agent. The common project baseline.                   |
 | **Human-facing**    | Repository README, external documentation site                | You, when evaluating or onboarding to the framework.                    |
 
 **Audience headers in workflows:** All workflow files include an `**Audience:**` line at the

@@ -98,8 +98,8 @@ ARC provides a preset directory of markdown documents organized into three tiers
 
 Your current development context:
 
-- **CURRENT-SESSION** — Agent orientation document: what's in progress, what's next,
-  uncommitted state. Updated at session boundaries.
+- **WORK-STATUS** — Project state pointer: current task, blockers, next action. Tracked in git.
+- **SESSION** — Personal working context: approach, decisions, things tried. Gitignored.
 - **PRDs and task lists** — Requirements and scoped work broken into reviewable subtasks
   with completion criteria. Organized by type: `feature/`, `technical/`, `incidental/`.
 - **ATOMIC-TASKS** — Small one-off items that don't need full task lists.
@@ -109,7 +109,6 @@ Your current development context:
 Your planning pipeline:
 
 - **ROADMAP** — Sequencing strategy for upcoming work
-- **TASK-INBOX** — Zero-friction capture for ideas (GTD-style inbox)
 - **Planning documents** — Rough plans that evolve into structured PRDs
 
 ### Reference (`reference/`)
@@ -119,7 +118,7 @@ Stable, long-lived project knowledge:
 - **Constitution** — Foundational documents anchoring your project:
     - META-PRD (product vision and requirements)
     - TECHNICAL-OVERVIEW (architecture and stack)
-    - DEVELOPMENT-RULES (quality standards, commit protocols, collaboration rules)
+    - DEV-RULES.PROJECT (quality standards) and DEV-RULES.ARC (commit protocols, collaboration rules)
     - PROJECT-STATUS (current state and progress)
 - **Workflows** — Core development processes (PRD creation, task generation, task
   execution loop) and supplemental workflows (session handoff, atomic commits,
@@ -164,7 +163,7 @@ This creates a customized `.arc/` directory in your project.
 1. **Set up your project with your agent** — ARC provides a guided startup workflow
    that you run with your AI agent. Together you walk through the foundational
    documents: what you're building (META-PRD), your architecture (TECHNICAL-OVERVIEW),
-   and your development standards (DEVELOPMENT-RULES). The agent helps you fill these
+   and your development standards (DEV-RULES.PROJECT). The agent helps you fill these
    in based on your project, and the templates provide structure for what goes where.
 
 2. **Plan your first work** — Create a PRD for your first feature or task, then
@@ -208,11 +207,11 @@ don't conflict.
 ARC documents serve different audiences — understanding this helps you know what to
 read and what to leave for your agent:
 
-| Audience           | Documents                                                         | Who reads them                                                                                                               |
-|--------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| **Agent-executed** | Session init, session handoff, CURRENT-SESSION, process-task-loop | Your AI agent follows these as operational procedures. You don't need to read them in the core loop — only when customizing. |
-| **Shared context** | Constitution, strategies, ADRs, roadmap, backlogs, task lists     | Both you and your agent. Establishes the common baseline.                                                                    |
-| **Human-facing**   | This README, getting-started materials                            | You, when evaluating or setting up the framework.                                                                            |
+| Audience           | Documents                                                                 | Who reads them                                                                                                               |
+|--------------------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| **Agent-executed** | Session init, session handoff, WORK-STATUS + SESSION, process-task-loop   | Your AI agent follows these as operational procedures. You don't need to read them in the core loop — only when customizing. |
+| **Shared context** | Constitution, strategies, ADRs, roadmap, backlogs, task lists             | Both you and your agent. Establishes the common baseline.                                                                    |
+| **Human-facing**   | This README, getting-started materials                                    | You, when evaluating or setting up the framework.                                                                            |
 
 When your agent initializes each session, it reads several documents in full —
 constitution, development rules, quick reference, current session state. This is by
@@ -241,7 +240,7 @@ Agents lose all context between sessions. ARC handles this with a pair of workfl
   session: constitutional documents, development rules, current task state.
 - **Session handoff** captures everything needed to resume: completed work, uncommitted
   changes, blockers, next actions.
-- **CURRENT-SESSION** is the bridge between them, updated at handoff and read at
+- **WORK-STATUS** and **SESSION** are the bridge between them, updated at handoff and read at
   initialization.
 
 The result is that each session is independent but informed. No persistent agent

@@ -21,7 +21,7 @@ chmod +x .arc/system/githooks/commit-msg .arc/system/githooks/pre-commit
 ### commit-msg — Message Format
 
 Enforces the commit message standard defined in
-[strategy-development-methodology.md](../../reference/strategies/arc/strategy-development-methodology.md):
+[DEV-RULES.ARC.md](../../reference/constitution/DEV-RULES.ARC.md) § Commit format:
 
 **Errors (blocks commit):**
 
@@ -44,7 +44,8 @@ Enforces the commit message standard defined in
 - Base branch commit protection in `full` mode (all changes require branches and PR review)
 - Merge conflict markers in staged files
 - Sensitive files (`.env`, `credentials.json`, etc.)
-- Invalid task numbering format in task lists (third level must use letters: 1.1.a not 1.1.1)
+- Invalid task numbering format in task lists (third level must use letters: 1.1.a not 1.1.1) —
+  configurable via `hooks.task_numbering` (`error` | `warning` | `off`)
 - Meta-project references (task IDs, `.arc/` paths) in production code
 
 **Warnings (allows commit):**
@@ -58,8 +59,11 @@ Enforces the commit message standard defined in
 
 The base branch name and protection level are read from `.arc/system/arc-config.yml`.
 If the config file is missing or a setting is absent, defaults apply (`main` base branch,
-`partial` protection). See [strategy-work-organization.md](../../reference/strategies/arc/strategy-work-organization.md)
-for detailed mode descriptions.
+`partial` protection, `error` task numbering). See
+[strategy-work-organization.md](../../reference/strategies/arc/strategy-work-organization.md)
+for branch mode descriptions and
+[strategy-task-list-formatting.md](../../reference/strategies/arc/strategy-task-list-formatting.md)
+for the task numbering convention.
 
 ## Customization
 

@@ -25,18 +25,22 @@ with existing vision and technical direction.
 
 ### Step 1: Check for Existing Planning Artifacts
 
-Check if a `plan-*.md` file exists for this work in `.arc/backlog/` (under the appropriate `feature/`
-or `technical/` subdirectory). Plan documents are the primary pre-PRD planning
-artifact — they capture research, resolved decisions, and approach before work becomes active.
+Check if a `plan-*.md` document exists for this work. Plan documents capture resolved decisions,
+alternatives considered, and approach direction before requirements crystallize into a PRD. See
+[Work Planning Strategy][work-planning] for `plan-*` conventions and the discovery checklist.
+
+Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
+
+- **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog as part of the planning
+  pipeline and graduate to PRDs when ready
+- **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
+  into (no backlog directory)
 
 **If a plan exists**: Read it as your primary context. It may reference supplemental `notes-*.md`
 files with additional detail — read those too. Focus discovery (Step 3) on gaps and ambiguities
 rather than broad exploration.
 
 **If no plan exists**: Proceed directly to discovery.
-
-PRDs are created when work becomes active, not speculatively — plan documents prevent requirements
-from going stale by capturing evolving understanding during the planning phase.
 
 ### Step 2: Determine Work Category
 
@@ -51,7 +55,7 @@ technical work leans toward system impact and migration strategy.
 ### Step 3: Conduct Discovery
 
 Ask clarifying questions to establish the "what" and "why." The "how" comes during task generation
-and implementation.
+and implementation. See the [discovery checklist][discovery-checklist] for comprehensive coverage.
 
 **With a plan**: Ask targeted questions — fill gaps, validate assumptions, resolve open items.
 
@@ -67,60 +71,22 @@ For interactive sessions, provide numbered options to keep responses quick.
 
 ### Step 4: Write and Save PRD
 
-Generate the PRD using the format below. Save to:
+Generate the PRD using [template-prd.md][template-prd]. The template includes section guidance,
+dependency tracking, priority levels, and document history conventions. Adapt emphasis based on
+work type — not every section carries equal weight for every PRD.
 
-- **Feature**: `.arc/backlog/feature/prd-{{WORK_NAME}}.md`
-- **Technical**: `.arc/backlog/technical/prd-{{WORK_NAME}}.md`
+Save to:
+
+- **Feature**: `.arc/active/feature/prd-{{WORK_NAME}}.md`
+- **Technical**: `.arc/active/technical/prd-{{WORK_NAME}}.md`
 
 **Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
 continue with [2_generate-tasks.md](2_generate-tasks.md).
 
 ---
 
-## PRD Format
-
-### Header
-
-```markdown
-# PRD: [Work Name]
-
-**Type:** Feature | Technical
-**Updated:** YYYY-MM-DD
-
----
-```
-
-For PRDs with unresolved dependencies, add before the rule:
-
-```markdown
-**Status:** Pending Dependencies
-
-**Related Work:**
-
-- ⏳ Depends on: [Dependency] — brief description
-- ✅ Complete: [Resolved dependency] — brief description
-```
-
-When dependencies resolve, remove Status and Related Work, then proceed to task generation.
-
-### Content Sections
-
-Adapt emphasis based on work type — not every section carries equal weight for every PRD.
-
-1. **Introduction** — What this work is and why it matters. State the problem or opportunity.
-2. **Goals** — Specific objectives this work aims to achieve.
-3. **User Stories or Use Cases** — For features: user narratives ("As a... I want... so that...").
-   For technical work: system scenarios or migration cases that illustrate the change.
-4. **Requirements** — Numbered list of what the solution must do. Be specific and unambiguous.
-5. **Non-Goals** — What this work explicitly won't include. Critical for scope management.
-6. **Technical Considerations** *(optional)* — Constraints, dependencies, architectural implications,
-   or integration points. Often the core of technical PRDs; supplementary for features.
-7. **Design Considerations** *(optional, primarily features)* — UI/UX requirements, mockups, or
-   component patterns when applicable.
-8. **Success Criteria** — How will you know this succeeded? Features might measure user impact;
-   technical work might measure performance, reliability, or developer experience improvements.
-9. **Open Questions** — Unresolved questions or areas needing further investigation.
-
----
-
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
+[work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
+[discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
+[template-prd]: ../../../reference/templates/template-prd.md
+[arc-config]: ../../arc-config.yml

@@ -129,7 +129,7 @@ with no exceptions.
 **Guidance:**
 
 - Never skip or partially run Tier 3
-- If Tier 3 fails, fix before proceeding (see Quality Gate Failure Protocol in strategy-development-methodology.md)
+- If Tier 3 fails, fix before proceeding (see Quality gate failure in DEV-RULES.ARC.md)
 - Tier 3 failures after proper Tier 1/2 execution should be rare
 
 **Commits and quality gates:** Tiers are milestone-driven, not commit-driven. Work committed through the
@@ -227,7 +227,7 @@ tests miss. It's mandatory, not optional.
 
 ## Relationship to Other Documentation
 
-- **DEVELOPMENT-RULES:** Defines the "zero tolerance" policy and lists required quality gates.
+- **DEV-RULES.PROJECT:** Defines the "zero tolerance" policy and lists required quality gates.
   References this strategy for tier guidance.
 
 - **3_process-task-loop:** Defines when quality gates run in the task execution workflow. References

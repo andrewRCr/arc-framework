@@ -17,7 +17,7 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 | {{Resource name}} | `{{path}}`                  | {{brief explanation}}              |
 | .arc docs         | `.arc/`                     | Development documentation          |
 
-**Working Directory Note**: Your working directory may vary. Check CURRENT-SESSION.md for
+**Working Directory Note**: Your working directory may vary. Check WORK-STATUS.md for
 current context and adjusted paths.
 
 ### Runtime Environment
@@ -108,7 +108,7 @@ npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md"
 
 ## Quality Gate Commands
 
-Reference commands for DEVELOPMENT-RULES quality gates. See
+Reference commands for DEV-RULES.PROJECT quality gates. See
 [Quality Gates Strategy](strategies/arc/strategy-quality-gates.md) for the tiered approach
 (when to run which level of checks).
 
@@ -156,11 +156,11 @@ git status
 
 ✅ Check `pwd` first
 ✅ Use absolute paths or correct relative paths
-✅ Reference CURRENT-SESSION.md for working directory context
+✅ Reference WORK-STATUS.md for working directory context
 
 ### Command Construction
 
-❌ Using commands from DEVELOPMENT-RULES without checking paths
+❌ Using commands from DEV-RULES.PROJECT without checking paths
 ❌ Assuming tools are globally available vs. project-local
 
 ✅ Use commands from this file (paths correct for repo root)
@@ -173,5 +173,5 @@ git status
 
 ---
 
-**Commands assume repo root.** If working from a subdirectory, see CURRENT-SESSION.md
+**Commands assume repo root.** If working from a subdirectory, see WORK-STATUS.md
 for adjusted paths.

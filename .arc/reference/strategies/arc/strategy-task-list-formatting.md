@@ -21,7 +21,8 @@ documentation throughout the project lifecycle.
 6. [Common Mistakes](#common-mistakes)
 7. [Decision Guidelines](#decision-guidelines)
 8. [Verification Phase](#verification-phase)
-9. [Success Criteria Section](#success-criteria-section)
+9. [Atomic Tasks Section](#atomic-tasks-section)
+10. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -43,7 +44,53 @@ Before finalizing any task list, verify:
 - [ ] "Expect tests to FAIL initially" noted in test subtasks
 - [ ] "Tests should now PASS" noted after implementation subtasks
 - [ ] Verification phase as final phase (Tier 3 gates + PRD success criteria validation)
+- [ ] Atomic Tasks section present (empty by default, between verification phase and Success Criteria)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+
+---
+
+## Structural Requirements vs. Style Conventions
+
+Not all formatting guidance carries equal weight. Some elements are **structural** — tooling,
+hooks, and workflows depend on them. Others are **style conventions** — they produce better task
+lists but aren't mechanically enforced. Understanding the boundary helps adopters know what they
+can relax without breaking anything.
+
+### Structural (tooling depends on these)
+
+These elements are parsed by git hooks, workflows, or session initialization. Deviating from
+them may cause hook failures, workflow mismatches, or context loading errors.
+
+- **Checkbox syntax**: `- [ ]` / `- [x]` / `- [~]` — workflows track completion state (`[~]` =
+  intentionally deferred or superseded)
+- **Task numbering pattern**: `X.Y` (parent), `X.Y.a` (subtask) — pre-commit hook validates
+  letter numbering at third level (`[configurable]`: `hooks.task_numbering` in `arc-config.yml`)
+- **Phase header format**: `### **Phase X:** Description` — used for phase counting and navigation
+- **Header metadata fields**: `**Status:**`, `**Branch(es):**`, `**PRD:**` — parsed by workflows
+  and session initialization
+- **File naming**: `tasks-{name}.md` in `active/` or `backlog/` — hook file matching, WORK-STATUS
+  references
+- **Atomic Tasks section header**: `## Atomic Tasks — {name}` — workflows and archival expect this section
+- **Success criteria markers**: `[x]`, `[ ]`, `[~]` — verification workflow reads these
+
+### Style (human-facing quality)
+
+These conventions improve readability, consistency, and maintainability. They represent ARC's
+recommended practices but aren't enforced by tooling. Adopters can adjust these to team
+preference without breaking workflows.
+
+- Bold formatting on task descriptions
+- Goal/Note line placement and formatting
+- Blank lines between subtasks with detail bullets
+- Test-first task ordering within phases
+- Backticks on technical terms
+- Emoji policy
+- Indentation depth (4-space convention)
+- Detail bullet conventions (unnumbered, no checkboxes)
+- Revision numbering (R scheme)
+
+The rest of this document covers both categories together — structural requirements are the
+baseline, style conventions build on them.
 
 ---
 
@@ -64,7 +111,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Created:** YYYY-MM-DD
 **Branch(es):** `{feature|technical}/[branch-name]`
 **Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
-**Status:** {Pending|In Progress|Complete}
+**Status:** {Pending|In Progress|Complete|Integrated}
 
 ## Overview
 
@@ -95,7 +142,8 @@ Task list headers provide essential metadata and context. Format varies by task 
   when using stacked PRs or team sub-branches (see
   [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
-- Status values: `Pending` (planned), `In Progress` (active), `Complete` (done)
+- Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
+  `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/supplemental/archive-work-unit.md))
 - Overview section includes Purpose
 - Scope section defines boundaries (Will Do / Won't Do)
 - Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) only when needed
@@ -112,9 +160,9 @@ Task list headers provide essential metadata and context. Format varies by task 
 # Incidental: [Descriptive Title]
 
 **Created:** YYYY-MM-DD
-**Branch:** `incidental/[name]`
+**Branch(es):** `incidental/[name]`
 **Base Branch:** `[parent-branch-this-branched-from]`
-**Status:** {Pending|In Progress|Complete}
+**Status:** {Pending|In Progress|Complete|Integrated}
 
 ## Context
 
@@ -146,10 +194,10 @@ Task list headers provide essential metadata and context. Format varies by task 
 **Rules:**
 
 - Title uses `Incidental:` prefix
-- Branch is this task list's own branch (e.g., `incidental/filter-testing`)
+- `Branch(es)` lists this task list's own branch; add additional branches comma-separated if needed
 - Base Branch is the parent branch this branched from (enables grep-based discovery of related work)
 - Status values: `Pending` (not started), `In Progress` (active), `Paused` (blocked by other work),
-  `Complete` (done)
+  `Complete` (all tasks done, pre-merge), `Integrated` (merged to base branch)
 - **Interrupts** field shows what task list/task was paused (backward pointer) OR `None` if fresh work
 - **When pausing parent work**, add `Paused At` and `Paused To` fields to the interrupted task list
   (forward pointer)
@@ -164,7 +212,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 # Incidental: CLI Output Encoding on Windows
 
 **Created:** 2025-10-29
-**Branch:** `incidental/cli-output-encoding`
+**Branch(es):** `incidental/cli-output-encoding`
 **Base Branch:** `feature/multi-format-export`
 **Status:** In Progress
 
@@ -377,9 +425,9 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
 
 ### Emoji Usage
 
-**Policy:** Avoid emojis in task planning; acceptable only in completion details.
+**Policy:** Discourage emojis in task planning; acceptable in completion details.
 
-- **Never** in task descriptions, phase headers, or Goal/Note lines
+- **Discouraged** in task descriptions, phase headers, and Goal/Note lines — prefer plain text
 - **Acceptable** in completion details (when marking tasks `[x]`): ❌ for explaining deviations
   from plan with rationale
 - Green checkmarks (✅) discouraged as redundant — task already marked `[x]`
@@ -498,7 +546,7 @@ use separate phases per layer with test-first ordering in each, plus a cross-lay
 ```
 
 Tests written after implementation are harder, less effective, and violate the
-[Development Methodology Strategy](strategy-development-methodology.md) Test-First Protocol.
+[DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) § Test-first assessment.
 
 ---
 
@@ -640,6 +688,23 @@ This example demonstrates all formatting elements in proper context:
     - [ ] **4.2.c Test suggestion accuracy**
         - Typo in field name → verify closest match suggested
 
+---
+
+## Atomic Tasks — Config Validation Error Reporting
+
+<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
+<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
+<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
+
+---
+
+## Success Criteria
+
+- [ ] Required-field validation reports all missing fields with paths
+- [ ] Type-mismatch validation reports expected vs actual types
+- [ ] Multiple errors collected and reported in single pass
+- [ ] All quality gates pass (tests, linting, type checking — 0 violations)
+- [ ] Ready to resume interrupted work at Task 3.6.2
 ```
 
 ---
@@ -734,10 +799,63 @@ success criteria model.
 
 ---
 
+## Atomic Tasks Section
+
+**Present in all task lists.** Placed after the verification phase and before Success Criteria.
+Empty by default — populated during execution as off-plan work is discovered.
+
+**Purpose:** Captures small off-plan work **within this work unit's domain** — discoveries, fixes,
+and quality improvements that weren't anticipated during planning but belong to the same functional
+area. Items here archive with the task list, keeping all WU work in one place.
+
+**Format:**
+
+```markdown
+---
+
+## Atomic Tasks — {Work Unit Name}
+
+<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
+<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
+<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
+
+- [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
+- [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
+- [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
+```
+
+**Rules:**
+
+- Section header: `## Atomic Tasks — {Work Unit Name}` (em dash, matches task list title)
+- **Flat checkbox list** — no phase headers, no numbered tasks, no subtask hierarchy. Each item
+  is a single checkbox with a brief description. This is deliberately simpler than the main task
+  structure.
+- **Parenthetical context** — note where/when the item was discovered (e.g., "discovered during
+  Task 3.2") to preserve traceability without formal numbering
+- **Scope guard — size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it
+  belongs in an [incidental task list][manage-incidental], not here
+- **Scope guard — domain** — items must belong to this work unit's functional area. Discoveries
+  outside the WU's domain don't go here — they go to your project's capture mechanism for
+  standalone work (varies by PM mode: `ATOMIC-TASKS.md` in arc-in-git, external tracker in
+  external mode, or a new task list / session note in core-only mode). The
+  [leave-it-cleaner method][arc-methods-lic] applies if the fix is trivial and in a file you're
+  already touching.
+- **Empty by default** — the section exists in every task list from creation but starts with only
+  the inline guidance comment. Don't remove the empty section — its presence signals that off-plan
+  work has a home.
+- Horizontal rule (`---`) separates Atomic Tasks from the verification phase above
+
+**Structural note:** This section is a Core artifact — it exists in all task lists regardless of
+Project Management mode. It replaces the need for a standalone `ATOMIC-TASKS.md` file during work
+unit execution. The standalone file (in arc-in-git mode) remains the home for work that lives
+between or alongside work units — not scoped to any single task list.
+
+---
+
 ## Success Criteria Section
 
-**Required for all task lists.** Placed at the bottom after all phases (including the
-verification phase), serves as outcome verification checklist.
+**Required for all task lists.** Placed at the bottom after Atomic Tasks, serves as outcome
+verification checklist.
 
 **Purpose:** Checkable operationalization of the PRD's success criteria. Each "Will Do" item
 should map to a verifiable criterion. These checkboxes are checked during the
@@ -800,7 +918,7 @@ should map to a verifiable criterion. These checkboxes are checked during the
 
 ## References
 
-- [Development Methodology Strategy](strategy-development-methodology.md) - Test-First Protocol
+- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) - Test-first assessment
 - [2_generate-tasks.md][generate-tasks] - Planned work task generation
 - [manage-incidental-work.md][manage-incidental] - Incidental work lifecycle
 - [3_process-task-loop.md][process-task-loop] - Task execution workflow
@@ -811,3 +929,4 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-completion]: ../../../system/workflows/arc/supplemental/verify-completion.md
+[arc-methods-lic]: ../../../system/workflows/arc-methods.md#leave-it-cleaner

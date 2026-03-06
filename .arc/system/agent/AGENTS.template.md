@@ -41,7 +41,7 @@
 - {{Friction point with context}}
 - {{Friction point with context}}
 - **Commands in `QUICK-REFERENCE.md`**: All assume repo root — adjust paths based on working directory
-- **Working directory**: Check `CURRENT-SESSION.md` for current context
+- **Working directory**: Check `WORK-STATUS.md` for current context
 
 ## AI Collaboration Principles
 
@@ -55,10 +55,11 @@
   with your current task or seem unintentional.
 - **Limit scope** - Avoid global mutations or widespread changes without explicit approval
 - **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
+  (per developer-agent pair in team mode)
 - **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
 - **Verify before asserting** - Never guess file paths, implementation details, or content.
   Use search/read tools to verify, or ask clarifying questions when uncertain.
-  See `strategy-development-methodology.md` Verification Protocol.
+  See `DEV-RULES.ARC.md` § Verification and Discovery.
 - **Check strategy guidance** - Before implementing in codified domains, consult the relevant
   strategy doc. See `STRATEGY-INDEX.md` for available guidance.
 
@@ -73,5 +74,5 @@
 
 ---
 
-*This reference card is part of the ARC development framework. It provides
-quick orientation for AI assistants working on this project.*
+*This reference card is the shared entry point for all AI agents working on this project.
+Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md).*

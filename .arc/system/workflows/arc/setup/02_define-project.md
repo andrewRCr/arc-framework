@@ -48,19 +48,19 @@ project.
 - What are the critical performance requirements?
 - What security and reliability standards must be met?
 
-### Step 3: Define DEVELOPMENT-RULES
+### Step 3: Define DEV-RULES.PROJECT
 
 Your project's quality standards and development protocols — the rules specific to your
 codebase, tech stack, and team.
 
-**Template**: [DEVELOPMENT-RULES.template.md][dev-rules-template]
+**Template**: [DEV-RULES.PROJECT.md][dev-rules-template]
 
 **Note on scope:** ARC already provides framework-level development methodology — commit
 standards, session management, verification protocols, task execution rules — via
-[strategy-development-methodology.md][dev-methodology]. This is loaded automatically each
-session and applies universally across ARC projects. Your DEVELOPMENT-RULES complements
-this with project-specific content: quality gate commands for your tech stack, testing
-requirements, architecture rules, and any project-specific protocols.
+[DEV-RULES.ARC.md][dev-rules-arc]. This is loaded automatically each session and applies
+universally across ARC projects. Your DEV-RULES.PROJECT complements this with
+project-specific content: quality gate commands for your tech stack, testing requirements,
+architecture rules, and any project-specific protocols.
 
 **Think through**:
 
@@ -69,7 +69,17 @@ requirements, architecture rules, and any project-specific protocols.
 - What architecture rules are specific to this project?
 - How will collaboration and code review work?
 
-### Step 4: Plan ROADMAP
+During project setup, these templates become your project documents (dropping the `.template`
+suffix). META-PRD and TECHNICAL-OVERVIEW go in `reference/`; DEV-RULES.PROJECT goes in
+`reference/constitution/`.
+
+### With arc-in-git PM (`pm.mode: arc-in-git`)
+
+If your project uses arc-in-git Project Management mode, create these additional documents
+during setup. Check `pm.mode` in [`arc-config.yml`][arc-config] — skip this section if
+set to `none`.
+
+#### Step 4: Plan ROADMAP
 
 Your execution strategy — what gets built in what order, and why. The ROADMAP captures
 sequencing decisions and dependency chains so you can plan work deliberately rather than
@@ -84,7 +94,9 @@ reactively.
 - What dependencies exist between work items?
 - What's explicitly deferred and why?
 
-### Step 5: Establish PROJECT-STATUS
+ROADMAP goes in `backlog/`.
+
+#### Step 5: Establish PROJECT-STATUS
 
 Progress tracking for initiatives and milestones — a snapshot of where the project stands
 against the roadmap.
@@ -97,10 +109,7 @@ against the roadmap.
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
 
-During project setup, these templates become your project documents (dropping the `.template`
-suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RULES) go in
-`reference/constitution/`. ROADMAP goes in `backlog/`. PROJECT-STATUS goes in
-`reference/constitution/` alongside the other constitutional documents.
+PROJECT-STATUS goes in `reference/`.
 
 ---
 
@@ -111,9 +120,8 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RUL
 **Update the relevant document when circumstances change:**
 
 - **Technology changes**: Update TECHNICAL-OVERVIEW.md
-- **Contributor or process changes**: Review and update DEVELOPMENT-RULES.md
+- **Contributor or process changes**: Review and update DEV-RULES.PROJECT.md
 - **Direction changes**: Revise META-PRD.md direction and success criteria
-- **Sequencing shifts**: Update ROADMAP.md phases and dependencies
 - **Performance issues**: Update architecture and development standards
 
 ### Periodic Review
@@ -122,16 +130,23 @@ suffix). Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, DEVELOPMENT-RUL
 
 - **META-PRD**: Does the stated direction still match reality? Are success metrics still relevant?
 - **TECHNICAL-OVERVIEW**: Do documented patterns reflect current practice? Any new constraints?
-- **DEVELOPMENT-RULES**: Are quality gates catching real issues? Any standards that aren't working?
-- **ROADMAP**: Is the sequencing still correct? Any completed phases to archive?
-- **PROJECT-STATUS**: Are milestones current? Does it accurately reflect project state?
+- **DEV-RULES.PROJECT**: Are quality gates catching real issues? Any standards that aren't working?
+
+### With arc-in-git PM
+
+If your project uses arc-in-git PM mode, also maintain:
+
+- **Sequencing shifts**: Update ROADMAP.md phases and dependencies
+- **ROADMAP** (periodic): Is the sequencing still correct? Any completed phases to archive?
+- **PROJECT-STATUS** (periodic): Are milestones current? Does it accurately reflect project state?
 
 ---
 
+[arc-config]: ../../../system/arc-config.yml
 [init-arc]: 01_initialize-arc.md
-[meta-prd-template]: ../../../../reference/constitution/META-PRD.template.md
-[tech-overview-template]: ../../../../reference/constitution/TECHNICAL-OVERVIEW.template.md
-[dev-rules-template]: ../../../../reference/constitution/DEVELOPMENT-RULES.template.md
-[dev-methodology]: ../../../../reference/strategies/arc/strategy-development-methodology.md
+[meta-prd-template]: ../../../../reference/META-PRD.template.md
+[tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.template.md
+[dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [roadmap-template]: ../../../../backlog/ROADMAP.template.md
-[project-status-template]: ../../../../reference/constitution/PROJECT-STATUS.template.md
+[project-status-template]: ../../../../reference/PROJECT-STATUS.template.md

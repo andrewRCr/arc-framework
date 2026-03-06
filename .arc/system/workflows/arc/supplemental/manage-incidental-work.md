@@ -9,7 +9,8 @@ that should be addressed immediately.
 **When to use**: During feature or technical work when discovering issues requiring multiple subtasks (>30 min effort)
 that block or significantly impact current work.
 
-**Related**: [3_process-task-loop.md](../3_process-task-loop.md), [archive-completed.md](archive-completed.md)
+**Related**: [3_process-task-loop.md](../3_process-task-loop.md),
+[integrate-work-unit.md](integrate-work-unit.md), [archive-work-unit.md](archive-work-unit.md)
 
 ---
 
@@ -126,14 +127,26 @@ Related to: .arc/active/technical/tasks-api-modernization.md
 
 ## Git Branch for Incidental Work
 
-Incidental work with a dedicated task list gets its own branch. Atomic tasks and inline fixes stay on the
-current branch.
+Incidental work with a dedicated task list gets its own branch. Atomic tasks and inline fixes
+typically stay on the current branch.
 
-**Conventions:**
+**Exception — fully protected repositories:** Under `branch.protection: full`, all changes require
+branches. An atomic task unrelated to the current branch's scope needs its own branch even without
+a task list. This is a **branch without a work unit** — no task list, no PRD, no archive ceremony:
+
+- Create a branch (`incidental/<brief-slug>` or `fix/<brief-slug>`)
+- Commit the fix with a descriptive message and `Context:` footer
+- PR against the parent branch, merge, delete the branch
+- No archival workflow — there are no work unit artifacts to archive
+
+This is normal under full protection. Not every branch is a work unit.
+
+**Conventions (task list branches):**
 
 - **Branch naming**: `incidental/<name>` (matches task list slug — e.g., `incidental/auth-error-handling`)
 - **PR against parent branch**: `gh pr create --base parent-branch` (not main)
-- **Archive immediately** after branch merge — task list in `.arc/active/` ↔ branch exists
+- **Archive when all tasks complete** — branch cleanup happens independently as PRs merge.
+  See [integrate-work-unit.md](integrate-work-unit.md) for the integration workflow
 
 See [Work Organization Strategy][work-org] for complete stacked
 branch workflow, merge strategy, and handling branch updates.
@@ -145,12 +158,13 @@ branch workflow, merge strategy, and handling branch updates.
 Incidental work follows standard workflows with no special procedures:
 
 - **Execution**: [3_process-task-loop.md](../3_process-task-loop.md) (one task at a time, same quality gates)
-- **Commits**: [strategy-development-methodology.md][dev-methodology] § Commit Standards (same standards as
+- **Commits**: [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline (same standards as
   feature/technical work)
-- **Archival**: [archive-completed.md](archive-completed.md) (archive immediately when branch deleted after merge)
+- **Integration**: [integrate-work-unit.md](integrate-work-unit.md) (doc prep, review, PR, merge when all tasks complete)
+- **Archival**: [archive-work-unit.md](archive-work-unit.md) (post-merge archive)
 
 ---
 
-[dev-methodology]: ../../../../reference/strategies/arc/strategy-development-methodology.md
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md

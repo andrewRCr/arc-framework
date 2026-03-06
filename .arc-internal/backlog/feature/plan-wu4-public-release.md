@@ -110,7 +110,7 @@ files, and one Action. The work is content, not infrastructure.
   decide if those choices fit their context. Written as "here's our approach and why" —
   not as prescriptive truth (see Positioning Guidance below).
 
-- **Fully-formed examples** — What DEVELOPMENT-RULES looks like for a Django project,
+- **Fully-formed examples** — What DEV-RULES.PROJECT looks like for a Django project,
   a React app, a data pipeline. Constitutional doc examples that show adopters the target
   state, not just the template. (These are the "filled-in examples" long deferred from the
   `.template.md` naming work — they belong on the docs site, not in the repo.)

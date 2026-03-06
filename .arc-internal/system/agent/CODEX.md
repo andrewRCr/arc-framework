@@ -4,8 +4,9 @@ Guidance for Codex CLI when working in the ARC framework repository. Shared rule
 context live in:
 
 - [AGENTS](AGENTS.md)
-- [DEVELOPMENT-RULES][dev-rules] v0.3.0-dev (hash: 8c5f2a91)
-- [QUICK-REFERENCE][quick-ref] v0.3.0-dev
+- [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
+- [DEV-RULES.PROJECT][dev-rules] – Project quality standards
+- [QUICK-REFERENCE][quick-ref] – Environment context and command patterns
 - [Process Task Loop][process-task-loop]
 
 ## Codex-Specific Notes
@@ -19,14 +20,15 @@ context live in:
   to verify the staged set is atomic and intentional.
 - **Quality gates:** For markdown checks, prefer pinned tooling (`npm run -s lint:md`) rather than
   network-dependent ad hoc `npx` calls.
-- **Session docs discipline:** Do not edit `CURRENT-SESSION.md` unless user asks. When asked to
-  hand off, update it with concrete commit-level progress and immediate next action.
+- **Session docs discipline:** Do not edit `WORK-STATUS.md` or `SESSION-NOTES.md` unless user asks. When asked to hand off,
+  update WORK-STATUS.md with current task and next action, and SESSION-NOTES.md with concrete progress and context.
 - **Escalation expectation:** Some commands need permission or unrestricted execution
   (for example `npm install`). If a required command fails under sandbox constraints, re-run with
   escalation request.
 
 ---
 
-[dev-rules]: ../../reference/constitution/DEVELOPMENT-RULES.md
+[dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
+[dev-rules]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
 [process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md
