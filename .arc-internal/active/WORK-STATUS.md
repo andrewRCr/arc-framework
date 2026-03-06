@@ -12,7 +12,7 @@
 **Next Task**: —
 **Last Completed**: Methodology Completion (archived)
 **Blockers**: [none]
-**Next Action**: Generate task list for structural validation → `2_generate-tasks.md`
+**Next Action**: Integrate planning branch → PR to main, then activate work unit
 
 ---
 

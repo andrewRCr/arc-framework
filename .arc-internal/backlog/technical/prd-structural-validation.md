@@ -52,7 +52,10 @@ questions surfaced during WU2 that were intentionally deferred to this checkpoin
 
 1. **Inventory validation** — walk the actual post-WU2 `.arc/` file tree against the inventory in
    `strategy-file-classification.md`. Flag: missing files, extra files, moved files, classification
-   changes, count inaccuracies. Update the inventory to match reality.
+   changes, layer assignment errors, count inaccuracies. Update the inventory to match reality.
+   Verify both axes independently: classification (Framework/Configurable/Scaffolded) determines
+   merge behavior, layer (Core/arc-in-git) determines which files `arc init` installs based on
+   `pm.mode`. Misassignment on either axis causes WU3 bugs.
 
 2. **Workflow directory evaluation** — assess the current `workflows/arc/supplemental/` structure
    and determine whether reorganization is warranted. Key concerns:
