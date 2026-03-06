@@ -53,7 +53,7 @@ during PRD creation. Some features described here may be post-1.0.
     - **`.gitignore` entries**: `.arc/active/SESSION-NOTES.md` (solo), `.arc/team/*/SESSION-NOTES.md` (team)
     - **`.gitattributes` entry**: `.arc/active/WORK-STATUS.md merge=ours` — auto-resolves merge
       conflicts by keeping the target branch version. Post-merge workflows (rotate-branch,
-      archive-completed) always update WORK-STATUS.md immediately, making the auto-resolved
+      archive-work-unit) always update WORK-STATUS.md immediately, making the auto-resolved
       content transient. Primarily a team-mode concern but harmless in solo.
     - **Merge driver config**: `git config merge.ours.driver true` (local git config, one-time
       setup). The `true` command returns success, keeping "ours" unchanged.

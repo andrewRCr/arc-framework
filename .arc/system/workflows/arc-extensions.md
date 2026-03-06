@@ -115,7 +115,7 @@ environment setup. Without populated steps, the workflow proceeds naturally.
 
 ## post-work-unit-archive
 
-**Workflow:** [archive-completed.md][archive-completed] · **Fires:** After Core archival steps complete (task list
+**Workflow:** [archive-work-unit.md][archive-work-unit] · **Fires:** After Core archival steps complete (task list
 archived, branch cleaned up)
 
 **Contract:** Perform additional actions after a work unit is archived. This is the primary interface for PM layers
@@ -134,4 +134,4 @@ workflow proceeds naturally.
 [session-init]: arc/supplemental/session-init.md
 [atomic-commit]: arc/supplemental/atomic-commit.md
 [activate-work-unit]: arc/supplemental/activate-work-unit.md
-[archive-completed]: arc/supplemental/archive-completed.md
+[archive-work-unit]: arc/supplemental/archive-work-unit.md

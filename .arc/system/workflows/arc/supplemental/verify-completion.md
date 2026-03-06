@@ -33,12 +33,12 @@ original text preserves intent; annotations capture reality.
 during implementation. Implementation tasks get checked as work progresses; success criteria
 get checked when the implementer steps back and validates outcomes against the PRD.
 
-**Relationship to archive-completed:** This is the implementer's validation pass. The
-[archive-completed workflow][archive-completed] performs a second confirmation during archival —
-a lightweight check that works whether the same person or a different team member archives.
+**Relationship to integrate-work-unit:** This is the implementer's validation pass. The
+[integrate-work-unit workflow][integrate-work-unit] performs a second confirmation during integration —
+a lightweight check that works whether the same person or a different team member integrates.
 
 ---
 
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[archive-completed]: archive-completed.md
+[integrate-work-unit]: integrate-work-unit.md

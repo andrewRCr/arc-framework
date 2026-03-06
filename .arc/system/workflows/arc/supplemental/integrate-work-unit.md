@@ -1,41 +1,36 @@
-# Workflow: Archive Completed Work
+# Workflow: Integrate Work Unit
 
-**Audience:** Agent-executed — your agent follows this to archive completed work.
+**Audience:** Agent-executed — your agent follows this to prepare completed work for integration.
 
-Move completed work documentation to structured archive to keep the active workspace clean while preserving
-history and context.
+After all tasks are marked complete and verification passes, this workflow prepares the work for integration:
+documentation cleanup, completion metadata, code review, and merge. The work unit's branch becomes a clean,
+reviewable deliverable.
 
-**Archive Timing:**
+**When to use:** All tasks in the task list are marked `[x]` and the verification phase has passed.
 
-Task lists are archived **when all tasks are marked complete** (`[x]`). Task completion is the
-trigger — branch cleanup happens independently as PRs merge.
+**What comes after:** Once merged, run [archive-work-unit][archive-work-unit] to move files to the archive
+and reset tracking state.
 
-- All tasks `[x]` → Archive task list to `.arc/reference/archive/`
-- Branches merged and deleted → Independent cleanup (may happen before or after archival)
-
-For multi-branch work units (stacked PRs, team sub-branches), archive once when all tasks
-complete, even if individual branches are merged incrementally.
-
-**Multi-branch work units** follow three distinct operations:
+**Multi-branch work units** follow three operations across their lifecycle:
 
 1. **Rotate** — Intermediate merge. A branch's scope is done but the task list has remaining work.
-   Merge the branch, set up the next one, continue working. No archival, no completion doc.
+   Merge the branch, set up the next one, continue working. No completion doc, no archival.
    See [rotate-branch][rotate-branch] workflow.
-2. **Complete** — All tasks in the task list are marked `[x]`. The work unit is done.
-3. **Archive** — This workflow. Runs once after the final merge, when all tasks are complete.
-   Creates the completion doc, moves files to archive, updates tracking.
+2. **Integrate** — This workflow. All tasks complete. Prepare docs, review, PR, merge.
+3. **Archive** — Post-merge. Move files to archive, update tracking. See
+   [archive-work-unit][archive-work-unit].
 
-Rotation may happen multiple times during a work unit; archival happens exactly once at the end.
+Rotation may happen multiple times during a work unit; integration and archival each happen exactly once
+at the end.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
 ## Workflow Overview
 
-**All work follows the same archival workflow**, regardless of category (feature/technical/incidental):
+**All work follows the same integration workflow**, regardless of category (feature/technical/incidental):
 
-1. **Phase 1: On Child Branch** - Complete work, clean docs, create completion metadata
-2. **Phase 2: Code Review & Merge** - Review, PR, merge to parent
-3. **Phase 3: After Merge** - Archive files, update tracking, clean up branches
+1. **Phase 1: On Child Branch** — Clean docs, create completion metadata, commit
+2. **Phase 2: Code Review & Merge** — Review, PR, merge to parent
 
 **Key principle:** Documentation cleanup and completion metadata are part of the child branch deliverable,
 not a post-merge activity. This ensures PR reviewers see clean, well-organized docs.
@@ -61,7 +56,7 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 
 ### 1b) Generated Code Sync Check (If Applicable)
 
-**If your project has generated code** (API types, schema files, etc.), verify they're in sync before archiving:
+**If your project has generated code** (API types, schema files, etc.), verify they're in sync before proceeding:
 
 ```bash
 # Check if source files changed that would require regeneration
@@ -235,7 +230,7 @@ git add .arc/active/{category}/prd-{name}.md  # if planned work with PRD updates
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with a Context footer
-referencing the task list being archived.
+referencing the task list.
 
 **⛔ CHECKPOINT:** Phase 1 complete. Do NOT push yet. Proceed to Phase 2 for code review before PR.
 
@@ -286,172 +281,16 @@ git merge child-branch --no-ff
 git push
 ```
 
----
-
-## Phase 3: After Merge
-
-**Context:** PR is merged, you're on the parent branch (e.g., the base branch or a parent feature branch).
-
-> **Multi-branch verification:** If this work unit spanned multiple branches (stacked PRs, phased
-> delivery), confirm that **all** branches have been merged before proceeding with archival. Archival
-> is a one-time operation on the fully completed work unit — intermediate merges are handled by the
-> [rotate-branch][rotate-branch] workflow and do not trigger archival.
-
-### 9) Delete Child Branch
-
-```bash
-git branch -d {child-branch-name}
-git push origin --delete {child-branch-name}  # if pushed
-```
-
-### 10) Update Task List Status to Integrated
-
-Update the task list header `**Status:**` from `Complete` to `Integrated`. This marks the transition
-from "all tasks done" (pre-merge) to "merged to base branch" (post-merge). The archived task list
-will show its final lifecycle state.
-
-If a PRD exists, its status remains `Complete` — the PRD tracks whether the plan was fulfilled, not
-the merge state.
-
-### 11) Route Research Files (If Applicable)
-
-Before archiving, assess whether any work artifacts have reference value beyond this work unit —
-investigation notes, benchmark data, design explorations, research summaries. These files lose
-discoverability once buried in the archive directory.
-
-**Decision:** "Do any files have lasting reference value outside this work unit's context?"
-
-- **Yes** → Copy (not move) to `.arc/reference/research/` with a descriptive name. The original
-  stays with the archive for completeness. Note the routing in the completion doc's Related
-  Documentation section.
-- **No** → Proceed directly to archival. Most work units won't have research files — this step
-  is a quick assessment, not a gate.
-
-### 12) Archive Files
-
-**Create archive directory and move all files using git mv** (preserves history).
-
-Determine the next sequence number:
-
-```bash
-# Count existing work unit dirs across ALL categories in the quarter
-find .arc/reference/archive/{quarter} -mindepth 2 -maxdepth 2 -type d | wc -l
-```
-
-**Move files** (`{quarter}` = e.g. `2025-q4`, `{NN}` = next sequence number, zero-padded):
-
-```bash
-# Create work package directory
-mkdir -p .arc/reference/archive/{quarter}/{category}/{NN}_{name}
-
-# Move all files (adjust list based on what exists for this work)
-git mv .arc/active/{category}/prd-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
-git mv .arc/active/{category}/tasks-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
-git mv .arc/active/{category}/notes-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
-git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
-```
-
-### 13) Update WORK-STATUS.md
-
-Update `.arc/active/WORK-STATUS.md` to reflect the post-archival state.
-
-**Archiving to base branch** (normal case — work unit complete):
-
-Reset to "no active work" defaults:
-
-```markdown
-**Branch**: `main`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: {Work Name} (archived)
-**Blockers**: [none]
-**Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`
-```
-
-**Archiving to parent work branch** (stacked incidental returning to parent):
-
-Restore WORK-STATUS.md to the parent work unit's context — branch name, task list path,
-and current task from where work was interrupted. The parent's state is recoverable from
-the parent branch's task list and commit history.
-
-### 14) Post-Archival Extensions · `#post-work-unit-archive`
-
-If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now. This is the
-primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at archival time.
-
-See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
-
-### 15) Commit Archive Changes
-
-```bash
-git add .arc/reference/archive/{quarter}/{category}/{name}/
-git add .arc/active/{category}/  # captures file deletions
-git add .arc/active/WORK-STATUS.md
-```
-
-**Note:** If [post-work-unit-archive extensions][arc-ext-post-archive] produced additional changes
-(e.g., PM layer artifacts), stage those as well.
-
-**Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
-Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer
-`tasks-{name}.md (maintenance)`.
-
-**Example:**
-
-```bash
-git commit -m "docs(arc): archive fix-auth-edge-cases
-
-Archival of completed incidental work:
-- Fixed token refresh race condition and session expiry handling
-- Added retry logic for intermittent auth failures
-- All quality gates passed
-
-Context: tasks-fix-auth-edge-cases.md (maintenance)"
-```
-
----
-
-## Archive Structure
-
-**Path pattern:** `.arc/reference/archive/{quarter}/{category}/{NN}_{name}/`
-
-- `{quarter}`: `2025-q4`, `2025-q3`, etc.
-- `{category}`: `feature/`, `technical/`, or `incidental/`
-- `{NN}`: Global sequence number (01-99), assigned by completion order across ALL categories
-- `{name}`: Work package name (matching task list name)
-
-**Example structure:**
-
-```
-2025-q4/
-├── technical/
-│   ├── 01_database-migration/
-│   ├── 02_ci-pipeline-overhaul/
-│   ├── 03_logging-standardization/
-│   └── 10_config-refactor/
-├── incidental/
-│   ├── 04_fix-auth-edge-cases/
-│   ├── 05_lint-config-cleanup/
-│   └── ...
-└── feature/
-    └── 06_user-notifications/
-```
-
-**Sequence numbering:** Numbers are global across all categories, assigned in completion order (not start
-order). Gaps within a category reflect interleaved work in other categories. Reset to 01 each quarter.
-
-**Categorization:** See [Work Organization Strategy][work-org]
-for feature vs technical vs incidental decision rules.
+**After merge:** Proceed to [archive-work-unit][archive-work-unit] for post-merge archival.
 
 ---
 
 ## Common Pitfalls
 
-- ❌ Skip doc hygiene → Run [maintain-task-notes.md](maintain-task-notes.md) Mode 2 first
-- ❌ Use `mv` instead of `git mv` → Loses file history
-- ❌ Archive before tasks complete → All tasks must be `[x]` before archiving
-- ❌ Skip completion doc → ALL work gets `completion-{name}.md` (lightweight or standard)
+- Skip doc hygiene → Run [maintain-task-notes.md](maintain-task-notes.md) Mode 2 first
+- Skip completion doc → ALL work gets `completion-{name}.md` (lightweight or standard)
+- Skip local review → Findings after push require additional commits on the PR
+- Push before Phase 1 commit → PR diff includes uncommitted doc cleanup
 
 ---
 
@@ -508,4 +347,4 @@ architectural pivot, not abandoned work.
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [rotate-branch]: rotate-branch.md
-[arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive
+[archive-work-unit]: archive-work-unit.md

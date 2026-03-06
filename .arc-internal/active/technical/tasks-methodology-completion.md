@@ -4,7 +4,8 @@
 **Created:** 2026-02-26
 **Branch(es):** `technical/methodology-completion`
 **Base Branch:** `main`
-**Status:** In Progress
+**Status:** Complete
+**Completed:** 2026-03-06
 
 ## Overview
 
@@ -660,11 +661,6 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
         emphasizing additive behavior (core `[x]` marking is non-negotiable). Integrated
         as conditional step in process-task-loop.md after **Second** (mark [x]).
 
-        **Stale references noted:** `strategy-configurability-architecture.md` uses
-        task-completion as an illustrative example (§ Methods, § Markers in workflows)
-        and shows the old `---`-bounded marker format. Both examples need updating
-        as follow-up work.
-
 - [x] **5.7 Add session-init config awareness step**
 
     Added Step 4 (Check Active Configuration) to both session-init files. Reads
@@ -1307,6 +1303,28 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
       removal). 0 `[~]` superseded, 0 `[ ]` unmet. Verified against PRD § Success
       Criteria and spot-checked key deliverables (file existence, config settings,
       cross-references, task completion notes).
+
+---
+
+## Atomic Tasks — Methodology Completion
+
+<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
+<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
+<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
+
+- [x] **Decompose `archive-completed.md` into `integrate-work-unit.md` + `archive-work-unit.md`**
+  (discovered during archival — workflow name emphasizes the wrong phase, code review gets
+  skipped/downplayed, WORK-STATUS "Next Action" says "archive" when integration hasn't happened)
+
+    - [x] Split `archive-completed.md`: Phases 1-2 → `integrate-work-unit.md`, Phase 3 →
+      `archive-work-unit.md`
+    - [x] Update three-operation model: "Rotate → Complete → Archive" → "Rotate → Integrate →
+      Archive" in `rotate-branch.md` and the new `archive-work-unit.md`
+    - [x] Update cross-references in live files (~14 files: workflows, strategies, templates,
+      READMEs)
+    - [x] Update `strategy-file-classification.md` inventory (1 row → 2 rows)
+    - [x] Run Tier 1 quality gates on all modified files
+    - [x] Update completion doc to reflect the decomposition
 
 ---
 

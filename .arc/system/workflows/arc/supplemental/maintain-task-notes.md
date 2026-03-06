@@ -73,7 +73,7 @@ marked `[x]`. If any unchecked tasks found → STOP — use Mode 1 instead.
 - Update `**Status**:` field in task file header (Mode 2: change to "Complete", remove temporal notes)
 - Add/update `**Completed**:` date in both files (YYYY-MM-DD format)
 - Note: All work uses separate `completion-{name}.md` (created in
-  [archive-completed](archive-completed.md) workflow Phase 1, Step 3)
+  [integrate-work-unit](integrate-work-unit.md) workflow Phase 1, Step 3)
 
 **Evaluate notes file disposition (Mode 2 only):**
 
@@ -88,7 +88,7 @@ Not all notes files are worth archiving:
 ADRs/strategies?" If no → delete.
 
 **If deleting:** Remove notes file reference from task file header in Step 6. Proceed directly to
-`completion-{name}.md` creation in archive-completed workflow.
+`completion-{name}.md` creation in integrate-work-unit workflow.
 
 **Pointer directionality:** Task file headers may contain pointers to other task lists. Decision
 is based on where the referenced file lives:
@@ -334,7 +334,7 @@ a specific topic in <1 minute.
 
 If less than ~120k tokens remaining, stop here — commit cleanup work and note in SESSION-NOTES.md
 that completion doc creation requires a fresh session. If sufficient context remains, proceed to
-[archive-completed](archive-completed.md) Phase 1, Step 3 (Create Completion Metadata). Delete
+[integrate-work-unit](integrate-work-unit.md) Phase 1, Step 3 (Create Completion Metadata). Delete
 CLEANUP-PROGRESS after completion doc is created.
 
 ## Output

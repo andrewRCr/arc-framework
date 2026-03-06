@@ -70,7 +70,7 @@ during first session handoff).
 
 WORK-STATUS.md is populated with real values when a work unit is activated
 ([activate-work-unit.md][activate]) and reset to "no active work" when work is archived
-([archive-completed.md][archive]).
+([archive-work-unit.md][archive]).
 
 ### Check Agent Configuration
 
@@ -90,4 +90,4 @@ and planning documents.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [activate]: ../supplemental/activate-work-unit.md
-[archive]: ../supplemental/archive-completed.md
+[archive]: ../supplemental/archive-work-unit.md

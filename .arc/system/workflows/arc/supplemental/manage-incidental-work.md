@@ -9,7 +9,8 @@ that should be addressed immediately.
 **When to use**: During feature or technical work when discovering issues requiring multiple subtasks (>30 min effort)
 that block or significantly impact current work.
 
-**Related**: [3_process-task-loop.md](../3_process-task-loop.md), [archive-completed.md](archive-completed.md)
+**Related**: [3_process-task-loop.md](../3_process-task-loop.md),
+[integrate-work-unit.md](integrate-work-unit.md), [archive-work-unit.md](archive-work-unit.md)
 
 ---
 
@@ -145,7 +146,7 @@ This is normal under full protection. Not every branch is a work unit.
 - **Branch naming**: `incidental/<name>` (matches task list slug — e.g., `incidental/auth-error-handling`)
 - **PR against parent branch**: `gh pr create --base parent-branch` (not main)
 - **Archive when all tasks complete** — branch cleanup happens independently as PRs merge.
-  See [archive-completed.md](archive-completed.md) for timing
+  See [integrate-work-unit.md](integrate-work-unit.md) for the integration workflow
 
 See [Work Organization Strategy][work-org] for complete stacked
 branch workflow, merge strategy, and handling branch updates.
@@ -159,7 +160,8 @@ Incidental work follows standard workflows with no special procedures:
 - **Execution**: [3_process-task-loop.md](../3_process-task-loop.md) (one task at a time, same quality gates)
 - **Commits**: [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline (same standards as
   feature/technical work)
-- **Archival**: [archive-completed.md](archive-completed.md) (archive when all tasks complete)
+- **Integration**: [integrate-work-unit.md](integrate-work-unit.md) (doc prep, review, PR, merge when all tasks complete)
+- **Archival**: [archive-work-unit.md](archive-work-unit.md) (post-merge archive)
 
 ---
 

@@ -282,7 +282,8 @@ to update classification — both axes apply independently.
 | `arc/setup/02_define-project.md`             | Framework      | Core  | Setup workflow.            |
 | `arc/supplemental/activate-work-unit.md`     | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/agent-pre-merge-review.md` | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/archive-completed.md`      | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/archive-work-unit.md`      | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/integrate-work-unit.md`    | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/atomic-commit.md`          | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/maintain-docs.md`          | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/maintain-task-notes.md`    | Framework      | Core  | Supplemental workflow.     |
@@ -297,12 +298,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 40    | Three-way merge. Conflicts rare.                      |
+| Framework      | 41    | Three-way merge. Conflicts rare.                      |
 | Configurable   | 12    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 11    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 63.
+**Total template files:** 64.
 
 ---
 

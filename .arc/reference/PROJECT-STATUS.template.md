@@ -25,7 +25,7 @@ Current state at a glance. Updated when work is activated, completed, or archive
 - {{NEXT_WORK_NAME}} ({{CATEGORY}}) - {{BRIEF_DESCRIPTION}}
     - [Plan]({{PLAN_PATH}})
 
-<!-- Updated by the activate-work-unit and archive-completed workflows.
+<!-- Updated by the activate-work-unit and archive-work-unit workflows.
      Category is typically "feature" or "technical". Include a task list or
      plan link so readers can find detail without searching. -->
 
@@ -44,7 +44,7 @@ captures what was delivered and its key outcomes.
 - {{KEY_DELIVERABLE}}
 
 <!-- Repeat for each major initiative. Add entries as work is completed (the
-     archive-completed workflow prompts this). "Major work" means a feature or
+     archive-work-unit workflow prompts this). "Major work" means a feature or
      technical initiative that meaningfully changes what the project can do — not
      every bug fix or small chore.
 

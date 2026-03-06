@@ -2,15 +2,16 @@
 
 **Audience:** Agent-executed — your agent follows this when merging a branch mid-work-unit.
 
-Multi-branch work units go through three operations: **Rotate → Complete → Archive**. This workflow covers
+Multi-branch work units go through three operations: **Rotate → Integrate → Archive**. This workflow covers
 Rotate — the intermediate merge. A branch's scope of work is done, but the overall task list has more work
 remaining on a subsequent branch.
 
 **When to use:** The current branch's tasks are complete, quality gates pass, and more tasks remain in
 the task list. You're ready to merge this branch and continue work on the next one.
 
-**When NOT to use:** All tasks in the task list are complete → use [archive-completed][archive-completed]
-instead. That workflow handles the full completion ceremony (completion doc, archival, tracking updates).
+**When NOT to use:** All tasks in the task list are complete → use [integrate-work-unit][integrate-work-unit]
+instead. That workflow handles integration (completion doc, review, PR, merge), followed by
+[archive-work-unit][archive-work-unit] for post-merge archival.
 
 ## Scenarios
 
@@ -32,7 +33,7 @@ many-to-one relationship model.
 Before initiating rotation:
 
 - [ ] Tasks scoped to this branch are complete (marked `[x]` in task list)
-- [ ] Task list overall is **NOT** fully complete (if it is → [archive-completed][archive-completed])
+- [ ] Task list overall is **NOT** fully complete (if it is → [integrate-work-unit][integrate-work-unit])
 - [ ] Quality gates pass — **Tier 3** (pre-PR gate). See [Quality Gates Strategy][quality-gates]
 - [ ] All changes committed to the current branch
 
@@ -127,7 +128,7 @@ for the next session.
 - **Squash-merging intermediate branches** — Breaks downstream branch rebases. See merge strategy
   note in step 2.
 - **Archiving too early** — Rotation is not archival. Archive only when **all** tasks in the task list
-  are complete. See [archive-completed][archive-completed].
+  are complete. See [integrate-work-unit][integrate-work-unit].
 - **Forgetting `Branch(es)` field update** — Stale tracking makes session initialization harder for
   the next session or collaborator.
 - **Not rebasing downstream branches** — After merging to the base branch, existing downstream branches
@@ -135,7 +136,8 @@ for the next session.
 
 ---
 
-[archive-completed]: archive-completed.md
+[integrate-work-unit]: integrate-work-unit.md
+[archive-work-unit]: archive-work-unit.md
 [session-handoff]: session-handoff.md
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md

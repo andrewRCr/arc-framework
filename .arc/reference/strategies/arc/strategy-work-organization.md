@@ -167,7 +167,7 @@ the default. In unprotected mode, the base branch is the workspace and WORK-STAT
 active work directly. `.gitattributes` with `merge=ours` auto-resolves local merges by keeping
 the target branch version. For PR merges (server-side, where local merge drivers don't apply),
 the resolution is always "take base" — deterministic and trivial. Post-merge workflows
-([rotate-branch][rotate-branch], [archive-completed][archive-completed]) update WORK-STATUS.md
+([rotate-branch][rotate-branch], [archive-work-unit][archive-work-unit]) update WORK-STATUS.md
 immediately, so the auto-resolved content is transient.
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
@@ -521,7 +521,7 @@ All changes require branches and PR review. No direct base branch commits.
 
 **Branches without work units:** Under full protection, even small atomic fixes need branches. These
 branches may not have task lists, PRDs, or other ARC artifacts — they're just branches with commits
-and a PR. This is expected. The [archive-completed][archive-completed] workflow only applies to work
+and a PR. This is expected. The [integrate-work-unit][integrate-work-unit] workflow only applies to work
 units with task lists; branches without artifacts follow standard git lifecycle (merge, delete).
 See [manage-incidental-work][manage-incidental] for escalation guidance on when discovered work
 warrants a task list vs. a simple branch.
@@ -623,7 +623,8 @@ Archive preserves structure with global sequence numbering:
 `{NN}_` prefix indicates completion order (global across all categories). Gaps within a category
 show where other categories' work completed. Reset to 01 each quarter.
 
-See [archive-completed.md][archive-completed] for full archival workflow.
+See [integrate-work-unit.md][integrate-work-unit] and [archive-work-unit.md][archive-work-unit] for full
+integration and archival workflows.
 
 ### Alignment
 
@@ -731,7 +732,8 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
-[archive-completed]: ../../../system/workflows/arc/supplemental/archive-completed.md
+[integrate-work-unit]: ../../../system/workflows/arc/supplemental/integrate-work-unit.md
+[archive-work-unit]: ../../../system/workflows/arc/supplemental/archive-work-unit.md
 [atomic-commit]: ../../../system/workflows/arc/supplemental/atomic-commit.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md

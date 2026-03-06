@@ -76,7 +76,8 @@ _This section will be populated as work is completed and archived._
 
 ### Archive Workflow
 
-- **Archival Process**: [`workflows/supplemental/archive-completed.md`](../workflows/supplemental/archive-completed.md)
+- **Integration**: [`workflows/supplemental/integrate-work-unit.md`](../workflows/supplemental/integrate-work-unit.md)
+- **Archival**: [`workflows/supplemental/archive-work-unit.md`](../workflows/supplemental/archive-work-unit.md)
 - **Work Categorization**: Refer to workflows for categorization guidance
 
 ## Purpose
@@ -106,7 +107,8 @@ This archive serves multiple purposes:
 
 ## Adding New Archives
 
-When work is completed, follow the [Archive Workflow](../workflows/supplemental/archive-completed.md):
+When work is completed, follow the [Integration Workflow](../workflows/supplemental/integrate-work-unit.md)
+and [Archive Workflow](../workflows/supplemental/archive-work-unit.md):
 
 1. Verify completion (all tasks marked [x], quality gates passing)
 2. **Run maintain-task-notes workflow** (Mode 2: Archival Preparation) - MANDATORY

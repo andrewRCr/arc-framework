@@ -143,7 +143,7 @@ Task list headers provide essential metadata and context. Format varies by task 
   [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
 - Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
-  `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/supplemental/archive-completed.md))
+  `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/supplemental/archive-work-unit.md))
 - Overview section includes Purpose
 - Scope section defines boundaries (Will Do / Won't Do)
 - Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) only when needed
@@ -694,7 +694,7 @@ This example demonstrates all formatting elements in proper context:
 
 <!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
 <!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see strategy-task-list-formatting.md. -->
+<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
 
 ---
 
@@ -817,7 +817,7 @@ area. Items here archive with the task list, keeping all WU work in one place.
 
 <!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
 <!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see strategy-task-list-formatting.md. -->
+<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
 
 - [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
 - [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)

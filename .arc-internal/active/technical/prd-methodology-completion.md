@@ -1,7 +1,8 @@
 # PRD: Methodology Completion (WU2)
 
 **Type:** Technical
-**Updated:** 2026-02-26
+**Status:** Complete
+**Completed:** 2026-03-06
 
 **Related Work:**
 
@@ -526,13 +527,14 @@ execution per the plan's forward-looking note.
 
 ## Open Questions
 
-1. **PROJECT-STATUS final location** — Stays in `constitution/`, moves to `reference/` root,
-   or moves to `.arc/` root? Evaluate during implementation. (G7)
+1. **PROJECT-STATUS final location** — Moved to `reference/` root alongside META-PRD and
+   TECHNICAL-OVERVIEW (Task 7.6.a). Orientation docs promoted out of `constitution/` for
+   visibility; `constitution/` now contains only rules docs.
 
-2. **Incidental pattern approach** — Specific patterns vs. generalized freetext regex for
-   commit-msg hook incidental context? Depends on overlap with context footer configurability.
-   (G6, intersects A2)
+2. **Incidental pattern approach** — Generalized freetext regex:
+   `(incidental - discovered during .+)` (Task 7.5). Chose generalized over specific patterns
+   to avoid blocking commits with novel discovery contexts.
 
-3. **strategy-development-methodology.md survival** — Does the slimmed document justify its
-   existence as a standalone strategy, or should residual content be redistributed? Depends on
-   what remains after DEV-RULES.ARC extraction. (Req 3)
+3. **strategy-development-methodology.md survival** — Removed entirely (Task 3.3). Content
+   redistributed to DEV-RULES.ARC (behavioral rules) and arc-methods.md (configurable defaults).
+   Residual content didn't justify a standalone strategy doc.
