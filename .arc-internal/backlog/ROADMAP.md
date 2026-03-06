@@ -3,7 +3,7 @@
 **Purpose:** Internal planning artifact documenting sequencing strategy for framework
 development. Subject to change as we learn.
 
-**Last Updated:** 2026-02-25
+**Last Updated:** 2026-03-06
 
 ---
 
@@ -55,25 +55,25 @@ lifecycle strategy, and 10 WU2 plan cluster items with concrete implementation s
 - Upstream: WU1 (all ADRs)
 - Downstream: WU2
 
-**WU2: Methodology Completion** — 🔄 In Progress
+**WU2: Methodology Completion** — ✅ Complete (March 2026)
 
-Apply WU1/WU1.5 design decisions across all existing docs, hooks, and templates. Resolves
-all adoption dealbreakers and friction points identified in audits. Fixes multi-branch
-coupling language, adds team workflow adaptations, expands arc-config.yml, implements
+Applied WU1/WU1.5 design decisions across all existing docs, hooks, and templates. Resolved
+all adoption dealbreakers and friction points identified in audits. Fixed multi-branch
+coupling language, added team workflow adaptations, expanded arc-config.yml, implemented
 convention gaps.
 
-- PRD: `technical/prd-methodology-completion.md`
-- Task list: `technical/tasks-methodology-completion.md`
-- Branch: `technical/methodology-completion`
+- Archive: `.arc-internal/reference/archive/2026-q1/technical/05_methodology-completion/`
 - Upstream: WU1 (all ADRs), WU1.5 (design decisions, workflow specs)
-- Downstream: WU2b, WU3, WU4
+- Downstream: Structural Validation, WU3, WU4
 
-**WU2b: Structural Validation** — Pending (depends on WU2)
+**Structural Validation** — 🔄 Planning
 
-Structural validation pass: file classification, mixed-concern audit, cross-cutting
-dependency mapping. Feeds WU3.
+Gating check before WU3: file inventory validation, directory layout evaluation and
+stabilization, mixed-concern audit, optional content pattern, de-duplication, cross-cutting
+dependency mapping. Settles the file tree so WU3 can build on it.
 
 - PRD: `technical/prd-structural-validation.md`
+- Task list: `technical/tasks-structural-validation.md`
 - Upstream: WU2 (methodology changes)
 - Downstream: WU3, WU4
 
@@ -108,9 +108,9 @@ Phase A ──► Phase B ──► 1.0 Work Units:
    │
    ├──► WU1.5 (Foundational Gap Closure) ✅
    │     │
-   │     ├──► WU2 (Methodology Completion) 🔄
+   │     ├──► WU2 (Methodology Completion) ✅
    │     │     │
-   │     │     ├──► WU2b (Structural Validation)
+   │     │     ├──► Structural Validation 🔄
    │     │     │     │
    │     │     │     ├──► WU3 (CLI & Distribution)
    │     │     │     │     │
@@ -133,7 +133,8 @@ infrastructure (issue templates, CoC, etc.) has no upstream dependencies.
 
 - WU1 plan: `technical/plan-wu1-philosophy-configurability.md`
 - WU2 PRD: `technical/prd-methodology-completion.md`
-- WU2b PRD: `technical/prd-structural-validation.md`
+- Structural Validation PRD: `technical/prd-structural-validation.md`
+- Structural Validation tasks: `technical/tasks-structural-validation.md`
 - WU3 plan: `technical/plan-wu3-cli-distribution.md`
 - WU4 plan: `feature/plan-wu4-public-release.md`
 - Active work: `.arc-internal/active/WORK-STATUS.md`
