@@ -581,6 +581,12 @@ of committing planning artifacts directly to the base branch.
   `backlog/{category}/`. The activate-work-unit workflow moves them to `active/{category}/`
   when implementation begins.
 
+- **Delivery, not activation.** Planning branches deliver artifacts to the base branch. They
+  don't start the next work unit — moving files to `active/`, updating WORK-STATUS, and
+  activation-triggered PM updates all happen post-merge during
+  [activate-work-unit][activate-work-unit]. For the PR and merge step, see
+  [integrate-planning-branch][integrate-planning-branch].
+
 - **Mode-specific behavior:**
     - **Unprotected:** Planning branches are optional — artifacts can be committed directly
       to the base branch.
@@ -598,12 +604,15 @@ of committing planning artifacts directly to the base branch.
     1. Archive completed work unit ([archive-work-unit][archive-work-unit])
     2. Create PRD ([1_create-prd][create-prd])
     3. Generate tasks ([2_generate-tasks][generate-tasks])
-    4. PR to base branch, merge
+    4. PR to base branch, merge ([integrate-planning-branch][integrate-planning-branch])
     5. Activate new work unit from base branch ([activate-work-unit][activate-work-unit])
 
   Each workflow's steps are unchanged — the batch branch is just the commit target instead of the
   base branch. Activation happens after the batch PR merges (implementation branch is created from
-  the base branch, not the batch branch).
+  the base branch, not the batch branch). The scope boundary is the PR merge: archival-triggered
+  PM updates (ROADMAP marking the completed WU) belong on the batch branch; activation-triggered
+  updates (ROADMAP marking the new WU, WORK-STATUS, file moves) belong in step 5. See
+  [integrate-planning-branch][integrate-planning-branch] for operational detail.
 
 ---
 
@@ -757,3 +766,4 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [config-arch]: strategy-configurability-architecture.md
 [rotate-branch]: ../../../system/workflows/arc/supplemental/rotate-branch.md
+[integrate-planning-branch]: ../../../system/workflows/arc/supplemental/integrate-planning-branch.md

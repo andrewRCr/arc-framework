@@ -164,9 +164,11 @@ Context: tasks-fix-auth-edge-cases.md (archival)"
 (typically `1_create-prd.md`).
 
 **Full protection (batch branch):** Continue on the same branch — proceed to
-[1_create-prd.md][create-prd] for the next work unit. The batch branch will carry both archival
-and planning artifacts in a single PR to the base branch. Activation
-([activate-work-unit][activate-work-unit]) happens after that PR merges.
+[1_create-prd.md][create-prd] for the next work unit. After task generation
+([2_generate-tasks][generate-tasks]), the batch branch is complete — proceed to
+[integrate-planning-branch][integrate-planning-branch] to PR the batch to the base branch.
+Activation ([activate-work-unit][activate-work-unit]) happens from the base branch after
+that PR merges.
 
 ---
 
@@ -218,4 +220,6 @@ for feature vs technical vs incidental decision rules.
 [integrate-work-unit]: integrate-work-unit.md
 [activate-work-unit]: activate-work-unit.md
 [create-prd]: ../1_create-prd.md
+[generate-tasks]: ../2_generate-tasks.md
+[integrate-planning-branch]: integrate-planning-branch.md
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive
