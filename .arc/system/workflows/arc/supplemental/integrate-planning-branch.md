@@ -110,6 +110,13 @@ artifacts from backlog to active (arc-in-git), updates tracking state.
 
 Activation may happen immediately or in a later session. The artifacts are stable on the base branch.
 
+**Session boundary:** If activation does not follow immediately in this session, run
+[session-handoff][session-handoff] before ending. WORK-STATUS on the base branch may be stale after
+merge (auto-resolved to the pre-merge base version — activate-work-unit overwrites it). SESSION-NOTES
+is the recovery mechanism: capture that the planning branch is merged, name the work unit ready for
+activation, and note activate-work-unit as the next step. This gives the next session enough context
+to proceed even if WORK-STATUS hasn't caught up yet.
+
 ---
 
 ## Common Pitfalls
@@ -132,3 +139,4 @@ Activation may happen immediately or in a later session. The artifacts are stabl
 [generate-tasks]: ../2_generate-tasks.md
 [arc-config]: ../../../arc-config.yml
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive
+[session-handoff]: session-handoff.md
