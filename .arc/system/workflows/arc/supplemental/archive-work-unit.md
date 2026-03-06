@@ -102,8 +102,17 @@ Reset to "no active work" defaults:
 **Next Task**: —
 **Last Completed**: {Work Name} (archived)
 **Blockers**: [none]
-**Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`
+**Next Action**: {see below}
 ```
+
+**Next Action guidance by PM mode:**
+
+- **arc-in-git**: Identify next work unit — consult ROADMAP.md and backlog for candidates, then
+  begin or continue planning
+- **none / external**: Create a PRD when ready to start planned work → `1_create-prd.md`
+
+If the next work unit is already known (e.g., batching archival with planning), name it
+directly in Next Action.
 
 **Archiving to parent work branch** (stacked incidental returning to parent):
 
@@ -133,6 +142,9 @@ git add .arc/active/WORK-STATUS.md
 Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer
 `tasks-{name}.md (archival)`.
 
+> **Batch branch note:** When archiving on a batch branch (full protection), the commit lands on
+> that branch instead of the base branch. The steps are identical — only the branch context differs.
+
 **Example:**
 
 ```bash
@@ -145,6 +157,18 @@ Archival of completed incidental work:
 
 Context: tasks-fix-auth-edge-cases.md (archival)"
 ```
+
+### 8) Next Step
+
+**Partial or unprotected:** Archival is complete. WORK-STATUS.md points to the next action
+(typically `1_create-prd.md`).
+
+**Full protection (batch branch):** Continue on the same branch — proceed to
+[1_create-prd.md][create-prd] for the next work unit. After task generation
+([2_generate-tasks][generate-tasks]), the batch branch is complete — proceed to
+[integrate-planning-branch][integrate-planning-branch] to PR the batch to the base branch.
+Activation ([activate-work-unit][activate-work-unit]) happens from the base branch after
+that PR merges.
 
 ---
 
@@ -194,4 +218,8 @@ for feature vs technical vs incidental decision rules.
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [rotate-branch]: rotate-branch.md
 [integrate-work-unit]: integrate-work-unit.md
+[activate-work-unit]: activate-work-unit.md
+[create-prd]: ../1_create-prd.md
+[generate-tasks]: ../2_generate-tasks.md
+[integrate-planning-branch]: integrate-planning-branch.md
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive

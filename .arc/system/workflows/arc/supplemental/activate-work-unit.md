@@ -27,6 +27,10 @@ The remaining steps (branch creation, status update, WORK-STATUS, extensions, co
 - Task list has `Status: Not Started`
 - Working tree is clean (all changes committed)
 - Currently on base branch (typically `main` — see [`arc-config.yml`][arc-config])
+- Planning artifacts are on the base branch — arrived via one of:
+    - Direct commit (unprotected mode)
+    - Planning branch PR (partially or fully protected)
+    - Batch branch PR that included both archival and planning (fully protected)
 
 **arc-in-git mode (additional):**
 

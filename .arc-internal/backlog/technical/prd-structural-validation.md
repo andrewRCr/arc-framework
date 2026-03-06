@@ -1,134 +1,159 @@
-# PRD: Structural Validation Pass (WU2b)
+# PRD: Structural Validation
 
 **Type:** Technical
-**Status:** Pending Dependencies
-**Updated:** 2026-02-26
-
-**Related Work:**
-
-- Depends on: WU2 Methodology Completion — all methodology changes must land before validation
-- Complete: WU1 (Philosophy & Configurability) — file classification strategy established
-- Complete: WU1.5 (Foundational Gap Closure) — reclassification checkpoint specified
+**Updated:** 2026-03-06
 
 ---
 
 ## Introduction
 
-WU2's methodology completion transforms `.arc/` significantly: new files (DEV-RULES.ARC,
-arc-extensions.md, arc-methods.md, rotate-branch.md, WORKFLOW-INDEX), restructured files
-(DEV-RULES.PROJECT, slimmed strategies, redesigned session-init), expanded config, and hook
-changes. After all that lands, the file tree needs validation — not to check individual changes
-(WU2 quality gates handle that) but to verify the *whole* is coherent.
+WU3 (CLI & Distribution) will bake the `.arc/` file tree into CLI tooling — `arc init` scaffolds it,
+`arc update` merges it, the manifest tracks it. Once paths, classifications, and directory structure
+are encoded in CLI logic, changing them is expensive: manifest migrations, pristine copy rebuilds,
+and adopter-facing breaking changes.
 
-This validation produces the inventory WU3 (CLI design) needs to reason about what gets
-templated, what gets updated during `arc update`, and what users own after initialization. Without
-it, WU3 operates on assumptions about file classification that may not reflect post-WU2 reality.
+This work unit is the gating check before that happens. It validates that the post-WU2 file tree is
+accurate, well-organized, and stable — then locks it down so WU3 can build on a settled foundation.
+Issues found here are cheap fixes; the same issues found mid-WU3 are backtracking.
 
-**Why a separate work unit:** This work has a hard dependency on WU2 completion — it validates
-the post-WU2 state, not a snapshot. It also produces different deliverables (analysis artifacts
-vs. doc edits) and benefits from a separate review cycle. Requirements here are deliberately
-lightweight and will sharpen as WU2 implementation reveals the actual post-change landscape.
+**Why now:** WU2 (Methodology Completion) landed significant structural changes — new files, expanded
+configs, restructured workflows. The file classification inventory exists and was maintained during
+WU2, but hasn't had a dedicated validation pass against the final state. Several directory organization
+questions surfaced during WU2 that were intentionally deferred to this checkpoint.
 
 ## Goals
 
-1. **Classify every `.arc/` file** — Produce a definitive ownership and update-strategy
-   classification for the post-WU2 file tree
-2. **Identify mixed-concern files** — Flag files that interleave framework-stable and
-   project-configurable content, proposing separation or marking strategies
-3. **Map cross-cutting dependencies** — Identify concepts that span files and their blast
-   radius, informing WU3's update command design
-4. **Eliminate accidental duplication** — Audit for content that migrated during WU1 → WU1.5 →
-   WU2 without fully cleaning source documents
+1. **Confirm the file inventory is accurate** — every `.arc/` file classified, counts correct, no gaps
+2. **Stabilize directory layout** — evaluate and resolve open organization questions before WU3 locks
+   paths into CLI tooling
+3. **Verify merge-boundary cleanliness** — Configurable files have clean section-level separation
+   between framework and project content (paragraph-level interleaving causes false merge conflicts)
+4. **Catch content drift** — identify duplicated content introduced during WU2's extensive changes
+5. **Establish the optional content pattern** — decide where opt-in docs live so WU3 can build
+   for it without retrofitting later
 
 ## Use Cases
 
-1. **WU3 CLI designer** — Needs to know: which files does `arc init` scaffold? Which does
-   `arc update` touch? Which are project-owned and never modified? The classification inventory
-   answers all three directly.
+1. **WU3 CLI developer** — needs a settled file tree with accurate classifications to build the
+   manifest, init scaffolding, and update system. Can trust that paths won't move after this
+   validation passes.
 
-2. **Adopter running `arc update`** — A file classified as "configurable" gets three-way merged;
-   a file classified as "framework" gets overwritten. Misclassification means either lost
-   customizations or stale framework content. The mixed-concern audit prevents this.
+2. **Adopter running `arc update`** — benefits from clean merge boundaries in Configurable files.
+   Misclassified files or paragraph-level interleaving causes lost customizations or unnecessary
+   conflicts.
 
-3. **Future maintainer editing a concept** — Changing how "archive trigger" works requires
-   updates in strategy-work-organization, integrate-work-unit, archive-work-unit, process-task-loop, and
-   rotate-branch. The dependency map shows this blast radius upfront.
+3. **Future framework maintainer** — benefits from logical directory grouping. A maintainer looking
+   for "how do I archive a work unit?" should find it in a place that makes sense, not in a
+   catch-all directory.
 
 ## Requirements
 
-> **Note:** These requirements are intentionally high-level. The specific scope and format of
-> each deliverable will be refined after WU2 implementation reveals the final file tree.
-> Requirements may be added, expanded, or adjusted based on what WU2 surfaces.
+**P0 (must-have):**
 
-**1. File classification inventory**
-Categorize every `.arc/` file using the classification taxonomy from
-`strategy-file-classification.md`: framework-owned (update freely), configurable (merge
-carefully), scaffolded (project-owned after init), project-owned (never touched by ARC).
-Include an explicit reclassification pass — WU2 changes may shift classifications from their
-pre-WU2 state. Output format TBD (classification table, annotated file tree, or strategy
-document update).
+1. **Inventory validation** — walk the actual post-WU2 `.arc/` file tree against the inventory in
+   `strategy-file-classification.md`. Flag: missing files, extra files, moved files, classification
+   changes, layer assignment errors, count inaccuracies. Update the inventory to match reality.
+   Verify both axes independently: classification (Framework/Configurable/Scaffolded) determines
+   merge behavior, layer (Core/arc-in-git) determines which files `arc init` installs based on
+   `pm.mode`. Misassignment on either axis causes WU3 bugs.
 
-**2. Mixed-concern identification**
-Flag files that interleave framework-stable and project-configurable content at the paragraph
-level. For each: note the specific sections and propose whether separation is warranted or
-whether a marker/comment is sufficient. Validate the post-WU2 state — WU2's methodology
-changes may have introduced new mixed-concern sections.
+2. **Workflow directory evaluation** — assess the current `workflows/arc/supplemental/` structure
+   and determine whether reorganization is warranted. Key concerns:
+    - "Supplemental" undersells core lifecycle workflows (activate, integrate, archive, rotate-branch)
+    - Session workflows (init, handoff) are a distinct concern mixed in with work-process workflows
+    - Evaluate grouping options (subdirectories, renaming, or status quo with better discoverability)
+    - Decide and implement — file moves are in scope
 
-**3. Cross-cutting dependency mapping**
-Identify concepts that span multiple files and map their blast radius: which concepts, if
-changed, require updates across N+ files? Output informs WU3 CLI design — update commands
-need to know which files move together. Format TBD.
+3. **Strategy directory evaluation** — assess `strategies/arc/` organization (10 files). Determine
+   whether subdirectories or naming changes improve navigability, or whether the current flat
+   structure is fine at this scale. Decide and document the decision.
 
-**4. Content de-duplication audit**
-Audit all `.arc/` documents for content appearing in multiple places. Classify each instance:
-intentional reinforcement (summary referencing detail — mark authoritative source), accidental
-drift (full copy that should be a cross-reference — trim), or misplacement (content in the
-wrong document — relocate). Runs after all other validation items since it depends on the
-complete post-WU2 document set.
+4. **Mixed-concern audit** — confirmatory pass on all Configurable files. For each, verify framework
+   and project content separate at the section level. Flag any paragraph-level interleaving with a
+   proposed resolution.
+
+5. **Optional content pattern** — decide where opt-in framework content lives (workflows, strategies,
+   or other docs that ship with ARC but aren't installed by default). Establish a forward-compatible
+   structure. Examples of future optional content: agent-specific subagent configurations,
+   alternative review workflows, specialized strategy documents. The pattern should work for WU3's
+   selective installation model.
+
+**P1 (should-have):**
+
+6. **De-duplication check** — audit for content appearing in multiple `.arc/` documents. Classify
+   each instance (intentional reinforcement, accidental drift, misplacement) and resolve. Focus on
+   high-traffic areas: DEV-RULES.ARC vs. workflows, strategies vs. workflows, arc-methods vs.
+   workflows.
+
+7. **Cross-cutting dependency map** — identify concepts that span multiple files and their blast
+   radius. Focus on what WU3 needs: file classifications, config settings, method references,
+   session state model. Output as a focused reference table, not a comprehensive document.
 
 ## Non-Goals
 
-- **No implementation changes** — This work unit produces analysis and recommendations. If the
-  audit reveals files that should be split, content that should move, or classifications that
-  need updating, those changes are either quick fixes applied inline or scoped as follow-up
-  work for WU3.
-- **No CLI design** — The outputs feed WU3 but don't prescribe CLI behavior.
-- **No re-litigation of WU2 decisions** — Classification validates the result of decisions
-  already made; it doesn't revisit them.
+- **No CLI implementation** — outputs inform WU3 but don't build CLI features
+- **No methodology changes** — this validates structure, not process. If a workflow's *content* needs
+  updating, that's incidental work, not structural validation scope
+- **No new strategy documents** — evaluation may recommend future splits but doesn't write new
+  strategies
+- **No template system design** — token rendering, conditionals, and init-recipe format are WU3
+  scope
 
 ## Technical Considerations
 
-**Sequencing within this work unit:** L1 (classification) and L3 (dependency mapping) can run
-in parallel. L2 (mixed-concern) builds on L1's classifications. L4 (de-duplication) runs last
-as it benefits from the full picture established by L1-L3.
+**Sequencing:** Inventory validation (R1) should run first — it establishes the accurate baseline
+that other checks reference. Layout evaluation (R2, R3) and mixed-concern audit (R4) can run in
+parallel after that. Optional content pattern (R5) depends on layout decisions. De-duplication (R6)
+and dependency mapping (R7) run last as they benefit from the full picture.
 
-**Existing strategy:** `strategy-file-classification.md` already defines the taxonomy and
-classification principles. This work unit applies them to the post-WU2 file tree — it doesn't
-redefine the taxonomy.
+**Existing artifacts:**
 
-**Output consumers:** WU3 (CLI design) is the primary consumer. Outputs should be in a format
-WU3 can reference directly during task generation. Secondary consumer: future maintainers
-navigating cross-cutting changes.
+- `strategy-file-classification.md` has the current inventory (64 files, taxonomy, merge strategies)
+- `plan-wu3-cli-distribution.md` documents what WU3 needs from the file tree
+- WU2's methodology completion touched most `.arc/` files — the git log is the authoritative record
+  of what changed
 
-**Expect this PRD to evolve:** WU2 implementation may surface structural concerns, new files,
-or reclassification needs not anticipated here. This PRD should be updated as those emerge —
-it's a living document until WU2b activates.
+**Layout changes are implementation:** Unlike the original PRD framing ("analysis only"), this work
+unit includes file moves when the evaluation warrants them. Directory reorganization means `git mv`,
+cross-reference updates, and inventory updates — all of which must land before WU3 starts.
+
+**Impact on cross-references:** Any file moves require updating all documents that reference the moved
+files — link definitions, workflow cross-references, strategy doc pointers, and the file inventory
+itself. This is bounded work but must be thorough.
 
 ## Success Criteria
 
-1. **Every `.arc/` file classified** — No unclassified files in the post-WU2 tree
-2. **Mixed concerns flagged** — Every file with interleaved ownership has a documented
-   disposition (separate, mark, or accept)
-3. **Dependency map complete** — Cross-cutting concepts identified with blast radius documented
-4. **Duplication resolved** — Every instance of duplicated content has a classification
-   (intentional/drift/misplaced) and an action (mark source, trim, or relocate)
-5. **WU3-ready** — Outputs are in a format that directly informs CLI design decisions
+1. **Inventory matches reality** — every `.arc/` file appears in the inventory with correct
+   classification, layer, and path. No unclassified files.
+2. **Layout decided and stable** — workflow and strategy directory organization is evaluated,
+   decided, and implemented (if changes warranted). No open structural questions remain for WU3.
+3. **Merge boundaries clean** — every Configurable file has section-level separation confirmed.
+   No paragraph-level interleaving that would cause false merge conflicts.
+4. **Optional content pattern established** — forward-compatible structure exists (even if no
+   optional content ships yet). WU3 can build selective installation against it.
+5. **WU3-ready** — the file tree, classifications, and directory layout are locked down. WU3 can
+   hardcode paths with confidence.
 
 ## Open Questions
 
-1. **Output format** — Single document, multiple documents, or inline annotations in
-   `strategy-file-classification.md`? Depends on volume and how WU3 wants to consume it.
+**Resolve before starting:**
 
-2. **Scope of "fix inline" vs. "defer to WU3"** — If the audit reveals a file that clearly
-   needs splitting, is that a quick fix here or WU3 scope? Likely case-by-case, but a
-   principle would help.
+1. **Workflow reorganization depth** — are we open to renaming the `supplemental/` directory itself,
+   or only to reorganizing its contents into subdirectories? Both? The answer affects how many
+   cross-references need updating.
+
+**Resolve during work:**
+
+2. **Optional content location** — inside `.arc/` (e.g., `.arc/optional/`) or managed purely through
+   the npm package (present in source, installed selectively, no dedicated directory)? Depends on
+   whether optional content needs to be discoverable in the file tree or just in `arc init` prompts.
+
+3. **Strategy split threshold** — at what file count do `strategies/arc/` subdirectories become
+   worthwhile? If we decide "not now," document the threshold for future reference.
+
+## Document History
+
+| Date | Change |
+| ---------- | ------ |
+| 2026-02-26 | Initial draft (as WU2b, speculative scope pending WU2 completion) |
+| 2026-03-06 | Full rewrite — refined to focused gating check based on post-WU2 reality. Dropped WU2b framing. Added layout evaluation with implementation scope. Added optional content pattern. Sharpened requirements against what WU3 actually needs. |
