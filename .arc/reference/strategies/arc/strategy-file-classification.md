@@ -193,11 +193,12 @@ to update classification — both axes apply independently.
 
 ### reference/templates/
 
-| File               | Classification | Layer | Notes                                      |
-|--------------------|----------------|-------|--------------------------------------------|
-| `template-adr.md`  | Framework      | Core  | Copy-ready ADR template.                   |
-| `template-prd.md`  | Framework      | Core  | Copy-ready PRD template.                   |
-| `template-plan.md` | Framework      | Core  | Optional plan document starting structure. |
+| File                         | Classification | Layer | Notes                                      |
+|------------------------------|----------------|-------|--------------------------------------------|
+| `template-adr.md`            | Framework      | Core  | Copy-ready ADR template.                   |
+| `template-prd.md`            | Framework      | Core  | Copy-ready PRD template.                   |
+| `template-plan.md`           | Framework      | Core  | Optional plan document starting structure. |
+| `template-completion-doc.md` | Framework      | Core  | Completion doc templates and guidance.     |
 
 ### reference/archive/
 
@@ -281,12 +282,11 @@ to update classification — both axes apply independently.
 | `arc/setup/01_initialize-arc.md`             | Framework      | Core  | Setup workflow.            |
 | `arc/setup/02_define-project.md`             | Framework      | Core  | Setup workflow.            |
 | `arc/supplemental/activate-work-unit.md`     | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/agent-pre-merge-review.md` | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/archive-work-unit.md`      | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/integrate-work-unit.md`    | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/atomic-commit.md`          | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/maintain-docs.md`          | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/maintain-task-notes.md`    | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/commit-guide.md`           | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/maintain-project-docs.md`  | Framework      | Core  | Supplemental workflow.     |
+| `arc/supplemental/clean-work-unit-files.md`  | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/manage-incidental-work.md` | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/session-handoff.md`        | Framework      | Core  | Supplemental workflow.     |
 | `arc/supplemental/session-init.md`           | Framework      | Core  | Supplemental workflow.     |

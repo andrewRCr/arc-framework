@@ -403,7 +403,7 @@ advisory, not mechanically enforced. The team is responsible for ensuring their 
 ```markdown
 ## commit-format
 
-**Workflow:** atomic-commit.md · **When:** Agent writes a commit message
+**Workflow:** commit-guide.md · **When:** Agent writes a commit message
 
 **Contract:** Commits follow a consistent, communicative format that
 enables automated tooling and readable history.

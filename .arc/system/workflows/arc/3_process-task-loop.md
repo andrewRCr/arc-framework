@@ -119,7 +119,7 @@ It ensures consistent execution, quality control, and documentation of work.
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
-     When committing, follow [Commit Workflow](supplemental/atomic-commit.md) guidelines.
+     When committing, follow [Commit Guide](supplemental/commit-guide.md) guidelines.
 
      **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
      advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage

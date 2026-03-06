@@ -1,8 +1,9 @@
-# Workflow: Documentation Maintenance
+# Workflow: Maintain Project Docs
 
-**Audience:** Agent-executed — your agent follows this when updating framework documentation.
+**Audience:** Agent-executed — your agent follows this when updating project documentation.
 
-**Purpose**: Keep .arc framework documentation accurate, consistent, and free of contradictions as the project evolves.
+**Purpose**: Keep project documentation (constitutional docs, strategies, agent files) accurate, consistent, and free
+of contradictions as the project evolves.
 
 **When to use**: When making changes to constitutional documents or discovering documentation issues during active work.
 
@@ -136,14 +137,14 @@ framework version — use any versioning scheme that works for your team.
 
 ### Read On-Demand
 
-- `atomic-commit.md` - When committing complex or accumulated changes
+- `commit-guide.md` - When committing complex or accumulated changes
 - `manage-incidental-work.md` - When handling discovered issues
 - `session-handoff.md` - When ending sessions
-- `maintain-docs.md` (this file) - When updating documentation
+- `maintain-project-docs.md` (this file) - When updating documentation
 
 ### Meta-Documentation (Not for AI Session Init)
 
-- This file (`maintain-docs.md`)
+- This file (`maintain-project-docs.md`)
 - Any future documentation about documentation
 
 ---

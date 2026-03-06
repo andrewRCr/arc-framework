@@ -212,7 +212,7 @@ initialization. Core setup covers META-PRD, TECHNICAL-OVERVIEW, and DEV-RULES.PR
 
 - `process-task-loop.md`: Remove the bounded ATOMIC-TASKS.md section (lines ~163-180). Its function is replaced by the
   task list "Atomic Tasks — {name}" section, which is Core.
-- `atomic-commit.md`: Remove single ATOMIC-TASKS.md reference in the complex analysis path.
+- `commit-guide.md` (formerly `atomic-commit.md`): Remove single ATOMIC-TASKS.md reference in the complex analysis path.
 - `strategy-work-organization.md`: Remove PM artifact bullets (TASK-INBOX, ATOMIC-TASKS) from branch protection mode
   exception lists. The protection mode concept is Core; the PM-specific exceptions are simply absent without PM.
 - `STRATEGY-INDEX.md`: strategy-backlog-organization.md is listed only when Solo PM is installed. The index is otherwise

@@ -10,9 +10,9 @@
 **Task List**: `.arc-internal/active/technical/tasks-methodology-completion.md`
 **Following Task List**: Yes
 **Next Task**: All phases complete — integration in progress
-**Last Completed**: Atomic task — decompose archive-completed into integrate + archive workflows
+**Last Completed**: Atomic tasks — context footer, review restructuring, workflow renames
 **Blockers**: None
-**Next Action**: Add `(integration)` context footer pattern to hooks and arc-methods, then proceed with local code review per `integrate-work-unit.md` Phase 2
+**Next Action**: Run local code review per `integrate-work-unit.md` Phase 2, then push and PR
 
 ---
 

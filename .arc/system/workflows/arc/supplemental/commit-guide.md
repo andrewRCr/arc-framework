@@ -1,13 +1,13 @@
-# Commit Workflow
+# Commit Guide
 
 **Audience:** Agent-executed at developer's direction — agent NEVER initiates commits without explicit approval.
 
 **Purpose:** Guide for commit scenarios that need more than staging and committing. For straightforward
 commits (single task, clear scope), the [commit-format][arc-methods-cf] and
 [commit-context-format][arc-methods-ccf] methods plus git hook validation are sufficient — you don't need
-this workflow.
+this guide.
 
-## When to Use This Workflow
+## When to Use This Guide
 
 - Multiple tasks accumulated without committing
 - Uncommitted work spanning multiple sessions

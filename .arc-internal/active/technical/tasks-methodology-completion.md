@@ -1326,6 +1326,35 @@ and apply ADR-008 Core/PM decomposition to workflows using the extension point i
     - [x] Run Tier 1 quality gates on all modified files
     - [x] Update completion doc to reflect the decomposition
 
+- [x] **Add `(integration)` context footer pattern**
+
+    - [x] Add `(integration)` to `arc-methods.md` § commit-context-format
+    - [x] Add `integration` to lifecycle regex in both githooks (`commit-msg`)
+    - [x] Update help text examples in both githooks
+    - [x] Update `integrate-work-unit.md` Phase 1 Step 4 commit guidance
+    - [x] Fix `archive-work-unit.md` example inconsistency — already consistent, no fix needed
+
+- [x] **Restructure code review: method + extension + personal workflow**
+
+    - [x] Add `review-triage` method to `arc-methods.md` (Decision Framework from
+      agent-pre-merge-review)
+    - [x] Add `pre-merge-review` extension point to `arc-extensions.md`
+    - [x] Move `agent-pre-merge-review.md` to `.arc-internal/system/workflows/project/`
+    - [x] Adapt personal workflow to reference canonical method and work as extension
+    - [x] Update `integrate-work-unit.md` Steps 5-7 to delegate to method + extension
+    - [x] Extract completion doc templates from `integrate-work-unit.md` to
+      `template-completion-doc.md`
+    - [x] Update cross-references (strategy-file-classification, strategy-work-organization, etc.)
+
+- [x] **Rename workflow files and update cross-references**
+
+    - [x] `atomic-commit.md` → `commit-guide.md` (updated internal title + all live refs)
+    - [x] `maintain-task-notes.md` → `clean-work-unit-files.md` (updated internal title + all
+      live refs)
+    - [x] `maintain-docs.md` → `maintain-project-docs.md` (updated internal title + all live refs)
+    - [x] Update all cross-references for each renamed file (archive files left as historical
+      record)
+
 ---
 
 ## Success Criteria

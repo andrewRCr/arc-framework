@@ -111,7 +111,7 @@ When work is completed, follow the [Integration Workflow](../workflows/supplemen
 and [Archive Workflow](../workflows/supplemental/archive-work-unit.md):
 
 1. Verify completion (all tasks marked [x], quality gates passing)
-2. **Run maintain-task-notes workflow** (Mode 2: Archival Preparation) - MANDATORY
+2. **Run clean-work-unit-files workflow** (Mode 2: Archival Preparation) - MANDATORY
 3. Create work package directory (if multiple docs) and move all files together
 4. Create completion metadata with summary and metrics
 5. Update PROJECT-STATUS references

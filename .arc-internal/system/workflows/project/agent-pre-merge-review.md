@@ -1,8 +1,11 @@
-# Workflow: Agent Pre-Merge Review
+# Workflow: Agent Pre-Merge Review (Project-Specific)
 
 **Audience:** Agent-executed — your agent follows this for pre-merge code review.
 
 **Purpose**: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
+This is a project-specific workflow that populates the `pre-merge-review` extension point in
+[arc-extensions.md][arc-ext-pre-merge-review]. It supplements the canonical
+[review-triage method][arc-methods-rt], which governs finding classification.
 
 1. **Pass 1 (Local)**: Run agent review locally before creating PR — catch the majority of issues
 2. **Pass 2 (PR)**: Address agent comments on actual PR — catch remaining context-specific issues
@@ -10,51 +13,18 @@
 This ensures clean initial PRs with focused, high-value PR reviews — similar to running linters
 locally before CI.
 
-**Applies to all merges:** base branch, parent branches (stacked workflow), any PR where review is warranted.
+**Applies to all merges:** base branch, parent branches (stacked workflow), any PR where review
+is warranted.
 
-**Tool adaptation:** This workflow describes the strategy and decision-making process. Specific review
-tools (CodeRabbit, GitHub Copilot, etc.) plug into the generic steps — see
+**Tool adaptation:** This workflow describes the strategy and process. Specific review tools
+(CodeRabbit, GitHub Copilot, etc.) plug into the generic steps — see
 [Tool-Specific Notes](#tool-specific-notes) for tool commands and platform details.
-
----
-
-## Decision Framework
-
-Used in both passes. For each finding, evaluate validity (real issue or preference?), context
-(conflicts with documented deferrals? code scheduled for replacement?), and impact (functionality
-vs code quality?).
-
-**✅ FIX NOW** if:
-
-- Legitimate bug affecting current functionality
-- Documentation inconsistency causing confusion
-- Simple fix (<10 lines, low risk)
-- Improves code we're actively maintaining
-
-**⏸️ DEFER** (document reason) if:
-
-- Code is scheduled for deletion in next phase
-- Already documented as strategic deferral
-- Requires substantial refactoring of temporary code
-- Part of a different feature/phase
-
-**❌ REJECT** (note reason) if:
-
-- Conflicts with project standards
-- Out of scope for current work
-- Agent misunderstands the context
-
-**🔧 SILENT FIX** (minor/nitpick findings — no reply needed) if:
-
-- Typo corrections, formatting improvements
-- Minor code quality enhancements
-- Simple clarifications that don't need justification
 
 ---
 
 ## Pass 1: Local Review (Before PR)
 
-**When**: After work is complete, before `gh pr create`.
+**When**: After Phase 1 docs are committed in integrate-work-unit, before push.
 
 ### 1) Run Local Review
 
@@ -63,28 +33,16 @@ for immediate evaluation rather than saved to a tracking file.
 
 ### 2) Process Findings
 
-Work through findings sequentially using the Decision Framework above.
+Work through findings sequentially using the [review-triage method][arc-methods-rt]
+(fix/defer/reject/silent-fix classification).
 
-**Workflow**: Review finding → evaluate → fix or decide disposition → repeat.
+**Workflow**: Review finding -> evaluate -> fix or decide disposition -> repeat.
 
 ### 3) Commit Fixes
 
-Stage all fixes and commit as a single batch (preferred). Track which findings were fixed, deferred,
-or rejected — include in commit message:
-
-```bash
-git commit -m "fix: address local agent review findings
-
-Fixed:
-- [Finding 1 description]
-- [Finding 2 description]
-
-Deferred:
-- [Finding X]: [Brief reason]
-
-Rejected:
-- [Finding Y]: [Brief reason]"
-```
+Stage all fixes and commit as a single batch (preferred). Document dispositions in the commit
+message per the review-triage method's documentation format. Use the `(integration)` context
+footer.
 
 Split commits only if fixes have substantially different scope (e.g., critical bugs separate from
 minor improvements).
@@ -114,7 +72,8 @@ Agent runs PR review (Pass 2) — expect fewer findings than without local revie
 
 ### 1) Process Comments
 
-Work through PR comments sequentially using the Decision Framework. For each comment:
+Work through PR comments sequentially using the [review-triage method][arc-methods-rt]. For each
+comment:
 
 1. **Evaluate and fix** (or decide to defer/reject)
 2. **If substantive**: Draft reply immediately (use `[commit-hash]` placeholder) — captures context
@@ -124,21 +83,10 @@ Work through PR comments sequentially using the Decision Framework. For each com
 
 ### 2) Batch Commit
 
-After processing all comments, commit fixes in a single batch:
+After processing all comments, commit fixes in a single batch. Document dispositions per the
+review-triage method. Use the `(integration)` context footer.
 
 ```bash
-git commit -m "fix: address AI code review feedback
-
-Issues fixed:
-- [Issue 1 description]
-- [Issue 2 description]
-
-Nitpicks addressed:
-- [Summary of minor fixes]
-
-Deferred:
-- [Issue X]: [Brief reason — detailed in PR comment]"
-
 git push origin {branch-name}
 ```
 
@@ -199,31 +147,20 @@ short-lived code. Current functionality works correctly.
 ### Other Tools
 
 - Adapt local review command and classification terminology
-- Core workflow (evaluate → fix → batch commit → reply) applies regardless of tool
-
----
-
-## Illustrative Metrics
-
-The following are illustrative estimates, not measured benchmarks. Actual results vary by project
-complexity, review tool, and codebase.
-
-| Scenario                    | Local Findings | PR Findings | Estimated Reduction |
-|-----------------------------|----------------|-------------|---------------------|
-| Without local review        | N/A            | ~15         | N/A                 |
-| With local review (Pass 1)  | ~15            | ~3          | ~80%                |
-
-**Expected pattern:** Local review catches the majority of issues. PR review catches
-context-specific issues that only emerge from the actual diff. Time investment is roughly neutral
-(local review time offset by reduced PR review complexity).
+- Core workflow (evaluate -> fix -> batch commit -> reply) applies regardless of tool
 
 ---
 
 ## Anti-Patterns
 
-- ❌ Skip local review — Pass 1 catches the majority of issues
-- ❌ Reply before committing (PR Mode) — commit first, reply with hash
-- ❌ Multiple small commits for review fixes — batch to minimize re-review triggers
-- ❌ Reply to nitpicks — clutters PR conversation; silent fix and resolve
-- ❌ Rush fixes without evaluating context — check for documented deferrals first
-- ❌ Fix code scheduled for deletion — defer unless it affects current functionality
+- Do not skip local review — Pass 1 catches the majority of issues
+- Do not reply before committing (PR Mode) — commit first, reply with hash
+- Do not make multiple small commits for review fixes — batch to minimize re-review triggers
+- Do not reply to nitpicks — clutters PR conversation; silent fix and resolve
+- Do not rush fixes without evaluating context — check for documented deferrals first
+- Do not fix code scheduled for deletion — defer unless it affects current functionality
+
+---
+
+[arc-methods-rt]: ../../../../.arc/system/workflows/arc-methods.md#review-triage
+[arc-ext-pre-merge-review]: ../../../../.arc/system/workflows/arc-extensions.md#pre-merge-review

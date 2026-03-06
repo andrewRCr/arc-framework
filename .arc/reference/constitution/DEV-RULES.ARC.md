@@ -47,7 +47,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
-[atomic-commit workflow][atomic-commit].
+[commit guide][commit-guide].
 
 ### Commit format · P6 · `[configurable]`
 
@@ -261,7 +261,7 @@ the relevant work — not during session initialization.
 
 - **Before starting task execution:** Load the [process-task-loop workflow][process-task-loop] —
   completion protocol, quality gate checkpoints, deferred review
-- **Before complex commits:** Load the [atomic-commit workflow][atomic-commit] — multi-session
+- **Before complex commits:** Load the [commit guide][commit-guide] — multi-session
   work, interleaved concerns, atomicity analysis
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
   strategy documents
@@ -278,6 +278,6 @@ the relevant work — not during session initialization.
 [core-philosophy]: ../strategies/arc/strategy-core-philosophy.md
 [config-arch]: ../strategies/arc/strategy-configurability-architecture.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
-[atomic-commit]: ../../system/workflows/arc/supplemental/atomic-commit.md
+[commit-guide]: ../../system/workflows/arc/supplemental/commit-guide.md
 [strategy-index]: ../strategies/STRATEGY-INDEX.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md

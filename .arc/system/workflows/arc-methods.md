@@ -21,6 +21,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [leave-it-cleaner](#leave-it-cleaner) — severity triage, fix-vs-defer decisions
 - [test-first](#test-first) — decision tree by change type
 - [session-state](#session-state) — reading and writing session state
+- [review-triage](#review-triage) — classifying and acting on review findings
 - [quality-gate-commands](#quality-gate-commands) — project quality gate definitions
 
 ---
@@ -36,6 +37,7 @@ when populating any `.override` section.
 | commit-context-format | commit-format           | Both govern the commit message   |
 | leave-it-cleaner      | —                       | Independent                      |
 | test-first            | —                       | Independent                      |
+| review-triage         | —                       | Independent                      |
 | session-state         | —                       | Independent                      |
 | quality-gate-commands | —                       | Independent                      |
 
@@ -43,7 +45,7 @@ when populating any `.override` section.
 
 ## commit-format
 
-**Workflow:** [atomic-commit.md][atomic-commit] · **When:** Agent writes a commit message
+**Workflow:** [commit-guide.md][commit-guide] · **When:** Agent writes a commit message
 
 **Contract:** Commits follow a consistent, communicative format that enables automated tooling and readable history.
 
@@ -80,7 +82,7 @@ in [`arc-config.yml`][arc-config]. See `system/githooks/README.md` for setup.
 
 ## commit-context-format
 
-**Workflow:** [atomic-commit.md][atomic-commit] · **When:** Agent writes a commit message
+**Workflow:** [commit-guide.md][commit-guide] · **When:** Agent writes a commit message
 
 **Contract:** Every commit includes a context footer linking it to its task or work context. Format must be
 grep-searchable across commit history.
@@ -104,6 +106,7 @@ grep-searchable across commit history.
 - `Context: tasks-[filename].md (incidental - discovered during <context>)` — incidental fix
 - `Context: tasks-[filename].md (planning)` — task list metadata only
 - `Context: tasks-[filename].md (activation)` — backlog to active transition
+- `Context: tasks-[filename].md (integration)` — integration prep and review fixes
 - `Context: tasks-[filename].md (archival)` — active to archive transition
 
 **Without task list:**
@@ -207,6 +210,64 @@ Read/write WORK-STATUS.md and SESSION-NOTES.md at session boundaries.
 
 ---
 
+## review-triage
+
+**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **When:** Agent processes findings from any code review
+(self-review, AI tool, human reviewer)
+
+**Contract:** Every review finding gets an explicit disposition. No finding is silently ignored. Dispositions are
+documented in the commit message that addresses them.
+
+### review-triage.override
+
+[No override configured]
+
+### review-triage.default
+
+Four-way classification for each finding. Evaluate validity (real issue or preference?), context (conflicts with
+documented deferrals? code scheduled for replacement?), and impact (functionality vs. code quality?).
+
+**FIX NOW** if:
+
+- Legitimate bug affecting current functionality
+- Documentation inconsistency causing confusion
+- Simple fix (<10 lines, low risk)
+- Improves code being actively maintained
+
+**DEFER** (document reason) if:
+
+- Code is scheduled for deletion in next phase
+- Already documented as strategic deferral
+- Requires substantial refactoring of temporary code
+- Part of a different feature/phase
+
+**REJECT** (note reason) if:
+
+- Conflicts with project standards
+- Out of scope for current work
+- Reviewer misunderstands the context
+
+**SILENT FIX** (minor findings — no reply needed) if:
+
+- Typo corrections, formatting improvements
+- Minor code quality enhancements
+- Simple clarifications that don't need justification
+
+**Documenting dispositions:** Include in the commit message that addresses the findings:
+
+```text
+Fixed:
+- [Finding 1 description]
+
+Deferred:
+- [Finding X]: [Brief reason]
+
+Rejected:
+- [Finding Y]: [Brief reason]
+```
+
+---
+
 ## quality-gate-commands
 
 **Workflow:** [process-task-loop.md][process-task-loop] · **When:** Agent runs quality gates (Tier 1, Tier 2, or Tier 3)
@@ -224,7 +285,8 @@ Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates.
 ---
 
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
-[atomic-commit]: arc/supplemental/atomic-commit.md
+[commit-guide]: arc/supplemental/commit-guide.md
+[integrate-work-unit]: arc/supplemental/integrate-work-unit.md
 [process-task-loop]: arc/3_process-task-loop.md
 [session-init]: arc/supplemental/session-init.md
 [session-handoff]: arc/supplemental/session-handoff.md

@@ -368,7 +368,7 @@ On Child Branch:
 2. Create task list: .arc/active/incidental/tasks-<name>.md
 3. Work on branch, commit with task references
 4. Complete work (all tasks done, quality gates pass)
-5. Clean task list (maintain-task-notes.md Mode 2)
+5. Clean task list (clean-work-unit-files.md Mode 2)
 6. Create completion-{name}.md (summary + PR description draft)
 7. Commit documentation changes
 
@@ -720,9 +720,8 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 - [DEV-RULES.PROJECT][dev-rules] — Project quality standards and development rules
 - [2_generate-tasks.md][generate-tasks] — Task breakdown workflow
 - [3_process-task-loop.md][process-task-loop] — Task execution workflow
-- [atomic-commit.md][atomic-commit] — Complex commit scenarios and atomicity
+- [commit-guide.md][commit-guide] — Commit guide: atomicity, complex scenarios, quick reference
 - [manage-incidental-work.md][manage-incidental] — Incidental work workflow
-- [agent-pre-merge-review.md][pre-merge-review] — Code review workflow
 - [strategy-team-coordination.md][team-coordination] — Task ownership, team branching, external trackers
 
 ---
@@ -734,8 +733,7 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/supplemental/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/supplemental/archive-work-unit.md
-[atomic-commit]: ../../../system/workflows/arc/supplemental/atomic-commit.md
+[commit-guide]: ../../../system/workflows/arc/supplemental/commit-guide.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
-[pre-merge-review]: ../../../system/workflows/arc/supplemental/agent-pre-merge-review.md
 [config-arch]: strategy-configurability-architecture.md
 [rotate-branch]: ../../../system/workflows/arc/supplemental/rotate-branch.md

@@ -22,7 +22,7 @@ disable-model-invocation: true
    - For simple path: stage only files for one logical change and commit using the format
      in `DEV-RULES.ARC.md` section "Commit format".
    - For complex path: follow
-     `.arc/system/workflows/arc/supplemental/atomic-commit.md` to analyze and split
+     `.arc/system/workflows/arc/supplemental/commit-guide.md` to analyze and split
      changes into atomic commits.
 
 4. Stage WORK-STATUS.md with every task commit.

@@ -73,149 +73,16 @@ git diff --exit-code {{GENERATED_FILES_PATTERN}}
 
 ### 2) Clean Up Documentation (MANDATORY)
 
-**Run [maintain-task-notes.md](maintain-task-notes.md) workflow in Mode 2 (Archival Preparation).**
+**Run [clean-work-unit-files.md](clean-work-unit-files.md) workflow in Mode 2 (Archival Preparation).**
 
 This produces: clean task file (temporal markers removed, detailed granularity preserved), notes file
 evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), cross-references updated.
 
 ### 3) Create Completion Metadata
 
-**All work gets a completion document** (feature, technical, AND incidental). Create
-`completion-{name}.md` in the same directory as the task list. The completion doc doubles as your
-PR description draft — creating it as a persistent document ensures it's searchable beyond GitHub.
-
-**Scaling the completion doc:** Planned work (feature, technical) always uses the standard template
-below. Incidental work scales by complexity:
-
-- **Standard template** — Substantial incidental work: multiple phases, significant scope, or
-  complex outcomes worth documenting in detail. Use the full template and verification checklist
-  below.
-- **Lightweight template** — Simple incidental work: typically single-phase with a handful of
-  tasks, straightforward outcomes. Use the
-  [lightweight template](#lightweight-completion-template) — Summary, Verification, and Follow-Up
-  only. Skip the standard verification checklist (the content is simple enough to verify by
-  inspection).
-
-Use judgment — the deciding factor is whether the work has enough substance to fill the standard
-template's sections meaningfully. If Implementation Highlights and Key Deliverables would be
-padding, use lightweight. When in doubt, use standard — more context is better than less in
-the archive.
-
-**Required Reading Before Drafting**
-
-The completion doc must be accurate because it's used for PRs. Before writing:
-
-1. **Task list overview** (first ~100 lines) — Scope, context, what was planned
-2. **Final phase(s)** of task list — Actual completion state, follow-up work status
-3. **CLEANUP-PROGRESS data** (for large files) — Metrics collected during cleanup
-4. **Git log** for final commit hash — `git log -1 --oneline`
-
-**Template (identical for all work categories):**
-
-```markdown
-# Completion: {Work Name}
-
-**Completed**: YYYY-MM-DD
-**Branch**: {branch-name}
-**Category**: {Feature | Technical | Incidental}
-**Context**: {One-liner: "Discovered during X" or "Part of roadmap initiative Y"}
-
-## Summary
-
-{2-3 sentences: What was accomplished and why it matters}
-
-## Key Deliverables
-
-{Concrete outputs - components, capabilities, test coverage areas}
-{Focus on the important stuff, not exhaustive inventory}
-{Avoid volatile metrics (test counts, version numbers) - they become stale}
-
-- {Component or capability}
-- {Another deliverable}
-
-## Implementation Highlights
-
-{Notable technical details worth remembering}
-
-- {Major decision or pattern established}
-- {Significant challenge overcome}
-- {Anything useful for similar future work}
-
-## Verification
-
-{Results from the verification phase — makes quality attestation visible in archive output}
-
-- **Quality gates**: {Tier 3 status — "all passed" or details on failures/waivers}
-- **Success criteria**: {For planned work: "X of Y met" with deviation/supersession notes.
-  For incidental/technical without PRD: "N/A — no PRD success criteria"}
-
-## Related Documentation
-
-- {For planned work: PRD: `path/to/prd-{name}.md`}
-- Tasks: `path/to/tasks-{name}.md`
-- Notes: `path/to/notes-{name}.md` (if exists)
-
-## {For planned work only: Incidental Work Completed}
-
-{List any incidental task lists completed during this work}
-
-- `tasks-{name}.md` - {brief description}
-
-## Follow-Up Work
-
-{Any deferred items or future considerations - ONLY items still deferred at task end}
-```
-
----
-
-#### Lightweight Completion Template
-
-For single-phase incidental work with ≤10 tasks. Omits sections that add little value at this
-scale (Key Deliverables, Implementation Highlights, Related Documentation). The task list itself
-serves as the detailed record.
-
-```markdown
-# Completion: {Work Name}
-
-**Completed**: YYYY-MM-DD
-**Branch**: {branch-name}
-**Category**: Incidental
-**Context**: {One-liner: "Discovered during X"}
-
-## Summary
-
-{2-3 sentences: What was accomplished and why it matters}
-
-## Verification
-
-- **Quality gates**: {Tier 3 status — "all passed" or details}
-- **Success criteria**: {N/A — no PRD success criteria}
-
-## Follow-Up Work
-
-{Any deferred items, or "None"}
-```
-
-No verification checklist — verify the summary against the task list by inspection.
-
----
-
-**Verification Checklist (MANDATORY — standard template only)**
-
-Before considering the completion doc done, verify EVERY claim:
-
-- [ ] **Completed date**: Verified (matches task list header)
-- [ ] **Phase count**: Matches actual phases in task file — `grep -c "^###.*Phase" tasks-*.md`
-- [ ] **Quantitative claims**: Each number verified in task file
-      - Where does "7 themes" come from? → Phase X, line Y
-      - Where does "50+ components" come from? → Phase X, line Y
-- [ ] **Follow-up work**: Reflects FINAL phase state
-      - Check: Did any "deferred" items get completed in later phases?
-      - Only list what's ACTUALLY still deferred at task end
-- [ ] **No stale references**: No mentions of deleted notes file (if deleted), etc
-- [ ] **All major phases represented**: Check CLEANUP-PROGRESS data includes all phases
-
-**Evidence format:** For each claim, note where verified. This catches stale data from early phases.
+Create `completion-{name}.md` in the same directory as the task list. Follow the templates and
+guidance in [template-completion-doc.md][template-completion-doc] — choose standard or lightweight
+based on work complexity. Complete the verification checklist (standard template) before proceeding.
 
 ### 4) Commit Documentation Changes
 
@@ -229,8 +96,9 @@ git add .arc/active/{category}/prd-{name}.md  # if planned work with PRD updates
 ```
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
-Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with a Context footer
-referencing the task list.
+Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
+context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
+integration use the same pattern.
 
 **⛔ CHECKPOINT:** Phase 1 complete. Do NOT push yet. Proceed to Phase 2 for code review before PR.
 
@@ -240,16 +108,15 @@ referencing the task list.
 
 **Context:** Still on child branch, docs are clean and committed. **Branch is NOT pushed yet.**
 
-### 5) Local Code Review (Before Push)
+### 5) Pre-Merge Review · `#pre-merge-review`
 
-Run local review before pushing to remote — fixes made here are part of the clean branch history.
+If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them now. The
+extension defines your project's review ceremony — local review passes, AI review tool integration,
+or structured PR review protocols. Use the [review-triage method][arc-methods-rt]
+(fix/defer/reject/silent-fix) to classify findings from any review source. Commit fixes with the
+`(integration)` context footer.
 
-```bash
-# Run local review (AI tool, linting, manual checklist)
-{{LOCAL_REVIEW_COMMAND}}
-
-# Fix any findings, commit fixes if needed
-```
+Without the extension, proceed directly to push and PR creation.
 
 ### 6) Push and Create PR
 
@@ -262,12 +129,14 @@ Use `completion-{name}.md` as PR description template — copy/adapt sections fo
 
 ### 7) Address PR Review Findings
 
-If code review results in significant changes:
+Process findings from PR reviewers (human or automated) using the
+[review-triage method][arc-methods-rt]. For each finding, classify and act:
 
-- Update code as requested
-- **Update completion metadata if work outcomes changed** (completion doc should reflect final state)
+- **Fix/silent-fix**: Update code, batch into a single commit when possible
+- **Defer/reject**: Document reason in PR reply
+- **Update completion metadata** if work outcomes changed (completion doc should reflect final state)
 - **Re-run Tier 1 quality gates** on all modified files — mandatory after review-driven commits
-- Commit fixes with references to review findings
+- Commit fixes with the `(integration)` context footer
 
 ### 8) Merge Pull Request
 
@@ -287,7 +156,7 @@ git push
 
 ## Common Pitfalls
 
-- Skip doc hygiene → Run [maintain-task-notes.md](maintain-task-notes.md) Mode 2 first
+- Skip doc hygiene → Run [clean-work-unit-files.md](clean-work-unit-files.md) Mode 2 first
 - Skip completion doc → ALL work gets `completion-{name}.md` (lightweight or standard)
 - Skip local review → Findings after push require additional commits on the PR
 - Push before Phase 1 commit → PR diff includes uncommitted doc cleanup
@@ -346,5 +215,8 @@ architectural pivot, not abandoned work.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[arc-methods-rt]: ../../arc-methods.md#review-triage
+[arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
+[template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
 [rotate-branch]: rotate-branch.md
 [archive-work-unit]: archive-work-unit.md

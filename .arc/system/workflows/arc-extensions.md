@@ -21,6 +21,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [post-task-completion](#post-task-completion) — additional actions after task marked complete
 - [post-context-load](#post-context-load) — additional context loading at session start
 - [pre-stage-review](#pre-stage-review) — additional staging verification before commit
+- [pre-merge-review](#pre-merge-review) — structured review ceremony before merge
 - [post-work-unit-activate](#post-work-unit-activate) — actions after work unit activation (PM layer interface)
 - [post-work-unit-archive](#post-work-unit-archive) — actions after work unit archival (PM layer interface)
 
@@ -86,12 +87,32 @@ tool state, or environment checks that agents should be aware of before beginnin
 
 ## pre-stage-review
 
-**Workflow:** [atomic-commit.md][atomic-commit] · **Fires:** After staging changes, before creating the commit
+**Workflow:** [commit-guide.md][commit-guide] · **Fires:** After staging changes, before creating the commit
 
 **Contract:** Add staging verification steps beyond ARC's default `git diff --cached --stat` check. Use for
 project-specific validations on staged content (security scanning, license headers, generated file checks).
 
 ### pre-stage-review.steps
+
+[No extension configured]
+
+---
+
+## pre-merge-review
+
+**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **Fires:** After Phase 1 docs are committed, before
+push and PR creation (between Steps 4 and 6)
+
+**Contract:** Add a structured review ceremony before pushing. Without this extension, integrate-work-unit
+proceeds directly from documentation cleanup to push and PR creation — no local review step runs. With this
+extension, you can define local review passes, AI review tool integration, structured PR review protocols, or
+any pre-merge ceremony your project needs.
+
+Use for: AI review tool integration (CodeRabbit, Copilot, etc.), local review before push, structured human
+review protocols, or multi-pass review strategies. When processing findings from any review source, use the
+[review-triage method][arc-methods-rt] for classification (fix/defer/reject/silent-fix).
+
+### pre-merge-review.steps
 
 [No extension configured]
 
@@ -132,6 +153,8 @@ workflow proceeds naturally.
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
 [process-task-loop]: arc/3_process-task-loop.md
 [session-init]: arc/supplemental/session-init.md
-[atomic-commit]: arc/supplemental/atomic-commit.md
+[commit-guide]: arc/supplemental/commit-guide.md
+[integrate-work-unit]: arc/supplemental/integrate-work-unit.md
+[arc-methods-rt]: arc-methods.md#review-triage
 [activate-work-unit]: arc/supplemental/activate-work-unit.md
 [archive-work-unit]: arc/supplemental/archive-work-unit.md
