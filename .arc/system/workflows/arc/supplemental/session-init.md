@@ -200,6 +200,10 @@ need refinement, a `plan-*` doc may need development before a PRD can be created
 entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
 and reports — the user decides how to proceed.
 
+> **Full protection (`branch.protection: full`):** Planning work requires a branch. When the
+> user confirms next steps, run [activate-planning-branch][activate-planning-branch] before
+> creating plan documents or PRDs.
+
 **Formatting guidance:**
 
 - The header line confirms: protocol ran, active branch, and tree status — at a glance
@@ -255,6 +259,7 @@ Examples:
 - Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
   conflicting signals at the same trust tier
 
+[activate-planning-branch]: activate-planning-branch.md
 [arc-methods-session]: ../../arc-methods.md#session-state
 [arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

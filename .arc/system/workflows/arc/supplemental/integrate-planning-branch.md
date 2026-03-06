@@ -11,8 +11,10 @@ not implementation.
 
 **What comes before:**
 
-- Simple planning branch: [1_create-prd][create-prd] → [2_generate-tasks][generate-tasks]
-- Batch branch (fully protected): [archive-work-unit][archive-work-unit] → create-prd → generate-tasks
+- Simple planning branch: [activate-planning-branch][activate-planning-branch] → [1_create-prd][create-prd]
+  → [2_generate-tasks][generate-tasks]
+- Batch branch (fully protected): activate-planning-branch → [archive-work-unit][archive-work-unit]
+  → create-prd → generate-tasks
 
 **What comes after:** [activate-work-unit][activate-work-unit] (from base branch, after merge)
 
@@ -92,13 +94,13 @@ If reviewers raise concerns about scope, requirements, or task breakdown:
 # Merge — use flag matching merge.strategy in arc-config.yml
 gh pr merge {pr-number} --merge   # default; use --squash or --rebase per config
 
+# Switch to base branch and pull merged changes
+git switch {base-branch}
+git pull origin {base-branch}
+
 # Delete planning branch
 git branch -d {planning-branch}
 git push origin --delete {planning-branch}  # if not auto-deleted by platform
-
-# Update local base branch
-git switch {base-branch}
-git pull origin {base-branch}
 ```
 
 ### 5) Transition to Activation
@@ -132,6 +134,7 @@ to proceed even if WORK-STATUS hasn't caught up yet.
 
 ---
 
+[activate-planning-branch]: activate-planning-branch.md
 [integrate-work-unit]: integrate-work-unit.md
 [activate-work-unit]: activate-work-unit.md
 [archive-work-unit]: archive-work-unit.md

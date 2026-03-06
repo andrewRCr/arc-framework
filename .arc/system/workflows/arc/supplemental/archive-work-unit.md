@@ -14,9 +14,9 @@ metadata exists, code review is done, PR is merged.
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
 > base branch. Two approaches:
 >
-> - **Batch with next activation** (preferred): Include archival of the completed work unit in the
->   same branch that activates the next one. One PR covers both lifecycle transitions — archive old,
->   activate new.
+> - **Batch with next activation** (preferred): Run
+>   [activate-planning-branch][activate-planning-branch] to set up the batch branch, then archive
+>   here. One PR covers both lifecycle transitions — archive old, plan new.
 > - **Standalone housekeeping branch**: Create a short-lived branch (e.g., `chore/archive-{name}`)
 >   for archival alone, when no next work unit is imminent.
 >
@@ -34,6 +34,9 @@ metadata exists, code review is done, PR is merged.
 ## Steps
 
 ### 1) Delete Child Branch
+
+Skip if the implementation branch was already cleaned up (e.g., by
+[activate-planning-branch][activate-planning-branch] in the batch path).
 
 ```bash
 git branch -d {child-branch-name}
@@ -170,6 +173,10 @@ Context: tasks-fix-auth-edge-cases.md (archival)"
 Activation ([activate-work-unit][activate-work-unit]) happens from the base branch after
 that PR merges.
 
+**Full protection (standalone archival):** If no next work unit is planned, the housekeeping
+branch carries only archival. Push, create a PR, and merge directly — no planning workflows
+needed. Update WORK-STATUS.md Next Action to reflect that no next work unit is queued.
+
 ---
 
 ## Archive Structure
@@ -221,5 +228,6 @@ for feature vs technical vs incidental decision rules.
 [activate-work-unit]: activate-work-unit.md
 [create-prd]: ../1_create-prd.md
 [generate-tasks]: ../2_generate-tasks.md
+[activate-planning-branch]: activate-planning-branch.md
 [integrate-planning-branch]: integrate-planning-branch.md
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive

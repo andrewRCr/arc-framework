@@ -151,12 +151,19 @@ git merge child-branch --no-ff
 git push
 ```
 
+If merged via PR, switch to the parent branch and pull before proceeding:
+
+```bash
+git switch {parent-branch}
+git pull origin {parent-branch}
+```
+
 **After merge:** Proceed to [archive-work-unit][archive-work-unit] for post-merge archival.
 
 > **Full protection (`branch.protection: full`):** Archival commits can't go directly to the base
-> branch. Create a batch branch from the base branch and run archive-work-unit there. The same
-> branch typically carries planning artifacts for the next work unit — see archive-work-unit for
-> the batch pattern.
+> branch. Run [activate-planning-branch][activate-planning-branch] to set up a batch branch, then
+> run archive-work-unit there. The same branch typically carries planning artifacts for the next
+> work unit — see archive-work-unit for the batch pattern.
 
 ---
 
@@ -227,4 +234,5 @@ architectural pivot, not abandoned work.
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
 [rotate-branch]: rotate-branch.md
+[activate-planning-branch]: activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md
