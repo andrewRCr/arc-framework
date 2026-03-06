@@ -75,10 +75,12 @@ Generate the PRD using [template-prd.md][template-prd]. The template includes se
 dependency tracking, priority levels, and document history conventions. Adapt emphasis based on
 work type — not every section carries equal weight for every PRD.
 
-Save to:
+Save location depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **Feature**: `.arc/active/feature/prd-{{WORK_NAME}}.md`
-- **Technical**: `.arc/active/technical/prd-{{WORK_NAME}}.md`
+- **arc-in-git**: `.arc/backlog/{category}/prd-{{WORK_NAME}}.md` — PRDs start in backlog and
+  graduate to `active/` during [activation][activate-work-unit]
+- **none / external**: `.arc/active/{category}/prd-{{WORK_NAME}}.md` — PRDs save directly to
+  active (no backlog directory)
 
 **Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
 continue with [2_generate-tasks.md](2_generate-tasks.md).
@@ -89,4 +91,5 @@ continue with [2_generate-tasks.md](2_generate-tasks.md).
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [template-prd]: ../../../reference/templates/template-prd.md
+[activate-work-unit]: supplemental/activate-work-unit.md
 [arc-config]: ../../arc-config.yml

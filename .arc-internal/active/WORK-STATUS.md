@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `main`
+**Branch**: `technical/plan-structural-validation`
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
 **Last Completed**: Methodology Completion (archived)
 **Blockers**: [none]
-**Next Action**: Refine PRD for WU2b (structural validation), then generate tasks → `1_create-prd.md`
+**Next Action**: Generate task list for structural validation → `2_generate-tasks.md`
 
 ---
 
