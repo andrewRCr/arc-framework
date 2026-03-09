@@ -135,8 +135,8 @@ It ensures consistent execution, quality control, and documentation of work.
 ## Verification Phase
 
 Every task list ends with a verification phase as its final phase. The standard task-by-task
-completion protocol applies, but the two verification tasks (Tier 3 gates + success criteria
-validation) follow a specific protocol.
+completion protocol applies, but the verification tasks (Tier 3 gates, success criteria
+validation, atomic task resolution) follow a specific protocol.
 
 **→ [verify-work-unit.md](work-unit-lifecycle/verify-work-unit.md)** ← Full verification protocol
 

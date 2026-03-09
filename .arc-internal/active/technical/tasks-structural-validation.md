@@ -628,43 +628,47 @@
         protection mode: full → planning branch PR merged; partial → PR merged or committed
         directly (documented exception). Added `integrate-planning-branch` link reference.
 
-### **Phase 7:** Verification
+### **Phase 7:** Workflow Navigability Validation
 
-- [ ] **7.1 Run Tier 3 quality gates**
-    - [ ] 7.1.a Run full markdown linting: `npm run -s lint:md`
-    - [ ] 7.1.b Review all uncommitted changes: `git diff --stat`
-
-- [ ] **7.2 Validate success criteria against PRD**
-
-### **Phase 8:** Workflow Navigability Validation
-
-- [ ] **8.1 Re-walk lifecycle scenarios against post-structural-validation state**
+- [ ] **7.1 Re-walk lifecycle scenarios against post-structural-validation state**
 
     **Goal:** Confirm that structural changes (file moves, cross-reference updates,
     de-duplication, directory reorganization) haven't broken workflow navigability, and that
     Phase 0 findings were addressed.
 
-    - [ ] **8.1.a Re-walk each scenario from Phase 0**
+    - [ ] **7.1.a Re-walk each scenario from Phase 0**
         - Use the same scenario definitions from 0.1
         - Follow the same methodology from 0.2.a (forward links, routing, conditionals)
         - Note: file paths may have changed if Phase 2/3 moved workflows or strategies
 
-    - [ ] **8.1.b Verify Phase 0 findings were addressed**
+    - [ ] **7.1.b Verify Phase 0 findings were addressed**
         - For each finding from 0.2.b: resolved, consciously accepted, or still open?
         - Consciously accepted findings need documented rationale (e.g., "conditional density
           is inherent to supporting multiple protection modes — no simplification possible
           without dropping mode support")
 
-    - [ ] **8.1.c Check for new issues introduced by structural changes**
+    - [ ] **7.1.c Check for new issues introduced by structural changes**
         - File moves: do all cross-references resolve to the new paths?
         - De-duplication: did trimming inline guidance create gaps where an agent now needs
           to load an extra document mid-workflow?
         - Directory changes: does the new structure help or hinder scenario navigation?
 
-    - [ ] **8.1.d Resolve or document remaining issues**
+    - [ ] **7.1.d Resolve or document remaining issues**
         - Fix any new dead-ends or broken references
         - Document accepted trade-offs in the completion doc
         - Run Tier 1 quality gate on any modified files
+
+### **Phase 8:** Verification
+
+**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
+
+- [ ] **8.1 Run Tier 3 quality gates**
+    - [ ] 8.1.a Run full markdown linting: `npm run -s lint:md`
+    - [ ] 8.1.b Review all uncommitted changes: `git diff --stat`
+
+- [ ] **8.2 Validate success criteria against PRD**
+
+- [ ] **8.3 Verify all atomic tasks resolved**
 
 ---
 
@@ -707,3 +711,7 @@
 - [ ] Common lifecycle scenarios navigable without dead-ends, ambiguous routing, or excessive
   conditional parsing
 - [ ] File tree is stable and ready for WU3 to hardcode paths
+
+---
+
+[verify-work-unit]: ../../../.arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

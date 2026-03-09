@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.1 — Run Tier 3 quality gates (line ~623)
+**Next Task**: Task 7.1 — Re-walk lifecycle scenarios (line ~633)
 **Last Completed**: Task 6.2 — Cross-cutting dependency map
 **Blockers**: [none]
-**Next Action**: Run Tier 3 quality gates and validate success criteria — Phase 7
+**Next Action**: Re-walk workflow navigability scenarios — Phase 7
 
 ---
 

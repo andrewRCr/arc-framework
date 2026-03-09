@@ -43,7 +43,7 @@ Before finalizing any task list, verify:
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] "Expect tests to FAIL initially" noted in test subtasks
 - [ ] "Tests should now PASS" noted after implementation subtasks
-- [ ] Verification phase as final phase (Tier 3 gates + PRD success criteria validation)
+- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic tasks)
 - [ ] Atomic Tasks section present (empty by default, between verification phase and Success Criteria)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
@@ -789,13 +789,16 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 ```markdown
 ### **Phase N:** Verification
 
+**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
+
 - [ ] **N.1 Run Tier 3 quality gates**
 - [ ] **N.2 Validate success criteria against PRD**
+- [ ] **N.3 Verify all atomic tasks resolved**
 ```
 
-**Execution protocol:** When you reach this phase during task processing, see
-[verify-work-unit.md][verify-work-unit] for the step-by-step procedure and three-state
-success criteria model.
+The `**Workflow:**` line and `[verify-work-unit]` link reference are part of the template —
+include them in every generated task list. The workflow contains the step-by-step procedure,
+three-state success criteria model, and atomic task verification checklist.
 
 ---
 
