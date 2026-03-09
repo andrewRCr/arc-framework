@@ -16,10 +16,9 @@
 branch.base: main
 
 # Branch protection level.
-#   unprotected - Branches optional. No base branch commit restrictions.
-#   partial     - Planned work requires branches. Atomic tasks and backlog
-#                 capture may commit directly to the base branch.
-#   full        - All changes require branches and PR review.
+#   partial - Planned work requires branches. Atomic tasks and backlog
+#             capture may commit directly to the base branch. (default)
+#   full    - All changes require branches and PR review.
 # See strategy-work-organization.md § Branch Protection Modes.
 branch.protection: full
 

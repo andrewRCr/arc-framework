@@ -22,8 +22,8 @@ documents, use [02_define-project.md](setup/02_define-project.md).
 
 **Branch context:** Under full protection (`branch.protection: full`), PRD creation happens on a
 planning branch — verify you're on one before proceeding (created via
-[activate-planning-branch][activate-planning-branch]). Under partial or unprotected modes, PRDs
-may be created directly on the base branch.
+[activate-planning-branch][activate-planning-branch]). Under partial protection (the default),
+PRDs may be created directly on the base branch.
 
 Before starting, review the project's META-PRD and TECHNICAL-OVERVIEW to ensure the new work aligns
 with existing vision and technical direction.

@@ -11,10 +11,10 @@ lighter, because planning branches carry artifacts rather than implementation.
 base branch.
 
 **Protection mode context:** Under fully protected mode (`branch.protection: full`), all changes require
-branches — planning branches are mandatory. Under partially protected mode, planning branches are the
-default for planned work but solo developers may commit planning artifacts directly to the base branch
-(documented exception). Under unprotected mode, planning branches are optional. See
-[Branch Protection Modes][work-org-protection] for the full model.
+branches — planning branches are mandatory. Under partially protected mode (the default), planning
+branches are the default for planned work but solo developers may commit planning artifacts directly to
+the base branch (documented exception). See [Branch Protection Modes][work-org-protection] for the full
+model.
 
 **What comes after:**
 
@@ -95,9 +95,9 @@ git checkout -b {category}/plan-{name}
   branch, especially after a PR merge. Stale base means the planning branch diverges unnecessarily.
 + **Skipping implementation branch cleanup** — Stale local branches accumulate and create confusion
   during future session-init (agent sees branches that no longer exist on remote).
-+ **Creating a planning branch when not needed** — Under unprotected or partially protected mode
-  (solo), planning artifacts can go directly to the base branch. Don't add process overhead that
-  your protection mode doesn't require.
++ **Creating a planning branch when not needed** — Under partially protected mode (solo), planning
+  artifacts can go directly to the base branch. Don't add process overhead that your protection
+  mode doesn't require.
 
 ---
 

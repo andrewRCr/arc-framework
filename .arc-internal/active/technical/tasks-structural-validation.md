@@ -590,33 +590,43 @@
           you're still on the planning branch from PRD creation. Same link reference.
         - Both files pass Tier 1 linting.
 
-- [ ] **6.2 Cross-cutting dependency map**
+- [x] **6.2 Cross-cutting dependency map**
 
-    **Goal:** Produce a reference table of concepts that span multiple files, focused on what
-    WU3 needs.
+    Produced cross-cutting dependency strategy doc and resolved remaining Phase 0 findings.
 
-    **Phase 0 findings to address:** F-02 (branch.protection drives different post-planning
-    routing but conditional absent from 2_generate-tasks), F-06 (partial protection semantics
-    not integrated into activate-work-unit prerequisites). Map during 6.2.a and resolve
-    during 6.2.c.
+    - [x] **6.2.a Identify cross-cutting concepts**
 
-    - [ ] **6.2.a Identify cross-cutting concepts**
-        - File classifications → which docs reference classification decisions?
-        - Config settings → which workflows read `arc-config.yml`?
-        - Method references → which workflows invoke arc-methods.md methods?
-        - Session state model → which workflows touch WORK-STATUS / SESSION-NOTES?
-        - pm.mode conditionals → which workflows branch on PM mode?
+        Mapped all 5 axes via parallel subagents. Key findings: `pm.mode` is the most complex
+        cross-cutting concept (14 files, conditional logic in 6 workflows); `branch.protection`
+        spans 10 files (simplified from 3 modes to 2 after removing `unprotected`);
+        `merge.strategy` touches 11 files. Methods follow a consistent invocation pattern
+        (DEV-RULES defines rule → workflow invokes method → configurability-architecture
+        documents override). Session state has a clean lifecycle (init reads → loop references →
+        handoff writes). Also executed the atomic task to remove `unprotected` branch protection
+        mode before mapping, so the map reflects current state.
 
-    - [ ] **6.2.b Produce dependency reference table**
-        - Format: concept, authoritative source, files that reference it, blast radius
-        - Save in a location accessible to WU3 (notes file or strategy doc update)
+    - [x] **6.2.b Produce dependency reference table**
 
-    - [ ] **6.2.c Resolve Phase 0 findings F-02, F-06**
-        - F-02: Add protection-mode conditional routing to 2_generate-tasks "Next Step"
-          (or consolidate routing into a single reference point)
-        - F-06: Align activate-work-unit prerequisites with strategy on partial protection
-          planning branch optionality
-        - Use dependency map from 6.2.b to inform the right fix pattern
+        Created `analysis-cross-cutting-dependencies.md` in
+        `.arc-internal/reference/analysis/`. Covers 6 concept areas: file classifications,
+        config settings, method references, session state model, pm.mode conditionals, and
+        branch.protection mode. Each concept has authority source, consumer table, blast
+        radius, and WU3 relevance notes. Also introduced `reference/analysis/` as a new
+        directory type (peer to `research/` — internally-sourced vs externally-sourced
+        reference material). Created README, updated directory trees, file inventory (55
+        Framework, 83 total), and archive-work-unit routing guidance.
+
+    - [x] **6.2.c Resolve Phase 0 findings F-02, F-06**
+
+        **F-02 resolved:** Added protection-mode-aware routing to `2_generate-tasks.md` Next
+        Step section. Now branches: on a planning branch → integrate-planning-branch first;
+        on base branch (partial, direct commit) → activate-work-unit directly. Added
+        `integrate-planning-branch` link reference.
+
+        **F-06 resolved:** Rewrote `activate-work-unit.md` arc-in-git prerequisites. Replaced
+        flat "Planning branch PR merged" prerequisite with a blockquote that branches by
+        protection mode: full → planning branch PR merged; partial → PR merged or committed
+        directly (documented exception). Added `integrate-planning-branch` link reference.
 
 ### **Phase 7:** Verification
 
@@ -673,16 +683,14 @@
   system vs. using it as a standalone peer document. Placed in `supplemental/`. Updated file
   inventory (54 Framework, 82 total) and `strategies/project/README.md` with workflow reference.
 
-- [ ] **Remove `unprotected` branch protection mode** — Discovered during Phase 0 scenario
-  definition: workflows (activate-work-unit, integrate-work-unit) assume branches and PRs exist;
-  unprotected mode is undocumented in practice and narrow in audience. Kill the mode, make
-  `partial` the minimum. Scope:
-    - `arc-config.yml` (internal + template): remove `unprotected` option and update inline
-      comments
-    - `strategy-work-organization.md` § Branch Protection Modes: remove Unprotected section,
-      update mode summary table, update choosing-your-mode guidance
-    - `activate-planning-branch.md`: remove unprotected references
-    - Grep for remaining `unprotected` references across `.arc/` and clean up
+- [x] **Remove `unprotected` branch protection mode** — Removed `unprotected` as a
+  `branch.protection` option, making `partial` the minimum. Edited 10 files: both
+  `arc-config.yml` (removed option, updated comments), both `pre-commit` githooks (removed
+  case branch), `strategy-work-organization.md` (removed Unprotected section, mode summary
+  table row, choosing-your-mode column, WORK-STATUS merge behavior paragraph, planning branch
+  mode bullet), `activate-planning-branch.md`, `activate-work-unit.md`, `archive-work-unit.md`,
+  `1_create-prd.md`, `2_generate-tasks.md`. ADR and archive references left as historical
+  records. All modified files pass Tier 1 linting.
 
 ---
 

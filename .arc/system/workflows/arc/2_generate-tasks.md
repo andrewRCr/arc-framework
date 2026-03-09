@@ -13,8 +13,8 @@ planning.
 ## Process
 
 **Branch context:** Under full protection (`branch.protection: full`), task generation happens on
-the same planning branch as the PRD — verify you're still on it. Under partial or unprotected
-modes, this may happen directly on the base branch. See
+the same planning branch as the PRD — verify you're still on it. Under partial protection (the
+default), this may happen directly on the base branch. See
 [activate-planning-branch][activate-planning-branch] for how planning branches are set up.
 
 Before starting, read the PRD thoroughly. If the PRD has dependency metadata (Status and Related
@@ -116,12 +116,19 @@ Checklist to verify before saving.
 
 ## Next Step
 
-When ready to begin implementation:
+The next step depends on whether you're on a planning branch:
 
-**→ [activate-work-unit.md](work-unit-lifecycle/activate-work-unit.md)** — Create branch, move docs to
+**On a planning branch** (full protection, or partial protection with a planning branch):
+
+**→ [integrate-planning-branch.md][integrate-planning-branch]** — PR the planning branch to base,
+then activate from base
+
+**On the base branch** (partial protection, direct commit):
+
+**→ [activate-work-unit.md][activate-work-unit]** — Create implementation branch, move docs to
 active, update tracking
 
-This can be deferred if planning ahead. Activate when implementation is about to begin.
+Activation can be deferred if planning ahead. Activate when implementation is about to begin.
 
 ---
 
@@ -130,5 +137,6 @@ This can be deferred if planning ahead. Activate when implementation is about to
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
+[integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
 [arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md

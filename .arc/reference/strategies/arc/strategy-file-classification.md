@@ -240,11 +240,17 @@ to update classification — both axes apply independently.
 | `DEV-RULES.{DOMAIN}.md` | Configurable   | Core  | Optional domain-scoped rules (e.g., FRONTEND, AUTH). Not counted in totals. |
 | `README.md`             | Framework      | Core  | Constitution directory overview and domain-scoped dev-rules guidance.       |
 
+### reference/analysis/
+
+| File        | Classification | Layer | Notes                                                   |
+|-------------|----------------|-------|---------------------------------------------------------|
+| `README.md` | Framework      | Core  | Analysis conventions. Peer to research/ (internal src). |
+
 ### reference/research/
 
-| File        | Classification | Layer | Notes                 |
-|-------------|----------------|-------|-----------------------|
-| `README.md` | Framework      | Core  | Research conventions. |
+| File        | Classification | Layer | Notes                                                    |
+|-------------|----------------|-------|---------------------------------------------------------|
+| `README.md` | Framework      | Core  | Research conventions. Peer to analysis/ (external src). |
 
 ### reference/strategies/
 
@@ -334,12 +340,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 54    | Three-way merge. Conflicts rare.                      |
+| Framework      | 55    | Three-way merge. Conflicts rare.                      |
 | Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 13    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 82.
+**Total template files:** 83.
 
 *Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
 are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not

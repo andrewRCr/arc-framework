@@ -28,7 +28,8 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 │   │   ├── arc/               # Framework methodology (ships with ARC)
 │   │   └── project/           # Your project-specific patterns
 │   ├── adr/                   # Architecture Decision Records
-│   ├── research/              # Technical research documents
+│   ├── analysis/              # Internal investigation and synthesis
+│   ├── research/              # External technical research
 │   └── archive/               # Completed work (by work type, quarterly as volume grows)
 ├── team/                      # Team mode: per-member session state (optional)
 └── system/                    # Agent-facing operational files

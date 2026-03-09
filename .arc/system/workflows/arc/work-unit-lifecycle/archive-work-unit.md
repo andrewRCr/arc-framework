@@ -35,7 +35,7 @@ metadata exists, code review is done, PR is merged.
 
 ### 0) Set Up Branch (Full Protection Only)
 
-**Skip if** `branch.protection` is `partial` or `unprotected` — archive directly on the base branch.
+**Skip if** `branch.protection` is `partial` — archive directly on the base branch.
 
 Under full protection, archival commits require a branch. If you ran
 [activate-planning-branch][activate-planning-branch] (batch path), you're already on the right branch —
@@ -67,19 +67,20 @@ will show its final lifecycle state.
 If a PRD exists, its status remains `Complete` — the PRD tracks whether the plan was fulfilled, not
 the merge state.
 
-### 3) Route Research Files (If Applicable)
+### 3) Route Reference Files (If Applicable)
 
 Before archiving, assess whether any work artifacts have reference value beyond this work unit —
-investigation notes, benchmark data, design explorations, research summaries. These files lose
+investigation notes, benchmark data, design explorations, dependency maps. These files lose
 discoverability once buried in the archive directory.
 
 **Decision:** "Do any files have lasting reference value outside this work unit's context?"
 
-- **Yes** → Copy (not move) to `.arc/reference/research/` with a descriptive name. The original
-  stays with the archive for completeness. Note the routing in the completion doc's Related
-  Documentation section.
-- **No** → Proceed directly to archival. Most work units won't have research files — this step
-  is a quick assessment, not a gate.
+- **Yes** → Copy (not move) to the appropriate reference directory. The original stays with the
+  archive for completeness. Note the routing in the completion doc's Related Documentation section.
+    - `.arc/reference/analysis/` — internally-produced maps, audits, assessments
+    - `.arc/reference/research/` — externally-sourced investigation and synthesis
+- **No** → Proceed directly to archival. Most work units won't produce standalone reference
+  files — this step is a quick assessment, not a gate.
 
 ### 4) Archive Files
 
@@ -178,7 +179,7 @@ Context: tasks-fix-auth-edge-cases.md (archival)"
 
 ### 8) Next Step
 
-**Partial or unprotected:** Archival is complete. WORK-STATUS.md points to the next action
+**Partial protection:** Archival is complete. WORK-STATUS.md points to the next action
 (typically `1_create-prd.md`).
 
 **Full protection (batch branch):** Continue on the same branch — proceed to

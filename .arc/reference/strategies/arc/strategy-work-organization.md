@@ -161,10 +161,9 @@ Common multi-branch patterns:
 Incidental task lists may live alongside the primary work when they stay on the same branch by design.
 `WORK-STATUS.md` reflects whichever work unit is currently active.
 
-**WORK-STATUS.md merge behavior:** In protected modes, WORK-STATUS.md on the base branch stays in
-its "no active work" default state — work branches diverge with active state, and merges restore
-the default. In unprotected mode, the base branch is the workspace and WORK-STATUS.md reflects
-active work directly. `.gitattributes` with `merge=ours` auto-resolves local merges by keeping
+**WORK-STATUS.md merge behavior:** WORK-STATUS.md on the base branch stays in its "no active work"
+default state — work branches diverge with active state, and merges restore the default.
+`.gitattributes` with `merge=ours` auto-resolves local merges by keeping
 the target branch version. For PR merges (server-side, where local merge drivers don't apply),
 the resolution is always "take base" — deterministic and trivial. Post-merge workflows
 ([rotate-branch][rotate-branch], [archive-work-unit][archive-work-unit]) update WORK-STATUS.md
@@ -472,27 +471,15 @@ git commit -m "refactor: complete service extraction"
 
 ## Branch Protection Modes
 
-ARC defines three branch protection modes that determine what work requires branches and PRs.
-The active mode is configured in `.arc/system/arc-config.yml` (`branch_protection` setting).
+ARC defines two branch protection modes that determine what work requires branches and PRs.
+The active mode is configured in `.arc/system/arc-config.yml` (`branch.protection` setting).
 
 ### Mode Summary
 
-| Mode                              | Planned Work       | Atomic Tasks / Backlog | Direct Base Branch Commits |
-|-----------------------------------|--------------------|------------------------|----------------------------|
-| **Unprotected**                   | Branches optional  | Commit directly        | Allowed                    |
-| **Partially protected** (default) | Branches required  | Commit directly        | Documented exceptions only |
-| **Fully protected**               | Branches required  | Micro-branches         | Not allowed                |
-
-### Unprotected
-
-Branches are optional for all work. No restrictions on base branch commits.
-
-**Best for:** Solo developers prioritizing speed. Prototyping phases where process overhead
-isn't justified.
-
-**Planning branches:** Optional. Planning artifacts can be committed directly to the base branch.
-
-**Trade-off:** Maximum speed, minimum traceability. No PR review gate — all review is local.
+| Mode                              | Planned Work      | Atomic Tasks / Backlog | Direct Base Branch Commits |
+|-----------------------------------|-------------------|------------------------|----------------------------|
+| **Partially protected** (default) | Branches required | Commit directly        | Documented exceptions only |
+| **Fully protected**               | Branches required | Micro-branches         | Not allowed                |
 
 ### Partially Protected (Default)
 
@@ -534,17 +521,16 @@ warrants a task list vs. a simple branch.
 
 ### Choosing Your Mode
 
-| Factor              | Unprotected     | Partially Protected | Fully Protected        |
-|---------------------|-----------------|---------------------|------------------------|
-| Team size           | Solo            | Solo or small team  | Any team size          |
-| Risk tolerance      | High            | Moderate            | Low                    |
-| CI/CD maturity      | None / basic    | Basic to moderate   | Mature pipeline        |
-| Review culture      | Self-review     | Selective PR review | All changes reviewed   |
-| Overhead tolerance  | Minimal         | Moderate            | Accepts higher process |
+| Factor             | Partially Protected       | Fully Protected        |
+|--------------------|---------------------------|------------------------|
+| Team size          | Solo or small team        | Any team size          |
+| Risk tolerance     | Moderate                  | Low                    |
+| CI/CD maturity     | Basic to moderate         | Mature pipeline        |
+| Review culture     | Selective PR review       | All changes reviewed   |
+| Overhead tolerance | Moderate                  | Accepts higher process |
 
-**Start with partially protected** (the default) unless you have a specific reason for another
-mode. Move to fully protected when branch protection rules are enabled or team size grows.
-Move to unprotected only for solo prototyping or experiments where traceability isn't needed.
+**Start with partially protected** (the default) unless you have a specific reason for full
+protection. Move to fully protected when branch protection rules are enabled or team size grows.
 
 ---
 
@@ -588,8 +574,6 @@ of committing planning artifacts directly to the base branch.
   [integrate-planning-branch][integrate-planning-branch].
 
 - **Mode-specific behavior:**
-    - **Unprotected:** Planning branches are optional — artifacts can be committed directly
-      to the base branch.
     - **Partially protected:** Planning branches are the default for planned work. Solo
       developers who find the planning branch → PR → merge → activate cycle too heavy for
       self-authored plans can commit planning artifacts directly to base — this falls under

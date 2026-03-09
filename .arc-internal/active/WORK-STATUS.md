@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.2 — Cross-cutting dependency map (line ~586)
-**Last Completed**: Task 6.1 — De-duplication audit
+**Next Task**: Task 7.1 — Run Tier 3 quality gates (line ~623)
+**Last Completed**: Task 6.2 — Cross-cutting dependency map
 **Blockers**: [none]
-**Next Action**: Produce cross-cutting dependency map and resolve F-02, F-06 — Task 6.2
+**Next Action**: Run Tier 3 quality gates and validate success criteria — Phase 7
 
 ---
 

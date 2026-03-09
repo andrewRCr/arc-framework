@@ -62,16 +62,12 @@ warnings=0
 # CHECK 1: Base branch commit protection (config-aware)
 # ============================================================================
 # Behavior determined by branch_protection setting in arc-config.yml:
-#   unprotected - no restriction (check skipped)
-#   partial     - warning (planned work should use branches)
-#   full        - error (all changes require branches and PR review)
+#   partial - warning (planned work should use branches)
+#   full    - error (all changes require branches and PR review)
 current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
 
 if [ "$current_branch" = "$base_branch" ]; then
     case "$branch_protection" in
-        unprotected)
-            # No restriction on base branch commits
-            ;;
         full)
             echo -e "${RED}Error: Direct commits to $base_branch blocked (branch_protection: full)${NC}"
             echo "   All changes require a feature branch and PR review"
