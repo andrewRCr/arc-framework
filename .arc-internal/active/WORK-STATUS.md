@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.1 — Audit all Configurable files for merge boundary cleanliness (line ~406)
-**Last Completed**: Task 3.2 — Implement strategy directory changes (skipped — status quo)
+**Next Task**: Task 6.2 — Cross-cutting dependency map (line ~586)
+**Last Completed**: Task 6.1 — De-duplication audit
 **Blockers**: [none]
-**Next Action**: Audit Configurable files for merge boundary cleanliness — Task 4.1
+**Next Action**: Produce cross-cutting dependency map and resolve F-02, F-06 — Task 6.2
 
 ---
 

@@ -12,6 +12,11 @@ planning.
 
 ## Process
 
+**Branch context:** Under full protection (`branch.protection: full`), task generation happens on
+the same planning branch as the PRD — verify you're still on it. Under partial or unprotected
+modes, this may happen directly on the base branch. See
+[activate-planning-branch][activate-planning-branch] for how planning branches are set up.
+
 Before starting, read the PRD thoroughly. If the PRD has dependency metadata (Status and Related
 Work fields), remove them — dependencies are resolved if you're generating tasks.
 
@@ -124,5 +129,6 @@ This can be deferred if planning ahead. Activate when implementation is about to
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md

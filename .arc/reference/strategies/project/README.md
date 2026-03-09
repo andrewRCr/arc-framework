@@ -30,6 +30,19 @@ Create a strategy document when:
 - AI agents need guidance to implement features correctly
 - Future developers (or you in 6 months) would benefit from documented rationale
 
+## External and Community Content
+
+This directory is also the natural home for externally-sourced strategies — community-shared
+patterns, strategies adapted from other projects, or content found in ARC community resources.
+Drop them here alongside your self-authored strategies; they follow the same conventions.
+
+If external content needs deeper integration (replacing an ARC method default, adding to an
+extension hook), determine the right mechanism:
+
+- **Replaces an ARC default** → Method override (populate `.override` in `arc-methods.md`)
+- **Adds ceremony at an existing hook** → Extension (populate `.steps` in `arc-extensions.md`)
+- **Standalone domain guidance** → Strategy (place here, add to STRATEGY-INDEX)
+
 ## See Also
 
 - [STRATEGY-INDEX](../STRATEGY-INDEX.md) - Master index of all strategies

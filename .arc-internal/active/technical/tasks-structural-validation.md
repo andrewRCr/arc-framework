@@ -404,63 +404,137 @@
 
 **Strategies:** `strategy-file-classification.md`, `strategy-configurability-architecture.md`
 
-- [ ] **4.1 Audit all Configurable files for merge boundary cleanliness**
+- [x] **4.1 Audit all Configurable files for merge boundary cleanliness**
 
     **Goal:** Confirm framework and project content separate at the section level in every
     Configurable file. Paragraph-level interleaving causes false merge conflicts in WU3's
     update system.
 
-    - [ ] **4.1.a Review each Configurable file**
-        - Read each file classified as Configurable or Configurable (light)
-        - For each: identify which sections are framework-owned vs project-owned
-        - Flag any sections where framework and project content interleave at the
-          paragraph level (not just the section level)
-        - Check that `Configurable (light)` files genuinely have minimal project content
+    - [x] **4.1.a Review each Configurable file**
 
-    - [ ] **4.1.b Resolve any interleaving found**
-        - For each flagged file: propose separation (split sections, add markers, or accept
-          with documented rationale)
-        - Implement fixes for any that need structural changes
-        - Update classification if a file's concern mix changed
+        Audited all 15 Configurable files (12 Configurable, 3 Configurable (light)).
 
-    - [ ] **4.1.c Run Tier 1 quality gate on any modified files**
+        **13 files have clean section-level separation:**
+        All 3 Configurable (light) files (both ATOMIC-TASKS templates, archive README),
+        STRATEGY-INDEX, arc-config.yml, 5 agent templates (CLAUDE, CODEX, GEMINI, WARP,
+        copilot-instructions), arc-extensions.md, arc-methods.md, DEV-RULES.PROJECT.md.
+        arc-methods and arc-extensions use particularly clean patterns (contract → override →
+        default sections). Configurable (light) files confirmed minimal project content.
+
+        **2 files have mild interleaving in mixed lists:**
+
+        - **QUICK-REFERENCE.template.md**: Critical Path table mixes framework rows (`.arc docs`)
+          with project rows (`{{Resource name}}`). Rest of the file has framework structure
+          (headers, comments, code block delimiters) on separate lines from project
+          `{{commands}}` — should merge cleanly since they're distinct lines.
+
+        - **AGENTS.template.md**: Friction Points list (lines 41-44) mixes project items with
+          framework items (`Commands in QUICK-REFERENCE.md`, `Working directory`). Technology
+          Stack list (lines 19-22) similarly mixes framework bullets (`Quality Gates`,
+          `Infrastructure`) with project `{{Component}}` bullets.
+
+        Both cases are mild — the framework items in mixed lists are stable content unlikely to
+        change across framework versions. The interleaving is inherent to template design
+        (guidance adjacent to placeholders) rather than structural mixing of concerns.
+
+    - [x] **4.1.b Resolve any interleaving found**
+
+        **Decision: Accept as-is — no structural changes needed.** Both flagged cases are stable
+        framework items providing useful ARC guidance within template lists (friction points,
+        resource table). The items are unlikely to change across framework versions, making the
+        merge conflict risk theoretical. Separating them into dedicated framework sections would
+        fragment naturally unified lists and hurt readability. Git handles interleaved list
+        additions cleanly when edits aren't on the same or adjacent lines.
+
+    - [x] **4.1.c Run Tier 1 quality gate on any modified files**
+
+        No files modified — assessment-only task. No quality gate needed.
 
 ### **Phase 5:** Optional Content Pattern
 
 **Strategies:** `strategy-configurability-architecture.md`, `strategy-file-classification.md`
 
-- [ ] **5.1 Design the optional content pattern**
+- [x] **5.1 Design the optional content pattern**
 
-    **Goal:** Decide where opt-in framework content lives so WU3 can build selective installation
-    without retrofitting.
+    **Decision: Existing structure is already forward-compatible. No new directories, classifications,
+    or infrastructure needed.**
 
-    - [ ] **5.1.a Evaluate location options**
-        - Inside `.arc/` (e.g., `.arc/optional/`, or mixed into natural homes)
-        - In npm package only (present in source, installed selectively, no dedicated dir)
-        - Hybrid (directory exists for discoverability, content managed by CLI)
-        - Consider: adopter discoverability, CLI selective installation model, template
-          system fit, STRATEGY-INDEX / workflow index integration
+    External/community content (strategies, workflows, method overrides) lands in natural
+    project-owned directories that already exist and are already ignored by framework updates:
+    `strategies/project/` for strategies, project workflow directories for workflows, arc-methods
+    and arc-extensions for method overrides and extension hooks.
 
-    - [ ] **5.1.b Define the pattern**
-        - Where optional content lives in the framework source
-        - Where it lands when installed (or if it gets a dedicated directory)
-        - How it's referenced in discovery docs (STRATEGY-INDEX, workflow READMEs)
-        - How the manifest tracks it (classification, layer, optional flag?)
+    - [x] **5.1.a Evaluate location options**
 
-    - [ ] **5.1.c Document decision**
-        - Record in an appropriate location (ADR if significant, strategy doc update if light)
+        Evaluated three approaches:
 
-- [ ] **5.2 Establish forward-compatible structure**
+        - **Dedicated `.arc/optional/` directory**: Creates awkward parallel structure, forces
+          content out of its natural home, adds a new classification category. Rejected.
+        - **npm package only (installed selectively)**: Clean file tree but content isn't
+          discoverable without CLI. Rejected for documentation-only content.
+        - **Natural project-owned homes**: `strategies/project/`, workflow project directories.
+          Already exist, already Project-Owned (ignored by framework updates), already documented
+          for adopter use. No new infrastructure needed.
 
-    **Note:** Scope is minimal — just enough for WU3 to build against.
+        Natural homes wins — it's the simplest option and requires zero structural changes.
+        Discovery happens externally (docs site, GitHub, community shares), not through the
+        file tree. Once content is in the repo, it's the adopter's content.
 
-    - [ ] **5.2.a Create directory and/or README if the pattern calls for it**
-    - [ ] **5.2.b Update file inventory if new files created**
-    - [ ] **5.2.c Run Tier 1 quality gate on any new/modified files**
+    - [x] **5.1.b Define the pattern**
+
+        **Installation**: Drop content into its natural home (strategy → `strategies/project/`,
+        standalone workflow → project workflow directory).
+
+        **Integration**: A future supplemental workflow (`integrate-external-content`) provides
+        a universal decision tree for wiring up external content:
+
+        - Replaces an ARC default? → Method override (populate `.override` in arc-methods)
+        - Adds ceremony at an existing hook point? → Arc extension (populate `.steps` in
+          arc-extensions)
+        - Standalone domain guidance? → Strategy (place in `strategies/project/`, add to
+          STRATEGY-INDEX)
+        - Standalone procedure? → Workflow (place in appropriate project workflow location)
+
+        The workflow handles content already in the repo, external files, or even external
+        links/concepts — the decision tree classifies what integration mechanism fits.
+
+        **Manifest**: No new classification needed. Installed community content is Project-Owned
+        (same as user-authored project strategies and workflows). Framework updates skip it.
+
+        **Discovery**: External — docs site, GitHub, community repos. Not cataloged in `.arc/`
+        until installed. Similar to how editor Skills are shared externally and installed locally.
+
+    - [x] **5.1.c Document decision**
+
+        Decision documented in task completion notes (here). No ADR warranted — the decision is
+        "use the existing pattern." The `integrate-external-content` workflow is deferred to
+        future work (not in scope for this work unit or WU3). Light additions to
+        `strategies/project/README.md` noting that externally-sourced strategies are welcome
+        alongside self-authored ones would complete the documentation; deferred to 5.2.
+
+- [x] **5.2 Establish forward-compatible structure**
+
+    **Structure is already forward-compatible — no new files or directories needed.** The existing
+    `strategies/project/` directory and Project-Owned classification already support the pattern.
+
+    - [x] **5.2.a Create directory and/or README if the pattern calls for it**
+
+        No new directories needed. Updated `strategies/project/README.md` to note that
+        externally-sourced content (community workflows, shared strategies) is welcome alongside
+        self-authored strategies. Added brief mention of the integration decision tree
+        (method override vs. extension vs. standalone).
+
+    - [x] **5.2.b Update file inventory if new files created**
+
+        No new files created. Inventory unchanged.
+
+    - [x] **5.2.c Run Tier 1 quality gate on any new/modified files**
+
+        Tier 1 on `strategies/project/README.md` after update.
 
 ### **Phase 6:** Content Quality Checks
 
-- [ ] **6.1 De-duplication audit**
+- [x] **6.1 De-duplication audit**
 
     **Goal:** Identify content that appears in multiple `.arc/` documents and classify each
     instance.
@@ -469,21 +543,52 @@
     workflows and strategy but absent from main numbered workflows). Classify during 6.1.a and
     resolve during 6.1.b.
 
-    - [ ] **6.1.a Audit high-traffic areas**
-        - DEV-RULES.ARC vs. workflow documents (commit rules, task execution, session management)
-        - Strategy documents vs. workflows that reference them (do workflows duplicate
-          strategy content or properly defer?)
-        - arc-methods.md vs. workflows (method contracts vs. inline guidance)
-        - DEV-RULES.ARC vs. DEV-RULES.PROJECT (boundary clarity)
+    - [x] **6.1.a Audit high-traffic areas**
 
-    - [ ] **6.1.b Classify and resolve each instance**
-        - Intentional reinforcement (summary referencing detail): mark authoritative source
-        - Accidental drift (full copy that should be cross-reference): trim to reference
-        - Misplacement (content in wrong document): relocate
-        - **F-04**: Resolve branch context scattering — determine whether main numbered
-          workflows need branch-state guidance or if deferring to supplemental workflows is
-          intentional
-        - Run Tier 1 quality gate on modified files
+        Parallel subagent audit across all four areas. Findings:
+
+        **DEV-RULES.ARC vs workflows:** Mostly clean delegation. Two instances of inline
+        restatement at critical execution points: (1) prepare-commits.md restates commit
+        approval rule at workflow entry, (2) process-task-loop restates WORK-STATUS accuracy
+        in the commit readiness section. Both are safety-critical rules where inline presence
+        avoids context switching. Triple-anchor format in session workflows is a different
+        format for a different purpose (session recovery vs. documentation references) — not
+        a conflict.
+
+        **Strategies vs workflows:** Well-structured. Workflows properly defer to strategies
+        via references. No full duplication found. One minor gap: integrate-work-unit mentions
+        `[~]` marker without referencing the three-state protocol in task-list-formatting.
+
+        **arc-methods vs workflows:** 6 of 8 methods have clean invocations. Session-init and
+        session-handoff elaborate the session-state method with rich procedural detail — this is
+        intentional design (method is deliberately minimal so workflows provide the value).
+
+        **DEV-RULES.ARC vs DEV-RULES.PROJECT:** Clean boundary. No content in wrong document,
+        no overlap, cross-references are clear and accurate.
+
+    - [x] **6.1.b Classify and resolve each instance**
+
+        **Classified all findings from 6.1.a:**
+
+        **Intentional reinforcement (no changes needed):**
+        - prepare-commits.md commit approval guard — safety-critical rule at workflow entry
+        - process-task-loop WORK-STATUS accuracy — inline at commit readiness checkpoint
+        - Session workflow elaboration of session-state method — intentional design (method
+          deliberately minimal, workflows provide procedural value)
+        - Strategy-workflow pairs — all proper deferrals, no full duplication
+
+        **False positive from audit:**
+        - integrate-work-unit `[~]` marker — already references task-list-formatting at
+          line 224. Subagent was looking at an earlier section.
+
+        **F-04 resolved (additive fix):**
+        - Added **Branch context** note to `1_create-prd.md` § Process: under full protection,
+          PRD creation happens on a planning branch; verify you're on one. Under partial/
+          unprotected, PRDs may be created directly on base branch. Link to
+          activate-planning-branch added.
+        - Added matching **Branch context** note to `2_generate-tasks.md` § Process: verify
+          you're still on the planning branch from PRD creation. Same link reference.
+        - Both files pass Tier 1 linting.
 
 - [ ] **6.2 Cross-cutting dependency map**
 
