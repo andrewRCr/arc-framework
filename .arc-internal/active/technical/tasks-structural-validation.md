@@ -664,6 +664,15 @@
 <!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
 <!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
 
+- [x] **Create `integrate-external-content` supplemental workflow** — Discovered during Phase 5
+  optional content pattern discussion. Created universal decision tree workflow for integrating
+  externally-sourced content (community strategies, shared workflows, Skills, method overrides).
+  Covers three input modes: content already in repo, external files, and links/concepts. Decision
+  tree classifies into method override, arc-extension, standalone strategy, or standalone workflow.
+  Skills highlighted as a common integration case — wiring a Skill into ARC's method/extension
+  system vs. using it as a standalone peer document. Placed in `supplemental/`. Updated file
+  inventory (54 Framework, 82 total) and `strategies/project/README.md` with workflow reference.
+
 - [ ] **Remove `unprotected` branch protection mode** — Discovered during Phase 0 scenario
   definition: workflows (activate-work-unit, integrate-work-unit) assume branches and PRs exist;
   unprotected mode is undocumented in practice and narrow in audience. Kill the mode, make

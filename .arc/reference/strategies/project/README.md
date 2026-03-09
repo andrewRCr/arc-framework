@@ -37,7 +37,8 @@ patterns, strategies adapted from other projects, or content found in ARC commun
 Drop them here alongside your self-authored strategies; they follow the same conventions.
 
 If external content needs deeper integration (replacing an ARC method default, adding to an
-extension hook), determine the right mechanism:
+extension hook), use the [integrate-external-content][integrate-external] workflow for the full
+classification decision tree and wiring steps.
 
 - **Replaces an ARC default** → Method override (populate `.override` in `arc-methods.md`)
 - **Adds ceremony at an existing hook** → Extension (populate `.steps` in `arc-extensions.md`)
@@ -47,3 +48,7 @@ extension hook), determine the right mechanism:
 
 - [STRATEGY-INDEX](../STRATEGY-INDEX.md) - Master index of all strategies
 - [ADR Methodology](../arc/strategy-adr-methodology.md) - For architectural decisions vs patterns
+
+---
+
+[integrate-external]: ../../../system/workflows/arc/supplemental/integrate-external-content.md

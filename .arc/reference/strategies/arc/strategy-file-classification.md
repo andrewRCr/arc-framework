@@ -316,6 +316,7 @@ to update classification — both axes apply independently.
 | `arc/session-lifecycle/session-init.md`                         | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/supplemental/maintain-project-docs.md`                     | Framework      | Core  | Supplemental workflow.                |
 | `arc/supplemental/manage-incidental-work.md`                    | Framework      | Core  | Supplemental workflow.                |
+| `arc/supplemental/integrate-external-content.md`                | Framework      | Core  | Supplemental workflow.                |
 | `arc/supplemental/prepare-commits.md`                           | Framework      | Core  | Supplemental workflow.                |
 | `arc/work-unit-lifecycle/activate-work-unit.md`                 | Framework      | Core  | Lifecycle workflow.                   |
 | `arc/work-unit-lifecycle/archive-work-unit.md`                  | Framework      | Core  | Lifecycle workflow.                   |
@@ -333,12 +334,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 53    | Three-way merge. Conflicts rare.                      |
+| Framework      | 54    | Three-way merge. Conflicts rare.                      |
 | Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 13    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 81.
+**Total template files:** 82.
 
 *Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
 are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not
