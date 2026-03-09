@@ -347,27 +347,58 @@
 
 **Strategies:** `strategy-file-classification.md`
 
-- [ ] **3.1 Assess `strategies/arc/` organization**
+- [x] **3.1 Assess `strategies/arc/` organization**
 
-    **Goal:** Determine whether 10 files in a flat directory is manageable or warrants
-    subdirectories.
+    **Decision: Keep flat.** 10 files is comfortable; no miscategorization to fix (unlike Phase 2
+    workflows). Possible groupings (foundational/work-management/process/system) produce small
+    arbitrary groups (1–4 files each). STRATEGY-INDEX.md already provides conceptual grouping with
+    "Consult when:" triggers. Reconsider at ~15–18 files, which would only happen if framework
+    strategies grow significantly (project strategies have their own `project/` directory).
 
-    - [ ] **3.1.a Evaluate grouping options**
-        - Possible groups: foundational, work management, process, system
-        - Assess: does grouping improve discoverability or add friction?
-        - Consider STRATEGY-INDEX.md already provides conceptual grouping
-        - Note current count (10) vs threshold where subdirs become worthwhile
+    Broadened scope beyond directory structure to evaluate naming conventions:
 
-    - [ ] **3.1.b Document decision with rationale and future threshold**
-        - If keeping flat: note the file count at which to reconsider
-        - If splitting: define groups and implement (same pattern as Phase 2)
+    - [x] **3.1.a Evaluate grouping options**
 
-- [ ] **3.2 Implement strategy directory changes (if warranted)**
+        Evaluated 4 possible subdirectory groupings. All produce small, arbitrary groups — the
+        largest (work management) has 4 files, the smallest (system) has 1. Phase 2 insight applies:
+        that restructure was driven by *miscategorization*, not raw file count. Here, all 10 files
+        are correctly categorized as strategies. Subdirectories would add navigation friction without
+        meaningful conceptual clarity beyond what STRATEGY-INDEX.md already provides.
 
-    **Note:** Skip if 3.1 decision is status quo.
+    - [x] **3.1.b Evaluate `strategy-*` prefix convention**
 
-    - [ ] **3.2.a Execute file moves, update cross-references, update inventory**
-    - [ ] **3.2.b Run Tier 1 quality gate on all modified files**
+        **Decision: Keep prefix.** The `strategy-` prefix is redundant with the directory name but
+        valuable for two reasons: (1) fuzzy-find grouping — `@strategy` in editor/prompt file
+        pickers surfaces all strategies together, the most common manual access pattern; (2)
+        context-independent type marking — filenames communicate their type in git log, search
+        results, and link definitions without needing the full path.
+
+        Documented the workflow exception: workflows don't use a prefix because they're activated
+        mechanically via embedded cross-references with full paths, not via fuzzy-find. Core pipeline
+        workflows use number prefixes (`1_`, `2_`, `3_`) for grouping signal instead.
+
+        Added rationale documentation in three locations: detailed `### Why prefixes matter` section
+        in `strategy-file-classification.md`, concise note in `strategies/README.md`, and brief
+        reference in `STRATEGY-INDEX.md`.
+
+    - [x] **3.1.c Evaluate individual strategy names**
+
+        All 10 names are well-chosen — each communicates the primary consultation trigger.
+        No renames warranted.
+
+    - [x] **3.1.d Standardize strategy title format (incidental)**
+
+        Three outlier titles standardized to the majority `# Strategy: [Name]` pattern:
+        `strategy-work-organization.md` (`# Work Organization Strategy` →
+        `# Strategy: Work Organization`), `strategy-task-list-formatting.md`
+        (`# Task List Formatting Strategy` → `# Strategy: Task List Formatting`),
+        `strategy-adr-methodology.md` (`# Architecture Decision Records (ADR) Methodology` →
+        `# Strategy: ADR Methodology`). All 6 modified files pass Tier 1 linting.
+
+- [x] **3.2 Implement strategy directory changes (if warranted)**
+
+    **Skipped** — 3.1 decision is status quo for directory structure. Naming convention rationale
+    documentation and title standardization were implemented as part of 3.1 subtasks.
 
 ### **Phase 4:** Mixed-Concern Audit
 

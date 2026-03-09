@@ -1,4 +1,4 @@
-# Architecture Decision Records (ADR) Methodology
+# Strategy: ADR Methodology
 
 ## Purpose
 

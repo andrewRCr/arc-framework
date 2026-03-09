@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.1 — Assess `strategies/arc/` organization (line ~342)
-**Last Completed**: Task 2.3 — Refine workflow directory structure
+**Next Task**: Task 4.1 — Audit all Configurable files for merge boundary cleanliness (line ~406)
+**Last Completed**: Task 3.2 — Implement strategy directory changes (skipped — status quo)
 **Blockers**: [none]
-**Next Action**: Evaluate strategy directory organization — Task 3.1
+**Next Action**: Audit Configurable files for merge boundary cleanliness — Task 4.1
 
 ---
 

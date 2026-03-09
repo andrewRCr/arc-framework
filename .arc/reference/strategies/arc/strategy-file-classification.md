@@ -94,6 +94,30 @@ Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug acr
 slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
 the same work unit.
 
+### Why prefixes matter
+
+Prefixes serve two purposes that directory structure alone cannot:
+
+**Fuzzy-find grouping.** Strategies, PRDs, and research docs are frequently invoked manually —
+typing `@strategy` in an editor or prompt file picker groups all strategy documents together
+regardless of their directory. Without the prefix, you'd search by domain keyword (`@auth`) and get
+unrelated results from across the repository. The prefix creates a reliable type-based filter at the
+filename level.
+
+**Context-independent type marking.** Filenames appear without full paths in git log, search
+results, diff stats, and link reference definitions. `strategy-work-organization.md` communicates
+its type anywhere; `work-organization.md` does not. This matters most for artifacts that move
+between directories during their lifecycle (active → archive) or are referenced from distant parts
+of the tree.
+
+**Why workflows don't use a prefix.** Workflows are the notable exception — they don't carry a
+`workflow-` prefix. The reason is access pattern: workflows are activated mechanically by agents
+following embedded cross-references with full paths (one workflow links to the next). They're rarely
+invoked via fuzzy-find or seen outside their path context. Core pipeline workflows use number
+prefixes (`1_`, `2_`, `3_`) that already provide grouping signal, and lifecycle/supplemental
+workflows live in purpose-named directories that communicate their role. The prefix would add
+redundancy without the discoverability benefit that other artifact types get.
+
 ### Template suffix: `.template.md`
 
 Files in the `.arc/` template system that get instantiated during `arc init` use a `.template.md`

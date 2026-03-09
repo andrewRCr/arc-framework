@@ -1,4 +1,4 @@
-# Task List Formatting Strategy
+# Strategy: Task List Formatting
 
 ## Purpose
 

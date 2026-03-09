@@ -1,4 +1,4 @@
-# Work Organization Strategy
+# Strategy: Work Organization
 
 ## Purpose
 

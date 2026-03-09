@@ -6,6 +6,10 @@ work in their domains.
 **Location:** `.arc/reference/strategies/` — `arc/` for framework methodology (ships with ARC),
 `project/` for your project-specific patterns (you create these).
 
+**Naming:** All strategy files use the `strategy-` prefix for fuzzy-find grouping — typing
+`@strategy` surfaces all strategies regardless of directory. See
+[File Classification][file-classification] § Why Prefixes Matter.
+
 ## ARC Framework Strategies
 
 These ship with the framework and cover development methodology applicable to any project.
@@ -66,3 +70,7 @@ doc upfront.
 
 **Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line;
 add a "Consult when:" sub-item with trigger conditions.
+
+---
+
+[file-classification]: arc/strategy-file-classification.md
