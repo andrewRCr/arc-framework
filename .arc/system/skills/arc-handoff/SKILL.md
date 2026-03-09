@@ -1,21 +1,22 @@
 ---
 name: arc-handoff
-description: Update and finalize current session documentation for continuity across sessions. Use when asked to produce a handoff or refresh current-session notes using the project handoff workflow.
-disable-model-invocation: true
+description: Update and finalize current ARC session documentation for cross-session continuity. Use when explicitly asked to produce a handoff.
+disable-model-invocation: false
 ---
 
-# Handoff
+# ARC Handoff
 
-1. Open the handoff workflow.
+1. Verify git state before writing anything.
 
-   - Follow `.arc/system/workflows/arc/supplemental/session-handoff.md`.
+   - Run `git status` and `git log` first. The handoff documents actual state, not
+     remembered state — never write session files before checking.
 
-2. Update current session notes.
+2. Follow the handoff workflow.
 
-   - Apply that workflow to `.arc/active/WORK-STATUS.md` and
-     `.arc/active/SESSION-NOTES.md`.
+   - Apply `.arc/system/workflows/arc/supplemental/session-handoff.md` to
+     `.arc/active/WORK-STATUS.md` and `.arc/active/SESSION-NOTES.md`.
 
-3. Keep documentation operational.
+3. Don't leave WORK-STATUS.md dirty.
 
-   - Record concrete progress, current state, blockers, and immediate next actions.
-   - Keep entries concise and specific so the next session can resume without rediscovery.
+   - If WORK-STATUS.md changed and no task commit is pending to carry it, commit it
+     standalone as part of the handoff. The handoff invocation is the approval.
