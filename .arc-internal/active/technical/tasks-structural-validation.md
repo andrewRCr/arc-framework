@@ -102,32 +102,53 @@
 
 **Strategies:** `strategy-file-classification.md`, `strategy-configurability-architecture.md`
 
-- [ ] **1.1 Walk `.arc/` file tree and compare against inventory**
+- [x] **1.1 Walk `.arc/` file tree and compare against inventory**
 
-    **Goal:** Identify every gap between on-disk reality and the inventory in
-    `strategy-file-classification.md`.
+    80 files on disk vs 70 in inventory. 10 files missing from inventory (4 strategies,
+    6 workflows added during WU2). No files in inventory absent from disk. Existing
+    classifications and layer assignments verified correct. Summary counts stale.
 
-    - [ ] **1.1.a List all files in `.arc/` and compare against inventory table**
-        - Use `find .arc/ -type f` to get actual file list
-        - Compare each file against the inventory section-by-section
-        - Flag: files on disk but missing from inventory, files in inventory but not on disk
+    - [x] **1.1.a List all files in `.arc/` and compare against inventory table**
 
-    - [ ] **1.1.b Verify classification accuracy for each file**
-        - Framework: methodology files rarely customized by adopters
-        - Configurable: framework structure + project-specific content
-        - Scaffolded: created once at init, project-owned after
-        - Pay attention to files that changed role during WU2
+        **10 files on disk missing from inventory** (all Core layer):
 
-    - [ ] **1.1.c Verify layer assignments (Core vs arc-in-git)**
-        - Core: always installed regardless of `pm.mode`
-        - arc-in-git: installed only when `pm.mode: arc-in-git`
-        - Check that conditional files are correctly assigned (e.g., backlog strategies,
-          ROADMAP template, ATOMIC-TASKS)
-        - Misassignment causes WU3 to install wrong file sets
+        Strategies (4, all Framework):
+        `strategy-configurability-architecture`, `strategy-core-philosophy`,
+        `strategy-team-coordination`, `strategy-work-planning`
 
-    - [ ] **1.1.d Verify summary counts**
-        - Total file count, per-classification counts, per-layer counts
-        - Update summary table if counts drifted
+        Workflow-level (2, both Configurable):
+        `arc-methods.md`, `arc-extensions.md`
+
+        Supplemental workflows (4, all Framework):
+        `activate-planning-branch`, `integrate-planning-branch`,
+        `rotate-branch`, `verify-completion`
+
+        **Scaffolding gap:** `reference/archive/technical/.gitkeep` missing from both disk
+        and inventory — archive-work-unit creates `technical/` dirs but only `feature/` and
+        `incidental/` are scaffolded.
+
+        **Files in inventory but not on disk:** None.
+
+    - [x] **1.1.b Verify classification accuracy for each file**
+
+        All existing classifications verified correct. Key checks: `arc-methods.md` and
+        `arc-extensions.md` are Configurable (override/extension sections adopters populate).
+        All 8 other missing files are Framework (pure ARC methodology). No reclassifications
+        needed for existing entries.
+
+    - [x] **1.1.c Verify layer assignments (Core vs arc-in-git)**
+
+        Existing layer assignments verified correct. arc-in-git files: ATOMIC-TASKS templates
+        (active + team), ROADMAP, BACKLOG-\* templates, PROJECT-STATUS, strategy-backlog-org.
+        All other files correctly Core. All 10 missing files are Core layer.
+
+    - [x] **1.1.d Verify summary counts**
+
+        Summary table is stale. Current inventory says 41 Framework / 12 Configurable /
+        11 Scaffolded / 64 total. Actual on-disk count is 80 files. Discrepancy comes from
+        10 missing entries plus existing count errors (wildcard rows like
+        `{feature,technical,incidental}/.gitkeep` counted inconsistently as 1 vs 3 files).
+        Will be corrected in Task 1.2.
 
 - [ ] **1.2 Update inventory with corrections**
     - Add missing files with correct classification and layer
