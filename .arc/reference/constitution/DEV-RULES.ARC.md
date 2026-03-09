@@ -21,7 +21,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 ## Contents
 
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
-- [Task Execution](#task-execution) — one at a time, quality gates, leave-it-cleaner, test-first
+- [Task Execution](#task-execution) — one at a time, sub-agent scope, quality gates, leave-it-cleaner, test-first
 - [Session Management](#session-management) — state control, context quality
 - [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, re-check
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
@@ -75,11 +75,12 @@ changes by task; commit shared documentation (task list updates) last.
 
 ### One task at a time · P2, P7
 
-Each checkbox in the task list is one work unit — standalone task or subtask under a parent.
-The checkpoint is always at the checkbox level. In team mode, this applies per developer-agent
-pair — concurrent pairs may work on different tasks simultaneously.
+Each checkbox in the task list is one review increment — a bounded chunk of autonomous execution
+between human review points (see [Core Philosophy][core-philosophy] § P2). The checkpoint is
+always at the checkbox level. In team mode, this applies per developer-agent pair — concurrent
+pairs may work on different tasks simultaneously.
 
-- **Complete one task at a time** — never bundle multiple deliverables
+- **Complete one review increment** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (quality checks pass)
 - **Mandatory stop** after reporting completion — wait for user approval to proceed
 - **Implied permission:** User approval ("looks good", "proceed") implies permission to continue
@@ -87,6 +88,19 @@ pair — concurrent pairs may work on different tasks simultaneously.
 
 **For the full task execution protocol** (completion steps, quality gate checkpoints, deferred
 review), load the [process-task-loop workflow][process-task-loop].
+
+### Sub-agent scope · P2, P3
+
+Many agent platforms support sub-agents — supplementary processes that run alongside the primary
+agent. Sub-agents are valuable for bounded, well-defined work that doesn't need to be in the
+primary context: parallel investigation, external research, token-heavy analysis that feeds
+results back for synthesis. The developer remains the continuity thread, directing the primary
+work while incorporating supplementary results.
+
+**Not for review-increment-level work.** Each task in the task list is a review increment —
+delegating it to a sub-agent bypasses the co-development loop and the mandatory review stop.
+The human can't contribute context, judgment, or course correction to work they don't see
+happening. Task-list work stays in the primary agent's context where the developer is present.
 
 ### Task granularity · P7
 

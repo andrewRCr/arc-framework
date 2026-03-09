@@ -1,6 +1,8 @@
-# Atomic Tasks - ARC Framework
+# Atomic Tasks · `arc-in-git`
 
-**Purpose:** Small, one-off tasks that are ready to execute (GTD "Next Actions").
+**Purpose:** Project-wide atomic tasks not scoped to any work unit. Individual task lists have their own
+Atomic Tasks section for WU-domain discoveries; this file captures everything else — cross-cutting fixes,
+methodology improvements, and standalone one-off work.
 
 **How to use:**
 
@@ -30,9 +32,4 @@
 
 ## Active
 
-<!-- Items promoted to plan-arc-methodology-gaps.md (backlog/technical/) during
-     structural readiness pass code review — too large for atomic treatment,
-     collectively form a candidate work unit. -->
-
-<!-- General refinement pass escalated to task list: tasks-content-refinement-pass.md
-     (in progress on branch technical/content-refinement-pass). -->
+<!-- None currently. -->

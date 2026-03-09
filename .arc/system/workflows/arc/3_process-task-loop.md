@@ -9,9 +9,10 @@ It ensures consistent execution, quality control, and documentation of work.
 
 ## Task Implementation
 
-- **One task at a time:** Each checkbox in the task list is one work unit — whether it's a standalone
-  task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
-  In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
+- **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
+  autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
+  for user approval. In team mode, this applies per developer-agent pair — concurrent pairs may work
+  different tasks.
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
   happens independently as PRs merge. When creating additional branches for an existing task list,
@@ -167,6 +168,18 @@ immediately. **Quick decision tree**:
 - ❌ Scope is known/bounded after initial analysis
 
 **Key distinction:** "Sequential steps toward one goal" = atomic. "Distinct phases with different objectives" = task list.
+
+### Where to Capture Atomic Tasks
+
+Once you've decided something is an atomic task (not an incidental task list), route it to the
+right location:
+
+- **Within the current work unit's domain** → add to the **Atomic Tasks section** at the end of
+  the current task list. All task lists have this section regardless of PM mode.
+- **Outside the current work unit's domain** → depends on PM mode:
+    - `arc-in-git`: add to **ATOMIC-TASKS.md** in `active/` (project-wide one-off tasks)
+    - `none` / `external`: capture in **session notes** for later triage, or add directly to your
+      external tracker
 
 ### Complete Workflow
 

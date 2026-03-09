@@ -13,6 +13,7 @@ settings, extension points, method overrides, adoption defaults), see
 ## Contents
 
 - [What ARC Is](#what-arc-is) — identity and premise
+- [Key Concepts](#key-concepts) — ARC-specific vocabulary
 - [Philosophical Foundation](#philosophical-foundation) — the reasoning behind ARC's design
 - [Principles](#principles) — the 11 non-negotiable commitments (P1-P11)
 - [The Principle/Convention Boundary](#the-principleconvention-boundary) — three-tier flexibility
@@ -37,6 +38,24 @@ ARC has 11 non-negotiable principles that define its identity, and a set of conf
 that implement those principles. The principles are what make ARC *ARC* — remove one and the
 methodology loses its coherence. The conventions are strong defaults that teams can adapt to their
 context without leaving the framework.
+
+---
+
+## Key Concepts
+
+Terms with ARC-specific meaning, referenced throughout the framework.
+
+| Term             | Definition                                                                                       | Principle |
+|------------------|--------------------------------------------------------------------------------------------------|-----------|
+| Work unit        | A planned scope of work with a PRD and task list — the primary unit of project delivery          | P1, P7    |
+| Review increment | The bounded chunk of autonomous execution between human review points — typically one task       | P2, P3    |
+| Co-development   | Human and agent collaborating through tight iterative loops during work, not review-at-merge     | P2        |
+| Protection mode  | Branch model setting (partial or full) controlling when branches and PRs are required            | P6        |
+| Planning branch  | A branch used during PRD and task generation phases, before the work branch is created           | P1        |
+| Atomic task      | An indivisible, one-off task — captured per-task-list (WU-scoped) or in ATOMIC-TASKS.md (global) | P7        |
+| Session handoff  | Structured transfer of working context at session end, enabling recovery by the next session     | P5        |
+| Context footer   | The `Context:` line in commit messages linking each commit to its task or work context           | P6        |
+| Leave-it-cleaner | Addressing quality issues discovered in files you touch — fix or document, never ignore          | P4        |
 
 ---
 
