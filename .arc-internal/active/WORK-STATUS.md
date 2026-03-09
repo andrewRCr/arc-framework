@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 1.2 — Update inventory with corrections (line ~143)
-**Last Completed**: Task 1.1 — Walk `.arc/` file tree and compare against inventory
+**Next Task**: Task 2.2 — Implement workflow directory changes (line ~197)
+**Last Completed**: Task 2.1 — Assess current `workflows/arc/supplemental/` structure
 **Blockers**: [none]
-**Next Action**: Apply inventory corrections — Task 1.2
+**Next Action**: Implement directory restructure per 2.1.c decision — Task 2.2
 
 ---
 

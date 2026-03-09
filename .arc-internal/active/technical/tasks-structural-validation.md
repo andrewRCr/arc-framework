@@ -150,71 +150,168 @@
         `{feature,technical,incidental}/.gitkeep` counted inconsistently as 1 vs 3 files).
         Will be corrected in Task 1.2.
 
-- [ ] **1.2 Update inventory with corrections**
-    - Add missing files with correct classification and layer
-    - Remove files no longer present
-    - Fix any misclassifications or layer errors
-    - Update counts in summary table
-    - Run Tier 1 quality gate on `strategy-file-classification.md`
+- [x] **1.2 Update inventory with corrections**
+
+    Added 11 missing file entries (Task 1.1 found 10; `reference/constitution/README.md`
+    was an 11th miss discovered during implementation). No files removed — `DEV-RULES.{DOMAIN}.md`
+    is a naming convention row, kept but excluded from totals with a note. No misclassifications
+    found. Alphabetized supplemental workflows. Summary updated: Framework 53, Configurable 15,
+    Scaffolded 12, Total 80. Added counting methodology note (wildcard expansion,
+    pattern exclusion). Tier 1 passed (52 MD060 fixes via markdown-table-prettify, 1 MD047 fix).
+
+    Scaffolding gap noted: `reference/archive/technical/.gitkeep` missing from disk — not an
+    inventory issue but a scaffolding fix needed elsewhere.
 
 ### **Phase 2:** Workflow Directory Evaluation
 
 **Strategies:** `strategy-work-organization.md`, `strategy-file-classification.md`
 
-- [ ] **2.1 Assess current `workflows/arc/supplemental/` structure**
+- [x] **2.1 Assess current `workflows/arc/supplemental/` structure**
 
-    **Goal:** Determine whether the current flat structure under `supplemental/` serves adopters
-    well, or whether reorganization improves navigability.
+    Promoted 8 lifecycle workflows out of `supplemental/` into a peer `work-unit-lifecycle/` directory. Renamed
+    3 files for verb-noun consistency. `supplemental/` retains 5 truly supplemental files. Phase 0 findings
+    (F-03, F-05) confirmed as content issues, not structural — will need explicit fixes in 2.2.d regardless.
 
-    **Phase 0 findings to address:** F-03 (integrate-work-unit routing spans files without
-    clear entry point), F-05 (standalone archival housekeeping branch has no procedural step).
-    These are routing issues caused by file organization — evaluate whether structural changes
-    resolve them or whether explicit fixes are needed during 2.2.
+    - [x] **2.1.a Catalog current supplemental files by functional group**
 
-    - [ ] **2.1.a Catalog current supplemental files by functional group**
-        - Work unit lifecycle: activate, integrate, archive, rotate-branch
-        - Session boundary: session-init, session-handoff
-        - Guides/utilities: commit-guide, clean-work-unit-files, manage-incidental-work,
-          verify-completion, maintain-project-docs
-        - Note: `arc-methods.md` and `arc-extensions.md` sit at `workflows/` level, not in
-          `supplemental/` — evaluate whether that placement is right
+        13 files cataloged into 3 functional groups via cross-reference analysis (parallel subagent mapped ~60
+        inbound/outbound references across all workflow files):
 
-    - [ ] **2.1.b Evaluate reorganization options**
-        - Option A: Subdirectories (e.g., `lifecycle/`, `session/`, rename remainder)
-        - Option B: Rename `supplemental/` only (better name, keep flat)
-        - Option C: Status quo with improved discoverability (README/index)
-        - Assess each against: adopter navigability, cross-reference impact, path depth,
-          cognitive load
-        - Consider how WU3's CLI references these paths (init scaffolding, skill instructions)
+        **Work unit lifecycle (8):** activate-work-unit, activate-planning-branch, integrate-work-unit,
+        integrate-planning-branch, archive-work-unit, clean-work-unit-files, rotate-branch, verify-completion.
+        High internal cross-referencing — these form a state machine for work unit transitions.
 
-    - [ ] **2.1.c Document decision with rationale**
+        **Session boundary (2):** session-init, session-handoff. Triggered by skills at session boundaries.
+        Primarily reference configuration docs.
 
-- [ ] **2.2 Implement workflow directory changes (if warranted)**
+        **Cross-cutting guides (3):** commit-guide, manage-incidental-work, maintain-project-docs. Procedural
+        guidance invoked at various points during work.
 
-    **Note:** Skip if 2.1 decision is status quo.
+        **`arc-methods.md` and `arc-extensions.md` placement confirmed correct.** They're Configurable (adopters
+        customize); everything in `arc/` is Framework. Different update behavior (three-way merge with expected
+        conflicts). Current placement at `workflows/` root correctly reflects their nature as configuration docs
+        referenced by workflows, not workflows themselves.
 
-    - [ ] **2.2.a Execute file moves with `git mv`**
-        - Preserve git history
-        - Create any new directories
+    - [x] **2.1.b Evaluate reorganization options**
 
-    - [ ] **2.2.b Update all cross-references to moved files**
-        - Link definitions in all `.arc/` documents that reference moved workflows
-        - CLAUDE.md and other agent files that reference workflow paths
-        - Strategy documents that link to workflows
-        - Other workflows that cross-reference each other
+        Evaluated 6 options against: agent navigability, human browsing, cross-reference cost, WU3 CLI impact,
+        and Phase 0 finding resolution.
 
-    - [ ] **2.2.c Update file inventory in `strategy-file-classification.md`**
-        - Update paths for moved files
-        - Add any new directory entries
+        **Key finding:** Agents navigate entirely by cross-reference links — directory structure has zero impact
+        on agent navigation. All reorganization value is for human conceptual clarity.
+
+        **Phase 0 findings (F-03, F-05):** Confirmed as content issues (missing decision points, missing
+        procedural steps), not structural. No reorganization option resolves them — explicit content fixes
+        needed in 2.2.d regardless.
+
+        Options evaluated:
+        - **A (full subdirs: lifecycle/, session/, guides/):** lifecycle/ still 8 files; session/ and guides/
+          too thin (2, 3 files); "guides" is a weak grouping; ~60-70 cross-ref changes
+        - **B (rename supplemental/):** Current name is accurate; alternatives not better
+        - **C (status quo):** Defensible but doesn't address the conceptual mixing problem
+        - **D (status quo + README):** Zero cross-ref cost, good GitHub orientation, but doesn't reduce visual
+          density or fix the categorization issue
+        - **E (lifecycle/ subdir only):** "Just enough" but subdividing within supplemental treats the
+          symptom — lifecycle files were miscategorized, not under-organized
+        - **F (collapse supplemental/ into arc/):** 16+ files in one dir, loses the supplemental signal —
+          worse than status quo
+
+        **Breakthrough framing:** The lifecycle files were never truly "supplemental" — they're state machine
+        infrastructure the numbered pipeline depends on. The right move is to promote them to a peer directory,
+        not subdivide within supplemental.
+
+    - [x] **2.1.c Document decision with rationale**
+
+        **Decision: Promote lifecycle workflows to `work-unit-lifecycle/` peer directory, rename 3 files for
+        verb-noun consistency.**
+
+        Target structure under `workflows/arc/`:
+
+        ```text
+        arc/
+        ├── 1_create-prd.md
+        ├── 2_generate-tasks.md
+        ├── 3_process-task-loop.md
+        ├── setup/                      (2 files — one-time initialization)
+        ├── supplemental/               (5 files — procedural guides, session bookends)
+        │   ├── commit-guide.md → prepare-commits.md
+        │   ├── maintain-project-docs.md
+        │   ├── manage-incidental-work.md
+        │   ├── session-handoff.md
+        │   └── session-init.md
+        └── work-unit-lifecycle/        (8 files — work unit state transitions)
+            ├── activate-planning-branch.md
+            ├── activate-work-unit.md
+            ├── archive-work-unit.md
+            ├── clean-work-unit-files.md → clean-work-unit.md
+            ├── integrate-planning-branch.md
+            ├── integrate-work-unit.md
+            ├── rotate-branch.md
+            └── verify-completion.md → verify-work-unit.md
+        ```
+
+        **Rationale:**
+
+        - **Promotion over subdivision:** Lifecycle files were miscategorized as supplemental. Promoting to a
+          peer directory makes the conceptual distinction visible in the file tree without fragmenting small
+          groups.
+        - **`work-unit-lifecycle/`:** Uses the full ARC term "work unit" for precision. Sorts after
+          `supplemental/` alphabetically, giving a natural explorer order: setup → supplemental →
+          work-unit-lifecycle.
+        - **3 file renames:** `commit-guide` → `prepare-commits` (verb-noun, not a "guide"),
+          `clean-work-unit-files` → `clean-work-unit` (matches verb-work-unit pattern),
+          `verify-completion` → `verify-work-unit` (same pattern consistency).
+        - **`supplemental/` retained:** Now genuinely supplemental — session bookends and procedural guides
+          invoked at various points. Clear membership test: "is this a work unit state transition?" →
+          lifecycle; otherwise → supplemental.
+        - **Numbered pipeline stays at `arc/` root:** The numbering IS the core loop signal. Wrapping in a
+          directory would be redundant with the convention.
+        - **`arc-methods.md` and `arc-extensions.md` stay at `workflows/` root:** Confirmed correct —
+          Configurable classification, not workflows themselves.
+
+        **Explored and rejected:** core-loop/ wrapper for numbered files (redundant with numbering), verb-based
+        directory naming (phases encoded in pipeline numbering, workflows cross-cut phases), mirrored
+        supplemental/ subdirs (overloads the concept).
+
+        **Cross-reference impact:** ~40-50 external link updates for the 8 moved lifecycle files. Internal
+        lifecycle cross-references (peer links) stay correct since all files move together. The 5 supplemental
+        files don't move — their ~22 inbound references are unaffected. 3 renamed files need link updates in
+        all referencing documents.
+
+- [ ] **2.2 Implement workflow directory changes**
+
+    Per 2.1.c decision: create `work-unit-lifecycle/`, move 8 files, rename 3 files,
+    update all cross-references.
+
+    - [ ] **2.2.a Create `work-unit-lifecycle/` and move lifecycle files with `git mv`**
+        - Create `workflows/arc/work-unit-lifecycle/`
+        - Move 8 files from `supplemental/` to `work-unit-lifecycle/`
+        - Rename during move: `clean-work-unit-files` → `clean-work-unit`,
+          `verify-completion` → `verify-work-unit`
+
+    - [ ] **2.2.b Rename `commit-guide.md` → `prepare-commits.md` in `supplemental/`**
+
+    - [ ] **2.2.c Update all cross-references to moved/renamed files**
+        - Workflow files: internal link definitions (peer refs within lifecycle/ are
+          unchanged; external refs from pipeline, supplemental, and other workflows need
+          path updates)
+        - Strategy documents referencing workflow paths
+        - Agent files (CLAUDE.md, skills) referencing workflow paths
+        - DEV-RULES.ARC.md link definitions
+        - `arc-methods.md` and `arc-extensions.md` link definitions
+
+    - [ ] **2.2.d Resolve Phase 0 findings F-03, F-05**
+        - F-03: integrate-work-unit Step 8 needs explicit batch vs standalone routing
+          (content fix — structural change doesn't resolve this)
+        - F-05: standalone archival needs a procedural step for housekeeping branch
+          creation (content fix — structural change doesn't resolve this)
+
+    - [ ] **2.2.e Update file inventory in `strategy-file-classification.md`**
+        - Update paths for moved/renamed files
+        - Add `work-unit-lifecycle/` directory section or update `system/workflows/` table
         - Verify counts still accurate
 
-    - [ ] **2.2.d Resolve Phase 0 findings F-03, F-05 if not addressed by structural changes**
-        - F-03: integrate-work-unit Step 8 needs explicit batch vs standalone routing
-        - F-05: standalone archival needs a procedural step for housekeeping branch creation
-        - If structural changes (file moves, reorganization) resolved these, mark resolved
-          with rationale. Otherwise fix here.
-
-    - [ ] **2.2.e Run Tier 1 quality gate on all modified files**
+    - [ ] **2.2.f Run Tier 1 quality gate on all modified files**
 
 ### **Phase 3:** Strategy Directory Evaluation
 
