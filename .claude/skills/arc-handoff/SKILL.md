@@ -1,10 +1,10 @@
 ---
 name: arc-handoff
-description: Update and finalize current session documentation for continuity across sessions. Use when asked to produce a handoff or refresh current-session notes using the project handoff workflow.
+description: Update and finalize current ARC session documentation for cross-session continuity. Use when explicitly asked to produce a handoff.
 disable-model-invocation: true
 ---
 
-# Handoff
+# ARC Handoff
 
 1. Open the handoff workflow.
 

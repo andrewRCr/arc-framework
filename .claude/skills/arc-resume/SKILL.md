@@ -1,10 +1,10 @@
 ---
 name: arc-resume
-description: Initialize and resume the active working session with required project context. Use when starting or resuming work and the agent must reload critical operating instructions and session initialization steps.
+description: Initialize and resume the active working ARC session with required project context. Use when explicitly asked to initialize a session.
 disable-model-invocation: true
 ---
 
-# Resume Current
+# ARC Resume
 
 1. Read required context first.
 
