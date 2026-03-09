@@ -140,6 +140,12 @@ validation) follow a specific protocol.
 
 **→ [verify-completion.md](supplemental/verify-completion.md)** ← Full verification protocol
 
+## Next Step
+
+When all tasks are marked complete and the verification phase has passed, proceed to integration:
+
+**→ [integrate-work-unit.md](supplemental/integrate-work-unit.md)** — Documentation cleanup, code review, PR, and merge
+
 ## Incidental Work Management
 
 ### Quick Decision Guide

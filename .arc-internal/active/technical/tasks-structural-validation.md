@@ -35,50 +35,68 @@
 
 ### **Phase 0:** Workflow Navigability Baseline
 
-- [ ] **0.1 Define lifecycle scenarios**
+- [x] **0.1 Define lifecycle scenarios**
 
-    **Goal:** Establish the scenario set used for both baseline and final validation passes.
+    Established 5 scenarios covering all 3 protection modes and both lifecycle patterns (batch
+    transition, standalone). Documented in `notes-structural-validation.md` § Scenario Definitions.
 
-    - [ ] **0.1.a Identify common lifecycle paths**
-        - Fully protected batch: integrate-work-unit → activate-planning-branch →
-          archive-work-unit → create-prd → generate-tasks → integrate-planning-branch →
-          activate-work-unit
-        - Fully protected standalone archival: integrate-work-unit → activate-planning-branch →
-          archive-work-unit (no next WU)
-        - Partially protected: integrate-work-unit → archive-work-unit → create-prd →
-          generate-tasks → activate-work-unit
-        - Standalone planning (new session): session-init discovery → activate-planning-branch →
-          create-prd → generate-tasks → integrate-planning-branch → activate-work-unit
-        - Unprotected: integrate-work-unit → archive-work-unit → create-prd → generate-tasks →
-          activate-work-unit (all on main)
+    - [x] **0.1.a Identify common lifecycle paths**
 
-    - [ ] **0.1.b Document scenario definitions for reuse in Phase 8**
+        Verified seeded paths against actual workflow documents. Key correction: Scenario 2
+        (standalone archival) uses a housekeeping branch, not activate-planning-branch — per
+        archive-work-unit guidance. One open question flagged: activate-work-unit Step 2
+        unconditionally creates a branch even in unprotected mode.
 
-- [ ] **0.2 Walk each scenario through the workflow chain**
+    - [x] **0.1.b Document scenario definitions for reuse in Phase 8**
 
-    **Goal:** Establish a navigability baseline before structural changes. Feed findings into
-    Phases 2, 6.1, and 6.2.
+        Full definitions in `notes-structural-validation.md` with per-scenario: protection mode,
+        context, workflow path, key characteristics, config values. Coverage notes document what's
+        included and what edge cases were intentionally excluded.
 
-    - [ ] **0.2.a Walk each scenario step-by-step**
-        - Follow forward links from each workflow to the next
-        - At each transition: is the next step explicitly linked? Is the routing clear?
-        - At each conditional: is the agent's path obvious given its config?
-        - Track: number of documents loaded, conditional branches parsed, cross-reference hops
+- [x] **0.2 Walk each scenario through the workflow chain**
 
-    - [ ] **0.2.b Flag issues**
-        - Dead-ends (workflow ends without forward link to next step)
-        - Ambiguous routing (multiple plausible next steps, unclear which applies)
-        - Conditional overload (too many mode/protection variants in one section)
-        - Excessive cross-reference hops (agent must load 3+ docs to complete one operation)
-        - Document each finding with: scenario, workflow, specific location, severity
+    Walked all 5 active scenarios via parallel subagent walkthroughs (fresh-eyes approach).
+    7 findings documented in `notes-structural-validation.md` § Navigability Findings.
 
-    - [ ] **0.2.c Capture findings as input to later phases**
-        - Tag findings relevant to Phase 2 (directory evaluation): navigability issues caused
-          by file organization
-        - Tag findings relevant to Phase 6.1 (de-duplication): confusion from duplicated or
-          scattered guidance
-        - Tag findings relevant to Phase 6.2 (dependency map): cross-cutting concepts that
-          create conditional density
+    - [x] **0.2.a Walk each scenario step-by-step**
+
+        Each scenario walked by an independent Explore agent reading workflows as-written.
+        Metrics captured per scenario (docs loaded, conditionals parsed, cross-ref hops).
+        Scenario 5 (out-of-box) had highest cross-reference cost (18 hops); Scenario 2
+        (standalone archival) had most ambiguous routing despite fewest docs.
+
+    - [x] **0.2.b Flag issues**
+
+        7 findings (F-01 through F-07): 1 high severity (dead-end after task loop — affects
+        all scenarios), 6 medium severity (routing ambiguity, missing conditionals, scattered
+        guidance). No conditional overload findings — conditionals are present but incomplete
+        rather than excessive.
+
+    - [x] **0.2.c Capture findings as input to later phases**
+
+        All findings tagged: Phase 2 (F-03, F-05 — routing spanning files, missing procedural
+        steps), Phase 6.1 (F-01, F-04 — missing forward links, scattered branch context),
+        Phase 6.2 (F-02, F-06, F-07 — cross-cutting mode conditionals at convergence points).
+
+- [x] **0.3 Fix structure-independent navigability issues**
+
+    Fixed F-01 and F-07. Remaining findings (F-02–F-06) deferred to Phases 2, 6.1, and 6.2
+    with explicit resolution tasks.
+
+    - [x] **0.3.a Add forward link from `3_process-task-loop` to `integrate-work-unit` (F-01)**
+
+        Added "Next Step" section after Verification Phase, linking to integrate-work-unit
+        with brief description. Resolves the only high-severity finding.
+
+    - [x] **0.3.b Add `pm.mode: none` discovery guidance to `session-init` (F-07)**
+
+        Restructured Step 5 "Next work unit discovery" from arc-in-git-only to mode-aware:
+        added `pm.mode: none/external` section with artifact check and forward link to
+        1_create-prd. Added `create-prd` and `arc-config` link references.
+
+    - [x] **0.3.c Run Tier 1 quality gate on modified files**
+
+        Both `3_process-task-loop.md` and `session-init.md` pass with 0 errors.
 
 ### **Phase 1:** Inventory Validation
 
@@ -127,6 +145,11 @@
     **Goal:** Determine whether the current flat structure under `supplemental/` serves adopters
     well, or whether reorganization improves navigability.
 
+    **Phase 0 findings to address:** F-03 (integrate-work-unit routing spans files without
+    clear entry point), F-05 (standalone archival housekeeping branch has no procedural step).
+    These are routing issues caused by file organization — evaluate whether structural changes
+    resolve them or whether explicit fixes are needed during 2.2.
+
     - [ ] **2.1.a Catalog current supplemental files by functional group**
         - Work unit lifecycle: activate, integrate, archive, rotate-branch
         - Session boundary: session-init, session-handoff
@@ -164,7 +187,13 @@
         - Add any new directory entries
         - Verify counts still accurate
 
-    - [ ] **2.2.d Run Tier 1 quality gate on all modified files**
+    - [ ] **2.2.d Resolve Phase 0 findings F-03, F-05 if not addressed by structural changes**
+        - F-03: integrate-work-unit Step 8 needs explicit batch vs standalone routing
+        - F-05: standalone archival needs a procedural step for housekeeping branch creation
+        - If structural changes (file moves, reorganization) resolved these, mark resolved
+          with rationale. Otherwise fix here.
+
+    - [ ] **2.2.e Run Tier 1 quality gate on all modified files**
 
 ### **Phase 3:** Strategy Directory Evaluation
 
@@ -257,6 +286,10 @@
     **Goal:** Identify content that appears in multiple `.arc/` documents and classify each
     instance.
 
+    **Phase 0 finding to address:** F-04 (branch context guidance scattered across supplemental
+    workflows and strategy but absent from main numbered workflows). Classify during 6.1.a and
+    resolve during 6.1.b.
+
     - [ ] **6.1.a Audit high-traffic areas**
         - DEV-RULES.ARC vs. workflow documents (commit rules, task execution, session management)
         - Strategy documents vs. workflows that reference them (do workflows duplicate
@@ -268,12 +301,20 @@
         - Intentional reinforcement (summary referencing detail): mark authoritative source
         - Accidental drift (full copy that should be cross-reference): trim to reference
         - Misplacement (content in wrong document): relocate
+        - **F-04**: Resolve branch context scattering — determine whether main numbered
+          workflows need branch-state guidance or if deferring to supplemental workflows is
+          intentional
         - Run Tier 1 quality gate on modified files
 
 - [ ] **6.2 Cross-cutting dependency map**
 
     **Goal:** Produce a reference table of concepts that span multiple files, focused on what
     WU3 needs.
+
+    **Phase 0 findings to address:** F-02 (branch.protection drives different post-planning
+    routing but conditional absent from 2_generate-tasks), F-06 (partial protection semantics
+    not integrated into activate-work-unit prerequisites). Map during 6.2.a and resolve
+    during 6.2.c.
 
     - [ ] **6.2.a Identify cross-cutting concepts**
         - File classifications → which docs reference classification decisions?
@@ -285,6 +326,13 @@
     - [ ] **6.2.b Produce dependency reference table**
         - Format: concept, authoritative source, files that reference it, blast radius
         - Save in a location accessible to WU3 (notes file or strategy doc update)
+
+    - [ ] **6.2.c Resolve Phase 0 findings F-02, F-06**
+        - F-02: Add protection-mode conditional routing to 2_generate-tasks "Next Step"
+          (or consolidate routing into a single reference point)
+        - F-06: Align activate-work-unit prerequisites with strategy on partial protection
+          planning branch optionality
+        - Use dependency map from 6.2.b to inform the right fix pattern
 
 ### **Phase 7:** Verification
 
@@ -331,6 +379,17 @@
 <!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
 <!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
 <!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
+
+- [ ] **Remove `unprotected` branch protection mode** — Discovered during Phase 0 scenario
+  definition: workflows (activate-work-unit, integrate-work-unit) assume branches and PRs exist;
+  unprotected mode is undocumented in practice and narrow in audience. Kill the mode, make
+  `partial` the minimum. Scope:
+    - `arc-config.yml` (internal + template): remove `unprotected` option and update inline
+      comments
+    - `strategy-work-organization.md` § Branch Protection Modes: remove Unprotected section,
+      update mode summary table, update choosing-your-mode guidance
+    - `activate-planning-branch.md`: remove unprotected references
+    - Grep for remaining `unprotected` references across `.arc/` and clean up
 
 ---
 

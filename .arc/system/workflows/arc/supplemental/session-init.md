@@ -187,8 +187,11 @@ Awaiting direction — proceed to Next Action?
 work unit. Use the same format — Next task is "none", Next action comes from WORK-STATUS.md.
 This is the normal state after initialization or between work units.
 
-**Next work unit discovery (`pm.mode: arc-in-git`):** When no active work exists, assess
-readiness for the next work unit before producing the orientation summary:
+**Next work unit discovery:** When no active work exists, assess readiness for the next work
+unit before producing the orientation summary. The discovery process depends on your PM mode
+([`arc-config.yml`][arc-config] → `pm.mode`):
+
+**`pm.mode: arc-in-git`:**
 
 1. Read ROADMAP.md — identify the next queued or suggested item
 2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
@@ -199,6 +202,13 @@ Planning readiness varies: a completed PRD may be ready for task generation, a d
 need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
 entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
 and reports — the user decides how to proceed.
+
+**`pm.mode: none` or `external`:**
+
+1. Check `active/` for any existing planning artifacts (PRDs, `plan-*` docs, task lists)
+2. If artifacts exist, report their state and propose next steps
+3. If no artifacts exist, the next action is to create a PRD when ready →
+   [1_create-prd.md][create-prd]
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the
 > user confirms next steps, run [activate-planning-branch][activate-planning-branch] before
@@ -260,6 +270,8 @@ Examples:
   conflicting signals at the same trust tier
 
 [activate-planning-branch]: activate-planning-branch.md
+[create-prd]: ../1_create-prd.md
+[arc-config]: ../../../arc-config.yml
 [arc-methods-session]: ../../arc-methods.md#session-state
 [arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
