@@ -89,5 +89,5 @@ and planning documents.
 ---
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[activate]: ../supplemental/activate-work-unit.md
-[archive]: ../supplemental/archive-work-unit.md
+[activate]: ../work-unit-lifecycle/activate-work-unit.md
+[archive]: ../work-unit-lifecycle/archive-work-unit.md

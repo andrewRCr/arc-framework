@@ -119,7 +119,7 @@ It ensures consistent execution, quality control, and documentation of work.
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
-     When committing, follow [Commit Guide](supplemental/commit-guide.md) guidelines.
+     When committing, follow [Commit Guide](supplemental/prepare-commits.md) guidelines.
 
      **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
      advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage
@@ -138,13 +138,14 @@ Every task list ends with a verification phase as its final phase. The standard 
 completion protocol applies, but the two verification tasks (Tier 3 gates + success criteria
 validation) follow a specific protocol.
 
-**→ [verify-completion.md](supplemental/verify-completion.md)** ← Full verification protocol
+**→ [verify-work-unit.md](work-unit-lifecycle/verify-work-unit.md)** ← Full verification protocol
 
 ## Next Step
 
 When all tasks are marked complete and the verification phase has passed, proceed to integration:
 
-**→ [integrate-work-unit.md](supplemental/integrate-work-unit.md)** — Documentation cleanup, code review, PR, and merge
+**→ [integrate-work-unit.md](work-unit-lifecycle/integrate-work-unit.md)** — Documentation cleanup, code review, PR,
+and merge
 
 ## Incidental Work Management
 
@@ -200,7 +201,7 @@ reporting completion.
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-[rotate-branch]: supplemental/rotate-branch.md
+[rotate-branch]: work-unit-lifecycle/rotate-branch.md
 [arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
 [arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
 [arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality

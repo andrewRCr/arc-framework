@@ -185,5 +185,5 @@ With the work unit activated, proceed to task execution:
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
 [arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
 [arc-config]: ../../../arc-config.yml
-[session-init]: session-init.md
+[session-init]: ../session-lifecycle/session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

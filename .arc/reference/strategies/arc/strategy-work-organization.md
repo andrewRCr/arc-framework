@@ -368,7 +368,7 @@ On Child Branch:
 2. Create task list: .arc/active/incidental/tasks-<name>.md
 3. Work on branch, commit with task references
 4. Complete work (all tasks done, quality gates pass)
-5. Clean task list (clean-work-unit-files.md Mode 2)
+5. Clean task list (clean-work-unit.md Mode 2)
 6. Create completion-{name}.md (summary + PR description draft)
 7. Commit documentation changes
 
@@ -749,7 +749,7 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 - [DEV-RULES.PROJECT][dev-rules] — Project quality standards and development rules
 - [2_generate-tasks.md][generate-tasks] — Task breakdown workflow
 - [3_process-task-loop.md][process-task-loop] — Task execution workflow
-- [commit-guide.md][commit-guide] — Commit guide: atomicity, complex scenarios, quick reference
+- [prepare-commits.md][prepare-commits] — Commit guide: atomicity, complex scenarios, quick reference
 - [manage-incidental-work.md][manage-incidental] — Incidental work workflow
 - [strategy-team-coordination.md][team-coordination] — Task ownership, team branching, external trackers
 
@@ -759,13 +759,13 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [team-coordination]: strategy-team-coordination.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
-[integrate-work-unit]: ../../../system/workflows/arc/supplemental/integrate-work-unit.md
-[archive-work-unit]: ../../../system/workflows/arc/supplemental/archive-work-unit.md
+[activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
-[commit-guide]: ../../../system/workflows/arc/supplemental/commit-guide.md
+[prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [config-arch]: strategy-configurability-architecture.md
-[rotate-branch]: ../../../system/workflows/arc/supplemental/rotate-branch.md
-[activate-planning-branch]: ../../../system/workflows/arc/supplemental/activate-planning-branch.md
-[integrate-planning-branch]: ../../../system/workflows/arc/supplemental/integrate-planning-branch.md
+[rotate-branch]: ../../../system/workflows/arc/work-unit-lifecycle/rotate-branch.md
+[activate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
+[integrate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md

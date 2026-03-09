@@ -101,10 +101,10 @@ git checkout -b {category}/plan-{name}
 
 ---
 
-[activate-work-unit]: activate-work-unit.md
-[archive-work-unit]: archive-work-unit.md
+[activate-work-unit]: ../activate-work-unit.md
+[archive-work-unit]: ../archive-work-unit.md
 [integrate-planning-branch]: integrate-planning-branch.md
-[create-prd]: ../1_create-prd.md
-[generate-tasks]: ../2_generate-tasks.md
-[work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
-[work-planning]: ../../../../reference/strategies/arc/strategy-work-planning.md
+[create-prd]: ../../1_create-prd.md
+[generate-tasks]: ../../2_generate-tasks.md
+[work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
+[work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

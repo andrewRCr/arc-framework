@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.2 — Implement workflow directory changes (line ~197)
-**Last Completed**: Task 2.1 — Assess current `workflows/arc/supplemental/` structure
+**Next Task**: Task 3.1 — Assess `strategies/arc/` organization (line ~342)
+**Last Completed**: Task 2.3 — Refine workflow directory structure
 **Blockers**: [none]
-**Next Action**: Implement directory restructure per 2.1.c decision — Task 2.2
+**Next Action**: Evaluate strategy directory organization — Task 3.1
 
 ---
 

@@ -47,7 +47,7 @@ when populating any `.override` section.
 
 ## commit-format
 
-**Workflow:** [commit-guide.md][commit-guide] · **When:** Agent writes a commit message
+**Workflow:** [prepare-commits.md][prepare-commits] · **When:** Agent writes a commit message
 
 **Contract:** Commits follow a consistent, communicative format that enables automated tooling and readable history.
 
@@ -84,7 +84,7 @@ in [`arc-config.yml`][arc-config]. See `system/githooks/README.md` for setup.
 
 ## commit-context-format
 
-**Workflow:** [commit-guide.md][commit-guide] · **When:** Agent writes a commit message
+**Workflow:** [prepare-commits.md][prepare-commits] · **When:** Agent writes a commit message
 
 **Contract:** Every commit includes a context footer linking it to its task or work context. Format must be
 grep-searchable across commit history.
@@ -337,11 +337,11 @@ Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates.
 ---
 
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
-[commit-guide]: arc/supplemental/commit-guide.md
-[integrate-work-unit]: arc/supplemental/integrate-work-unit.md
+[prepare-commits]: arc/supplemental/prepare-commits.md
+[integrate-work-unit]: arc/work-unit-lifecycle/integrate-work-unit.md
 [process-task-loop]: arc/3_process-task-loop.md
-[session-init]: arc/supplemental/session-init.md
-[session-handoff]: arc/supplemental/session-handoff.md
+[session-init]: arc/session-lifecycle/session-init.md
+[session-handoff]: arc/session-lifecycle/session-handoff.md
 [arc-config]: ../arc-config.yml
 [arc-ext-pre-merge-review]: arc-extensions.md#pre-merge-review
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md

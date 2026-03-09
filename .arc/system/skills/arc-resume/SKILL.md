@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 1. Initialize the session.
 
-   - Run the workflow in `.arc/system/workflows/arc/supplemental/session-init.md`.
+   - Run the workflow in `.arc/system/workflows/arc/session-lifecycle/session-init.md`.
    - Read every document in full unless the workflow explicitly says otherwise. The load
      order matters — general context before active work state.
 

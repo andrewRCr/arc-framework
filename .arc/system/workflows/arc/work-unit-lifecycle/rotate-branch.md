@@ -138,7 +138,7 @@ for the next session.
 
 [integrate-work-unit]: integrate-work-unit.md
 [archive-work-unit]: archive-work-unit.md
-[session-handoff]: session-handoff.md
+[session-handoff]: ../session-lifecycle/session-handoff.md
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [config-merge]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md

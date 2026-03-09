@@ -113,7 +113,7 @@ Checklist to verify before saving.
 
 When ready to begin implementation:
 
-**→ [activate-work-unit.md](supplemental/activate-work-unit.md)** — Create branch, move docs to
+**→ [activate-work-unit.md](work-unit-lifecycle/activate-work-unit.md)** — Create branch, move docs to
 active, update tracking
 
 This can be deferred if planning ahead. Activate when implementation is about to begin.
@@ -125,4 +125,4 @@ This can be deferred if planning ahead. Activate when implementation is about to
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-config]: ../../arc-config.yml
-[activate-work-unit]: supplemental/activate-work-unit.md
+[activate-work-unit]: work-unit-lifecycle/activate-work-unit.md

@@ -33,6 +33,21 @@ metadata exists, code review is done, PR is merged.
 
 ## Steps
 
+### 0) Set Up Branch (Full Protection Only)
+
+**Skip if** `branch.protection` is `partial` or `unprotected` — archive directly on the base branch.
+
+Under full protection, archival commits require a branch. If you ran
+[activate-planning-branch][activate-planning-branch] (batch path), you're already on the right branch —
+skip this step. For standalone archival with no next work unit planned, create a housekeeping branch:
+
+```bash
+git checkout -b chore/archive-{name}
+```
+
+This branch carries only the archival commit. After Step 7, push and create a PR to merge it to the base
+branch.
+
 ### 1) Delete Child Branch
 
 Skip if the implementation branch was already cleaned up (e.g., by
@@ -228,6 +243,6 @@ for feature vs technical vs incidental decision rules.
 [activate-work-unit]: activate-work-unit.md
 [create-prd]: ../1_create-prd.md
 [generate-tasks]: ../2_generate-tasks.md
-[activate-planning-branch]: activate-planning-branch.md
-[integrate-planning-branch]: integrate-planning-branch.md
+[activate-planning-branch]: planning/activate-planning-branch.md
+[integrate-planning-branch]: planning/integrate-planning-branch.md
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive

@@ -7,7 +7,7 @@ description: Update and finalize current session documentation for continuity ac
 
 1. Open the handoff workflow.
 
-   - Follow `.arc/system/workflows/arc/supplemental/session-handoff.md`.
+   - Follow `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
 
 2. Update current session notes.
 

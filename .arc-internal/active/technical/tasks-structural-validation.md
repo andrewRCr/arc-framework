@@ -278,40 +278,70 @@
         files don't move — their ~22 inbound references are unaffected. 3 renamed files need link updates in
         all referencing documents.
 
-- [ ] **2.2 Implement workflow directory changes**
+- [x] **2.2 Implement workflow directory changes**
 
-    Per 2.1.c decision: create `work-unit-lifecycle/`, move 8 files, rename 3 files,
-    update all cross-references.
+    Per 2.1.c decision: created `work-unit-lifecycle/`, moved 8 files, renamed 3 files, updated all
+    cross-references across 22 files. Resolved F-03 and F-05 content issues. Full lint pass clean.
 
-    - [ ] **2.2.a Create `work-unit-lifecycle/` and move lifecycle files with `git mv`**
-        - Create `workflows/arc/work-unit-lifecycle/`
-        - Move 8 files from `supplemental/` to `work-unit-lifecycle/`
-        - Rename during move: `clean-work-unit-files` → `clean-work-unit`,
-          `verify-completion` → `verify-work-unit`
+    - [x] **2.2.a Create `work-unit-lifecycle/` and move lifecycle files with `git mv`**
 
-    - [ ] **2.2.b Rename `commit-guide.md` → `prepare-commits.md` in `supplemental/`**
+        Created directory, moved 8 files. Renamed during move: `clean-work-unit-files` →
+        `clean-work-unit`, `verify-completion` → `verify-work-unit`.
 
-    - [ ] **2.2.c Update all cross-references to moved/renamed files**
-        - Workflow files: internal link definitions (peer refs within lifecycle/ are
-          unchanged; external refs from pipeline, supplemental, and other workflows need
-          path updates)
-        - Strategy documents referencing workflow paths
-        - Agent files (CLAUDE.md, skills) referencing workflow paths
-        - DEV-RULES.ARC.md link definitions
-        - `arc-methods.md` and `arc-extensions.md` link definitions
+    - [x] **2.2.b Rename `commit-guide.md` → `prepare-commits.md` in `supplemental/`**
 
-    - [ ] **2.2.d Resolve Phase 0 findings F-03, F-05**
-        - F-03: integrate-work-unit Step 8 needs explicit batch vs standalone routing
-          (content fix — structural change doesn't resolve this)
-        - F-05: standalone archival needs a procedural step for housekeeping branch
-          creation (content fix — structural change doesn't resolve this)
+    - [x] **2.2.c Update all cross-references to moved/renamed files**
 
-    - [ ] **2.2.e Update file inventory in `strategy-file-classification.md`**
-        - Update paths for moved/renamed files
-        - Add `work-unit-lifecycle/` directory section or update `system/workflows/` table
-        - Verify counts still accurate
+        Updated references across 22 files: lifecycle files (peer refs now same-directory, cross-directory
+        refs to supplemental updated to `../supplemental/`), supplemental files (refs to lifecycle files
+        updated to `../work-unit-lifecycle/`), numbered pipeline files, strategy docs, agent files
+        (CLAUDE.md, 3 skill directories), DEV-RULES.ARC.md, arc-methods.md, arc-extensions.md, setup
+        workflows, templates, READMEs. Subagent handled bulk updates; manual fixup caught 6 cross-directory
+        refs the subagent missed (session-init/session-handoff refs from lifecycle files, lifecycle refs
+        from supplemental files).
 
-    - [ ] **2.2.f Run Tier 1 quality gate on all modified files**
+    - [x] **2.2.d Resolve Phase 0 findings F-03, F-05**
+
+        F-03: integrate-work-unit Step 8 full-protection note now surfaces the batch vs standalone decision
+        point — "next work unit planned → activate-planning-branch" vs "no next work unit →
+        housekeeping branch for standalone archival".
+
+        F-05: archive-work-unit now has Step 0 (Set Up Branch) with explicit `git checkout -b
+        chore/archive-{name}` for standalone archival under full protection. Skip conditions documented
+        for batch path and non-full protection.
+
+    - [x] **2.2.e Update file inventory in `strategy-file-classification.md`**
+
+        Updated paths for all 13 files (8 moved to `work-unit-lifecycle/`, 3 renamed, 5 remain in
+        `supplemental/`). Notes column updated: "Lifecycle workflow" vs "Supplemental workflow".
+        Table realigned via markdown-table-prettify. Counts unchanged (81 total, same classification
+        split — same number of files, just moved/renamed).
+
+    - [x] **2.2.f Run Tier 1 quality gate on all modified files**
+
+        Full lint pass: 0 errors. Fixed 5 violations during pass (3 MD060 table alignment, 2 MD013
+        line-length from longer paths, 1 MD047 trailing newline from prettifier).
+
+- [x] **2.3 Refine workflow directory structure**
+
+    Post-2.2 refinements addressing conceptual grouping consistency:
+
+    **`work-unit-lifecycle/planning/`**: Moved activate-planning-branch and integrate-planning-branch
+    to `planning/` subdirectory. These are full-protection-only branch ceremony — distinct from the
+    6 universal lifecycle operations at the root.
+
+    **`session-lifecycle/`**: Promoted session-init and session-handoff from `supplemental/` to a peer
+    `session-lifecycle/` directory at the `arc/` level. Mirrors `work-unit-lifecycle/` as a lifecycle
+    grouping. Filenames kept as `session-init.md` and `session-handoff.md` — the `session-` prefix
+    reads naturally in prose and provides useful grouping signal. `supplemental/` now contains only
+    3 genuinely supplemental guides.
+
+    **`initial-setup/`**: Renamed from `setup/` to sort before `session-lifecycle/` alphabetically,
+    giving the natural exploration order: initial-setup → session-lifecycle → supplemental →
+    work-unit-lifecycle. Also clarifies the one-time nature of these workflows.
+
+    Updated cross-references across skills (6 files), workflow link definitions, strategy docs,
+    and file inventory. Full lint pass clean.
 
 ### **Phase 3:** Strategy Directory Evaluation
 

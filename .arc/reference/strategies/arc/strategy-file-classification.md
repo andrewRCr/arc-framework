@@ -279,29 +279,29 @@ to update classification — both axes apply independently.
 
 ### system/workflows/
 
-| File                                            | Classification | Layer | Notes                                 |
-|-------------------------------------------------|----------------|-------|---------------------------------------|
-| `arc-extensions.md`                             | Configurable   | Core  | Extension points for team ceremonies. |
-| `arc-methods.md`                                | Configurable   | Core  | Method defaults and override slots.   |
-| `arc/1_create-prd.md`                           | Framework      | Core  | Core workflow.                        |
-| `arc/2_generate-tasks.md`                       | Framework      | Core  | Core workflow.                        |
-| `arc/3_process-task-loop.md`                    | Framework      | Core  | Core workflow.                        |
-| `arc/setup/01_initialize-arc.md`                | Framework      | Core  | Setup workflow.                       |
-| `arc/setup/02_define-project.md`                | Framework      | Core  | Setup workflow.                       |
-| `arc/supplemental/activate-planning-branch.md`  | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/activate-work-unit.md`        | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/archive-work-unit.md`         | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/clean-work-unit-files.md`     | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/commit-guide.md`              | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/integrate-planning-branch.md` | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/integrate-work-unit.md`       | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/maintain-project-docs.md`     | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/manage-incidental-work.md`    | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/rotate-branch.md`             | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/session-handoff.md`           | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/session-init.md`              | Framework      | Core  | Supplemental workflow.                |
-| `arc/supplemental/verify-completion.md`         | Framework      | Core  | Supplemental workflow.                |
-| `project/README.md`                             | Framework      | Core  | Project workflow guidance.            |
+| File                                                            | Classification | Layer | Notes                                 |
+|-----------------------------------------------------------------|----------------|-------|---------------------------------------|
+| `arc-extensions.md`                                             | Configurable   | Core  | Extension points for team ceremonies. |
+| `arc-methods.md`                                                | Configurable   | Core  | Method defaults and override slots.   |
+| `arc/1_create-prd.md`                                           | Framework      | Core  | Core workflow.                        |
+| `arc/2_generate-tasks.md`                                       | Framework      | Core  | Core workflow.                        |
+| `arc/3_process-task-loop.md`                                    | Framework      | Core  | Core workflow.                        |
+| `arc/initial-setup/01_initialize-arc.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/initial-setup/02_define-project.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/session-lifecycle/session-handoff.md`                      | Framework      | Core  | Session lifecycle workflow.           |
+| `arc/session-lifecycle/session-init.md`                         | Framework      | Core  | Session lifecycle workflow.           |
+| `arc/supplemental/maintain-project-docs.md`                     | Framework      | Core  | Supplemental workflow.                |
+| `arc/supplemental/manage-incidental-work.md`                    | Framework      | Core  | Supplemental workflow.                |
+| `arc/supplemental/prepare-commits.md`                           | Framework      | Core  | Supplemental workflow.                |
+| `arc/work-unit-lifecycle/activate-work-unit.md`                 | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/archive-work-unit.md`                  | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/clean-work-unit.md`                    | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/integrate-work-unit.md`                | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/rotate-branch.md`                      | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/verify-work-unit.md`                   | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/planning/activate-planning-branch.md`  | Framework      | Core  | Planning workflow (full protection).  |
+| `arc/work-unit-lifecycle/planning/integrate-planning-branch.md` | Framework      | Core  | Planning workflow (full protection).  |
+| `project/README.md`                                             | Framework      | Core  | Project workflow guidance.            |
 
 ---
 

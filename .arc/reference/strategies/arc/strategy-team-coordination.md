@@ -329,6 +329,6 @@ them if they're useful, skip them if they'd drift from the tracker.
 [work-org]: strategy-work-organization.md
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[session-handoff]: ../../../system/workflows/arc/supplemental/session-handoff.md
-[session-init]: ../../../system/workflows/arc/supplemental/session-init.md
+[session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
+[session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [arc-extensions]: ../../../system/workflows/arc-extensions.md

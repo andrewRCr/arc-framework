@@ -145,4 +145,4 @@ No verification checklist — verify the summary against the task list by inspec
 
 ---
 
-[integrate-work-unit]: ../../system/workflows/arc/supplemental/integrate-work-unit.md
+[integrate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md

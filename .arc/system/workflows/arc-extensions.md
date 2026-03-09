@@ -87,7 +87,7 @@ tool state, or environment checks that agents should be aware of before beginnin
 
 ## pre-stage-review
 
-**Workflow:** [commit-guide.md][commit-guide] · **Fires:** After staging changes, before creating the commit
+**Workflow:** [prepare-commits.md][prepare-commits] · **Fires:** After staging changes, before creating the commit
 
 **Contract:** Add staging verification steps beyond ARC's default `git diff --cached --stat` check. Use for
 project-specific validations on staged content (security scanning, license headers, generated file checks).
@@ -153,11 +153,11 @@ workflow proceeds naturally.
 
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
 [process-task-loop]: arc/3_process-task-loop.md
-[session-init]: arc/supplemental/session-init.md
-[commit-guide]: arc/supplemental/commit-guide.md
-[integrate-work-unit]: arc/supplemental/integrate-work-unit.md
+[session-init]: arc/session-lifecycle/session-init.md
+[prepare-commits]: arc/supplemental/prepare-commits.md
+[integrate-work-unit]: arc/work-unit-lifecycle/integrate-work-unit.md
 [arc-methods-rt]: arc-methods.md#review-triage
 [arc-methods-pmr]: arc-methods.md#pre-merge-review
 [arc-config]: ../arc-config.yml
-[activate-work-unit]: arc/supplemental/activate-work-unit.md
-[archive-work-unit]: arc/supplemental/archive-work-unit.md
+[activate-work-unit]: arc/work-unit-lifecycle/activate-work-unit.md
+[archive-work-unit]: arc/work-unit-lifecycle/archive-work-unit.md

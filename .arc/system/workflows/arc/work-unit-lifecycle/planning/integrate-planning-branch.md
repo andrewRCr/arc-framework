@@ -135,11 +135,11 @@ to proceed even if WORK-STATUS hasn't caught up yet.
 ---
 
 [activate-planning-branch]: activate-planning-branch.md
-[integrate-work-unit]: integrate-work-unit.md
-[activate-work-unit]: activate-work-unit.md
-[archive-work-unit]: archive-work-unit.md
-[create-prd]: ../1_create-prd.md
-[generate-tasks]: ../2_generate-tasks.md
-[arc-config]: ../../../arc-config.yml
-[arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive
-[session-handoff]: session-handoff.md
+[integrate-work-unit]: ../integrate-work-unit.md
+[activate-work-unit]: ../activate-work-unit.md
+[archive-work-unit]: ../archive-work-unit.md
+[create-prd]: ../../1_create-prd.md
+[generate-tasks]: ../../2_generate-tasks.md
+[arc-config]: ../../../../arc-config.yml
+[arc-ext-post-archive]: ../../../arc-extensions.md#post-work-unit-archive
+[session-handoff]: ../../session-lifecycle/session-handoff.md

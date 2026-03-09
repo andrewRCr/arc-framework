@@ -269,7 +269,7 @@ Examples:
 - Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
   conflicting signals at the same trust tier
 
-[activate-planning-branch]: activate-planning-branch.md
+[activate-planning-branch]: ../work-unit-lifecycle/planning/activate-planning-branch.md
 [create-prd]: ../1_create-prd.md
 [arc-config]: ../../../arc-config.yml
 [arc-methods-session]: ../../arc-methods.md#session-state

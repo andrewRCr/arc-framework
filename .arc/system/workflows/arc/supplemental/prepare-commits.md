@@ -77,7 +77,7 @@ Read SESSION-NOTES.md for uncommitted work documentation. If the previous sessio
 uncommitted work at commit-level granularity (file mappings, task references, commit groupings),
 use that as your commit plan rather than reconstructing from scratch.
 
-See [Session Handoff](session-handoff.md) for the format that enables this.
+See [Session Handoff](../session-lifecycle/session-handoff.md) for the format that enables this.
 
 ### 2. Identify All Changes
 

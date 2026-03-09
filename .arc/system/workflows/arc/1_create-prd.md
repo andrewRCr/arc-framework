@@ -91,5 +91,5 @@ continue with [2_generate-tasks.md](2_generate-tasks.md).
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [template-prd]: ../../../reference/templates/template-prd.md
-[activate-work-unit]: supplemental/activate-work-unit.md
+[activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [arc-config]: ../../arc-config.yml

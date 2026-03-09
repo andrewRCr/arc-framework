@@ -143,7 +143,7 @@ Task list headers provide essential metadata and context. Format varies by task 
   [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
 - Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
-  `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/supplemental/archive-work-unit.md))
+  `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md))
 - Overview section includes Purpose
 - Scope section defines boundaries (Will Do / Won't Do)
 - Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) only when needed
@@ -794,7 +794,7 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 ```
 
 **Execution protocol:** When you reach this phase during task processing, see
-[verify-completion.md][verify-completion] for the step-by-step procedure and three-state
+[verify-work-unit.md][verify-work-unit] for the step-by-step procedure and three-state
 success criteria model.
 
 ---
@@ -887,7 +887,7 @@ should map to a verifiable criterion. These checkboxes are checked during the
   Any remaining `[ ]` items represent genuine gaps requiring resolution.
 - No time estimates
 
-**Three states** (see [verify-completion.md][verify-completion] for the execution protocol):
+**Three states** (see [verify-work-unit.md][verify-work-unit] for the execution protocol):
 
 | Marker | Meaning    | Annotation                                                   |
 |--------|------------|--------------------------------------------------------------|
@@ -928,5 +928,5 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[verify-completion]: ../../../system/workflows/arc/supplemental/verify-completion.md
+[verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-lic]: ../../../system/workflows/arc-methods.md#leave-it-cleaner
