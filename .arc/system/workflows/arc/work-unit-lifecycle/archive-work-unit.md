@@ -9,7 +9,8 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **When to use:** The work unit's PR is merged and you're on the parent branch.
 
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
-metadata exists, code review is done, PR is merged.
+metadata exists (`completion-{name}.md` created, task list Status: `Complete`), code review is
+done, PR is merged.
 
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
 > base branch. Two approaches:
@@ -37,16 +38,23 @@ metadata exists, code review is done, PR is merged.
 
 **Skip if** `branch.protection` is `partial` — archive directly on the base branch.
 
-Under full protection, archival commits require a branch. If you ran
-[activate-planning-branch][activate-planning-branch] (batch path), you're already on the right branch —
-skip this step. For standalone archival with no next work unit planned, create a housekeeping branch:
+Under full protection, archival commits require a branch. Check your current branch to determine
+what to do:
 
 ```bash
-git checkout -b chore/archive-{name}
+git branch --show-current
 ```
 
-This branch carries only the archival commit. After Step 7, push and create a PR to merge it to the base
-branch.
+- **On a non-base branch** (e.g., `technical/plan-{name}`, `planning/{name}`): You're on the
+  planning branch from [activate-planning-branch][activate-planning-branch] — skip to Step 1.
+- **On the base branch**: Create a housekeeping branch for standalone archival:
+
+  ```bash
+  git checkout -b chore/archive-{name}
+  ```
+
+  This branch carries only the archival commit. After Step 7, push and create a PR to merge it
+  to the base branch.
 
 ### 1) Delete Child Branch
 
@@ -75,6 +83,20 @@ discoverability once buried in the archive directory.
 
 **Decision:** "Do any files have lasting reference value outside this work unit's context?"
 
+**Files with lasting value** (copy to reference):
+
+- Investigation or decision docs (why approach X was chosen over Y)
+- Reusable procedures (rollback plans, migration guides)
+- Architecture diagrams, benchmark data, dependency maps, audits
+
+**Files without lasting value** (archive only):
+
+- Task-specific working notes, debugging logs
+- Intermediate drafts superseded by final deliverables
+- Scratchpad files used only during implementation
+
+**Routing:**
+
 - **Yes** → Copy (not move) to the appropriate reference directory. The original stays with the
   archive for completeness. Note the routing in the completion doc's Related Documentation section.
     - `.arc/reference/analysis/` — internally-produced maps, audits, assessments
@@ -93,10 +115,14 @@ Determine the next sequence number:
 find .arc/reference/archive/{quarter} -mindepth 2 -maxdepth 2 -type d | wc -l
 ```
 
+**Verify**: List the archive directory (`ls .arc/reference/archive/{quarter}/*/`) and confirm the
+computed number doesn't conflict with existing entries. If it does (from non-sequential archival
+or manual edits), increment to the next available number.
+
 **Move files** (`{quarter}` = e.g. `2025-q4`, `{NN}` = next sequence number, zero-padded):
 
 ```bash
-# Create work package directory
+# Create work unit directory
 mkdir -p .arc/reference/archive/{quarter}/{category}/{NN}_{name}
 
 # Move all files (adjust list based on what exists for this work)
@@ -135,9 +161,14 @@ directly in Next Action.
 
 **Archiving to parent work branch** (stacked incidental returning to parent):
 
-Restore WORK-STATUS.md to the parent work unit's context — branch name, task list path,
-and current task from where work was interrupted. The parent's state is recoverable from
-the parent branch's task list and commit history.
+Restore WORK-STATUS.md to the parent work unit's context. You're on the parent branch
+after the incidental's merge — recover state from the task list and commit history:
+
+1. **Branch**: Current branch (`git branch --show-current`) — this is the parent work branch
+2. **Task List**: Locate the parent's task list in `.arc/active/{category}/tasks-{parent-name}.md`
+3. **Next Task**: Find the first unchecked `[ ]` item in the parent task list (triple-anchor format)
+4. **Last Completed**: The last `[x]` task before the unchecked one
+5. **Next Action**: `Resume {parent work unit name} — Task X.Y`
 
 ### 6) Post-Archival Extensions · `#post-work-unit-archive`
 
@@ -202,7 +233,7 @@ needed. Update WORK-STATUS.md Next Action to reflect that no next work unit is q
 - `{quarter}`: `2025-q4`, `2025-q3`, etc.
 - `{category}`: `feature/`, `technical/`, or `incidental/`
 - `{NN}`: Global sequence number (01-99), assigned by completion order across ALL categories
-- `{name}`: Work package name (matching task list name)
+- `{name}`: Work unit name (matching task list name)
 
 **Example structure:**
 

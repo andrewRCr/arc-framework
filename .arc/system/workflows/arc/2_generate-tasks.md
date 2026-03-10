@@ -18,7 +18,9 @@ default), this may happen directly on the base branch. See
 [activate-planning-branch][activate-planning-branch] for how planning branches are set up.
 
 Before starting, read the PRD thoroughly. If the PRD has dependency metadata (Status and Related
-Work fields), remove them — dependencies are resolved if you're generating tasks.
+Work fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
+confirm with the user before proceeding — generating tasks against unresolved dependencies
+produces a plan that can't execute. If all dependencies are resolved, remove the metadata fields.
 
 ### Step 1: Assess Codebase and Relevant Strategies
 

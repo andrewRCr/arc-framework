@@ -107,7 +107,7 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 4. Update **Next Task** to first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
 5. Update **Last Completed** to previous work or `—` if first work unit
 6. Update **Next Action** to describe first task
-7. Clear **Blockers** (set to `[none]`)
+7. Clear **Blockers** (set to literal text `[none]` — the standard empty-state marker in WORK-STATUS)
 
 > **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
 > and the update applies to the whole branch. Other developers joining the work unit establish
@@ -129,7 +129,7 @@ See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
 ### Step 7: Commit Activation
 
-Stage all modified files and commit. The exact set depends on pm.mode:
+Stage the activation files and commit. The exact set depends on pm.mode:
 
 ```bash
 # arc-in-git: moved files + status updates
