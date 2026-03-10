@@ -8,7 +8,7 @@
 
 ## Overview
 
-**Purpose:** Build the `arc-framework` npm package — a TypeScript CLI that installs, updates, and
+**Purpose:** Build the `@arc-framework/cli` npm package — a TypeScript CLI that installs, updates, and
 manages ARC framework files for adopters, targeting a beta release (`0.x`) for internal dogfooding.
 
 ## Scope
@@ -44,41 +44,39 @@ manages ARC framework files for adopters, targeting a beta release (`0.x`) for i
 **Purpose:** Stand up the npm package skeleton and update internal project docs to reflect the
 transition from documentation-only to a hybrid code + documentation project.
 
-- [ ] **1.1 Set up monorepo workspace structure**
+- [x] **1.1 Set up monorepo workspace structure**
 
     **Goal:** The CLI package lives in `packages/arc-framework/` as an npm workspace. Root
     `package.json` stays private, keeps markdown linting, and gains workspace configuration.
     This structure maps cleanly to the WU4 publish mirror — the workspace package is the
     extraction boundary for the public repo.
 
-    - [ ] **1.1.a Configure npm workspaces in root `package.json`**
-        - Add `"workspaces": ["packages/arc-framework"]`
-        - Keep existing `lint:md` scripts and `markdownlint-cli2` dev dependency
-        - Add convenience scripts that delegate to the workspace (e.g., `build`, `test`,
-          `typecheck` forwarding to `npm run -w packages/arc-framework`)
+    - [x] **1.1.a Configure npm workspaces in root `package.json`**
+        - Added `workspaces` array pointing to `packages/arc-framework`
+        - Kept existing `lint:md` scripts and `markdownlint-cli2` dev dependency
+        - Added `build`, `test`, `test:unit`, `typecheck` convenience scripts delegating to workspace
 
-    - [ ] **1.1.b Create `packages/arc-framework/package.json` and claim npm name**
-        - `name: "arc-framework"`, `type: "module"`, `bin` entry pointing to `dist/cli.js`
-        - Node 18+ engine requirement
-        - Runtime deps: `commander`, `@clack/prompts`
-        - Dev deps: `typescript`, `tsup`, `vitest`, `@types/node`
-        - Publish `0.0.0` placeholder to npm to reserve the package name
+    - [x] **1.1.b Create `packages/arc-framework/package.json` and claim npm name**
+        - `name: "@arc-framework/cli"` (scoped — `arc-framework` unscoped was blocked by npm
+          name similarity to `arcframework`). Created `arc-framework` npm org. Binary remains `arc`.
+        - `type: "module"`, `bin` entry pointing to `dist/cli.js`, Node 18+ engine requirement
+        - Runtime deps: `commander`, `@clack/prompts`; dev deps: `typescript`, `tsup`, `vitest`, `@types/node`
+        - Published `0.0.0` placeholder to npm to reserve the package name
 
-    - [ ] **1.1.c Create TypeScript and build configuration**
-        - `packages/arc-framework/tsconfig.json` with strict mode, ESM target
-        - `packages/arc-framework/tsup.config.ts` — ESM output, shebang injection, declarations
-        - `packages/arc-framework/vitest.config.ts` — test configuration
+    - [x] **1.1.c Create TypeScript and build configuration**
+        - `tsconfig.json` — strict mode, ES2022 target, Node16 module resolution, `noUncheckedIndexedAccess`
+        - `tsup.config.ts` — ESM output, node18 target, shebang injection, dts generation
+        - `vitest.config.ts` — test root at package level, `__tests__/**/*.test.ts` pattern
 
-    - [ ] **1.1.d Create CLI entry point skeleton**
-        - `packages/arc-framework/src/cli.ts` — Commander program with subcommand stubs
-          (`init`, `update`, `status`, `diff`)
-        - Verify build produces working `dist/cli.js` with shebang
+    - [x] **1.1.d Create CLI entry point skeleton**
+        - `src/cli.ts` — Commander program with `init`, `update`, `status`, `diff` stubs
+        - Build produces `dist/cli.js` with shebang, typecheck passes, `--help` works
 
-    - [ ] **1.1.e Create directory structure**
-        - `packages/arc-framework/src/commands/`, `src/lib/`, `src/prompts/`
-        - `packages/arc-framework/__tests__/unit/`, `__tests__/integration/`,
-          `__tests__/e2e/`, `__tests__/fixtures/`
-        - `packages/arc-framework/framework/` (template files, populated in Phase 3)
+    - [x] **1.1.e Create directory structure**
+        - `src/commands/`, `src/lib/`, `src/prompts/` with `.gitkeep` placeholders
+        - `__tests__/unit/`, `__tests__/integration/`, `__tests__/e2e/`, `__tests__/fixtures/`
+        - `framework/` (template files, populated in Phase 3)
+        - Added `.gitignore` for `dist/` and `node_modules/`
 
 - [ ] **1.2 Update internal project infrastructure**
 
@@ -448,7 +446,7 @@ all success criteria.
 - [ ] **8.1 Write E2E test suite**
 
     - [ ] **8.1.a Init E2E tests**
-        - `npx arc-framework init` in a fresh git repo → verify complete installed state
+        - `npx @arc-framework/cli init` in a fresh git repo → verify complete installed state
         - Installed files pass the framework's own markdown linting
         - Manifest is valid, pristine matches files on disk
 
@@ -488,9 +486,9 @@ all success criteria.
 
 ## Success Criteria
 
-- [ ] `npx arc-framework init` produces a complete, working ARC installation that passes the
+- [ ] `npx @arc-framework/cli init` produces a complete, working ARC installation that passes the
   framework's own markdown linting
-- [ ] `npx arc-framework@latest update` correctly preserves adopter customizations through
+- [ ] `npx @arc-framework/cli@latest update` correctly preserves adopter customizations through
   three-way merge — auto-resolving non-overlapping changes, flagging real conflicts
 - [ ] Installed file set matches the authoritative inventory in `strategy-file-classification.md`
   for the selected PM mode and options
