@@ -6,14 +6,14 @@
 
 ## Active Work
 
-**Branch**: `technical/plan-structural-validation`
-**Task List**: [none]
-**Following Task List**: No
+**Branch**: `technical/structural-validation`
+**Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
+**Following Task List**: Yes
 **Next Task**: —
-**Last Completed**: Methodology Completion (archived)
+**Last Completed**: Task 9.3 — Verify all atomic tasks resolved (line ~901)
 **Blockers**: [none]
-**Next Action**: Integrate planning branch → PR to main, then activate work unit
+**Next Action**: Proceed to integrate-work-unit — doc cleanup, completion metadata, code review, PR, merge
 
 ---
 
-**Last Updated**: 2026-03-06
+**Last Updated**: 2026-03-10

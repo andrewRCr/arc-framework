@@ -6,6 +6,10 @@ work in their domains.
 **Location:** `.arc/reference/strategies/` — `arc/` for framework methodology (ships with ARC),
 `project/` for your project-specific patterns (you create these).
 
+**Naming:** All strategy files use the `strategy-` prefix for fuzzy-find grouping — typing
+`@strategy` surfaces all strategies regardless of directory. See
+[File Classification][file-classification] § Why Prefixes Matter.
+
 ## ARC Framework Strategies
 
 These ship with the framework and cover development methodology applicable to any project.
@@ -14,6 +18,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
     - Consult when: writing an ADR, deciding whether a decision warrants one
+- `arc/strategy-agent-hooks.md` - Agent lifecycle hooks as optional automation/enforcement alongside ARC
+    - Consult when: considering agent hooks for session automation, deterministic enforcement, or platform integration
 - `arc/strategy-backlog-organization.md` **(arc-in-git)** - Backlog structure, processing flow, atomic task conventions
     - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults
@@ -26,6 +32,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: creating PRDs, setting up discovery phases, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
     - Consult when: running quality gates beyond Tier 1, understanding tier boundaries or escalation
+- `arc/strategy-session-management.md` - Focused sessions, context degradation evidence, monitoring responsibility
+    - Consult when: configuring session management, deciding session duration thresholds, understanding the evidence base
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
     - Consult when: creating or restructuring task lists, formatting task entries
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration
@@ -66,3 +74,7 @@ doc upfront.
 
 **Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line;
 add a "Consult when:" sub-item with trigger conditions.
+
+---
+
+[file-classification]: arc/strategy-file-classification.md

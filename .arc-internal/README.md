@@ -22,7 +22,8 @@ templates and examples, this directory houses the live project documentation.
 │   ├── constitution/ # Live foundational documents (META-PRD, rules, architecture)
 │   ├── strategies/   # Evolved implementation approaches and stable patterns
 │   ├── adr/          # Architecture decision records
-│   ├── research/     # Technical research documents
+│   ├── analysis/     # Internal investigation and synthesis
+│   ├── research/     # External technical research
 │   └── archive/      # Completed feature documentation and decisions
 └── system/           # Agent-facing operational files
     ├── agent/        # Agent configuration and context

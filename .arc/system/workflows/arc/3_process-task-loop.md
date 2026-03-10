@@ -9,9 +9,10 @@ It ensures consistent execution, quality control, and documentation of work.
 
 ## Task Implementation
 
-- **One task at a time:** Each checkbox in the task list is one work unit — whether it's a standalone
-  task or a subtask under a parent. Complete one, mark it `[x]`, report, and **stop** for user approval.
-  In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
+- **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
+  autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
+  for user approval. In team mode, this applies per developer-agent pair — concurrent pairs may work
+  different tasks.
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
   happens independently as PRs merge. When creating additional branches for an existing task list,
@@ -33,9 +34,12 @@ It ensures consistent execution, quality control, and documentation of work.
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
        [quality-gate-commands method][arc-methods-qg]
-       - See [Quality Gates Strategy][quality-gates] for the tiered approach
-       - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
-       - When task list explicitly calls for quality gates (including E2E checkpoints), they are mandatory
+       - **Tier definitions:** Tier 1 (per-task): quality-gate-commands on modified files only ·
+         Tier 2 (coherent unit): full-project Tier 1 + targeted integration/E2E + build ·
+         Tier 3 (phase/pre-PR): all checks, all configurations, full suite.
+         See [Quality Gates Strategy][quality-gates] for boundaries and escalation.
+       - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
+         use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If [post-task-quality extensions][arc-ext-task-quality] are configured,
        execute them before proceeding. See [`arc-extensions.md` § post-task-quality][arc-ext-task-quality]
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
@@ -68,7 +72,9 @@ It ensures consistent execution, quality control, and documentation of work.
      - [ ] Ready to generate user-facing completion report
      ```
 
-     If any item is unchecked, complete it before proceeding to report generation.
+     If any item is unchecked, complete it before proceeding. For quality gate failures: fix
+     obvious issues (lint, type errors) and re-run; report non-obvious failures in your
+     completion summary — you're about to stop for review anyway.
 
      **Note on implied permission:** User approval ("great!", "looks good", "proceed") implies permission to
      continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
@@ -78,8 +84,9 @@ It ensures consistent execution, quality control, and documentation of work.
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      Complete only the specified work — update the task list and run quality gates after each
-     task, but continue to the next without waiting for approval. Leave sufficient context for
-     the user to review, iterate, commit, and hand off when they return.
+     task, but continue to the next without waiting for approval. Leave the task list updated,
+     quality gates passing, and changes uncommitted (user decides commit boundaries when they
+     return).
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
@@ -90,8 +97,9 @@ It ensures consistent execution, quality control, and documentation of work.
        than expected but progressing, minor deviation from plan that doesn't change outcomes
 
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
-     the last subtask under a parent (all subtasks now `[x]`), or a standalone task that touches
-     integration-tested code — follow this additional sequence. Note: phase headers are
+     the last subtask under a parent (all subtasks now `[x]`), or a standalone task that modifies
+     cross-cutting code (shared services, middleware, configuration, API contracts) — follow this
+     additional sequence. Note: phase headers are
      organizational groupings, not trackable items — phase completion is implicit when all tasks
      within the phase are complete.
 
@@ -119,7 +127,7 @@ It ensures consistent execution, quality control, and documentation of work.
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
-     When committing, follow [Commit Guide](supplemental/commit-guide.md) guidelines.
+     When committing, follow [Commit Guide](supplemental/prepare-commits.md) guidelines.
 
      **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
      advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage
@@ -135,10 +143,17 @@ It ensures consistent execution, quality control, and documentation of work.
 ## Verification Phase
 
 Every task list ends with a verification phase as its final phase. The standard task-by-task
-completion protocol applies, but the two verification tasks (Tier 3 gates + success criteria
-validation) follow a specific protocol.
+completion protocol applies, but the verification tasks (Tier 3 gates, success criteria
+validation, atomic task resolution) follow a specific protocol.
 
-**→ [verify-completion.md](supplemental/verify-completion.md)** ← Full verification protocol
+**→ [verify-work-unit.md](work-unit-lifecycle/verify-work-unit.md)** ← Full verification protocol
+
+## Next Step
+
+When all tasks are marked complete and the verification phase has passed, proceed to integration:
+
+**→ [integrate-work-unit.md](work-unit-lifecycle/integrate-work-unit.md)** — Documentation cleanup, code review, PR,
+and merge
 
 ## Incidental Work Management
 
@@ -161,6 +176,18 @@ immediately. **Quick decision tree**:
 
 **Key distinction:** "Sequential steps toward one goal" = atomic. "Distinct phases with different objectives" = task list.
 
+### Where to Capture Atomic Tasks
+
+Once you've decided something is an atomic task (not an incidental task list), route it to the
+right location:
+
+- **Within the current work unit's domain** → add to the **Atomic Tasks section** at the end of
+  the current task list. All task lists have this section regardless of PM mode.
+- **Outside the current work unit's domain** → depends on PM mode:
+    - `arc-in-git`: add to **ATOMIC-TASKS.md** in `active/` (project-wide one-off tasks)
+    - `none` / `external`: capture in **session notes** for later triage, or add directly to your
+      external tracker
+
 ### Complete Workflow
 
 **For full incidental work lifecycle** (creation, execution, archival), see:
@@ -170,19 +197,9 @@ immediately. **Quick decision tree**:
 
 ### Session-Scoped Tracking vs Task List Files
 
-Many AI coding tools offer ephemeral task tracking (e.g., Claude Code's TodoWrite, or similar
-features in other tools). These are useful for organizing work during a task but are
-**not a substitute for task list markdown updates**.
-
-**Key distinction:**
-
-- **Session tracking** — Ephemeral, not saved to git. Helps organize current work into steps.
-- **Task list markdown** — Permanent record, committed to git. Source of truth for completion
-  status. Must be updated before reporting to user.
-
-**Best practice:** When using session tracking for a task, always include a step for updating
-the task list markdown. This creates a forcing function to remember the permanent update before
-reporting completion.
+Ephemeral task tracking tools (e.g., Claude Code's TodoWrite) help organize work within a
+session but are **not a substitute for task list markdown updates**. The task list file is the
+permanent record committed to git — always update it before reporting completion.
 
 ### Updating Task Lists
 
@@ -194,7 +211,7 @@ reporting completion.
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-[rotate-branch]: supplemental/rotate-branch.md
+[rotate-branch]: work-unit-lifecycle/rotate-branch.md
 [arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
 [arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
 [arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality

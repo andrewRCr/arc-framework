@@ -1,4 +1,4 @@
-# Work Organization Strategy
+# Strategy: Work Organization
 
 ## Purpose
 
@@ -161,10 +161,9 @@ Common multi-branch patterns:
 Incidental task lists may live alongside the primary work when they stay on the same branch by design.
 `WORK-STATUS.md` reflects whichever work unit is currently active.
 
-**WORK-STATUS.md merge behavior:** In protected modes, WORK-STATUS.md on the base branch stays in
-its "no active work" default state — work branches diverge with active state, and merges restore
-the default. In unprotected mode, the base branch is the workspace and WORK-STATUS.md reflects
-active work directly. `.gitattributes` with `merge=ours` auto-resolves local merges by keeping
+**WORK-STATUS.md merge behavior:** WORK-STATUS.md on the base branch stays in its "no active work"
+default state — work branches diverge with active state, and merges restore the default.
+`.gitattributes` with `merge=ours` auto-resolves local merges by keeping
 the target branch version. For PR merges (server-side, where local merge drivers don't apply),
 the resolution is always "take base" — deterministic and trivial. Post-merge workflows
 ([rotate-branch][rotate-branch], [archive-work-unit][archive-work-unit]) update WORK-STATUS.md
@@ -368,7 +367,7 @@ On Child Branch:
 2. Create task list: .arc/active/incidental/tasks-<name>.md
 3. Work on branch, commit with task references
 4. Complete work (all tasks done, quality gates pass)
-5. Clean task list (clean-work-unit-files.md Mode 2)
+5. Clean task list (clean-work-unit.md Mode 2)
 6. Create completion-{name}.md (summary + PR description draft)
 7. Commit documentation changes
 
@@ -472,27 +471,15 @@ git commit -m "refactor: complete service extraction"
 
 ## Branch Protection Modes
 
-ARC defines three branch protection modes that determine what work requires branches and PRs.
-The active mode is configured in `.arc/system/arc-config.yml` (`branch_protection` setting).
+ARC defines two branch protection modes that determine what work requires branches and PRs.
+The active mode is configured in `.arc/system/arc-config.yml` (`branch.protection` setting).
 
 ### Mode Summary
 
-| Mode                              | Planned Work       | Atomic Tasks / Backlog | Direct Base Branch Commits |
-|-----------------------------------|--------------------|------------------------|----------------------------|
-| **Unprotected**                   | Branches optional  | Commit directly        | Allowed                    |
-| **Partially protected** (default) | Branches required  | Commit directly        | Documented exceptions only |
-| **Fully protected**               | Branches required  | Micro-branches         | Not allowed                |
-
-### Unprotected
-
-Branches are optional for all work. No restrictions on base branch commits.
-
-**Best for:** Solo developers prioritizing speed. Prototyping phases where process overhead
-isn't justified.
-
-**Planning branches:** Optional. Planning artifacts can be committed directly to the base branch.
-
-**Trade-off:** Maximum speed, minimum traceability. No PR review gate — all review is local.
+| Mode                              | Planned Work      | Atomic Tasks / Backlog | Direct Base Branch Commits |
+|-----------------------------------|-------------------|------------------------|----------------------------|
+| **Partially protected** (default) | Branches required | Commit directly        | Documented exceptions only |
+| **Fully protected**               | Branches required | Micro-branches         | Not allowed                |
 
 ### Partially Protected (Default)
 
@@ -534,17 +521,16 @@ warrants a task list vs. a simple branch.
 
 ### Choosing Your Mode
 
-| Factor              | Unprotected     | Partially Protected | Fully Protected        |
-|---------------------|-----------------|---------------------|------------------------|
-| Team size           | Solo            | Solo or small team  | Any team size          |
-| Risk tolerance      | High            | Moderate            | Low                    |
-| CI/CD maturity      | None / basic    | Basic to moderate   | Mature pipeline        |
-| Review culture      | Self-review     | Selective PR review | All changes reviewed   |
-| Overhead tolerance  | Minimal         | Moderate            | Accepts higher process |
+| Factor             | Partially Protected       | Fully Protected        |
+|--------------------|---------------------------|------------------------|
+| Team size          | Solo or small team        | Any team size          |
+| Risk tolerance     | Moderate                  | Low                    |
+| CI/CD maturity     | Basic to moderate         | Mature pipeline        |
+| Review culture     | Selective PR review       | All changes reviewed   |
+| Overhead tolerance | Moderate                  | Accepts higher process |
 
-**Start with partially protected** (the default) unless you have a specific reason for another
-mode. Move to fully protected when branch protection rules are enabled or team size grows.
-Move to unprotected only for solo prototyping or experiments where traceability isn't needed.
+**Start with partially protected** (the default) unless you have a specific reason for full
+protection. Move to fully protected when branch protection rules are enabled or team size grows.
 
 ---
 
@@ -588,8 +574,6 @@ of committing planning artifacts directly to the base branch.
   [integrate-planning-branch][integrate-planning-branch].
 
 - **Mode-specific behavior:**
-    - **Unprotected:** Planning branches are optional — artifacts can be committed directly
-      to the base branch.
     - **Partially protected:** Planning branches are the default for planned work. Solo
       developers who find the planning branch → PR → merge → activate cycle too heavy for
       self-authored plans can commit planning artifacts directly to base — this falls under
@@ -600,18 +584,19 @@ of committing planning artifacts directly to the base branch.
 
 - **Batch transitions (fully protected):** Under full protection, planning branches commonly
   carry prior work unit archival alongside new planning artifacts — one branch and PR covers
-  both lifecycle transitions. The sequence on the batch branch:
-    1. Archive completed work unit ([archive-work-unit][archive-work-unit])
-    2. Create PRD ([1_create-prd][create-prd])
-    3. Generate tasks ([2_generate-tasks][generate-tasks])
-    4. PR to base branch, merge ([integrate-planning-branch][integrate-planning-branch])
-    5. Activate new work unit from base branch ([activate-work-unit][activate-work-unit])
+  both lifecycle transitions. The sequence:
+    1. Create planning branch ([activate-planning-branch][activate-planning-branch])
+    2. Archive completed work unit ([archive-work-unit][archive-work-unit])
+    3. Create PRD ([1_create-prd][create-prd])
+    4. Generate tasks ([2_generate-tasks][generate-tasks])
+    5. PR to base branch, merge ([integrate-planning-branch][integrate-planning-branch])
+    6. Activate new work unit from base branch ([activate-work-unit][activate-work-unit])
 
   Each workflow's steps are unchanged — the batch branch is just the commit target instead of the
   base branch. Activation happens after the batch PR merges (implementation branch is created from
   the base branch, not the batch branch). The scope boundary is the PR merge: archival-triggered
   PM updates (ROADMAP marking the completed WU) belong on the batch branch; activation-triggered
-  updates (ROADMAP marking the new WU, WORK-STATUS, file moves) belong in step 5. See
+  updates (ROADMAP marking the new WU, WORK-STATUS, file moves) belong in step 6. See
   [integrate-planning-branch][integrate-planning-branch] for operational detail.
 
 ---
@@ -748,7 +733,7 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 - [DEV-RULES.PROJECT][dev-rules] — Project quality standards and development rules
 - [2_generate-tasks.md][generate-tasks] — Task breakdown workflow
 - [3_process-task-loop.md][process-task-loop] — Task execution workflow
-- [commit-guide.md][commit-guide] — Commit guide: atomicity, complex scenarios, quick reference
+- [prepare-commits.md][prepare-commits] — Commit guide: atomicity, complex scenarios, quick reference
 - [manage-incidental-work.md][manage-incidental] — Incidental work workflow
 - [strategy-team-coordination.md][team-coordination] — Task ownership, team branching, external trackers
 
@@ -758,12 +743,13 @@ processing flow (capture → triage → graduation), atomic task conventions, an
 [team-coordination]: strategy-team-coordination.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[activate-work-unit]: ../../../system/workflows/arc/supplemental/activate-work-unit.md
-[integrate-work-unit]: ../../../system/workflows/arc/supplemental/integrate-work-unit.md
-[archive-work-unit]: ../../../system/workflows/arc/supplemental/archive-work-unit.md
+[activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
-[commit-guide]: ../../../system/workflows/arc/supplemental/commit-guide.md
+[prepare-commits]: ../../../system/workflows/arc/supplemental/prepare-commits.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [config-arch]: strategy-configurability-architecture.md
-[rotate-branch]: ../../../system/workflows/arc/supplemental/rotate-branch.md
-[integrate-planning-branch]: ../../../system/workflows/arc/supplemental/integrate-planning-branch.md
+[rotate-branch]: ../../../system/workflows/arc/work-unit-lifecycle/rotate-branch.md
+[activate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
+[integrate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md

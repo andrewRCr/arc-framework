@@ -12,12 +12,10 @@ incidental tasks, etc.). The agent does not initiate this workflow on its own.
 with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct response
 is to complete the current work item and hand off, not to compact or summarize prior context.
 
-**Design context**: Sessions implement P5 (Context Preservation) — the principle that work context must be
-recoverable across work boundaries. This workflow is the *mechanism*: structured document loading optimized for
-agents with ephemeral context (CLI and IDE conversational agents that start each session without memory of
-previous work). Agents with persistent memory or project-indexed context may need lighter initialization
-ceremonies; the principle still applies regardless of mechanism. The session state mechanism (what to read at
-init, what to write at handoff) is overridable via [`arc-methods.md` § session-state][arc-methods-session].
+**Design context**: Sessions implement P5 (Context Preservation) — structured document loading for agents with
+ephemeral context. Agents with persistent memory may need lighter ceremonies; the principle (work context must
+be recoverable) still applies. The session state mechanism is overridable via
+[`arc-methods.md` § session-state][arc-methods-session].
 
 ## Steps
 
@@ -90,6 +88,8 @@ override instead.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
 8. `.arc/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
+   - **Team mode path**: If `team/` member directories exist, read `team/{name}/SESSION-NOTES.md`
+     instead — see `team/README.md` for path resolution
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
@@ -129,8 +129,9 @@ override instead.
 
 ### 3. Post-Context-Load Extensions · `#post-context-load`
 
-If [post-context-load extensions][arc-ext-post-context-load] are configured, execute them now. Use for
-team-specific documents, external tool state, or environment checks before orientation.
+If the `post-context-load` section in [`arc-extensions.md`][arc-ext-post-context-load] has steps
+(not the default placeholder), follow those steps now. Use for team-specific documents, external
+tool state, or environment checks before orientation.
 
 See: [`arc-extensions.md` § post-context-load][arc-ext-post-context-load]
 
@@ -187,8 +188,11 @@ Awaiting direction — proceed to Next Action?
 work unit. Use the same format — Next task is "none", Next action comes from WORK-STATUS.md.
 This is the normal state after initialization or between work units.
 
-**Next work unit discovery (`pm.mode: arc-in-git`):** When no active work exists, assess
-readiness for the next work unit before producing the orientation summary:
+**Next work unit discovery:** When no active work exists, assess readiness for the next work
+unit before producing the orientation summary. The discovery process depends on your PM mode
+([`arc-config.yml`][arc-config] → `pm.mode`):
+
+**`pm.mode: arc-in-git`:**
 
 1. Read ROADMAP.md — identify the next queued or suggested item
 2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
@@ -199,6 +203,20 @@ Planning readiness varies: a completed PRD may be ready for task generation, a d
 need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
 entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
 and reports — the user decides how to proceed.
+
+**`pm.mode: none` or `external`:**
+
+1. Check `active/` for any existing planning artifacts (PRDs, `plan-*` docs, task lists)
+2. If artifacts exist, report their readiness state (draft PRD → needs refinement; complete
+   PRD → ready for task generation; task list present → ready for activation) and propose
+   next steps
+3. If no artifacts exist, the next action is to create a PRD when ready →
+   [1_create-prd.md][create-prd]
+
+> **Full protection (`branch.protection: full`):** Planning work requires a branch. When the
+> user confirms next steps, run [activate-planning-branch][activate-planning-branch] before
+> creating plan documents or PRDs. Under partial protection (the default), proceed directly
+> to [1_create-prd.md][create-prd] — no planning branch needed.
 
 **Formatting guidance:**
 
@@ -255,6 +273,9 @@ Examples:
 - Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
   conflicting signals at the same trust tier
 
+[activate-planning-branch]: ../work-unit-lifecycle/planning/activate-planning-branch.md
+[create-prd]: ../1_create-prd.md
+[arc-config]: ../../../arc-config.yml
 [arc-methods-session]: ../../arc-methods.md#session-state
 [arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

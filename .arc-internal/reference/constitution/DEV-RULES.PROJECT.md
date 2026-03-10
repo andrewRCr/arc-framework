@@ -63,7 +63,10 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - Templates clearly marked as `.template.md` and copy-ready
 - READMEs required for each directory
 - Always run markdown linting after updating documentation files
-- **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely.
+- **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely at
+  80-90 characters. Linting catches overflow but not underfill; consistently short lines waste space, hurt readability
+  in wide content (tables, task lists, rationale blocks), and compound over time as subsequent edits match the short
+  pattern. Wrap at natural phrase boundaries near the target width.
 
 ### Documentation style
 

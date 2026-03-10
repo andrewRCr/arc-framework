@@ -28,19 +28,22 @@ The remaining steps (branch creation, status update, WORK-STATUS, extensions, co
 - Working tree is clean (all changes committed)
 - Currently on base branch (typically `main` — see [`arc-config.yml`][arc-config])
 - Planning artifacts are on the base branch — arrived via one of:
-    - Direct commit (unprotected mode)
     - Planning branch PR (partially or fully protected)
     - Batch branch PR that included both archival and planning (fully protected)
+    - Direct commit (partial protection, documented exception)
 
 **arc-in-git mode (additional):**
 
 - PRD exists in `.arc/backlog/{category}/prd-{name}.md`
 - Task list exists in `.arc/backlog/{category}/tasks-{name}.md`
-- Planning branch PR merged (artifacts now on base branch)
 
-> **Branch protection:** In unprotected mode, planning branches are optional — artifacts may
-> have been committed directly to the base branch. See
-> [Branch Protection Modes][work-org-protection].
+> **How artifacts reach the base branch** depends on `branch.protection`:
+>
+> - **Full protection:** Planning branch PR merged
+>   ([integrate-planning-branch][integrate-planning-branch])
+> - **Partial protection:** Planning branch PR merged, or committed directly to base branch
+>   (documented exception for solo developers — see
+>   [Branch Protection Modes][work-org-protection])
 
 ## Steps
 
@@ -49,9 +52,9 @@ The remaining steps (branch creation, status update, WORK-STATUS, extensions, co
 > **Skip this step** if `pm.mode` is `none` or `external` — documents are already in `active/`.
 
 Planning artifacts should already be on the base branch — merged via planning branch PR
-(partially/fully protected mode) or committed directly (unprotected mode).
+(partially/fully protected mode) or committed directly (partial protection, documented exception).
 
-**If artifacts are not yet on the base branch** (unprotected mode, just-created artifacts):
+**If artifacts are not yet on the base branch** (partial protection, just-created artifacts):
 
 ```bash
 git add .arc/backlog/{category}/prd-{name}.md .arc/backlog/{category}/tasks-{name}.md
@@ -104,7 +107,7 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 4. Update **Next Task** to first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
 5. Update **Last Completed** to previous work or `—` if first work unit
 6. Update **Next Action** to describe first task
-7. Clear **Blockers** (set to `[none]`)
+7. Clear **Blockers** (set to literal text `[none]` — the standard empty-state marker in WORK-STATUS)
 
 > **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
 > and the update applies to the whole branch. Other developers joining the work unit establish
@@ -126,7 +129,7 @@ See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
 ### Step 7: Commit Activation
 
-Stage all modified files and commit. The exact set depends on pm.mode:
+Stage the activation files and commit. The exact set depends on pm.mode:
 
 ```bash
 # arc-in-git: moved files + status updates
@@ -185,5 +188,6 @@ With the work unit activated, proceed to task execution:
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
 [arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
 [arc-config]: ../../../arc-config.yml
-[session-init]: session-init.md
+[integrate-planning-branch]: planning/integrate-planning-branch.md
+[session-init]: ../session-lifecycle/session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

@@ -73,7 +73,7 @@ git diff --exit-code {{GENERATED_FILES_PATTERN}}
 
 ### 2) Clean Up Documentation (MANDATORY)
 
-**Run [clean-work-unit-files.md](clean-work-unit-files.md) workflow in Mode 2 (Archival Preparation).**
+**Run [clean-work-unit.md](clean-work-unit.md) workflow in Mode 2 (Archival Preparation).**
 
 This produces: clean task file (temporal markers removed, detailed granularity preserved), notes file
 evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), cross-references updated.
@@ -151,18 +151,30 @@ git merge child-branch --no-ff
 git push
 ```
 
+If merged via PR, switch to the parent branch and pull before proceeding:
+
+```bash
+git switch {parent-branch}
+git pull origin {parent-branch}
+```
+
 **After merge:** Proceed to [archive-work-unit][archive-work-unit] for post-merge archival.
 
 > **Full protection (`branch.protection: full`):** Archival commits can't go directly to the base
-> branch. Create a batch branch from the base branch and run archive-work-unit there. The same
-> branch typically carries planning artifacts for the next work unit — see archive-work-unit for
-> the batch pattern.
+> branch. Choose based on what comes next:
+>
+> - **Next work unit planned** (typical): Run
+>   [activate-planning-branch][activate-planning-branch] to set up a batch branch, then archive
+>   and plan on the same branch. One PR covers both lifecycle transitions.
+> - **No next work unit imminent**: Create a short-lived housekeeping branch
+>   (`chore/archive-{name}`) for archival alone — see
+>   [archive-work-unit][archive-work-unit] header note for the standalone pattern.
 
 ---
 
 ## Common Pitfalls
 
-- Skip doc hygiene → Run [clean-work-unit-files.md](clean-work-unit-files.md) Mode 2 first
+- Skip doc hygiene → Run [clean-work-unit.md](clean-work-unit.md) Mode 2 first
 - Skip completion doc → ALL work gets `completion-{name}.md` (lightweight or standard)
 - Skip local review → Findings after push require additional commits on the PR
 - Push before Phase 1 commit → PR diff includes uncommitted doc cleanup
@@ -227,4 +239,5 @@ architectural pivot, not abandoned work.
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
 [rotate-branch]: rotate-branch.md
+[activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md

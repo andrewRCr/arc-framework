@@ -11,7 +11,7 @@ description: Initialize and resume the active working session with required proj
 
 2. Initialize the session.
 
-   - Run the workflow in `.arc-internal/system/workflows/arc/supplemental/session-init.md`.
+   - Run the workflow in `.arc-internal/system/workflows/arc/session-lifecycle/session-init.md`.
 
 3. Confirm readiness.
 

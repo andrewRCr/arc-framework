@@ -14,11 +14,16 @@ See [Work Organization Strategy][work-org] for the complete
 decision tree.
 
 **Note**: This workflow covers work-level PRDs, not the project-wide META-PRD. For constitutional
-documents, use [02_define-project.md](setup/02_define-project.md).
+documents, use [02_define-project.md](initial-setup/02_define-project.md).
 
 ---
 
 ## Process
+
+**Branch context:** Under full protection (`branch.protection: full`), PRD creation happens on a
+planning branch — verify you're on one before proceeding (created via
+[activate-planning-branch][activate-planning-branch]). Under partial protection (the default),
+PRDs may be created directly on the base branch.
 
 Before starting, review the project's META-PRD and TECHNICAL-OVERVIEW to ensure the new work aligns
 with existing vision and technical direction.
@@ -91,5 +96,6 @@ continue with [2_generate-tasks.md](2_generate-tasks.md).
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [discovery-checklist]: ../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [template-prd]: ../../../reference/templates/template-prd.md
-[activate-work-unit]: supplemental/activate-work-unit.md
+[activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
+[activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [arc-config]: ../../arc-config.yml

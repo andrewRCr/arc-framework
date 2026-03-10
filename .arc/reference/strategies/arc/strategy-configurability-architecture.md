@@ -404,7 +404,7 @@ advisory, not mechanically enforced. The team is responsible for ensuring their 
 ```markdown
 ## commit-format
 
-**Workflow:** commit-guide.md · **When:** Agent writes a commit message
+**Workflow:** prepare-commits.md · **When:** Agent writes a commit message
 
 **Contract:** Commits follow a consistent, communicative format that
 enables automated tooling and readable history.
@@ -523,8 +523,9 @@ does not affect commit validation.
 
 ### Portable behavioral guidance
 
-ARC acknowledges the emerging cross-agent convention of portable, self-contained behavioral guidance (skills, custom
-instructions, etc.) as a legitimate, complementary practice.
+ARC acknowledges the emerging cross-agent convention of portable, self-contained behavioral guidance as a legitimate,
+complementary practice. This includes standards like [Agent Skills][agent-skills-spec] (reusable skill modules adopted
+across multiple platforms) as well as platform-specific custom instructions and slash commands.
 
 **The boundary is dependency.** If guidance depends on ARC concepts — quality tiers, session lifecycle, task loop
 protocol — it belongs in an ARC strategy or workflow. The dependency is what makes it integrated, and integration is
@@ -536,6 +537,32 @@ review patterns, style guides) alongside ARC are not in conflict. Integration re
 model — adapted into a project strategy or workflow in `project/` directories, where it gains ARC's lifecycle
 guarantees. The `project/strategies/` and `project/workflows/` directories are the natural landing zone. A lightweight
 integration workflow provides a structured path for teams that want to bring external guidance into ARC's model.
+
+Portable behavioral guidance and [agent lifecycle hooks](#agent-lifecycle-hooks) are related but distinct platform
+ecosystem features — skills define _what_ an agent can do, hooks define _when_ platform events trigger actions. Both
+operate alongside ARC's methodology layer without replacing it.
+
+### Agent lifecycle hooks
+
+Most modern agent platforms support lifecycle hooks — event handlers that fire deterministically when platform events
+occur (session start, tool use, context compaction, etc.). These are platform-level mechanisms, analogous to ARC's
+existing git hooks for commit validation. They operate alongside ARC's methodology-layer customization (config,
+extensions, method overrides) but at a different layer:
+
+- **ARC's customization mechanisms** are methodology-directed — the agent reads configuration and follows it
+- **Agent hooks** are platform-directed — the platform executes them regardless of agent decision-making
+
+This makes hooks suitable for deterministic enforcement or automation of ARC behaviors where reliability matters more
+than flexibility. For example, a platform's PreCompact event can trigger a session handoff prompt as a safety net for
+ARC's instruction-based context monitoring, and a SessionStart event can reinforce session initialization.
+
+Agent hooks are configured in the platform's native format (not in `arc-config.yml`). ARC does not ship hook
+configurations — the methodology describes what behaviors to trigger, and teams configure their platform accordingly.
+The instruction-based approach remains the universal baseline; hooks are optional reinforcement for platforms that
+support them.
+
+For detailed mapping of ARC behaviors to hook events, value assessment, and adopter guidance, see
+[Agent Hooks Strategy][agent-hooks].
 
 ---
 
@@ -616,6 +643,8 @@ period demonstrated the conventions in practice before enforcement was activated
   boundaries let teams add project-specific checks.
 - **[Work organization strategy][work-org]** — Branch model, work categories, archival. Branch-related config settings
   (`branch.base`, `branch.protection`, `merge.strategy`) interact with the conventions defined there.
+- **[Agent hooks strategy][agent-hooks]** — Agent lifecycle hooks as an optional enforcement and automation layer.
+  Maps ARC behaviors to hook events and provides adopter guidance.
 
 ---
 
@@ -623,3 +652,5 @@ period demonstrated the conventions in practice before enforcement was activated
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md
+[agent-hooks]: strategy-agent-hooks.md
+[agent-skills-spec]: https://agentskills.io/

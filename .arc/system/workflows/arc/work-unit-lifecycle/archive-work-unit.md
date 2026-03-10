@@ -9,14 +9,15 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **When to use:** The work unit's PR is merged and you're on the parent branch.
 
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
-metadata exists, code review is done, PR is merged.
+metadata exists (`completion-{name}.md` created, task list Status: `Complete`), code review is
+done, PR is merged.
 
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
 > base branch. Two approaches:
 >
-> - **Batch with next activation** (preferred): Include archival of the completed work unit in the
->   same branch that activates the next one. One PR covers both lifecycle transitions — archive old,
->   activate new.
+> - **Batch with next activation** (preferred): Run
+>   [activate-planning-branch][activate-planning-branch] to set up the batch branch, then archive
+>   here. One PR covers both lifecycle transitions — archive old, plan new.
 > - **Standalone housekeeping branch**: Create a short-lived branch (e.g., `chore/archive-{name}`)
 >   for archival alone, when no next work unit is imminent.
 >
@@ -33,7 +34,32 @@ metadata exists, code review is done, PR is merged.
 
 ## Steps
 
+### 0) Set Up Branch (Full Protection Only)
+
+**Skip if** `branch.protection` is `partial` — archive directly on the base branch.
+
+Under full protection, archival commits require a branch. Check your current branch to determine
+what to do:
+
+```bash
+git branch --show-current
+```
+
+- **On a non-base branch** (e.g., `technical/plan-{name}`, `planning/{name}`): You're on the
+  planning branch from [activate-planning-branch][activate-planning-branch] — skip to Step 1.
+- **On the base branch**: Create a housekeeping branch for standalone archival:
+
+  ```bash
+  git checkout -b chore/archive-{name}
+  ```
+
+  This branch carries only the archival commit. After Step 7, push and create a PR to merge it
+  to the base branch.
+
 ### 1) Delete Child Branch
+
+Skip if the implementation branch was already cleaned up (e.g., by
+[activate-planning-branch][activate-planning-branch] in the batch path).
 
 ```bash
 git branch -d {child-branch-name}
@@ -49,19 +75,34 @@ will show its final lifecycle state.
 If a PRD exists, its status remains `Complete` — the PRD tracks whether the plan was fulfilled, not
 the merge state.
 
-### 3) Route Research Files (If Applicable)
+### 3) Route Reference Files (If Applicable)
 
 Before archiving, assess whether any work artifacts have reference value beyond this work unit —
-investigation notes, benchmark data, design explorations, research summaries. These files lose
+investigation notes, benchmark data, design explorations, dependency maps. These files lose
 discoverability once buried in the archive directory.
 
 **Decision:** "Do any files have lasting reference value outside this work unit's context?"
 
-- **Yes** → Copy (not move) to `.arc/reference/research/` with a descriptive name. The original
-  stays with the archive for completeness. Note the routing in the completion doc's Related
-  Documentation section.
-- **No** → Proceed directly to archival. Most work units won't have research files — this step
-  is a quick assessment, not a gate.
+**Files with lasting value** (copy to reference):
+
+- Investigation or decision docs (why approach X was chosen over Y)
+- Reusable procedures (rollback plans, migration guides)
+- Architecture diagrams, benchmark data, dependency maps, audits
+
+**Files without lasting value** (archive only):
+
+- Task-specific working notes, debugging logs
+- Intermediate drafts superseded by final deliverables
+- Scratchpad files used only during implementation
+
+**Routing:**
+
+- **Yes** → Copy (not move) to the appropriate reference directory. The original stays with the
+  archive for completeness. Note the routing in the completion doc's Related Documentation section.
+    - `.arc/reference/analysis/` — internally-produced maps, audits, assessments
+    - `.arc/reference/research/` — externally-sourced investigation and synthesis
+- **No** → Proceed directly to archival. Most work units won't produce standalone reference
+  files — this step is a quick assessment, not a gate.
 
 ### 4) Archive Files
 
@@ -74,10 +115,14 @@ Determine the next sequence number:
 find .arc/reference/archive/{quarter} -mindepth 2 -maxdepth 2 -type d | wc -l
 ```
 
+**Verify**: List the archive directory (`ls .arc/reference/archive/{quarter}/*/`) and confirm the
+computed number doesn't conflict with existing entries. If it does (from non-sequential archival
+or manual edits), increment to the next available number.
+
 **Move files** (`{quarter}` = e.g. `2025-q4`, `{NN}` = next sequence number, zero-padded):
 
 ```bash
-# Create work package directory
+# Create work unit directory
 mkdir -p .arc/reference/archive/{quarter}/{category}/{NN}_{name}
 
 # Move all files (adjust list based on what exists for this work)
@@ -116,9 +161,14 @@ directly in Next Action.
 
 **Archiving to parent work branch** (stacked incidental returning to parent):
 
-Restore WORK-STATUS.md to the parent work unit's context — branch name, task list path,
-and current task from where work was interrupted. The parent's state is recoverable from
-the parent branch's task list and commit history.
+Restore WORK-STATUS.md to the parent work unit's context. You're on the parent branch
+after the incidental's merge — recover state from the task list and commit history:
+
+1. **Branch**: Current branch (`git branch --show-current`) — this is the parent work branch
+2. **Task List**: Locate the parent's task list in `.arc/active/{category}/tasks-{parent-name}.md`
+3. **Next Task**: Find the first unchecked `[ ]` item in the parent task list (triple-anchor format)
+4. **Last Completed**: The last `[x]` task before the unchecked one
+5. **Next Action**: `Resume {parent work unit name} — Task X.Y`
 
 ### 6) Post-Archival Extensions · `#post-work-unit-archive`
 
@@ -160,8 +210,8 @@ Context: tasks-fix-auth-edge-cases.md (archival)"
 
 ### 8) Next Step
 
-**Partial or unprotected:** Archival is complete. WORK-STATUS.md points to the next action
-(typically `1_create-prd.md`).
+**Partial protection:** Archival is complete. **→ [1_create-prd.md][create-prd]** — Plan next
+work unit (or follow WORK-STATUS.md Next Action if different).
 
 **Full protection (batch branch):** Continue on the same branch — proceed to
 [1_create-prd.md][create-prd] for the next work unit. After task generation
@@ -169,6 +219,10 @@ Context: tasks-fix-auth-edge-cases.md (archival)"
 [integrate-planning-branch][integrate-planning-branch] to PR the batch to the base branch.
 Activation ([activate-work-unit][activate-work-unit]) happens from the base branch after
 that PR merges.
+
+**Full protection (standalone archival):** If no next work unit is planned, the housekeeping
+branch carries only archival. Push, create a PR, and merge directly — no planning workflows
+needed. Update WORK-STATUS.md Next Action to reflect that no next work unit is queued.
 
 ---
 
@@ -179,7 +233,7 @@ that PR merges.
 - `{quarter}`: `2025-q4`, `2025-q3`, etc.
 - `{category}`: `feature/`, `technical/`, or `incidental/`
 - `{NN}`: Global sequence number (01-99), assigned by completion order across ALL categories
-- `{name}`: Work package name (matching task list name)
+- `{name}`: Work unit name (matching task list name)
 
 **Example structure:**
 
@@ -221,5 +275,6 @@ for feature vs technical vs incidental decision rules.
 [activate-work-unit]: activate-work-unit.md
 [create-prd]: ../1_create-prd.md
 [generate-tasks]: ../2_generate-tasks.md
-[integrate-planning-branch]: integrate-planning-branch.md
+[activate-planning-branch]: planning/activate-planning-branch.md
+[integrate-planning-branch]: planning/integrate-planning-branch.md
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive

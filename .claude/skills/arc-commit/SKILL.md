@@ -1,10 +1,10 @@
 ---
 name: arc-commit
-description: Commit current repository changes with atomic boundaries. Use when asked to commit work, prepare a clean commit from pending changes, or triage whether the change set is simple vs multi-task and needs splitting.
-disable-model-invocation: true
+description: Commit current repository changes with atomic boundaries as per ARC conventions. Use when asked to commit work, prepare a clean commit from pending changes, or triage whether the change set is simple vs multi-task and needs splitting.
+disable-model-invocation: false
 ---
 
-# Atomic Commit
+# ARC Commit
 
 1. Assess the pending work first.
 
@@ -19,10 +19,10 @@ disable-model-invocation: true
 
 3. Execute the chosen workflow.
 
-   - For simple path: stage only files for one logical change and commit using the format
-     in `DEV-RULES.ARC.md` section "Commit format".
+   - For simple path: stage only files for one logical change and commit using
+     `arc-methods.md` § commit-format and § commit-context-format.
    - For complex path: follow
-     `.arc/system/workflows/arc/supplemental/commit-guide.md` to analyze and split
+     `.arc/system/workflows/arc/supplemental/prepare-commits.md` to analyze and split
      changes into atomic commits.
 
 4. Stage WORK-STATUS.md with every task commit.
@@ -35,3 +35,8 @@ disable-model-invocation: true
 
    - Do not include unrelated files in the same commit.
    - If separation is unclear, stop and re-check file-level intent before committing.
+
+6. Verify staging before committing.
+
+   - Run `git diff --cached --stat` after staging. Pre-staged files can silently slip in;
+     intended files can be left out. Verify the staging area matches intent.

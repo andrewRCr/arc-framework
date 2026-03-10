@@ -448,6 +448,59 @@ invocation or separately.
 This is a scope question for the PRD — migration may be post-1.0 if solo-to-team and layer
 switching can be handled manually with guidance documentation.
 
+## Team Mode Detection and Agent Identity
+
+**Context:** WU2's clarity audit (Task 8.4, `tasks-structural-validation.md`) identified that
+session-init has no mechanism for agents to detect team mode or determine which developer they
+represent. The team coordination strategy, session-init workflow, and session-handoff workflow
+all reference "team mode" behavior (SESSION-NOTES.md path changes, per-developer atomic tasks)
+but no runtime detection mechanism exists.
+
+**Current state:**
+
+- The manifest stores `"team_mode": false` as an install-time choice — but agents don't read
+  the manifest during session-init (it's a CLI artifact, not a methodology document)
+- `arc-config.yml` has no team mode setting — the configurability architecture routes
+  per-developer values through `git config` (e.g., `git config arc.session.identity alice`)
+- `team/README.md` § Agent Lookup says the member name is "configured in the agent's
+  environment or provided by the developer" — mechanism unspecified
+- Session-init reads `SESSION-NOTES.md` from `active/` with no team path alternative
+
+**Design questions for WU3 PRD:**
+
+1. **Detection mechanism — config key vs. structural vs. manifest:**
+   - **Config key** (`team.mode: solo | team` in `arc-config.yml`): Simple, agent-discoverable
+     during Step 4 of session-init. But team mode is a structural choice (different files
+     installed), not a runtime toggle — config keys are for runtime-checkable conventions.
+   - **Structural detection** (presence of `team/{name}/` member directories): No config
+     needed, self-evident from file system. But fragile — empty directories, partial setup,
+     or a developer who hasn't been added yet could produce false results.
+   - **Manifest field** (`team_mode` in `.arc-manifest.json`): Already exists. Could be
+     exposed to agents as the authoritative signal. But the manifest is currently a CLI-only
+     artifact — making agents read it creates a new dependency.
+   - **Recommendation:** Evaluate whether adding `team.mode` to `arc-config.yml` is warranted
+     despite being a structural choice. The pragmatic argument: agents already read
+     `arc-config.yml` during init, and one informational key (like `platform.type`) is simpler
+     than teaching agents to read the manifest or probe directory structure.
+
+2. **Agent identity resolution — how the agent knows which developer it represents:**
+   - `git config arc.session.identity` is mentioned in the configurability architecture
+     strategy but not wired into any workflow
+   - Agent platform config (e.g., Claude Code's `.claude/` settings) could provide identity
+     but varies by tool
+   - Session-init needs a concrete lookup sequence: check git config → check agent environment
+     → ask the developer
+   - WU3's `arc init` (team mode) should set up `git config arc.session.identity` as part of
+     member onboarding, and session-init should document the lookup
+
+3. **Session-init updates needed:**
+   - SESSION-NOTES.md path determination (solo vs. team)
+   - Identity-based path resolution in team mode
+   - Graceful fallback when identity is not configured (ask the developer, don't fail silently)
+
+**Minimal WU2 fix applied:** Added a team mode path note to session-init's SESSION-NOTES step
+pointing to `team/README.md`. Full resolution deferred to WU3 CLI implementation.
+
 ## Agent-Driven Consistency Audit (Not CLI Logic)
 
 The cross-cutting concept consistency audit is a workflow, not a CLI feature. When adopters

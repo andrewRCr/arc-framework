@@ -37,6 +37,23 @@ get checked when the implementer steps back and validates outcomes against the P
 [integrate-work-unit workflow][integrate-work-unit] performs a second confirmation during integration —
 a lightweight check that works whether the same person or a different team member integrates.
 
+## Task 3 — Verify All Atomic Tasks Resolved
+
+Review the Atomic Tasks section at the end of the task list. Every item must have a final
+disposition — none should remain `[ ]`:
+
+- `[x]` — **Completed.** Work done, completion note present.
+- `[~]` — **Deferred.** Intentionally deferred with a note explaining where it goes next
+  (backlog item, future work unit, etc.).
+
+**Check for:**
+
+- No `[ ]` items remaining — all atomic tasks either completed or consciously deferred
+- Completion notes present on `[x]` items (what was done, where)
+- Deferred items (`[~]`) have a forward pointer (where the work will be picked up)
+
+If unresolved atomic tasks are found, address them before considering verification complete.
+
 ---
 
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md

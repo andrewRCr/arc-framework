@@ -1,7 +1,8 @@
 # PRD: Structural Validation
 
 **Type:** Technical
-**Updated:** 2026-03-06
+**Completed:** 2026-03-10
+**Status:** Complete
 
 ---
 
@@ -78,6 +79,13 @@ questions surfaced during WU2 that were intentionally deferred to this checkpoin
    alternative review workflows, specialized strategy documents. The pattern should work for WU3's
    selective installation model.
 
+8. **Workflow navigability validation** — walk common lifecycle scenarios (fully protected batch,
+   partially protected, standalone planning, new-session discovery) through the complete workflow
+   chain. Bookend approach: baseline before structural changes establishes findings that inform
+   directory evaluation (R2) and de-duplication (R6); validation after structural changes confirms
+   the end state is agent-navigable. Flag: dead-ends, ambiguous routing, excessive conditional
+   parsing, cross-reference hops that force loading extra documents mid-operation.
+
 **P1 (should-have):**
 
 6. **De-duplication check** — audit for content appearing in multiple `.arc/` documents. Classify
@@ -101,10 +109,12 @@ questions surfaced during WU2 that were intentionally deferred to this checkpoin
 
 ## Technical Considerations
 
-**Sequencing:** Inventory validation (R1) should run first — it establishes the accurate baseline
-that other checks reference. Layout evaluation (R2, R3) and mixed-concern audit (R4) can run in
-parallel after that. Optional content pattern (R5) depends on layout decisions. De-duplication (R6)
-and dependency mapping (R7) run last as they benefit from the full picture.
+**Sequencing:** Navigability baseline (R8) and inventory validation (R1) run first — the baseline
+informs directory evaluation decisions, and the inventory establishes the accurate foundation other
+checks reference. Layout evaluation (R2, R3) and mixed-concern audit (R4) can run in parallel after
+that. Optional content pattern (R5) depends on layout decisions. De-duplication (R6) and dependency
+mapping (R7) run last as they benefit from the full picture. Navigability validation (R8, second
+pass) runs after all structural changes to confirm the end state is agent-navigable.
 
 **Existing artifacts:**
 
@@ -131,25 +141,26 @@ itself. This is bounded work but must be thorough.
    No paragraph-level interleaving that would cause false merge conflicts.
 4. **Optional content pattern established** — forward-compatible structure exists (even if no
    optional content ships yet). WU3 can build selective installation against it.
-5. **WU3-ready** — the file tree, classifications, and directory layout are locked down. WU3 can
+5. **Workflow lifecycle paths are navigable** — agents following documented workflows reach the
+   right next step without dead-ends or confusion from conditional density.
+6. **WU3-ready** — the file tree, classifications, and directory layout are locked down. WU3 can
    hardcode paths with confidence.
+7. **Lifecycle scenarios navigable** — common scenarios (fully protected batch, partially
+   protected, standalone planning, new-session discovery) can be walked through the workflow
+   chain without dead-ends, ambiguous routing, or excessive conditional parsing.
 
 ## Open Questions
 
-**Resolve before starting:**
+1. **Workflow reorganization depth** — Resolved: both rename and reorganize. Promoted 8 lifecycle
+   workflows from `supplemental/` to peer `work-unit-lifecycle/` directory. Session workflows promoted
+   to `session-lifecycle/`. `supplemental/` retained for 3 genuinely supplemental guides.
 
-1. **Workflow reorganization depth** — are we open to renaming the `supplemental/` directory itself,
-   or only to reorganizing its contents into subdirectories? Both? The answer affects how many
-   cross-references need updating.
+2. **Optional content location** — Resolved: existing structure is already forward-compatible.
+   External content lands in natural project-owned directories (`strategies/project/`, project workflow
+   directories, arc-methods overrides). No new directories or classifications needed.
 
-**Resolve during work:**
-
-2. **Optional content location** — inside `.arc/` (e.g., `.arc/optional/`) or managed purely through
-   the npm package (present in source, installed selectively, no dedicated directory)? Depends on
-   whether optional content needs to be discoverable in the file tree or just in `arc init` prompts.
-
-3. **Strategy split threshold** — at what file count do `strategies/arc/` subdirectories become
-   worthwhile? If we decide "not now," document the threshold for future reference.
+3. **Strategy split threshold** — Resolved: keep flat at 10 files. Reconsider at ~15–18. Current
+   STRATEGY-INDEX.md provides sufficient conceptual grouping.
 
 ## Document History
 

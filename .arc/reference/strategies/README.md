@@ -17,6 +17,14 @@ These strategies apply to all ARC-adopting projects:
 - **[Work Organization](arc/strategy-work-organization.md)** - Work categorization, git workflow, archive structure
 - **[Task List Formatting](arc/strategy-task-list-formatting.md)** - Task list structure and conventions
 
+## Naming Convention
+
+Strategy files use the `strategy-` prefix (`strategy-authentication.md`, not `authentication.md`).
+The prefix enables fuzzy-find grouping — typing `@strategy` in an editor or prompt file picker shows
+all strategies together, which is useful since strategies are most often invoked manually rather than
+via embedded cross-references. See [File Classification](arc/strategy-file-classification.md) §
+Naming Conventions for the full rationale.
+
 ## Project Strategies (Your Domain)
 
 Create strategies in `project/` for your project-specific patterns. See [project/README](project/README.md)

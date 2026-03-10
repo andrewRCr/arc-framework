@@ -1,6 +1,8 @@
-# Atomic Tasks
+# Atomic Tasks · `arc-in-git`
 
-**Purpose:** Small, one-off tasks that are ready to execute (GTD "Next Actions").
+**Purpose:** Project-wide atomic tasks not scoped to any work unit. Individual task lists have their own
+Atomic Tasks section for WU-domain discoveries; this file captures everything else — cross-cutting fixes,
+methodology improvements, and standalone one-off work.
 
 **How to use:**
 

@@ -137,7 +137,7 @@ framework version — use any versioning scheme that works for your team.
 
 ### Read On-Demand
 
-- `commit-guide.md` - When committing complex or accumulated changes
+- `prepare-commits.md` - When committing complex or accumulated changes
 - `manage-incidental-work.md` - When handling discovered issues
 - `session-handoff.md` - When ending sessions
 - `maintain-project-docs.md` (this file) - When updating documentation

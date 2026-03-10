@@ -94,6 +94,30 @@ Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug acr
 slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
 the same work unit.
 
+### Why prefixes matter
+
+Prefixes serve two purposes that directory structure alone cannot:
+
+**Fuzzy-find grouping.** Strategies, PRDs, and research docs are frequently invoked manually —
+typing `@strategy` in an editor or prompt file picker groups all strategy documents together
+regardless of their directory. Without the prefix, you'd search by domain keyword (`@auth`) and get
+unrelated results from across the repository. The prefix creates a reliable type-based filter at the
+filename level.
+
+**Context-independent type marking.** Filenames appear without full paths in git log, search
+results, diff stats, and link reference definitions. `strategy-work-organization.md` communicates
+its type anywhere; `work-organization.md` does not. This matters most for artifacts that move
+between directories during their lifecycle (active → archive) or are referenced from distant parts
+of the tree.
+
+**Why workflows don't use a prefix.** Workflows are the notable exception — they don't carry a
+`workflow-` prefix. The reason is access pattern: workflows are activated mechanically by agents
+following embedded cross-references with full paths (one workflow links to the next). They're rarely
+invoked via fuzzy-find or seen outside their path context. Core pipeline workflows use number
+prefixes (`1_`, `2_`, `3_`) that already provide grouping signal, and lifecycle/supplemental
+workflows live in purpose-named directories that communicate their role. The prefix would add
+redundancy without the discoverability benefit that other artifact types get.
+
 ### Template suffix: `.template.md`
 
 Files in the `.arc/` template system that get instantiated during `arc init` use a `.template.md`
@@ -202,39 +226,52 @@ to update classification — both axes apply independently.
 
 ### reference/archive/
 
-| File                            | Classification       | Layer | Notes                                                |
-|---------------------------------|----------------------|-------|------------------------------------------------------|
-| `README.md`                     | Configurable (light) | Core  | Framework archive guidance + user-populated section. |
-| `{feature,incidental}/.gitkeep` | Scaffolded           | Core  | Directory scaffolding.                               |
+| File                                      | Classification       | Layer | Notes                                                |
+|-------------------------------------------|----------------------|-------|------------------------------------------------------|
+| `README.md`                               | Configurable (light) | Core  | Framework archive guidance + user-populated section. |
+| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Core  | Directory scaffolding.                               |
 
 ### reference/constitution/
 
-| File                    | Classification | Layer | Notes                                                                   |
-|-------------------------|----------------|-------|-------------------------------------------------------------------------|
-| `DEV-RULES.ARC.md`      | Framework      | Core  | ARC development methodology (commit, verification, session/task rules). |
-| `DEV-RULES.PROJECT.md`  | Configurable   | Core  | Project quality gates, testing requirements, architecture rules.        |
-| `DEV-RULES.{DOMAIN}.md` | Configurable   | Core  | Optional domain-scoped rules (e.g., FRONTEND, AUTH). Loaded on-demand.  |
+| File                    | Classification | Layer | Notes                                                                       |
+|-------------------------|----------------|-------|-----------------------------------------------------------------------------|
+| `DEV-RULES.ARC.md`      | Framework      | Core  | ARC development methodology (commit, verification, session/task rules).     |
+| `DEV-RULES.PROJECT.md`  | Configurable   | Core  | Project quality gates, testing requirements, architecture rules.            |
+| `DEV-RULES.{DOMAIN}.md` | Configurable   | Core  | Optional domain-scoped rules (e.g., FRONTEND, AUTH). Not counted in totals. |
+| `README.md`             | Framework      | Core  | Constitution directory overview and domain-scoped dev-rules guidance.       |
+
+### reference/analysis/
+
+| File        | Classification | Layer | Notes                                                   |
+|-------------|----------------|-------|---------------------------------------------------------|
+| `README.md` | Framework      | Core  | Analysis conventions. Peer to research/ (internal src). |
 
 ### reference/research/
 
-| File        | Classification | Layer | Notes                 |
-|-------------|----------------|-------|-----------------------|
-| `README.md` | Framework      | Core  | Research conventions. |
+| File        | Classification | Layer | Notes                                                   |
+|-------------|----------------|-------|---------------------------------------------------------|
+| `README.md` | Framework      | Core  | Research conventions. Peer to analysis/ (external src). |
 
 ### reference/strategies/
 
-| File                                   | Classification | Layer      | Notes                                                |
-|----------------------------------------|----------------|------------|------------------------------------------------------|
-| `README.md`                            | Framework      | Core       | Directory overview.                                  |
-| `STRATEGY-INDEX.md`                    | Configurable   | Core       | ARC strategies section + project strategies section. |
-| `arc/strategy-adr-methodology.md`      | Framework      | Core       | ARC methodology.                                     |
-| `arc/strategy-backlog-organization.md` | Framework      | arc-in-git | ARC methodology.                                     |
-| `arc/strategy-file-classification.md`  | Framework      | Core       | ARC methodology (this document).                     |
-| `arc/strategy-quality-gates.md`        | Framework      | Core       | ARC methodology.                                     |
-| `arc/strategy-task-list-formatting.md` | Framework      | Core       | ARC methodology.                                     |
-| `arc/strategy-work-organization.md`    | Framework      | Core       | ARC methodology.                                     |
-| `project/README.md`                    | Framework      | Core       | Guidance for creating project strategies.            |
-| `project/style/README.md`              | Framework      | Core       | Guidance for style strategies.                       |
+| File                                           | Classification | Layer      | Notes                                                |
+|------------------------------------------------|----------------|------------|------------------------------------------------------|
+| `README.md`                                    | Framework      | Core       | Directory overview.                                  |
+| `STRATEGY-INDEX.md`                            | Configurable   | Core       | ARC strategies section + project strategies section. |
+| `arc/strategy-adr-methodology.md`              | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-agent-hooks.md`                  | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-backlog-organization.md`         | Framework      | arc-in-git | ARC methodology.                                     |
+| `arc/strategy-configurability-architecture.md` | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-core-philosophy.md`              | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-file-classification.md`          | Framework      | Core       | ARC methodology (this document).                     |
+| `arc/strategy-quality-gates.md`                | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-session-management.md`           | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-task-list-formatting.md`         | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-team-coordination.md`            | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-work-organization.md`            | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-work-planning.md`                | Framework      | Core       | ARC methodology.                                     |
+| `project/README.md`                            | Framework      | Core       | Guidance for creating project strategies.            |
+| `project/style/README.md`                      | Framework      | Core       | Guidance for style strategies.                       |
 
 ### system/
 
@@ -274,23 +311,31 @@ to update classification — both axes apply independently.
 
 ### system/workflows/
 
-| File                                         | Classification | Layer | Notes                      |
-|----------------------------------------------|----------------|-------|----------------------------|
-| `arc/1_create-prd.md`                        | Framework      | Core  | Core workflow.             |
-| `arc/2_generate-tasks.md`                    | Framework      | Core  | Core workflow.             |
-| `arc/3_process-task-loop.md`                 | Framework      | Core  | Core workflow.             |
-| `arc/setup/01_initialize-arc.md`             | Framework      | Core  | Setup workflow.            |
-| `arc/setup/02_define-project.md`             | Framework      | Core  | Setup workflow.            |
-| `arc/supplemental/activate-work-unit.md`     | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/archive-work-unit.md`      | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/integrate-work-unit.md`    | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/commit-guide.md`           | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/maintain-project-docs.md`  | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/clean-work-unit-files.md`  | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/manage-incidental-work.md` | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/session-handoff.md`        | Framework      | Core  | Supplemental workflow.     |
-| `arc/supplemental/session-init.md`           | Framework      | Core  | Supplemental workflow.     |
-| `project/README.md`                          | Framework      | Core  | Project workflow guidance. |
+| File                                                            | Classification | Layer | Notes                                 |
+|-----------------------------------------------------------------|----------------|-------|---------------------------------------|
+| `arc-extensions.md`                                             | Configurable   | Core  | Extension points for team ceremonies. |
+| `arc-methods.md`                                                | Configurable   | Core  | Method defaults and override slots.   |
+| `arc/1_create-prd.md`                                           | Framework      | Core  | Core workflow.                        |
+| `arc/2_generate-tasks.md`                                       | Framework      | Core  | Core workflow.                        |
+| `arc/3_process-task-loop.md`                                    | Framework      | Core  | Core workflow.                        |
+| `arc/initial-setup/01_initialize-arc.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/initial-setup/02_define-project.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/session-lifecycle/session-handoff.md`                      | Framework      | Core  | Session lifecycle workflow.           |
+| `arc/session-lifecycle/session-init.md`                         | Framework      | Core  | Session lifecycle workflow.           |
+| `arc/session-lifecycle/session-loop.md`                         | Framework      | Core  | Session lifecycle workflow.           |
+| `arc/supplemental/maintain-project-docs.md`                     | Framework      | Core  | Supplemental workflow.                |
+| `arc/supplemental/manage-incidental-work.md`                    | Framework      | Core  | Supplemental workflow.                |
+| `arc/supplemental/integrate-external-content.md`                | Framework      | Core  | Supplemental workflow.                |
+| `arc/supplemental/prepare-commits.md`                           | Framework      | Core  | Supplemental workflow.                |
+| `arc/work-unit-lifecycle/activate-work-unit.md`                 | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/archive-work-unit.md`                  | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/clean-work-unit.md`                    | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/integrate-work-unit.md`                | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/rotate-branch.md`                      | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/verify-work-unit.md`                   | Framework      | Core  | Lifecycle workflow.                   |
+| `arc/work-unit-lifecycle/planning/activate-planning-branch.md`  | Framework      | Core  | Planning workflow (full protection).  |
+| `arc/work-unit-lifecycle/planning/integrate-planning-branch.md` | Framework      | Core  | Planning workflow (full protection).  |
+| `project/README.md`                                             | Framework      | Core  | Project workflow guidance.            |
 
 ---
 
@@ -298,12 +343,16 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 41    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 12    | Three-way merge. Conflicts expected in user sections. |
-| Scaffolded     | 11    | Skip. Project-owned after init.                       |
+| Framework      | 58    | Three-way merge. Conflicts rare.                      |
+| Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
+| Scaffolded     | 13    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 64.
+**Total template files:** 86.
+
+*Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
+are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not
+counted.*
 
 ---
 
