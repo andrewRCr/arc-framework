@@ -10,9 +10,9 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Structural Validation (archived)
+**Last Completed**: WU3 plan refinement (freshness + concreteness pass)
 **Blockers**: [none]
-**Next Action**: Refine plan-wu3-cli-distribution.md into PRD-ready state, then create PRD for WU3
+**Next Action**: Create PRD for WU3 (run create-prd workflow against plan-wu3-cli-distribution.md)
 
 ---
 

@@ -1,13 +1,15 @@
 # Plan: CLI & Distribution Tooling (WU3)
 
 **Purpose:** Design and build the `arc-framework` npm package — the CLI that makes ARC installable,
-updatable, and configurable for adopters. This is the technical distribution layer for the 1.0
-release.
+updatable, and configurable for adopters. This is the technical distribution layer, targeting a
+beta release for internal dogfooding before public release (WU4).
 
 **Status:** Draft
 **Created:** 2026-02-22
 **Amended:** 2026-03-03 (ADR-008 PM layer dimension), 2026-03-05 (ADR-011 SKILL.md trigger mechanism,
-ADR-011 amendment — directory and invocation corrections)
+ADR-011 amendment — directory and invocation corrections), 2026-03-10 (freshness pass + concreteness
+pass — all upstream complete, ADR-009 terminology, resolved caveats, technology decisions locked,
+beta framing)
 
 ---
 
@@ -21,48 +23,113 @@ something an adopter can run with a single `npx` command.
 implements. WU2 produces the clean file structure WU3 packages and installs. WU3 builds the tooling
 that wraps both.
 
-The exact 1.0 CLI scope is TBD — this plan captures the full vision, with scope decisions to be made
-during PRD creation. Some features described here may be post-1.0.
+**Release target: beta (`0.x`).** WU3 produces a functional CLI for internal dogfooding — installing
+ARC in a real project and battle-testing the workflow before public release. The beta must be
+complete enough to exercise the full init → work → update cycle. Public release (1.0) happens in
+WU4 after dogfooding feedback is incorporated.
+
+**Beta scope:** `init`, `update`, `status`, `diff`, team mode, skill generation, configurable
+install directory. Deferred to post-beta: `reconfigure`, `reset`, team-integrated skills.
 
 ## Inputs
 
-**From WU1 (Core Philosophy & Configurability Architecture):**
+> **All upstream work is complete.** WU1, WU1.5, WU2, and Structural Validation are done and
+> archived. The inputs below are resolved — WU3 can proceed without waiting on anything.
 
-- `arc-config.yml` schema — WU3's interactive init populates this file; WU1 defines what settings
-  exist, their valid values, and which are relevant at init time vs. set manually
-- Configurability architecture decisions — WU1's ADRs determine which files are framework-owned,
-  which are configurable, and how the principle/method distinction maps to CLI behavior
-- Progressive adoption tiers — if WU1 defines structural differences between tiers (different files
-  installed), WU3 must implement selective install; if tiers are documentation-only, WU3 is unaffected
-- Preset/profile definitions — WU3's init UX may offer preset options; WU1 defines what presets mean
-- **ADR-008 (Core/PM decomposition)** — Framework decomposes into Core + optional PM layers
-  (Solo PM, Team PM). WU3 must implement layer-aware init, manifest, update, and reconfigure.
-  Adoption profiles (ADR-004) apply within installed layers — the two axes are orthogonal.
+**From WU1 (Core Philosophy & Configurability Architecture) — ✅ Complete:**
 
-**From WU2 (Methodology Completion):**
+- `arc-config.yml` schema — 13 settings across 6 groups, fully defined with valid values and defaults
+- Configurability architecture (ADR-003, ADR-004, ADR-010) — file classifications settled,
+  principle/method distinction mapped, strong defaults replace named profiles
+- Progressive adoption — ADR-010 replaced ADR-004's named profiles with strong defaults.
+  No structural tiers; all adopters get the same files, enforcement relaxed via config
+- **ADR-008/009 (PM mode decomposition)** — Framework decomposes into Core + optional PM via
+  `pm.mode` setting (`none`, `arc-in-git`, `external`). Team mode is an orthogonal axis.
+  WU3 implements mode-aware init, manifest, update, and reconfigure.
 
-- Structural validation output — WU2 ends with a validation pass confirming that files are cleanly
-  classified and that mixed-concern content is resolved. WU3 depends on this: mixed-concern files
-  cause unnecessary merge conflicts in the update system
-- File inventory and classification — every file in `.arc/` needs a classification (Framework,
-  Configurable, Scaffolded, Project-Owned) before WU3 can build the manifest and update system
-- Final directory layout — WU2 may shift files during methodology work; WU3 needs the settled layout
-  before packaging
-- Session model file tracking infrastructure — ADR-007 split `CURRENT-SESSION-NOTES.md` into
-  `WORK-STATUS.md` (tracked) and `SESSION-NOTES.md` (gitignored). `arc-init` must set up:
-    - **`.gitignore` entries**: `.arc/active/SESSION-NOTES.md` (solo), `.arc/team/*/SESSION-NOTES.md` (team)
+**From WU2 (Methodology Completion) + Structural Validation — ✅ Complete:**
+
+- File inventory and classification — 86 files validated with per-file classification
+  (Framework/Configurable/Scaffolded) and layer assignment (Core/arc-in-git). Authoritative
+  inventory in `strategy-file-classification.md`
+- Directory layout — settled and stable. Structural Validation confirmed no further changes needed.
+  WU3 can hardcode paths with confidence
+- Merge boundaries — all 15 Configurable files confirmed with section-level separation
+- Session model tracking — ADR-007 split into WORK-STATUS.md (tracked) and SESSION-NOTES.md
+  (gitignored). `arc init` must set up:
+    - **`.gitignore` entries**: `.arc/active/SESSION-NOTES.md` (solo),
+      `.arc/team/*/SESSION-NOTES.md` (team)
     - **`.gitattributes` entry**: `.arc/active/WORK-STATUS.md merge=ours` — auto-resolves merge
-      conflicts by keeping the target branch version. Post-merge workflows (rotate-branch,
-      archive-work-unit) always update WORK-STATUS.md immediately, making the auto-resolved
-      content transient. Primarily a team-mode concern but harmless in solo.
-    - **Merge driver config**: `git config merge.ours.driver true` (local git config, one-time
-      setup). The `true` command returns success, keeping "ours" unchanged.
+      conflicts by keeping the target branch version
+    - **Merge driver config**: `git config merge.ours.driver true` (local, one-time setup)
     - Convention rationale documented in `strategy-work-organization.md` § Task Lists and Branches
 
-**Source design material (absorbed into this plan):**
+## Technology Stack
 
-The distribution and update system design from the feature backlog is the primary input. Key
-concepts are detailed in the sections below — the original doc is not required reading.
+**Runtime:** Node.js 18+ (LTS baseline). ESM-only (`"type": "module"` in package.json).
+
+**Language:** TypeScript with strict mode. Compiled via tsup — handles shebang injection,
+ESM output, declaration files, and clean builds in one tool. No bundler complexity beyond tsup.
+
+**Dependencies (runtime):**
+
+| Package          | Purpose                           | Why this one                                                                            |
+|------------------|-----------------------------------|-----------------------------------------------------------------------------------------|
+| `commander`      | CLI framework, subcommand routing | 182M weekly downloads, zero deps, 8kB. Subcommand model matches our 5 commands exactly. |
+| `@clack/prompts` | Interactive init prompts          | Modern, minimal, clean visual design. Lightweight alternative to inquirer.              |
+
+**Dependencies (dev):**
+
+| Package       | Purpose                                |
+|---------------|----------------------------------------|
+| `typescript`  | Type checking                          |
+| `tsup`        | Build (TS → JS, shebang, declarations) |
+| `vitest`      | Test runner (unit + integration)       |
+| `@types/node` | Node.js type definitions               |
+
+**Design philosophy:** Lean dependencies, own implementations where simple. The CLI wraps `git`
+for merges (via `child_process.execFile`) and does file I/O with Node built-ins (`fs`, `path`).
+No need for libraries beyond CLI framework and prompts.
+
+**Package name:** `arc-framework` (confirmed available on npm).
+
+## Testing Methodology
+
+**Approach:** Pragmatic TDD — write tests first for core logic (merge, render, manifest), test-after
+for glue code and CLI wiring. Comprehensive coverage across three levels:
+
+**Unit tests** — pure functions, isolated logic:
+
+- Template token substitution (input template + values → rendered output)
+- Conditional content processing (markers + config → clean output)
+- Manifest read/write/schema validation
+- File classification logic (path → classification + layer)
+- Content hash computation and comparison
+- Init-recipe parsing and validation
+
+**Integration tests** — multi-component interactions with real filesystem:
+
+- Init flow: recipe + prompts → rendered files + pristine + manifest (verify file contents,
+  directory structure, gitignore entries, git config setup)
+- Update flow: pristine + new version + modified files → merged output (verify three-way merge
+  results, conflict markers, pristine update)
+- Status/diff: modified files vs. pristine → correct reporting
+- Skill generation: canonical skill + agent selection → correct per-tool output
+- Conditional content: pm.mode and team.mode variations produce correct file sets
+
+**End-to-end tests** — full CLI invocation in temporary git repos:
+
+- `npx arc-framework init` in a fresh repo → verify complete installed state
+- `arc-framework update` after modifying files → verify merge behavior
+- `arc-framework status` → verify output accuracy
+- Round-trip: init → customize → update → verify customizations preserved
+
+**Test infrastructure:** Vitest for all levels. Integration and e2e tests use temporary directories
+(created per test, cleaned up after). Git operations in e2e tests use real git repos initialized
+in temp dirs. Snapshot testing for rendered template output where appropriate.
+
+**What NOT to test:** Don't test commander's argument parsing, clack's prompt rendering, or git's
+merge algorithm. Test our logic, not our dependencies.
 
 ## File System Layout
 
@@ -72,23 +139,28 @@ Post-init, an adopter's project looks like this:
 .arc/
   reference/          <- Project knowledge (constitution, strategies, ADRs, research)
   active/             <- Project-owned scaffolding (active task lists, WORK-STATUS)
-  backlog/            <- Solo PM only: backlog documents (ROADMAP, backlogs)
+  backlog/            <- arc-in-git PM only: backlog documents (ROADMAP, backlogs)
   system/             <- ARC operational components (workflows, githooks, agent files, config)
   team/               <- Team mode scaffolding (optional, installed on request)
-  .pristine/          <- Hidden: exact copy of framework files as installed
-  .arc-manifest.json  <- Version, file inventory, classification, install config
+  .pristine/          <- Gitignored: exact copy of framework files as installed
+  .arc-manifest.json  <- Committed: version, file inventory, classification, install config
 ```
 
-The `.pristine/` directory and `.arc-manifest.json` are created by `arc-framework init` and
-maintained by `arc-framework update`. They are not present in the framework source repo — they are
-generated artifacts on the adopter's machine.
+Both are created by `arc-framework init` and maintained by `arc-framework update`.
 
-**Note on layout stability:** The structural readiness pass (B.3) significantly restructured `.arc/`
-— introducing `system/` as a separate top-level directory for ARC operational components, splitting
-workflows into `arc/` and `project/` subdirectories, and separating framework methodology from
-project-configurable content. WU2 may make further structural changes. The CLI sections that
-reference specific paths should be refreshed against WU2's final layout before the WU3 PRD is
-written.
+**`.pristine/`** is gitignored — it's a local merge base, not project state. Committing it would
+add ~73 duplicated markdown files to every adopter's repo. On fresh clone (no pristine),
+`arc-framework update` detects the missing pristine and offers recovery: reset pristine from
+the current file state (treating current files as the new baseline for future merges) or
+reconstruct from the installed npm package version. The adopter loses nothing — they just can't
+three-way merge for that first post-clone update.
+
+**`.arc-manifest.json`** is committed — it's small (single JSON file), tracks project state
+(installed version, config choices, file inventory), and must be shared across clones for
+`arc-framework status` and `update` to function.
+
+**Layout status:** Directory structure is settled. Structural Validation (completed 2026-03-10)
+confirmed the layout after WU2. Paths in this plan are current.
 
 ## File Classification
 
@@ -96,17 +168,18 @@ Classification drives update UX, not merge mechanics. The three-way merge runs t
 regardless of classification — classification determines what the CLI communicates to the adopter
 about expected conflicts.
 
-| Classification   | Examples                                              | Update behavior                          |
-|------------------|-------------------------------------------------------|------------------------------------------|
-| **Framework**    | Workflows, ARC strategies, githooks, generated skills | Auto-merge; conflicts if user customized |
-| **Configurable** | DEV-RULES.PROJECT, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal|
-| **Scaffolded**   | WORK-STATUS, task lists, PRDs                         | Never touched by updates                 |
-| **Project-Owned**| Project strategies, notes, completion docs            | Never touched; user-created content      |
+| Classification    | Examples                                              | Update behavior                           |
+|-------------------|-------------------------------------------------------|-------------------------------------------|
+| **Framework**     | Workflows, ARC strategies, githooks, generated skills | Auto-merge; conflicts if user customized  |
+| **Configurable**  | DEV-RULES.PROJECT, AGENTS file, QUICK-REFERENCE       | Auto-merge; conflicts expected and normal |
+| **Scaffolded**    | WORK-STATUS, task lists, PRDs                         | Never touched by updates                  |
+| **Project-Owned** | Project strategies, notes, completion docs            | Never touched; user-created content       |
 
-**Layer-conditional files (ADR-008):** Some files exist only when a PM layer is installed.
-ATOMIC-TASKS.md (Scaffolded) is Solo PM or Team PM only. BACKLOG-\*.md, ROADMAP.md,
-PROJECT-STATUS.md (Scaffolded) are Solo PM only. strategy-backlog-organization.md (Framework)
-is Solo PM only. The manifest tracks each file's layer membership alongside its classification.
+**Layer-conditional files (ADR-008, ADR-009):** Some files exist only when `pm.mode: arc-in-git`.
+ATOMIC-TASKS.md (Configurable), BACKLOG-\*.md, ROADMAP.md, PROJECT-STATUS.md (all Scaffolded),
+and strategy-backlog-organization.md (Framework) are arc-in-git only. In team mode,
+ATOMIC-TASKS.md uses per-developer paths (`team/{name}/`). The manifest tracks each file's
+layer membership alongside its classification.
 
 The manifest stores per-file classification. `arc-config.yml` is Framework-adjacent — it receives
 new settings on update but existing user values are always preserved.
@@ -115,21 +188,38 @@ new settings on update but existing user values are always preserved.
 
 ### Core Concept
 
-The update system maintains a hidden `.pristine/` directory: an exact copy of framework files as
-they were installed (post-rendered, post-conditional — what actually landed on disk, not the raw
-templates). On `arc-framework update`:
+The update system maintains a gitignored `.pristine/` directory: an exact copy of framework files
+as they were installed (post-rendered, post-conditional — what actually landed on disk, not the
+raw templates).
 
-1. Fetch the new framework version
-2. For each managed file: run `git merge-file` with three inputs:
-   - Base: `.pristine/<file>` (what was installed)
-   - Theirs: new framework version of the file
+**Version fetch is self-contained.** The npm package includes the framework source files in its
+`framework/` directory. When the adopter runs `npx arc-framework@latest update`, npx fetches the
+latest CLI package — which contains the latest framework files. No separate fetch step, no
+registry API calls from our code. The act of running `npx ... @latest` IS the fetch.
+
+For global installs: `npm update -g arc-framework` then `arc-framework update`. Two steps, but
+standard for global packages.
+
+On `arc-framework update`:
+
+1. Read new framework files from the CLI's own `framework/` directory (already latest via npx)
+2. Read the adopter's init config from `.arc-manifest.json` (to re-evaluate conditionals and tokens)
+3. For each managed file: run `git merge-file` with three inputs:
+   - Base: `.pristine/<file>` (what was installed last time)
+   - Theirs: new framework version (rendered with adopter's config — same tokens, fresh content)
    - Ours: adopter's current file (potentially customized)
-3. Auto-resolve when changes are in different regions of the file
-4. Flag conflicts when both framework and adopter changed the same lines
-5. Update `.pristine/` to reflect the new version
+4. Auto-resolve when changes are in different regions of the file
+5. Flag conflicts when both framework and adopter changed the same lines
+6. Update `.pristine/` to reflect the new rendered version
+7. Update `.arc-manifest.json` with new `framework_version`
 
 This is the same merge strategy git uses for branch merges — proven, well-understood, and handles
 the common case (framework adds content, adopter customized something else) automatically.
+
+**Git dependency:** The CLI shells out to `git merge-file` via `child_process.execFile`. Git must
+be installed on the adopter's machine. This is a safe assumption — they're developers using git
+for version control. The CLI checks for git availability at startup and reports a clear error
+if missing.
 
 ### Pristine Copy Contents
 
@@ -145,10 +235,10 @@ substitution needed during merge.
 
 These need resolution during PRD or implementation:
 
-- **Heavily restructured files** — If WU2 reorganizes a file significantly between releases,
+- **Heavily restructured files** — If a framework release significantly restructures a file,
   the three-way merge may produce excessive conflicts even when the adopter's changes are small.
-  Mitigation: WU2's structural cleanup reduces this risk; long-term, large restructurings may
-  need migration notes or a CLI warning.
+  Mitigation: Structural Validation established clean baselines; long-term, large restructurings
+  may need migration notes or a CLI warning.
 - **New files in updates** — When a framework update introduces a new file: auto-add to
   the appropriate directory? Prompt the adopter? Current lean: auto-add Framework files to
   `reference/` without prompting; prompt for optional files.
@@ -167,13 +257,13 @@ These need resolution during PRD or implementation:
   matches the framework source. This eliminates spurious merge conflicts on update — the adopter's
   formatting matches the pristine base without rewrapping.
 
-### Merge Granularity and WU2 Dependency
+### Merge Granularity
 
 The quality of three-way merges is directly proportional to how cleanly files are structured.
 Mixed-concern files — where framework content and project-configurable content coexist at the
-paragraph level — produce merge conflicts even when changes are conceptually separate. This is
-why WU2's structural validation is a hard dependency: WU3 should not begin implementation until
-WU2 confirms that file separation is complete.
+paragraph level — produce merge conflicts even when changes are conceptually separate. Structural
+Validation confirmed that all 15 Configurable files have clean section-level separation — this
+risk is mitigated.
 
 ## CLI Commands
 
@@ -192,28 +282,21 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
     - `arc-config.yml` settings: base branch, branch protection mode
     - Session state model: WORK-STATUS.md (tracked) + SESSION-NOTES.md (gitignored) per ADR-007
     - Work organization style (solo vs. team — controls whether `team/` directory is installed)
-    - **PM layer selection (ADR-008):** "Include in-git project management?" Controls which
-      PM layer is installed:
-        - Solo + yes → Core + Solo PM (backlogs, roadmap, atomic tasks, project status)
-        - Team + yes → Core + Team PM (per-developer atomic tasks, branch inbox, tracker
-          integration)
-        - Either + no → Core only (bring your own planning tools)
-    - Merge strategy (informed by WU1 ADR 8)
+    - **PM mode selection (ADR-008, ADR-009):** "Where does your project management live?"
+      Sets `pm.mode` in `arc-config.yml`:
+        - `none` → Core only (bring your own planning tools)
+        - `arc-in-git` → Core + in-git PM artifacts (backlogs, roadmap, atomic tasks,
+          project status). Works for solo and small teams.
+        - `external` → Core only + agent awareness of external tool integration
+    - Merge strategy
 - **Content selection:**
     - "Include ADR workflow?" — optional files based on team practices
     - "Which AI agents?" — installs only selected agent directories (`.claude/`, `.codex/`,
       `.gemini/`)
-- **Adoption defaults (cross-cutting):** The framework ships with all enforcement
-  active (the former "Recommended" values). No named profiles or profile selection at
-  init. Adopters who want to relax enforcement edit `arc-config.yml` after init — the
-  file includes inline comments explaining each setting and its alternatives.
-
-  > **ADR-010 rework needed:** ADR-010 superseded ADR-004's named profiles
-  > (Essentials/Recommended/Custom). This section's profile definitions and
-  > post-init messaging differentiation are obsolete. WU3 PRD should redesign
-  > this section around strong defaults with self-serve config discovery. A binary
-  > "relaxed start?" toggle may be reconsidered if CLI testing reveals cold-start
-  > friction (see ADR-010 Part 4).
+- **Adoption defaults (cross-cutting, ADR-010):** The framework ships with all enforcement
+  active — strong defaults, no named profiles or profile selection. Adopters who want to
+  relax enforcement edit `arc-config.yml` after init — the file includes inline comments
+  explaining each setting and its alternatives.
 
   Default init config (all enforcement active):
 
@@ -222,25 +305,126 @@ Interactive prompts (exact set TBD in PRD, informed by WU1 configurability decis
   commit.context_footer: required
   hooks.commit_msg: enabled
   hooks.pre_commit: enabled
+  hooks.task_numbering: error
   merge.strategy: merge
   branch.protection: partial
+  review.pre_merge: enabled
+  pm.mode: none
+  platform.type: github
   ```
 
 - **Post-init messaging:** Covers the full system with appropriate progressive depth.
   No profile-differentiated messaging — all adopters receive the same guidance.
 
-Template rendering:
+### Template Rendering
 
-- **Tokens:** `{{PROJECT_NAME}}`, `{{BASE_BRANCH}}`, `{{BACKEND_TEST_CMD}}` — string replacement
-- **Conditionals:** Sections included or excluded based on init choices (e.g., backend section
-  excluded if no backend selected)
-- **Markdownlint config:** `init` installs a `.markdownlint-cli2.jsonc` (or equivalent) with the
-  framework's rule set — 120-char line length, standard rule overrides. Classification: Framework
-  (auto-updated). This ensures adopter linting matches framework conventions out of the box, and
-  the pristine base stays aligned across updates without rewrapping.
+Template files live in the npm package's `framework/` directory. They contain token placeholders
+and conditional markers that the CLI processes during `init`. The adopter's installed files are
+clean markdown — no template syntax visible.
+
+**Token substitution** — simple `{{TOKEN}}` string replacement:
+
+```markdown
+# {{PROJECT_NAME}} — Development Rules
+...
+Base branch: `{{BASE_BRANCH}}`
+```
+
+Known tokens (PRD will produce the complete inventory):
+
+| Token                   | Source      | Example value      |
+|-------------------------|-------------|--------------------|
+| `{{PROJECT_NAME}}`      | Init prompt | "My App"           |
+| `{{BASE_BRANCH}}`       | Init prompt | "main"             |
+| `{{BACKEND_TEST_CMD}}`  | Init prompt | "npm test"         |
+| `{{FRONTEND_TEST_CMD}}` | Init prompt | "npm run test:e2e" |
+| `{{LINT_CMD}}`          | Init prompt | "npm run lint"     |
+| `{{ARC_DIR}}`           | Init prompt | ".arc"             |
+
+**Conditional sections** — HTML comment markers, invisible in rendered markdown:
+
+```markdown
+<!-- arc:if pm.mode == arc-in-git -->
+### Backlog Organization
+
+Use the backlog to capture work before it's ready for active development...
+<!-- arc:endif -->
+```
+
+Adopters never see these markers. The CLI evaluates conditions against `install_config` and
+emits only the matching content. Supported conditions: `pm.mode`, `team.mode`, agent selection,
+feature flags (ADR workflow, etc.). Simple equality checks only — no expression language.
+
+**Markdownlint config:** `init` installs a `.markdownlint-cli2.jsonc` with the framework's rule
+set (120-char MD013, disabled code\_blocks/tables, etc.). Classification: Framework (auto-updated
+via three-way merge). Ensures adopter linting matches framework conventions.
 
 Post-init, `.pristine/` stores the post-rendered, post-conditional result — what actually landed
 on disk.
+
+### Init Recipe (`init-recipe.json`)
+
+The recipe is the bridge between prompts and file operations. It declares what questions to ask,
+what tokens they produce, and what conditions gate file inclusion. Sketch of the format (PRD
+will produce the complete version):
+
+```json
+{
+  "prompts": [
+    {
+      "id": "project_name",
+      "type": "text",
+      "message": "Project name?",
+      "token": "PROJECT_NAME"
+    },
+    {
+      "id": "base_branch",
+      "type": "text",
+      "message": "Base branch?",
+      "default": "main",
+      "token": "BASE_BRANCH",
+      "config_key": "branch.base"
+    },
+    {
+      "id": "pm_mode",
+      "type": "select",
+      "message": "Where does your project management live?",
+      "options": ["none", "arc-in-git", "external"],
+      "default": "none",
+      "config_key": "pm.mode"
+    },
+    {
+      "id": "agents",
+      "type": "multiselect",
+      "message": "Which AI agents?",
+      "options": ["claude", "codex", "gemini", "copilot", "cursor", "windsurf"]
+    }
+  ],
+  "conditions": {
+    "pm.mode == arc-in-git": {
+      "include_files": [
+        "backlog/ROADMAP.template.md",
+        "backlog/feature/BACKLOG-FEATURE.template.md",
+        "backlog/technical/BACKLOG-TECHNICAL.template.md",
+        "reference/PROJECT-STATUS.template.md",
+        "active/ATOMIC-TASKS.template.md",
+        "reference/strategies/arc/strategy-backlog-organization.md"
+      ]
+    },
+    "team.mode == team": {
+      "include_files": [
+        "team/README.md",
+        "team/ATOMIC-TASKS.template.md",
+        "team/SESSION-NOTES.template.md"
+      ]
+    }
+  }
+}
+```
+
+The recipe is declarative — the render engine reads it to determine which files to process and
+which tokens/conditions to evaluate. Adding a new prompt or conditional file is a recipe edit,
+not a code change.
 
 ### `npx arc-framework update`
 
@@ -252,7 +436,7 @@ Output categories:
 - **Auto-merged:** Framework changes applied cleanly
 - **Conflicts:** Adopter and framework both changed the same region — requires manual resolution
 - **Skipped:** Scaffolded and Project-Owned files (not managed by update)
-- **Layer-absent:** Files belonging to an uninstalled PM layer (not in manifest, never touched)
+- **Mode-absent:** Files belonging to an uninstalled PM mode (not in manifest, never touched)
 - **New files:** Framework files that didn't exist in the previous version
 
 On conflict, the CLI leaves standard git conflict markers in the file and reports which files need
@@ -280,28 +464,57 @@ Updates `.pristine/` to match.
 
 ## npm Package Structure
 
+**Source layout (TypeScript):**
+
+```
+arc-framework/
+  package.json            <- type: module, bin: arc-framework → dist/cli.js
+  tsup.config.ts          <- Build config (ESM, shebang, declarations)
+  vitest.config.ts        <- Test config
+  src/
+    cli.ts                <- Entry point: shebang, Commander setup, subcommand routing
+    commands/
+      init.ts             <- Interactive init flow (prompts, render, write, pristine, manifest)
+      update.ts           <- Three-way merge update (read manifest, merge, report)
+      status.ts           <- File modification status, version check
+      diff.ts             <- Customization diff (adopter vs. pristine)
+    lib/
+      merge.ts            <- Three-way merge wrapper (shells out to git merge-file)
+      manifest.ts         <- Manifest read/write, schema, file inventory
+      render.ts           <- Token substitution, conditional processing
+      hash.ts             <- Content hash computation (SHA-256 of file contents)
+      git.ts              <- Git operations (merge-file, config, status detection)
+      files.ts            <- File copy, directory creation, gitignore/gitattributes setup
+      skills.ts           <- Skill generation (canonical → per-tool copies)
+    prompts/
+      init-prompts.ts     <- @clack/prompts flow definitions for arc init
+    types.ts              <- Shared types (Manifest, FileEntry, InstallConfig, etc.)
+  framework/              <- ARC framework template files (the methodology content)
+  init-recipe.json        <- Maps prompts → tokens, conditions → file sets
+  __tests__/
+    unit/                 <- Pure function tests (render, merge, manifest, hash)
+    integration/          <- Filesystem tests (init flow, update flow, skill generation)
+    e2e/                  <- Full CLI invocation in temp git repos
+    fixtures/             <- Test templates, sample manifests, mock framework dirs
+```
+
+**Published package** (what `npm publish` ships):
+
 ```
 arc-framework/
   package.json
-  bin/
-    arc-cli.js          <- Entry point; routes to subcommands
-  src/
-    commands/           <- init.js, update.js, diff.js, status.js, reset.js
-    merge/              <- Three-way merge logic (wraps git merge-file)
-    manifest/           <- Manifest read/write, file inventory management
-    render/             <- Token substitution, conditional processing
-    prompts/            <- Interactive init prompt definitions
-  framework/            <- ARC framework source files (the methodology)
-  skills/               <- Canonical SKILL.md definitions (source of truth for generation)
-  init-recipe.json      <- Describes interactive setup options, tokens, conditionals
+  dist/
+    cli.js              <- Compiled entry point (with shebang, ESM)
+    commands/            <- Compiled command modules
+    lib/                 <- Compiled library modules
+    types.d.ts           <- Type declarations (for programmatic use if ever needed)
+  framework/            <- ARC template files (copied to adopter's .arc/ during init)
+  init-recipe.json      <- Prompt/token/condition mappings
 ```
 
-The `framework/` directory in the package is the source of truth for framework files. This is
-what gets copied during `init` and what `update` merges from.
-
-The `skills/` directory contains canonical SKILL.md definitions for ARC's workflow triggers.
-During init, skills are generated into tool-specific directories (and optionally `.agents/skills/`)
-based on the user's agent selection and skills directory configuration.
+The `framework/` directory in the package is the source of truth. `init` renders templates from
+it; `update` merges new versions from it. Skill canonical sources live inside `framework/` at
+`system/skills/` — same location as in the deployed `.arc/`.
 
 ## Skill Generation
 
@@ -342,6 +555,12 @@ cross-tool default.
 `arc-framework update` regenerates when skill definitions change. Generated files are classified
 as Framework (managed, auto-updated).
 
+**Naming standardization:** Current `.codex/skills/` uses non-canonical names (`atomic-commit`
+instead of `arc-commit`, `resume-current` instead of `arc-resume`). The CLI's skill generator
+uses canonical names from `.arc/system/skills/` — all tools get consistent `arc-*` naming.
+Old non-standard directories are not cleaned up automatically (the CLI doesn't delete files it
+didn't create).
+
 ### What the Generator Handles
 
 The generation step is not purely "copy SKILL.md to N directories." Per-tool differences include:
@@ -362,9 +581,8 @@ integration workflow to bring an external skill into their ARC project, the mani
 integrated skill alongside framework skills. Both are thin dispatchers with the same update
 mechanics — `arc-framework update` regenerates all managed skills.
 
-The scope question for the WU3 PRD: whether team-integrated skill generation ships at 1.0 or
-is deferred. Framework skill generation is required; team skill generation is an extension of the
-same system.
+**Deferred to post-beta.** Framework skill generation ships in beta; team-integrated skill
+generation is an extension of the same system, added when the pattern is proven.
 
 ## The Manifest: `.arc-manifest.json`
 
@@ -372,134 +590,105 @@ Tracks everything needed for the update system to function:
 
 ```json
 {
-  "framework_version": "1.0.0",
-  "installed_at": "2026-02-22T00:00:00Z",
+  "framework_version": "0.1.0",
+  "installed_at": "2026-03-15T00:00:00Z",
   "install_config": {
     "base_branch": "main",
     "branch_protection": "partial",
     "agents": ["claude"],
-    "team_mode": false,
-    "pm_layer": "solo",
-    "session_tracking": "gitignored"
+    "team_mode": "solo",
+    "pm_mode": "arc-in-git",
+    "arc_dir": ".arc"
   },
   "files": {
     ".arc/system/workflows/arc/activate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
-      "version": "1.0.0",
-      "modified": false
+      "pristine_hash": "a1b2c3d4..."
     },
     ".arc/system/arc-config.yml": {
       "classification": "Configurable",
       "layer": "core",
-      "version": "1.0.0",
-      "modified": true
+      "pristine_hash": "e5f6a7b8..."
     },
     ".arc/reference/strategies/arc/strategy-backlog-organization.md": {
       "classification": "Framework",
-      "layer": "solo-pm",
-      "version": "1.0.0",
-      "modified": false
+      "layer": "arc-in-git",
+      "pristine_hash": "c9d0e1f2..."
     }
   }
 }
 ```
 
-The `install_config` section records the adopter's init choices. This is used by `update` to handle
-conditional content and by `arc init --reconfigure` to offer re-running init with different choices.
-The `pm_layer` field (`"none"`, `"solo"`, or `"team"`) controls which PM layer's files are in scope.
-The per-file `layer` field enables layer-aware operations: `update` skips files from uninstalled
-layers, and `reconfigure` can add or remove layer files cleanly.
+**Key design decisions:**
 
-Per-file version stamps embedded in markdown files become unnecessary with the manifest — the
-manifest is the authoritative source of per-file version information. WU2 should remove per-file
-version stamps from templates if they exist.
+- **`pristine_hash`** replaces the previous `modified` + `version` fields. Modification is a
+  computed property: compare the adopter's current file hash against `pristine_hash`. No need
+  to track it in the manifest — `arc status` computes it on demand. SHA-256 of file contents.
+- **`install_config`** records the adopter's init choices. Used by `update` to re-evaluate
+  conditional content (same tokens and conditions, fresh framework content). Future
+  `reconfigure` command would modify this section and re-render.
+- **`team_mode`** uses string values (`"solo"` / `"team"`) rather than boolean for clarity and
+  extensibility.
+- **`pm_mode`** (`"none"`, `"arc-in-git"`, `"external"`) controls which PM files are in scope.
+  The per-file `layer` field enables mode-aware operations: `update` skips files from
+  uninstalled modes.
 
-## Solo-to-Team Migration and PM Layer Switching
+Per-file version stamps embedded in markdown files are unnecessary — the manifest's
+`framework_version` is the authoritative version reference.
 
-WU2's structural readiness work introduced a `team/` directory and solo-vs-team distinction. The
-CLI needs a migration path for projects that start solo and later add team members.
+## Reconfiguration and Migration
 
-At a minimum:
+Team mode and PM mode are orthogonal axes (ADR-009). `arc init --reconfigure` handles changes
+to either axis independently or together.
 
-- `arc-framework init` with `team_mode: true` installs the `team/` directory and configures the
-  team workflow scaffolding
-- A migration command (or `arc init --reconfigure` with team mode enabled) handles the transition
-  for existing solo installs
+**Team mode changes (solo → team):**
 
-The concrete change: SESSION-NOTES.md moves from `.arc/active/` to `.arc/team/{name}/` in team mode
-(WORK-STATUS.md stays shared in `active/`). The migration must handle this move without data loss.
+- Installs `team/` directory with per-developer scaffolding
+- SESSION-NOTES.md moves from `.arc/active/` to `.arc/team/{name}/` (WORK-STATUS.md stays shared)
+- Migration must handle this move without data loss
 
-**PM layer migration (ADR-008):** `arc init --reconfigure` handles PM layer changes:
+**PM mode changes:**
 
-- **Adding Solo PM:** Installs backlog templates (BACKLOG-FEATURE, BACKLOG-TECHNICAL, ROADMAP,
-  PROJECT-STATUS, ATOMIC-TASKS), strategy-backlog-organization.md. Updates manifest and pristine.
-- **Adding Team PM:** Installs per-developer ATOMIC-TASKS template, branch inbox method, external
-  tracker integration guidance. Updates manifest and pristine.
-- **Removing PM:** Deletes PM-layer files (with confirmation prompt). Updates manifest.
-- **Switching Solo PM → Team PM:** Removes Solo PM files, installs Team PM files. Data migration:
-  ATOMIC-TASKS.md content moves from `active/` to `team/{name}/`; backlog items need manual
-  transfer to an external tracker (guidance provided).
-- **Core-only → PM:** Straightforward addition (new files only, no conflicts).
+- **Adding `arc-in-git`:** Installs backlog templates (BACKLOG-FEATURE, BACKLOG-TECHNICAL,
+  ROADMAP, PROJECT-STATUS, ATOMIC-TASKS), strategy-backlog-organization.md. Updates manifest
+  and pristine.
+- **Removing `arc-in-git`:** Deletes PM files (with confirmation prompt). Updates manifest.
+- **`none` ↔ `external`:** No file changes — only the config value and agent awareness differ.
 
-PM layer changes are independent of team mode changes — both can happen in the same `--reconfigure`
-invocation or separately.
+**Team + PM interaction:** In team mode with `arc-in-git`, ATOMIC-TASKS.md uses per-developer
+paths (`team/{name}/ATOMIC-TASKS.md`).
 
-This is a scope question for the PRD — migration may be post-1.0 if solo-to-team and layer
-switching can be handled manually with guidance documentation.
+**Deferred to post-beta.** Reconfiguration is not in beta scope. Mode changes during dogfooding
+can be handled manually (edit config, add/remove files). The manifest's `install_config` section
+is designed to support future `reconfigure` — the data structure is ready even if the command
+isn't.
 
 ## Team Mode Detection and Agent Identity
 
-**Context:** WU2's clarity audit (Task 8.4, `tasks-structural-validation.md`) identified that
-session-init has no mechanism for agents to detect team mode or determine which developer they
-represent. The team coordination strategy, session-init workflow, and session-handoff workflow
-all reference "team mode" behavior (SESSION-NOTES.md path changes, per-developer atomic tasks)
-but no runtime detection mechanism exists.
+**Decision: Add `team.mode` to `arc-config.yml`.** Values: `solo` (default) or `team`.
+Informational key, same pattern as `platform.type` — agents already read `arc-config.yml`
+during session init, and one config key is simpler than teaching agents to read the manifest
+or probe directory structure.
 
-**Current state:**
+`arc-framework init` sets `team.mode` based on the team mode prompt. The manifest also stores
+`team_mode` for the CLI's own use, but the agent-facing signal is `arc-config.yml`.
 
-- The manifest stores `"team_mode": false` as an install-time choice — but agents don't read
-  the manifest during session-init (it's a CLI artifact, not a methodology document)
-- `arc-config.yml` has no team mode setting — the configurability architecture routes
-  per-developer values through `git config` (e.g., `git config arc.session.identity alice`)
-- `team/README.md` § Agent Lookup says the member name is "configured in the agent's
-  environment or provided by the developer" — mechanism unspecified
-- Session-init reads `SESSION-NOTES.md` from `active/` with no team path alternative
+**Agent identity resolution** — concrete lookup sequence for team mode:
 
-**Design questions for WU3 PRD:**
+1. Check `git config arc.session.identity` (set during team member onboarding)
+2. Fall back to `git config user.name` (available in any git repo)
+3. If neither resolves, ask the developer (don't fail silently)
 
-1. **Detection mechanism — config key vs. structural vs. manifest:**
-   - **Config key** (`team.mode: solo | team` in `arc-config.yml`): Simple, agent-discoverable
-     during Step 4 of session-init. But team mode is a structural choice (different files
-     installed), not a runtime toggle — config keys are for runtime-checkable conventions.
-   - **Structural detection** (presence of `team/{name}/` member directories): No config
-     needed, self-evident from file system. But fragile — empty directories, partial setup,
-     or a developer who hasn't been added yet could produce false results.
-   - **Manifest field** (`team_mode` in `.arc-manifest.json`): Already exists. Could be
-     exposed to agents as the authoritative signal. But the manifest is currently a CLI-only
-     artifact — making agents read it creates a new dependency.
-   - **Recommendation:** Evaluate whether adding `team.mode` to `arc-config.yml` is warranted
-     despite being a structural choice. The pragmatic argument: agents already read
-     `arc-config.yml` during init, and one informational key (like `platform.type`) is simpler
-     than teaching agents to read the manifest or probe directory structure.
+`arc-framework init` in team mode prompts for the initial developer name and runs
+`git config arc.session.identity <name>` as part of setup.
 
-2. **Agent identity resolution — how the agent knows which developer it represents:**
-   - `git config arc.session.identity` is mentioned in the configurability architecture
-     strategy but not wired into any workflow
-   - Agent platform config (e.g., Claude Code's `.claude/` settings) could provide identity
-     but varies by tool
-   - Session-init needs a concrete lookup sequence: check git config → check agent environment
-     → ask the developer
-   - WU3's `arc init` (team mode) should set up `git config arc.session.identity` as part of
-     member onboarding, and session-init should document the lookup
+**Session-init updates needed** (methodology changes, not CLI code):
 
-3. **Session-init updates needed:**
-   - SESSION-NOTES.md path determination (solo vs. team)
-   - Identity-based path resolution in team mode
-   - Graceful fallback when identity is not configured (ask the developer, don't fail silently)
-
-**Minimal WU2 fix applied:** Added a team mode path note to session-init's SESSION-NOTES step
-pointing to `team/README.md`. Full resolution deferred to WU3 CLI implementation.
+- Read `team.mode` from `arc-config.yml` during Step 4
+- If `team`: resolve identity via the lookup sequence above, then read SESSION-NOTES.md from
+  `team/{identity}/` instead of `active/`
+- Graceful fallback when identity is not configured
 
 ## Agent-Driven Consistency Audit (Not CLI Logic)
 
@@ -521,70 +710,72 @@ implement the audit logic itself.
 
 ## Reference Directory Organization
 
-The current `reference/` directory mixes project knowledge (constitution, ADRs, strategies,
-research) with what might eventually be cleaner to separate. This is a question WU2's structural
-validation should resolve. The CLI can install to whatever layout WU2 finalizes — no CLI-specific
-decisions needed here.
-
-If WU2 determines that infrastructure/tooling concerns need a separate top-level directory, WU3
-incorporates that into the package layout and init behavior.
+Resolved by Structural Validation. The `reference/` layout is settled: `constitution/`,
+`strategies/`, `adr/`, `analysis/`, `research/`, `archive/`, `templates/`. The `system/`
+directory handles operational components (workflows, githooks, agent files, config, skills).
+No CLI-specific layout decisions needed — WU3 packages the current structure as-is.
 
 ## Versioning
 
-Single semver for framework releases (`1.0.0`, `1.1.0`, etc.). The manifest tracks:
+Single semver for framework releases. The manifest tracks `framework_version` (installed version).
 
-- `framework_version`: installed version (per-manifest)
-- Per-file `version`: the framework version when that file was last updated by the CLI
+**Release progression:**
+
+- **`0.1.0`** — WU3 beta. Functional CLI for internal dogfooding.
+- **`0.x.y`** — Iteration during dogfooding. Breaking changes allowed (pre-1.0 semver convention).
+- **`1.0.0`** — Public release (WU4). Stable CLI, stable manifest schema, stable template format.
 
 `arc-framework status` compares the installed version against the latest published version and
 reports whether an update is available.
 
-Breaking changes in the update system (changes to manifest schema, pristine format) would be
+Post-1.0, breaking changes in the update system (manifest schema, pristine format) would be
 handled in major version bumps with migration logic in the CLI.
 
 ## Approach
 
 The plan covers design, implementation, and packaging. Execution will be broken into phases when
-the PRD is written:
+the PRD is written. Rough phase sketch (PRD refines boundaries):
 
-1. **Scaffolding** — npm package setup, CLI entry point, command routing, basic init (file copy
-   without templating)
-2. **Template system** — token substitution, conditional processing, init-recipe.json format
-3. **Pristine and manifest** — `.pristine/` creation, `.arc-manifest.json` schema and write
-4. **Update system** — three-way merge implementation, conflict reporting, pristine update
-5. **Agent tooling** — skill generation (SKILL.md per ADR-011), multi-agent install selection
-6. **Remaining commands** — diff, status, reset
-7. **Interactive init polish** — full prompt set, presets, team mode, PM layer selection,
-   reconfigure (including PM layer switching per ADR-008)
+**Beta scope (WU3 deliverable):**
 
-The PRD will determine which phases are in 1.0 scope and which are deferred.
+1. **Scaffolding** — npm package setup (TypeScript, tsup, ESM), CLI entry point with Commander,
+   subcommand routing, test infrastructure (vitest)
+2. **Template system** — token substitution, conditional content processing, init-recipe.json,
+   `.template.md` → rendered output pipeline
+3. **Init command** — interactive prompts (@clack/prompts), file rendering, directory creation,
+   gitignore/gitattributes/git-config setup, pristine creation, manifest write
+4. **Pristine and manifest** — `.pristine/` write (gitignored), `.arc-manifest.json` schema and
+   write (committed), content hash computation
+5. **Update command** — self-contained version fetch, three-way merge (git merge-file), conflict
+   reporting, pristine update, manifest version bump
+6. **Status and diff commands** — hash-based modification detection, unified diff output
+7. **Skill generation** — canonical skill → per-tool copies, agent selection, naming standardization
+8. **Team mode** — team.mode config key, team/ directory setup, identity resolution via git config
+9. **Configurable install directory** — `{{ARC_DIR}}` token in template system, init prompt with
+   `.arc/` default, path rendering in skills and cross-references
+
+**Deferred (post-beta, potentially WU4 or post-1.0):**
+
+- `reconfigure` command (PM mode switching, team mode migration)
+- `reset` command (restore file to framework default)
+- Team-integrated skill generation
 
 ## Dependencies
 
-**Upstream (hard dependencies — WU3 cannot begin implementation until these are resolved):**
+**Upstream — all resolved:**
 
-- **WU1 ADR 4 (Configurability Architecture):** Defines `arc-config.yml` schema. WU3's interactive
-  init must know what settings exist before implementing prompts. Init-recipe.json depends on this.
-- **WU1 ADR 6 (Progressive Adoption Tiers):** If tiers are structural (different files installed),
-  WU3 must implement selective install. If documentation-only, WU3 is unaffected.
-- **WU2 structural validation output:** WU3 needs clean file classification before implementing the
-  manifest and update system. The merge quality degrades proportionally with mixed-concern content.
-- **WU2 final directory layout:** Specific paths in the package and manifest depend on WU2's
-  settled layout.
-
-**Upstream (informational — WU3 benefits from but can proceed without):**
-
-- WU1 ADR 8 (Merge Strategy Support): Affects whether `merge_strategy` is an init prompt
-- WU1 Presets definition: Affects init UX but can be added after initial CLI scaffold
-- **WU2 ADR-008 (Core/PM decomposition):** Defines layer structure, `pm.mode` config, and
-  layer-conditional file sets. WU3 must implement layer-aware init, manifest, update, and
-  reconfigure. The decomposition is the primary input for PM-related init prompts and
-  manifest layer tracking.
+- ✅ **WU1** (ADRs 001-006, 010): Config schema, configurability architecture, strong defaults
+- ✅ **WU1.5** (ADR-007): Session state model
+- ✅ **WU2** (ADRs 008-009, 011): PM mode decomposition, methodology completion
+- ✅ **Structural Validation**: File inventory (86 files), directory layout, merge boundaries
 
 **Downstream:**
 
+- **Dogfooding phase:** Install beta CLI in a real project, exercise the full workflow, identify
+  friction and bugs. Feedback drives iteration on the beta before WU4.
 - **WU4 (Public Release):** Docs site installation guide references CLI commands; README
-  installation instructions depend on the published package name and commands
+  installation instructions depend on the published package name and commands. WU4 publishes
+  `1.0.0` to npm after dogfooding stabilizes the CLI.
 
 ## For Strong Consideration: Extract Save-Path Logic to arc-methods
 
@@ -639,13 +830,16 @@ migration. With method extraction, the CLI updates arc-methods.md defaults and t
 automatically follow the new paths. This is cleaner than patching workflow files during
 reconfigure.
 
-**Recommendation:** Evaluate during WU3 PRD creation. If WU3 is already touching workflow rendering
-and conditional processing, extracting this logic to arc-methods is low incremental cost. If WU3
-focuses purely on packaging and update mechanics, defer to a post-1.0 methodology refinement.
+**Disposition:** Defer to post-beta. This is methodology work (editing arc-methods.md and workflow
+docs), not CLI code. The inline conditionals work correctly today. The extraction becomes more
+valuable if/when `reconfigure` is implemented — at that point, having path logic in one place
+makes mode switching cleaner. For beta, the current inline approach is sufficient.
 
 ## Configurable Install Directory
 
-**Status:** For PRD evaluation — not committed as a design decision.
+**Status:** In beta scope. Low marginal cost — one token (`{{ARC_DIR}}`), one init prompt, same
+render pipeline as all other tokens. Better to discover path-reference issues during dogfooding
+than after 1.0.
 
 The framework defaults to `.arc/` as the install directory. Some teams may prefer a different name or location:
 
@@ -667,16 +861,13 @@ handles these during init and update.
 - The dotfile prefix (`.arc/`) is a feature for some (clean explorer) and friction for others (hidden from view).
   Making this configurable satisfies both without taking sides.
 
-**Recommendation:** Include as an init prompt with `.arc/` as the strong default. The template rendering
-infrastructure needed for other init features (project name, base branch, test commands) handles this naturally —
-it's one more token, not a new system.
+**When implemented:** Include as an init prompt with `.arc/` as the strong default. The template
+rendering infrastructure handles this naturally — one more token (`{{ARC_DIR}}`), not a new system.
 
 ## Exclusions
 
-- No changes to methodology documents (WU2 scope)
 - No docs site implementation (WU4 scope)
 - No README updates (WU4 scope, though CLI commands must be stable before README is final)
-- No configurability architecture decisions (WU1 scope)
 - The agent-driven consistency audit workflow implementation (belongs in methodology, not CLI)
 
 ---
