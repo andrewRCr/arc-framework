@@ -630,33 +630,46 @@
 
 ### **Phase 7:** Workflow Navigability Validation
 
-- [ ] **7.1 Re-walk lifecycle scenarios against post-structural-validation state**
+- [x] **7.1 Re-walk lifecycle scenarios against post-structural-validation state**
 
-    **Goal:** Confirm that structural changes (file moves, cross-reference updates,
-    de-duplication, directory reorganization) haven't broken workflow navigability, and that
-    Phase 0 findings were addressed.
+    All 5 scenarios re-walked via parallel subagents. All 7 Phase 0 findings confirmed
+    resolved. Expanded scope beyond navigability to include instruction clarity audit,
+    terminology accessibility, and file inventory/link validation. Produced comprehensive
+    analysis doc for remediation in Phase 8.
 
-    - [ ] **7.1.a Re-walk each scenario from Phase 0**
-        - Use the same scenario definitions from 0.1
-        - Follow the same methodology from 0.2.a (forward links, routing, conditionals)
-        - Note: file paths may have changed if Phase 2/3 moved workflows or strategies
+    - [x] **7.1.a Re-walk each scenario from Phase 0**
 
-    - [ ] **7.1.b Verify Phase 0 findings were addressed**
-        - For each finding from 0.2.b: resolved, consciously accepted, or still open?
-        - Consciously accepted findings need documented rationale (e.g., "conditional density
-          is inherent to supporting multiple protection modes — no simplification possible
-          without dropping mode support")
+        5 parallel subagent walkthroughs (one per scenario). All scenarios navigable with
+        zero broken links and zero dead-ends. Phase 2 reorganization landed cleanly — all
+        cross-references resolve to post-move paths. S5 (out-of-box) initially walked with
+        wrong protection mode; corrected re-walk confirmed partial+none path is smooth.
+        Metrics: S5 hops reduced from 18→11 (39% improvement).
 
-    - [ ] **7.1.c Check for new issues introduced by structural changes**
-        - File moves: do all cross-references resolve to the new paths?
-        - De-duplication: did trimming inline guidance create gaps where an agent now needs
-          to load an extra document mid-workflow?
-        - Directory changes: does the new structure help or hinder scenario navigation?
+    - [x] **7.1.b Verify Phase 0 findings were addressed**
 
-    - [ ] **7.1.d Resolve or document remaining issues**
-        - Fix any new dead-ends or broken references
-        - Document accepted trade-offs in the completion doc
-        - Run Tier 1 quality gate on any modified files
+        All 7 findings (F-01 through F-07) confirmed resolved across the scenarios that
+        originally surfaced them. No regressions. One new minor finding (N-01): partial
+        protection path in archive-work-unit Step 8 used indirect routing via WORK-STATUS
+        instead of explicit forward link. Fixed.
+
+    - [x] **7.1.c Check for new issues introduced by structural changes**
+
+        Three parallel audits: file inventory reconciliation (3 files missing from inventory),
+        exhaustive link validation (1 broken inline link found across 286 definitions), and
+        clarity audit of 7 hot-path workflows (6 Tier A issues, 13 Tier B, 6 Tier C). Clarity
+        audit examined instruction specificity, conditional branch parity, context
+        self-sufficiency, de-duplication gaps, and terminology accessibility. Key finding:
+        process-task-loop and archive-work-unit have clarity gaps that would cause fresh agents
+        to misexecute quality gates or leave inconsistent state. Full findings in
+        `analysis-workflow-clarity-audit.md`.
+
+    - [x] **7.1.d Resolve or document remaining issues**
+
+        Fixed: broken link in 1_create-prd.md (`setup/` → `initial-setup/`), N-01 forward
+        link in archive-work-unit Step 8. Documented: all findings captured in
+        `.arc-internal/reference/analysis/analysis-workflow-clarity-audit.md` with zone-based
+        remediation guidance (context budget constraint for init-loaded docs). Inventory gap
+        and clarity remediation deferred to new Phase 8. Tier 1 passed on both modified files.
 
 ### **Phase 8:** Verification
 

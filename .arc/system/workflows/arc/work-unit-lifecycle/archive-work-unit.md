@@ -179,8 +179,8 @@ Context: tasks-fix-auth-edge-cases.md (archival)"
 
 ### 8) Next Step
 
-**Partial protection:** Archival is complete. WORK-STATUS.md points to the next action
-(typically `1_create-prd.md`).
+**Partial protection:** Archival is complete. **→ [1_create-prd.md][create-prd]** — Plan next
+work unit (or follow WORK-STATUS.md Next Action if different).
 
 **Full protection (batch branch):** Continue on the same branch — proceed to
 [1_create-prd.md][create-prd] for the next work unit. After task generation
