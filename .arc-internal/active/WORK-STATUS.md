@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 1.2 — Update internal project infrastructure (line ~83)
-**Last Completed**: Task 1.1 — Monorepo workspace structure (npm org, CLI skeleton, build/test/typecheck)
+**Next Task**: Task 2.1 — Write tests for template rendering (line ~124)
+**Last Completed**: Phase 1 complete — scaffolding, infrastructure docs, verification
 **Blockers**: [none]
-**Next Action**: Task 1.2 — Update DEV-RULES.PROJECT and QUICK-REFERENCE for hybrid project
+**Next Action**: Begin Phase 2 — Task 2.1 (template rendering tests)
 
 ---
 

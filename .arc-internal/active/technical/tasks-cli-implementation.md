@@ -78,42 +78,41 @@ transition from documentation-only to a hybrid code + documentation project.
         - `framework/` (template files, populated in Phase 3)
         - Added `.gitignore` for `dist/` and `node_modules/`
 
-- [ ] **1.2 Update internal project infrastructure**
+- [x] **1.2 Update internal project infrastructure**
 
     **Goal:** Bring `.arc-internal/` docs in line with the project's new hybrid nature — code
     quality gates alongside existing markdown linting.
 
-    - [ ] **1.2.a Update `DEV-RULES.PROJECT.md` (internal)**
-        - Replace "N/A for documentation-only framework" in Testing Requirements with vitest
-          test strategy (unit, integration, e2e)
-        - Add TypeScript quality gates: `npm run typecheck`, `npm test`, `npm run build`
-        - Update Quality Gates section to include both markdown linting AND code quality
-        - Add code quality standards relevant to TypeScript (strict mode, ESM conventions)
+    - [x] **1.2.a Update `DEV-RULES.PROJECT.md` (internal)**
+        - Quality Gates: added typecheck, test, and build gates alongside existing markdown linting
+        - Testing Requirements: replaced N/A with vitest strategy (unit/integration/e2e tiers)
+        - Code Quality: added TypeScript standards (strict, no `any`, ESM, explicit return types)
+        - CI Validation: added TypeScript/test/build checks
 
-    - [ ] **1.2.b Update `QUICK-REFERENCE.md` (internal)**
-        - Add build commands (`npm run build`), test commands (`npm test`, `npm run test:unit`,
-          etc.), type checking (`npm run typecheck`)
-        - Update Quality Gate Commands section with tiered commands (Tier 1: lint changed files +
-          relevant unit tests, Tier 3: full build + full test suite + markdown lint)
-        - Keep existing markdown linting commands (still needed for `.arc/` and `.arc-internal/` docs)
+    - [x] **1.2.b Update `QUICK-REFERENCE.md` (internal)**
+        - Added TypeScript/Build/Test command section
+        - Quality Gate Commands: expanded to all three tiers (Tier 1: lint + unit tests,
+          Tier 2: full lint + typecheck + test, Tier 3: all + build + git review)
+        - Updated environment context from "documentation-only" to hybrid project
+        - Revised anti-patterns for monorepo workspace context
 
-    - [ ] **1.2.c Update `TECHNICAL-OVERVIEW.md` (internal)**
-        - Add TypeScript/tsup/vitest to infrastructure section
-        - Update "Testing Infrastructure" section (no longer "no unit tests")
-        - Document the npm package as a new architecture component alongside the documentation system
+    - [x] **1.2.c Update `TECHNICAL-OVERVIEW.md` (internal)**
+        - Overview: updated from "pure documentation" to hybrid project with CLI description
+        - Architecture: added CLI Package section (entry point, build, tests, templates)
+        - Infrastructure: added TypeScript, tsup, vitest, npm workspaces
+        - Testing: replaced "no unit tests" with three-tier test strategy and full quality gates
 
-    - [ ] **1.2.d Assess pre-commit hook extension needs**
-        - Current hooks validate markdown and commit messages only
-        - Determine whether TypeScript build/test checks belong in pre-commit or CI-only
-        - Document decision; implement if pre-commit is chosen
+    - [x] **1.2.d Assess pre-commit hook extension needs**
+        - Decision: **CI-only** for typecheck/test/build. Pre-commit hooks stay lightweight
+          (bash-based, <1s). TypeScript compilation + test suite would add 5-10s+ per commit
+          and require Node.js execution in the hook. CI catches these before merge.
+        - No hook changes needed — existing checks (markdown lint, commit message format,
+          sensitive files, task numbering, boundary enforcement) remain appropriate.
 
-- [ ] **1.3 Verify scaffolding**
-    - Build succeeds (`npm run -w packages/arc-framework build`)
-    - Type checking passes (`npm run -w packages/arc-framework typecheck`)
-    - Test runner executes (`npm run -w packages/arc-framework test` — empty suite, 0 failures)
-    - Existing markdown linting still works (`npm run -s lint:md`)
-    - CLI entry point runs (`node packages/arc-framework/dist/cli.js --help`)
-    - Root convenience scripts work (`npm run build`, `npm test`)
+- [x] **1.3 Verify scaffolding**
+    - All checks pass: build, typecheck, test (passWithNoTests), markdown lint (142 files, 0 errors),
+      CLI `--help`, root convenience scripts (`npm run build/test/test:unit/typecheck`)
+    - Added `passWithNoTests: true` to vitest config so empty test suite exits cleanly
 
 ### **Phase 2:** Template Engine and Core Libraries
 
