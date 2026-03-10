@@ -332,7 +332,10 @@ Rejected:
 
 ### quality-gate-commands.default
 
-Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates.
+Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates. This is a passthrough by
+design — no universal default command set exists across projects. The method exists so the process-task-loop
+references quality gates uniformly through the method layer, and teams with non-standard setups
+(environment-specific commands, conditional logic) have a clean override path.
 
 ---
 
