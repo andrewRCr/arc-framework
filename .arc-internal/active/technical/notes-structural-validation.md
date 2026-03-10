@@ -1,11 +1,20 @@
 # Notes: Structural Validation
 
-Working notes for the structural validation work unit. Organized by topic — sections added
-as phases produce findings.
+**Completed:** 2026-03-10
+**Status:** Complete
+
+Reference notes for the structural validation work unit. Scenario definitions for lifecycle
+navigability walkthroughs and findings from the Phase 0 baseline assessment.
+
+## Contents
+
+- [Scenario Definitions](#scenario-definitions) — 5 reusable lifecycle scenarios
+- [Navigability Findings](#navigability-findings) — 7 findings from Phase 0 walkthrough
+- [Phase Input Tags](#phase-input-tags) — finding-to-phase cross-reference
 
 ---
 
-## Scenario Definitions (Phase 0)
+## Scenario Definitions
 
 Reusable scenario set for navigability walkthrough (Phase 0 baseline) and post-change validation
 (Phase 8). Each scenario defines a lifecycle path through ARC workflows, parameterized by
@@ -94,20 +103,11 @@ PM modes (`arc-in-git` and `none`) to exercise different artifact paths.
 
 ---
 
-## Navigability Findings (Phase 0)
+## Navigability Findings
 
-*Populated during Task 0.2 walkthrough. Each finding includes: scenario, workflow, specific
-location, severity, and phase tag for downstream consumption.*
-
-### Finding Template
-
-```markdown
-**[F-nn]** severity · scenario · workflow · location
-Description of the issue.
-**Phase tag**: Phase N (reason)
-```
-
-### Findings
+Findings from the Phase 0 walkthrough. Each includes: scenario, workflow, specific location,
+severity, and phase tag for downstream resolution. All findings were resolved during subsequent
+phases (see task list for resolution details).
 
 **[F-01]** high · all scenarios · `3_process-task-loop.md` · end of document (after Verification
 Phase section)

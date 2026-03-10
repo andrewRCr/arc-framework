@@ -1,7 +1,8 @@
 # PRD: Structural Validation
 
 **Type:** Technical
-**Updated:** 2026-03-06
+**Completed:** 2026-03-10
+**Status:** Complete
 
 ---
 
@@ -150,20 +151,16 @@ itself. This is bounded work but must be thorough.
 
 ## Open Questions
 
-**Resolve before starting:**
+1. **Workflow reorganization depth** — Resolved: both rename and reorganize. Promoted 8 lifecycle
+   workflows from `supplemental/` to peer `work-unit-lifecycle/` directory. Session workflows promoted
+   to `session-lifecycle/`. `supplemental/` retained for 3 genuinely supplemental guides.
 
-1. **Workflow reorganization depth** — are we open to renaming the `supplemental/` directory itself,
-   or only to reorganizing its contents into subdirectories? Both? The answer affects how many
-   cross-references need updating.
+2. **Optional content location** — Resolved: existing structure is already forward-compatible.
+   External content lands in natural project-owned directories (`strategies/project/`, project workflow
+   directories, arc-methods overrides). No new directories or classifications needed.
 
-**Resolve during work:**
-
-2. **Optional content location** — inside `.arc/` (e.g., `.arc/optional/`) or managed purely through
-   the npm package (present in source, installed selectively, no dedicated directory)? Depends on
-   whether optional content needs to be discoverable in the file tree or just in `arc init` prompts.
-
-3. **Strategy split threshold** — at what file count do `strategies/arc/` subdirectories become
-   worthwhile? If we decide "not now," document the threshold for future reference.
+3. **Strategy split threshold** — Resolved: keep flat at 10 files. Reconsider at ~15–18. Current
+   STRATEGY-INDEX.md provides sufficient conceptual grouping.
 
 ## Document History
 
