@@ -1,10 +1,10 @@
 # Task List: CLI Implementation
 
-**PRD:** `.arc-internal/backlog/technical/prd-cli-implementation.md`
+**PRD:** `.arc-internal/active/technical/prd-cli-implementation.md`
 **Created:** 2026-03-10
-**Branch(es):** `technical/plan-cli-distribution`
+**Branch(es):** `technical/cli-implementation`
 **Base Branch:** `main`
-**Status:** Not Started
+**Status:** In Progress
 
 ## Overview
 

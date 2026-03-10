@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `technical/plan-cli-distribution`
-**Task List**: `.arc-internal/backlog/technical/tasks-cli-implementation.md`
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: WU3 task list generated (8 phases, ~45 tasks)
+**Branch**: `technical/cli-implementation`
+**Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
+**Following Task List**: Yes
+**Next Task**: Task 1.1 — Set up monorepo workspace structure (line ~47)
+**Last Completed**: WU3 planning branch integrated (PR #10)
 **Blockers**: [none]
-**Next Action**: Integrate planning branch (run integrate-planning-branch workflow)
+**Next Action**: Begin Phase 1 — Task 1.1 (monorepo workspace structure)
 
 ---
 
