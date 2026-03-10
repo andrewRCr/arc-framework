@@ -4,7 +4,7 @@
 **Created:** 2026-03-06
 **Branch(es):** `technical/structural-validation`
 **Base Branch:** `main`
-**Status:** In Progress
+**Status:** Complete
 
 ## Overview
 
@@ -882,13 +882,23 @@ must be offset by tightening elsewhere. Zone 3 documents (on-demand) have no len
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-- [ ] **9.1 Run Tier 3 quality gates**
-    - [ ] 9.1.a Run full markdown linting: `npm run -s lint:md`
-    - [ ] 9.1.b Review all uncommitted changes: `git diff --stat`
+- [x] **9.1 Run Tier 3 quality gates**
+    - [x] 9.1.a Run full markdown linting: `npm run -s lint:md`
+          143 files, 0 errors on tracked files. 1 error in gitignored SESSION-NOTES.md (not committed).
+    - [x] 9.1.b Review all uncommitted changes: `git diff --stat`
+          Working tree clean — all work committed.
 
-- [ ] **9.2 Validate success criteria against PRD**
+- [x] **9.2 Validate success criteria against PRD**
 
-- [ ] **9.3 Verify all atomic tasks resolved**
+    All 10 success criteria met. No deviations from PRD intent. Phase 4 criterion (merge
+    boundaries) has 2 accepted exceptions in template files — documented as inherent to template
+    design, not a gap.
+
+- [x] **9.3 Verify all atomic tasks resolved**
+
+    2 atomic tasks, both `[x]`: integrate-external-content workflow (Phase 5 discovery),
+    remove unprotected branch protection mode (Phase 6.2 prerequisite). No `[ ]` items
+    remaining.
 
 ---
 
@@ -920,17 +930,40 @@ must be offset by tightening elsewhere. Zone 3 documents (on-demand) have no len
 
 ## Success Criteria
 
-- [ ] Every `.arc/` file appears in the inventory with correct classification and layer assignment
-- [ ] Workflow directory organization decided and implemented (if changes warranted)
-- [ ] Strategy directory organization decided and documented
-- [ ] Every Configurable file has section-level separation confirmed — no paragraph-level interleaving
-- [ ] Optional content pattern decided and forward-compatible structure established
-- [ ] No unresolved content duplication in high-traffic document areas
-- [ ] Cross-cutting dependency map produced for WU3-relevant concepts
-- [ ] All quality gates pass (markdown linting — 0 violations)
-- [ ] Common lifecycle scenarios navigable without dead-ends, ambiguous routing, or excessive
+- [x] Every `.arc/` file appears in the inventory with correct classification and layer assignment
+  — Phase 1 validated 80 files, added 11 missing entries. Phase 8 added 3 more (58 Framework,
+  86 total). No unclassified files.
+- [x] Workflow directory organization decided and implemented (if changes warranted)
+  — Phase 2: promoted 8 lifecycle workflows to `work-unit-lifecycle/`, created
+  `session-lifecycle/`, renamed `setup/` → `initial-setup/`, renamed 3 files for verb-noun
+  consistency. 22 files updated for cross-references.
+- [x] Strategy directory organization decided and documented
+  — Phase 3: decided to keep flat (10 files, comfortable). Documented `strategy-` prefix
+  rationale. Standardized 3 strategy title formats.
+- [x] Every Configurable file has section-level separation confirmed — no paragraph-level interleaving
+  — Phase 4: 13 of 15 clean. 2 files (QUICK-REFERENCE.template, AGENTS.template) have mild
+  interleaving in mixed lists — accepted as inherent to template design (stable framework
+  items adjacent to placeholders).
+- [x] Optional content pattern decided and forward-compatible structure established
+  — Phase 5: existing `strategies/project/` and Project-Owned classification already support
+  external content. No new infrastructure needed. `integrate-external-content` workflow created
+  as atomic task.
+- [x] No unresolved content duplication in high-traffic document areas
+  — Phase 6.1: all 4 high-traffic areas audited. Intentional reinforcement (safety-critical
+  rules at execution points) classified and accepted. F-04 resolved with branch context notes.
+- [x] Cross-cutting dependency map produced for WU3-relevant concepts
+  — Phase 6.2: `analysis-cross-cutting-dependencies.md` covers 6 concept areas (file
+  classifications, config settings, methods, session state, pm.mode, branch.protection).
+- [x] All quality gates pass (markdown linting — 0 violations)
+  — Tier 3: 143 files linted, 0 errors on tracked files.
+- [x] Common lifecycle scenarios navigable without dead-ends, ambiguous routing, or excessive
   conditional parsing
-- [ ] File tree is stable and ready for WU3 to hardcode paths
+  — Phase 0 established 5 scenarios with 7 findings. Phase 7 re-walked all scenarios —
+  all findings resolved, zero dead-ends, zero broken links. Phase 8 remediated 17 clarity
+  findings across Zones 2 and 3, net -52 lines in Zone 2.
+- [x] File tree is stable and ready for WU3 to hardcode paths
+  — All structural changes complete (Phases 2-3). Directory layout finalized. File inventory
+  current at 86 files with classifications and layer assignments.
 
 ---
 

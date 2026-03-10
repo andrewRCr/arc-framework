@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 9.1 — Run Tier 3 quality gates (line ~885)
-**Last Completed**: Task 8.7 — Zone 2 budget verification (line ~870)
+**Next Task**: —
+**Last Completed**: Task 9.3 — Verify all atomic tasks resolved (line ~901)
 **Blockers**: [none]
-**Next Action**: Begin Phase 9 verification — Tier 3 quality gates, PRD validation, atomic task check
+**Next Action**: Proceed to integrate-work-unit — doc cleanup, completion metadata, code review, PR, merge
 
 ---
 
