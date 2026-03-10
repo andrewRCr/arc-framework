@@ -306,8 +306,8 @@ significant content work can begin earlier:
 
 **Cross-cutting:**
 
-- npm package name: `arc-framework` (confirmed available on npm during WU3 planning)
-- Public repo name: `arc-framework` (matches npm package name)
+- npm package name: `@arc-framework/cli` (scoped under `arc-framework` npm org)
+- Public repo name: `arc-framework`
 - Dev repo rename: `arc-agentic-dev-framework` → `arc-framework-dev`
 - Repo structure: monorepo with `packages/arc-framework/` workspace (established in WU3)
 
@@ -316,7 +316,7 @@ significant content work can begin earlier:
 ## Open Questions
 
 **~~Public repo name:~~** Resolved. `arc-framework` for the public repo, `arc-framework-dev`
-for the private dev repo. npm package name matches: `arc-framework` (confirmed available).
+for the private dev repo. npm package name: `@arc-framework/cli` (scoped under `arc-framework` org).
 
 **GitHub Discussions:** Evaluate at release time whether to enable. The question is whether
 "how do I adapt this to my workflow?" conversations have a better home in Discussions vs.

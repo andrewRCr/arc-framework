@@ -23,7 +23,7 @@ arc-agentic-dev-framework/          <- Private dev repo (renamed to arc-framewor
   .arc-internal/                    <- Framework development workspace (never published)
   packages/
     arc-framework/                  <- The publishable npm package
-      package.json                  <- name: "arc-framework", type: module, bin → dist/cli.js
+      package.json                  <- name: "@arc-framework/cli", type: module, bin → dist/cli.js
       tsup.config.ts                <- Build config (ESM, shebang, declarations)
       vitest.config.ts              <- Test config
       src/

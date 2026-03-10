@@ -13,7 +13,7 @@ template placeholders, setting up gitignore entries, and configuring git hooks. 
 manually diffing new framework versions against customized files. Neither process is documented for
 adopters because neither process is reasonable to ask of them.
 
-WU3 builds the distribution layer: an `arc-framework` npm package with a CLI that handles
+WU3 builds the distribution layer: an `@arc-framework/cli` npm package with a CLI that handles
 installation, configuration, and updates. The target is a beta release (`0.x`) for internal
 dogfooding — complete enough to exercise the full init → work → update cycle in a real project
 before public release in WU4.
@@ -173,7 +173,7 @@ configured path. Skills, agent files, and documentation all reference the correc
 - **CLI framework:** Commander (subcommand routing, zero deps)
 - **Interactive prompts:** @clack/prompts (modern, minimal)
 - **Testing:** Vitest (unit + integration + e2e)
-- **Package name:** `arc-framework` (confirmed available on npm)
+- **Package name:** `@arc-framework/cli` (scoped under `arc-framework` npm org)
 
 ### Architecture
 

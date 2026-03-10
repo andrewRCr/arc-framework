@@ -78,7 +78,7 @@ Settled the file tree so WU3 can build on it with confidence.
 
 **WU3: CLI Implementation (Beta)** — Planning → PRD
 
-Build the `arc-framework` npm package (`0.x` beta): TypeScript CLI with interactive init,
+Build the `@arc-framework/cli` npm package (`0.x` beta): TypeScript CLI with interactive init,
 three-way merge update system, agent tooling generation, manifest tracking. Team mode and
 configurable install directory in scope. Beta target for internal dogfooding.
 
