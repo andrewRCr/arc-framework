@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.3 — Clarity remediation, Zone 2 process-task-loop (line ~699)
-**Last Completed**: Task 8.2 — Infrastructure fixes (line ~686)
+**Next Task**: Task 8.5 — Clarity remediation, Zone 3 archive-work-unit (line ~790)
+**Last Completed**: Task 8.4 — Clarity remediation, Zone 2 session-init/handoff (line ~741)
 **Blockers**: [none]
-**Next Action**: Begin Task 8.3 — address A1, A2, A3, B8, C4 in process-task-loop.md
+**Next Action**: Begin Task 8.5 — address A4, A5, A6, B5, B6, B7 in archive-work-unit.md
 
 ---
 

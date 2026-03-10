@@ -699,66 +699,89 @@ must be offset by tightening elsewhere. Zone 3 documents (on-demand) have no len
 
         `strategy-file-classification.md` passes with 0 errors.
 
-- [ ] **8.3 Clarity remediation — Zone 2 documents (process-task-loop)**
+- [x] **8.3 Clarity remediation — Zone 2 documents (process-task-loop)**
 
-    Address findings A1, A2, A3, B8, C4 in `3_process-task-loop.md`. These are the highest-impact
-    items — quality gate tiers are the most frequent checkpoint in the framework.
+    Addressed A1, A2, B8, C4 in `3_process-task-loop.md`. Skipped A3 (already covered by
+    commit-path workflows). Net +5 lines. All changes pass Tier 1.
 
-    - [ ] **8.3.a Inline tier summary at first Tier 1 mention (A1)**
+    - [x] **8.3.a Inline tier summary at first Tier 1 mention (A1)**
 
-        Replace explanation-by-reference with compact 3-line tier definition. See analysis doc
-        for proposed text.
+        Added 3-line tier definition at first Tier 1 reference: scope boundaries per tier
+        (modified files → full project + targeted integration → full suite) without prescribing
+        specific tools. Corrected analysis doc's proposed text which over-specified tool types
+        and inaccurately described Tier 2/3 content vs actual strategy doc.
 
-    - [ ] **8.3.b Tighten "coherent unit" Tier 2 trigger definition (A2)**
+    - [x] **8.3.b Tighten "coherent unit" Tier 2 trigger definition (A2)**
 
-        Replace "integration-tested code" with concrete scope definition.
+        Replaced vague "integration-tested code" with "cross-cutting code (shared services,
+        middleware, configuration, API contracts)." +1 net line (reflow).
 
-    - [ ] **8.3.c Add WORK-STATUS update format note (A3)**
+    - [~] **8.3.c Add WORK-STATUS update format note (A3)**
 
-        Add brief format note (triple-anchor format, field expectations) after existing
-        instruction. ~3 lines, eliminates need to load template mid-workflow.
+        Skipped — format is already documented in session-handoff.md (full WORK-STATUS template
+        with triple-anchor examples, lines 67-90). The process-task-loop correctly delegates to
+        the commit path (arc-commit skill / prepare-commits), which covers format at point of use.
+        Inlining here would duplicate the handoff template and add a maintenance surface.
 
-    - [ ] **8.3.d Tighten deferred review success criteria (B8)**
+    - [x] **8.3.d Tighten deferred review success criteria (B8)**
 
-        Replace vague "sufficient context" with specific state requirements. Net zero lines.
+        Replaced vague "sufficient context" with concrete state: "task list updated, quality
+        gates passing, changes uncommitted (user decides commit boundaries)."
 
-    - [ ] **8.3.e Assess C4 (error pathways in Pre-Report Checklist)**
+    - [x] **8.3.e Assess C4 (error pathways in Pre-Report Checklist)**
 
-        Evaluate whether the existing coverage in DEV-RULES.ARC is sufficient. Fix or
-        document decision to skip.
+        Minimal fix — replaced vague "complete it before proceeding" with auto-fix/report
+        distinction: fix obvious issues (lint, type errors) and re-run; report non-obvious
+        failures in completion summary. +1 net line.
 
-    - [ ] **8.3.f Run Tier 1 on `3_process-task-loop.md`**
+    - [x] **8.3.f Run Tier 1 on `3_process-task-loop.md`**
 
-- [ ] **8.4 Clarity remediation — Zone 2 documents (session-init, session-handoff)**
+        0 errors.
 
-    Address findings B1, B2, B3, B4, B12, C1, C2, C3 across `session-init.md` and
-    `session-handoff.md`. All surgical — ~4 net lines across 2 files.
+- [x] **8.4 Clarity remediation — Zone 2 documents (session-init, session-handoff)**
 
-    - [ ] **8.4.a Expand `pm.mode:none` guidance to match arc-in-git parity (B1)**
+    Addressed B1, B2, B3, B12 across both files. Skipped B4 (already clear), C1/C2 (low
+    value-add per analysis doc), C3 (acceptable per analysis doc). Net +4 lines across 2 files.
 
-        Add readiness-state context (~2 lines) to the none/external branch in Step 5.
+    - [x] **8.4.a Expand `pm.mode:none` guidance to match arc-in-git parity (B1)**
 
-    - [ ] **8.4.b Add protection mode clarification clause (B2)**
+        Added readiness-state parenthetical to step 2: draft PRD → needs refinement, complete
+        PRD → ready for task generation, task list → ready for activation. +1 net line (reflow).
 
-        Add parenthetical clause explaining partial protection alternative.
+    - [x] **8.4.b Add protection mode clarification clause (B2)**
 
-    - [ ] **8.4.c Sharpen extensions execution instruction (B3)**
+        Added partial protection clause to the full-protection blockquote: "Under partial
+        protection (the default), proceed directly to 1_create-prd — no planning branch needed."
 
-        Replace vague "execute them" with precise mechanism. Net zero lines.
+    - [x] **8.4.c Sharpen extensions execution instruction (B3)**
 
-    - [ ] **8.4.d Clarify override detection in Step 4 (B4)**
+        Replaced vague "execute them" with "If the post-context-load section in arc-extensions.md
+        has steps (not the default placeholder), follow those steps now." Net zero lines.
 
-        Add clause explaining what a populated override looks like.
+    - [~] **8.4.d Clarify override detection in Step 4 (B4)**
 
-    - [ ] **8.4.e Add Persistent Context purpose sentence (B12, session-handoff)**
+        Skipped — Step 4 already says "check if the `.override` section is populated" (line 146),
+        which is sufficiently precise. The analysis doc's proposed addition would be redundant.
 
-        One sentence defining what kinds of entries persist.
+    - [x] **8.4.e Add Persistent Context purpose sentence (B12, session-handoff)**
 
-    - [ ] **8.4.f Assess C1, C2, C3 (polish items)**
+        Added "cross-session constraints (naming conventions, architectural decisions, deferred
+        items)" before the mechanism description. +1 line.
 
-        Evaluate each — fix if net-zero, document decision to skip otherwise.
+    - [x] **8.4.f Assess C1, C2, C3 (polish items)**
 
-    - [ ] **8.4.g Run Tier 1 on modified files**
+        C1: Skipped — WORK-STATUS is ~20 lines, read in full; field names don't need repeating.
+        C2: Investigated — no team mode config key exists in `arc-config.yml` (was likely
+        collapsed during design in favor of CLI init handling it structurally). Added minimal
+        team mode path note to session-init SESSION-NOTES step. Captured full detection
+        mechanism and agent identity resolution gap in WU3 plan doc
+        (`plan-wu3-cli-distribution.md` § Team Mode Detection and Agent Identity) with design
+        questions for the PRD. C3: Skipped — override reference is clear enough for the rare
+        case.
+
+    - [x] **8.4.g Run Tier 1 on modified files**
+
+        Both `session-init.md` and `session-handoff.md` pass with 0 errors.
 
 - [ ] **8.5 Clarity remediation — Zone 3 documents (archive-work-unit)**
 

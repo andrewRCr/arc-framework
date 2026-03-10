@@ -49,7 +49,8 @@ project overrides session-state, follow the override instead):
 **When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
 
 **Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
-context that survives across handoffs. Each entry has an explicit removal trigger. During handoff,
+cross-session constraints (naming conventions, architectural decisions, deferred items) that survive
+across handoffs. Each entry has an explicit removal trigger. During handoff,
 rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context) but preserve
 persistent context entries whose triggers haven't been met. Remove entries whose triggers are met.
 

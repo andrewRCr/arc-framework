@@ -34,7 +34,10 @@ It ensures consistent execution, quality control, and documentation of work.
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
        [quality-gate-commands method][arc-methods-qg]
-       - See [Quality Gates Strategy][quality-gates] for the tiered approach
+       - **Tier definitions:** Tier 1 (per-task): quality-gate-commands on modified files only ·
+         Tier 2 (coherent unit): full-project Tier 1 + targeted integration/E2E + build ·
+         Tier 3 (phase/pre-PR): all checks, all configurations, full suite.
+         See [Quality Gates Strategy][quality-gates] for boundaries and escalation.
        - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
        - When task list explicitly calls for quality gates (including E2E checkpoints), they are mandatory
      - **Extensions** · `#post-task-quality`: If [post-task-quality extensions][arc-ext-task-quality] are configured,
@@ -69,7 +72,9 @@ It ensures consistent execution, quality control, and documentation of work.
      - [ ] Ready to generate user-facing completion report
      ```
 
-     If any item is unchecked, complete it before proceeding to report generation.
+     If any item is unchecked, complete it before proceeding. For quality gate failures: fix
+     obvious issues (lint, type errors) and re-run; report non-obvious failures in your
+     completion summary — you're about to stop for review anyway.
 
      **Note on implied permission:** User approval ("great!", "looks good", "proceed") implies permission to
      continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
@@ -79,8 +84,9 @@ It ensures consistent execution, quality control, and documentation of work.
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
      Complete only the specified work — update the task list and run quality gates after each
-     task, but continue to the next without waiting for approval. Leave sufficient context for
-     the user to review, iterate, commit, and hand off when they return.
+     task, but continue to the next without waiting for approval. Leave the task list updated,
+     quality gates passing, and changes uncommitted (user decides commit boundaries when they
+     return).
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
@@ -91,8 +97,9 @@ It ensures consistent execution, quality control, and documentation of work.
        than expected but progressing, minor deviation from plan that doesn't change outcomes
 
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
-     the last subtask under a parent (all subtasks now `[x]`), or a standalone task that touches
-     integration-tested code — follow this additional sequence. Note: phase headers are
+     the last subtask under a parent (all subtasks now `[x]`), or a standalone task that modifies
+     cross-cutting code (shared services, middleware, configuration, API contracts) — follow this
+     additional sequence. Note: phase headers are
      organizational groupings, not trackable items — phase completion is implicit when all tasks
      within the phase are complete.
 

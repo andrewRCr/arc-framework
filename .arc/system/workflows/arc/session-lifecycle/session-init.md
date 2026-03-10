@@ -90,6 +90,8 @@ override instead.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
 8. `.arc/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
+   - **Team mode path**: If `team/` member directories exist, read `team/{name}/SESSION-NOTES.md`
+     instead — see `team/README.md` for path resolution
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
@@ -129,8 +131,9 @@ override instead.
 
 ### 3. Post-Context-Load Extensions · `#post-context-load`
 
-If [post-context-load extensions][arc-ext-post-context-load] are configured, execute them now. Use for
-team-specific documents, external tool state, or environment checks before orientation.
+If the `post-context-load` section in [`arc-extensions.md`][arc-ext-post-context-load] has steps
+(not the default placeholder), follow those steps now. Use for team-specific documents, external
+tool state, or environment checks before orientation.
 
 See: [`arc-extensions.md` § post-context-load][arc-ext-post-context-load]
 
@@ -206,13 +209,16 @@ and reports — the user decides how to proceed.
 **`pm.mode: none` or `external`:**
 
 1. Check `active/` for any existing planning artifacts (PRDs, `plan-*` docs, task lists)
-2. If artifacts exist, report their state and propose next steps
+2. If artifacts exist, report their readiness state (draft PRD → needs refinement; complete
+   PRD → ready for task generation; task list present → ready for activation) and propose
+   next steps
 3. If no artifacts exist, the next action is to create a PRD when ready →
    [1_create-prd.md][create-prd]
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the
 > user confirms next steps, run [activate-planning-branch][activate-planning-branch] before
-> creating plan documents or PRDs.
+> creating plan documents or PRDs. Under partial protection (the default), proceed directly
+> to [1_create-prd.md][create-prd] — no planning branch needed.
 
 **Formatting guidance:**
 
