@@ -57,11 +57,12 @@ transition from documentation-only to a hybrid code + documentation project.
         - Add convenience scripts that delegate to the workspace (e.g., `build`, `test`,
           `typecheck` forwarding to `npm run -w packages/arc-framework`)
 
-    - [ ] **1.1.b Create `packages/arc-framework/package.json`**
+    - [ ] **1.1.b Create `packages/arc-framework/package.json` and claim npm name**
         - `name: "arc-framework"`, `type: "module"`, `bin` entry pointing to `dist/cli.js`
         - Node 18+ engine requirement
         - Runtime deps: `commander`, `@clack/prompts`
         - Dev deps: `typescript`, `tsup`, `vitest`, `@types/node`
+        - Publish `0.0.0` placeholder to npm to reserve the package name
 
     - [ ] **1.1.c Create TypeScript and build configuration**
         - `packages/arc-framework/tsconfig.json` with strict mode, ESM target
