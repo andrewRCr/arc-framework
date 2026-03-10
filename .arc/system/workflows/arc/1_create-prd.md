@@ -42,8 +42,11 @@ Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] 
   into (no backlog directory)
 
 **If a plan exists**: Read it as your primary context. It may reference supplemental `notes-*.md`
-files with additional detail — read those too. Focus discovery (Step 3) on gaps and ambiguities
-rather than broad exploration.
+files with additional detail — read those too. Before proceeding, assess PRD-readiness: check for
+unresolved design decisions, open unknowns marked for future resolution, or missing concrete details
+that the PRD would need to specify. If the plan isn't ready, surface the gaps and resolve them (or
+return to plan refinement) before investing in PRD writing. Focus discovery (Step 3) on remaining
+gaps and ambiguities rather than broad exploration.
 
 **If no plan exists**: Proceed directly to discovery.
 
@@ -80,12 +83,33 @@ Generate the PRD using [template-prd.md][template-prd]. The template includes se
 dependency tracking, priority levels, and document history conventions. Adapt emphasis based on
 work type — not every section carries equal weight for every PRD.
 
-Save location depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
+**Naming:** The `{{WORK_NAME}}` descriptor in the PRD filename becomes the work unit's identifier
+across all artifacts — task list (`tasks-{{WORK_NAME}}.md`), notes (`notes-{{WORK_NAME}}.md`),
+completion record, and branch name. Choose a concise, descriptive slug (e.g., `api-modernization`,
+`cli-implementation`). Avoid abbreviations that only make sense in context or overly long
+compound names.
+
+**Save location** depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git**: `.arc/backlog/{category}/prd-{{WORK_NAME}}.md` — PRDs start in backlog and
   graduate to `active/` during [activation][activate-work-unit]
 - **none / external**: `.arc/active/{category}/prd-{{WORK_NAME}}.md` — PRDs save directly to
   active (no backlog directory)
+
+### Step 5: Retire Plan Documents
+
+If a `plan-*.md` document fed into this PRD, retire it now. Plan documents are ephemeral — they
+serve exploration and are deleted once the PRD captures the conclusions (see
+[Work Planning Strategy][work-planning] § Plan Documents).
+
+1. **Audit for reference content**: Scan the plan for implementation detail, design rationale, or
+   context that the PRD doesn't capture but would be valuable during task generation or execution.
+   Migrate this to a `notes-*.md` file alongside the PRD (same directory).
+2. **Delete the plan**: `git rm` the `plan-*.md` file (and any supplemental files that fed into it,
+   unless they have independent archival value — e.g., research files may belong in
+   `reference/research/`).
+3. **Stage with the PRD commit**: The plan deletion and any `notes-*` creation should be part of the
+   same commit as the PRD.
 
 **Stop here** — do not proceed to task generation. The PRD should be reviewed first. When ready,
 continue with [2_generate-tasks.md](2_generate-tasks.md).

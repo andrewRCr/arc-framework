@@ -83,7 +83,7 @@ you what kind."
 | `tasks-`      | Task list                | User/agent | `tasks-api-modernization.md`      |
 | `completion-` | Completion record        | Agent      | `completion-api-modernization.md` |
 | `notes-`      | Work unit notes          | Agent      | `notes-api-modernization.md`      |
-| `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-wu3-cli-distribution.md`    |
+| `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-api-migration.md`           |
 | `strategy-`   | Strategy document        | Framework  | `strategy-work-organization.md`   |
 | `research-`   | Research document        | User/agent | `research-context-loading.md`     |
 | `adr-`        | Architecture Decision    | User/agent | `adr-001-define-core-identity.md` |

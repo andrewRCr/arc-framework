@@ -10,9 +10,9 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: WU3 plan refinement (freshness + concreteness pass)
+**Last Completed**: WU3 PRD created (prd-cli-implementation.md), plan retired
 **Blockers**: [none]
-**Next Action**: Create PRD for WU3 (run create-prd workflow against plan-wu3-cli-distribution.md)
+**Next Action**: Generate task list for WU3 (run generate-tasks workflow against prd-cli-implementation.md)
 
 ---
 

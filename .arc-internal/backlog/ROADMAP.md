@@ -76,13 +76,13 @@ Settled the file tree so WU3 can build on it with confidence.
 - Upstream: WU2 (methodology changes)
 - Downstream: WU3, WU4
 
-**WU3: CLI & Distribution (Beta)** — Planning → PRD
+**WU3: CLI Implementation (Beta)** — Planning → PRD
 
 Build the `arc-framework` npm package (`0.x` beta): TypeScript CLI with interactive init,
 three-way merge update system, agent tooling generation, manifest tracking. Team mode and
 configurable install directory in scope. Beta target for internal dogfooding.
 
-- Plan: `technical/plan-wu3-cli-distribution.md`
+- PRD: `technical/prd-cli-implementation.md`
 - Upstream: WU1 (config schema), WU2 (methodology), Structural Validation (file inventory)
 - Downstream: Dogfooding, WU4
 
@@ -146,7 +146,7 @@ dependencies.
 - WU2 PRD: `technical/prd-methodology-completion.md`
 - Structural Validation PRD: `technical/prd-structural-validation.md`
 - Structural Validation tasks: `technical/tasks-structural-validation.md`
-- WU3 plan: `technical/plan-wu3-cli-distribution.md`
+- WU3 PRD: `technical/prd-cli-implementation.md`
 - WU4 plan: `feature/plan-wu4-public-release.md`
 - Active work: `.arc-internal/active/WORK-STATUS.md`
 - Project status: `.arc-internal/reference/PROJECT-STATUS.md`
