@@ -112,7 +112,7 @@ and [Archive Workflow](../../system/workflows/arc/work-unit-lifecycle/archive-wo
 
 1. Verify completion (all tasks marked [x], quality gates passing)
 2. **Run clean-work-unit workflow** (Mode 2: Archival Preparation) - MANDATORY
-3. Create work package directory (if multiple docs) and move all files together
+3. Create work unit directory (if multiple docs) and move all files together
 4. Create completion metadata with summary and metrics
 5. Update PROJECT-STATUS references
 6. Commit archive changes with descriptive message
