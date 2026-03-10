@@ -46,7 +46,7 @@ quality improvements.
 
 - ~~Structural analysis pass~~ → WU2 Cluster M (`plan-wu2-methodology-completion.md`)
 - ~~README.md refresh~~ → WU4 (`plan-wu4-public-release.md`)
-- ~~Migration tools for template updates~~ → WU3 (`plan-wu3-cli-distribution.md`)
+- ~~Migration tools for template updates~~ → WU3 (`prd-cli-implementation.md`)
 - ~~Profile system enhancements~~ → WU3 interactive init
 - ~~Documentation site~~ → WU4 docs site
 - ~~Community contribution pipeline~~ → WU4 community infrastructure

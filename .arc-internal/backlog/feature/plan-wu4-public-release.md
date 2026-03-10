@@ -5,6 +5,8 @@ external documentation site, polished README, and community infrastructure.
 
 **Status:** Draft
 **Created:** 2026-02-22
+**Amended:** 2026-03-10 (repo structure: publish mirror pattern replaces independent repo split,
+naming settled, npm publish via trusted publishing)
 
 ---
 
@@ -68,27 +70,60 @@ infrastructure.
 
 ## Deliverables
 
-### 1. Repository Split
+### 1. Repository Structure: Private Source + Public Mirror
 
-Two repositories replace the current single development repository:
+The development repo remains the single source of truth. The public repo is a read-only mirror
+of the publishable subset, kept in sync via automated GitHub Actions.
 
-**Development repo (private):**
+**Development repo (private): `arc-framework-dev`**
 
-- Rename `arc-agentic-dev-framework` → `arc-framework-dev`
-- Retains the full `.arc-internal/` workspace, development history, all planning artifacts
+- Rename from `arc-agentic-dev-framework`
+- Monorepo with npm workspaces: CLI package at `packages/arc-framework/`, root `package.json`
+  for markdown linting and workspace config
+- Retains `.arc-internal/` workspace, development history, planning artifacts
 - Ongoing framework development happens here using ARC methodology on itself
+- npm publish happens from here (CI, not manual) — private repos can publish to npm directly
 
-**Public repo (public):**
+**Public repo (public): `arc-framework`**
 
-- Name TBD — `arc-framework` is the current candidate
-- Contains: framework source files, CLI source, npm package config, user-facing documentation
-- Does not contain: `.arc-internal/` content, development planning artifacts, internal history
-- This is what users see, fork, and submit issues against
+- Read-only mirror — all code flows private → public, never the reverse
+- Contains: CLI source (`packages/arc-framework/` content), framework templates (`.arc/`),
+  README, community files, LICENSE
+- Does not contain: `.arc-internal/`, root workspace config, development planning artifacts
+- This is where users browse code, file issues, fork, and submit PRs
 
-**Migration process:** Deferred until WU3 is complete (CLI must be functional before
-the public repo has anything useful to contain). Public repo setup can begin in parallel
-with late-stage WU3 work — repository scaffolding, community infrastructure, and initial
-README can be prepared before the framework files are migrated.
+**Sync mechanism: GitHub Actions on release tags**
+
+When a release tag (e.g., `v0.1.0`, `v1.0.0`) is pushed to the dev repo, a GitHub Action:
+
+1. Extracts publishable content: `packages/arc-framework/`, `.arc/`, community files, README
+2. Pushes to the public `arc-framework` repo with clean commit history
+3. Publishes to npm via trusted publishing (OIDC) or npm access token
+
+Tooling options (evaluate during implementation): Monorepo Split Action, splitsh-lite, or
+git subtree push. All produce the same result — the choice is automation vs. simplicity.
+
+**Key constraints:**
+
+- **Unidirectional sync only.** Public repo users file issues and PRs there; code changes are
+  applied in the dev repo and sync outward. This avoids merge/drift problems entirely.
+- **PR workflow:** PRs filed against the public repo are reviewed and, if accepted, applied
+  manually to the dev repo (then synced back on next release). This is standard for
+  mirror-pattern projects.
+- **Issue tracking:** Issues live on the public repo. The dev repo's issue tracker (if used)
+  is for internal planning only.
+
+**Why not a full repo split (two independent repos)?**
+
+The earlier plan considered independent repos with manual migration. The mirror pattern is
+simpler for a solo/small-team project:
+
+- Single development environment — no cross-repo sync tooling for daily work
+- npm publish from CI in one place
+- `.arc/` template files (which the CLI packages) stay next to the CLI source
+- Framework methodology changes and CLI changes are naturally atomic
+- WU4's deliverable becomes "set up the mirror + community infra" rather than a complex
+  migration
 
 ### 2. External Documentation Site
 
@@ -198,11 +233,15 @@ Pre-release setup for the public repo — standard GitHub community health files
 - **GitHub Discussions** — Optional; evaluate need at release time. May be valuable for
   "how do I adapt ARC to my team's workflow" conversations that don't fit issue format.
 
-### 5. npm Publish
+### 5. npm Publish and Release Automation
 
-- Publish the npm package at 1.0.0 (coordination with WU3 on package name and scope)
-- GitHub Release with release notes
-- Confirm install command works cleanly in a fresh environment
+- Configure npm trusted publishing (OIDC) in the dev repo's GitHub Actions — no long-lived
+  tokens needed
+- Set up the release workflow: tag push → build → npm publish → sync to public repo → GitHub
+  Release with release notes
+- Publish 1.0.0 as the first stable release (beta `0.x` releases happen during dogfooding,
+  published from the dev repo using the same workflow)
+- Confirm install command works cleanly in a fresh environment (`npx arc-framework@latest init`)
 
 ---
 
@@ -238,8 +277,9 @@ significant content work can begin earlier:
 
 **Requires WU3 complete:**
 
-- Public repo migration (framework files, CLI source)
-- npm publish
+- Public repo mirror setup and sync automation (GitHub Actions workflow)
+- Release workflow (tag → build → npm publish → sync → GitHub Release)
+- npm publish (1.0.0 stable; beta `0.x` publishes happen during dogfooding)
 - CLI-specific docs (install command, init walkthrough, auto-compact recommendation context)
 - Final README (install instructions depend on npm package name)
 
@@ -247,7 +287,7 @@ significant content work can begin earlier:
 
 - Community infrastructure files (issue templates, code of conduct, contribution guidelines,
   PR template) — these don't depend on framework content
-- Public repo scaffolding (create repository, configure settings, add community files)
+- Public repo creation and configuration (create `arc-framework` repo, configure settings)
 
 ---
 
@@ -266,18 +306,17 @@ significant content work can begin earlier:
 
 **Cross-cutting:**
 
-- npm package name (decided during WU3) affects README install instructions and docs site
-  quick start
-- Public repo name (TBD — `arc-framework` is current candidate) affects all URLs and
-  GitHub Pages domain
+- npm package name: `arc-framework` (confirmed available on npm during WU3 planning)
+- Public repo name: `arc-framework` (matches npm package name)
+- Dev repo rename: `arc-agentic-dev-framework` → `arc-framework-dev`
+- Repo structure: monorepo with `packages/arc-framework/` workspace (established in WU3)
 
 ---
 
 ## Open Questions
 
-**Public repo name:** `arc-framework` is the current candidate. Confirm availability on
-npm and GitHub before WU3 publishes. Decision should happen during WU3 so the package name
-and repo name align.
+**~~Public repo name:~~** Resolved. `arc-framework` for the public repo, `arc-framework-dev`
+for the private dev repo. npm package name matches: `arc-framework` (confirmed available).
 
 **GitHub Discussions:** Evaluate at release time whether to enable. The question is whether
 "how do I adapt this to my workflow?" conversations have a better home in Discussions vs.
@@ -308,6 +347,6 @@ A minimal version (ARC vs. just CLAUDE.md) is probably sufficient for launch.
 
 - `plan-public-release.md` — source material this plan absorbs and supersedes for 1.0
   planning purposes
-- `plan-distribution-and-update-system.md` — WU3 plan; auto-compact note originates here
-- `plan-wu1-philosophy-configurability.md` — WU1 plan; ADR outputs are WU4 inputs
+- `prd-cli-implementation.md` — WU3 PRD; CLI commands WU4 documents and publishes
+- `notes-cli-implementation.md` — WU3 implementation reference; repo structure details
 - `ROADMAP.md` — Phase D placement and dependency overview

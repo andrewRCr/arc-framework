@@ -3,7 +3,7 @@
 **Purpose:** Internal planning artifact documenting sequencing strategy for framework
 development. Subject to change as we learn.
 
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-10
 
 ---
 
@@ -29,10 +29,10 @@ Prepare the framework for public distribution via package manager.
 3. ✅ **Structural readiness pass** (February 2026) — Directory restructuring, file renames,
    content splits, configurable branching model
 
-### 1.0 Release: Work Unit Sequence (Current)
+### Release Path: Work Unit Sequence (Current)
 
-Four work units producing a stable, configurable, distributable 1.0 release. Each unit
-has a dedicated plan document in the backlog.
+Work units progressing from methodology design through beta CLI to public 1.0 release.
+Each unit has a dedicated plan document in the backlog.
 
 **WU1: Core Philosophy & Configurability Architecture** — ✅ Complete (February 2026)
 
@@ -66,34 +66,43 @@ convention gaps.
 - Upstream: WU1 (all ADRs), WU1.5 (design decisions, workflow specs)
 - Downstream: Structural Validation, WU3, WU4
 
-**Structural Validation** — 🔄 Planning
+**Structural Validation** — ✅ Complete (March 2026)
 
-Gating check before WU3: file inventory validation, directory layout evaluation and
-stabilization, mixed-concern audit, optional content pattern, de-duplication, cross-cutting
-dependency mapping. Settles the file tree so WU3 can build on it.
+Gating check before WU3: file inventory validation (86 files), directory layout stabilization,
+merge boundary audit, optional content pattern, de-duplication, cross-cutting dependency mapping.
+Settled the file tree so WU3 can build on it with confidence.
 
-- PRD: `technical/prd-structural-validation.md`
-- Task list: `technical/tasks-structural-validation.md`
+- Archive: `.arc-internal/reference/archive/2026-q1/technical/06_structural-validation/`
 - Upstream: WU2 (methodology changes)
 - Downstream: WU3, WU4
 
-**WU3: CLI & Distribution** — Implementation
+**WU3: CLI Implementation (Beta)** — Planning → PRD
 
-Build the `arc-framework` npm package: interactive init, three-way merge update system, agent
-tooling generation, manifest tracking. Exact 1.0 scope TBD during PRD creation.
+Build the `arc-framework` npm package (`0.x` beta): TypeScript CLI with interactive init,
+three-way merge update system, agent tooling generation, manifest tracking. Team mode and
+configurable install directory in scope. Beta target for internal dogfooding.
 
-- Plan: `technical/plan-wu3-cli-distribution.md`
-- Upstream: WU1 (config schema), WU2 (structural validation, final file layout)
+- PRD: `technical/prd-cli-implementation.md`
+- Upstream: WU1 (config schema), WU2 (methodology), Structural Validation (file inventory)
+- Downstream: Dogfooding, WU4
+
+**Dogfooding Phase** — Between WU3 and WU4
+
+Install the beta CLI in a real project and battle-test the full workflow (init → work →
+update). Identify friction, bugs, and design issues through real usage. Iterate on the CLI
+(`0.x.y` releases) until stable enough for public release.
+
+- Upstream: WU3 (functional beta CLI)
 - Downstream: WU4
 
-**WU4: Public Release** — Execution
+**WU4: Public Release (1.0)** — Execution
 
 Repository split (private dev, public user-facing), MkDocs Material documentation site,
-README rewrite, community infrastructure, npm publish. Content creation can begin in
-parallel after WU1+WU2 complete.
+README rewrite, community infrastructure, npm publish `1.0.0`. Content creation can begin
+in parallel after WU1+WU2 complete.
 
 - Plan: `feature/plan-wu4-public-release.md`
-- Upstream: WU1 (philosophy), WU2 (final framework), WU3 (functional CLI)
+- Upstream: WU1 (philosophy), WU2 (final framework), WU3 (functional CLI), Dogfooding
 - Downstream: none
 
 ---
@@ -101,7 +110,7 @@ parallel after WU1+WU2 complete.
 ## Dependency Graph
 
 ```text
-Phase A ──► Phase B ──► 1.0 Work Units:
+Phase A ──► Phase B ──► Work Units:
 (complete)  (complete)
 
   WU1 (Philosophy + Configurability) ✅
@@ -110,22 +119,24 @@ Phase A ──► Phase B ──► 1.0 Work Units:
    │     │
    │     ├──► WU2 (Methodology Completion) ✅
    │     │     │
-   │     │     ├──► Structural Validation 🔄
+   │     │     ├──► Structural Validation ✅
    │     │     │     │
-   │     │     │     ├──► WU3 (CLI & Distribution)
+   │     │     │     ├──► WU3 (CLI Beta, 0.x)
    │     │     │     │     │
-   │     │     │     │     └──► WU4 (Public Release)
-   │     │     │     │           ▲
-   │     │     └─────┴───────────┘ (content creation can start after WU2)
-   │     │                       ▲
-   │     └───────────────────────┘ (philosophy informs docs site + README)
-   │                             ▲
-   └─────────────────────────────┘
+   │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │
+   │     │     │     │     │     └──► WU4 (Public Release, 1.0)
+   │     │     │     │     │           ▲
+   │     │     └─────┴───────────────┘ (content creation can start after WU2)
+   │     │                           ▲
+   │     └───────────────────────────┘ (philosophy informs docs site + README)
+   │                                 ▲
+   └─────────────────────────────────┘
 ```
 
 **Parallelism:** WU4 docs site content and README drafts can begin after WU1+WU2 without
-waiting for WU3. WU2b depends only on WU2 methodology changes landing. Community
-infrastructure (issue templates, CoC, etc.) has no upstream dependencies.
+waiting for WU3. Community infrastructure (issue templates, CoC, etc.) has no upstream
+dependencies.
 
 ---
 
@@ -135,7 +146,7 @@ infrastructure (issue templates, CoC, etc.) has no upstream dependencies.
 - WU2 PRD: `technical/prd-methodology-completion.md`
 - Structural Validation PRD: `technical/prd-structural-validation.md`
 - Structural Validation tasks: `technical/tasks-structural-validation.md`
-- WU3 plan: `technical/plan-wu3-cli-distribution.md`
+- WU3 PRD: `technical/prd-cli-implementation.md`
 - WU4 plan: `feature/plan-wu4-public-release.md`
 - Active work: `.arc-internal/active/WORK-STATUS.md`
 - Project status: `.arc-internal/reference/PROJECT-STATUS.md`

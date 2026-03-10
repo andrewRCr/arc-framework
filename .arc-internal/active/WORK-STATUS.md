@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `technical/structural-validation`
-**Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
-**Following Task List**: Yes
+**Branch**: `technical/plan-cli-distribution`
+**Task List**: `.arc-internal/backlog/technical/tasks-cli-implementation.md`
+**Following Task List**: No
 **Next Task**: —
-**Last Completed**: Task 9.3 — Verify all atomic tasks resolved (line ~901)
+**Last Completed**: WU3 task list generated (8 phases, ~45 tasks)
 **Blockers**: [none]
-**Next Action**: Proceed to integrate-work-unit — doc cleanup, completion metadata, code review, PR, merge
+**Next Action**: Integrate planning branch (run integrate-planning-branch workflow)
 
 ---
 
