@@ -783,68 +783,100 @@ must be offset by tightening elsewhere. Zone 3 documents (on-demand) have no len
 
         Both `session-init.md` and `session-handoff.md` pass with 0 errors.
 
-- [ ] **8.5 Clarity remediation — Zone 3 documents (archive-work-unit)**
+- [x] **8.5 Clarity remediation — Zone 3 documents (archive-work-unit)**
 
-    Address findings A4, A5, A6, B5, B6, B7 in `archive-work-unit.md`. Zone 3 — comprehensive
-    improvements allowed. This file has the most findings.
+    All 6 findings addressed in `archive-work-unit.md`. Zone 3 — comprehensive improvements.
+    Analysis doc proposals adjusted: A4 simplified (branch check vs pattern match), A6 lighter
+    (verification step vs command replacement), B5 corrected (wrong file cited in analysis).
 
-    - [ ] **8.5.a Replace memory-based branch check with testable diagnostic (A4)**
+    - [x] **8.5.a Replace memory-based branch check with testable diagnostic (A4)**
 
-        Step 0: replace "remember if activate-planning-branch ran" with git-state-based check.
+        Step 0: replaced memory-based "did you run activate-planning-branch?" with
+        `git branch --show-current` diagnostic. Non-base branch → skip (already on planning
+        branch); base branch → create housekeeping branch. Simpler than analysis doc's
+        pattern-matching proposal — branch naming varies per activate-planning-branch Step 3.
 
-    - [ ] **8.5.b Expand parent branch WORK-STATUS recovery steps (A5)**
+    - [x] **8.5.b Expand parent branch WORK-STATUS recovery steps (A5)**
 
-        Step 5: add step-by-step recovery procedure for extracting parent context from git.
+        Step 5: expanded terse "recover from git history" into 5-step procedure: identify
+        parent branch (current branch), locate parent task list, find first unchecked task,
+        set Last Completed, set Next Action.
 
-    - [ ] **8.5.c Fix brittle sequence numbering command (A6)**
+    - [x] **8.5.c Add verification step for sequence numbering (A6)**
 
-        Step 4: add validation step or more robust sequence number extraction.
+        Step 4: added verification step after existing `find | wc -l` command — list archive
+        directory and confirm no conflict. Lighter than replacing the command entirely.
 
-    - [ ] **8.5.d Add completion metadata definition (B5)**
+    - [x] **8.5.d Add completion metadata definition (B5)**
 
-        Prerequisites: define what integrate-work-unit produces.
+        Prerequisite: added parenthetical defining completion metadata (`completion-{name}.md`
+        created, task list Status: `Complete`). Analysis doc incorrectly cited `notes-{name}.md`
+        — verified against integrate-work-unit Step 3.
 
-    - [ ] **8.5.e Add "lasting reference value" decision criteria (B6)**
+    - [x] **8.5.e Add "lasting reference value" decision criteria (B6)**
 
-        Step 3: add examples of files with/without lasting value.
+        Step 3: added two lists — files with lasting value (investigation docs, reusable
+        procedures, architecture diagrams/benchmarks/audits) and files without (working notes,
+        superseded drafts, scratchpad files). Aligned with existing reference directory
+        categories.
 
-    - [ ] **8.5.f Fix "work package" → "work unit" terminology (B7)**
+    - [x] **8.5.f Fix "work package" → "work unit" terminology (B7)**
 
-        Single term replacement for consistency.
+        Three occurrences replaced (two lowercase, one capitalized).
 
-    - [ ] **8.5.g Run Tier 1 on `archive-work-unit.md`**
+    - [x] **8.5.g Run Tier 1 on `archive-work-unit.md`**
 
-- [ ] **8.6 Clarity remediation — Zone 3 documents (remaining workflows)**
+        0 errors.
 
-    Address findings B9, B10, B11, B13, C5, C6 across `2_generate-tasks.md`,
-    `activate-work-unit.md`, `integrate-work-unit.md`, and `1_create-prd.md`.
+- [x] **8.6 Clarity remediation — Zone 3 documents (remaining workflows)**
 
-    - [ ] **8.6.a Add unresolved dependency guard to generate-tasks (B9)**
+    Addressed B9, B11, C6. Skipped B10, B13, C5 after fresh-eyes evaluation.
 
-        Stop-and-confirm directive when dependencies are unresolved.
+    - [x] **8.6.a Add unresolved dependency guard to generate-tasks (B9)**
 
-    - [ ] **8.6.b Add required sections summary to generate-tasks (B10)**
+        Added check-before-remove logic: if dependencies show unresolved blockers, stop and
+        confirm with user before proceeding. Previously the instruction silently dropped
+        unresolved blockers.
 
-        One-line summary before the strategy reference.
+    - [~] **8.6.b Add required sections summary to generate-tasks (B10)**
 
-    - [ ] **8.6.c Clarify `[none]` syntax in activate-work-unit (B11)**
+        Skipped — analysis doc characterization wrong. Lines 110-113 already list sections
+        parenthetically: "(Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success
+        Criteria)." The proposed fix would duplicate existing content.
 
-        Note that `[none]` is literal text, the standard empty-state marker.
+    - [x] **8.6.c Clarify `[none]` syntax in activate-work-unit (B11)**
 
-    - [ ] **8.6.d Add partial-protection directive to integrate-work-unit (B13)**
+        Added "literal text ... the standard empty-state marker in WORK-STATUS" to the
+        existing parenthetical.
 
-        Explicit instruction for partial protection path after merge.
+    - [~] **8.6.d Add partial-protection directive to integrate-work-unit (B13)**
 
-    - [ ] **8.6.e Assess C5, C6 (polish items)**
+        Skipped — the main instruction ("After merge: Proceed to archive-work-unit") IS the
+        partial-protection path. The full-protection blockquote is the exception callout.
+        Adding an explicit partial-protection line would restate the default instruction.
 
-        Evaluate each — fix if straightforward, document decision to skip otherwise.
+    - [x] **8.6.e Assess C5, C6 (polish items)**
 
-    - [ ] **8.6.f Run Tier 1 on all modified files**
+        C5: Skipped — low value, link to work-org strategy already covers edge cases.
+        C6: Fixed — changed "Stage all modified files" to "Stage the activation files" in
+        activate-work-unit Step 7. Removes ambiguity about scope (activation files vs. whole
+        working tree); code blocks below already listed specific files.
 
-- [ ] **8.7 Zone 2 budget verification**
+    - [x] **8.6.f Run Tier 1 on all modified files**
 
-    Verify net line changes across Zone 2 documents stay within the ~10 line budget from the
-    analysis doc. Compare line counts before and after. If over budget, identify lines to tighten.
+        `2_generate-tasks.md` and `activate-work-unit.md` both pass with 0 errors.
+
+- [x] **8.7 Zone 2 budget verification**
+
+    Initial measurement: +14 lines (4 over ~10 budget). Broad audit identified tightening
+    candidates across all three files. Five implemented:
+    - process-task-loop: Session-Scoped Tracking section condensed 13 → 4 lines (-9)
+    - process-task-loop: Two quality gate judgment bullets merged into one (-1)
+    - session-init: Design context paragraph condensed 5 → 3 lines (-2)
+    - session-handoff: Example 3 (unclear path) folded into Example 1 as variant note (-31)
+    - session-handoff: Completion transition SESSION-NOTES template replaced with 2-line
+      guidance — agent can derive format from standard template (-19)
+    Final budget: **-52 net lines** across Zone 2. Phase 8 clarity additions are net negative.
 
 ### **Phase 9:** Verification
 

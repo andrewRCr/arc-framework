@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5 — Clarity remediation, Zone 3 archive-work-unit (line ~790)
-**Last Completed**: Task 8.4 — Clarity remediation, Zone 2 session-init/handoff (line ~741)
+**Next Task**: Task 9.1 — Run Tier 3 quality gates (line ~885)
+**Last Completed**: Task 8.7 — Zone 2 budget verification (line ~870)
 **Blockers**: [none]
-**Next Action**: Begin Task 8.5 — address A4, A5, A6, B5, B6, B7 in archive-work-unit.md
+**Next Action**: Begin Phase 9 verification — Tier 3 quality gates, PRD validation, atomic task check
 
 ---
 

@@ -38,8 +38,8 @@ It ensures consistent execution, quality control, and documentation of work.
          Tier 2 (coherent unit): full-project Tier 1 + targeted integration/E2E + build ·
          Tier 3 (phase/pre-PR): all checks, all configurations, full suite.
          See [Quality Gates Strategy][quality-gates] for boundaries and escalation.
-       - Task list specifies critical checkpoints, but use judgment: if changes warrant validation, run appropriate checks
-       - When task list explicitly calls for quality gates (including E2E checkpoints), they are mandatory
+       - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
+         use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If [post-task-quality extensions][arc-ext-task-quality] are configured,
        execute them before proceeding. See [`arc-extensions.md` § post-task-quality][arc-ext-task-quality]
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
@@ -197,19 +197,9 @@ right location:
 
 ### Session-Scoped Tracking vs Task List Files
 
-Many AI coding tools offer ephemeral task tracking (e.g., Claude Code's TodoWrite, or similar
-features in other tools). These are useful for organizing work during a task but are
-**not a substitute for task list markdown updates**.
-
-**Key distinction:**
-
-- **Session tracking** — Ephemeral, not saved to git. Helps organize current work into steps.
-- **Task list markdown** — Permanent record, committed to git. Source of truth for completion
-  status. Must be updated before reporting to user.
-
-**Best practice:** When using session tracking for a task, always include a step for updating
-the task list markdown. This creates a forcing function to remember the permanent update before
-reporting completion.
+Ephemeral task tracking tools (e.g., Claude Code's TodoWrite) help organize work within a
+session but are **not a substitute for task list markdown updates**. The task list file is the
+permanent record committed to git — always update it before reporting completion.
 
 ### Updating Task Lists
 

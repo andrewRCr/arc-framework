@@ -32,7 +32,8 @@ project overrides session-state, follow the override instead):
 - **WORK-STATUS.md** (tracked) — project state: branch, task list, next task, blockers, next action
 - **SESSION-NOTES.md** (gitignored) — personal context: completed work, decisions, debugging insights,
   things tried. Replaced each handoff (not appended). Created only when there's context worth
-  preserving; delete between work units.
+  preserving. Between work units, reset to persistent context only (if any exists) or a minimal
+  completion marker.
 
 > **Team mode:** SESSION-NOTES.md moves to `team/{name}/SESSION-NOTES.md` (personal, per
 > developer). WORK-STATUS.md stays in `active/` (shared, one per branch). Paths in the
@@ -203,6 +204,10 @@ SESSION-NOTES.md:
 3. Run full test suite to verify no regressions
 4. Return to Task 4.1 — Add retry logic (line ~312 in tasks-data-pipeline.md)
 
+> **Unclear path variant:** When the fix isn't known yet, replace the numbered steps with:
+> `Path unclear - exploratory debugging. Will return to Task 4.1 — Add retry logic (line ~312)
+> when resolved.`
+
 ### Additional Context
 
 - Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
@@ -242,42 +247,6 @@ SESSION-NOTES.md:
 2. Token refresh flow has edge case when refresh token expires mid-request
 ```
 
-**Example 3: Off-task-list with unclear path**
-
-WORK-STATUS.md:
-
-```markdown
-## Active Work
-
-**Branch**: technical/ci-pipeline
-**Task List**: .arc/active/technical/tasks-ci-pipeline.md
-**Following Task List**: No - debugging intermittent test failures in CI (will return to Task 5.2)
-**Next Task**: Task 5.2 — Add caching to build step (line ~287)
-**Last Completed**: Task 5.1 — Parallelize test stages
-**Blockers**: [none]
-**Next Action**: Continue debugging intermittent CI test failures
-```
-
-SESSION-NOTES.md:
-
-```markdown
-### Completed Work
-
-- ✅ Task 5.1: Parallelized test stages
-- ⚠️ Investigating intermittent test failures after parallelization (~30% failure rate)
-
-### Remaining Work Before Returning to Task List
-
-Path unclear - exploratory debugging. Will return to Task 5.2 — Add caching to build step (line ~287) when resolved.
-
-### Additional Context
-
-- Failures are non-deterministic, only appear in parallel execution
-- Ruled out: shared database state (tests use isolated transactions), file locking
-- Suspect: Race condition in shared temp directory between parallel workers
-- Next: Add per-worker temp directories and re-run failure suite
-```
-
 ### Task List Completion & Transition Format
 
 **When work is complete and/or task list has been archived**, use this expanded format:
@@ -292,31 +261,8 @@ WORK-STATUS.md:
 **Next Action**: Begin [new-task-list.md] starting with Task 1
 ```
 
-SESSION-NOTES.md:
-
-```markdown
-### [Task List Name] - COMPLETE & ARCHIVED ✅
-
-**Status**: All tasks complete, task list archived
-**Completion Date**: [date]
-**Archived To**: [path to archived task list]
-
-**What Was Accomplished:**
-
-1. [Brief bullet points of major accomplishments]
-2. [...]
-
-**All Changes Committed:**
-
-- [commit hash] - [commit message]
-- [commit hash] - [commit message]
-  [OR if uncommitted work exists: list specific files and why]
-
-**Git Status:** Clean working tree, all changes committed
-[OR: "X files uncommitted: [list files and reason]"]
-```
-
-**Key principle**: Document the **actual state** as verified by git, not assumptions.
+SESSION-NOTES.md at completion is minimal — accomplishment summary with commit hashes, archive
+path. Preserve any Persistent Context entries that span work units; reset ephemeral sections.
 
 ### Post-Update Cleanup
 
