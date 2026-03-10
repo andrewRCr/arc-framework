@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `technical/structural-validation`
-**Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
-**Following Task List**: Yes
+**Branch**: `technical/plan-cli-distribution`
+**Task List**: [none]
+**Following Task List**: No
 **Next Task**: —
-**Last Completed**: Task 9.3 — Verify all atomic tasks resolved (line ~901)
+**Last Completed**: Structural Validation (archived)
 **Blockers**: [none]
-**Next Action**: Proceed to integrate-work-unit — doc cleanup, completion metadata, code review, PR, merge
+**Next Action**: Refine plan-wu3-cli-distribution.md into PRD-ready state, then create PRD for WU3
 
 ---
 

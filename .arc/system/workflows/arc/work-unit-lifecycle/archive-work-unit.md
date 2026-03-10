@@ -83,9 +83,11 @@ discoverability once buried in the archive directory.
 
 **Decision:** "Do any files have lasting reference value outside this work unit's context?"
 
-**Files with lasting value** (copy to reference):
+**Files with lasting value** (move to reference — never duplicate):
 
-- Investigation or decision docs (why approach X was chosen over Y)
+- `research-*` files — standalone reference docs by convention. Always route to
+  `.arc/reference/research/`. Research content embedded in `notes-*` files is different — it's
+  tightly coupled to the work unit and archives normally.
 - Reusable procedures (rollback plans, migration guides)
 - Architecture diagrams, benchmark data, dependency maps, audits
 
@@ -97,10 +99,11 @@ discoverability once buried in the archive directory.
 
 **Routing:**
 
-- **Yes** → Copy (not move) to the appropriate reference directory. The original stays with the
-  archive for completeness. Note the routing in the completion doc's Related Documentation section.
+- **Yes** → Move (not copy) to the appropriate reference directory. Never duplicate files across
+  archive and reference — a file lives in one place. Note the routing in the completion doc's
+  Related Documentation section.
+    - `.arc/reference/research/` — externally-sourced investigation and synthesis (`research-*`)
     - `.arc/reference/analysis/` — internally-produced maps, audits, assessments
-    - `.arc/reference/research/` — externally-sourced investigation and synthesis
 - **No** → Proceed directly to archival. Most work units won't produce standalone reference
   files — this step is a quick assessment, not a gate.
 

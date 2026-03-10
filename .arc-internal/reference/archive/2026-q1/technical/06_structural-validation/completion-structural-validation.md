@@ -50,9 +50,11 @@ paths with confidence.
 
 ## Related Documentation
 
-- PRD: `.arc-internal/active/technical/prd-structural-validation.md`
-- Tasks: `.arc-internal/active/technical/tasks-structural-validation.md`
-- Notes: `.arc-internal/active/technical/notes-structural-validation.md`
+- PRD: `prd-structural-validation.md` (archived with this work unit)
+- Tasks: `tasks-structural-validation.md` (archived with this work unit)
+- Notes: `notes-structural-validation.md` (archived with this work unit)
+- Research: `.arc-internal/reference/research/research-agent-hooks-landscape.md` (routed to reference)
+- Research: `.arc-internal/reference/research/research-context-visibility-platforms.md` (routed to reference)
 
 ## Follow-Up Work
 
