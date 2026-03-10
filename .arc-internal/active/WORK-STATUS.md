@@ -7,12 +7,12 @@
 ## Active Work
 
 **Branch**: `technical/plan-cli-distribution`
-**Task List**: [none]
+**Task List**: `.arc-internal/backlog/technical/tasks-cli-implementation.md`
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: WU3 PRD created (prd-cli-implementation.md), plan retired
+**Last Completed**: WU3 task list generated (8 phases, ~45 tasks)
 **Blockers**: [none]
-**Next Action**: Generate task list for WU3 (run generate-tasks workflow against prd-cli-implementation.md)
+**Next Action**: Integrate planning branch (run integrate-planning-branch workflow)
 
 ---
 

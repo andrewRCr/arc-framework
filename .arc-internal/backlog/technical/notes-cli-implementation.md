@@ -6,43 +6,54 @@ specification. Consult during task generation and implementation.
 
 ---
 
-## npm Package Structure
+## Repository Structure
 
-### Source layout (TypeScript)
+### Monorepo workspace layout
+
+The CLI package lives in `packages/arc-framework/` as an npm workspace. The root `package.json`
+stays `private: true`, keeps markdown linting for framework docs, and configures the workspace.
+This structure maps to the WU4 publish mirror — `packages/arc-framework/` is the extraction
+boundary for the public `arc-framework` repo.
 
 ```text
-arc-framework/
-  package.json            <- type: module, bin: arc-framework → dist/cli.js
-  tsup.config.ts          <- Build config (ESM, shebang, declarations)
-  vitest.config.ts        <- Test config
-  src/
-    cli.ts                <- Entry point: shebang, Commander setup, subcommand routing
-    commands/
-      init.ts             <- Interactive init flow (prompts, render, write, pristine, manifest)
-      update.ts           <- Three-way merge update (read manifest, merge, report)
-      status.ts           <- File modification status, version check
-      diff.ts             <- Customization diff (adopter vs. pristine)
-    lib/
-      merge.ts            <- Three-way merge wrapper (shells out to git merge-file)
-      manifest.ts         <- Manifest read/write, schema, file inventory
-      render.ts           <- Token substitution, conditional processing
-      hash.ts             <- Content hash computation (SHA-256 of file contents)
-      git.ts              <- Git operations (merge-file, config, status detection)
-      files.ts            <- File copy, directory creation, gitignore/gitattributes setup
-      skills.ts           <- Skill generation (canonical → per-tool copies)
-    prompts/
-      init-prompts.ts     <- @clack/prompts flow definitions for arc init
-    types.ts              <- Shared types (Manifest, FileEntry, InstallConfig, etc.)
-  framework/              <- ARC framework template files (the methodology content)
-  init-recipe.json        <- Maps prompts → tokens, conditions → file sets
-  __tests__/
-    unit/                 <- Pure function tests (render, merge, manifest, hash)
-    integration/          <- Filesystem tests (init flow, update flow, skill generation)
-    e2e/                  <- Full CLI invocation in temp git repos
-    fixtures/             <- Test templates, sample manifests, mock framework dirs
+arc-agentic-dev-framework/          <- Private dev repo (renamed to arc-framework-dev in WU4)
+  package.json                      <- Private, workspaces: ["packages/arc-framework"],
+                                       lint:md scripts, convenience build/test delegates
+  .arc/                             <- Deployable template system (framework methodology)
+  .arc-internal/                    <- Framework development workspace (never published)
+  packages/
+    arc-framework/                  <- The publishable npm package
+      package.json                  <- name: "arc-framework", type: module, bin → dist/cli.js
+      tsup.config.ts                <- Build config (ESM, shebang, declarations)
+      vitest.config.ts              <- Test config
+      src/
+        cli.ts                      <- Entry point: Commander setup, subcommand routing
+        commands/
+          init.ts                   <- Interactive init flow
+          update.ts                 <- Three-way merge update
+          status.ts                 <- File modification status, version check
+          diff.ts                   <- Customization diff (adopter vs. pristine)
+        lib/
+          merge.ts                  <- Three-way merge wrapper (git merge-file)
+          manifest.ts               <- Manifest read/write, schema, file inventory
+          render.ts                 <- Token substitution, conditional processing
+          hash.ts                   <- Content hash computation (SHA-256)
+          git.ts                    <- Git operations (merge-file, config, status)
+          files.ts                  <- File copy, directory creation, gitignore/gitattributes
+          skills.ts                 <- Skill generation (canonical → per-tool copies)
+        prompts/
+          init-prompts.ts           <- @clack/prompts flow definitions
+        types.ts                    <- Shared types (Manifest, FileEntry, InstallConfig, etc.)
+      framework/                    <- ARC framework template files (the methodology content)
+      init-recipe.json              <- Maps prompts → tokens, conditions → file sets
+      __tests__/
+        unit/                       <- Pure function tests (render, merge, manifest, hash)
+        integration/                <- Filesystem tests (init flow, update flow, skill gen)
+        e2e/                        <- Full CLI invocation in temp git repos
+        fixtures/                   <- Test templates, sample manifests, mock framework dirs
 ```
 
-### Published package
+### Published package (what `npm publish` ships)
 
 ```text
 arc-framework/
@@ -59,6 +70,13 @@ arc-framework/
 The `framework/` directory in the package is the source of truth. `init` renders templates from
 it; `update` merges new versions from it. Skill canonical sources live inside `framework/` at
 `system/skills/`.
+
+### Public repo sync (WU4)
+
+The public `arc-framework` repo is a read-only mirror of the publishable subset. A GitHub Action
+on release tags extracts `packages/arc-framework/`, `.arc/` (framework templates), and community
+files, then pushes to the public repo. npm publish happens directly from this private repo via
+CI (trusted publishing or npm token). See the WU4 plan for the full publish mirror pattern.
 
 ## Init Recipe Sketch
 
