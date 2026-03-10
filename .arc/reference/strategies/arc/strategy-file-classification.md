@@ -248,7 +248,7 @@ to update classification — both axes apply independently.
 
 ### reference/research/
 
-| File        | Classification | Layer | Notes                                                    |
+| File        | Classification | Layer | Notes                                                   |
 |-------------|----------------|-------|---------------------------------------------------------|
 | `README.md` | Framework      | Core  | Research conventions. Peer to analysis/ (external src). |
 
@@ -259,11 +259,13 @@ to update classification — both axes apply independently.
 | `README.md`                                    | Framework      | Core       | Directory overview.                                  |
 | `STRATEGY-INDEX.md`                            | Configurable   | Core       | ARC strategies section + project strategies section. |
 | `arc/strategy-adr-methodology.md`              | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-agent-hooks.md`                  | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-backlog-organization.md`         | Framework      | arc-in-git | ARC methodology.                                     |
 | `arc/strategy-configurability-architecture.md` | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-core-philosophy.md`              | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-file-classification.md`          | Framework      | Core       | ARC methodology (this document).                     |
 | `arc/strategy-quality-gates.md`                | Framework      | Core       | ARC methodology.                                     |
+| `arc/strategy-session-management.md`           | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-task-list-formatting.md`         | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-team-coordination.md`            | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-work-organization.md`            | Framework      | Core       | ARC methodology.                                     |
@@ -320,6 +322,7 @@ to update classification — both axes apply independently.
 | `arc/initial-setup/02_define-project.md`                        | Framework      | Core  | Setup workflow.                       |
 | `arc/session-lifecycle/session-handoff.md`                      | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/session-lifecycle/session-init.md`                         | Framework      | Core  | Session lifecycle workflow.           |
+| `arc/session-lifecycle/session-loop.md`                         | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/supplemental/maintain-project-docs.md`                     | Framework      | Core  | Supplemental workflow.                |
 | `arc/supplemental/manage-incidental-work.md`                    | Framework      | Core  | Supplemental workflow.                |
 | `arc/supplemental/integrate-external-content.md`                | Framework      | Core  | Supplemental workflow.                |
@@ -340,12 +343,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 55    | Three-way merge. Conflicts rare.                      |
+| Framework      | 58    | Three-way merge. Conflicts rare.                      |
 | Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 13    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 83.
+**Total template files:** 86.
 
 *Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
 are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not

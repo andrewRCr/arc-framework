@@ -9,10 +9,10 @@
 **Branch**: `technical/structural-validation`
 **Task List**: `.arc-internal/active/technical/tasks-structural-validation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.1 — Remediate clarity audit findings (new phase — see SESSION-NOTES)
-**Last Completed**: Task 7.1 — Re-walk lifecycle scenarios and clarity audit
+**Next Task**: Task 8.3 — Clarity remediation, Zone 2 process-task-loop (line ~699)
+**Last Completed**: Task 8.2 — Infrastructure fixes (line ~686)
 **Blockers**: [none]
-**Next Action**: Insert new Phase 8 (clarity remediation) before current Phase 8 (verification), then begin work
+**Next Action**: Begin Task 8.3 — address A1, A2, A3, B8, C4 in process-task-loop.md
 
 ---
 

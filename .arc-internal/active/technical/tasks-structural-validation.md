@@ -671,17 +671,169 @@
         remediation guidance (context budget constraint for init-loaded docs). Inventory gap
         and clarity remediation deferred to new Phase 8. Tier 1 passed on both modified files.
 
-### **Phase 8:** Verification
+### **Phase 8:** Clarity Remediation
+
+Remediate findings from the Phase 7 clarity audit (`analysis-workflow-clarity-audit.md`).
+Critical constraint: Zone 2 documents (session-init-loaded) must not grow — every line added
+must be offset by tightening elsewhere. Zone 3 documents (on-demand) have no length constraint.
+
+- [x] **8.1 Clarity audit**
+
+    Already completed as part of Task 7.1. Full findings captured in
+    `.arc-internal/reference/analysis/analysis-workflow-clarity-audit.md` with zone-based
+    remediation guidance (3 infrastructure, 6 Tier A, 13 Tier B, 6 Tier C).
+
+- [x] **8.2 Infrastructure fixes**
+
+    Address I-1 from the analysis doc. I-2 (broken link in `1_create-prd.md`) and I-3 (N-01
+    forward link in `archive-work-unit.md`) were already fixed during Task 7.1.d.
+
+    - [x] **8.2.a Add 3 missing files to `strategy-file-classification.md` inventory (I-1)**
+
+        Added `strategy-agent-hooks.md`, `strategy-session-management.md`, and `session-loop.md`
+        to inventory. Updated counts: Framework 55→58, Total 83→86. Verified STRATEGY-INDEX.md
+        already has entries for both new strategies. Also fixed pre-existing MD060 table alignment
+        in the research/ section (leave-it-cleaner).
+
+    - [x] **8.2.b Run Tier 1 on modified files**
+
+        `strategy-file-classification.md` passes with 0 errors.
+
+- [ ] **8.3 Clarity remediation — Zone 2 documents (process-task-loop)**
+
+    Address findings A1, A2, A3, B8, C4 in `3_process-task-loop.md`. These are the highest-impact
+    items — quality gate tiers are the most frequent checkpoint in the framework.
+
+    - [ ] **8.3.a Inline tier summary at first Tier 1 mention (A1)**
+
+        Replace explanation-by-reference with compact 3-line tier definition. See analysis doc
+        for proposed text.
+
+    - [ ] **8.3.b Tighten "coherent unit" Tier 2 trigger definition (A2)**
+
+        Replace "integration-tested code" with concrete scope definition.
+
+    - [ ] **8.3.c Add WORK-STATUS update format note (A3)**
+
+        Add brief format note (triple-anchor format, field expectations) after existing
+        instruction. ~3 lines, eliminates need to load template mid-workflow.
+
+    - [ ] **8.3.d Tighten deferred review success criteria (B8)**
+
+        Replace vague "sufficient context" with specific state requirements. Net zero lines.
+
+    - [ ] **8.3.e Assess C4 (error pathways in Pre-Report Checklist)**
+
+        Evaluate whether the existing coverage in DEV-RULES.ARC is sufficient. Fix or
+        document decision to skip.
+
+    - [ ] **8.3.f Run Tier 1 on `3_process-task-loop.md`**
+
+- [ ] **8.4 Clarity remediation — Zone 2 documents (session-init, session-handoff)**
+
+    Address findings B1, B2, B3, B4, B12, C1, C2, C3 across `session-init.md` and
+    `session-handoff.md`. All surgical — ~4 net lines across 2 files.
+
+    - [ ] **8.4.a Expand `pm.mode:none` guidance to match arc-in-git parity (B1)**
+
+        Add readiness-state context (~2 lines) to the none/external branch in Step 5.
+
+    - [ ] **8.4.b Add protection mode clarification clause (B2)**
+
+        Add parenthetical clause explaining partial protection alternative.
+
+    - [ ] **8.4.c Sharpen extensions execution instruction (B3)**
+
+        Replace vague "execute them" with precise mechanism. Net zero lines.
+
+    - [ ] **8.4.d Clarify override detection in Step 4 (B4)**
+
+        Add clause explaining what a populated override looks like.
+
+    - [ ] **8.4.e Add Persistent Context purpose sentence (B12, session-handoff)**
+
+        One sentence defining what kinds of entries persist.
+
+    - [ ] **8.4.f Assess C1, C2, C3 (polish items)**
+
+        Evaluate each — fix if net-zero, document decision to skip otherwise.
+
+    - [ ] **8.4.g Run Tier 1 on modified files**
+
+- [ ] **8.5 Clarity remediation — Zone 3 documents (archive-work-unit)**
+
+    Address findings A4, A5, A6, B5, B6, B7 in `archive-work-unit.md`. Zone 3 — comprehensive
+    improvements allowed. This file has the most findings.
+
+    - [ ] **8.5.a Replace memory-based branch check with testable diagnostic (A4)**
+
+        Step 0: replace "remember if activate-planning-branch ran" with git-state-based check.
+
+    - [ ] **8.5.b Expand parent branch WORK-STATUS recovery steps (A5)**
+
+        Step 5: add step-by-step recovery procedure for extracting parent context from git.
+
+    - [ ] **8.5.c Fix brittle sequence numbering command (A6)**
+
+        Step 4: add validation step or more robust sequence number extraction.
+
+    - [ ] **8.5.d Add completion metadata definition (B5)**
+
+        Prerequisites: define what integrate-work-unit produces.
+
+    - [ ] **8.5.e Add "lasting reference value" decision criteria (B6)**
+
+        Step 3: add examples of files with/without lasting value.
+
+    - [ ] **8.5.f Fix "work package" → "work unit" terminology (B7)**
+
+        Single term replacement for consistency.
+
+    - [ ] **8.5.g Run Tier 1 on `archive-work-unit.md`**
+
+- [ ] **8.6 Clarity remediation — Zone 3 documents (remaining workflows)**
+
+    Address findings B9, B10, B11, B13, C5, C6 across `2_generate-tasks.md`,
+    `activate-work-unit.md`, `integrate-work-unit.md`, and `1_create-prd.md`.
+
+    - [ ] **8.6.a Add unresolved dependency guard to generate-tasks (B9)**
+
+        Stop-and-confirm directive when dependencies are unresolved.
+
+    - [ ] **8.6.b Add required sections summary to generate-tasks (B10)**
+
+        One-line summary before the strategy reference.
+
+    - [ ] **8.6.c Clarify `[none]` syntax in activate-work-unit (B11)**
+
+        Note that `[none]` is literal text, the standard empty-state marker.
+
+    - [ ] **8.6.d Add partial-protection directive to integrate-work-unit (B13)**
+
+        Explicit instruction for partial protection path after merge.
+
+    - [ ] **8.6.e Assess C5, C6 (polish items)**
+
+        Evaluate each — fix if straightforward, document decision to skip otherwise.
+
+    - [ ] **8.6.f Run Tier 1 on all modified files**
+
+- [ ] **8.7 Zone 2 budget verification**
+
+    Verify net line changes across Zone 2 documents stay within the ~10 line budget from the
+    analysis doc. Compare line counts before and after. If over budget, identify lines to tighten.
+
+### **Phase 9:** Verification
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-- [ ] **8.1 Run Tier 3 quality gates**
-    - [ ] 8.1.a Run full markdown linting: `npm run -s lint:md`
-    - [ ] 8.1.b Review all uncommitted changes: `git diff --stat`
+- [ ] **9.1 Run Tier 3 quality gates**
+    - [ ] 9.1.a Run full markdown linting: `npm run -s lint:md`
+    - [ ] 9.1.b Review all uncommitted changes: `git diff --stat`
 
-- [ ] **8.2 Validate success criteria against PRD**
+- [ ] **9.2 Validate success criteria against PRD**
 
-- [ ] **8.3 Verify all atomic tasks resolved**
+- [ ] **9.3 Verify all atomic tasks resolved**
 
 ---
 
