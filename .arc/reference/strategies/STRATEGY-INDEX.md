@@ -32,6 +32,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: creating PRDs, setting up discovery phases, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
     - Consult when: running quality gates beyond Tier 1, understanding tier boundaries or escalation
+- `arc/strategy-session-management.md` - Focused sessions, context degradation evidence, monitoring responsibility
+    - Consult when: configuring session management, deciding session duration thresholds, understanding the evidence base
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
     - Consult when: creating or restructuring task lists, formatting task entries
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration

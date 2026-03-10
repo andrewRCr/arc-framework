@@ -12,7 +12,7 @@
 **Next Task**: Task 7.1 — Re-walk lifecycle scenarios (line ~633)
 **Last Completed**: Task 6.2 — Cross-cutting dependency map
 **Blockers**: [none]
-**Next Action**: Address session loop documentation gap (see SESSION-NOTES), then resume Phase 7
+**Next Action**: Resume Phase 7 — Task 7.1 (re-walk lifecycle scenarios)
 
 ---
 
