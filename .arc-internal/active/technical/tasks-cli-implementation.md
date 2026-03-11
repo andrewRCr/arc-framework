@@ -252,7 +252,7 @@ working ARC installation.
         - Write `.arc-manifest.json` with version, config, file inventory
 
     - [ ] **3.5.c Git integration setup**
-        - Add `.pristine/` and `SESSION-NOTES.md` paths to `.gitignore`
+        - Add `.pristine/` and `user/*/` contents to `.gitignore` (ADR-012: user dir gitignored)
         - Add `WORK-STATUS.md merge=ours` to `.gitattributes`
         - Run `git config merge.ours.driver true`
         - Install markdownlint config (`.markdownlint-cli2.jsonc`)
@@ -396,103 +396,236 @@ definitions.
     - All tests pass
     - Markdown linting passes
 
-### **Phase 7:** PM Mode, Team Mode, and Configurable Install Directory
+### **Phase 7:** User Directory, PM Mode, Portability, and Install Directory
 
-**Purpose:** Layer in mode-dependent behavior (PM mode, team mode, install directory) and session
-state portability (git notes setup, `arc session` subcommand, methodology doc integration).
+**Purpose:** Implement the unified user directory model (ADR-012), PM mode conditional handling,
+user directory portability via git notes, `arc log --atomic`, configurable install directory,
+framework template/doc updates, and `.arc-internal/` self-hosting migration.
 
-- [ ] **7.1 Implement PM mode conditional file handling**
+**Strategies:** `strategy-file-classification.md` (file inventory), `strategy-team-coordination.md`,
+`strategy-backlog-organization.md`, `strategy-configurability-architecture.md`
 
-    - [ ] **7.1.a Init: mode-aware file installation**
+- [ ] **7.1 Implement unified user directory and identity resolution**
+
+    **Goal:** Every `arc init` creates a `user/{identity}/` directory with personal workspace files.
+    Same structure for solo and team (ADR-012 Part 1).
+
+    - [ ] **7.1.a Identity resolution utility (`src/lib/identity.ts`)**
+        - Lookup sequence: `git config arc.identity` → slugified `git config user.name` → prompt
+        - Slug function: lowercase, spaces/dots → hyphens, filesystem-safe
+        - Store result: `git config --local arc.identity {value}`
+        - Used by init, `arc user` subcommand, and notes ref resolution
+
+    - [ ] **7.1.b Init: user directory creation**
+        - Create `user/{identity}/` directory
+        - Install `SESSION-NOTES.md` template (Core — all modes)
+        - Install `ATOMIC-INBOX.md` template (arc-in-git only — gated by PM mode, task 7.2)
+        - `user/README.md` tracked (explains personal workspace concept)
+        - `user/{identity}/` contents gitignored (added in 3.5.c pattern)
+
+    - [ ] **7.1.c Init: team mode behavioral config**
+        - `team.mode` config key in `arc-config.yml` (solo/team)
+        - Solo: `user.sync_push: always` default
+        - Team: `user.sync_push: prompt` default
+        - Team mode prompt: "Will other developers work in this repository?"
+        - Team coordination guidance in init output (how team members set up their own
+          `user/{name}/` directories)
+
+- [ ] **7.2 Implement PM mode conditional file handling**
+
+    - [ ] **7.2.a Init: mode-aware file installation**
         - `pm.mode: none` / `external` → install Core files only
-        - `pm.mode: arc-in-git` → install Core + arc-in-git files (backlog templates, ROADMAP,
-          PROJECT-STATUS, ATOMIC-TASKS, strategy-backlog-organization)
+        - `pm.mode: arc-in-git` → install Core + arc-in-git files: backlog templates, ROADMAP,
+          PROJECT-STATUS, `user/{identity}/ATOMIC-INBOX.md`,
+          strategy-backlog-organization
+        - No `completed-atomic` files installed (ADR-012: commit record is the archive)
         - Manifest tracks per-file `layer` membership
 
-    - [ ] **7.1.b Update: mode-aware file management**
+    - [ ] **7.2.b Update: mode-aware file management**
         - Skip files from uninstalled modes (check manifest `layer` vs. `install_config.pm_mode`)
         - Handle mode-conditional content within shared files (conditional sections)
 
-- [ ] **7.2 Implement team mode support**
+- [ ] **7.3 Implement user directory portability**
 
-    - [ ] **7.2.a Init: team directory and config**
-        - Install `team/` directory structure when team mode selected
-        - Set `team.mode: team` in `arc-config.yml`
-        - Configure per-developer session paths in `.gitignore`
-        - Prompt for initial developer name, run `git config arc.session.identity`
+    **Goal:** The entire `user/{identity}/` directory travels across machines via git notes
+    (ADR-012 Part 3). Replaces the session-notes-only portability design from ADR-007.
 
-    - [ ] **7.2.b Identity resolution utility**
-        - Lookup sequence: `arc.session.identity` → `user.name` → prompt
-        - Used by init (team setup) and available for session workflows
+    - [ ] **7.3.a Portability setup in init**
+        - Write `user.sync_push` setting to `arc-config.yml` (7.1.c provides the value)
+        - Configure notes fetch refspec on init:
+          `git config --add remote.origin.fetch "+refs/notes/arc/user/*:refs/notes/arc/user/*"`
+        - Uses identity from 7.1.a for the per-developer namespace key
 
-- [ ] **7.3 Implement session state portability setup in init**
-    - Add `session.notes_push` setting to `arc-config.yml` output (`always` for solo, `prompt`
-      for team)
-    - Configure notes fetch refspec on init:
-      `git config --add remote.origin.fetch "+refs/notes/arc/session/*:refs/notes/arc/session/*"`
-    - Uses identity resolution from 7.2.b for the per-developer namespace key
+    - [ ] **7.3.b Implement user directory serialization (`src/lib/user-sync.ts`)**
+        - Serialize: read all files in `user/{identity}/` (excluding README.md), produce
+          structured format (JSON manifest with file contents) suitable for git note storage
+        - Deserialize: restore files from serialized format to `user/{identity}/`
+        - Handle missing/empty directory gracefully
 
-- [ ] **7.4 Implement `arc session` subcommand**
-
-    - [ ] **7.4.a Session save and load**
-        - `arc session save` — write SESSION-NOTES.md content to git note on HEAD
-          (`git notes --ref=arc/session/{identity} add -f -F {path} HEAD`)
-        - `arc session load` — restore SESSION-NOTES.md from git note on HEAD; if no note on
-          HEAD, walk recent ancestors (ADR-007 § Part 4)
-        - Identity resolved via identity resolution utility (7.2.b)
+    - [ ] **7.3.c Implement `arc user` subcommand (`src/commands/user.ts`)**
+        - `arc user save` — serialize user dir to git note on HEAD
+          (`git notes --ref=arc/user/{identity} add -f --stdin HEAD`)
+        - `arc user load` — restore user dir from git note on HEAD; if no note on HEAD, walk
+          recent ancestors (ADR-007 § Part 4 ancestor-walking logic)
+        - `arc user push` — push notes ref to remote
+          (`git push origin refs/notes/arc/user/{identity}`)
+        - `arc user pull` — fetch notes ref from remote
+          (`git fetch origin refs/notes/arc/user/{identity}:refs/notes/arc/user/{identity}`)
+        - Identity resolved via identity resolution utility (7.1.a)
         - Clear messaging: what was saved/loaded, which commit, which identity namespace
 
-    - [ ] **7.4.b Session push and pull**
-        - `arc session push` — push notes ref to remote
-          (`git push origin refs/notes/arc/session/{identity}`)
-        - `arc session pull` — fetch notes ref from remote
-          (`git fetch origin refs/notes/arc/session/{identity}:refs/notes/arc/session/{identity}`)
-        - Error handling: remote not configured, push rejected, auth failure
+    - [ ] **7.3.d Implement `arc sync` sugar**
+        - Context-aware: `arc sync` after work → save + push; `arc sync` at start → pull + load
+        - Detection: if local user dir has content and remote note is stale → save + push;
+          if local user dir is empty/missing → pull + load
+        - Or simpler: `arc sync --save` / `arc sync --load` with bare `arc sync` as
+          save+push (the more common post-work use case). Decide during implementation.
 
-    - [ ] **7.4.c Write tests for session subcommand**
-        - Test: save writes note to HEAD, load restores it
+    - [ ] **7.3.e Write tests for user portability**
+        - Test: save serializes all user dir files to git note, load restores them
         - Test: load walks ancestors when HEAD has no note
-        - Test: identity resolution fallback chain
+        - Test: identity resolution fallback chain works end-to-end
         - Test: push/pull interact with remote refs correctly (integration-level)
-        - Test: clear error when no SESSION-NOTES.md exists (save) or no note found (load)
+        - Test: sync sugar triggers correct save/push or pull/load sequence
+        - Test: clear error when user dir is empty (save) or no note found (load)
+        - Test: round-trip: save → modify local → load → verify restored to saved state
 
-- [ ] **7.5 Integrate session portability into ARC methodology docs**
+- [ ] **7.4 Implement `arc log --atomic` subcommand**
+    - Search commit history: `git log --grep="(atomic / no associated task list)"` with
+      formatted output (date, type, scope, description)
+    - Optional filters: `--since`, `--author`, `--limit`
+    - Clear output when no matching commits found
+    - Test: commits with atomic context footer appear in output
+    - Test: non-atomic commits excluded
+    - Test: filter flags work correctly
 
-    - [ ] **7.5.a Update session lifecycle workflows**
-        - `session-init.md`: add notes loading step — when SESSION-NOTES.md is missing or stale,
-          check git notes on HEAD (then walk ancestors); populate and announce provenance
-        - `session-handoff.md`: add notes save step — after writing SESSION-NOTES.md, save to
-          git notes; push per `session.notes_push` config
-
-    - [ ] **7.5.b Update session management strategy**
-        - `strategy-session-management.md`: add portability section — why session context needs
-          to travel, the git notes mechanism, multi-machine and team handoff scenarios
-        - Reference ADR-007 for design rationale without duplicating it
-
-    - [ ] **7.5.c Update QUICK-REFERENCE template and arc-methods**
-        - QUICK-REFERENCE template (`.arc/reference/QUICK-REFERENCE.template.md`): add
-          `arc session` command patterns (save, load, push, pull)
-        - `arc-methods.md` § session-state: reference notes operations as part of the
-          session-state method
-
-- [ ] **7.6 Implement configurable install directory**
+- [ ] **7.5 Implement configurable install directory**
     - `{{ARC_DIR}}` token processing throughout template rendering
     - Init prompt with `.arc/` default
     - All cross-references in rendered files use configured path
     - Skill instructions render with correct base path
     - Manifest and pristine paths use configured directory
 
-- [ ] **7.7 Write integration tests for mode variations**
-    - Test: init with `pm.mode: none` → no backlog files installed
-    - Test: init with `pm.mode: arc-in-git` → backlog files present
-    - Test: init with team mode → `team/` directory created, config set
-    - Test: init with custom install dir → all files under custom path, cross-references correct
-    - Test: update respects PM mode (skips arc-in-git files when mode is none)
+- [ ] **7.6 Update framework templates for unified model (ADR-012)**
 
-- [ ] **7.8 Run quality gates**
+    **Goal:** `.arc/` template files reflect the unified user directory model. These are the
+    files the CLI installs for adopters.
+
+    - [ ] **7.6.a Rename `team/` → `user/` directory**
+        - Rename `.arc/team/` to `.arc/user/`
+        - Update `user/README.md` content (explain personal workspace concept for all modes,
+          not team-only)
+        - Consolidate SESSION-NOTES templates: one `user/SESSION-NOTES.template.md` replacing
+          both `active/SESSION-NOTES.template.md` and `team/SESSION-NOTES.template.md`
+
+    - [ ] **7.6.b Create `user/ATOMIC-INBOX.template.md`**
+        - Replace both `active/ATOMIC-TASKS.template.md` and `team/ATOMIC-TASKS.template.md`
+        - Updated purpose text: personal capture bucket, inbox semantics
+        - Remove completion archive protocol (no `completed-atomic` references)
+        - Simplified completion: mark done, remove from file, commit with atomic context footer
+        - Reference `arc log --atomic` for browsing completion history
+
+    - [ ] **7.6.c Update remaining templates**
+        - `active/WORK-STATUS.template.md`: remove team mode note about per-developer paths
+        - `active/SESSION-NOTES.template.md`: remove (consolidated to `user/` in 7.6.a)
+        - Remove `completed-atomic` template if one exists in `reference/archive/`
+        - Update any cross-references pointing to old `team/` paths
+
+- [ ] **7.7 Update framework methodology docs (ADR-012 follow-up)**
+
+    **Goal:** ARC methodology documentation reflects the unified user directory model, inbox
+    lifecycle, and broadened portability scope. Adopters discover these capabilities through the
+    workflows and strategies they already consult.
+
+    - [ ] **7.7.a Update strategies**
+        - `strategy-team-coordination.md`: simplify solo/team workflow adaptations table to
+          single `user/{identity}/` path model. Update cross-member transfer guidance to route
+          through backlog. Remove `team/{name}/` references.
+        - `strategy-backlog-organization.md`: update structure diagram (ATOMIC-TASKS → removed
+          from active/, ATOMIC-INBOX in user/). Align "deleted after completion" with inbox model
+          (it's now the only model). Update commit context section. Remove `completed-atomic`
+          references.
+        - `strategy-session-management.md`: add portability section — why session context needs
+          to travel, the git notes mechanism, multi-machine and team handoff scenarios. Update
+          file location references to `user/{identity}/`.
+        - `strategy-configurability-architecture.md`: update convention inventory row for session
+          state. Add `user.sync_push` (replacing `session.notes_push`). Note `arc.identity`
+          consolidation.
+        - `strategy-work-organization.md`: update `active/` directory contents listing (remove
+          SESSION-NOTES.md and ATOMIC-TASKS.md).
+        - `strategy-file-classification.md`: update inventory — remove
+          `active/ATOMIC-TASKS.template.md` and `team/ATOMIC-TASKS.template.md`, add
+          `user/ATOMIC-INBOX.template.md`. Rename `team/` entries to `user/`. Remove
+          `completed-atomic` entries.
+
+    - [ ] **7.7.b Update workflows**
+        - `session-init.md`: single path for SESSION-NOTES.md loading (`user/{identity}/`).
+          Remove solo/team branching. Add git notes load step (when SESSION-NOTES.md is missing
+          or stale, check git notes on HEAD, walk ancestors). Add inbox item count to "no active
+          work" orientation summary.
+        - `session-handoff.md`: single path for SESSION-NOTES.md writing. Add git notes save
+          step (save to git notes; push per `user.sync_push` config).
+        - `integrate-work-unit.md`: add pre-merge inbox review step (arc-in-git mode). Triage
+          actions: keep, do now, promote to backlog, redirect via backlog, drop. Position
+          alongside pre-merge diff review.
+        - `process-task-loop.md`: update incidental work routing — `ATOMIC-TASKS.md` →
+          `ATOMIC-INBOX.md`, path update to `user/{identity}/`.
+        - `arc-methods.md` § session-state: reference broadened portability scope (user dir, not
+          just session notes). Update config key references (`user.sync_push`).
+
+    - [ ] **7.7.c Update constitutional docs and QUICK-REFERENCE**
+        - `DEV-RULES.ARC.md` § session state control: update file paths to `user/{identity}/`,
+          update `user.sync_push` reference.
+        - QUICK-REFERENCE template: add `arc user` / `arc sync` / `arc log --atomic` command
+          patterns. Update session state file location references.
+
+    - [ ] **7.7.d Update ADR status annotations**
+        - ADR-007: add partial supersession note (Parts 1–3 superseded by ADR-012)
+        - ADR-008: add note (ATOMIC-TASKS.md path references superseded by ADR-012)
+        - ADR-009: add note (Part 2 file placement superseded by ADR-012)
+        - Status line format per ADR methodology: append supersession info to existing status
+
+- [ ] **7.8 Migrate `.arc-internal/` to unified model (self-hosting)**
+
+    **Goal:** The framework's own workspace reflects the unified user directory model it
+    prescribes to adopters.
+
+    - [ ] **7.8.a Create `.arc-internal/user/{identity}/` structure**
+        - Create directory, move SESSION-NOTES.md from `active/` to `user/{identity}/`
+        - Move and rename ATOMIC-TASKS.md → `user/{identity}/ATOMIC-INBOX.md`
+        - Update ATOMIC-INBOX.md content (remove completed-atomic protocol, update purpose text,
+          reference `arc log --atomic`)
+
+    - [ ] **7.8.b Update `.arc-internal/` gitignore and references**
+        - Update `.gitignore`: replace `active/SESSION-NOTES.md` pattern with
+          `user/*/` contents pattern (matching what CLI generates for adopters)
+        - Update internal `session-init.md` path references (`.arc-internal/` copy)
+        - Update internal `session-handoff.md` path references
+        - Update WORK-STATUS.md if it references old file locations
+
+    - [ ] **7.8.c Handle completed-atomic archive**
+        - Existing `completed-atomic-2026-q1.md` in `reference/archive/`: leave as historical
+          record (already committed, provides continuity)
+        - No new `completed-atomic` files created going forward
+        - Update any internal docs referencing the completion archive protocol
+
+- [ ] **7.9 Write integration tests for unified model and mode variations**
+    - Test: init creates `user/{identity}/` with SESSION-NOTES.md
+    - Test: init with `pm.mode: arc-in-git` → ATOMIC-INBOX.md in user dir
+    - Test: init with `pm.mode: none` → no ATOMIC-INBOX, no backlog files
+    - Test: init with team mode → same `user/` structure, `team.mode: team` in config,
+      `user.sync_push: prompt`
+    - Test: init with solo mode → `user.sync_push: always`
+    - Test: init with custom install dir → all `user/` paths under custom dir
+    - Test: update respects PM mode (skips arc-in-git files when mode is none)
+    - Test: no `completed-atomic` files in any mode
+    - Test: `arc log --atomic` returns matching commits
+    - Test: `arc user save` → `arc user load` round-trip preserves user dir contents
+
+- [ ] **7.10 Run quality gates**
     - Type checking passes
     - All tests pass
-    - Markdown linting passes
+    - Markdown linting passes (including all updated methodology docs and templates)
 
 ### **Phase 8:** E2E Tests and Verification
 
@@ -550,8 +683,11 @@ all success criteria.
   for the selected PM mode and options
 - [ ] Beta is functional enough to install ARC in a real project and exercise the full
   init → work sessions → update cycle
-- [ ] `arc session save/load/push/pull` complete the ADR-007 session portability contract —
-  session context travels across machines and between developers via git notes
+- [ ] `arc user save/load/push/pull` and `arc sync` complete the ADR-012/ADR-007 portability
+  contract — the user directory (session notes, inbox, personal files) travels across machines
+  and between developers via git notes
+- [ ] `arc log --atomic` provides browsable completion history for atomic/inbox work from commit
+  records
 - [ ] All quality gates pass: TypeScript strict mode, vitest test suite, markdown linting on
   generated output
 - [ ] Internal project docs (DEV-RULES.PROJECT, QUICK-REFERENCE, TECHNICAL-OVERVIEW) reflect

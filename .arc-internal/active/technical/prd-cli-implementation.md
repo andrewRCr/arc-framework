@@ -32,8 +32,9 @@ WU3 wraps it for distribution.
 3. **Make the framework's own structure the source of truth** — the npm package contains the actual
    framework files, not a separate copy. Init renders templates from them; update merges new
    versions of them
-4. **Make session context portable** — `arc session` commands wrap git notes so session state
-   travels across machines and between developers without external tools or manual copying
+4. **Make personal workspace portable** — `arc user` and `arc sync` commands wrap git notes so
+   the entire per-developer workspace (session notes, task inbox, personal files) travels across
+   machines and between developers without external tools or manual copying
 5. **Produce a beta suitable for dogfooding** — functional enough to install ARC in a real project
    and exercise the full workflow, identifying friction and bugs before public release
 
@@ -64,21 +65,23 @@ which files are modified, which are unchanged, and whether a newer version is av
 
 ### UC4: Team setup
 
-A team adopting ARC runs init with team mode enabled. The CLI installs the `team/` directory
-structure, configures per-developer session paths, and sets `team.mode: team` in `arc-config.yml`.
-Each developer's identity is resolved via git config for session state isolation.
+A team adopting ARC runs init with team mode enabled. The CLI creates the developer's
+`user/{identity}/` directory (the same structure solo mode uses — ADR-012), sets
+`team.mode: team` in `arc-config.yml`, and configures `user.sync_push: prompt`. Each developer's
+identity is resolved via `git config arc.identity`. Adding team members later is just creating
+another `user/{name}/` directory — no structural migration.
 
 ### UC5: Solo developer continues work on another machine
 
-A developer ends a session on their desktop. The session handoff saves session context to git notes
-and pushes automatically (`session.notes_push: always`). On their laptop, they pull the branch, run
-session init, and the agent loads session context from the git note on HEAD — decisions made,
-approaches tried, known risks all carry over without manual transfer.
+A developer ends a session on their desktop. The session handoff saves the user directory to git
+notes and pushes automatically (`user.sync_push: always`). On their laptop, they pull the branch,
+run session init, and the agent loads session context from the git note on HEAD — decisions made,
+approaches tried, inbox captures, all carry over without manual transfer.
 
 ### UC6: Team handoff via session notes
 
-Alice is handing a feature branch to Bob. She runs `arc session save` and `arc session push`. Bob
-fetches the branch, and session init loads Alice's session context from the git note. The qualitative
+Alice is handing a feature branch to Bob. She runs `arc sync` (sugar for save + push). Bob fetches
+the branch, and session init loads Alice's session context from the git note. The qualitative
 context — what she tried, what didn't work, where the tricky parts are — transfers alongside the
 code, not through a separate Slack thread.
 
@@ -126,41 +129,46 @@ configured path. Skills, agent files, and documentation all reference the correc
     in `.arc/system/skills/`. Output paths are tool-specific (`.claude/skills/`, `.agents/skills/`,
     `.windsurf/skills/`, etc.). Generated files include appropriate frontmatter
     (`disable-model-invocation` where supported). Regenerated on update when definitions change
-12. **Team mode support** — `team.mode` config key in `arc-config.yml`, `team/` directory
-    installation, per-developer session paths, identity resolution via git config
-    (`arc.session.identity` → `user.name` → prompt)
+12. **Unified user directory** (ADR-012) — every installation gets a `user/{identity}/` directory
+    (gitignored contents) for personal workspace files (SESSION-NOTES.md, ATOMIC-INBOX.md, freeform
+    files). Identity resolved via `git config arc.identity` → slugified `user.name` → prompt.
+    `team.mode` config key controls behavioral defaults (`user.sync_push`, team coordination
+    guidance) — directory structure is identical for solo and team
 13. **Configurable install directory** — `{{ARC_DIR}}` token with `.arc/` default. Init prompt
     allows custom directory name/path. All cross-references in rendered files use the configured
     value
 14. **PM mode awareness** — `pm.mode` (`none`, `arc-in-git`, `external`) controls which files are
     installed and managed. arc-in-git installs backlog templates, ROADMAP, PROJECT-STATUS,
-    ATOMIC-TASKS, strategy-backlog-organization. Manifest tracks per-file layer membership. Update
-    skips files from uninstalled modes
+    ATOMIC-INBOX.md (in `user/{identity}/`), strategy-backlog-organization. Manifest tracks per-file
+    layer membership. Update skips files from uninstalled modes
 15. **Git availability check** — CLI verifies git is installed at startup. Clear error message and
     exit if missing (git is required for merge operations)
 16. **Markdownlint config installation** — init installs `.markdownlint-cli2.jsonc` with the
     framework's rule set (120-char line length, disabled code_blocks/tables). Classification:
     Framework (auto-updated). Ensures adopter linting matches framework conventions and prevents
     formatting-related merge conflicts
-17. **Session state portability setup** — init configures git notes infrastructure for session
-    context portability (ADR-007 Part 5). Adds notes fetch refspec
-    (`refs/notes/arc/session/*`) so `git fetch` includes session notes automatically. Writes
-    `session.notes_push` setting to `arc-config.yml` (`always` default for solo, `prompt` for
+17. **User directory portability setup** (ADR-012 Part 3) — init configures git notes
+    infrastructure for user directory portability. Adds notes fetch refspec
+    (`refs/notes/arc/user/*`) so `git fetch` includes user notes automatically. Writes
+    `user.sync_push` setting to `arc-config.yml` (`always` default for solo, `prompt` for
     team). Identity resolution (requirement 12) provides the per-developer namespace key
-18. **Session subcommand** (`arc session`) — ergonomic interface for git notes session operations.
-    Subcommands: `save` (write SESSION-NOTES.md to git note on HEAD), `load` (restore
-    SESSION-NOTES.md from git note on HEAD or recent ancestor), `push` (push notes ref to
-    remote), `pull` (fetch notes ref from remote). Identity resolved via
-    `arc.session.identity` → `user.name` → prompt. Thin wrappers over `git notes --ref=arc/session/{identity}` —
-    the commands from ADR-007 Part 2 with clear UX
-
-19. **Session portability documentation** — integrate session notes operations into the ARC
-    methodology docs that adopters read. Session lifecycle workflows (`session-init.md`,
-    `session-handoff.md`) gain notes load/save steps. Session management strategy gains
-    portability concept and git notes mechanism. QUICK-REFERENCE template gains `arc session`
-    command patterns. `arc-methods.md` session-state method updated to reference notes
-    operations. Adopters should discover session portability through the workflows they already
-    follow, not by reading an ADR
+18. **User subcommand and sync** (`arc user`, `arc sync`) — ergonomic interface for user directory
+    portability. `arc user save` serializes `user/{identity}/` contents to git note on HEAD.
+    `arc user load` restores from git note (on HEAD or recent ancestor). `arc user push/pull`
+    syncs notes ref with remote. `arc sync` is sugar for save+push (or pull+load). Identity
+    resolved via `git config arc.identity`. Thin wrappers over
+    `git notes --ref=arc/user/{identity}`. Additionally, `arc log --atomic` searches commit
+    history for completed atomic/inbox work via the `(atomic / no associated task list)` context
+    footer pattern
+19. **Methodology documentation updates** (ADR-012 follow-up) — integrate the unified user
+    directory model and portability into ARC methodology docs. Session lifecycle workflows gain
+    notes load/save steps and single-path `user/{identity}/` resolution. Integrate-work-unit
+    gains pre-merge inbox review step (arc-in-git mode). Strategies updated: team-coordination,
+    backlog-organization, session-management, configurability-architecture, work-organization,
+    file-classification. `arc-methods.md` session-state method updated. QUICK-REFERENCE template
+    gains `arc user` / `arc sync` / `arc log --atomic` command patterns. ADR status annotations
+    on ADRs 007, 008, 009. Adopters should discover these capabilities through the workflows
+    they already follow, not by reading ADRs
 20. **Post-init messaging** — after `arc init` completes, the CLI prints a concise next-steps
     summary: what was installed, how to verify (`01_initialize-arc.md`), and the core workflow
     quartet to start with (create-prd, generate-tasks, process-task-loop, session-init). This
@@ -189,9 +197,10 @@ configured path. Skills, agent files, and documentation all reference the correc
 
 ## Non-Goals
 
-- **`reconfigure` command** — PM mode switching, team mode migration, and config re-evaluation are
-  deferred to post-beta. The manifest's `install_config` is designed to support this, but the
-  command itself is not in beta scope
+- **`reconfigure` command** — PM mode switching and config re-evaluation are deferred to post-beta.
+  The manifest's `install_config` is designed to support this, but the command itself is not in
+  beta scope. Note: the unified user directory model (ADR-012) eliminates the solo→team migration
+  problem — adding team members is just creating new `user/{name}/` directories
 - **`reset` command** — restoring individual files to framework defaults is deferred to post-beta
 - **Team-integrated skill generation** — the system for adopters to register their own skills
   alongside framework skills is deferred until the framework skill generation pattern is proven
@@ -285,7 +294,10 @@ and CLI wiring.
    for the selected PM mode and options
 4. The beta is functional enough to install ARC in a real project (dogfooding candidate) and
    exercise the full init → work sessions → update cycle
-5. All quality gates pass: TypeScript strict mode, Vitest test suite, the framework's own markdown
+5. `arc user save/load/push/pull` and `arc sync` complete the ADR-012/ADR-007 portability
+   contract — the user directory (session notes, inbox, personal files) travels across machines
+   and between developers via git notes
+6. All quality gates pass: TypeScript strict mode, Vitest test suite, the framework's own markdown
    linting on generated output
 
 ## Open Questions
@@ -314,8 +326,9 @@ and CLI wiring.
 
 ## Document History
 
-| Date       | Change                                                                             |
-| ---------- | ---------------------------------------------------------------------------------- |
-| 2026-03-10 | Initial draft — created from plan-wu3-cli-distribution.md after 3-stage refinement |
-| 2026-03-11 | Added session state portability (ADR-007): UC5-6, Goal 4, P0 reqs 17-19            |
-| 2026-03-11 | Added post-init messaging (P0 req 20), ADR-010 conditional as Open Question        |
+| Date       | Change                                                                               |
+|------------|--------------------------------------------------------------------------------------|
+| 2026-03-10 | Initial draft — created from plan-wu3-cli-distribution.md after 3-stage refinement   |
+| 2026-03-11 | Added session state portability (ADR-007): UC5-6, Goal 4, P0 reqs 17-19              |
+| 2026-03-11 | Added post-init messaging (P0 req 20), ADR-010 conditional as Open Question          |
+| 2026-03-11 | ADR-012: unified user directory, ATOMIC-INBOX rename, user portability, inbox review |
