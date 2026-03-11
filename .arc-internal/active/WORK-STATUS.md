@@ -10,10 +10,10 @@
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
 **Next Task**: Task 2.1 — Write tests for template rendering (line ~124)
-**Last Completed**: Phase 1 complete — scaffolding, infrastructure docs, verification
+**Last Completed**: Phase 1 complete; PRD/task list updated with deferred ADR scope
 **Blockers**: [none]
 **Next Action**: Begin Phase 2 — Task 2.1 (template rendering tests)
 
 ---
 
-**Last Updated**: 2026-03-10
+**Last Updated**: 2026-03-11
