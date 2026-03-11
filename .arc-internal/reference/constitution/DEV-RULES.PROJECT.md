@@ -68,6 +68,9 @@ and task list integration.
 are validated through integration and E2E tests. No hard coverage percentage target — focus on
 meaningful assertions over line counting.
 
+**Testing methodology:** See [Testing Methodology Strategy][testing-methodology] for the full
+approach — TDD decision tree, mocking rules, vertical slice workflow, test naming conventions.
+
 **Markdown linting** remains the primary quality gate for `.arc/` and `.arc-internal/` documentation.
 
 ## Code Quality Principles
@@ -158,3 +161,4 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 [dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
 [quality-gates]: ../../../.arc/reference/strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../../../.arc/reference/strategies/arc/strategy-adr-methodology.md
+[testing-methodology]: ../strategies/strategy-testing-methodology.md

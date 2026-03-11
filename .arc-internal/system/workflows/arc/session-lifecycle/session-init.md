@@ -68,8 +68,10 @@ override instead.
 4. `.arc-internal/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
    - Project quality gates, testing requirements, code quality, and architecture rules
 
-5. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
-   - Index of codified strategy guidance; establishes what domain-specific patterns exist
+5. **Strategy indexes** (both) - **MUST READ IN FULL**
+   - `.arc/reference/strategies/STRATEGY-INDEX.md` — framework methodology strategies
+   - `.arc-internal/reference/strategies/STRATEGY-INDEX.md` — project-specific strategies
+   - Together these establish what domain-specific patterns exist across both layers
 
 6. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
    - Environment context, command patterns, and quality gate commands
