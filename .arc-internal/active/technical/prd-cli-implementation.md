@@ -32,7 +32,9 @@ WU3 wraps it for distribution.
 3. **Make the framework's own structure the source of truth** — the npm package contains the actual
    framework files, not a separate copy. Init renders templates from them; update merges new
    versions of them
-4. **Produce a beta suitable for dogfooding** — functional enough to install ARC in a real project
+4. **Make session context portable** — `arc session` commands wrap git notes so session state
+   travels across machines and between developers without external tools or manual copying
+5. **Produce a beta suitable for dogfooding** — functional enough to install ARC in a real project
    and exercise the full workflow, identifying friction and bugs before public release
 
 ## Use Cases
@@ -66,7 +68,21 @@ A team adopting ARC runs init with team mode enabled. The CLI installs the `team
 structure, configures per-developer session paths, and sets `team.mode: team` in `arc-config.yml`.
 Each developer's identity is resolved via git config for session state isolation.
 
-### UC5: Adopter uses a non-standard install directory
+### UC5: Solo developer continues work on another machine
+
+A developer ends a session on their desktop. The session handoff saves session context to git notes
+and pushes automatically (`session.notes_push: always`). On their laptop, they pull the branch, run
+session init, and the agent loads session context from the git note on HEAD — decisions made,
+approaches tried, known risks all carry over without manual transfer.
+
+### UC6: Team handoff via session notes
+
+Alice is handing a feature branch to Bob. She runs `arc session save` and `arc session push`. Bob
+fetches the branch, and session init loads Alice's session context from the git note. The qualitative
+context — what she tried, what didn't work, where the tricky parts are — transfers alongside the
+code, not through a separate Slack thread.
+
+### UC7: Adopter uses a non-standard install directory
 
 A team prefers `arc/` (visible) over `.arc/` (hidden), or needs the framework under `docs/.arc/`.
 During init, they specify a custom directory. The CLI renders all cross-references with the
@@ -126,24 +142,49 @@ configured path. Skills, agent files, and documentation all reference the correc
     framework's rule set (120-char line length, disabled code_blocks/tables). Classification:
     Framework (auto-updated). Ensures adopter linting matches framework conventions and prevents
     formatting-related merge conflicts
+17. **Session state portability setup** — init configures git notes infrastructure for session
+    context portability (ADR-007 Part 5). Adds notes fetch refspec
+    (`refs/notes/arc/session/*`) so `git fetch` includes session notes automatically. Writes
+    `session.notes_push` setting to `arc-config.yml` (`always` default for solo, `prompt` for
+    team). Identity resolution (requirement 12) provides the per-developer namespace key
+18. **Session subcommand** (`arc session`) — ergonomic interface for git notes session operations.
+    Subcommands: `save` (write SESSION-NOTES.md to git note on HEAD), `load` (restore
+    SESSION-NOTES.md from git note on HEAD or recent ancestor), `push` (push notes ref to
+    remote), `pull` (fetch notes ref from remote). Identity resolved via
+    `arc.session.identity` → `user.name` → prompt. Thin wrappers over `git notes --ref=arc/session/{identity}` —
+    the commands from ADR-007 Part 2 with clear UX
+
+19. **Session portability documentation** — integrate session notes operations into the ARC
+    methodology docs that adopters read. Session lifecycle workflows (`session-init.md`,
+    `session-handoff.md`) gain notes load/save steps. Session management strategy gains
+    portability concept and git notes mechanism. QUICK-REFERENCE template gains `arc session`
+    command patterns. `arc-methods.md` session-state method updated to reference notes
+    operations. Adopters should discover session portability through the workflows they already
+    follow, not by reading an ADR
+20. **Post-init messaging** — after `arc init` completes, the CLI prints a concise next-steps
+    summary: what was installed, how to verify (`01_initialize-arc.md`), and the core workflow
+    quartet to start with (create-prd, generate-tasks, process-task-loop, session-init). This
+    is the adopter's first interaction with ARC's workflow model — the messaging should orient
+    without overwhelming. Per ADR-004 Part 6 (requirement preserved by ADR-010 despite profile
+    removal)
 
 ### P1 — Should-have (beta)
 
-17. **Pristine recovery** — when `.pristine/` is missing (fresh clone, accidental deletion), update
+21. **Pristine recovery** — when `.pristine/` is missing (fresh clone, accidental deletion), update
     detects the gap and offers recovery: reconstruct from the installed npm package version
     (re-render templates with `install_config` from manifest) or reset pristine from current file
     state (treating current files as the new merge baseline)
-18. **New file handling on update** — when a framework update introduces files that didn't exist in
+22. **New file handling on update** — when a framework update introduces files that didn't exist in
     the previous version: auto-add Framework files without prompting, prompt for optional/conditional
     files that depend on config choices
-19. **Post-update recommendation** — after update completes, recommend running the agent-driven
+23. **Post-update recommendation** — after update completes, recommend running the agent-driven
     consistency audit workflow to check for cross-cutting concept drift
 
 ### P2 — Nice-to-have (beta, defer if needed)
 
-20. **Version-pinned update** — `arc-framework update --to <version>` to update to a specific
+24. **Version-pinned update** — `arc-framework update --to <version>` to update to a specific
     version rather than latest
-21. **Dry-run update** — `arc-framework update --dry-run` to preview what would change without
+25. **Dry-run update** — `arc-framework update --dry-run` to preview what would change without
     modifying files
 
 ## Non-Goals
@@ -262,8 +303,19 @@ and CLI wiring.
   only. The plan leans cross-tool with config override. Final default validated during
   implementation against current agent tool conventions
 
+**Evaluate during E2E testing:**
+
+- **Cold-start enforcement friction** (ADR-010 Part 4) — ADR-010 deferred the question of
+  whether full-enforcement defaults create a cold-start problem. The lean is against a
+  "relaxed start?" toggle: adopters won't know what friction they'll hit until they've used the
+  framework, at which point editing `arc-config.yml` is the right mechanism. Evaluate during
+  E2E testing whether the defaults are reasonable out of the box. If init-flow testing surfaces
+  a genuine blocker, revisit — but the bar is high
+
 ## Document History
 
 | Date       | Change                                                                             |
 | ---------- | ---------------------------------------------------------------------------------- |
 | 2026-03-10 | Initial draft — created from plan-wu3-cli-distribution.md after 3-stage refinement |
+| 2026-03-11 | Added session state portability (ADR-007): UC5-6, Goal 4, P0 reqs 17-19            |
+| 2026-03-11 | Added post-init messaging (P0 req 20), ADR-010 conditional as Open Question        |

@@ -24,6 +24,7 @@ manages ARC framework files for adopters, targeting a beta release (`0.x`) for i
 - Status and diff commands
 - Skill generation (canonical → per-agent-tool copies)
 - PM mode, team mode, and configurable install directory support
+- Session state portability (git notes setup, `arc session` subcommand, methodology docs)
 - Framework template files (`.arc/` content with `{{TOKEN}}` placeholders)
 - E2E test suite
 
@@ -256,14 +257,20 @@ working ARC installation.
         - Run `git config merge.ours.driver true`
         - Install markdownlint config (`.markdownlint-cli2.jsonc`)
 
-- [ ] **3.6 Write integration tests for init flow**
+- [ ] **3.6 Implement post-init messaging**
+    - Print concise summary after init: what was installed, configuration choices made
+    - Point to verification workflow (`01_initialize-arc.md`)
+    - Highlight core workflow quartet: create-prd, generate-tasks, process-task-loop, session-init
+    - Orient without overwhelming — adopter's first interaction with ARC's workflow model
+
+- [ ] **3.7 Write integration tests for init flow**
     - Test: init in empty git repo → verify directory structure, file contents, manifest, pristine
     - Test: rendered files contain no template tokens or conditional markers
     - Test: `.gitignore` and `.gitattributes` contain expected entries
     - Test: manifest file inventory matches files on disk
     - Test: pristine hashes match rendered file content
 
-- [ ] **3.7 Run quality gates**
+- [ ] **3.8 Run quality gates**
     - Type checking passes
     - All tests pass (unit + integration)
     - Markdown linting passes
@@ -391,8 +398,8 @@ definitions.
 
 ### **Phase 7:** PM Mode, Team Mode, and Configurable Install Directory
 
-**Purpose:** Layer in the mode-dependent behavior that makes init and update aware of PM
-configuration, team structure, and custom install paths.
+**Purpose:** Layer in mode-dependent behavior (PM mode, team mode, install directory) and session
+state portability (git notes setup, `arc session` subcommand, methodology doc integration).
 
 - [ ] **7.1 Implement PM mode conditional file handling**
 
@@ -418,21 +425,71 @@ configuration, team structure, and custom install paths.
         - Lookup sequence: `arc.session.identity` → `user.name` → prompt
         - Used by init (team setup) and available for session workflows
 
-- [ ] **7.3 Implement configurable install directory**
+- [ ] **7.3 Implement session state portability setup in init**
+    - Add `session.notes_push` setting to `arc-config.yml` output (`always` for solo, `prompt`
+      for team)
+    - Configure notes fetch refspec on init:
+      `git config --add remote.origin.fetch "+refs/notes/arc/session/*:refs/notes/arc/session/*"`
+    - Uses identity resolution from 7.2.b for the per-developer namespace key
+
+- [ ] **7.4 Implement `arc session` subcommand**
+
+    - [ ] **7.4.a Session save and load**
+        - `arc session save` — write SESSION-NOTES.md content to git note on HEAD
+          (`git notes --ref=arc/session/{identity} add -f -F {path} HEAD`)
+        - `arc session load` — restore SESSION-NOTES.md from git note on HEAD; if no note on
+          HEAD, walk recent ancestors (ADR-007 § Part 4)
+        - Identity resolved via identity resolution utility (7.2.b)
+        - Clear messaging: what was saved/loaded, which commit, which identity namespace
+
+    - [ ] **7.4.b Session push and pull**
+        - `arc session push` — push notes ref to remote
+          (`git push origin refs/notes/arc/session/{identity}`)
+        - `arc session pull` — fetch notes ref from remote
+          (`git fetch origin refs/notes/arc/session/{identity}:refs/notes/arc/session/{identity}`)
+        - Error handling: remote not configured, push rejected, auth failure
+
+    - [ ] **7.4.c Write tests for session subcommand**
+        - Test: save writes note to HEAD, load restores it
+        - Test: load walks ancestors when HEAD has no note
+        - Test: identity resolution fallback chain
+        - Test: push/pull interact with remote refs correctly (integration-level)
+        - Test: clear error when no SESSION-NOTES.md exists (save) or no note found (load)
+
+- [ ] **7.5 Integrate session portability into ARC methodology docs**
+
+    - [ ] **7.5.a Update session lifecycle workflows**
+        - `session-init.md`: add notes loading step — when SESSION-NOTES.md is missing or stale,
+          check git notes on HEAD (then walk ancestors); populate and announce provenance
+        - `session-handoff.md`: add notes save step — after writing SESSION-NOTES.md, save to
+          git notes; push per `session.notes_push` config
+
+    - [ ] **7.5.b Update session management strategy**
+        - `strategy-session-management.md`: add portability section — why session context needs
+          to travel, the git notes mechanism, multi-machine and team handoff scenarios
+        - Reference ADR-007 for design rationale without duplicating it
+
+    - [ ] **7.5.c Update QUICK-REFERENCE template and arc-methods**
+        - QUICK-REFERENCE template (`.arc/reference/QUICK-REFERENCE.template.md`): add
+          `arc session` command patterns (save, load, push, pull)
+        - `arc-methods.md` § session-state: reference notes operations as part of the
+          session-state method
+
+- [ ] **7.6 Implement configurable install directory**
     - `{{ARC_DIR}}` token processing throughout template rendering
     - Init prompt with `.arc/` default
     - All cross-references in rendered files use configured path
     - Skill instructions render with correct base path
     - Manifest and pristine paths use configured directory
 
-- [ ] **7.4 Write integration tests for mode variations**
+- [ ] **7.7 Write integration tests for mode variations**
     - Test: init with `pm.mode: none` → no backlog files installed
     - Test: init with `pm.mode: arc-in-git` → backlog files present
     - Test: init with team mode → `team/` directory created, config set
     - Test: init with custom install dir → all files under custom path, cross-references correct
     - Test: update respects PM mode (skips arc-in-git files when mode is none)
 
-- [ ] **7.5 Run quality gates**
+- [ ] **7.8 Run quality gates**
     - Type checking passes
     - All tests pass
     - Markdown linting passes
@@ -493,6 +550,8 @@ all success criteria.
   for the selected PM mode and options
 - [ ] Beta is functional enough to install ARC in a real project and exercise the full
   init → work sessions → update cycle
+- [ ] `arc session save/load/push/pull` complete the ADR-007 session portability contract —
+  session context travels across machines and between developers via git notes
 - [ ] All quality gates pass: TypeScript strict mode, vitest test suite, markdown linting on
   generated output
 - [ ] Internal project docs (DEV-RULES.PROJECT, QUICK-REFERENCE, TECHNICAL-OVERVIEW) reflect
