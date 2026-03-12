@@ -123,15 +123,7 @@ code change.
         "backlog/feature/BACKLOG-FEATURE.template.md",
         "backlog/technical/BACKLOG-TECHNICAL.template.md",
         "reference/PROJECT-STATUS.template.md",
-        "active/ATOMIC-TASKS.template.md",
         "reference/strategies/arc/strategy-backlog-organization.md"
-      ]
-    },
-    "team.mode == true": {
-      "include_files": [
-        "team/README.md",
-        "team/ATOMIC-TASKS.template.md",
-        "team/SESSION-NOTES.template.md"
       ]
     }
   }
@@ -211,9 +203,8 @@ Design reference for when `reconfigure` is implemented.
 
 **Team mode changes (solo → team):**
 
-- Install `team/` directory with per-developer scaffolding
-- SESSION-NOTES.md moves from `.arc/active/` to `.arc/team/{name}/` (WORK-STATUS.md stays shared)
-- Migration must handle this move without data loss
+- ADR-012 unified model eliminates this migration — `user/{identity}/` exists in all modes
+- Adding team members creates new `user/{name}/` directories, no file migration needed
 
 **PM mode changes:**
 
@@ -221,9 +212,6 @@ Design reference for when `reconfigure` is implemented.
   manifest and pristine.
 - **Removing `arc-in-git`:** Delete PM files (with confirmation prompt). Update manifest.
 - **`none` ↔ `external`:** No file changes — only the config value and agent awareness differ.
-
-**Team + PM interaction:** In team mode with `arc-in-git`, ATOMIC-TASKS.md uses per-developer
-paths (`team/{name}/ATOMIC-TASKS.md`).
 
 ## Proposal: Extract Save-Path Logic to arc-methods (Deferred to Post-Beta)
 
@@ -238,16 +226,17 @@ returns the correct directory at each lifecycle stage. Benefits: single source o
 Deferred because the inline conditionals work correctly today. Extraction becomes valuable when
 `reconfigure` is implemented — path logic in one place makes mode switching cleaner.
 
-## Agent Identity Resolution (Team Mode)
+## Identity Resolution
 
-Concrete lookup sequence:
+Concrete lookup sequence (ADR-012 consolidated to `arc.identity`):
 
-1. Check `git config arc.session.identity` (set during team member onboarding)
-2. Fall back to `git config user.name` (available in any git repo)
-3. If neither resolves, ask the developer (don't fail silently)
+1. Check `git config arc.identity` (set during init)
+2. Fall back to slugified `git config user.name` (available in any git repo)
+3. If neither resolves, prompt the developer
 
-`arc-framework init` in team mode prompts for the initial developer name and runs
-`git config arc.session.identity <name>` as part of setup.
+`arc init` prompts: "What name should we use for your personal workspace?" → stores in
+`git config --local arc.identity`. Used for `user/{identity}/` directory, git notes refs,
+and session tracking.
 
 ## Versioning and Release Progression
 
