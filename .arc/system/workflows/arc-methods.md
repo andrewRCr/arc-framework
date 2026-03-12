@@ -190,10 +190,15 @@ Decision tree by change type.
 
 **If unsure, default to test-first.** Writing tests after implementation is harder and less effective.
 
+**Execution discipline — one behavior at a time:** The behavior list under the marker is a discovery guide, not a
+batch spec. Write one test, make it pass, then write the next — each cycle informs the next. Never write all tests
+upfront then implement; that tests *imagined* behavior, not actual behavior.
+
 **During task list creation:** Group test and implementation together — by module or concern, not by activity.
 A test-first task covers both writing tests and writing the code that makes them pass. Use the
-`Build \`test-first\`:` marker line to introduce the behavior list — this signals the executing agent to apply
-the red-green-refactor loop (see [process-task-loop][process-task-loop] for execution details).
+`Build \`test-first\` (one behavior at a time):` marker line to introduce the behavior list — this signals the
+executing agent to apply the red-green-refactor loop (see [process-task-loop][process-task-loop] for execution
+details).
 
 ---
 

@@ -66,8 +66,8 @@ For each phase, define specific, actionable sub-tasks:
 
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API
 endpoints, business logic, complex algorithms), group test and implementation together in each
-task — named by module or concern, not by activity. Use the `Build \`test-first\`:` marker line
-to introduce the behavior list; the executing agent treats this as the signal to apply the
+task — named by module or concern, not by activity. Use the `Build \`test-first\` (one behavior at a time):`
+marker line to introduce the behavior list; the executing agent treats this as the signal to apply the
 red-green-refactor loop. See [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the
 decision tree, and [strategy-task-list-formatting][task-list-formatting] § Test-First Task
 Structure for the full pattern.

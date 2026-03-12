@@ -157,7 +157,7 @@ hashing, manifest I/O, and init recipe parsing.
 - [ ] **2.4 Init recipe parsing (`src/lib/recipe.ts`)**
     - Recipe schema type, parser, condition evaluator
 
-    Build `test-first`:
+    Build `test-first` (one behavior at a time):
     - Valid recipe parses correctly (prompts, conditions, file mappings)
     - Prompt types handled (text, select, multiselect)
     - Condition evaluation (equality check against config values)
@@ -261,7 +261,7 @@ working ARC installation.
     - Parse exit code (0 = clean, 1 = conflicts, >1 = error)
     - Return merge result with conflict flag and content
 
-    Build `test-first`:
+    Build `test-first` (one behavior at a time):
     - Non-overlapping changes auto-merge cleanly
     - Overlapping changes produce conflict markers
     - Unchanged file (pristine == current) takes new version cleanly
@@ -347,7 +347,7 @@ definitions.
     - Generate per-tool output with correct paths, frontmatter, supplemental files
     - Handle all 6 agent tools (Claude, Codex, Gemini, Copilot, Cursor, Windsurf)
 
-    Build `test-first`:
+    Build `test-first` (one behavior at a time):
     - Canonical skill → Claude Code output (correct path, `disable-model-invocation` frontmatter)
     - Canonical skill → Codex output (`.agents/skills/` path, `openai.yaml` supplemental)
     - Canonical skill → Windsurf output (`.windsurf/skills/` path, no `.agents/`)
@@ -456,7 +456,7 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
 
     - [ ] **7.3.e Write tests for user portability**
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Save serializes all user dir files to git note, load restores them
         - Load walks ancestors when HEAD has no note
         - Identity resolution fallback chain works end-to-end
@@ -471,7 +471,7 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
     - Optional filters: `--since`, `--author`, `--limit`
     - Clear output when no matching commits found
 
-    Build `test-first`:
+    Build `test-first` (one behavior at a time):
     - Commits with atomic context footer appear in output
     - Non-atomic commits excluded
     - Filter flags work correctly

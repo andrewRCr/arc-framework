@@ -141,7 +141,9 @@ full decision tree is in [`arc-methods.md`][arc-methods] → `#test-first`.
 
 During task list creation, group test and implementation together by module or concern — not as
 separate "write tests" and "implement" tasks. The executing agent applies the red-green-refactor
-loop within each task (see [process-task-loop][process-task-loop] for execution details).
+loop within each task — one behavior at a time, never batching all tests before implementing
+(see [`arc-methods.md`][arc-methods] → `#test-first` for execution discipline,
+[process-task-loop][process-task-loop] for the full loop).
 
 ---
 

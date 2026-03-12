@@ -38,7 +38,7 @@ Before finalizing any task list, verify:
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
 - [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
-- [ ] Test-first tasks use `Build \`test-first\`:` marker line before behavior list
+- [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
@@ -314,13 +314,13 @@ Task list headers provide essential metadata and context. Format varies by task 
 
     - [ ] **1.1.a Field validation**
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Email format validation
         - Username uniqueness constraint
 
     - [ ] **1.1.b Password hashing**
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Password stored as hash, not plaintext
 
 ✅ Simple single-line subtasks:
@@ -419,12 +419,12 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
     - [ ] **3.1.R Additional integration tests discovered**
         - [ ] **3.1.R.1 `PaginatedQuery` handler tests**
 
-            Build `test-first`:
+            Build `test-first` (one behavior at a time):
             - Correct metadata extraction from paginated response
 
         - [ ] **3.1.R.2 `ResultsList` stability tests**
 
-            Build `test-first`:
+            Build `test-first` (one behavior at a time):
             - Handles empty result set without error
 ```
 
@@ -487,19 +487,19 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
         - Fields: `username`, `email`, `password_hash`
         - Add `clean()` method for validation
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Email format validation
         - Username uniqueness constraint
 
     - [ ] **1.1.b Password hashing**
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Password stored as hash, not plaintext
         - Hash verification succeeds with correct password
 
 - [ ] **1.2 `Profile` model (`models.py`)**
 
-    Build `test-first`:
+    Build `test-first` (one behavior at a time):
     - Foreign key to `User`
     - Cascade delete when `User` removed
 ```
@@ -526,13 +526,13 @@ convention. Group test and implementation together — by module or concern, not
         - Fields: `username`, `email`, `password_hash`
         - Add validation in `clean()` method
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Email format validation
         - Username uniqueness constraint
 
     - [ ] **1.1.b Password hashing**
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Password stored as hash, not plaintext
         - Hash verification succeeds with correct password
 
@@ -542,11 +542,12 @@ convention. Group test and implementation together — by module or concern, not
 **Key elements:**
 
 - **Task named for the module**, not the activity — "`User` model", not "Write tests for User model"
-- **`Build \`test-first\`:`** is the execution marker — a leading line that signals red-green-refactor
-  discipline and introduces the behavior list beneath it (see [process-task-loop][process-task-loop]
-  for the execution loop). Its absence means test-after is acceptable.
-- **Behavior bullets follow the marker** — each is a behavior to verify, not a test name. The agent
-  uses them to drive RED→GREEN→REFACTOR cycles, one behavior at a time.
+- **`Build \`test-first\` (one behavior at a time):`** is the execution marker — a leading line that signals
+  red-green-refactor discipline and introduces the behavior list beneath it (see
+  [process-task-loop][process-task-loop] for the execution loop). Its absence means test-after is acceptable.
+- **Behavior bullets are a discovery guide, not a batch spec** — each is a behavior to verify, not a test to
+  write upfront. The agent picks one, writes a failing test, makes it pass, then picks the next. The list
+  informs what to cover; the execution order emerges from each RED→GREEN cycle.
 - **Implementation detail bullets precede the marker** — context about what you're building (fields,
   file locations, architectural notes) comes before the behavioral spec
 - **No separate "implement" task** — test and implementation are one vertical unit
@@ -650,7 +651,7 @@ This example demonstrates all formatting elements in proper context:
         - Include field path in each error
         - File location: `src/config/loader.py:89-120`
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Required fields report missing with field path
         - Empty config (all fields missing)
 
@@ -658,7 +659,7 @@ This example demonstrates all formatting elements in proper context:
         - Handle nested configs recursively
         - File location: `src/config/parser.py:45-78`
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Type mismatches report expected vs actual type
         - Range violations report allowed bounds
         - Deeply nested invalid fields
@@ -671,14 +672,14 @@ This example demonstrates all formatting elements in proper context:
     - [ ] **2.2.a Error output format**
         - Collect errors into structured report, sort by field path
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Errors include field path (e.g., `plugins.auth.timeout`)
         - Errors include expected type or value range
         - Multiple errors collected and reported together
 
     - [ ] **2.2.b Suggestion generation**
 
-        Build `test-first`:
+        Build `test-first` (one behavior at a time):
         - Typos suggest closest valid field name
 
 ### **Phase 4:** Quality Gates and Manual Verification
