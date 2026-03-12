@@ -25,6 +25,13 @@ at the end.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
+**Method dependencies (load on first reference):** This workflow references two arc-methods. When first
+encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
+`.default` if no override is configured.
+
+- [pre-merge-review][arc-methods-pmr] — aggregate diff review before push
+- [review-triage][arc-methods-rt] — classifying and acting on review findings
+
 ## Workflow Overview
 
 **All work follows the same integration workflow**, regardless of category (feature/technical/incidental):
@@ -251,6 +258,7 @@ architectural pivot, not abandoned work.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[arc-methods]: ../../arc-methods.md
 [arc-methods-rt]: ../../arc-methods.md#review-triage
 [arc-methods-pmr]: ../../arc-methods.md#pre-merge-review
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review

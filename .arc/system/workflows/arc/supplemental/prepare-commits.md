@@ -7,6 +7,13 @@ commits (single task, clear scope), the [commit-format][arc-methods-cf] and
 [commit-context-format][arc-methods-ccf] methods plus git hook validation are sufficient — you don't need
 this guide.
 
+**Method dependencies (load on first reference):** This workflow references two arc-methods. When first
+encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
+`.default` if no override is configured.
+
+- [commit-format][arc-methods-cf] — message structure, types, scope, body
+- [commit-context-format][arc-methods-ccf] — context footer patterns
+
 ## When to Use This Guide
 
 - Multiple tasks accumulated without committing
@@ -143,5 +150,6 @@ git status               # Verify clean state
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
 [manage-incidental]: manage-incidental-work.md
 [arc-ext-pre-stage]: ../../arc-extensions.md#pre-stage-review
+[arc-methods]: ../../arc-methods.md
 [arc-methods-cf]: ../../arc-methods.md#commit-format
 [arc-methods-ccf]: ../../arc-methods.md#commit-context-format

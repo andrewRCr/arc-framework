@@ -277,17 +277,21 @@ document.
 
 ## When to Load Additional Guidance
 
-These documents contain detailed procedures for specific activities. Load them when you reach
-the relevant work — not during session initialization.
+These documents contain detailed procedures for specific activities — procedural content (T3) in the
+[Context Loading Strategy][context-loading]. Load them when you reach the relevant work — not during
+session initialization.
 
 - **Before starting task execution:** Load the [process-task-loop workflow][process-task-loop] —
-  completion protocol, quality gate checkpoints, deferred review
+  completion protocol, quality gate checkpoints, deferred review. The workflow's method dependencies
+  block triggers loading of leave-it-cleaner, quality-gate-commands, and (conditionally) test-first
 - **Before complex commits:** Load the [commit guide][prepare-commits] — multi-session
-  work, interleaved concerns, atomicity analysis
+  work, interleaved concerns, atomicity analysis. The workflow's method dependencies block triggers
+  loading of commit-format and commit-context-format
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
   strategy documents
-- **For method overrides and defaults:** Load [`arc-methods.md`][arc-methods] → specific method
-  heading — configurable behavior (commit format, leave-it-cleaner, test-first)
+- **For method defaults and overrides:** Workflow documents include method dependencies blocks
+  that trigger loading of the relevant [`arc-methods.md`][arc-methods] sections on-demand. Follow
+  the workflow — method loading is embedded in the steps
 - **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
   Tier 1/2/3 boundaries, escalation guidance
 
@@ -298,6 +302,7 @@ the relevant work — not during session initialization.
 [arc-methods]: ../../system/workflows/arc-methods.md
 [core-philosophy]: ../strategies/arc/strategy-core-philosophy.md
 [config-arch]: ../strategies/arc/strategy-configurability-architecture.md
+[context-loading]: ../strategies/arc/strategy-context-loading.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../strategies/STRATEGY-INDEX.md

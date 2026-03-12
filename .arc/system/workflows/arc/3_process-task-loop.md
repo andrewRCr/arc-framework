@@ -9,6 +9,14 @@ It ensures consistent execution, quality control, and documentation of work.
 
 ## Task Implementation
 
+**Method dependencies (load on first reference):** This workflow references three arc-methods. When first
+encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
+`.default` if no override is configured.
+
+- [leave-it-cleaner][arc-methods-lic] — severity triage for pre-existing quality issues
+- [quality-gate-commands][arc-methods-qg] — project quality gate definitions
+- [test-first][arc-methods-tf] — decision tree (only when task has `Build \`test-first\`` marker)
+
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval. In team mode, this applies per developer-agent pair — concurrent pairs may work
@@ -224,6 +232,7 @@ permanent record committed to git — always update it before reporting completi
 [arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
 [arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
 [arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality
+[arc-methods]: ../arc-methods.md
 [arc-methods-tf]: ../arc-methods.md#test-first
 [arc-methods-lic]: ../arc-methods.md#leave-it-cleaner
 [arc-methods-qg]: ../arc-methods.md#quality-gate-commands

@@ -12,6 +12,12 @@ otherwise be lost when the session ends. Agents with persistent memory may need 
 principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
 via [`arc-methods.md` § session-state][arc-methods-session].
 
+**Method dependency (load on first reference):** This workflow references one arc-method. Load the relevant
+section of [`arc-methods.md`][arc-methods] — check `.override` first; use `.default` if no override is
+configured.
+
+- [session-state][arc-methods-session] — reading and writing session state
+
 ## Handoff Protocol
 
 ### Pre-Update Verification
@@ -331,5 +337,6 @@ confirmation for the human — the session state files are the durable artifacts
   "Next action"
 
 [session-init]: session-init.md
+[arc-methods]: ../../arc-methods.md
 [arc-methods-session]: ../../arc-methods.md#session-state
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

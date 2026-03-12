@@ -126,15 +126,18 @@ See: [`arc-extensions.md` § post-context-load][arc-ext-post-context-load]
 
 ### 4. Check Active Configuration
 
-Read `arc-config.yml` and scan `arc-methods.md` for active overrides. This is a read-and-note step — carry
+Read `arc-config.yml` and scan `arc-methods.md` for override presence. This is a read-and-note step — carry
 the awareness through the session and apply it when encountering method references or platform-specific
 operations.
 
 1. **Config values**: Read `.arc-internal/system/arc-config.yml`. Note any settings that differ from defaults
    (defaults are documented as inline comments in the file)
-2. **Method overrides**: Scan `.arc/system/workflows/arc-methods.md`. For each method, check if the
-   `.override` section is populated — if so, follow the override instead of the default when that
-   method is encountered in workflows
+2. **Method override presence**: Scan `.arc/system/workflows/arc-methods.md` — read only the Contents,
+   Method Dependencies table, and `.override` subsection headings. For each method, check if the `.override`
+   section has content beyond `[No override configured]`. Note which methods have active overrides (a list
+   of names). **Do not read `.default` sections** — method defaults load on-demand when workflows reference
+   them (see [Context Loading Strategy][context-loading]). Output: "Methods with overrides: [list]" or
+   "all methods at defaults"
 3. **Platform awareness**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for
    platform-appropriate commands
 4. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
@@ -247,3 +250,4 @@ Examples:
 
 [arc-methods-session]: ../../../../../.arc/system/workflows/arc-methods.md#session-state
 [arc-ext-post-context-load]: ../../../../../.arc/system/workflows/arc-extensions.md#post-context-load
+[context-loading]: ../../../../../.arc/reference/strategies/arc/strategy-context-loading.md

@@ -4,9 +4,14 @@ Default implementations for ARC's configurable conventions. Each method defines 
 accomplished) and a default (how ARC does it out of the box).
 
 **How overrides work:** To replace a default, fill in the method's `.override` section with your team's
-implementation. The agent reads this file during session initialization — for each method, it checks `.override`
-first. If populated, follow the override and skip `.default`. Contracts are advisory: your override should satisfy
-the same invariant as the default.
+implementation. For each method, the agent checks `.override` first. If populated, follow the override and skip
+`.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
+
+**Loading model:** Method defaults and overrides load on-demand at workflow trigger points, not at session
+initialization. Session-init scans only for override *presence* (which methods have active overrides) without
+reading method content. Workflow documents include method dependencies blocks that trigger loading when the agent
+reaches the relevant activity. See the [Context Loading Strategy][context-loading] for the tiered model and
+ADR-013 for the decision rationale.
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
@@ -360,4 +365,5 @@ references quality gates uniformly through the method layer, and teams with non-
 [session-handoff]: arc/session-lifecycle/session-handoff.md
 [arc-config]: ../arc-config.yml
 [arc-ext-pre-merge-review]: arc-extensions.md#pre-merge-review
+[context-loading]: ../../reference/strategies/arc/strategy-context-loading.md
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
