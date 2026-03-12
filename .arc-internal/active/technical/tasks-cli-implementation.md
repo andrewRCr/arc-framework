@@ -154,19 +154,17 @@ hashing, manifest I/O, and init recipe parsing.
         - `writeManifest()`: formatted JSON output with trailing newline
         - 3 tests: round-trip write/read, non-existent returns null, malformed JSON throws
 
-- [ ] **2.4 Init recipe parsing (`src/lib/recipe.ts`)**
-    - Recipe schema type, parser, condition evaluator
+- [x] **2.4 Init recipe parsing (`src/lib/recipe.ts`)**
+    - `Recipe`, `RecipePrompt`, `RecipeCondition`, `PromptType` types in `types.ts`
+    - `validateRecipe()`: collected error reporting for prompts (id/type/message/options,
+      duplicate ids) and conditions (key format, include_files array)
+    - `evaluateCondition()`: simple `config.key == value` equality against config map
+    - 15 unit tests, test-first (4 behaviors × vertical slices)
 
-    Build `test-first` (one behavior at a time):
-    - Valid recipe parses correctly (prompts, conditions, file mappings)
-    - Prompt types handled (text, select, multiselect)
-    - Condition evaluation (equality check against config values)
-    - Malformed recipe reports clear error
-
-- [ ] **2.5 Run quality gates**
-    - Type checking passes
-    - All unit tests pass
-    - Markdown linting passes (if any docs were touched)
+- [x] **2.5 Run quality gates**
+    - Type checking: 0 errors
+    - Unit tests: 35/35 passing (4 test files)
+    - Markdown linting: 0 errors across 145 files
 
 ### **Phase 3:** Init Command
 

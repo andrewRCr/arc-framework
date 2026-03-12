@@ -1,8 +1,8 @@
 /**
  * Shared type definitions for the ARC CLI.
  *
- * Manifest schema, file entry metadata, and install configuration types
- * used across manifest I/O, init, update, and status commands.
+ * Manifest schema, file entry metadata, install configuration, and init
+ * recipe types used across manifest I/O, init, update, and status commands.
  */
 
 /** File classification determines update behavior during `arc update`. */
@@ -34,4 +34,31 @@ export interface Manifest {
   installed_at: string;
   install_config: InstallConfig;
   files: Record<string, FileEntry>;
+}
+
+// --- Init Recipe Types ---
+
+/** Prompt types supported by the init recipe, matching @clack/prompts capabilities. */
+export type PromptType = "text" | "select" | "multiselect" | "confirm";
+
+/** A single prompt definition in the init recipe. */
+export interface RecipePrompt {
+  id: string;
+  type: PromptType;
+  message: string;
+  default?: string | boolean | string[];
+  options?: string[];
+  token?: string;
+  config_key?: string;
+}
+
+/** A condition-triggered file set in the init recipe. */
+export interface RecipeCondition {
+  include_files: string[];
+}
+
+/** Declarative init recipe — maps prompts to tokens, conditions to file sets. */
+export interface Recipe {
+  prompts: RecipePrompt[];
+  conditions: Record<string, RecipeCondition>;
 }
