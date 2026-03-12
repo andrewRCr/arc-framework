@@ -127,7 +127,7 @@ code change.
         "reference/strategies/arc/strategy-backlog-organization.md"
       ]
     },
-    "team.mode == team": {
+    "team.mode == true": {
       "include_files": [
         "team/README.md",
         "team/ATOMIC-TASKS.template.md",

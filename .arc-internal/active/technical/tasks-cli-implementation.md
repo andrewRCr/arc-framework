@@ -136,30 +136,23 @@ hashing, manifest I/O, and init recipe parsing.
         - 5 tests: include, exclude, nested (3 variants), multiple independent, passthrough
         - Built test-first (RED→GREEN per behavior, all pass)
 
-- [ ] **2.2 Hash computation (`src/lib/hash.ts`)**
-    - SHA-256 of file contents using Node `crypto`
+- [x] **2.2 Hash computation (`src/lib/hash.ts`) — `hashContent()`**
+    - SHA-256 hex digest via Node `crypto`; single-function module
+    - 3 tests: known hash, different content diverges, deterministic
+    - Built test-first
 
-    Build `test-first`:
-    - SHA-256 of known content produces expected hash
-    - Different content produces different hash
-    - Same content produces same hash (deterministic)
+- [x] **2.3 Manifest I/O (`src/lib/manifest.ts`)**
 
-- [ ] **2.3 Manifest I/O (`src/lib/manifest.ts`)**
+    - [x] **2.3.a Schema validation — `validateManifest()`**
+        - Validates top-level fields, file entry `classification` (Framework/Configurable/Scaffolded),
+          and `layer` (core/arc-in-git) with collected error reporting
+        - 4 tests: valid accepts, missing fields rejects, invalid classification, invalid layer
 
-    - [ ] **2.3.a Schema validation**
-
-        Build `test-first`:
-        - Valid manifest passes validation
-        - Missing required fields rejected
-        - Invalid `classification` or `layer` values rejected
-
-    - [ ] **2.3.b Read/write operations**
-        - `Manifest`, `FileEntry`, `InstallConfig` types (in `types.ts`)
-
-        Build `test-first`:
-        - Write manifest to disk, read back, compare
-        - Read non-existent manifest returns appropriate error/null
-        - Read malformed JSON reports clear error
+    - [x] **2.3.b Read/write operations + types**
+        - `Manifest`, `FileEntry`, `InstallConfig`, `Classification`, `Layer` types in `types.ts`
+        - `readManifest()`: returns null for missing file, throws on malformed JSON, validates on read
+        - `writeManifest()`: formatted JSON output with trailing newline
+        - 3 tests: round-trip write/read, non-existent returns null, malformed JSON throws
 
 - [ ] **2.4 Init recipe parsing (`src/lib/recipe.ts`)**
     - Recipe schema type, parser, condition evaluator
@@ -404,7 +397,7 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
         - `user/{identity}/` contents gitignored (added in 3.5.c pattern)
 
     - [ ] **7.1.c Init: team mode behavioral config**
-        - `team.mode` config key in `arc-config.yml` (solo/team)
+        - `team.mode` config key in `arc-config.yml` (boolean: true/false)
         - Solo: `user.sync_push: always` default
         - Team: `user.sync_push: prompt` default
         - Team mode prompt: "Will other developers work in this repository?"
@@ -597,7 +590,7 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
     - Test: init creates `user/{identity}/` with SESSION-NOTES.md
     - Test: init with `pm.mode: arc-in-git` → ATOMIC-INBOX.md in user dir
     - Test: init with `pm.mode: none` → no ATOMIC-INBOX, no backlog files
-    - Test: init with team mode → same `user/` structure, `team.mode: team` in config,
+    - Test: init with team mode → same `user/` structure, `team.mode: true` in config,
       `user.sync_push: prompt`
     - Test: init with solo mode → `user.sync_push: always`
     - Test: init with custom install dir → all `user/` paths under custom dir

@@ -67,7 +67,7 @@ which files are modified, which are unchanged, and whether a newer version is av
 
 A team adopting ARC runs init with team mode enabled. The CLI creates the developer's
 `user/{identity}/` directory (the same structure solo mode uses — ADR-012), sets
-`team.mode: team` in `arc-config.yml`, and configures `user.sync_push: prompt`. Each developer's
+`team.mode: true` in `arc-config.yml`, and configures `user.sync_push: prompt`. Each developer's
 identity is resolved via `git config arc.identity`. Adding team members later is just creating
 another `user/{name}/` directory — no structural migration.
 

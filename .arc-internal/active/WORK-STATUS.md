@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.2 — Hash computation (line ~139)
-**Last Completed**: Task 2.1 — Template rendering (renderTokens, renderConditionals)
+**Next Task**: Task 2.4 — Init recipe parsing (line ~157)
+**Last Completed**: Task 2.3 — Manifest I/O (validateManifest, readManifest, writeManifest)
 **Blockers**: [none]
-**Next Action**: Continue Phase 2 — Task 2.2 (hash computation)
+**Next Action**: Continue Phase 2 — Task 2.4 (init recipe parsing)
 
 ---
 
