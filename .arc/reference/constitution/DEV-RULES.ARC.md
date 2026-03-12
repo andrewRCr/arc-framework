@@ -139,7 +139,9 @@ logic, and complex transformations; test-after acceptable for simple CRUD, prese
 components, config changes, and trivial refactoring. If unsure, default to test-first. The
 full decision tree is in [`arc-methods.md`][arc-methods] → `#test-first`.
 
-During task list creation, place test tasks BEFORE implementation tasks for test-first work.
+During task list creation, group test and implementation together by module or concern — not as
+separate "write tests" and "implement" tasks. The executing agent applies the red-green-refactor
+loop within each task (see [process-task-loop][process-task-loop] for execution details).
 
 ---
 

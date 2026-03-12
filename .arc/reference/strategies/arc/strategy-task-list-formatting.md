@@ -37,12 +37,11 @@ Before finalizing any task list, verify:
 - [ ] Blank lines between subtasks when they have detail bullets beneath
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
 - [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
-- [ ] Test subtasks come BEFORE implementation subtasks
+- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks marked with "Build test-first" detail bullet
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
-- [ ] "Expect tests to FAIL initially" noted in test subtasks
-- [ ] "Tests should now PASS" noted after implementation subtasks
 - [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic tasks)
 - [ ] Atomic Tasks section present (empty by default, between verification phase and Success Criteria)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
@@ -82,7 +81,7 @@ preference without breaking workflows.
 - Bold formatting on task descriptions
 - Goal/Note line placement and formatting
 - Blank lines between subtasks with detail bullets
-- Test-first task ordering within phases
+- Test-first task grouping within phases
 - Backticks on technical terms
 - Emoji policy
 - Indentation depth (4-space convention)
@@ -305,22 +304,22 @@ Task list headers provide essential metadata and context. Format varies by task 
 - **Bold description when subtask has detail bullets beneath** (creates visual hierarchy)
 - Indented 4 spaces from parent task
 - Each subtask should be completable/testable independently
-- Use test-first ordering (test subtask before implementation subtask)
+- For test-first work, group by concern — subtask covers both test and implementation
 - **Blank lines between subtasks when they have detail bullets** (improves readability)
 
 ```markdown
 ✅ Subtasks with detail bullets:
 
-- [ ] **1.1 Write tests for data models**
+- [ ] **1.1 `User` model (`models.py`)**
 
-    - [ ] **1.1.a Create test for `User` model validation**
+    - [ ] **1.1.a Field validation**
         - Test: Email format validation
         - Test: Username uniqueness constraint
-        - Expect tests to FAIL initially
+        - Build test-first
 
-    - [ ] **1.1.b Create test for `Profile` model relationships**
-        - Test: Foreign key to `User`
-        - Expect tests to FAIL initially
+    - [ ] **1.1.b Password hashing**
+        - Test: Password stored as hash, not plaintext
+        - Build test-first
 
 ✅ Simple single-line subtasks:
 
@@ -392,16 +391,16 @@ completable steps that warrant tracking separately.
 - Blank line after (before first subtask)
 
 ```markdown
-✅ - [ ] **1.1 Write tests for data models**
+✅ - [ ] **1.1 `User` model (`models.py`)**
 
-       **Goal:** Validate field constraints and relationships before implementation.
+       **Goal:** Validated user model with email, username, and password constraints.
 
-       - [ ] **1.1.a Create test for `User` model validation**
+       - [ ] **1.1.a Field validation**
 
-❌     **Goal:** Write tests for the data models.  # Repeats title, adds no value
-❌     **Goal:** This task involves writing comprehensive tests for all data
-       models in the application to ensure field validation works correctly
-       and relationships are properly established.  # Too long, should be 1 line
+❌     **Goal:** Create the User model.  # Repeats title, adds no value
+❌     **Goal:** This task involves building a comprehensive user model
+       with field validation, password hashing, and relationship setup
+       to ensure data integrity across the application.  # Too long, should be 1 line
 ```
 
 ### Revision Numbering (R Scheme)
@@ -416,11 +415,13 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
     - [x] 3.1.1 Update hook to extract metadata
 
     - [ ] **3.1.R Additional integration tests discovered**
-        - [ ] **3.1.R.1 Write tests for `PaginatedQuery` handler**
-            - Expect tests to FAIL initially
+        - [ ] **3.1.R.1 `PaginatedQuery` handler tests**
+            - Test: Correct metadata extraction from paginated response
+            - Build test-first
 
-        - [ ] **3.1.R.2 Write stability tests for `ResultsList`**
-            - Expect tests to FAIL initially
+        - [ ] **3.1.R.2 `ResultsList` stability tests**
+            - Test: Handles empty result set without error
+            - Build test-first
 ```
 
 ### Emoji Usage
@@ -474,64 +475,75 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
 **Purpose:** Establish data models with test-first approach.
 
-- [ ] **1.1 Write tests for core functionality**
+- [ ] **1.1 `User` model (`models.py`)**
 
-    **Goal:** Establish test coverage before implementation.
+    **Goal:** Validated user model with email and username constraints.
 
-    - [ ] **1.1.a Create test for `User` model**
-        - Test: Email validation
-        - Test: Username uniqueness
-        - Expect tests to FAIL initially
-
-    - [ ] **1.1.b Create test for `Profile` model**
-        - Test: Foreign key to `User`
-        - Expect tests to FAIL initially
-
-- [ ] **1.2 Implement core functionality**
-
-    - [ ] **1.2.a Create `User` model in `models.py`**
+    - [ ] **1.1.a Field validation**
+        - Test: Email format validation
+        - Test: Username uniqueness constraint
         - Fields: `username`, `email`, `password_hash`
         - Add `clean()` method for validation
+        - Build test-first
 
-    - [ ] **1.2.b Run tests - should now PASS**
+    - [ ] **1.1.b Password hashing**
+        - Test: Password stored as hash, not plaintext
+        - Test: Hash verification succeeds with correct password
+        - Build test-first
+
+- [ ] **1.2 `Profile` model (`models.py`)**
+    - Test: Foreign key to `User`
+    - Test: Cascade delete when `User` removed
+    - Build test-first
 ```
 
 ---
 
 ## Test-First Task Structure
 
-**Critical principle:** Tests BEFORE implementation in each phase, not as separate final phase.
+**Applies when:** The [test-first method][arc-methods-tf] assessment says test-first for this work.
+If your team has overridden test-first to test-after, this section's patterns don't apply — structure
+tasks however suits your workflow.
+
+**Core principle:** Test-first is an execution discipline within a task, not a task-ordering
+convention. Group test and implementation together — by module or concern, not by activity.
 
 ### Standard Pattern
 
 ```markdown
 ### **Phase 1:** User Model
 
-- [ ] **1.1 Write tests for User model**
+- [ ] **1.1 `User` model (`models.py`)**
 
-    - [ ] **1.1.a Create test file `test_user_model.py`**
-        - Test: Email validation
-        - Test: Password hashing
-        - Expect tests to FAIL initially
-
-    - [ ] **1.1.b Run tests and verify failure messages**
-
-- [ ] **1.2 Implement User model**
-
-    - [ ] **1.2.a Create `User` model in `models.py`**
+    - [ ] **1.1.a Field validation**
+        - Test: Email format validation
+        - Test: Username uniqueness constraint
         - Fields: `username`, `email`, `password_hash`
         - Add validation in `clean()` method
+        - Build test-first
 
-    - [ ] **1.2.b Run tests - should now PASS**
+    - [ ] **1.1.b Password hashing**
+        - Test: Password stored as hash, not plaintext
+        - Test: Hash verification succeeds with correct password
+        - Build test-first
 
-    - [ ] **1.2.c Run quality gates (linting, type checking)**
+    - [ ] **1.1.c Run quality gates (linting, type checking)**
 ```
 
-**For multiple related components:** Apply the same test-first pattern to each component within the
-phase, then add a final quality gates task. For multi-layer projects (backend + frontend, API + CLI),
-use separate phases per layer with test-first ordering in each, plus a cross-layer validation phase.
+**Key elements:**
 
-### Anti-Pattern: Tests After Implementation
+- **Task named for the module**, not the activity — "`User` model", not "Write tests for User model"
+- **Test cases are detail bullets** — behaviors to cover, not a sequence to execute
+- **"Build test-first"** signals the execution discipline — the agent applies red-green-refactor
+  within the task (see [process-task-loop][process-task-loop] for the execution loop)
+- **No separate "implement" task** — test and implementation are one vertical unit
+
+**For multiple related components:** One task per component within the phase, each with its own
+test cases and "Build test-first" marker. For multi-layer projects (backend + frontend, API + CLI),
+use separate phases per layer with the same grouped pattern in each, plus a cross-layer validation
+phase.
+
+### Anti-Patterns
 
 ❌ **Wrong — tests as separate final phase:**
 
@@ -545,8 +557,16 @@ use separate phases per layer with test-first ordering in each, plus a cross-lay
 - [ ] **2.2 Write API tests**
 ```
 
-Tests written after implementation are harder, less effective, and violate the
-[DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) § Test-first assessment.
+❌ **Wrong — separate test and implement tasks within a phase:**
+
+```markdown
+### **Phase 1:** User Model
+- [ ] **1.1 Write tests for User model**  # DON'T DO THIS
+- [ ] **1.2 Implement User model**        # Splits one concern into two tasks
+```
+
+Both patterns produce horizontal slicing — writing tests in bulk tests *imagined* behavior, not
+actual behavior. Group test + implementation together so each test cycle informs the next.
 
 ---
 
@@ -608,61 +628,41 @@ This example demonstrates all formatting elements in proper context:
         - Ensure no regressions
         - All tests should still PASS
 
-### **Phase 2:** Validation Tests
+### **Phase 2:** Validation and Error Reporting
 
-- [ ] **2.1 Write tests for field validation**
+- [ ] **2.1 Field validation (`src/config/loader.py`, `src/config/parser.py`)**
 
-    - [ ] **2.1.a Create test in `test_config_validation.py`**
+    - [ ] **2.1.a Required field validation**
         - Test: Required fields report missing with field path
+        - Test: Empty config (all fields missing)
+        - Collect all violations before reporting (don't fail on first)
+        - Include field path in each error
+        - File location: `src/config/loader.py:89-120`
+        - Build test-first
+
+    - [ ] **2.1.b Type checking**
         - Test: Type mismatches report expected vs actual type
         - Test: Range violations report allowed bounds
-        - Expect tests to FAIL initially (validation not updated)
-
-    - [ ] **2.1.b Create test for edge cases**
-        - Test: Empty config (all fields missing)
         - Test: Deeply nested invalid fields
         - Test: Multiple simultaneous violations
-        - Expect tests to FAIL initially
+        - Handle nested configs recursively
+        - File location: `src/config/parser.py:45-78`
+        - Build test-first
 
-- [ ] **2.2 Write tests for error message formatting**
+- [ ] **2.2 Error message formatting (`src/config/errors.py`)**
 
     **Goal:** Ensure error messages are actionable and include fix suggestions.
 
-    - [ ] **2.2.a Create test for error output format**
+    - [ ] **2.2.a Error output format**
         - Test: Errors include field path (e.g., `plugins.auth.timeout`)
         - Test: Errors include expected type or value range
         - Test: Multiple errors collected and reported together
-        - Expect tests to FAIL initially
+        - Collect errors into structured report, sort by field path
+        - Build test-first
 
-    - [ ] **2.2.b Create test for suggestion generation**
+    - [ ] **2.2.b Suggestion generation**
         - Test: Typos suggest closest valid field name
-        - Expect tests to FAIL initially
-
-### **Phase 3:** Implementation
-
-- [ ] **3.1 Update field validation logic**
-
-    - [ ] **3.1.a Add validation to `ConfigLoader` required field checks**
-        - Collect all violations before reporting (don't fail on first)
-        - Include field path in each error
-        - Preserve existing valid-config behavior
-        - File location: `src/config/loader.py:89-120`
-
-    - [ ] **3.1.b Add type checking to `ConfigParser.parse_field()`**
-        - Report expected vs actual type
-        - Handle nested configs recursively
-        - File location: `src/config/parser.py:45-78`
-
-    - [ ] **3.1.c Run field validation tests - should now PASS**
-
-- [ ] **3.2 Update error message formatting**
-
-    - [ ] **3.2.a Implement `ValidationErrorFormatter`**
-        - Collect errors into structured report
-        - Sort by field path for readability
-        - File location: `src/config/errors.py` (new file)
-
-    - [ ] **3.2.b Run error format tests - should now PASS**
+        - Build test-first
 
 ### **Phase 4:** Quality Gates and Manual Verification
 
@@ -716,7 +716,7 @@ Quick reference for frequent errors. Each element's detailed examples are in
 
 1. **Headers instead of parent tasks** — Use `- [ ] **X.Y Description**` (checkbox + bold), not
    `### X.Y` (heading)
-2. **Tests after implementation** — Test tasks come BEFORE implementation in each phase
+2. **Splitting test and implementation** — Group together by concern, not as separate tasks
 3. **Pre-checked tasks** — All tasks start as `- [ ]` (unchecked), never `- [x]`
 4. **Numbered detail bullets** — Implementation details use unnumbered bullets, not numbered subtasks
 5. **Goal/Note at wrong indent** — Indent 4 spaces from margin (same level as subtasks), not at margin
@@ -933,3 +933,4 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-lic]: ../../../system/workflows/arc-methods.md#leave-it-cleaner
+[arc-methods-tf]: ../../../system/workflows/arc-methods.md#test-first

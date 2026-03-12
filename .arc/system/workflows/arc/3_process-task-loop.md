@@ -24,9 +24,17 @@ It ensures consistent execution, quality control, and documentation of work.
   single-threaded, small-scope tasks keep the developer close enough to the work to contribute
   directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
   your current task, flag the conflict and ask how to proceed.
-- **Test-first assessment:** Before implementing, assess whether tests should be written first per the
-  [test-first method][arc-methods-tf]. This informs task ordering — test tasks precede implementation
-  when test-first applies.
+- **Test-first execution:** When a task is marked test-first (per the [test-first method][arc-methods-tf]),
+  execute as vertical slices — red-green-refactor, one behavior at a time:
+    1. **RED:** Write one test for one behavior listed in the task → run it → confirm it fails
+    2. **GREEN:** Write minimal code to make it pass
+    3. **REFACTOR:** Review the code you just wrote. If you see duplication, unclear naming, or an
+       abstraction emerging — refactor now (all tests must stay green). If the code is clean, move on.
+    4. Next behavior → repeat from RED
+
+  Test cases listed in the task are behaviors to cover, not an execution sequence — let each cycle
+  inform the next. If your project has a testing methodology strategy, consult it for project-specific
+  TDD details (mocking rules, fixture conventions, tier boundaries).
 - **Quality issue triage:** When you encounter pre-existing quality issues in files you're modifying,
   follow the [leave-it-cleaner method][arc-methods-lic] for severity triage and fix-vs-defer decisions.
 - **Completion protocol:**

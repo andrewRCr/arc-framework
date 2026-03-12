@@ -162,7 +162,7 @@ Severity-based triage with documentation requirements.
 
 **Workflow:** [process-task-loop.md][process-task-loop] · **When:** Agent begins implementing any task
 
-**Contract:** Assess whether tests should be written before implementation. The assessment must inform task order.
+**Contract:** Assess whether tests should be written before implementation. The assessment must inform task structure.
 
 ### test-first.override
 
@@ -172,7 +172,7 @@ Severity-based triage with documentation requirements.
 
 Decision tree by change type.
 
-**Requires test-first** (write tests BEFORE implementation):
+**Requires test-first** (red-green-refactor within the task):
 
 - New data models or schemas
 - New API endpoints or endpoint modifications
@@ -190,8 +190,10 @@ Decision tree by change type.
 
 **If unsure, default to test-first.** Writing tests after implementation is harder and less effective.
 
-**During task list creation:** Place test tasks BEFORE implementation tasks for test-first work. This makes the
-ordering visible during execution.
+**During task list creation:** Group test and implementation together — by module or concern, not by activity.
+A test-first task covers both writing tests and writing the code that makes them pass. List the behaviors to
+test as detail bullets within the task. Mark test-first tasks so the executing agent applies the
+red-green-refactor loop (see [process-task-loop][process-task-loop] for execution details).
 
 ---
 

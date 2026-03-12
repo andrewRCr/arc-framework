@@ -120,73 +120,58 @@ transition from documentation-only to a hybrid code + documentation project.
 **Purpose:** Build and test the pure-function core that all commands depend on — template rendering,
 hashing, manifest I/O, and init recipe parsing.
 
-**Strategies:** `strategy-file-classification.md` (file inventory and classification data)
+**Strategies:** `strategy-file-classification.md` (file inventory and classification data),
+`strategy-testing-methodology.md`
 
-- [ ] **2.1 Write tests for template rendering**
+- [ ] **2.1 Template rendering (`src/lib/render.ts`)**
 
-    - [ ] **2.1.a Token substitution tests**
+    - [ ] **2.1.a Token substitution**
         - Test: single token replacement (`{{PROJECT_NAME}}` → `"My App"`)
         - Test: multiple tokens in one file
         - Test: token appears multiple times
         - Test: no tokens (passthrough)
         - Test: unknown token left as-is (or error — decide during implementation)
-        - Expect tests to FAIL initially
+        - Build test-first
 
-    - [ ] **2.1.b Conditional content processing tests**
+    - [ ] **2.1.b Conditional content processing**
         - Test: `<!-- arc:if -->` / `<!-- arc:endif -->` section included when condition true
         - Test: section excluded when condition false
         - Test: nested conditionals (if needed)
         - Test: multiple conditions in one file
         - Test: file with no conditionals (passthrough)
-        - Expect tests to FAIL initially
+        - Build test-first
 
-- [ ] **2.2 Implement template rendering (`src/lib/render.ts`)**
-    - Token substitution engine
-    - Conditional content processor
-    - Combined render function (tokens + conditionals in one pass)
-    - Tests should now PASS
-
-- [ ] **2.3 Write tests for hash computation**
+- [ ] **2.2 Hash computation (`src/lib/hash.ts`)**
     - Test: SHA-256 of known content produces expected hash
     - Test: different content produces different hash
     - Test: same content produces same hash (deterministic)
-    - Expect tests to FAIL initially
-
-- [ ] **2.4 Implement hash computation (`src/lib/hash.ts`)**
     - SHA-256 of file contents using Node `crypto`
-    - Tests should now PASS
+    - Build test-first
 
-- [ ] **2.5 Write tests for manifest I/O**
+- [ ] **2.3 Manifest I/O (`src/lib/manifest.ts`)**
 
-    - [ ] **2.5.a Schema validation tests**
+    - [ ] **2.3.a Schema validation**
         - Test: valid manifest passes validation
         - Test: missing required fields rejected
         - Test: invalid `classification` or `layer` values rejected
-        - Expect tests to FAIL initially
+        - Build test-first
 
-    - [ ] **2.5.b Read/write tests**
+    - [ ] **2.3.b Read/write operations**
         - Test: write manifest to disk, read back, compare
         - Test: read non-existent manifest returns appropriate error/null
         - Test: read malformed JSON reports clear error
-        - Expect tests to FAIL initially
+        - `Manifest`, `FileEntry`, `InstallConfig` types (in `types.ts`)
+        - Build test-first
 
-- [ ] **2.6 Implement manifest I/O (`src/lib/manifest.ts`)**
-    - `Manifest`, `FileEntry`, `InstallConfig` types (in `types.ts`)
-    - Read, write, validate functions
-    - Tests should now PASS
-
-- [ ] **2.7 Write tests for init recipe parsing**
+- [ ] **2.4 Init recipe parsing (`src/lib/recipe.ts`)**
     - Test: valid recipe parses correctly (prompts, conditions, file mappings)
     - Test: prompt types handled (text, select, multiselect)
     - Test: condition evaluation (equality check against config values)
     - Test: malformed recipe reports clear error
-    - Expect tests to FAIL initially
-
-- [ ] **2.8 Implement init recipe parsing (`src/lib/recipe.ts`)**
     - Recipe schema type, parser, condition evaluator
-    - Tests should now PASS
+    - Build test-first
 
-- [ ] **2.9 Run quality gates**
+- [ ] **2.5 Run quality gates**
     - Type checking passes
     - All unit tests pass
     - Markdown linting passes (if any docs were touched)
@@ -279,39 +264,36 @@ working ARC installation.
 
 **Purpose:** Build the three-way merge update system — the core value proposition of the CLI.
 
-- [ ] **4.1 Write tests for three-way merge wrapper**
+- [ ] **4.1 Three-way merge wrapper (`src/lib/merge.ts`)**
     - Test: non-overlapping changes auto-merge cleanly
     - Test: overlapping changes produce conflict markers
     - Test: unchanged file (pristine == current) takes new version cleanly
     - Test: file unchanged by framework (pristine == new) keeps adopter's version
-    - Expect tests to FAIL initially
-
-- [ ] **4.2 Implement merge wrapper (`src/lib/merge.ts`)**
     - Shell out to `git merge-file` via `child_process.execFile`
     - Parse exit code (0 = clean, 1 = conflicts, >1 = error)
     - Return merge result with conflict flag and content
-    - Tests should now PASS
+    - Build test-first
 
-- [ ] **4.3 Implement update command (`src/commands/update.ts`)**
+- [ ] **4.2 Update command (`src/commands/update.ts`)**
 
-    - [ ] **4.3.a Core update flow**
+    - [ ] **4.2.a Core update flow**
         - Read manifest and `install_config`
         - Read new framework files from CLI's own `framework/` directory
         - Re-render templates with adopter's `install_config` (same tokens, fresh content)
         - For each managed file: three-way merge (pristine × new rendered × adopter's current)
         - Classify results: auto-merged, conflicted, skipped, new
 
-    - [ ] **4.3.b Conflict reporting and pristine update**
+    - [ ] **4.2.b Conflict reporting and pristine update**
         - Leave git conflict markers in conflicted files
         - Report which files need attention
         - Update pristine copies for cleanly merged files
         - Update manifest with new `framework_version`
 
-    - [ ] **4.3.c New file handling**
+    - [ ] **4.2.c New file handling**
         - Framework files: auto-add without prompting
         - Conditional files (depend on config choices): prompt adopter
 
-- [ ] **4.4 Write integration tests for update flow**
+- [ ] **4.3 Integration tests for update flow**
     - Test: update with no adopter changes → all files take new version
     - Test: update with non-overlapping changes → auto-merge preserves both
     - Test: update with conflicting changes → conflict markers in file, reported
@@ -319,7 +301,7 @@ working ARC installation.
     - Test: new framework file added during update
     - Test: manifest and pristine updated correctly post-merge
 
-- [ ] **4.5 Run quality gates**
+- [ ] **4.4 Run quality gates**
     - Type checking passes
     - All tests pass
     - Markdown linting passes
@@ -367,31 +349,28 @@ definitions.
 
 **Strategies:** `strategy-file-classification.md` (skill file inventory)
 
-- [ ] **6.1 Write tests for skill generation**
+- [ ] **6.1 Skill generation (`src/lib/skills.ts`)**
     - Test: canonical skill → Claude Code output (correct path, `disable-model-invocation` frontmatter)
     - Test: canonical skill → Codex output (`.agents/skills/` path, `openai.yaml` supplemental)
     - Test: canonical skill → Windsurf output (`.windsurf/skills/` path, no `.agents/`)
     - Test: multiple agents selected → correct output set for each
     - Test: `{{ARC_DIR}}` in skill instructions rendered with configured path
-    - Expect tests to FAIL initially
-
-- [ ] **6.2 Implement skill generation (`src/lib/skills.ts`)**
     - Read canonical skills from `framework/system/skills/`
     - Generate per-tool output with correct paths, frontmatter, supplemental files
     - Handle all 6 agent tools (Claude, Codex, Gemini, Copilot, Cursor, Windsurf)
-    - Tests should now PASS
+    - Build test-first
 
-- [ ] **6.3 Integrate with init and update**
+- [ ] **6.2 Integrate with init and update**
     - Init: generate skill files based on agent selection
     - Update: regenerate when canonical skill definitions change (compare hashes)
     - Track generated skill files in manifest
 
-- [ ] **6.4 Write integration tests for skill generation**
+- [ ] **6.3 Integration tests for skill generation**
     - Test: init with Claude selected → `.claude/skills/` populated correctly
     - Test: init with multiple agents → all agent directories populated
     - Test: update with changed skill → regenerated files reflect changes
 
-- [ ] **6.5 Run quality gates**
+- [ ] **6.4 Run quality gates**
     - Type checking passes
     - All tests pass
     - Markdown linting passes

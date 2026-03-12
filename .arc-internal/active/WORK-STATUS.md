@@ -9,11 +9,11 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.1 — Write tests for template rendering (line ~124)
+**Next Task**: Task 2.1 — Template rendering (line ~126)
 **Last Completed**: Phase 1 complete; PRD/task list updated with deferred ADR scope
 **Blockers**: [none]
-**Next Action**: Begin Phase 2 — Task 2.1 (template rendering tests)
+**Next Action**: Begin Phase 2 — Task 2.1 (template rendering)
 
 ---
 
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-03-12
