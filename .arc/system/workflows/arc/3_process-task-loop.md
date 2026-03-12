@@ -24,7 +24,7 @@ It ensures consistent execution, quality control, and documentation of work.
   single-threaded, small-scope tasks keep the developer close enough to the work to contribute
   directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
   your current task, flag the conflict and ask how to proceed.
-- **Test-first execution:** When a task is marked test-first (per the [test-first method][arc-methods-tf]),
+- **Test-first execution:** When a task has a `Build \`test-first\`:` marker (per the [test-first method][arc-methods-tf]),
   execute as vertical slices — red-green-refactor, one behavior at a time:
     1. **RED:** Write one test for one behavior listed in the task → run it → confirm it fails
     2. **GREEN:** Write minimal code to make it pass

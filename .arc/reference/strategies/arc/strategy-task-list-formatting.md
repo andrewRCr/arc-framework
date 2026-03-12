@@ -38,7 +38,7 @@ Before finalizing any task list, verify:
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
 - [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
-- [ ] Test-first tasks marked with "Build test-first" detail bullet
+- [ ] Test-first tasks use `Build \`test-first\`:` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
@@ -313,13 +313,15 @@ Task list headers provide essential metadata and context. Format varies by task 
 - [ ] **1.1 `User` model (`models.py`)**
 
     - [ ] **1.1.a Field validation**
-        - Test: Email format validation
-        - Test: Username uniqueness constraint
-        - Build test-first
+
+        Build `test-first`:
+        - Email format validation
+        - Username uniqueness constraint
 
     - [ ] **1.1.b Password hashing**
-        - Test: Password stored as hash, not plaintext
-        - Build test-first
+
+        Build `test-first`:
+        - Password stored as hash, not plaintext
 
 ✅ Simple single-line subtasks:
 
@@ -416,12 +418,14 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
 
     - [ ] **3.1.R Additional integration tests discovered**
         - [ ] **3.1.R.1 `PaginatedQuery` handler tests**
-            - Test: Correct metadata extraction from paginated response
-            - Build test-first
+
+            Build `test-first`:
+            - Correct metadata extraction from paginated response
 
         - [ ] **3.1.R.2 `ResultsList` stability tests**
-            - Test: Handles empty result set without error
-            - Build test-first
+
+            Build `test-first`:
+            - Handles empty result set without error
 ```
 
 ### Emoji Usage
@@ -480,21 +484,24 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
     **Goal:** Validated user model with email and username constraints.
 
     - [ ] **1.1.a Field validation**
-        - Test: Email format validation
-        - Test: Username uniqueness constraint
         - Fields: `username`, `email`, `password_hash`
         - Add `clean()` method for validation
-        - Build test-first
+
+        Build `test-first`:
+        - Email format validation
+        - Username uniqueness constraint
 
     - [ ] **1.1.b Password hashing**
-        - Test: Password stored as hash, not plaintext
-        - Test: Hash verification succeeds with correct password
-        - Build test-first
+
+        Build `test-first`:
+        - Password stored as hash, not plaintext
+        - Hash verification succeeds with correct password
 
 - [ ] **1.2 `Profile` model (`models.py`)**
-    - Test: Foreign key to `User`
-    - Test: Cascade delete when `User` removed
-    - Build test-first
+
+    Build `test-first`:
+    - Foreign key to `User`
+    - Cascade delete when `User` removed
 ```
 
 ---
@@ -516,16 +523,18 @@ convention. Group test and implementation together — by module or concern, not
 - [ ] **1.1 `User` model (`models.py`)**
 
     - [ ] **1.1.a Field validation**
-        - Test: Email format validation
-        - Test: Username uniqueness constraint
         - Fields: `username`, `email`, `password_hash`
         - Add validation in `clean()` method
-        - Build test-first
+
+        Build `test-first`:
+        - Email format validation
+        - Username uniqueness constraint
 
     - [ ] **1.1.b Password hashing**
-        - Test: Password stored as hash, not plaintext
-        - Test: Hash verification succeeds with correct password
-        - Build test-first
+
+        Build `test-first`:
+        - Password stored as hash, not plaintext
+        - Hash verification succeeds with correct password
 
     - [ ] **1.1.c Run quality gates (linting, type checking)**
 ```
@@ -533,15 +542,19 @@ convention. Group test and implementation together — by module or concern, not
 **Key elements:**
 
 - **Task named for the module**, not the activity — "`User` model", not "Write tests for User model"
-- **Test cases are detail bullets** — behaviors to cover, not a sequence to execute
-- **"Build test-first"** signals the execution discipline — the agent applies red-green-refactor
-  within the task (see [process-task-loop][process-task-loop] for the execution loop)
+- **`Build \`test-first\`:`** is the execution marker — a leading line that signals red-green-refactor
+  discipline and introduces the behavior list beneath it (see [process-task-loop][process-task-loop]
+  for the execution loop). Its absence means test-after is acceptable.
+- **Behavior bullets follow the marker** — each is a behavior to verify, not a test name. The agent
+  uses them to drive RED→GREEN→REFACTOR cycles, one behavior at a time.
+- **Implementation detail bullets precede the marker** — context about what you're building (fields,
+  file locations, architectural notes) comes before the behavioral spec
 - **No separate "implement" task** — test and implementation are one vertical unit
 
 **For multiple related components:** One task per component within the phase, each with its own
-test cases and "Build test-first" marker. For multi-layer projects (backend + frontend, API + CLI),
-use separate phases per layer with the same grouped pattern in each, plus a cross-layer validation
-phase.
+behavior list and `Build \`test-first\`:` marker. For multi-layer projects (backend + frontend,
+API + CLI), use separate phases per layer with the same grouped pattern in each, plus a
+cross-layer validation phase.
 
 ### Anti-Patterns
 
@@ -633,36 +646,40 @@ This example demonstrates all formatting elements in proper context:
 - [ ] **2.1 Field validation (`src/config/loader.py`, `src/config/parser.py`)**
 
     - [ ] **2.1.a Required field validation**
-        - Test: Required fields report missing with field path
-        - Test: Empty config (all fields missing)
         - Collect all violations before reporting (don't fail on first)
         - Include field path in each error
         - File location: `src/config/loader.py:89-120`
-        - Build test-first
+
+        Build `test-first`:
+        - Required fields report missing with field path
+        - Empty config (all fields missing)
 
     - [ ] **2.1.b Type checking**
-        - Test: Type mismatches report expected vs actual type
-        - Test: Range violations report allowed bounds
-        - Test: Deeply nested invalid fields
-        - Test: Multiple simultaneous violations
         - Handle nested configs recursively
         - File location: `src/config/parser.py:45-78`
-        - Build test-first
+
+        Build `test-first`:
+        - Type mismatches report expected vs actual type
+        - Range violations report allowed bounds
+        - Deeply nested invalid fields
+        - Multiple simultaneous violations
 
 - [ ] **2.2 Error message formatting (`src/config/errors.py`)**
 
     **Goal:** Ensure error messages are actionable and include fix suggestions.
 
     - [ ] **2.2.a Error output format**
-        - Test: Errors include field path (e.g., `plugins.auth.timeout`)
-        - Test: Errors include expected type or value range
-        - Test: Multiple errors collected and reported together
         - Collect errors into structured report, sort by field path
-        - Build test-first
+
+        Build `test-first`:
+        - Errors include field path (e.g., `plugins.auth.timeout`)
+        - Errors include expected type or value range
+        - Multiple errors collected and reported together
 
     - [ ] **2.2.b Suggestion generation**
-        - Test: Typos suggest closest valid field name
-        - Build test-first
+
+        Build `test-first`:
+        - Typos suggest closest valid field name
 
 ### **Phase 4:** Quality Gates and Manual Verification
 

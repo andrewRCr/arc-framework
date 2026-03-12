@@ -191,9 +191,9 @@ Decision tree by change type.
 **If unsure, default to test-first.** Writing tests after implementation is harder and less effective.
 
 **During task list creation:** Group test and implementation together — by module or concern, not by activity.
-A test-first task covers both writing tests and writing the code that makes them pass. List the behaviors to
-test as detail bullets within the task. Mark test-first tasks so the executing agent applies the
-red-green-refactor loop (see [process-task-loop][process-task-loop] for execution details).
+A test-first task covers both writing tests and writing the code that makes them pass. Use the
+`Build \`test-first\`:` marker line to introduce the behavior list — this signals the executing agent to apply
+the red-green-refactor loop (see [process-task-loop][process-task-loop] for execution details).
 
 ---
 

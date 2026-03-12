@@ -90,6 +90,8 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - ESM throughout (`type: "module"`, Node16 module resolution)
 - Prefer explicit return types on exported functions
 - Use `unknown` over `any` for external data; validate and narrow before use
+- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
+  describing the module's purpose
 
 ## Documentation Standards
 

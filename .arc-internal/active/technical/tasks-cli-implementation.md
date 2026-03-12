@@ -123,53 +123,52 @@ hashing, manifest I/O, and init recipe parsing.
 **Strategies:** `strategy-file-classification.md` (file inventory and classification data),
 `strategy-testing-methodology.md`
 
-- [ ] **2.1 Template rendering (`src/lib/render.ts`)**
+- [x] **2.1 Template rendering (`src/lib/render.ts`)**
 
-    - [ ] **2.1.a Token substitution**
-        - Test: single token replacement (`{{PROJECT_NAME}}` → `"My App"`)
-        - Test: multiple tokens in one file
-        - Test: token appears multiple times
-        - Test: no tokens (passthrough)
-        - Test: unknown token left as-is (or error — decide during implementation)
-        - Build test-first
+    - [x] **2.1.a Token substitution — `renderTokens()`**
+        - `{{TOKEN}}` regex replacement with `/g` flag; unknown tokens left as-is
+        - 5 tests: single, multiple, repeated, passthrough, unknown token
+        - Built test-first (RED→GREEN per behavior, all pass)
 
-    - [ ] **2.1.b Conditional content processing**
-        - Test: `<!-- arc:if -->` / `<!-- arc:endif -->` section included when condition true
-        - Test: section excluded when condition false
-        - Test: nested conditionals (if needed)
-        - Test: multiple conditions in one file
-        - Test: file with no conditionals (passthrough)
-        - Build test-first
+    - [x] **2.1.b Conditional content processing — `renderConditionals()`**
+        - `<!-- arc:if KEY == VALUE -->` / `<!-- arc:endif -->` with depth-tracked nesting
+        - Single-pass line processor; directive lines stripped from output
+        - 5 tests: include, exclude, nested (3 variants), multiple independent, passthrough
+        - Built test-first (RED→GREEN per behavior, all pass)
 
 - [ ] **2.2 Hash computation (`src/lib/hash.ts`)**
-    - Test: SHA-256 of known content produces expected hash
-    - Test: different content produces different hash
-    - Test: same content produces same hash (deterministic)
     - SHA-256 of file contents using Node `crypto`
-    - Build test-first
+
+    Build `test-first`:
+    - SHA-256 of known content produces expected hash
+    - Different content produces different hash
+    - Same content produces same hash (deterministic)
 
 - [ ] **2.3 Manifest I/O (`src/lib/manifest.ts`)**
 
     - [ ] **2.3.a Schema validation**
-        - Test: valid manifest passes validation
-        - Test: missing required fields rejected
-        - Test: invalid `classification` or `layer` values rejected
-        - Build test-first
+
+        Build `test-first`:
+        - Valid manifest passes validation
+        - Missing required fields rejected
+        - Invalid `classification` or `layer` values rejected
 
     - [ ] **2.3.b Read/write operations**
-        - Test: write manifest to disk, read back, compare
-        - Test: read non-existent manifest returns appropriate error/null
-        - Test: read malformed JSON reports clear error
         - `Manifest`, `FileEntry`, `InstallConfig` types (in `types.ts`)
-        - Build test-first
+
+        Build `test-first`:
+        - Write manifest to disk, read back, compare
+        - Read non-existent manifest returns appropriate error/null
+        - Read malformed JSON reports clear error
 
 - [ ] **2.4 Init recipe parsing (`src/lib/recipe.ts`)**
-    - Test: valid recipe parses correctly (prompts, conditions, file mappings)
-    - Test: prompt types handled (text, select, multiselect)
-    - Test: condition evaluation (equality check against config values)
-    - Test: malformed recipe reports clear error
     - Recipe schema type, parser, condition evaluator
-    - Build test-first
+
+    Build `test-first`:
+    - Valid recipe parses correctly (prompts, conditions, file mappings)
+    - Prompt types handled (text, select, multiselect)
+    - Condition evaluation (equality check against config values)
+    - Malformed recipe reports clear error
 
 - [ ] **2.5 Run quality gates**
     - Type checking passes
@@ -265,14 +264,15 @@ working ARC installation.
 **Purpose:** Build the three-way merge update system — the core value proposition of the CLI.
 
 - [ ] **4.1 Three-way merge wrapper (`src/lib/merge.ts`)**
-    - Test: non-overlapping changes auto-merge cleanly
-    - Test: overlapping changes produce conflict markers
-    - Test: unchanged file (pristine == current) takes new version cleanly
-    - Test: file unchanged by framework (pristine == new) keeps adopter's version
     - Shell out to `git merge-file` via `child_process.execFile`
     - Parse exit code (0 = clean, 1 = conflicts, >1 = error)
     - Return merge result with conflict flag and content
-    - Build test-first
+
+    Build `test-first`:
+    - Non-overlapping changes auto-merge cleanly
+    - Overlapping changes produce conflict markers
+    - Unchanged file (pristine == current) takes new version cleanly
+    - File unchanged by framework (pristine == new) keeps adopter's version
 
 - [ ] **4.2 Update command (`src/commands/update.ts`)**
 
@@ -350,15 +350,16 @@ definitions.
 **Strategies:** `strategy-file-classification.md` (skill file inventory)
 
 - [ ] **6.1 Skill generation (`src/lib/skills.ts`)**
-    - Test: canonical skill → Claude Code output (correct path, `disable-model-invocation` frontmatter)
-    - Test: canonical skill → Codex output (`.agents/skills/` path, `openai.yaml` supplemental)
-    - Test: canonical skill → Windsurf output (`.windsurf/skills/` path, no `.agents/`)
-    - Test: multiple agents selected → correct output set for each
-    - Test: `{{ARC_DIR}}` in skill instructions rendered with configured path
     - Read canonical skills from `framework/system/skills/`
     - Generate per-tool output with correct paths, frontmatter, supplemental files
     - Handle all 6 agent tools (Claude, Codex, Gemini, Copilot, Cursor, Windsurf)
-    - Build test-first
+
+    Build `test-first`:
+    - Canonical skill → Claude Code output (correct path, `disable-model-invocation` frontmatter)
+    - Canonical skill → Codex output (`.agents/skills/` path, `openai.yaml` supplemental)
+    - Canonical skill → Windsurf output (`.windsurf/skills/` path, no `.agents/`)
+    - Multiple agents selected → correct output set for each
+    - `{{ARC_DIR}}` in skill instructions rendered with configured path
 
 - [ ] **6.2 Integrate with init and update**
     - Init: generate skill files based on agent selection
@@ -461,22 +462,26 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
           save+push (the more common post-work use case). Decide during implementation.
 
     - [ ] **7.3.e Write tests for user portability**
-        - Test: save serializes all user dir files to git note, load restores them
-        - Test: load walks ancestors when HEAD has no note
-        - Test: identity resolution fallback chain works end-to-end
-        - Test: push/pull interact with remote refs correctly (integration-level)
-        - Test: sync sugar triggers correct save/push or pull/load sequence
-        - Test: clear error when user dir is empty (save) or no note found (load)
-        - Test: round-trip: save → modify local → load → verify restored to saved state
+
+        Build `test-first`:
+        - Save serializes all user dir files to git note, load restores them
+        - Load walks ancestors when HEAD has no note
+        - Identity resolution fallback chain works end-to-end
+        - Push/pull interact with remote refs correctly (integration-level)
+        - Sync sugar triggers correct save/push or pull/load sequence
+        - Clear error when user dir is empty (save) or no note found (load)
+        - Round-trip: save → modify local → load → verify restored to saved state
 
 - [ ] **7.4 Implement `arc log --atomic` subcommand**
     - Search commit history: `git log --grep="(atomic / no associated task list)"` with
       formatted output (date, type, scope, description)
     - Optional filters: `--since`, `--author`, `--limit`
     - Clear output when no matching commits found
-    - Test: commits with atomic context footer appear in output
-    - Test: non-atomic commits excluded
-    - Test: filter flags work correctly
+
+    Build `test-first`:
+    - Commits with atomic context footer appear in output
+    - Non-atomic commits excluded
+    - Filter flags work correctly
 
 - [ ] **7.5 Implement configurable install directory**
     - `{{ARC_DIR}}` token processing throughout template rendering

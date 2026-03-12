@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.1 — Template rendering (line ~126)
-**Last Completed**: Phase 1 complete; PRD/task list updated with deferred ADR scope
+**Next Task**: Task 2.2 — Hash computation (line ~139)
+**Last Completed**: Task 2.1 — Template rendering (renderTokens, renderConditionals)
 **Blockers**: [none]
-**Next Action**: Begin Phase 2 — Task 2.1 (template rendering)
+**Next Action**: Continue Phase 2 — Task 2.2 (hash computation)
 
 ---
 
