@@ -137,11 +137,12 @@ configurability path (how teams adapt it).
 ### Agent discovery
 
 The agent learns about the active configuration during session initialization. After loading standard documents, the
-agent reads `arc-config.yml` and `arc-methods.md`:
+agent reads `arc-config.yml` and scans `arc-methods.md` for override presence:
 
 1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for platform-appropriate commands
-2. **Active method overrides**: If any method in `arc-methods.md` has a populated project override, note it and follow
-   the override when that method is encountered in workflows
+2. **Method override presence**: Scan `arc-methods.md` `.override` headings to note which methods have active
+   overrides — a list of names, not content. Method defaults and override content load on-demand when workflows
+   reference them (see [Context Loading Strategy][context-loading])
 3. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
 
 This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies it when
@@ -418,8 +419,9 @@ enables automated tooling and readable history.
 Conventional commit format: `type(scope): description`
 ```
 
-When an override is populated, the agent follows the override instead of the default. The agent reads `arc-methods.md`
-during session initialization and carries the awareness through the session.
+When an override is populated, the agent follows the override instead of the default. Method content loads on-demand
+when the agent reaches a workflow step that references the method — not at session initialization. The agent notes
+which methods have overrides during init; the full content arrives at the point of action.
 
 ### Method references in workflows
 
@@ -648,6 +650,7 @@ period demonstrated the conventions in practice before enforcement was activated
 
 ---
 
+[context-loading]: strategy-context-loading.md
 [core-philosophy]: strategy-core-philosophy.md
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
