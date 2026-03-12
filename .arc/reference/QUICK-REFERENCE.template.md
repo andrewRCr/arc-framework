@@ -147,6 +147,39 @@ git status
 
 ---
 
+## ARC CLI Commands
+
+<!-- Include this section if your project uses the @arc-framework/cli package. -->
+
+### Session State Portability
+
+```bash
+# Save user directory to git notes (called automatically at session handoff)
+arc user save
+
+# Load user directory from git notes (called automatically at session init)
+arc user load
+
+# Push/pull user notes to/from remote
+arc user push
+arc user pull
+
+# Save + push in one step
+arc sync
+```
+
+Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
+`manual`). Per-developer override: `git config arc.sync_push`.
+
+### Atomic Work History
+
+```bash
+# Browse completed atomic work from commit history
+arc log --atomic
+```
+
+---
+
 ## Anti-Patterns
 
 ### Path Confusion

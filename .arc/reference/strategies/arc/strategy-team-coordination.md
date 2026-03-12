@@ -9,8 +9,8 @@ branching patterns, merge conflict expectations, and integration with external p
 work categories, protection modes). This strategy layers team-specific patterns on top of that
 foundation.
 
-**Scope:** Team coordination conventions only. For per-member session state and directory
-structure, see `team/README.md`.
+**Scope:** Team coordination conventions only. For per-developer workspace structure, see
+`user/README.md`.
 
 ---
 
@@ -30,22 +30,23 @@ structure, see `team/README.md`.
 How standard ARC workflows adapt when team mode is active. Detailed conventions follow
 in subsequent sections and referenced documents.
 
-| Aspect                   | Solo (default)            | Team mode                                        |
-|--------------------------|---------------------------|--------------------------------------------------|
-| Session notes            | `active/SESSION-NOTES.md` | `team/{name}/SESSION-NOTES.md`                   |
-| Work status              | `active/WORK-STATUS.md`   | `active/WORK-STATUS.md` (shared, one per branch) |
-| ATOMIC-TASKS.md (1)      | `active/ATOMIC-TASKS.md`  | `team/{name}/ATOMIC-TASKS.md`                    |
-| One task at a time       | Single pair               | Per developer-agent pair (concurrent pairs OK)   |
-| Task ownership           | Implicit                  | `(@name)` markers in task lists                  |
-| Branching                | One branch per work unit  | Multiple patterns — see below                    |
+| Aspect              | Solo (default)           | Team mode                                        |
+|---------------------|--------------------------|--------------------------------------------------|
+| Session notes       | `user/{identity}/`       | `user/{identity}/` (same structure)              |
+| Work status         | `active/WORK-STATUS.md`  | `active/WORK-STATUS.md` (shared, one per branch) |
+| ATOMIC-INBOX.md (1) | `user/{identity}/`       | `user/{identity}/` (same structure)              |
+| One task at a time  | Single pair              | Per developer-agent pair (concurrent pairs OK)   |
+| Task ownership      | Implicit                 | `(@name)` markers in task lists                  |
+| Branching           | One branch per work unit | Multiple patterns — see below                    |
 
-(1) The standalone ATOMIC-TASKS.md file requires `pm.mode: arc-in-git`. Atomic tasks as a
-concept (task list sections for off-plan work) are Core and always available.
+(1) ATOMIC-INBOX.md requires `pm.mode: arc-in-git`. Atomic tasks as a concept (task list
+sections for off-plan work) are Core and always available.
 
 **Key distinction:** WORK-STATUS.md is shared in `active/` (one per branch, tracked in git).
-SESSION-NOTES.md and ATOMIC-TASKS.md are personal — they move to `team/{name}/` so that
-concurrent developers don't conflict on session state. See `team/README.md` for the full
-directory structure.
+Personal files (SESSION-NOTES.md, ATOMIC-INBOX.md) live in `user/{identity}/` and are
+gitignored — no merge conflicts between developers. The `user/` directory structure is
+identical for solo and team; team scaling requires only adding identity directories. See
+`user/README.md` for the full directory structure.
 
 ---
 
@@ -115,23 +116,23 @@ The outgoing developer runs a standard session handoff with these additions:
      dead ends
    - **Priority guidance** — if multiple tasks remain, what ordering matters and why
 
-3. **Push session notes.** Ensure git notes are pushed so the incoming developer can fetch
+3. **Push user directory.** Ensure git notes are pushed so the incoming developer can fetch
    them (see session-handoff workflow for the git notes save-and-push steps). With
-   `session.notes_push: prompt` (the team default), confirm the push when prompted.
+   `user.sync_push: prompt` (the team default), confirm the push when prompted.
 
 ### Incoming Bootstrap
 
 The incoming developer runs a standard session-init with these additions:
 
-1. **Fetch the outgoing developer's notes.** If the outgoing developer pushed git notes, fetch
-   their namespace and load their context:
+1. **Fetch the outgoing developer's context.** If the outgoing developer pushed git notes,
+   fetch their namespace and load their context:
 
    ```bash
-   # Fetch outgoing developer's session notes
-   git fetch origin refs/notes/arc/session/{outgoing}:refs/notes/arc/session/{outgoing}
+   # Fetch outgoing developer's user directory via git notes
+   git fetch origin refs/notes/arc/user/{outgoing}:refs/notes/arc/user/{outgoing}
 
-   # Read their context (inspect, don't overwrite your own SESSION-NOTES.md)
-   git notes --ref=arc/session/{outgoing} show HEAD
+   # Read their context (inspect, don't overwrite your own user dir)
+   git notes --ref=arc/user/{outgoing} show HEAD
    ```
 
    This supplements WORK-STATUS.md with qualitative context — decisions, gotchas, and approach
@@ -258,9 +259,9 @@ developers reference and update them. This means:
 
 ### Session State Merge Behavior
 
-Personal files — `team/{name}/SESSION-NOTES.md` and `team/{name}/ATOMIC-TASKS.md` — have no
-merge conflicts by design. Only one developer writes to each. This is the primary reason for
-the `team/` directory structure.
+Personal files in `user/{identity}/` (SESSION-NOTES.md and, with `pm.mode: arc-in-git`,
+ATOMIC-INBOX.md) are gitignored — no merge conflicts by design. Only one developer writes to
+each identity directory.
 
 `WORK-STATUS.md` in `active/` is shared (one per branch, tracked in git). Merge conflicts on
 WORK-STATUS.md are trivial: `.gitattributes` with `merge=ours` auto-resolves local merges by
@@ -322,7 +323,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 - [Work Organization Strategy][work-org] — Branching model, work categories, protection modes
 - [Development Methodology][dev-methodology] — Task management protocol, commit standards
 - [Process Task Loop][process-task-loop] — Task execution workflow
-- `team/README.md` — Per-member directory structure and session state
+- `user/README.md` — Per-developer workspace structure and session state
 
 ---
 

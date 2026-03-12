@@ -153,15 +153,16 @@ loop within each task — one behavior at a time, never batching all tests befor
 
 Session state uses two files with different update triggers:
 
-- **WORK-STATUS.md** (tracked) — updated at commit time and session handoff only
+- **WORK-STATUS.md** (tracked, `active/`) — updated at commit time and session handoff only
     - **Commit time**: Advance alongside task list changes (§ Commit Discipline, "Work status
       accuracy"). Staged as part of the commit — not a separate operation.
     - **Session handoff**: If dirty with no pending commit, propose a standalone commit.
     - **Not at other times** — mid-session updates are churn. The next session recovers state
       from committed WORK-STATUS.md, git log, and task list checkboxes.
-- **SESSION-NOTES.md** (gitignored) — written only at session handoff. Personal working context
-  for the next session. In team mode, moves to `team/{name}/SESSION-NOTES.md` so concurrent
-  developers don't conflict on session state.
+- **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
+  Personal working context for the next session. Each developer has their own directory
+  (`user/{identity}/`), so concurrent developers don't conflict on session state. Portability
+  across machines via git notes — see [Session Management Strategy][session-mgmt] § Portability.
 
 AI reports progress throughout the session; session state files capture the summary at commit
 and handoff boundaries.
@@ -301,3 +302,4 @@ the relevant work — not during session initialization.
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../strategies/STRATEGY-INDEX.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
+[session-mgmt]: ../strategies/arc/strategy-session-management.md

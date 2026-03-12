@@ -109,7 +109,7 @@ configurability path (how teams adapt it).
 | Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
 | Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
-| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state              | Method override — substitute session mechanism        |
+| WORK-STATUS.md + user/{identity}/ state | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 
 #### Design commitment conventions
@@ -288,16 +288,16 @@ layering mechanism. This is a deliberate design choice:
 - Every current setting (`branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`) is inherently project-wide.
   The team agrees on commit format, branch protection, and merge strategy. Per-developer variation on these would
   create inconsistency.
-- Per-developer values (e.g., session identity for git notes) route through **git config** (`git config
-  arc.session.identity alice`), which is already per-developer by design. Git config is the standard mechanism
-  for local, personal configuration in git-based projects.
-- Project-level defaults that individual developers may want to override (e.g., `session.notes_push`) follow the
-  same pattern: `arc-config.yml` sets the team default, git config provides a personal override. This is how git
-  itself handles project vs. personal settings.
+- Per-developer values (e.g., identity for user directory and git notes) route through **git config** (`git config
+  arc.identity alice`), which is already per-developer by design. Git config is the standard mechanism for local,
+  personal configuration in git-based projects.
+- Project-level defaults that individual developers may want to override (e.g., `user.sync_push`) follow the
+  same pattern: `arc-config.yml` sets the team default, git config provides a personal override (`git config
+  arc.sync_push`). This is how git itself handles project vs. personal settings.
 
-**Why not layered config:** A layered system (`arc-config.yml` → `team/{name}/config.yml`) would add resolution
+**Why not layered config:** A layered system (`arc-config.yml` → `user/{identity}/config.yml`) would add resolution
 mechanics, documentation overhead, and implementation complexity for currently 1-2 per-developer settings. YAGNI
-applies. If per-developer config needs grow significantly, the `team/{name}/` directory is the natural home for a
+applies. If per-developer config needs grow significantly, the `user/{identity}/` directory is the natural home for a
 future personal config file — the architecture accommodates this without committing to it now.
 
 ### Settings with behavioral implications

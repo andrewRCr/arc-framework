@@ -535,59 +535,41 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
         - Removed `completed-atomic` reference from `reference/archive/README.md` directory tree
         - Remaining `team/` cross-references are in methodology docs — covered by Task 7.7
 
-- [ ] **7.7 Update framework methodology docs (ADR-012 follow-up)**
+- [x] **7.7 Update framework methodology docs (ADR-012 follow-up)**
 
     **Goal:** ARC methodology documentation reflects the unified user directory model, inbox
     lifecycle, and broadened portability scope. Adopters discover these capabilities through the
     workflows and strategies they already consult.
 
-    - [ ] **7.7.a Update strategies**
-        - `strategy-team-coordination.md`: simplify solo/team workflow adaptations table to
-          single `user/{identity}/` path model. Update cross-member transfer guidance to route
-          through backlog. Remove `team/{name}/` references.
-        - `strategy-backlog-organization.md`: update structure diagram (ATOMIC-TASKS → removed
-          from active/, ATOMIC-INBOX in user/). Align "deleted after completion" with inbox model
-          (it's now the only model). Update commit context section. Remove `completed-atomic`
-          references.
-        - `strategy-session-management.md`: add portability section — why session context needs
-          to travel, the git notes mechanism, multi-machine and team handoff scenarios. Update
-          file location references to `user/{identity}/`.
-        - `strategy-configurability-architecture.md`: update convention inventory row for session
-          state. Add `user.sync_push` (replacing `session.notes_push`). Note `arc.identity`
-          consolidation.
-        - `strategy-work-organization.md`: update `active/` directory contents listing (remove
-          SESSION-NOTES.md and ATOMIC-TASKS.md).
-        - `strategy-file-classification.md`: update inventory — remove
-          `active/ATOMIC-TASKS.template.md` and `team/ATOMIC-TASKS.template.md`, add
-          `user/ATOMIC-INBOX.template.md`. Rename `team/` entries to `user/`. Remove
-          `completed-atomic` entries.
+    - [x] **7.7.a Update strategies**
+        - All six strategies updated for ADR-012 unified model:
+          `strategy-team-coordination.md` (single path model, backlog routing),
+          `strategy-backlog-organization.md` (ATOMIC-INBOX in user/, removed completed-atomic),
+          `strategy-session-management.md` (added portability section with git notes),
+          `strategy-configurability-architecture.md` (user.sync_push, arc.identity),
+          `strategy-work-organization.md` (clean active/ listing),
+          `strategy-file-classification.md` (user/ section, updated counts 86→82)
 
-    - [ ] **7.7.b Update workflows**
-        - `session-init.md`: single path for SESSION-NOTES.md loading (`user/{identity}/`).
-          Remove solo/team branching. Add git notes load step (when SESSION-NOTES.md is missing
-          or stale, check git notes on HEAD, walk ancestors). Add inbox item count to "no active
-          work" orientation summary.
-        - `session-handoff.md`: single path for SESSION-NOTES.md writing. Add git notes save
-          step (save to git notes; push per `user.sync_push` config).
-        - `integrate-work-unit.md`: add pre-merge inbox review step (arc-in-git mode). Triage
-          actions: keep, do now, promote to backlog, redirect via backlog, drop. Position
-          alongside pre-merge diff review.
-        - `process-task-loop.md`: update incidental work routing — `ATOMIC-TASKS.md` →
-          `ATOMIC-INBOX.md`, path update to `user/{identity}/`.
-        - `arc-methods.md` § session-state: reference broadened portability scope (user dir, not
-          just session notes). Update config key references (`user.sync_push`).
+    - [x] **7.7.b Update workflows**
+        - `session-init.md`: single `user/{identity}/` path, git notes load fallback, inbox
+          count in arc-in-git discovery
+        - `session-handoff.md`: single `user/{identity}/` path, git notes save step with
+          `user.sync_push` policy
+        - `integrate-work-unit.md`: added Step 5 pre-merge inbox review (arc-in-git),
+          renumbered 6→7, 7→8, 8→9
+        - `process-task-loop.md`: ATOMIC-TASKS → ATOMIC-INBOX in `user/{identity}/`
+        - `arc-methods.md` § session-state: broadened to user dir + git notes portability
 
-    - [ ] **7.7.c Update constitutional docs and QUICK-REFERENCE**
-        - `DEV-RULES.ARC.md` § session state control: update file paths to `user/{identity}/`,
-          update `user.sync_push` reference.
-        - QUICK-REFERENCE template: add `arc user` / `arc sync` / `arc log --atomic` command
-          patterns. Update session state file location references.
+    - [x] **7.7.c Update constitutional docs and QUICK-REFERENCE**
+        - `DEV-RULES.ARC.md` § session state control: updated paths to `user/{identity}/`,
+          added portability reference to Session Management Strategy
+        - QUICK-REFERENCE template: added ARC CLI Commands section with `arc user save/load/
+          push/pull`, `arc sync`, `arc log --atomic`, and `user.sync_push` config note
 
-    - [ ] **7.7.d Update ADR status annotations**
-        - ADR-007: add partial supersession note (Parts 1–3 superseded by ADR-012)
-        - ADR-008: add note (ATOMIC-TASKS.md path references superseded by ADR-012)
-        - ADR-009: add note (Part 2 file placement superseded by ADR-012)
-        - Status line format per ADR methodology: append supersession info to existing status
+    - [x] **7.7.d Update ADR status annotations**
+        - ADR-007: `Accepted (Parts 1–3 superseded by ADR-012)`
+        - ADR-008: appended `; ATOMIC-TASKS.md path references superseded by ADR-012`
+        - ADR-009: `Accepted (Part 2 file placement superseded by ADR-012)`
 
 - [ ] **7.8 Migrate `.arc-internal/` to unified model (self-hosting)**
 

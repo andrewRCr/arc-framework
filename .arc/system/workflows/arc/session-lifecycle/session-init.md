@@ -87,26 +87,23 @@ override instead.
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
-8. `.arc/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
-   - **Team mode path**: If `team/` member directories exist, read `team/{name}/SESSION-NOTES.md`
-     instead — see `team/README.md` for path resolution
+8. `.arc/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
+   - Path: `.arc/user/{identity}/SESSION-NOTES.md` where `{identity}` is resolved from
+     `git config arc.identity` (or slugified `git config user.name` as fallback)
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
-   - If this file doesn't exist, skip — the session starts with tracked state only (WORK-STATUS.md)
+   - **If file doesn't exist or is stale**: Try restoring from git notes — run `arc user load` (or
+     check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
+     exist either, skip — the session starts with tracked state only (WORK-STATUS.md).
    - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent, extract factual
      content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
      capability assumptions)
 
-> **Team mode:** SESSION-NOTES.md moves to `team/{name}/SESSION-NOTES.md` — read your personal
-> file, not the `active/` default path. WORK-STATUS.md stays in `active/` (shared, one per
-> branch). See [Team Coordination Strategy][team-coordination] § Workflow Adaptations for the
-> full solo → team mapping.
->
 > **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their
-> git notes namespace and apply the agent-switching filter to their SESSION-NOTES.md content.
-> See [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff for the
-> full incoming bootstrap protocol.
+> git notes namespace (`refs/notes/arc/user/{their-identity}`) and apply the agent-switching
+> filter to their SESSION-NOTES.md content. See [Team Coordination Strategy][team-coordination]
+> § Person-to-Person Task Handoff for the full incoming bootstrap protocol.
 
 9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
 
@@ -196,8 +193,10 @@ unit before producing the orientation summary. The discovery process depends on 
 
 1. Read ROADMAP.md — identify the next queued or suggested item
 2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
-3. Report what exists and its readiness state in the orientation summary
-4. Propose next steps based on what was found — ask for confirmation before proceeding
+3. Check `user/{identity}/ATOMIC-INBOX.md` — if it exists with items, report the count in the
+   orientation summary (e.g., "3 inbox items pending triage")
+4. Report what exists and its readiness state in the orientation summary
+5. Propose next steps based on what was found — ask for confirmation before proceeding
 
 Planning readiness varies: a completed PRD may be ready for task generation, a draft PRD may
 need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap

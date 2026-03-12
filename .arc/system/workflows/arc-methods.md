@@ -215,7 +215,13 @@ writes session state
 
 ### session-state.default
 
-Read/write WORK-STATUS.md and SESSION-NOTES.md at session boundaries.
+Read/write session state at session boundaries:
+
+- **WORK-STATUS.md** (`active/`) — tracked project state, updated at commit time and handoff
+- **SESSION-NOTES.md** (`user/{identity}/`) — gitignored personal context, written at handoff
+- **Git notes** (`refs/notes/arc/user/{identity}`) — portability layer for the user directory.
+  Save at handoff, load at init when local files are missing or stale. Push per `user.sync_push`
+  config (`always` / `prompt` / `manual`; per-developer override via `git config arc.sync_push`).
 
 ---
 

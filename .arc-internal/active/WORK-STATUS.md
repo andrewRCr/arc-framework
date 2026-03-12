@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.7.a — Update strategies (line ~544)
-**Last Completed**: Task 7.6 — Update framework templates for unified model (ADR-012)
+**Next Task**: Task 7.8 — Migrate `.arc-internal/` to unified model (line ~592)
+**Last Completed**: Task 7.7 — Update framework methodology docs (ADR-012 follow-up)
 **Blockers**: [none]
-**Next Action**: Continue Task 7.7.a — strategy-team-coordination.md done, 5 strategies remain
+**Next Action**: Start Task 7.8 — self-hosting migration to unified user directory model
 
 ---
 

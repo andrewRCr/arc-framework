@@ -192,7 +192,8 @@ right location:
 - **Within the current work unit's domain** → add to the **Atomic Tasks section** at the end of
   the current task list. All task lists have this section regardless of PM mode.
 - **Outside the current work unit's domain** → depends on PM mode:
-    - `arc-in-git`: add to **ATOMIC-TASKS.md** in `active/` (project-wide one-off tasks)
+    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal capture bucket,
+      gitignored — zero-friction local edit)
     - `none` / `external`: capture in **session notes** for later triage, or add directly to your
       external tracker
 

@@ -108,7 +108,25 @@ integration use the same pattern.
 
 **Context:** Still on child branch, docs are clean and committed. **Branch is NOT pushed yet.**
 
-### 5) Pre-Merge Review · `#pre-merge-review`
+### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`
+
+**arc-in-git mode only** (`pm.mode: arc-in-git`). Skip if inbox is empty or PM mode is `none`/`external`.
+
+Before pushing, triage any items in `user/{identity}/ATOMIC-INBOX.md`. This ensures captured
+items are processed before the work unit closes, rather than accumulating indefinitely.
+
+**Triage actions per item:**
+
+- **Keep** — still relevant, still yours → leave in inbox
+- **Do now** — small enough to complete before integration → execute, commit, remove from inbox
+- **Promote** — bigger than expected or shared concern → move to appropriate `BACKLOG-*.md`
+- **Redirect** (team) — another domain or team member's area → promote to backlog with context note
+- **Drop** — stale or no longer relevant → remove
+
+Promoted items are committed on the work unit branch (included in the PR). Cross-member
+transfer routes through backlog, not into another person's inbox.
+
+### 6) Pre-Merge Review · `#pre-merge-review`
 
 If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
@@ -119,7 +137,7 @@ If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
 When disabled, proceed directly to push and PR creation.
 
-### 6) Push and Create PR
+### 7) Push and Create PR
 
 ```bash
 git push -u origin {branch-name}
@@ -128,7 +146,7 @@ gh pr create --base {parent-branch} --head {branch-name}
 
 Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
 
-### 7) Address PR Review Findings
+### 8) Address PR Review Findings
 
 Process findings from PR reviewers (human or automated) using the
 [review-triage method][arc-methods-rt]. For each finding, classify and act:
@@ -139,7 +157,7 @@ Process findings from PR reviewers (human or automated) using the
 - **Re-run Tier 1 quality gates** on all modified files — mandatory after review-driven commits
 - Commit fixes with the `(integration)` context footer
 
-### 8) Merge Pull Request
+### 9) Merge Pull Request
 
 ```bash
 # Via GitHub CLI — use flag matching merge.strategy in arc-config.yml

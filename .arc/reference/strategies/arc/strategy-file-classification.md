@@ -88,7 +88,6 @@ you what kind."
 | `research-`   | Research document        | User/agent | `research-context-loading.md`     |
 | `adr-`        | Architecture Decision    | User/agent | `adr-001-define-core-identity.md` |
 | `template-`   | Copy-ready template      | Framework  | `template-prd.md`                 |
-| `completed-`  | Quarterly summary        | Agent      | `completed-atomic-2026-q1.md`     |
 
 Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug across files — the
 slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
@@ -177,12 +176,10 @@ to update classification — both axes apply independently.
 
 ### active/
 
-| File                                      | Classification       | Layer      | Notes                                                                          |
-|-------------------------------------------|----------------------|------------|--------------------------------------------------------------------------------|
-| `ATOMIC-TASKS.template.md`                | Configurable (light) | arc-in-git | Framework processing rules + user task content. Clean section separation.      |
-| `SESSION-NOTES.template.md`               | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
-| `WORK-STATUS.template.md`                 | Scaffolded           | Core       | Template structure replaced entirely by user. Project-owned after init.        |
-| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Core       | Directory structure scaffolding.                                               |
+| File                                      | Classification | Layer | Notes                                                                   |
+|-------------------------------------------|----------------|-------|-------------------------------------------------------------------------|
+| `WORK-STATUS.template.md`                 | Scaffolded     | Core  | Template structure replaced entirely by user. Project-owned after init. |
+| `{feature,technical,incidental}/.gitkeep` | Scaffolded     | Core  | Directory structure scaffolding.                                        |
 
 ### backlog/
 
@@ -192,13 +189,11 @@ to update classification — both axes apply independently.
 | `feature/BACKLOG-FEATURE.template.md`     | Scaffolded     | arc-in-git | Template structure replaced entirely.      |
 | `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded     | arc-in-git | Template structure replaced entirely.      |
 
-### team/
+### user/
 
-| File                        | Classification       | Layer      | Notes                                                                          |
-|-----------------------------|----------------------|------------|--------------------------------------------------------------------------------|
-| `README.md`                 | Framework            | Core       | Team directory overview and structure guidance.                                |
-| `ATOMIC-TASKS.template.md`  | Configurable (light) | arc-in-git | Per-member atomic tasks. Same structure as `active/` variant.                  |
-| `SESSION-NOTES.template.md` | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
+| File        | Classification | Layer | Notes                                                               |
+|-------------|----------------|-------|---------------------------------------------------------------------|
+| `README.md` | Framework      | Core  | User directory overview. Explains personal workspace concept.       |
 
 ### reference/
 
@@ -343,12 +338,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 58    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 56    | Three-way merge. Conflicts rare.                      |
+| Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 13    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 86.
+**Total template files:** 82.
 
 *Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
 are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not

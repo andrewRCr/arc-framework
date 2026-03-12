@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Parts 1, 3, 5, 6 superseded by ADR-009)
+Accepted (Parts 1, 3, 5, 6 superseded by ADR-009; ATOMIC-TASKS.md path references superseded by ADR-012)
 
 ## Context
 
