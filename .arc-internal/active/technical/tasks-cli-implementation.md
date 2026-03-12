@@ -172,16 +172,30 @@ hashing, manifest I/O, and init recipe parsing.
 working ARC installation.
 
 - [ ] **3.1 Implement git utility functions (`src/lib/git.ts`)**
-    - Git availability check (exit with clear error if missing)
-    - `git merge-file` wrapper (used by update, built now for shared access)
-    - `git config` read/write (for merge driver setup, identity)
-    - Status detection (is this a git repo?)
+
+    Build `test-first` (one behavior at a time):
+    - Git availability check returns true when git is on PATH
+    - Git availability check throws/exits with clear error when git is missing
+    - `isGitRepo()` detects a valid git repository (returns true)
+    - `isGitRepo()` returns false when not inside a git repo
+    - `gitConfigGet()` retrieves a config value by key
+    - `gitConfigSet()` writes a config value
+    - `gitMergeFile()` returns clean content when no conflicts
+    - `gitMergeFile()` returns conflict markers and non-zero status on conflicts
+    - `gitMergeFile()` handles error cases (missing input files)
 
 - [ ] **3.2 Implement file operations (`src/lib/files.ts`)**
-    - Directory creation (recursive)
-    - File copy with rendering (template → rendered output)
-    - `.gitignore` entry management (append without duplicating)
-    - `.gitattributes` entry management
+
+    Build `test-first` (one behavior at a time):
+    - `ensureDir()` creates nested directories recursively
+    - `ensureDir()` is idempotent (no error on existing directory)
+    - `copyWithRendering()` substitutes `{{TOKEN}}` placeholders from config map
+    - `copyWithRendering()` processes `<!-- arc:if -->` conditional blocks (include/exclude)
+    - `copyWithRendering()` passes through files with no tokens or conditionals unchanged
+    - `appendToGitignore()` adds entry when not already present
+    - `appendToGitignore()` skips duplicate when entry already exists
+    - `appendToGitattributes()` adds entry when not already present
+    - `appendToGitattributes()` skips duplicate when entry already exists
 
 - [ ] **3.3 Create framework template files**
 
@@ -215,11 +229,15 @@ working ARC installation.
 - [ ] **3.5 Implement init command (`src/commands/init.ts`)**
 
     - [ ] **3.5.a Core init flow**
-        - Run prompts, collect config
-        - Evaluate recipe conditions against config
-        - Render template files (tokens + conditionals)
-        - Write rendered files to install directory
-        - Write `arc-config.yml` with collected settings
+
+        Build `test-first` (one behavior at a time):
+        - Config assembly: prompt responses are mapped to install config object
+        - Condition evaluation: recipe conditions filter file list based on config
+        - Token rendering: template files produce output with all placeholders resolved
+        - Conditional rendering: `<!-- arc:if -->` blocks included/excluded per config
+        - File output: rendered files are written to the correct install directory paths
+        - Config output: `arc-config.yml` is written with all collected settings
+        - No residual markers: output files contain no `{{TOKEN}}` or `<!-- arc:if -->` artifacts
 
     - [ ] **3.5.b Pristine and manifest creation**
         - Copy rendered Framework and Configurable files to `.pristine/`
@@ -434,6 +452,9 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
         - Handle missing/empty directory gracefully
 
     - [ ] **7.3.c Implement `arc user` subcommand (`src/commands/user.ts`)**
+        - `arc user add <identity>` — create `user/{identity}/` directory, populate from
+          CLI-internal templates (SESSION-NOTES.md, ATOMIC-INBOX.md if arc-in-git), update
+          `.gitignore`. Used for adding team members post-init.
         - `arc user save` — serialize user dir to git note on HEAD
           (`git notes --ref=arc/user/{identity} add -f --stdin HEAD`)
         - `arc user load` — restore user dir from git note on HEAD; if no note on HEAD, walk
@@ -481,30 +502,38 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
     - Skill instructions render with correct base path
     - Manifest and pristine paths use configured directory
 
-- [ ] **7.6 Update framework templates for unified model (ADR-012)**
+- [x] **7.6 Update framework templates for unified model (ADR-012)**
 
     **Goal:** `.arc/` template files reflect the unified user directory model. These are the
     files the CLI installs for adopters.
 
-    - [ ] **7.6.a Rename `team/` → `user/` directory**
-        - Rename `.arc/team/` to `.arc/user/`
-        - Update `user/README.md` content (explain personal workspace concept for all modes,
-          not team-only)
-        - Consolidate SESSION-NOTES templates: one `user/SESSION-NOTES.template.md` replacing
-          both `active/SESSION-NOTES.template.md` and `team/SESSION-NOTES.template.md`
+    - [x] **7.6.a Rename `team/` → `user/` directory**
+        - `git mv .arc/team/ .arc/user/` — preserves git history
+        - Rewrote `user/README.md`: unified personal workspace model (solo and team use same
+          structure), identity-based paths, portability section, `arc user add` for team scaling
+        - Updated `active/WORK-STATUS.template.md`: companion reference → `user/{identity}/`,
+          removed team-mode note
+        - Updated `.arc/README.md`: directory tree reflects `user/` rename, removed
+          `ATOMIC-TASKS.md` from `active/` listing
 
-    - [ ] **7.6.b Create `user/ATOMIC-INBOX.template.md`**
-        - Replace both `active/ATOMIC-TASKS.template.md` and `team/ATOMIC-TASKS.template.md`
-        - Updated purpose text: personal capture bucket, inbox semantics
-        - Remove completion archive protocol (no `completed-atomic` references)
-        - Simplified completion: mark done, remove from file, commit with atomic context footer
-        - Reference `arc log --atomic` for browsing completion history
+    - [x] **7.6.b Create ATOMIC-INBOX and relocate user templates to CLI package**
+        - **Design decision:** User templates (SESSION-NOTES, ATOMIC-INBOX) are CLI-internal
+          resources, not deployed to `.arc/user/`. The `user/` directory contains only README.md
+          and identity subdirectories — no template files cluttering user space. `arc user add`
+          CLI subcommand creates new identity dirs from internal templates.
+        - Created `packages/arc-framework/framework/user/SESSION-NOTES.md` — CLI-internal
+          template with unified portability note, `user.sync_push` config key
+        - Created `packages/arc-framework/framework/user/ATOMIC-INBOX.md` — inbox-model
+          replacement: personal capture bucket, no completion archive, `arc log --atomic`
+          for browsing history, triage-at-integration protocol
+        - Removed `.arc/user/SESSION-NOTES.template.md` and `.arc/user/ATOMIC-TASKS.template.md`
+          (moved to CLI package)
+        - Removed `.arc/active/SESSION-NOTES.template.md` (consolidated into CLI package)
+        - Removed `.arc/active/ATOMIC-TASKS.template.md` (replaced by ATOMIC-INBOX in CLI)
 
-    - [ ] **7.6.c Update remaining templates**
-        - `active/WORK-STATUS.template.md`: remove team mode note about per-developer paths
-        - `active/SESSION-NOTES.template.md`: remove (consolidated to `user/` in 7.6.a)
-        - Remove `completed-atomic` template if one exists in `reference/archive/`
-        - Update any cross-references pointing to old `team/` paths
+    - [x] **7.6.c Update remaining templates**
+        - Removed `completed-atomic` reference from `reference/archive/README.md` directory tree
+        - Remaining `team/` cross-references are in methodology docs — covered by Task 7.7
 
 - [ ] **7.7 Update framework methodology docs (ADR-012 follow-up)**
 

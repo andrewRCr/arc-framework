@@ -13,7 +13,6 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 .arc/
 ├── active/                    # Current work in progress
 │   ├── WORK-STATUS.md         # Project state: current task, blockers, next action
-│   ├── ATOMIC-TASKS.md        # Small one-off tasks (arc-in-git pm.mode only)
 │   ├── feature/               # Active feature development
 │   ├── technical/             # Active technical/infrastructure work
 │   └── incidental/            # Active maintenance and discovered work
@@ -31,7 +30,7 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 │   ├── analysis/              # Internal investigation and synthesis
 │   ├── research/              # External technical research
 │   └── archive/               # Completed work (by work type, quarterly as volume grows)
-├── team/                      # Team mode: per-member session state (optional)
+├── user/                      # Personal workspace: per-developer session state and task capture
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
     ├── agent/                 # AI agent configuration (AGENTS.md + tool-specific files)

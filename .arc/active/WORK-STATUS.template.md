@@ -4,13 +4,12 @@
 > same atomic operation. Lightweight factual state so anyone on this branch can see where work
 > stands at a glance.
 >
-> **Companion:** [SESSION-NOTES.md](SESSION-NOTES.md) (gitignored) carries personal session context — what
-> was tried, decisions made, debugging insights. Together they implement P5 (Context
-> Preservation). See `session-handoff.md` for the full update protocol.
+> **Companion:** `user/{identity}/SESSION-NOTES.md` (gitignored) carries personal session
+> context — what was tried, decisions made, debugging insights. Together they implement P5
+> (Context Preservation). See `session-handoff.md` for the full update protocol.
 >
 > **Customization:** The session state mechanism is overridable — see `arc-methods.md` §
-> session-state. **Team mode:** Each developer-agent pair uses `team/{name}/WORK-STATUS.md`
-> instead. See `strategy-team-coordination.md` for team session structure.
+> session-state.
 
 ## Active Work
 

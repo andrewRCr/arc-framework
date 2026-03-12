@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.1 — Implement git utility functions (line ~176)
+**Next Task**: Task 7.6 — Update framework templates for unified model (line ~484)
 **Last Completed**: Task 2.5 — Run quality gates (Phase 2 complete)
 **Blockers**: [none]
-**Next Action**: Begin Phase 3 — Task 3.1 (git utility functions)
+**Next Action**: Pull-forward Tasks 7.6–7.8 (ADR-012 doc alignment + audit), then resume Phase 3
 
 ---
 
