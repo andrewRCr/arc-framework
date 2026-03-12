@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.6 — Update framework templates for unified model (line ~484)
-**Last Completed**: Task 2.5 — Run quality gates (Phase 2 complete)
+**Next Task**: Task 7.7.a — Update strategies (line ~544)
+**Last Completed**: Task 7.6 — Update framework templates for unified model (ADR-012)
 **Blockers**: [none]
-**Next Action**: Pull-forward Tasks 7.6–7.8 (ADR-012 doc alignment + audit), then resume Phase 3
+**Next Action**: Continue Task 7.7.a — strategy-team-coordination.md done, 5 strategies remain
 
 ---
 
