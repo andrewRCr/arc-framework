@@ -87,7 +87,9 @@ override instead.
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
-8. `.arc-internal/active/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
+8. `.arc-internal/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
+   - Path: `.arc-internal/user/{identity}/SESSION-NOTES.md` where `{identity}` is resolved from
+     `git config arc.identity` (or slugified `git config user.name` as fallback)
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.

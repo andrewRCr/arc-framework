@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.8 — Migrate `.arc-internal/` to unified model (line ~592)
-**Last Completed**: Task 7.7 — Update framework methodology docs (ADR-012 follow-up)
+**Next Task**: Task 3.1 — Implement manifest module (line ~174)
+**Last Completed**: Task 7.8 — Migrate `.arc-internal/` to unified model (self-hosting)
 **Blockers**: [none]
-**Next Action**: Start Task 7.8 — self-hosting migration to unified user directory model
+**Next Action**: Start Phase 3 — Task 3.1 (manifest module)
 
 ---
 

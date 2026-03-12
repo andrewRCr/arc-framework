@@ -571,29 +571,28 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
         - ADR-008: appended `; ATOMIC-TASKS.md path references superseded by ADR-012`
         - ADR-009: `Accepted (Part 2 file placement superseded by ADR-012)`
 
-- [ ] **7.8 Migrate `.arc-internal/` to unified model (self-hosting)**
+- [x] **7.8 Migrate `.arc-internal/` to unified model (self-hosting)**
 
     **Goal:** The framework's own workspace reflects the unified user directory model it
     prescribes to adopters.
 
-    - [ ] **7.8.a Create `.arc-internal/user/{identity}/` structure**
-        - Create directory, move SESSION-NOTES.md from `active/` to `user/{identity}/`
-        - Move and rename ATOMIC-TASKS.md → `user/{identity}/ATOMIC-INBOX.md`
-        - Update ATOMIC-INBOX.md content (remove completed-atomic protocol, update purpose text,
-          reference `arc log --atomic`)
+    - [x] **7.8.a Create `.arc-internal/user/{identity}/` structure**
+        - Created `user/andrew/` with `git config --local arc.identity andrew`
+        - Moved SESSION-NOTES.md from `active/` to `user/andrew/`
+        - Moved and renamed ATOMIC-TASKS.md → `user/andrew/ATOMIC-INBOX.md` with updated
+          content (inbox semantics, removed completed-atomic protocol, `arc log --atomic`)
+        - Created `user/README.md` (tracked) explaining personal workspace concept
 
-    - [ ] **7.8.b Update `.arc-internal/` gitignore and references**
-        - Update `.gitignore`: replace `active/SESSION-NOTES.md` pattern with
-          `user/*/` contents pattern (matching what CLI generates for adopters)
-        - Update internal `session-init.md` path references (`.arc-internal/` copy)
-        - Update internal `session-handoff.md` path references
-        - Update WORK-STATUS.md if it references old file locations
+    - [x] **7.8.b Update `.arc-internal/` gitignore and references**
+        - `.gitignore`: replaced `active/SESSION-NOTES.md` + `team/*/SESSION-NOTES.md`
+          with `user/*/` pattern
+        - Internal `session-init.md`: updated path to `user/{identity}/SESSION-NOTES.md`
+          with identity resolution chain
+        - No internal `session-handoff.md` exists (uses `.arc/` template)
 
-    - [ ] **7.8.c Handle completed-atomic archive**
-        - Existing `completed-atomic-2026-q1.md` in `reference/archive/`: leave as historical
-          record (already committed, provides continuity)
-        - No new `completed-atomic` files created going forward
-        - Update any internal docs referencing the completion archive protocol
+    - [x] **7.8.c Handle completed-atomic archive**
+        - `completed-atomic-2026-q1.md` left as historical record in archive
+        - No active methodology docs reference the protocol (cleaned in 7.7)
 
 - [ ] **7.9 Write integration tests for unified model and mode variations**
     - Test: init creates `user/{identity}/` with SESSION-NOTES.md

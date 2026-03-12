@@ -27,8 +27,7 @@ Thumbs.db
 # explicitly temp-flagged internal docs
 .arc-internal/**/temp-*
 
-# Session context (personal, gitignored per ADR-007)
-.arc-internal/active/SESSION-NOTES.md
-.arc-internal/team/*/SESSION-NOTES.md
+# User directory contents (personal workspace, gitignored)
+.arc-internal/user/*/
 # Local dependencies
 node_modules/
