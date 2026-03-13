@@ -190,6 +190,7 @@ This is the normal state after initialization or between work units.
 unit before producing the orientation summary. The discovery process depends on your PM mode
 ([`arc-config.yml`][arc-config] → `pm.mode`):
 
+<!-- arc:if pm.mode == arc-in-git -->
 **`pm.mode: arc-in-git`:**
 
 1. Read ROADMAP.md — identify the next queued or suggested item
@@ -203,7 +204,9 @@ Planning readiness varies: a completed PRD may be ready for task generation, a d
 need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
 entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
 and reports — the user decides how to proceed.
+<!-- arc:endif -->
 
+<!-- arc:if pm.mode != arc-in-git -->
 **`pm.mode: none` or `external`:**
 
 1. Check `active/` for any existing planning artifacts (PRDs, `plan-*` docs, task lists)
@@ -212,6 +215,7 @@ and reports — the user decides how to proceed.
    next steps
 3. If no artifacts exist, the next action is to create a PRD when ready →
    [1_create-prd.md][create-prd]
+<!-- arc:endif -->
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the
 > user confirms next steps, run [activate-planning-branch][activate-planning-branch] before

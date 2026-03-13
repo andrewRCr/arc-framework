@@ -41,10 +41,11 @@ arc-agentic-dev-framework/          <- Private dev repo (renamed to arc-framewor
           git.ts                    <- Git operations (merge-file, config, status)
           files.ts                  <- File copy, directory creation, gitignore/gitattributes
           skills.ts                 <- Skill generation (canonical → per-tool copies)
+        templates/
+          user/                     <- CLI-internal user templates (SESSION-NOTES, ATOMIC-INBOX)
         prompts/
           init-prompts.ts           <- @clack/prompts flow definitions
         types.ts                    <- Shared types (Manifest, FileEntry, InstallConfig, etc.)
-      framework/                    <- ARC framework template files (the methodology content)
       init-recipe.json              <- Maps prompts → tokens, conditions → file sets
       __tests__/
         unit/                       <- Pure function tests (render, merge, manifest, hash)
@@ -63,13 +64,16 @@ arc-framework/
     commands/            <- Compiled command modules
     lib/                 <- Compiled library modules
     types.d.ts           <- Type declarations (for programmatic use if ever needed)
-  framework/            <- ARC template files (copied to adopter's .arc/ during init)
+  arc/                  <- ARC template files (build-time copy of .arc/)
+  templates/
+    user/               <- CLI-internal user templates (SESSION-NOTES, ATOMIC-INBOX)
   init-recipe.json      <- Prompt/token/condition mappings
 ```
 
-The `framework/` directory in the package is the source of truth. `init` renders templates from
-it; `update` merges new versions from it. Skill canonical sources live inside `framework/` at
-`system/skills/`.
+`.arc/` is the single source of truth for framework template files. The build step copies
+`.arc/` → `arc/` in the package. No maintained copy in git — the bundled `arc/` is a build
+artifact. `templates/user/` holds CLI-internal resources that don't exist in `.arc/`.
+Skill canonical sources live in `.arc/system/skills/`.
 
 ### Public repo sync (WU4)
 
@@ -145,7 +149,7 @@ Base branch: `{{BASE_BRANCH}}`
 Known tokens (complete inventory finalized during implementation):
 
 | Token                   | Source      | Example value      |
-| ----------------------- | ----------- | ------------------ |
+|-------------------------|-------------|--------------------|
 | `{{PROJECT_NAME}}`      | Init prompt | "My App"           |
 | `{{BASE_BRANCH}}`       | Init prompt | "main"             |
 | `{{BACKEND_TEST_CMD}}`  | Init prompt | "npm test"         |
@@ -237,6 +241,136 @@ Concrete lookup sequence (ADR-012 consolidated to `arc.identity`):
 `arc init` prompts: "What name should we use for your personal workspace?" → stores in
 `git config --local arc.identity`. Used for `user/{identity}/` directory, git notes refs,
 and session tracking.
+
+## Template File Audit (Task 3.3.a)
+
+Mapping of `.arc/` files to tokens and conditions for the CLI template engine. All paths
+relative to `.arc/`.
+
+### Token Categories
+
+**Prompt-driven tokens** — substituted by `renderTokens` during init from prompt responses:
+
+| Token                 | Source        | Default | Used In                                           |
+|-----------------------|---------------|---------|---------------------------------------------------|
+| `PROJECT_NAME`        | Init prompt   | —       | AGENTS.template, QUICK-REFERENCE.template,        |
+|                       |               |         | META-PRD.template, TECHNICAL-OVERVIEW.template,   |
+|                       |               |         | PROJECT-STATUS.template                           |
+| `PROJECT_DESCRIPTION` | Init prompt   | —       | AGENTS.template, META-PRD.template                |
+| `REPO_ROOT`           | Auto-detected | `pwd`   | QUICK-REFERENCE.template, session-init.md         |
+| `BASE_BRANCH`         | Init prompt   | `main`  | system/arc-config.yml (via config_key, not token) |
+
+Note: `BASE_BRANCH` writes to `arc-config.yml` via the `config_key` mapping in init-recipe,
+not through `{{TOKEN}}` substitution. The config file is written programmatically, not rendered.
+
+**Guide-text placeholders** — `{{PLACEHOLDER}}` patterns left in scaffolded files for users to
+replace during `02_define-project.md`. The render engine leaves unmatched tokens untouched.
+
+Examples: `{{Component}}`, `{{technology, version, notes}}`, `{{lint_command_all}}`,
+`{{ARCHITECTURE_OVERVIEW}}`, `{{TEST_COMMAND}}`, `{{MCP server}}`. These are authoring
+guidance, not init-time substitution targets.
+
+### Conditional: File-Level (init-recipe conditions → include/exclude)
+
+Entire files installed only when condition is met. Handled by init-recipe `conditions` →
+`include_files`, not by inline `<!-- arc:if -->` markers.
+
+| Condition                 | Files Included                                              |
+|---------------------------|-------------------------------------------------------------|
+| `pm.mode == arc-in-git`   | `backlog/ROADMAP.template.md`                               |
+|                           | `backlog/feature/BACKLOG-FEATURE.template.md`               |
+|                           | `backlog/technical/BACKLOG-TECHNICAL.template.md`           |
+|                           | `reference/PROJECT-STATUS.template.md`                      |
+|                           | `reference/strategies/arc/strategy-backlog-organization.md` |
+| `agents includes claude`  | `system/agent/CLAUDE.template.md`                           |
+| `agents includes codex`   | `system/agent/CODEX.template.md`                            |
+| `agents includes gemini`  | `system/agent/GEMINI.template.md`                           |
+| `agents includes copilot` | `system/agent/copilot-instructions.template.md`             |
+| `agents includes warp`    | `system/agent/WARP.template.md`                             |
+
+### Conditional: Inline Sections (`<!-- arc:if -->` markers)
+
+Sections within Framework files that vary by configuration. These need `<!-- arc:if -->` /
+`<!-- arc:endif -->` markers added during Task 3.3.b.
+
+**`pm.mode == arc-in-git`:**
+
+| File                                                     | Lines (approx) | Content                                      |
+|----------------------------------------------------------|----------------|----------------------------------------------|
+| `system/workflows/arc/session-lifecycle/session-init.md` | ~193-205       | arc-in-git discovery (ROADMAP, ATOMIC-INBOX) |
+| `system/workflows/arc/3_process-task-loop.md`            | ~203-204       | ATOMIC-INBOX routing                         |
+
+**`pm.mode != arc-in-git`:**
+
+| File                                                     | Lines (approx) | Content                             |
+|----------------------------------------------------------|----------------|-------------------------------------|
+| `system/workflows/arc/session-lifecycle/session-init.md` | ~207-214       | none/external discovery alternative |
+
+**Note on team mode:** References to "team mode" in DEV-RULES.ARC, AGENTS.template, and
+process-task-loop are informational parentheticals, not conditional sections. No inline
+markers needed — the content reads correctly regardless of team mode setting.
+
+### File-by-File Classification
+
+**Configurable files — need template processing:**
+
+| File                                            | Prompt Tokens        | Guide-Text Tokens   | Conditions |
+|-------------------------------------------------|----------------------|---------------------|------------|
+| `system/arc-config.yml`                         | (programmatic write) | —                   | —          |
+| `system/agent/AGENTS.template.md`               | PROJECT_NAME,        | Component, src_dir, | —          |
+|                                                 | PROJECT_DESCRIPTION, | test_dir, etc.      |            |
+|                                                 | PROJECT_TYPE,        |                     |            |
+|                                                 | PRIMARY_GOAL         |                     |            |
+| `system/agent/CLAUDE.template.md`               | —                    | MCP server,         | agent      |
+|                                                 |                      | Agent Name          |            |
+| `system/agent/CODEX.template.md`                | —                    | —                   | agent      |
+| `system/agent/GEMINI.template.md`               | —                    | —                   | agent      |
+| `system/agent/WARP.template.md`                 | —                    | —                   | agent      |
+| `system/agent/copilot-instructions.template.md` | —                    | —                   | agent      |
+| `reference/QUICK-REFERENCE.template.md`         | PROJECT_NAME,        | lint_command_*,     | —          |
+|                                                 | REPO_ROOT            | test_command_*,     |            |
+|                                                 |                      | type_check_*, etc.  |            |
+| `reference/constitution/DEV-RULES.PROJECT.md`   | —                    | (inline examples)   | —          |
+| `reference/strategies/STRATEGY-INDEX.md`        | —                    | —                   | —          |
+| `reference/archive/README.md`                   | —                    | —                   | —          |
+| `system/workflows/arc-methods.md`               | —                    | —                   | —          |
+| `system/workflows/arc-extensions.md`            | —                    | —                   | —          |
+
+**Scaffolded files — template copies, user replaces all content:**
+
+| File                                              | Prompt Tokens       | Conditions |
+|---------------------------------------------------|---------------------|------------|
+| `active/WORK-STATUS.template.md`                  | —                   | —          |
+| `reference/META-PRD.template.md`                  | PROJECT_NAME,       | —          |
+|                                                   | PROJECT_DESCRIPTION |            |
+| `reference/TECHNICAL-OVERVIEW.template.md`        | PROJECT_NAME        | —          |
+| `reference/PROJECT-STATUS.template.md`            | PROJECT_NAME        | pm.mode    |
+| `backlog/ROADMAP.template.md`                     | —                   | pm.mode    |
+| `backlog/feature/BACKLOG-FEATURE.template.md`     | —                   | pm.mode    |
+| `backlog/technical/BACKLOG-TECHNICAL.template.md` | —                   | pm.mode    |
+
+**Framework files — copy as-is, except those with inline conditionals:**
+
+All 56 Framework files copy without modification. Two need inline `<!-- arc:if -->` markers:
+
+- `system/workflows/arc/session-lifecycle/session-init.md` (pm.mode sections)
+- `system/workflows/arc/3_process-task-loop.md` (ATOMIC-INBOX routing)
+
+### arc-config.yml Handling
+
+The config file is NOT rendered through the template engine. The CLI writes it
+programmatically from init-recipe `config_key` mappings:
+
+| Prompt         | Config Key          | Default Value |
+|----------------|---------------------|---------------|
+| base_branch    | `branch.base`       | `main`        |
+| protection     | `branch.protection` | `partial`     |
+| pm_mode        | `pm.mode`           | `none`        |
+| merge_strategy | `merge.strategy`    | `merge`       |
+| platform       | `platform.type`     | `github`      |
+
+All other config values keep their documented defaults. The template arc-config.yml ships
+with default values; the CLI overwrites only the keys that init prompts collected.
 
 ## Versioning and Release Progression
 

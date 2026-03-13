@@ -234,9 +234,11 @@ for CLI framework and prompts.
 Source layout: `src/cli.ts` (entry), `src/commands/` (init, update, status, diff),
 `src/lib/` (merge, manifest, render, hash, git, files, skills), `src/prompts/` (init flow).
 
-The npm package ships compiled JS in `dist/` plus raw framework template files in `framework/` and
-`init-recipe.json`. The `framework/` directory is the source of truth — init renders from it, update
-merges from it.
+The npm package ships compiled JS in `dist/` plus raw framework template files and `init-recipe.json`.
+Template files are sourced from `.arc/` — the canonical methodology files — and bundled into the
+package at build time. No separate `framework/` copy is maintained in git; `.arc/` is the single
+source of truth. A small `framework/` directory holds only CLI-internal resources (user templates)
+that don't exist in `.arc/`. Init renders from the bundled templates, update merges from them.
 
 ### File classification drives update UX
 

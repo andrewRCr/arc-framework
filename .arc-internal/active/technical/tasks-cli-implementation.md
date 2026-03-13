@@ -76,7 +76,7 @@ transition from documentation-only to a hybrid code + documentation project.
     - [x] **1.1.e Create directory structure**
         - `src/commands/`, `src/lib/`, `src/prompts/` with `.gitkeep` placeholders
         - `__tests__/unit/`, `__tests__/integration/`, `__tests__/e2e/`, `__tests__/fixtures/`
-        - `framework/` (template files, populated in Phase 3)
+        - `src/templates/` (CLI-internal resources; `.arc/` templates bundled at build time)
         - Added `.gitignore` for `dist/` and `node_modules/`
 
 - [x] **1.2 Update internal project infrastructure**
@@ -185,25 +185,39 @@ working ARC installation.
     - `renderConditionals`), `appendToGitignore`, `appendToGitattributes` (shared
     `appendLineIfMissing` helper).
 
-- [ ] **3.3 Create framework template files**
+- [ ] **3.3 Prepare framework template source and init recipe**
 
-    **Goal:** Populate the `framework/` directory with template versions of `.arc/` files —
-    adding `{{TOKEN}}` placeholders and `<!-- arc:if -->` conditional markers where needed.
+    **Goal:** `.arc/` is the single source of truth for framework templates — no maintained
+    copy in the CLI package. Add inline conditional markers to `.arc/` source files, set up
+    build-time bundling, and create the init recipe. CLI-internal resources (user templates)
+    live in `src/templates/`.
 
-    - [ ] **3.3.a Audit `.arc/` files for token and conditional needs**
-        - Identify files referencing configurable values (base branch, project name, test commands)
-        - Identify files with PM-mode-conditional or team-mode-conditional content
-        - Cross-reference against `strategy-file-classification.md` inventory
-        - Produce a mapping: file → tokens used, conditions applied
+    - [x] **3.3.a Audit `.arc/` files for token and conditional needs**
 
-    - [ ] **3.3.b Create template versions of files requiring tokens/conditionals**
-        - Add `{{TOKEN}}` placeholders where configurable values appear
-        - Add `<!-- arc:if -->` / `<!-- arc:endif -->` markers for conditional sections
-        - Files without tokens or conditionals copy as-is (no template processing needed)
+        Full mapping produced in `notes-cli-implementation.md` § Template File Audit. Key findings:
+        3 prompt-driven tokens (PROJECT_NAME, PROJECT_DESCRIPTION, REPO_ROOT), 5 file-level
+        conditions (pm.mode, agent selection), 2 files needing inline `<!-- arc:if -->` markers
+        (session-init.md, process-task-loop.md). arc-config.yml handled programmatically via
+        config_key mappings, not token substitution. Team mode needs no conditionals — references
+        are informational parentheticals.
 
-    - [ ] **3.3.c Create `init-recipe.json`**
+    - [x] **3.3.b Add conditional markers and relocate CLI-internal templates**
+        - Added `<!-- arc:if pm.mode == arc-in-git -->` / `<!-- arc:endif -->` markers to
+          session-init.md (discovery sections) and process-task-loop.md (ATOMIC-INBOX routing)
+        - Markers indented to match list nesting to avoid MD046 lint violations
+        - Moved `framework/user/` → `src/templates/user/` (CLI-internal resources);
+          removed `framework/` directory entirely (`.arc/` is canonical source, bundled at
+          build time)
+        - Updated PRD, notes, and task list references to reflect new structure
+
+    - [ ] **3.3.c Set up build-time template bundling**
+        - Configure build step to copy `.arc/` → `arc/` in the package
+        - Add `arc/` to `.gitignore` (build artifact, not maintained)
+        - Verify CLI template resolution works from bundled path via `import.meta.url`
+
+    - [ ] **3.3.d Create `init-recipe.json`**
         - Full prompt inventory based on token audit
-        - Condition → file set mappings
+        - Condition → file set mappings (pm.mode, agent selection)
         - Config key mappings (prompt → `arc-config.yml` setting)
 
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
@@ -275,7 +289,7 @@ working ARC installation.
 
     - [ ] **4.2.a Core update flow**
         - Read manifest and `install_config`
-        - Read new framework files from CLI's own `framework/` directory
+        - Read new framework files from bundled `arc/` directory
         - Re-render templates with adopter's `install_config` (same tokens, fresh content)
         - For each managed file: three-way merge (pristine × new rendered × adopter's current)
         - Classify results: auto-merged, conflicted, skipped, new
@@ -347,7 +361,7 @@ definitions.
 **Strategies:** `strategy-file-classification.md` (skill file inventory)
 
 - [ ] **6.1 Skill generation (`src/lib/skills.ts`)**
-    - Read canonical skills from `framework/system/skills/`
+    - Read canonical skills from bundled `arc/system/skills/`
     - Generate per-tool output with correct paths, frontmatter, supplemental files
     - Handle all 6 agent tools (Claude, Codex, Gemini, Copilot, Cursor, Windsurf)
 
@@ -509,9 +523,9 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
           resources, not deployed to `.arc/user/`. The `user/` directory contains only README.md
           and identity subdirectories — no template files cluttering user space. `arc user add`
           CLI subcommand creates new identity dirs from internal templates.
-        - Created `packages/arc-framework/framework/user/SESSION-NOTES.md` — CLI-internal
-          template with unified portability note, `user.sync_push` config key
-        - Created `packages/arc-framework/framework/user/ATOMIC-INBOX.md` — inbox-model
+        - Created CLI-internal user templates (now at `src/templates/user/`):
+          `SESSION-NOTES.md` with unified portability note, `user.sync_push` config key;
+          `ATOMIC-INBOX.md` — inbox-model
           replacement: personal capture bucket, no completion archive, `arc log --atomic`
           for browsing history, triage-at-integration protocol
         - Removed `.arc/user/SESSION-NOTES.template.md` and `.arc/user/ATOMIC-TASKS.template.md`

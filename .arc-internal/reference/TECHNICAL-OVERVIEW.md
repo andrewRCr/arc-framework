@@ -56,8 +56,8 @@ framework files for adopters. Published under the `arc-framework` npm organizati
 - **Entry point**: `src/cli.ts` — Commander-based with `init`, `update`, `status`, `diff` commands
 - **Build**: tsup (ESM output, Node 18+ target, shebang injection, declaration files)
 - **Tests**: Vitest (`__tests__/unit/`, `__tests__/integration/`, `__tests__/e2e/`)
-- **Templates**: `framework/` — ARC template files with `{{TOKEN}}` placeholders, rendered during
-  `arc init`
+- **Templates**: `.arc/` is the canonical source — bundled into the package at build time.
+  `src/templates/` holds CLI-internal resources (user templates) not in `.arc/`
 
 **Architecture** — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
 
