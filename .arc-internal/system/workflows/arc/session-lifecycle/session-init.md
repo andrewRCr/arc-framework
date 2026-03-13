@@ -89,7 +89,8 @@ override instead.
 
 8. `.arc-internal/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
    - Path: `.arc-internal/user/{identity}/SESSION-NOTES.md` where `{identity}` is resolved from
-     `git config arc.identity` (or slugified `git config user.name` as fallback)
+     `git config arc.identity` (or slugified `git config user.name` as fallback). Run these as
+     separate commands — chained shell expressions may not match agent auto-approve patterns.
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
