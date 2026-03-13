@@ -185,7 +185,7 @@ working ARC installation.
     - `renderConditionals`), `appendToGitignore`, `appendToGitattributes` (shared
     `appendLineIfMissing` helper).
 
-- [ ] **3.3 Prepare framework template source and init recipe**
+- [x] **3.3 Prepare framework template source and init recipe**
 
     **Goal:** `.arc/` is the single source of truth for framework templates — no maintained
     copy in the CLI package. Add inline conditional markers to `.arc/` source files, set up
@@ -210,15 +210,25 @@ working ARC installation.
           build time)
         - Updated PRD, notes, and task list references to reflect new structure
 
-    - [ ] **3.3.c Set up build-time template bundling**
-        - Configure build step to copy `.arc/` → `arc/` in the package
-        - Add `arc/` to `.gitignore` (build artifact, not maintained)
-        - Verify CLI template resolution works from bundled path via `import.meta.url`
+    - [x] **3.3.c Set up build-time template bundling**
+        - Build script: `tsup && node -e` cpSync copies `.arc/` → `arc/` post-build
+        - `arc/` added to `.gitignore`; `package.json` `files` updated (`arc`, `templates`)
+        - `src/lib/paths.ts`: `getArcTemplatePath()` / `getInternalTemplatePath()` resolve
+          package root via `import.meta.url` + walk-up to `package.json` (works in both
+          source and bundled contexts)
+        - Unit tests in `paths.test.ts` (5 tests, all passing)
 
-    - [ ] **3.3.d Create `init-recipe.json`**
-        - Full prompt inventory based on token audit
-        - Condition → file set mappings (pm.mode, agent selection)
-        - Config key mappings (prompt → `arc-config.yml` setting)
+    - [x] **3.3.d Create `init-recipe.json`**
+        - 9 prompts: project_name, project_description (tokens), base_branch, branch_protection,
+          pm_mode, team_mode, merge_strategy, platform (config keys), agents (multiselect)
+        - REPO_ROOT auto-detected by init command, not a recipe prompt
+        - Guide-text placeholders (PROJECT_TYPE, COMPONENT, etc.) left untouched by render engine;
+          safety net via `getInitTokenNames()` / `findResidualInitTokens()` allowlist functions
+        - Extended `evaluateCondition` to support `includes` operator for multiselect conditions
+          (e.g., `agents includes claude` checks comma-separated config value)
+        - 6 condition blocks: pm.mode → backlog/PM files; 5 agent → agent template files
+        - Added `**/arc/**` to markdownlint ignores (bundled build artifact was picked up by glob)
+        - 30 recipe tests (includes `includes` operator, allowlist utilities, real recipe validation)
 
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
     - @clack/prompts flow driven by init recipe

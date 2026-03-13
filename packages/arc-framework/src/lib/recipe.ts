@@ -15,8 +15,8 @@ const VALID_PROMPT_TYPES: readonly PromptType[] = [
   "confirm",
 ];
 
-/** Matches `config.key == value` condition format. */
-const CONDITION_PATTERN = /^([\w.]+)\s*==\s*(\S+)$/;
+/** Matches `key == value` or `key includes value` condition formats. */
+const CONDITION_PATTERN = /^([\w.]+)\s+(==|includes)\s+(\S+)$/;
 
 /** Result of recipe validation. */
 export interface RecipeValidationResult {
@@ -96,7 +96,7 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
     for (const [key, value] of Object.entries(conditions)) {
       if (!CONDITION_PATTERN.test(key)) {
         errors.push(
-          `Invalid condition key '${key}' (expected 'config.key == value' format)`,
+          `Invalid condition key '${key}' (expected 'key == value' or 'key includes value' format)`,
         );
       }
       if (typeof value !== "object" || value === null) {
@@ -117,9 +117,12 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
 
 /**
  * Evaluate a condition string against a config map.
- * Conditions use simple equality: `config.key == value`.
  *
- * @param condition - Condition string (e.g., `pm.mode == arc-in-git`)
+ * Supported operators:
+ * - `key == value` — exact string equality
+ * - `key includes value` — checks if value is in a comma-separated list
+ *
+ * @param condition - Condition string (e.g., `pm.mode == arc-in-git`, `agents includes claude`)
  * @param config - Map of dotted config keys to string values
  * @returns Whether the condition matches
  */
@@ -132,6 +135,61 @@ export function evaluateCondition(
     return false;
   }
   const key = match[1]!;
-  const value = match[2]!;
-  return config[key] === value;
+  const operator = match[2]!;
+  const value = match[3]!;
+
+  const configValue = config[key];
+  if (configValue === undefined) {
+    return false;
+  }
+
+  if (operator === "==") {
+    return configValue === value;
+  }
+
+  // includes: check if value is in a comma-separated list
+  return configValue.split(",").includes(value);
+}
+
+/**
+ * Extract the set of init-time token names declared by recipe prompts.
+ * Used as an allowlist to distinguish init tokens from guide-text placeholders.
+ *
+ * @param prompts - Recipe prompt definitions
+ * @returns Set of token names that should be substituted at init time
+ */
+export function getInitTokenNames(
+  prompts: { token?: string }[],
+): Set<string> {
+  const tokens = new Set<string>();
+  for (const prompt of prompts) {
+    if (prompt.token) {
+      tokens.add(prompt.token);
+    }
+  }
+  return tokens;
+}
+
+/**
+ * Check rendered content for residual init tokens that should have been substituted.
+ * Guide-text placeholders (not in the allowlist) are expected and ignored.
+ *
+ * @param content - Rendered content to check
+ * @param initTokens - Set of token names that should have been substituted
+ * @returns Array of unsubstituted init token names found in the content
+ */
+export function findResidualInitTokens(
+  content: string,
+  initTokens: Set<string>,
+): string[] {
+  const residual: string[] = [];
+  const pattern = /\{\{(\w+)\}\}/g;
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    const tokenName = match[1]!;
+    if (initTokens.has(tokenName)) {
+      residual.push(tokenName);
+    }
+  }
+  return [...new Set(residual)];
 }

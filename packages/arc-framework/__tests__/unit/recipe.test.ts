@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { validateRecipe, evaluateCondition } from "../../src/lib/recipe.js";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  validateRecipe,
+  evaluateCondition,
+  getInitTokenNames,
+  findResidualInitTokens,
+} from "../../src/lib/recipe.js";
 import type { Recipe } from "../../src/lib/types.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function validRecipe(): Recipe {
   return {
@@ -40,6 +50,9 @@ function validRecipe(): Recipe {
           "reference/PROJECT-STATUS.template.md",
         ],
       },
+      "agents includes claude": {
+        include_files: ["system/agent/CLAUDE.template.md"],
+      },
     },
   };
 }
@@ -49,6 +62,17 @@ describe("validateRecipe", () => {
     const result = validateRecipe(validRecipe());
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
+  });
+
+  it("accepts conditions with includes operator", () => {
+    const recipe = validRecipe();
+    recipe.conditions = {
+      "agents includes claude": {
+        include_files: ["system/agent/CLAUDE.template.md"],
+      },
+    };
+    const result = validateRecipe(recipe);
+    expect(result.valid).toBe(true);
   });
 
   it("rejects prompt with invalid type", () => {
@@ -168,5 +192,111 @@ describe("evaluateCondition", () => {
     expect(
       evaluateCondition("team.mode == true", { "team.mode": "false" }),
     ).toBe(false);
+  });
+
+  it("returns true when includes matches an item in comma-separated list", () => {
+    expect(
+      evaluateCondition("agents includes claude", {
+        agents: "claude,codex,gemini",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns true when includes matches a single-item list", () => {
+    expect(
+      evaluateCondition("agents includes claude", { agents: "claude" }),
+    ).toBe(true);
+  });
+
+  it("returns false when includes does not match any item", () => {
+    expect(
+      evaluateCondition("agents includes cursor", {
+        agents: "claude,codex",
+      }),
+    ).toBe(false);
+  });
+
+  it("includes does not do substring matching", () => {
+    expect(
+      evaluateCondition("agents includes code", { agents: "claude,codex" }),
+    ).toBe(false);
+  });
+
+  it("returns false for includes with missing config key", () => {
+    expect(evaluateCondition("agents includes claude", {})).toBe(false);
+  });
+});
+
+describe("getInitTokenNames", () => {
+  it("extracts token names from prompts that have them", () => {
+    const prompts = [
+      { token: "PROJECT_NAME" },
+      { config_key: "pm.mode" },
+      { token: "PROJECT_DESCRIPTION" },
+    ];
+    const tokens = getInitTokenNames(prompts);
+    expect(tokens).toEqual(new Set(["PROJECT_NAME", "PROJECT_DESCRIPTION"]));
+  });
+
+  it("returns empty set when no prompts have tokens", () => {
+    const prompts = [{ config_key: "pm.mode" }, {}];
+    expect(getInitTokenNames(prompts)).toEqual(new Set());
+  });
+});
+
+describe("findResidualInitTokens", () => {
+  it("finds init tokens that were not substituted", () => {
+    const content = "Hello {{PROJECT_NAME}}, your {{COMPONENT}} is ready";
+    const initTokens = new Set(["PROJECT_NAME", "PROJECT_DESCRIPTION"]);
+    const residual = findResidualInitTokens(content, initTokens);
+    expect(residual).toEqual(["PROJECT_NAME"]);
+  });
+
+  it("ignores guide-text placeholders not in the allowlist", () => {
+    const content = "Fill in {{COMPONENT}} and {{TEST_COMMAND}}";
+    const initTokens = new Set(["PROJECT_NAME"]);
+    const residual = findResidualInitTokens(content, initTokens);
+    expect(residual).toEqual([]);
+  });
+
+  it("returns empty array when all init tokens are substituted", () => {
+    const content = "Hello My App, everything is set up";
+    const initTokens = new Set(["PROJECT_NAME"]);
+    const residual = findResidualInitTokens(content, initTokens);
+    expect(residual).toEqual([]);
+  });
+
+  it("deduplicates repeated residual tokens", () => {
+    const content = "{{PROJECT_NAME}} is {{PROJECT_NAME}}";
+    const initTokens = new Set(["PROJECT_NAME"]);
+    const residual = findResidualInitTokens(content, initTokens);
+    expect(residual).toEqual(["PROJECT_NAME"]);
+  });
+});
+
+describe("init-recipe.json", () => {
+  it("passes schema validation", () => {
+    const recipePath = resolve(__dirname, "../../init-recipe.json");
+    const data = JSON.parse(readFileSync(recipePath, "utf-8"));
+    const result = validateRecipe(data);
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("has no duplicate prompt ids", () => {
+    const recipePath = resolve(__dirname, "../../init-recipe.json");
+    const data = JSON.parse(readFileSync(recipePath, "utf-8")) as Recipe;
+    const ids = data.prompts.map((p) => p.id);
+    expect(ids.length).toBe(new Set(ids).size);
+  });
+
+  it("declares init tokens only for prompts that produce template substitutions", () => {
+    const recipePath = resolve(__dirname, "../../init-recipe.json");
+    const data = JSON.parse(readFileSync(recipePath, "utf-8")) as Recipe;
+    const tokenPrompts = data.prompts.filter((p) => p.token);
+    // Every token prompt should be a text prompt (tokens come from user input, not selection)
+    for (const p of tokenPrompts) {
+      expect(p.type).toBe("text");
+    }
   });
 });

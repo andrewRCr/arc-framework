@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.3.c — Set up build-time template bundling (line ~213)
-**Last Completed**: Task 3.3.b — Add conditional markers and relocate CLI-internal templates
+**Next Task**: Task 3.4 — Implement interactive prompts (line ~226)
+**Last Completed**: Task 3.3 — Prepare framework template source and init recipe
 **Blockers**: [none]
-**Next Action**: Start Task 3.3.c (configure build step to copy `.arc/` into package)
+**Next Action**: Start Task 3.4 (implement @clack/prompts init flow driven by init recipe)
 
 ---
 

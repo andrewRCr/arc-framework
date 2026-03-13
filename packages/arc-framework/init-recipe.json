@@ -1,0 +1,104 @@
+{
+  "prompts": [
+    {
+      "id": "project_name",
+      "type": "text",
+      "message": "Project name?",
+      "token": "PROJECT_NAME"
+    },
+    {
+      "id": "project_description",
+      "type": "text",
+      "message": "Brief project description (one sentence):",
+      "token": "PROJECT_DESCRIPTION"
+    },
+    {
+      "id": "base_branch",
+      "type": "text",
+      "message": "Base branch name?",
+      "default": "main",
+      "config_key": "branch.base"
+    },
+    {
+      "id": "branch_protection",
+      "type": "select",
+      "message": "Branch protection level?",
+      "options": ["partial", "full"],
+      "default": "partial",
+      "config_key": "branch.protection"
+    },
+    {
+      "id": "pm_mode",
+      "type": "select",
+      "message": "Where does your project management live?",
+      "options": ["none", "arc-in-git", "external"],
+      "default": "none",
+      "config_key": "pm.mode"
+    },
+    {
+      "id": "team_mode",
+      "type": "confirm",
+      "message": "Enable team mode (multiple developers)?",
+      "default": false,
+      "config_key": "team.mode"
+    },
+    {
+      "id": "merge_strategy",
+      "type": "select",
+      "message": "How should branches be merged?",
+      "options": ["merge", "rebase", "squash"],
+      "default": "merge",
+      "config_key": "merge.strategy"
+    },
+    {
+      "id": "platform",
+      "type": "select",
+      "message": "Git hosting platform?",
+      "options": ["github", "gitlab", "bitbucket", "azure-devops"],
+      "default": "github",
+      "config_key": "platform.type"
+    },
+    {
+      "id": "agents",
+      "type": "multiselect",
+      "message": "Which AI agents will you use?",
+      "options": ["claude", "codex", "gemini", "copilot", "cursor", "windsurf", "warp"]
+    }
+  ],
+  "conditions": {
+    "pm.mode == arc-in-git": {
+      "include_files": [
+        "backlog/ROADMAP.template.md",
+        "backlog/feature/BACKLOG-FEATURE.template.md",
+        "backlog/technical/BACKLOG-TECHNICAL.template.md",
+        "reference/PROJECT-STATUS.template.md",
+        "reference/strategies/arc/strategy-backlog-organization.md"
+      ]
+    },
+    "agents includes claude": {
+      "include_files": [
+        "system/agent/CLAUDE.template.md"
+      ]
+    },
+    "agents includes codex": {
+      "include_files": [
+        "system/agent/CODEX.template.md"
+      ]
+    },
+    "agents includes gemini": {
+      "include_files": [
+        "system/agent/GEMINI.template.md"
+      ]
+    },
+    "agents includes copilot": {
+      "include_files": [
+        "system/agent/copilot-instructions.template.md"
+      ]
+    },
+    "agents includes warp": {
+      "include_files": [
+        "system/agent/WARP.template.md"
+      ]
+    }
+  }
+}
