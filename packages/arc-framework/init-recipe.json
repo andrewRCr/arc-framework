@@ -4,7 +4,7 @@
     "reference/META-PRD.template.md",
     "reference/TECHNICAL-OVERVIEW.template.md",
     "active/WORK-STATUS.template.md",
-    "system/agent/AGENTS.template.md",
+    "system/agent/ARC-AGENTS.template.md",
     "system/agent/README.md",
     "system/arc-config.yml",
     "system/workflows/arc/session-lifecycle/session-init.md",
@@ -125,37 +125,37 @@
     },
     "agents includes claude": {
       "include_files": [
-        "system/agent/CLAUDE.template.md"
+        "system/agent/CLAUDE.ARC.md"
       ]
     },
     "agents includes codex": {
       "include_files": [
-        "system/agent/CODEX.template.md"
+        "system/agent/CODEX.ARC.md"
       ]
     },
     "agents includes gemini": {
       "include_files": [
-        "system/agent/GEMINI.template.md"
+        "system/agent/GEMINI.ARC.md"
       ]
     },
     "agents includes copilot": {
       "include_files": [
-        "system/agent/copilot-instructions.template.md"
+        "system/agent/COPILOT.ARC.md"
       ]
     },
     "agents includes cursor": {
       "include_files": [
-        "system/agent/CURSOR.template.md"
+        "system/agent/CURSOR.ARC.md"
       ]
     },
     "agents includes windsurf": {
       "include_files": [
-        "system/agent/WINDSURF.template.md"
+        "system/agent/WINDSURF.ARC.md"
       ]
     },
     "agents includes warp": {
       "include_files": [
-        "system/agent/WARP.template.md"
+        "system/agent/WARP.ARC.md"
       ]
     }
   }

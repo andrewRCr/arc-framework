@@ -1,9 +1,9 @@
-# CODEX.md — ARC Agent Guidance
+# CODEX.ARC.md — Agent Configuration
 
 Guidance for Codex CLI when working in the ARC framework repository. Shared rules and project
 context live in:
 
-- [AGENTS](AGENTS.md) – Project context and collaboration principles
+- [ARC-AGENTS](ARC-AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
 - [DEV-RULES.PROJECT][dev-rules] – Project quality standards
 - [QUICK-REFERENCE][quick-ref] – Environment context and command patterns

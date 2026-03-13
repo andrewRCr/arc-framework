@@ -1,12 +1,8 @@
-# GEMINI.md — ARC Agent Guidance
-
-> Part of the ARC session-init loading chain (AGENTS.md → agent-specific file). This file lives in
-> `{{ARC_DIR}}/system/agent/` and is loaded by ARC's session workflows — it does not replace or
-> conflict with any tool-native configuration outside `.arc/`.
+# GEMINI.ARC.md — Agent Configuration
 
 Shared rules and project context live in:
 
-- [AGENTS](AGENTS.md) – Project context and collaboration principles
+- [ARC-AGENTS](ARC-AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
 - [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns

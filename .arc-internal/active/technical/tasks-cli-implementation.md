@@ -230,7 +230,7 @@ working ARC installation.
         - Added `**/arc/**` to markdownlint ignores (bundled build artifact was picked up by glob)
         - 30 recipe tests (includes `includes` operator, allowlist utilities, real recipe validation)
 
-- [ ] **3.3.R Recipe, template, and render engine fixes**
+- [x] **3.3.R Recipe, template, and render engine fixes**
 
     **Goal:** Address findings from init flow sanity audit and mechanical consistency audit
     before implementing prompts and init command.
@@ -283,8 +283,8 @@ working ARC installation.
         - All agent-specific content moved to comments as examples — no shipped behavioral
           content that would create merge conflicts during framework updates (Configurable
           files with three-way merge)
-        - Created `CURSOR.template.md` and `WINDSURF.template.md` (new)
-        - Slimmed `AGENTS.template.md` — removed AI Collaboration Principles section (4 of 8
+        - Created `CURSOR.ARC.template.md` and `WINDSURF.ARC.template.md` (new)
+        - Slimmed `ARC-AGENTS.template.md` — removed AI Collaboration Principles section (4 of 8
           items duplicated DEV-RULES.ARC, 2 were generic agent behavior, 2 had marginal value);
           replaced with Project-Specific Principles placeholder with commented examples
         - Updated `README.md` — rewrote to match slimmed templates, added "What Belongs in
@@ -293,8 +293,8 @@ working ARC installation.
         - Added staging verification step to `prepare-commits.md` Quick Commit Reference
           (relocated from agent templates to canonical workflow location)
         - Added `system/agent/README.md` to init recipe `include_files`
-        - Updated all `.arc-internal/` agent files to match new structure (AGENTS.md,
-          CLAUDE.md, CODEX.md, GEMINI.md, WARP.md, copilot-instructions.md)
+        - Updated all `.arc-internal/` agent files to match new structure (ARC-AGENTS.md,
+          CLAUDE.ARC.md, CODEX.ARC.md, GEMINI.ARC.md, WARP.ARC.md, COPILOT.ARC.md)
 
     - [x] **3.3.R.e Render engine `!=` operator support**
         - Extended `renderConditionals` regex to match `!=` alongside `==`
@@ -302,7 +302,7 @@ working ARC installation.
         - 4 new tests: basic include/exclude, nested with `==`, mixed `==`/`!=`
         - 84 tests passing (all existing `==` tests unchanged)
 
-    - [ ] **3.3.R.f File naming consistency**
+    - [x] **3.3.R.f File naming consistency**
 
         - [x] **3.3.R.f.i Clarify `.template` suffix boundaries in file classification strategy**
             - Original task assumed `.template` suffix was required for all Configurable files.
@@ -319,7 +319,7 @@ working ARC installation.
 
         - [x] **3.3.R.f.ii Evaluate agent file naming convention**
             - Decision: **rename all agent files** (hub and spokes) to ARC-specific names.
-              Current tool-native names (`CLAUDE.md`, `AGENTS.md`) imply auto-discovery
+              Current tool-native names (`CLAUDE.md`, `AGENTS.md`) implied auto-discovery
               functionality that doesn't exist — ARC loads these via session-init, not tool-native
               mechanisms. The disclaimer header in every template file is evidence the names
               mislead. Renaming eliminates the confusion and makes the file tree self-documenting
@@ -330,36 +330,19 @@ working ARC installation.
               with other spokes within ARC's directory)
             - Implementation deferred to 3.3.R.f.iii (separate subtask — ~50 files, ~150 changes)
 
-        - [ ] **3.3.R.f.iii Rename agent files to ARC-specific convention**
-
-            Rename all agent files (hub + spokes) per the convention decided in 3.3.R.f.ii:
-
-            | Current Name                       | New Name                   |
-            |------------------------------------|----------------------------|
-            | `AGENTS.template.md`               | `ARC-AGENTS.template.md`   |
-            | `CLAUDE.template.md`               | `CLAUDE.ARC.template.md`   |
-            | `CODEX.template.md`                | `CODEX.ARC.template.md`    |
-            | `CURSOR.template.md`               | `CURSOR.ARC.template.md`   |
-            | `GEMINI.template.md`               | `GEMINI.ARC.template.md`   |
-            | `WARP.template.md`                 | `WARP.ARC.template.md`     |
-            | `WINDSURF.template.md`             | `WINDSURF.ARC.template.md` |
-            | `copilot-instructions.template.md` | `COPILOT.ARC.template.md`  |
-
-            Physical renames (3 locations):
-
-            - `.arc/system/agent/` — 8 template files
-            - `.arc-internal/system/agent/` — 6 files (no CURSOR/WINDSURF internally)
-            - `packages/arc-framework/arc/system/agent/` — 6 files (no CURSOR/WINDSURF)
-
-            Reference updates by priority:
-
-            - **Critical**: init-recipe.json (8), agent file internals (~60), agent READMEs (2),
-              session-init workflows (2)
-            - **High**: file classification strategy + inventory (2), recipe test (1)
-            - **Medium**: notes/tasks/PRD (~5), other strategies (~4)
-            - **Low**: internal reference docs (~5), `.claude/agents/` (2),
-              README-ASPIRATIONAL (1)
-            - **Skip**: archive files and ADRs (historical reference, no update needed)
+        - [x] **3.3.R.f.iii Rename agent files to ARC-specific convention**
+            - Renamed 20 files across 3 locations (`.arc/`, `.arc-internal/`, `packages/`)
+              using `git mv` for history tracking
+            - Hub: `AGENTS` → `ARC-AGENTS` (prefix sorts first, signals entrypoint)
+            - Spokes: `{AGENT}` → `{AGENT}.ARC` (dot-namespace, agent name leads for scanning)
+            - `copilot-instructions` normalized to `COPILOT.ARC` (ALL-CAPS consistent)
+            - Removed blockquote disclaimer from all spoke templates — ARC-specific naming
+              makes the relationship self-evident without defensive explanation
+            - Updated ~40 files: init-recipe, recipe tests, session-init workflows, agent
+              READMEs (tree diagrams), file classification strategy + inventory, other
+              strategies, notes, internal reference docs, `.claude/agents/`
+            - Archive files and ADRs left unchanged (historical reference)
+            - All quality gates pass: 0 lint errors, typecheck clean, 84 tests passing
 
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
     - @clack/prompts flow driven by init recipe

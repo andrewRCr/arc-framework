@@ -51,11 +51,11 @@ override instead.
 
 **Project identity and agent context:**
 
-1. `.arc/system/agent/AGENTS.md` - **MUST READ IN FULL**
+1. `.arc/system/agent/ARC-AGENTS.md` - **MUST READ IN FULL**
    - Project overview, technology stack, and AI collaboration principles
 
 2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
-   - Path: `.arc/system/agent/[AGENT].md` (e.g., CLAUDE.md, GEMINI.md, CODEX.md)
+   - Path: `.arc/system/agent/[AGENT].ARC.md` (e.g., CLAUDE.ARC.md, GEMINI.ARC.md, CODEX.ARC.md)
    - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
    - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 

@@ -61,7 +61,7 @@ domain-specific guidance, project-specific procedures, or extended standards:
 | Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns    |
 | Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist         |
 | Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`      |
-| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.md`, `GEMINI.md` for agent-specific notes |
+| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.ARC.md`, `GEMINI.ARC.md` for agent-specific notes |
 
 These are project-owned files — adopters create them, ARC doesn't ship them (except agent-specific templates).
 `DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows,
@@ -119,7 +119,7 @@ configurability path (how teams adapt it).
 | Collaborative voice in docs        | P9        | Team perspective, no "user/AI" framing   | Behavioral guidance — documentation style    |
 | Reference-style markdown links     | P9        | Reference links, definitions at file end | Behavioral guidance — link formatting style  |
 | No meta-project references in code | P9        | Task IDs stay in `.arc/` docs            | Behavioral guidance — enforcement strictness |
-| Agent-specific file structure      | P8        | `CLAUDE.md`, `GEMINI.md`, etc.           | File-customizable — file naming and location |
+| Agent-specific file structure      | P8        | `CLAUDE.ARC.md`, `GEMINI.ARC.md`, etc.   | File-customizable — file naming and location |
 
 **Configurability path definitions:**
 

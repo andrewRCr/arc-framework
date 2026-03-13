@@ -16,7 +16,7 @@ function validRecipe(): Recipe {
   return {
     include_files: [
       "reference/QUICK-REFERENCE.template.md",
-      "system/agent/AGENTS.template.md",
+      "system/agent/ARC-AGENTS.template.md",
     ],
     computed_tokens: {
       REPO_ROOT: "Auto-detected from working directory at init time",
@@ -65,7 +65,7 @@ function validRecipe(): Recipe {
         ],
       },
       "agents includes claude": {
-        include_files: ["system/agent/CLAUDE.template.md"],
+        include_files: ["system/agent/CLAUDE.ARC.md"],
       },
     },
   };
@@ -82,7 +82,7 @@ describe("validateRecipe", () => {
     const recipe = validRecipe();
     recipe.conditions = {
       "agents includes claude": {
-        include_files: ["system/agent/CLAUDE.template.md"],
+        include_files: ["system/agent/CLAUDE.ARC.md"],
       },
     };
     const result = validateRecipe(recipe);

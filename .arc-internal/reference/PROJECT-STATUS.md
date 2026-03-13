@@ -39,7 +39,7 @@ Resolved all foundational 1.0 design decisions.
 - Core philosophy strategy: 11 principles (P1-P11), philosophical foundation, positioning
 - Configurability architecture strategy: 19 conventions, 3 customization mechanisms
 - 5 research files (agent landscape, context degradation, methodology)
-- Constitutional doc refresh: META-PRD rewrite, AGENTS.md update
+- Constitutional doc refresh: META-PRD rewrite, ARC-AGENTS.md update
 
 ### Structural Readiness Pass (February 2026)
 

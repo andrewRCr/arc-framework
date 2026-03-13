@@ -253,10 +253,10 @@ relative to `.arc/`.
 
 | Token                 | Source        | Default | Used In                                           |
 |-----------------------|---------------|---------|---------------------------------------------------|
-| `PROJECT_NAME`        | Init prompt   | —       | AGENTS.template, QUICK-REFERENCE.template,        |
+| `PROJECT_NAME`        | Init prompt   | —       | ARC-AGENTS.template, QUICK-REFERENCE.template,    |
 |                       |               |         | META-PRD.template, TECHNICAL-OVERVIEW.template,   |
 |                       |               |         | PROJECT-STATUS.template                           |
-| `PROJECT_DESCRIPTION` | Init prompt   | —       | AGENTS.template, META-PRD.template                |
+| `PROJECT_DESCRIPTION` | Init prompt   | —       | ARC-AGENTS.template, META-PRD.template            |
 | `REPO_ROOT`           | Auto-detected | `pwd`   | QUICK-REFERENCE.template, session-init.md         |
 | `BASE_BRANCH`         | Init prompt   | `main`  | system/arc-config.yml (via config_key, not token) |
 
@@ -282,11 +282,11 @@ Entire files installed only when condition is met. Handled by init-recipe `condi
 |                           | `backlog/technical/BACKLOG-TECHNICAL.template.md`           |
 |                           | `reference/PROJECT-STATUS.template.md`                      |
 |                           | `reference/strategies/arc/strategy-backlog-organization.md` |
-| `agents includes claude`  | `system/agent/CLAUDE.template.md`                           |
-| `agents includes codex`   | `system/agent/CODEX.template.md`                            |
-| `agents includes gemini`  | `system/agent/GEMINI.template.md`                           |
-| `agents includes copilot` | `system/agent/copilot-instructions.template.md`             |
-| `agents includes warp`    | `system/agent/WARP.template.md`                             |
+| `agents includes claude`  | `system/agent/CLAUDE.ARC.md`                                |
+| `agents includes codex`   | `system/agent/CODEX.ARC.md`                                 |
+| `agents includes gemini`  | `system/agent/GEMINI.ARC.md`                                |
+| `agents includes copilot` | `system/agent/COPILOT.ARC.md`                               |
+| `agents includes warp`    | `system/agent/WARP.ARC.md`                                  |
 
 ### Conditional: Inline Sections (`<!-- arc:if -->` markers)
 
@@ -306,7 +306,7 @@ Sections within Framework files that vary by configuration. These need `<!-- arc
 |----------------------------------------------------------|----------------|-------------------------------------|
 | `system/workflows/arc/session-lifecycle/session-init.md` | ~207-214       | none/external discovery alternative |
 
-**Note on team mode:** References to "team mode" in DEV-RULES.ARC, AGENTS.template, and
+**Note on team mode:** References to "team mode" in DEV-RULES.ARC, ARC-AGENTS.template, and
 process-task-loop are informational parentheticals, not conditional sections. No inline
 markers needed — the content reads correctly regardless of team mode setting.
 
@@ -317,16 +317,10 @@ markers needed — the content reads correctly regardless of team mode setting.
 | File                                            | Prompt Tokens        | Guide-Text Tokens   | Conditions |
 |-------------------------------------------------|----------------------|---------------------|------------|
 | `system/arc-config.yml`                         | (programmatic write) | —                   | —          |
-| `system/agent/AGENTS.template.md`               | PROJECT_NAME,        | Component, src_dir, | —          |
+| `system/agent/ARC-AGENTS.template.md`           | PROJECT_NAME,        | Component, src_dir, | —          |
 |                                                 | PROJECT_DESCRIPTION, | test_dir, etc.      |            |
 |                                                 | PROJECT_TYPE,        |                     |            |
 |                                                 | PRIMARY_GOAL         |                     |            |
-| `system/agent/CLAUDE.template.md`               | —                    | MCP server,         | agent      |
-|                                                 |                      | Agent Name          |            |
-| `system/agent/CODEX.template.md`                | —                    | —                   | agent      |
-| `system/agent/GEMINI.template.md`               | —                    | —                   | agent      |
-| `system/agent/WARP.template.md`                 | —                    | —                   | agent      |
-| `system/agent/copilot-instructions.template.md` | —                    | —                   | agent      |
 | `reference/QUICK-REFERENCE.template.md`         | PROJECT_NAME,        | lint_command_*,     | —          |
 |                                                 | REPO_ROOT            | test_command_*,     |            |
 |                                                 |                      | type_check_*, etc.  |            |
@@ -335,6 +329,13 @@ markers needed — the content reads correctly regardless of team mode setting.
 
 | File                                            | Notes                                             |
 |-------------------------------------------------|---------------------------------------------------|
+| `system/agent/CLAUDE.ARC.md`                    | Agent-specific config; conditionally included     |
+| `system/agent/CODEX.ARC.md`                     | Agent-specific config; conditionally included     |
+| `system/agent/GEMINI.ARC.md`                    | Agent-specific config; conditionally included     |
+| `system/agent/WARP.ARC.md`                      | Agent-specific config; conditionally included     |
+| `system/agent/COPILOT.ARC.md`                   | Agent-specific config; conditionally included     |
+| `system/agent/CURSOR.ARC.md`                    | Agent-specific config; conditionally included     |
+| `system/agent/WINDSURF.ARC.md`                  | Agent-specific config; conditionally included     |
 | `reference/constitution/DEV-RULES.PROJECT.md`   | Inline examples serve as guidance, not templates  |
 | `reference/strategies/STRATEGY-INDEX.md`        | Users add project strategies to existing sections |
 | `reference/archive/README.md`                   | Light-configurable, user-populated section        |

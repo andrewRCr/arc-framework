@@ -1,9 +1,9 @@
-# CLAUDE.md — ARC Agent Guidance
+# CLAUDE.ARC.md — Agent Configuration
 
 Guidance for Claude when working in the ARC framework repository. For shared rules and architecture, defer to the
 canonical docs:
 
-- [AGENTS](AGENTS.md) – Project context and collaboration principles
+- [ARC-AGENTS](ARC-AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
 - [DEV-RULES.PROJECT][dev-rules] – Project quality standards
 - [QUICK-REFERENCE][quick-ref] – Environment context and command patterns

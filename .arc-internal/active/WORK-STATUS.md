@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.3.R.f.iii — Rename agent files to ARC-specific convention (line ~333)
-**Last Completed**: Task 3.3.R.f.ii — Evaluate agent file naming convention
+**Next Task**: Task 3.4 — Implement interactive prompts (line ~364)
+**Last Completed**: Task 3.3.R — Recipe, template, and render engine fixes
 **Blockers**: [none]
-**Next Action**: Begin 3.3.R.f.iii (physical renames + reference updates across ~50 files)
+**Next Action**: Begin 3.4 (implement `src/prompts/init-prompts.ts`)
 
 ---
 

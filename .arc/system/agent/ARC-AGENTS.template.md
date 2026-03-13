@@ -1,4 +1,4 @@
-# {{PROJECT_NAME}} — AI Agent Reference Card
+# ARC-AGENTS.md — {{PROJECT_NAME}} Agent Briefing
 
 ## Project Overview
 
@@ -41,18 +41,7 @@
 - [Friction point with context]
 - [Friction point with context]
 
-## Project-Specific Principles
-
-_[None — add project-specific agent guidance as you discover it]_
-
-<!-- This section is for principles specific to YOUR project that aren't covered by -->
-<!-- ARC's constitutional docs (DEV-RULES.ARC, DEV-RULES.PROJECT). Examples: -->
-<!-- - **Respect layered architecture** - Business logic in service layer, not handlers -->
-<!-- - **Stop on co-dev anomalies** - Flag filesystem changes that conflict with the -->
-<!--   current task, but treat co-development diffs as normal -->
-<!-- - **Feature flags required** - All new features behind flags until validated -->
-
 ---
 
-_This reference card is the shared entry point for all AI agents working on this project.
+_This is the shared entry point for all AI agents working on this project.
 Agent-specific guidance lives in dedicated files._

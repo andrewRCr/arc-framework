@@ -65,8 +65,8 @@ The full philosophical argument, with research grounding, is in the
 ### Agent architecture
 
 - Agent-agnostic core: methodology defined independently of any specific AI tool
-- Hub-spoke file model: AGENTS.md as shared entry point, agent-specific files (CLAUDE.md,
-  GEMINI.md, etc.) for tool-specific operational guidance
+- Hub-spoke file model: ARC-AGENTS.md as shared entry point, agent-specific files (CLAUDE.ARC.md,
+  GEMINI.ARC.md, etc.) for tool-specific operational guidance
 - Multi-agent support: different agents can work within the same project, each loading shared
   methodology plus their own guidance
 

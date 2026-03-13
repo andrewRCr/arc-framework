@@ -23,17 +23,17 @@ carries for the entire session — whether or not it's relevant to the current t
 
 ### Documents loaded every session (via session-init workflow)
 
-| Document                              | Classification | Approx Size | Notes                                      |
-|---------------------------------------|----------------|-------------|--------------------------------------------|
-| AGENTS.md                             | Agent context  | ~70 lines   | Project overview, collaboration principles |
-| Agent-specific file (e.g., CLAUDE.md) | Agent context  | ~60 lines   | Tool-specific guidance                     |
-| DEV-RULES.ARC.md                      | Constitutional | ~300 lines  | Methodology rules                          |
-| DEV-RULES.PROJECT.md                  | Constitutional | ~125 lines  | Project quality standards                  |
-| STRATEGY-INDEX.md                     | Reference      | ~80 lines   | Strategy catalog                           |
-| QUICK-REFERENCE.md                    | Reference      | ~155 lines  | Commands and environment                   |
-| WORK-STATUS.md                        | Active state   | ~20 lines   | Current project pointer                    |
-| SESSION-NOTES.md                      | Active state   | ~65 lines   | Prior session context (if exists)          |
-| Active task list (partial)            | Active state   | ~100 lines  | Current phase + current task               |
+| Document                                  | Classification | Approx Size | Notes                                      |
+|-------------------------------------------|----------------|-------------|--------------------------------------------|
+| ARC-AGENTS.md                             | Agent context  | ~70 lines   | Project overview, collaboration principles |
+| Agent-specific file (e.g., CLAUDE.ARC.md) | Agent context  | ~60 lines   | Tool-specific guidance                     |
+| DEV-RULES.ARC.md                          | Constitutional | ~300 lines  | Methodology rules                          |
+| DEV-RULES.PROJECT.md                      | Constitutional | ~125 lines  | Project quality standards                  |
+| STRATEGY-INDEX.md                         | Reference      | ~80 lines   | Strategy catalog                           |
+| QUICK-REFERENCE.md                        | Reference      | ~155 lines  | Commands and environment                   |
+| WORK-STATUS.md                            | Active state   | ~20 lines   | Current project pointer                    |
+| SESSION-NOTES.md                          | Active state   | ~65 lines   | Prior session context (if exists)          |
+| Active task list (partial)                | Active state   | ~100 lines  | Current phase + current task               |
 
 **Total init context budget: ~975 lines** (varies by project). This is the baseline cost before
 any work begins.
@@ -70,7 +70,7 @@ DEV-RULES.ARC is often a sharper sentence, not an additional paragraph.
 
 ### Remediation guidance by document zone
 
-**Zone 1 — Init-loaded documents** (AGENTS.md, DEV-RULES.ARC, DEV-RULES.PROJECT, STRATEGY-INDEX,
+**Zone 1 — Init-loaded documents** (ARC-AGENTS.md, DEV-RULES.ARC, DEV-RULES.PROJECT, STRATEGY-INDEX,
 QUICK-REFERENCE, agent-specific files):
 
 - **Hard constraint:** No net increase in document length. Every line added must be offset by a

@@ -111,7 +111,7 @@ indicators — status bars, on-demand commands, threshold warnings. The user dec
 context state, work progress, and judgment about session quality. This is an active responsibility: check periodically,
 don't wait for emergencies.
 
-**The agent is the secondary safety net.** Agent-specific configuration files (e.g., CLAUDE.md) may define
+**The agent is the secondary safety net.** Agent-specific configuration files (e.g., CLAUDE.ARC.md) may define
 threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches cases where the user isn't monitoring,
 but it's imprecise: agents assess their own token usage approximately, and the check-in interrupts workflow. It's a
 fallback, not the designed mechanism.

@@ -1,4 +1,4 @@
-# ARC Framework — AI Agent Reference Card
+# ARC-AGENTS.md — ARC Framework Agent Briefing
 
 ## Project Overview
 
@@ -42,14 +42,7 @@ with strong default conventions that teams adapt to their context
 - **Zero tolerance**: All quality gate violations must be fixed before commits
 - **Commands in QUICK-REFERENCE**: All assume repo root — paths are already correct
 
-## Project-Specific Principles
-
-- **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance.
-  The developer may be working alongside you — editing files, running commands, making commits.
-  Co-development diffs are normal, not anomalies. Flag only changes that conflict with your
-  current task or seem unintentional.
-
 ---
 
-_This reference card is the shared entry point for all AI agents working on this project.
-Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md)._
+_This is the shared entry point for all AI agents working on this project.
+Agent-specific guidance lives in dedicated files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._

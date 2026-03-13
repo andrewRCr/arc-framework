@@ -5,29 +5,29 @@ the ARC framework.
 
 ## Architecture
 
-The AI instructions follow a **minimal inheritance pattern** built around `AGENTS.md` — both an ARC convention
+The AI instructions follow a **minimal inheritance pattern** built around `ARC-AGENTS.md` — both an ARC convention
 and an emerging industry standard (stewarded by the Linux Foundation's Agentic AI Foundation).
 
 ```
-AGENTS.md (central reference card — industry-standard format)
-├── CLAUDE.md → references AGENTS.md + Claude-specific guidance
-├── CODEX.md → references AGENTS.md + Codex-specific guidance
-├── CURSOR.md → references AGENTS.md + Cursor-specific guidance
-├── GEMINI.md → references AGENTS.md + Gemini-specific guidance
-├── WARP.md → references AGENTS.md + Warp-specific guidance
-├── WINDSURF.md → references AGENTS.md + Windsurf-specific guidance
-└── copilot-instructions.md → references AGENTS.md + Copilot-specific guidance
+ARC-AGENTS.md (central reference card — industry-standard format)
+├── CLAUDE.ARC.md → references ARC-AGENTS.md + Claude-specific guidance
+├── CODEX.ARC.md → references ARC-AGENTS.md + Codex-specific guidance
+├── CURSOR.ARC.md → references ARC-AGENTS.md + Cursor-specific guidance
+├── GEMINI.ARC.md → references ARC-AGENTS.md + Gemini-specific guidance
+├── WARP.ARC.md → references ARC-AGENTS.md + Warp-specific guidance
+├── WINDSURF.ARC.md → references ARC-AGENTS.md + Windsurf-specific guidance
+└── COPILOT.ARC.md → references ARC-AGENTS.md + Copilot-specific guidance
 ```
 
-### Why AGENTS.md as Hub
+### Why ARC-AGENTS.md as Hub
 
-`AGENTS.md` is an emerging industry standard — an increasing number of AI coding tools recognize it
+`ARC-AGENTS.md` is an emerging industry standard — an increasing number of AI coding tools recognize it
 from the project root. ARC uses the same format for interoperability but keeps files here in `.arc/system/agent/`
 rather than at tool-native locations (see [File Placement](#file-placement) below). ARC's session-init
-workflow (manually invoked each session) handles the loading chain: AGENTS.md first for shared
+workflow (manually invoked each session) handles the loading chain: ARC-AGENTS.md first for shared
 context, then the appropriate tool-specific file.
 
-**Why tool-specific files, even for tools that read AGENTS.md natively?** Different agents have different
+**Why tool-specific files, even for tools that read ARC-AGENTS.md natively?** Different agents have different
 quirks — behavioral tendencies, capability limitations, platform-specific features. This agent-specific
 guidance doesn't belong in shared project context.
 
@@ -44,10 +44,10 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 
 ### Design Principles
 
-1. **AGENTS.md is the central hub** — project overview, quick lookup guide, and AI collaboration principles
-2. **Tool files hold agent-specific guidance only** — each file references AGENTS.md and adds only what's
+1. **ARC-AGENTS.md is the central hub** — project overview, quick lookup guide, and AI collaboration principles
+2. **Tool files hold agent-specific guidance only** — each file references ARC-AGENTS.md and adds only what's
    unique to that agent (behavioral quirks, capability limitations, platform features)
-3. **No duplication** — shared context lives in AGENTS.md and constitutional docs, not repeated in tool files
+3. **No duplication** — shared context lives in ARC-AGENTS.md and constitutional docs, not repeated in tool files
 4. **ARC manages loading** — session-init reads files in order; files don't need to live where tools natively look
 5. **Contained and non-conflicting** — all agent config lives here, won't overwrite existing tool configs
 6. **Extensible** — adopters can add files for any tool following the same pattern
@@ -55,7 +55,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 ### What Belongs in Agent-Specific Files
 
 Agent-specific files are for guidance that applies to **one agent but not others**. If it applies to all
-agents, it belongs in a shared doc (AGENTS.md, DEV-RULES, a workflow, or a strategy).
+agents, it belongs in a shared doc (ARC-AGENTS.md, DEV-RULES, a workflow, or a strategy).
 
 **Good examples:**
 
@@ -66,14 +66,14 @@ agents, it belongs in a shared doc (AGENTS.md, DEV-RULES, a workflow, or a strat
 
 **Does NOT belong here:**
 
-- Project context, technology stack, repository layout → AGENTS.md
+- Project context, technology stack, repository layout → ARC-AGENTS.md
 - Development methodology, commit discipline, session management → DEV-RULES, workflows
 - Quality gates, testing requirements → DEV-RULES.PROJECT
-- Generic best practices that apply to all agents → AGENTS.md collaboration principles
+- Generic best practices that apply to all agents → ARC-AGENTS.md collaboration principles
 
 ## Files in This Directory
 
-### AGENTS.template.md
+### ARC-AGENTS.template.md
 
 **Purpose**: Central reference card for all AI tools — the shared entry point.
 
@@ -85,7 +85,7 @@ critical friction points, and collaboration principles.
 All agent templates ship with the same minimal structure and no pre-filled agent-specific content:
 
 - Reference links to shared constitutional and workflow docs
-- Agent-specific notes section (placeholder + commented examples of what belongs here)
+- Agent-specific notes section (placeholder + commented examples)
 - MCP server and sub-agent configuration sections (placeholders)
 
 Templates are provided for: **Claude**, **Codex**, **Copilot**, **Cursor**, **Gemini**, **Warp**,
@@ -97,21 +97,21 @@ conflicts during framework updates, and contradict the principle that these file
 
 ### Adding Files for Other Tools
 
-1. Create a minimal file following the same pattern: reference AGENTS.md, add tool-specific guidance
-2. Ensure your session-init workflow reads the new file after AGENTS.md
+1. Create a minimal file following the same pattern: reference ARC-AGENTS.md, add tool-specific guidance
+2. Ensure your session-init workflow reads the new file after ARC-AGENTS.md
 
 ## Adoption Guide
 
 ### For New Projects
 
-1. **Customize AGENTS.md first** with your project-specific technology stack, layout, and friction points
+1. **Customize ARC-AGENTS.md first** with your project-specific technology stack, layout, and friction points
 2. **Keep only the agent files you use** — remove the rest
 3. **Leave agent-specific notes empty** until you discover genuine agent-specific guidance through use
-4. **Configure MCP/sub-agent sections** as you set up your tooling
+4. **Configure MCP and sub-agent sections** as you set up your tooling
 
 ### Customization Tips
 
-**AGENTS.md (most important)**:
+**ARC-AGENTS.md (most important)**:
 
 - Init tokens (`{{PROJECT_NAME}}`, `{{ARC_DIR}}`) are filled automatically by `arc init`
 - Guide-text placeholders (`[Component]`, `[description]`) are for you to fill in manually
@@ -121,12 +121,12 @@ conflicts during framework updates, and contradict the principle that these file
 **Tool-specific files**:
 
 - Start with the placeholder — add guidance only when you discover real agent-specific quirks
-- Keep them minimal (reference AGENTS.md for shared context)
+- Keep them minimal (reference ARC-AGENTS.md for shared context)
 - If guidance applies to all agents, put it in a shared doc instead
 
 ## Maintenance
 
-### When to Update AGENTS.md
+### When to Update ARC-AGENTS.md
 
 - Project technology stack changes
 - New critical friction points discovered
@@ -143,4 +143,4 @@ conflicts during framework updates, and contradict the principle that these file
 ---
 
 **Maintenance:** Update this README and file descriptions when adding new tool templates or when the
-AGENTS.md architecture evolves.
+ARC-AGENTS.md architecture evolves.
