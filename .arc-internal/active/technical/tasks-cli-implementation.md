@@ -230,6 +230,55 @@ working ARC installation.
         - Added `**/arc/**` to markdownlint ignores (bundled build artifact was picked up by glob)
         - 30 recipe tests (includes `includes` operator, allowlist utilities, real recipe validation)
 
+- [ ] **3.3.R Recipe, template, and render engine fixes**
+
+    **Goal:** Address findings from init flow sanity audit and mechanical consistency audit
+    before implementing prompts and init command.
+
+    - [ ] **3.3.R.a Recipe structure updates**
+        - Add unconditional file set for 5 orphaned templates: `QUICK-REFERENCE.template.md`,
+          `META-PRD.template.md`, `TECHNICAL-OVERVIEW.template.md`, `AGENTS.template.md`,
+          `WORK-STATUS.template.md`
+        - Add `computed_tokens` section with `REPO_ROOT` (auto-detected at init time)
+        - Add `arc_dir` prompt (`ARC_DIR` token, default `.arc/`)
+        - Add `cursor` and `windsurf` conditions with template file targets
+        - Update `getInitTokenNames()` to include computed tokens in allowlist
+
+    - [ ] **3.3.R.b Template content fixes**
+        - Fix `WORK-STATUS.template.md`: replace placeholder text with correct initial-state
+          defaults (branch from config, task list `[none]`, next action → `1_create-prd.md`)
+        - Fix `02_define-project.md`: update link definitions to reference stripped names
+          (`META-PRD.md`, not `META-PRD.template.md`) — adopter workspace, not source tree
+        - Add `team.mode` key to `.arc/system/arc-config.yml` template with default `false`
+          and inline documentation (behavioral not structural — ADR-012, affects `user.sync_push`
+          default and team coordination guidance)
+        - Add `{{ARC_DIR}}` token to template cross-reference paths that reference the install
+          directory
+
+    - [ ] **3.3.R.c Guide-text placeholder syntax migration**
+        - Change guide-text placeholders from `{{PLACEHOLDER}}` to `[PLACEHOLDER]` across all
+          template files — visually distinguishes "fill this in" prompts from `{{TOKEN}}`
+          init tokens
+        - Rename `{{PROJECT_TYPE}}`/`{{PRIMARY_GOAL}}` in `AGENTS.template.md` to
+          `[Project Type]`/`[Primary Goal]` (guide-text, not init tokens)
+        - Update `findResidualInitTokens()` if it references guide-text patterns
+
+    - [ ] **3.3.R.d Create Cursor and Windsurf agent templates**
+        - `system/agent/CURSOR.template.md`: header referencing canonical docs, Cursor-specific
+          notes (`.cursor/rules/` with `.mdc` format, YAML frontmatter fields `description`,
+          `globs`, `alwaysApply`), IDE-embedded agent scope (Copilot/Gemini detail level)
+        - `system/agent/WINDSURF.template.md`: header referencing canonical docs,
+          Windsurf-specific notes (`.windsurf/rules/` with `.md` format, 6K char limit per
+          file / 12K total, Cascade context engine), IDE-embedded agent scope
+        - Both modeled on existing IDE-agent templates (copilot-instructions, Gemini)
+
+    - [ ] **3.3.R.e Render engine `!=` operator support**
+
+        Build `test-first` (one behavior at a time):
+        - `renderConditionals` handles `!=` operator (regex + evaluation)
+        - `!=` block excluded when condition is true, included when false
+        - Existing `==` behavior unchanged
+
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
     - @clack/prompts flow driven by init recipe
     - Project identity prompts (name, description)
@@ -238,44 +287,63 @@ working ARC installation.
     - Agent selection (multiselect)
     - Install directory prompt (default `.arc/`)
 
-- [ ] **3.5 Implement init command (`src/commands/init.ts`)**
+- [ ] **3.5 Define skill generation interface (`src/lib/skills.ts`)**
 
-    - [ ] **3.5.a Core init flow**
+    **Goal:** Establish the contract that the init command (3.6) calls, so Phase 6 fills in
+    the real implementation behind a stable interface. Reference: ADR-011 (generation targets).
+
+    - Define types: `SkillGenerationTarget`, `SkillOutput` — generation target table per
+      ADR-011 (Claude → `.claude/skills/`, Codex → `.agents/skills/`, Cursor →
+      `.cursor/skills/`, Copilot → `.github/skills/`, Windsurf → `.windsurf/skills/`,
+      Gemini → `.agents/skills/`)
+    - Define `generateSkills()` signature: selected agents, ARC dir, canonical skill path →
+      skill output list
+    - Implement as no-op returning empty array (Phase 6 replaces with real implementation)
+    - Export types for init command and Phase 6 consumption
+
+- [ ] **3.6 Implement init command (`src/commands/init.ts`)**
+
+    - [ ] **3.6.a Core init flow**
 
         Build `test-first` (one behavior at a time):
-        - Config assembly: prompt responses are mapped to install config object
+        - Config assembly: prompt responses mapped to install config object; `agents`
+          multiselect joined as comma-separated string for condition evaluation
         - Condition evaluation: recipe conditions filter file list based on config
         - Token rendering: template files produce output with all placeholders resolved
         - Conditional rendering: `<!-- arc:if -->` blocks included/excluded per config
-        - File output: rendered files are written to the correct install directory paths
-        - Config output: `arc-config.yml` is written with all collected settings
+        - `.template` stripping: output filenames strip `.template` suffix (convention from
+          file classification strategy — e.g., `WORK-STATUS.template.md` → `WORK-STATUS.md`)
+        - File output: rendered files written to correct install directory paths
+        - Config output: copy `arc-config.yml` template and overwrite specific values
+          (preserves inline documentation comments for adopters)
+        - Skill generation: call `generateSkills()` interface (3.5) with selected agents
         - No residual markers: output files contain no `{{TOKEN}}` or `<!-- arc:if -->` artifacts
 
-    - [ ] **3.5.b Pristine and manifest creation**
+    - [ ] **3.6.b Pristine and manifest creation**
         - Copy rendered Framework and Configurable files to `.pristine/`
         - Compute `pristine_hash` for each file
         - Write `.arc-manifest.json` with version, config, file inventory
 
-    - [ ] **3.5.c Git integration setup**
+    - [ ] **3.6.c Git integration setup**
         - Add `.pristine/` and `user/*/` contents to `.gitignore` (ADR-012: user dir gitignored)
         - Add `WORK-STATUS.md merge=ours` to `.gitattributes`
         - Run `git config merge.ours.driver true`
         - Install markdownlint config (`.markdownlint-cli2.jsonc`)
 
-- [ ] **3.6 Implement post-init messaging**
+- [ ] **3.7 Implement post-init messaging**
     - Print concise summary after init: what was installed, configuration choices made
     - Point to verification workflow (`01_initialize-arc.md`)
     - Highlight core workflow quartet: create-prd, generate-tasks, process-task-loop, session-init
     - Orient without overwhelming — adopter's first interaction with ARC's workflow model
 
-- [ ] **3.7 Write integration tests for init flow**
+- [ ] **3.8 Write integration tests for init flow**
     - Test: init in empty git repo → verify directory structure, file contents, manifest, pristine
     - Test: rendered files contain no template tokens or conditional markers
     - Test: `.gitignore` and `.gitattributes` contain expected entries
     - Test: manifest file inventory matches files on disk
     - Test: pristine hashes match rendered file content
 
-- [ ] **3.8 Run quality gates**
+- [ ] **3.9 Run quality gates**
     - Type checking passes
     - All tests pass (unit + integration)
     - Markdown linting passes
