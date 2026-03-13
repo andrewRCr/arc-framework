@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.3.R.e — Render engine `!=` operator support (line ~303)
-**Last Completed**: Task 3.3.R.d — Agent template audit and redesign
+**Next Task**: Task 3.3.R.f — File naming consistency (line ~306)
+**Last Completed**: Task 3.3.R.e — Render engine `!=` operator support
 **Blockers**: [none]
-**Next Action**: Implement 3.3.R.e (render engine `!=` operator, test-first)
+**Next Action**: Begin 3.3.R.f.i (enforce `.template` suffix on Configurable files)
 
 ---
 

@@ -23,9 +23,9 @@ export function renderTokens(
 }
 
 /**
- * Process `<!-- arc:if KEY == VALUE -->` / `<!-- arc:endif -->` conditional blocks.
- * Includes the block content when the condition matches, removes it (including
- * the directive lines) when it doesn't. Supports simple equality checks only.
+ * Process `<!-- arc:if KEY == VALUE -->` and `<!-- arc:if KEY != VALUE -->`
+ * conditional blocks. Includes the block content when the condition matches,
+ * removes it (including the directive lines) when it doesn't.
  *
  * @param content - Template string with conditional directives
  * @param config - Map of dotted config keys to their values (e.g., `pm.mode` → `arc-in-git`)
@@ -43,7 +43,7 @@ export function renderConditionals(
 
   for (const line of lines) {
     const ifMatch = line.match(
-      /^\s*<!--\s*arc:if\s+([\w.]+)\s*==\s*(\S+)\s*-->\s*$/,
+      /^\s*<!--\s*arc:if\s+([\w.]+)\s*(==|!=)\s*(\S+)\s*-->\s*$/,
     );
     const endifMatch = line.match(/^\s*<!--\s*arc:endif\s*-->\s*$/);
 
@@ -51,8 +51,10 @@ export function renderConditionals(
       depth++;
       if (including) {
         const key = ifMatch[1]!;
-        const value = ifMatch[2]!;
-        if (config[key] === value) {
+        const operator = ifMatch[2]!;
+        const value = ifMatch[3]!;
+        const matches = operator === "==" ? config[key] === value : config[key] !== value;
+        if (matches) {
           includeDepth = depth;
         } else {
           including = false;

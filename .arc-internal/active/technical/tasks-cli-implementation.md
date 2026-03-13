@@ -296,12 +296,11 @@ working ARC installation.
         - Updated all `.arc-internal/` agent files to match new structure (AGENTS.md,
           CLAUDE.md, CODEX.md, GEMINI.md, WARP.md, copilot-instructions.md)
 
-    - [ ] **3.3.R.e Render engine `!=` operator support**
-
-        Build `test-first` (one behavior at a time):
-        - `renderConditionals` handles `!=` operator (regex + evaluation)
-        - `!=` block excluded when condition is true, included when false
-        - Existing `==` behavior unchanged
+    - [x] **3.3.R.e Render engine `!=` operator support**
+        - Extended `renderConditionals` regex to match `!=` alongside `==`
+        - Ternary evaluation: `==` checks equality, `!=` checks inequality
+        - 4 new tests: basic include/exclude, nested with `==`, mixed `==`/`!=`
+        - 84 tests passing (all existing `==` tests unchanged)
 
     - [ ] **3.3.R.f File naming consistency**
 

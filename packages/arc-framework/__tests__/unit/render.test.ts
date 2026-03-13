@@ -115,4 +115,79 @@ describe("renderConditionals", () => {
     const result = renderConditionals(input, { "pm.mode": "arc-in-git" });
     expect(result).toBe("no conditionals here\njust text");
   });
+
+  it("includes section when != condition is true (values differ)", () => {
+    const input = [
+      "before",
+      "<!-- arc:if pm.mode != none -->",
+      "included content",
+      "<!-- arc:endif -->",
+      "after",
+    ].join("\n");
+    const result = renderConditionals(input, { "pm.mode": "arc-in-git" });
+    expect(result).toBe("before\nincluded content\nafter");
+  });
+
+  it("excludes section when != condition is false (values match)", () => {
+    const input = [
+      "before",
+      "<!-- arc:if pm.mode != none -->",
+      "excluded content",
+      "<!-- arc:endif -->",
+      "after",
+    ].join("\n");
+    const result = renderConditionals(input, { "pm.mode": "none" });
+    expect(result).toBe("before\nafter");
+  });
+
+  it("handles != with nested conditionals", () => {
+    const input = [
+      "top",
+      "<!-- arc:if pm.mode != none -->",
+      "outer",
+      "<!-- arc:if team.mode == true -->",
+      "inner",
+      "<!-- arc:endif -->",
+      "<!-- arc:endif -->",
+      "bottom",
+    ].join("\n");
+    // != true, inner == true
+    expect(
+      renderConditionals(input, { "pm.mode": "arc-in-git", "team.mode": "true" }),
+    ).toBe("top\nouter\ninner\nbottom");
+    // != true, inner == false
+    expect(
+      renderConditionals(input, { "pm.mode": "arc-in-git", "team.mode": "false" }),
+    ).toBe("top\nouter\nbottom");
+    // != false (values match) — everything inside excluded
+    expect(
+      renderConditionals(input, { "pm.mode": "none", "team.mode": "true" }),
+    ).toBe("top\nbottom");
+  });
+
+  it("existing == behavior unchanged alongside !=", () => {
+    const input = [
+      "start",
+      "<!-- arc:if pm.mode == arc-in-git -->",
+      "equals section",
+      "<!-- arc:endif -->",
+      "middle",
+      "<!-- arc:if pm.mode != none -->",
+      "not-equals section",
+      "<!-- arc:endif -->",
+      "end",
+    ].join("\n");
+    // Both true
+    expect(
+      renderConditionals(input, { "pm.mode": "arc-in-git" }),
+    ).toBe("start\nequals section\nmiddle\nnot-equals section\nend");
+    // == false, != true
+    expect(
+      renderConditionals(input, { "pm.mode": "external" }),
+    ).toBe("start\nmiddle\nnot-equals section\nend");
+    // == false, != false
+    expect(
+      renderConditionals(input, { "pm.mode": "none" }),
+    ).toBe("start\nmiddle\nend");
+  });
 });
