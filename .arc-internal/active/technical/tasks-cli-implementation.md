@@ -269,14 +269,32 @@ working ARC installation.
         - `findResidualInitTokens()` unchanged — `{{}}` regex now exclusively matches
           init tokens by design
 
-    - [ ] **3.3.R.d Create Cursor and Windsurf agent templates**
-        - `system/agent/CURSOR.template.md`: header referencing canonical docs, Cursor-specific
-          notes (`.cursor/rules/` with `.mdc` format, YAML frontmatter fields `description`,
-          `globs`, `alwaysApply`), IDE-embedded agent scope (Copilot/Gemini detail level)
-        - `system/agent/WINDSURF.template.md`: header referencing canonical docs,
-          Windsurf-specific notes (`.windsurf/rules/` with `.md` format, 6K char limit per
-          file / 12K total, Cascade context engine), IDE-embedded agent scope
-        - Both modeled on existing IDE-agent templates (copilot-instructions, Gemini)
+    - [x] **3.3.R.d Agent template audit and redesign**
+        - Evaluated all agent templates against ADR-002 design intent (hub-spoke pattern,
+          agent-specific files hold only what's unique to that agent)
+        - Identified systemic issues: templates shipped generic methodology content that
+          duplicates DEV-RULES.ARC (one-task-at-a-time, commit control, verify-before-assuming,
+          strategy consultation), context window management protocols that don't work in
+          practice, deferred review duplication of process-task-loop, staging verification
+          that belongs in prepare-commits workflow
+        - Redesigned all templates to consistent minimal structure: ARC header note (loading
+          chain context, no conflict with tool-native config), reference links, agent-specific
+          notes (placeholder with commented examples), MCP and sub-agent placeholder sections
+        - All agent-specific content moved to comments as examples — no shipped behavioral
+          content that would create merge conflicts during framework updates (Configurable
+          files with three-way merge)
+        - Created `CURSOR.template.md` and `WINDSURF.template.md` (new)
+        - Slimmed `AGENTS.template.md` — removed AI Collaboration Principles section (4 of 8
+          items duplicated DEV-RULES.ARC, 2 were generic agent behavior, 2 had marginal value);
+          replaced with Project-Specific Principles placeholder with commented examples
+        - Updated `README.md` — rewrote to match slimmed templates, added "What Belongs in
+          Agent-Specific Files" guidance, removed per-file content descriptions (all templates
+          now structurally identical)
+        - Added staging verification step to `prepare-commits.md` Quick Commit Reference
+          (relocated from agent templates to canonical workflow location)
+        - Added `system/agent/README.md` to init recipe `include_files`
+        - Updated all `.arc-internal/` agent files to match new structure (AGENTS.md,
+          CLAUDE.md, CODEX.md, GEMINI.md, WARP.md, copilot-instructions.md)
 
     - [ ] **3.3.R.e Render engine `!=` operator support**
 
@@ -285,14 +303,29 @@ working ARC installation.
         - `!=` block excluded when condition is true, included when false
         - Existing `==` behavior unchanged
 
-    - [ ] **3.3.R.f Enforce `.template` suffix on Configurable files**
-        - Audit all Configurable files in `.arc/` against file classification strategy
-          (`.template.md` suffix required for Configurable files, stripped at init time)
-        - Rename any Configurable files missing the suffix (e.g., `DEV-RULES.PROJECT.md`
-          → `DEV-RULES.PROJECT.template.md`)
-        - Update all references to renamed files (cross-references in other docs, recipe
-          paths in `init-recipe.json`, link definitions, workflow references)
-        - Verify no broken links via markdown linting and manual spot-check
+    - [ ] **3.3.R.f File naming consistency**
+
+        - [ ] **3.3.R.f.i Enforce `.template` suffix on Configurable files**
+            - Audit all Configurable files in `.arc/` against file classification strategy
+              (`.template.md` suffix required for Configurable files, stripped at init time)
+            - Rename any Configurable files missing the suffix (e.g., `DEV-RULES.PROJECT.md`
+              → `DEV-RULES.PROJECT.template.md`)
+            - Update all references to renamed files (cross-references in other docs, recipe
+              paths in `init-recipe.json`, link definitions, workflow references)
+            - Verify no broken links via markdown linting and manual spot-check
+
+        - [ ] **3.3.R.f.ii Evaluate agent file naming convention**
+            - Open question: should agent files use ARC-specific names (e.g., `arc-claude.md`)
+              instead of colliding with tool-native conventions (`CLAUDE.md`, `GEMINI.md`)?
+            - ARC files aren't auto-discovered — they're loaded by session-init from `.arc/`.
+              The current names parallel tool-native conventions but serve a different purpose,
+              which could confuse adopters
+            - Either rename all spoke files (not AGENTS.md) to an ARC-specific convention, or
+              keep current names — should be all-or-none, not partial
+            - If renaming: update session-init workflow, file classification strategy, ADR-002,
+              configurability architecture strategy, init recipe conditions, README, all
+              cross-references
+            - Decision: evaluate during this task, implement if decided
 
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
     - @clack/prompts flow driven by init recipe

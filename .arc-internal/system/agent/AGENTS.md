@@ -15,56 +15,41 @@ with strong default conventions that teams adapt to their context
 
 **Technology Stack:**
 
-- **Framework Type**: Pure documentation system (no runtime, no containers)
-- **Dependencies**: Git, Node.js (NPX for markdown linting)
-- **Quality Gates**: Automated markdown linting (zero-tolerance policy), GitHub Actions CI
-- **Distribution**: GitHub repository with template-first documents
+- **Framework Type**: Documentation system + TypeScript CLI package
+- **CLI Package**: `packages/arc-framework/` — TypeScript, tsup, vitest, Commander, ESM
+- **Dependencies**: Git, Node.js (npm workspaces)
+- **Quality Gates**: Markdown linting (zero-tolerance), TypeScript type checking, vitest, tsup build
+- **CI**: GitHub Actions
+- **Distribution**: GitHub repository with template-first documents, npm package (`@arc-framework/cli`)
 - **Development Environment**: Cross-platform (Windows/WSL/Linux/Mac)
 
 **Repository Layout:**
 
-- `.arc/` - Deployable template system (reference/, active/, backlog/)
+- `.arc/` - Deployable template system (reference/, active/, backlog/, system/)
 - `.arc-internal/` - Framework development workspace (constitution, workflows, active work)
+- `packages/arc-framework/` - CLI npm package (`@arc-framework/cli`)
 - Root-level documentation (README.md, LICENSE, etc.)
 
 ## Critical Path Information
 
 **Common Friction Points:**
 
-- **No runtime**: This is documentation-only - no Docker, no services, no backend/frontend to run
-- **Markdown linting is THE quality gate**: `npm run -s lint:md`
-- **Working directory**: Always at repository root (`/home/andrew/dev/arc-agentic-dev-framework/`)
-- **Commands in QUICK-REFERENCE**: All assume repo root - paths are already correct
-- **Template vs. Internal**: `.arc/` = templates for users (`reference/` + `system/`), `.arc-internal/` = framework-specific
-- **Self-hosting**: Framework development follows its own ARC methodology
-- **Zero tolerance**: All markdown linting violations must be fixed before commits
+- **Hybrid project**: Documentation (`.arc/`, `.arc-internal/`) plus TypeScript CLI (`packages/arc-framework/`)
+- **All commands from repo root**: npm workspaces delegates to the CLI package automatically
+- **Markdown linting is a primary quality gate**: `npm run -s lint:md`
+- **Template vs. Internal**: `.arc/` = templates for adopters, `.arc-internal/` = framework-specific
+- **Self-hosting**: Framework development follows its own ARC methodology — we are our own test case
+- **Zero tolerance**: All quality gate violations must be fixed before commits
+- **Commands in QUICK-REFERENCE**: All assume repo root — paths are already correct
 
-## AI Collaboration Principles
+## Project-Specific Principles
 
-**Working Approach:**
-
-- **Plan before executing** - Default to plan-driven execution; skip plans only for trivial tasks
-- **Respect user intent** - Never revert or "fix" user changes without explicit approval
 - **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance.
-  Note: the developer may be working alongside you — editing files, running commands, making
-  commits. Co-development diffs are normal, not anomalies. Flag only changes that conflict
-  with your current task or seem unintentional.
-- **Limit scope** - Avoid global mutations or widespread changes without explicit approval
-- **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
-  (per developer-agent pair in team mode)
-- **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
-- **Verify before asserting** - Never guess file paths, implementation details, or content.
-  Use search/read tools to verify, or ask clarifying questions when uncertain.
-  See `DEV-RULES.ARC.md` § Verification and Discovery.
-- **Check strategy guidance** - Before implementing in codified domains, consult the relevant
-  strategy doc. See `STRATEGY-INDEX.md` for available guidance.
-
-**Communication:**
-
-- **Focus on value** - Prioritize findings, risks, and actionable next steps in summaries
-- **Be clear and targeted** - Provide enough detail to be useful, not so much it's overwhelming
+  The developer may be working alongside you — editing files, running commands, making commits.
+  Co-development diffs are normal, not anomalies. Flag only changes that conflict with your
+  current task or seem unintentional.
 
 ---
 
-*This reference card is the shared entry point for all AI agents working on this project.
-Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md).*
+_This reference card is the shared entry point for all AI agents working on this project.
+Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md)._

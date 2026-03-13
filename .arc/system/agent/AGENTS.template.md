@@ -1,4 +1,4 @@
-# {{PROJECT_NAME}} - AI Agent Reference Card
+# {{PROJECT_NAME}} — AI Agent Reference Card
 
 ## Project Overview
 
@@ -40,39 +40,19 @@
 
 - [Friction point with context]
 - [Friction point with context]
-- **Commands in `QUICK-REFERENCE.md`**: All assume repo root — adjust paths based on working directory
-- **Working directory**: Check `WORK-STATUS.md` for current context
 
-## AI Collaboration Principles
+## Project-Specific Principles
 
-**Working Approach:**
+_[None — add project-specific agent guidance as you discover it]_
 
-- **Plan before executing** - Default to plan-driven execution; skip plans only for trivial tasks
-- **Respect user intent** - Never revert or "fix" user changes without explicit approval
-- **Stop on anomalies** - Treat unexpected filesystem diffs as a stop signal and request guidance.
-  Note: the developer may be working alongside you — editing files, running commands, making
-  commits. Co-development diffs are normal, not anomalies. Flag only changes that conflict
-  with your current task or seem unintentional.
-- **Limit scope** - Avoid global mutations or widespread changes without explicit approval
-- **One task at a time** - Complete one checkbox item, report, and await approval before proceeding
-  (per developer-agent pair in team mode)
-- **Manual commit control** - AI NEVER initiates commits without explicit user approval or instruction
-- **Verify before asserting** - Never guess file paths, implementation details, or content.
-  Use search/read tools to verify, or ask clarifying questions when uncertain.
-  See `DEV-RULES.ARC.md` § Verification and Discovery.
-- **Check strategy guidance** - Before implementing in codified domains, consult the relevant
-  strategy doc. See `STRATEGY-INDEX.md` for available guidance.
-
-<!-- Add project-specific principles as needed. Examples: -->
-<!-- - **Respect layered architecture** - Business logic in service layer, not in handlers -->
+<!-- This section is for principles specific to YOUR project that aren't covered by -->
+<!-- ARC's constitutional docs (DEV-RULES.ARC, DEV-RULES.PROJECT). Examples: -->
+<!-- - **Respect layered architecture** - Business logic in service layer, not handlers -->
+<!-- - **Stop on co-dev anomalies** - Flag filesystem changes that conflict with the -->
+<!--   current task, but treat co-development diffs as normal -->
 <!-- - **Feature flags required** - All new features behind flags until validated -->
-
-**Communication:**
-
-- **Focus on value** - Prioritize findings, risks, and actionable next steps in summaries
-- **Be clear and targeted** - Provide enough detail to be useful, not so much it's overwhelming
 
 ---
 
-*This reference card is the shared entry point for all AI agents working on this project.
-Agent-specific guidance lives in dedicated files (e.g., CLAUDE.md, CODEX.md).*
+_This reference card is the shared entry point for all AI agents working on this project.
+Agent-specific guidance lives in dedicated files._

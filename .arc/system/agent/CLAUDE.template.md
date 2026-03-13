@@ -1,6 +1,10 @@
-# CLAUDE.md
+# CLAUDE.md — ARC Agent Guidance
 
-Guidance for Claude when working in this repository. For shared rules and architecture, defer to the canonical docs:
+> Part of the ARC session-init loading chain (AGENTS.md → agent-specific file). This file lives in
+> `{{ARC_DIR}}/system/agent/` and is loaded by ARC's session workflows — it does not replace or
+> conflict with any tool-native configuration outside `.arc/`.
+
+Shared rules and project context live in:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
@@ -10,89 +14,24 @@ Guidance for Claude when working in this repository. For shared rules and archit
 
 ## Claude-Specific Notes
 
-- **Session startup:** Execute the session initialization workflow (`session-init.md`) first (verify
-  working directory, runtime environment, tool availability, paths)
-- **Path awareness:** Commands in QUICK-REFERENCE assume repo root — adjust based on current working
-  directory from Session Startup Protocol
-- **Summaries first:** Lead responses with concise bullet findings before deep dives
-- **Clarifying questions:** Offer numbered/lettered options to keep user replies short
-- **Large diffs:** If a change won't fit in context, propose a chunking strategy and wait for approval
-- **Bash commands:** Keep shell commands simple and separate — chained commands (`&&`, `||`, pipes)
-  may not match auto-approve patterns even when the individual commands would be approved. Run
-  independent commands as parallel tool calls instead of chaining them.
-- **Session handoffs:** Explicitly state whether session state files were updated or left unchanged
-- **Staging verification:** After `git add` and before `git commit`, run `git diff --cached --stat`
-  to verify the staging area matches intent. Pre-staged files (from earlier `git rm` or `git add`)
-  can silently slip into commits, and intended files can be left out. The pre-commit `git status`
-  is orientation (what changes exist); the post-staging check is verification (what am I about to
-  commit).
+_[None — add Claude-specific guidance as you discover it]_
 
-## Context Window Management
-
-**Claude-specific token thresholds and monitoring protocol.**
-
-**Context Window:** Claude Code provides ~200,000 token context window. Monitor usage throughout session.
-
-**Monitoring Protocol:**
-
-- Work at full specification until **~140,000 tokens used** (start monitoring context)
-- At **~150,000 tokens**, assess situation:
-  1. Complete current work item (don't stop mid-edit)
-  2. Evaluate remaining work scope
-  3. **Stop and ask user** how to proceed: "We're at ~150k tokens. [Summary of completed work].
-     [Remaining work description with estimated token cost]. How should we proceed?"
-  4. User decides: continue, commit completed work then continue, or begin handoff
-- Token usage displayed in function results — check periodically during long sessions
-- **Never** degrade work quality or change approach due to token pressure
-- **Never** make "efficiency" tradeoffs based on context window size
-
-**Why these thresholds:**
-
-- 140k: Start monitoring, but continue normal work
-- 150k: Proactive check-in with user before hitting limits
-- Leaves buffer for commit workflows, quality gates, and session handoff if needed
-
-**See also:** Session Management section in DEV-RULES.ARC.md for agent-agnostic principles.
-
-## Deferred Review
-
-The [process-task-loop](../workflows/arc/3_process-task-loop.md) normally requires a mandatory stop
-after each task for user review. When the user explicitly requests continuation through a
-specific set of tasks, that stop is deferred for the specified scope. The user defines the
-scope — never self-invoke this. See the process-task-loop "Deferred review" note for the protocol.
-
-**Claude-specific note:** Token introspection is imperfect — err on the side of completing fewer
-tasks rather than risking insufficient context for review, iteration, commits, and session handoff
-when the user returns.
+<!-- Examples of what belongs here (delete these and replace with your own): -->
+<!-- - Chained bash commands (&&, ||, pipes) may not match auto-approve patterns — -->
+<!--   run independent commands as parallel tool calls instead -->
+<!-- - Tends to over-explain — prefer terse responses for this project -->
+<!-- - Never degrade work quality or change approach due to context pressure -->
 
 ## MCP Server Availability
 
-<!-- Document MCP servers configured for your project. This helps Claude understand -->
-<!-- what tools are available without needing to discover them at runtime. -->
+<!-- Document MCP servers configured for your project. This helps the agent understand -->
+<!-- what external tools are available without needing to discover them at runtime. -->
 
-**Project-enabled MCPs (always available):**
-
-- [MCP server] - [what it provides]
-
-**Available but disabled by default (request if needed):**
-
-<!-- MCPs that consume significant tokens when enabled. Claude should ask before using these. -->
-
-- [MCP server] - [what it provides]
+_[None configured — add MCP servers as needed]_
 
 ## Sub-Agent Availability
 
-<!-- Document sub-agents available in your Claude Code setup. Sub-agents can handle -->
-<!-- specialized tasks autonomously, saving main conversation context. -->
+<!-- Document sub-agents available in your setup. Sub-agents can handle specialized -->
+<!-- tasks autonomously, saving main conversation context. -->
 
-**[Agent Name]** - [brief description of capability].
-
-**When to use:**
-
-- [Use case where the agent adds value]
-- [Another use case]
-
-**When NOT to use:**
-
-- [Case where direct tool use is more efficient]
-- [Another case]
+_[None configured — add sub-agent descriptions as needed]_

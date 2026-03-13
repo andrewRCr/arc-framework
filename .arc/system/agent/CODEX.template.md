@@ -1,6 +1,10 @@
-# CODEX.md
+# CODEX.md — ARC Agent Guidance
 
-Guidance for Codex CLI when working in this repository. Shared rules and project context live in:
+> Part of the ARC session-init loading chain (AGENTS.md → agent-specific file). This file lives in
+> `{{ARC_DIR}}/system/agent/` and is loaded by ARC's session workflows — it does not replace or
+> conflict with any tool-native configuration outside `.arc/`.
+
+Shared rules and project context live in:
 
 - [AGENTS](AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
@@ -10,18 +14,23 @@ Guidance for Codex CLI when working in this repository. Shared rules and project
 
 ## Codex-Specific Notes
 
-- **Command-first verification:** Before assuming repository state, confirm with shell commands
-  (`git status`, `git diff --stat`, targeted file reads).
-- **Search tools:** Prefer `rg`/`rg --files` for file and text discovery before broader scans.
-- **Edit style:** Prefer precise, minimal patches. Use `apply_patch` for focused single-file edits
-  and direct shell writes for larger multi-file text replacements.
-- **Commit safety:** After staging and before commit, run `git --no-pager diff --cached --stat`
-  to verify the staged set is atomic and intentional.
-- **Quality gates:** For markdown checks, prefer pinned tooling (`npm run -s lint:md`) rather than
-  network-dependent ad hoc `npx` calls.
-- **Session docs discipline:** Do not edit `WORK-STATUS.md` or `SESSION-NOTES.md` unless user asks. When
-  asked to hand off, update WORK-STATUS.md with current task and next action, and SESSION-NOTES.md with
-  concrete progress and context.
-- **Escalation expectation:** Some commands need permission or unrestricted execution (for example
-  `npm install`). If a required command fails under sandbox constraints, re-run with escalation
-  request.
+_[None — add Codex-specific guidance as you discover it]_
+
+<!-- Examples of what belongs here (delete these and replace with your own): -->
+<!-- - Prefer apply_patch for single-file edits, shell writes for multi-file -->
+<!-- - If a command fails under sandbox constraints, re-run with escalation request -->
+<!-- - Tends to [behavioral pattern] — address with [guidance] -->
+
+## MCP Server Availability
+
+<!-- Document MCP servers configured for your project. This helps the agent understand -->
+<!-- what external tools are available without needing to discover them at runtime. -->
+
+_[None configured — add MCP servers as needed]_
+
+## Sub-Agent Availability
+
+<!-- Document sub-agents available in your setup. Sub-agents can handle specialized -->
+<!-- tasks autonomously, saving main conversation context. -->
+
+_[None configured — add sub-agent descriptions as needed]_

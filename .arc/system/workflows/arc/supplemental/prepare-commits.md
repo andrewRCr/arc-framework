@@ -33,8 +33,10 @@ For simple, single-concern commits where you know what changed:
 4. Stage files for one logical change
 5. Pre-stage review extensions · `#pre-stage-review`: If [pre-stage-review extensions][arc-ext-pre-stage] are
    configured, execute them now
-6. Commit using the [commit-format][arc-methods-cf] and [commit-context-format][arc-methods-ccf] methods
-7. Git hooks validate automatically
+6. Verify staging: `git diff --cached --stat` — confirm the staged set matches intent. Pre-staged
+   files (from earlier `git rm` or `git add`) can silently slip in; intended files can be left out.
+7. Commit using the [commit-format][arc-methods-cf] and [commit-context-format][arc-methods-ccf] methods
+8. Git hooks validate automatically
 
 ## Atomicity Guide
 

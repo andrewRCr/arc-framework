@@ -1,30 +1,28 @@
-# CODEX.md
+# CODEX.md — ARC Agent Guidance
 
 Guidance for Codex CLI when working in the ARC framework repository. Shared rules and project
 context live in:
 
-- [AGENTS](AGENTS.md)
+- [AGENTS](AGENTS.md) – Project context and collaboration principles
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
 - [DEV-RULES.PROJECT][dev-rules] – Project quality standards
 - [QUICK-REFERENCE][quick-ref] – Environment context and command patterns
-- [Process Task Loop][process-task-loop]
+- [Process Task Loop][process-task-loop] – One-task workflow
 
 ## Codex-Specific Notes
 
-- **Command-first verification:** Before assuming repository state, confirm with shell commands
-  (`git status`, `git diff --stat`, targeted file reads).
-- **Search tools:** Prefer `rg`/`rg --files` for file and text discovery before broader scans.
 - **Edit style:** Prefer precise, minimal patches. Use `apply_patch` for focused single-file edits
   and direct shell writes for larger multi-file text replacements.
-- **Commit safety:** After staging and before commit, run `git --no-pager diff --cached --stat`
-  to verify the staged set is atomic and intentional.
-- **Quality gates:** For markdown checks, prefer pinned tooling (`npm run -s lint:md`) rather than
-  network-dependent ad hoc `npx` calls.
-- **Session docs discipline:** Do not edit `WORK-STATUS.md` or `SESSION-NOTES.md` unless user asks. When asked to hand off,
-  update WORK-STATUS.md with current task and next action, and SESSION-NOTES.md with concrete progress and context.
-- **Escalation expectation:** Some commands need permission or unrestricted execution
-  (for example `npm install`). If a required command fails under sandbox constraints, re-run with
-  escalation request.
+- **Sandbox escalation:** Some commands need unrestricted execution (e.g., `npm install`). If a
+  required command fails under sandbox constraints, re-run with escalation request.
+
+## MCP Server Availability
+
+_[None configured]_
+
+## Sub-Agent Availability
+
+_[None configured]_
 
 ---
 

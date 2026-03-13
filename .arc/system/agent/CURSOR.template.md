@@ -1,4 +1,4 @@
-# WARP.md — ARC Agent Guidance
+# CURSOR.md — ARC Agent Guidance
 
 > Part of the ARC session-init loading chain (AGENTS.md → agent-specific file). This file lives in
 > `{{ARC_DIR}}/system/agent/` and is loaded by ARC's session workflows — it does not replace or
@@ -10,13 +10,14 @@ Shared rules and project context live in:
 - [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
 - [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
+- [Process Task Loop](../workflows/arc/3_process-task-loop.md) – One-task workflow
 
-## Warp-Specific Notes
+## Cursor-Specific Notes
 
-_[None — add Warp-specific guidance as you discover it]_
+_[None — add Cursor-specific guidance as you discover it]_
 
 <!-- Examples of what belongs here (delete these and replace with your own): -->
-<!-- - Behavioral quirks unique to Warp that affect ARC workflow execution -->
+<!-- - Behavioral quirks unique to Cursor that affect ARC workflow execution -->
 <!-- - Capability limitations you've encountered in practice -->
 <!-- - Tool-specific patterns that differ from other agents -->
 

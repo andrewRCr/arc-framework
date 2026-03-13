@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.3.R.d — Create Cursor and Windsurf agent templates (line ~272)
-**Last Completed**: Task 3.3.R.c — Guide-text placeholder syntax migration
+**Next Task**: Task 3.3.R.e — Render engine `!=` operator support (line ~303)
+**Last Completed**: Task 3.3.R.d — Agent template audit and redesign
 **Blockers**: [none]
-**Next Action**: Implement 3.3.R.d (Cursor/Windsurf agent templates)
+**Next Action**: Implement 3.3.R.e (render engine `!=` operator, test-first)
 
 ---
 

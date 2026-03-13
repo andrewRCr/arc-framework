@@ -1,17 +1,36 @@
-# GEMINI.md
+# GEMINI.md — ARC Agent Guidance
 
-Minimal guidance for Gemini assistants. Shared context lives in [AGENTS](AGENTS.md);
-follow [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md),
-[DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md),
-[QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md),
-and the [Process Task Loop](../workflows/arc/3_process-task-loop.md).
+> Part of the ARC session-init loading chain (AGENTS.md → agent-specific file). This file lives in
+> `{{ARC_DIR}}/system/agent/` and is loaded by ARC's session workflows — it does not replace or
+> conflict with any tool-native configuration outside `.arc/`.
+
+Shared rules and project context live in:
+
+- [AGENTS](AGENTS.md) – Project context and collaboration principles
+- [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
+- [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
+- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
+- [Process Task Loop](../workflows/arc/3_process-task-loop.md) – One-task workflow
 
 ## Gemini-Specific Notes
 
-- **Wide repository coverage:** Use Gemini CLI capabilities when analysis spans many files or large
-  code volumes. Confirm directories and question before running.
-- **Surface limitations:** If Gemini cannot execute shell commands in the current environment, state
-  that up front and offer alternatives (e.g., describe search strategies).
-- **Summaries:** Provide compact answers with numbered action plans when asked for implementation steps.
-- **Cross-tool handoff:** When Gemini performs large audits, document findings in SESSION-NOTES.md so other agents can
-  continue seamlessly.
+_[None — add Gemini-specific guidance as you discover it]_
+
+<!-- Examples of what belongs here (delete these and replace with your own): -->
+<!-- - Behavioral quirks unique to Gemini that affect ARC workflow execution -->
+<!-- - Capability limitations you've encountered in practice -->
+<!-- - Tool-specific patterns that differ from other agents -->
+
+## MCP Server Availability
+
+<!-- Document MCP servers configured for your project. This helps the agent understand -->
+<!-- what external tools are available without needing to discover them at runtime. -->
+
+_[None configured — add MCP servers as needed]_
+
+## Sub-Agent Availability
+
+<!-- Document sub-agents available in your setup. Sub-agents can handle specialized -->
+<!-- tasks autonomously, saving main conversation context. -->
+
+_[None configured — add sub-agent descriptions as needed]_

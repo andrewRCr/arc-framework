@@ -1,19 +1,35 @@
-# GitHub Copilot Instructions
+# GitHub Copilot Instructions — ARC Agent Guidance
 
-Copilot suggestions must align with the canonical docs:
-[AGENTS](AGENTS.md),
-[DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md),
-[DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md),
-and [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md).
+> Part of the ARC session-init loading chain (AGENTS.md → agent-specific file). This file lives in
+> `{{ARC_DIR}}/system/agent/` and is loaded by ARC's session workflows — it does not replace or
+> conflict with any tool-native configuration outside `.arc/`.
+
+Shared rules and project context live in:
+
+- [AGENTS](AGENTS.md) – Project context and collaboration principles
+- [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
+- [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
+- [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
 
 ## Copilot-Specific Notes
 
-- **Context snippets:** When prompting Copilot, include the active task, acceptance criteria, and
-  relevant files; keep prompts short to avoid stale context.
-- **Command hints:** Suggest commands from QUICK-REFERENCE (repo root paths) and remind users to run
-  quality gates before committing.
-- **Code style reminders:** Follow project conventions documented in DEV-RULES.PROJECT and any
-  applicable strategy docs (see STRATEGY-INDEX.md).
-- **Testing prompts:** Encourage generating tests alongside implementation per the project's
-  test-first protocol (see [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) § Test-first assessment).
-- **Deferrals:** Correct outdated tooling suggestions to project-approved tools per DEV-RULES.PROJECT.
+_[None — add Copilot-specific guidance as you discover it]_
+
+<!-- Examples of what belongs here (delete these and replace with your own): -->
+<!-- - Behavioral quirks unique to Copilot that affect ARC workflow execution -->
+<!-- - Capability limitations you've encountered in practice -->
+<!-- - Tool-specific patterns that differ from other agents -->
+
+## MCP Server Availability
+
+<!-- Document MCP servers configured for your project. This helps the agent understand -->
+<!-- what external tools are available without needing to discover them at runtime. -->
+
+_[None configured — add MCP servers as needed]_
+
+## Sub-Agent Availability
+
+<!-- Document sub-agents available in your setup. Sub-agents can handle specialized -->
+<!-- tasks autonomously, saving main conversation context. -->
+
+_[None configured — add sub-agent descriptions as needed]_

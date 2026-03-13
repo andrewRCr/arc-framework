@@ -5,6 +5,7 @@
     "reference/TECHNICAL-OVERVIEW.template.md",
     "active/WORK-STATUS.template.md",
     "system/agent/AGENTS.template.md",
+    "system/agent/README.md",
     "system/arc-config.yml",
     "system/workflows/arc/session-lifecycle/session-init.md",
     "system/workflows/arc/3_process-task-loop.md",
