@@ -12,7 +12,7 @@
 **Next Task**: Task 3.4 — Implement interactive prompts (line ~226)
 **Last Completed**: Task 3.3 — Prepare framework template source and init recipe
 **Blockers**: [none]
-**Next Action**: Start Task 3.4 (implement @clack/prompts init flow driven by init recipe)
+**Next Action**: Triage `temp-init-audit.md` — resolve design decisions and address/fold issues before Task 3.4
 
 ---
 
