@@ -171,31 +171,19 @@ hashing, manifest I/O, and init recipe parsing.
 **Purpose:** Build the interactive init flow — from prompts through file rendering to a complete,
 working ARC installation.
 
-- [ ] **3.1 Implement git utility functions (`src/lib/git.ts`)**
+- [x] **3.1 Implement git utility functions (`src/lib/git.ts`)**
 
-    Build `test-first` (one behavior at a time):
-    - Git availability check returns true when git is on PATH
-    - Git availability check throws/exits with clear error when git is missing
-    - `isGitRepo()` detects a valid git repository (returns true)
-    - `isGitRepo()` returns false when not inside a git repo
-    - `gitConfigGet()` retrieves a config value by key
-    - `gitConfigSet()` writes a config value
-    - `gitMergeFile()` returns clean content when no conflicts
-    - `gitMergeFile()` returns conflict markers and non-zero status on conflicts
-    - `gitMergeFile()` handles error cases (missing input files)
+    All 9 behaviors implemented test-first (10 unit tests). Injectable `GitExec` dependency for
+    testability. Functions: `checkGitAvailable`, `isGitRepo`, `gitConfigGet`, `gitConfigSet`,
+    `gitMergeFile`. Merge-file handles clean merges, conflict detection (via error `stdout`),
+    and missing-file errors.
 
-- [ ] **3.2 Implement file operations (`src/lib/files.ts`)**
+- [x] **3.2 Implement file operations (`src/lib/files.ts`)**
 
-    Build `test-first` (one behavior at a time):
-    - `ensureDir()` creates nested directories recursively
-    - `ensureDir()` is idempotent (no error on existing directory)
-    - `copyWithRendering()` substitutes `{{TOKEN}}` placeholders from config map
-    - `copyWithRendering()` processes `<!-- arc:if -->` conditional blocks (include/exclude)
-    - `copyWithRendering()` passes through files with no tokens or conditionals unchanged
-    - `appendToGitignore()` adds entry when not already present
-    - `appendToGitignore()` skips duplicate when entry already exists
-    - `appendToGitattributes()` adds entry when not already present
-    - `appendToGitattributes()` skips duplicate when entry already exists
+    All 9 behaviors implemented test-first (10 unit tests). Injectable fs dependencies for
+    testability. Functions: `ensureDir`, `copyWithRendering` (composes existing `renderTokens`
+    - `renderConditionals`), `appendToGitignore`, `appendToGitattributes` (shared
+    `appendLineIfMissing` helper).
 
 - [ ] **3.3 Create framework template files**
 

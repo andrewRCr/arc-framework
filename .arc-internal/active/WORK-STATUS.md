@@ -9,11 +9,11 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.1 — Implement git utility functions (line ~174)
-**Last Completed**: Task 7.8 — Migrate `.arc-internal/` to unified model (self-hosting)
+**Next Task**: Task 3.3 — Create framework template files (line ~188)
+**Last Completed**: Task 3.2 — Implement file operations
 **Blockers**: [none]
-**Next Action**: Start Phase 3 — Task 3.1 (git utility functions)
+**Next Action**: Start Task 3.3.a (audit `.arc/` files for token and conditional needs)
 
 ---
 
-**Last Updated**: 2026-03-12
+**Last Updated**: 2026-03-13
