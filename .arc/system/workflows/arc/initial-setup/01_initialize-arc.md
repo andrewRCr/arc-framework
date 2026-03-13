@@ -56,7 +56,7 @@ This file is created during init — ready for the first work unit activation.
 
 ```markdown
 **Branch**: `main`
-**Task List**: [none]
+**Task List**: [none associated]
 **Following Task List**: No
 **Next Task**: —
 **Last Completed**: —

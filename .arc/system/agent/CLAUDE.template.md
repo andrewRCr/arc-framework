@@ -72,27 +72,27 @@ when the user returns.
 
 **Project-enabled MCPs (always available):**
 
-- {{MCP server}} - {{what it provides}}
+- [MCP server] - [what it provides]
 
 **Available but disabled by default (request if needed):**
 
 <!-- MCPs that consume significant tokens when enabled. Claude should ask before using these. -->
 
-- {{MCP server}} - {{what it provides}}
+- [MCP server] - [what it provides]
 
 ## Sub-Agent Availability
 
 <!-- Document sub-agents available in your Claude Code setup. Sub-agents can handle -->
 <!-- specialized tasks autonomously, saving main conversation context. -->
 
-**{{Agent Name}}** - {{brief description of capability}}.
+**[Agent Name]** - [brief description of capability].
 
 **When to use:**
 
-- {{Use case where the agent adds value}}
-- {{Another use case}}
+- [Use case where the agent adds value]
+- [Another use case]
 
 **When NOT to use:**
 
-- {{Case where direct tool use is more efficient}}
-- {{Another case}}
+- [Case where direct tool use is more efficient]
+- [Another case]

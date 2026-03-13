@@ -39,6 +39,18 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
 
   const obj = data as Record<string, unknown>;
 
+  // Validate include_files (optional)
+  if (obj.include_files !== undefined && !Array.isArray(obj.include_files)) {
+    errors.push("Invalid 'include_files' (expected array)");
+  }
+
+  // Validate computed_tokens (optional)
+  if (obj.computed_tokens !== undefined) {
+    if (typeof obj.computed_tokens !== "object" || obj.computed_tokens === null) {
+      errors.push("Invalid 'computed_tokens' (expected object)");
+    }
+  }
+
   if (!Array.isArray(obj.prompts)) {
     errors.push("Missing or invalid 'prompts' (expected array)");
   }
@@ -152,19 +164,27 @@ export function evaluateCondition(
 }
 
 /**
- * Extract the set of init-time token names declared by recipe prompts.
- * Used as an allowlist to distinguish init tokens from guide-text placeholders.
+ * Extract the set of init-time token names declared by recipe prompts
+ * and computed tokens. Used as an allowlist to distinguish init tokens
+ * from guide-text placeholders.
  *
  * @param prompts - Recipe prompt definitions
+ * @param computedTokens - Token names computed at init time (not from prompts)
  * @returns Set of token names that should be substituted at init time
  */
 export function getInitTokenNames(
   prompts: { token?: string }[],
+  computedTokens?: Record<string, string>,
 ): Set<string> {
   const tokens = new Set<string>();
   for (const prompt of prompts) {
     if (prompt.token) {
       tokens.add(prompt.token);
+    }
+  }
+  if (computedTokens) {
+    for (const name of Object.keys(computedTokens)) {
+      tokens.add(name);
     }
   }
   return tokens;

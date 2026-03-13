@@ -157,7 +157,8 @@ for another tool (e.g., Cursor, Windsurf, or a future tool):
 
 **AGENTS.md (most important)**:
 
-- Replace `{{PROJECT_NAME}}` and other placeholders with actual values
+- Init tokens (`{{PROJECT_NAME}}`, `{{ARC_DIR}}`) are filled automatically by `arc init`
+- Guide-text placeholders (`[Component]`, `[description]`) are for you to fill in manually
 - Update "Project Snapshot" with your tech stack
 - Customize "Critical Path Information" with your project's gotchas
 - Update "Quick Lookup Guide" with your actual workflow file paths
@@ -166,7 +167,7 @@ for another tool (e.g., Cursor, Windsurf, or a future tool):
 
 - Keep them minimal (reference AGENTS.md for shared context)
 - Add only tool-specific guidance (not general project information)
-- Use placeholders like `{{TOOL_AVAILABILITY}}` for project-specific values
+- Use `[PLACEHOLDER]` style for project-specific values to fill in
 - Focus on how to use the tool effectively in your project
 
 ## Maintenance

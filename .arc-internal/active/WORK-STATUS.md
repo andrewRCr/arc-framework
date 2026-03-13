@@ -9,11 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.3.R — Recipe, template, and render engine fixes (line ~233)
-**Last Completed**: Task 3.3 — Prepare framework template source and init recipe
+**Next Task**: Task 3.3.R.d — Create Cursor and Windsurf agent templates (line ~272)
+**Last Completed**: Task 3.3.R.c — Guide-text placeholder syntax migration
 **Blockers**: [none]
-**Next Action**: Begin Task 3.3.R.a — recipe structure updates (unconditional file set, computed tokens,
-ARC_DIR, cursor/windsurf conditions)
+**Next Action**: Implement 3.3.R.d (Cursor/Windsurf agent templates)
 
 ---
 

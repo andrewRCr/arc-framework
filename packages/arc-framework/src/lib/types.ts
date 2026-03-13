@@ -59,6 +59,10 @@ export interface RecipeCondition {
 
 /** Declarative init recipe — maps prompts to tokens, conditions to file sets. */
 export interface Recipe {
+  /** Files included unconditionally in every init (relative to template root). */
+  include_files?: string[];
+  /** Tokens computed at init time (not from prompts). Key = token name, value = description. */
+  computed_tokens?: Record<string, string>;
   prompts: RecipePrompt[];
   conditions: Record<string, RecipeCondition>;
 }

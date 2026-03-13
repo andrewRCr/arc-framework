@@ -235,33 +235,39 @@ working ARC installation.
     **Goal:** Address findings from init flow sanity audit and mechanical consistency audit
     before implementing prompts and init command.
 
-    - [ ] **3.3.R.a Recipe structure updates**
-        - Add unconditional file set for 5 orphaned templates: `QUICK-REFERENCE.template.md`,
-          `META-PRD.template.md`, `TECHNICAL-OVERVIEW.template.md`, `AGENTS.template.md`,
-          `WORK-STATUS.template.md`
-        - Add `computed_tokens` section with `REPO_ROOT` (auto-detected at init time)
-        - Add `arc_dir` prompt (`ARC_DIR` token, default `.arc/`)
-        - Add `cursor` and `windsurf` conditions with template file targets
-        - Update `getInitTokenNames()` to include computed tokens in allowlist
+    - [x] **3.3.R.a Recipe structure updates**
+        - Added `include_files` top-level array with 35 unconditional files (all framework
+          docs, workflows, strategies, skills, githooks, and the 5 previously orphaned templates)
+        - Added `computed_tokens` section with `REPO_ROOT`
+        - Added `arc_dir` text prompt with `ARC_DIR` token (default `.arc`)
+        - Added `cursor` and `windsurf` conditions (template files created in 3.3.R.d)
+        - Updated `Recipe` type with optional `include_files` and `computed_tokens` fields
+        - Updated `validateRecipe()` to validate new optional fields
+        - Updated `getInitTokenNames()` to merge computed token names into allowlist
+        - 80 tests passing (5 new: optional fields validation, computed tokens in allowlist)
 
-    - [ ] **3.3.R.b Template content fixes**
-        - Fix `WORK-STATUS.template.md`: replace placeholder text with correct initial-state
-          defaults (branch from config, task list `[none]`, next action → `1_create-prd.md`)
-        - Fix `02_define-project.md`: update link definitions to reference stripped names
-          (`META-PRD.md`, not `META-PRD.template.md`) — adopter workspace, not source tree
-        - Add `team.mode` key to `.arc/system/arc-config.yml` template with default `false`
-          and inline documentation (behavioral not structural — ADR-012, affects `user.sync_push`
-          default and team coordination guidance)
-        - Add `{{ARC_DIR}}` token to template cross-reference paths that reference the install
-          directory
+    - [x] **3.3.R.b Template content fixes**
+        - Fixed `WORK-STATUS.template.md`: correct initial-state defaults (branch `main`,
+          task list `[none associated]`, next action → `1_create-prd.md`)
+        - Fixed `02_define-project.md`: link definitions now reference stripped names
+          (`META-PRD.md`, not `META-PRD.template.md`) — adopter workspace paths
+        - Added `team.mode: false` to `.arc/system/arc-config.yml` template with inline
+          documentation (behavioral not structural, affects sync defaults and coordination)
+        - Added `{{ARC_DIR}}` token to 5 templates: AGENTS, QUICK-REFERENCE, WORK-STATUS,
+          PROJECT-STATUS, BACKLOG-FEATURE, BACKLOG-TECHNICAL
 
-    - [ ] **3.3.R.c Guide-text placeholder syntax migration**
-        - Change guide-text placeholders from `{{PLACEHOLDER}}` to `[PLACEHOLDER]` across all
-          template files — visually distinguishes "fill this in" prompts from `{{TOKEN}}`
-          init tokens
-        - Rename `{{PROJECT_TYPE}}`/`{{PRIMARY_GOAL}}` in `AGENTS.template.md` to
-          `[Project Type]`/`[Primary Goal]` (guide-text, not init tokens)
-        - Update `findResidualInitTokens()` if it references guide-text patterns
+    - [x] **3.3.R.c Guide-text placeholder syntax migration**
+        - Migrated all guide-text placeholders from `{{PLACEHOLDER}}` to `[PLACEHOLDER]`
+          across 9 template files using marker-based bulk replacement (protect init tokens,
+          replace remaining `{{}}` → `[]`, restore init tokens)
+        - Init tokens (`PROJECT_NAME`, `PROJECT_DESCRIPTION`, `REPO_ROOT`, `ARC_DIR`)
+          remain as `{{TOKEN}}` — now the only `{{}}` patterns in templates
+        - Fixed MD053 violations (italic wrapping `_[label]_:` breaks link-def parsing)
+        - Updated `system/agent/README.md` to document the two-syntax convention
+        - Updated `01_initialize-arc.md` expected state to match WORK-STATUS template
+        - Updated `02_define-project.md` link display text to stripped filenames
+        - `findResidualInitTokens()` unchanged — `{{}}` regex now exclusively matches
+          init tokens by design
 
     - [ ] **3.3.R.d Create Cursor and Windsurf agent templates**
         - `system/agent/CURSOR.template.md`: header referencing canonical docs, Cursor-specific
@@ -278,6 +284,15 @@ working ARC installation.
         - `renderConditionals` handles `!=` operator (regex + evaluation)
         - `!=` block excluded when condition is true, included when false
         - Existing `==` behavior unchanged
+
+    - [ ] **3.3.R.f Enforce `.template` suffix on Configurable files**
+        - Audit all Configurable files in `.arc/` against file classification strategy
+          (`.template.md` suffix required for Configurable files, stripped at init time)
+        - Rename any Configurable files missing the suffix (e.g., `DEV-RULES.PROJECT.md`
+          → `DEV-RULES.PROJECT.template.md`)
+        - Update all references to renamed files (cross-references in other docs, recipe
+          paths in `init-recipe.json`, link definitions, workflow references)
+        - Verify no broken links via markdown linting and manual spot-check
 
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
     - @clack/prompts flow driven by init recipe

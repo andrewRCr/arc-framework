@@ -14,6 +14,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function validRecipe(): Recipe {
   return {
+    include_files: [
+      "reference/QUICK-REFERENCE.template.md",
+      "system/agent/AGENTS.template.md",
+    ],
+    computed_tokens: {
+      REPO_ROOT: "Auto-detected from working directory at init time",
+    },
     prompts: [
       {
         id: "project_name",
@@ -41,6 +48,13 @@ function validRecipe(): Recipe {
         message: "Enable team mode?",
         default: false,
         config_key: "team.mode",
+      },
+      {
+        id: "arc_dir",
+        type: "text",
+        message: "Install directory?",
+        default: ".arc",
+        token: "ARC_DIR",
       },
     ],
     conditions: {
@@ -156,6 +170,30 @@ describe("validateRecipe", () => {
     expect(result.errors.length).toBeGreaterThan(2);
   });
 
+  it("accepts recipe without optional include_files and computed_tokens", () => {
+    const recipe = validRecipe();
+    delete recipe.include_files;
+    delete recipe.computed_tokens;
+    const result = validateRecipe(recipe);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects non-array include_files", () => {
+    const recipe = validRecipe();
+    (recipe as Record<string, unknown>).include_files = "not-array";
+    const result = validateRecipe(recipe);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("include_files"))).toBe(true);
+  });
+
+  it("rejects non-object computed_tokens", () => {
+    const recipe = validRecipe();
+    (recipe as Record<string, unknown>).computed_tokens = "not-object";
+    const result = validateRecipe(recipe);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("computed_tokens"))).toBe(true);
+  });
+
   it("rejects duplicate prompt ids", () => {
     const recipe = validRecipe();
     recipe.prompts = [
@@ -241,6 +279,20 @@ describe("getInitTokenNames", () => {
   it("returns empty set when no prompts have tokens", () => {
     const prompts = [{ config_key: "pm.mode" }, {}];
     expect(getInitTokenNames(prompts)).toEqual(new Set());
+  });
+
+  it("includes computed token names when provided", () => {
+    const prompts = [{ token: "PROJECT_NAME" }];
+    const computed = { REPO_ROOT: "description" };
+    const tokens = getInitTokenNames(prompts, computed);
+    expect(tokens).toEqual(new Set(["PROJECT_NAME", "REPO_ROOT"]));
+  });
+
+  it("works with computed tokens and no prompt tokens", () => {
+    const prompts = [{ config_key: "pm.mode" }];
+    const computed = { REPO_ROOT: "description", ARC_DIR: "description" };
+    const tokens = getInitTokenNames(prompts, computed);
+    expect(tokens).toEqual(new Set(["REPO_ROOT", "ARC_DIR"]));
   });
 });
 

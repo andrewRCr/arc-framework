@@ -11,19 +11,19 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- {{COMPLETED_WORK_NAME}} ({{CATEGORY}}) - {{BRIEF_DESCRIPTION}}
-    - [Archive]({{ARCHIVE_PATH}})
+- [COMPLETED_WORK_NAME] ([CATEGORY]) - [BRIEF_DESCRIPTION]
+    - [Archive]([ARCHIVE_PATH])
 
 **Currently Active:**
 
-- {{ACTIVE_WORK_NAME}} ({{CATEGORY}}) - {{BRIEF_DESCRIPTION}}
-    - Task list: `.arc/active/{{CATEGORY}}/tasks-{{NAME}}.md`
-    - Branch(es): `{{CATEGORY}}/{{BRANCH_NAME}}`
+- [ACTIVE_WORK_NAME] ([CATEGORY]) - [BRIEF_DESCRIPTION]
+    - Task list: `{{ARC_DIR}}/active/[CATEGORY]/tasks-[NAME].md`
+    - Branch(es): `[CATEGORY]/[BRANCH_NAME]`
 
 **Next Priority:**
 
-- {{NEXT_WORK_NAME}} ({{CATEGORY}}) - {{BRIEF_DESCRIPTION}}
-    - [Plan]({{PLAN_PATH}})
+- [NEXT_WORK_NAME] ([CATEGORY]) - [BRIEF_DESCRIPTION]
+    - [Plan]([PLAN_PATH])
 
 <!-- Updated by the activate-work-unit and archive-work-unit workflows.
      Category is typically "feature" or "technical". Include a task list or
@@ -34,14 +34,14 @@ Current state at a glance. Updated when work is activated, completed, or archive
 Significant achievements that define the project's current capabilities. Each entry
 captures what was delivered and its key outcomes.
 
-### {{COMPLETED_WORK_TITLE}}
+### [COMPLETED_WORK_TITLE]
 
-[Archive]({{ARCHIVE_PATH}})
+[Archive]([ARCHIVE_PATH])
 
-{{COMPLETED_WORK_SUMMARY}}
+[COMPLETED_WORK_SUMMARY]
 
-- {{KEY_DELIVERABLE}}
-- {{KEY_DELIVERABLE}}
+- [KEY_DELIVERABLE]
+- [KEY_DELIVERABLE]
 
 <!-- Repeat for each major initiative. Add entries as work is completed (the
      archive-work-unit workflow prompts this). "Major work" means a feature or

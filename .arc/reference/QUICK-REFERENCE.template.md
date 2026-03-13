@@ -11,11 +11,11 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 
 <!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
 
-| Resource          | Location from Repo Root     | Why It Matters                     |
-|-------------------|-----------------------------|------------------------------------|
-| {{Resource name}} | `{{path}}`                  | {{brief explanation}}              |
-| {{Resource name}} | `{{path}}`                  | {{brief explanation}}              |
-| .arc docs         | `.arc/`                     | Development documentation          |
+| Resource        | Location from Repo Root | Why It Matters            |
+|-----------------|-------------------------|---------------------------|
+| [Resource name] | `[path]`                | [brief explanation]       |
+| [Resource name] | `[path]`                | [brief explanation]       |
+| ARC docs        | `{{ARC_DIR}}/`          | Development documentation |
 
 **Working Directory Note**: Your working directory may vary. Check WORK-STATUS.md for
 current context and adjusted paths.
@@ -28,13 +28,13 @@ current context and adjusted paths.
 <!-- "Node.js 20+ with dependencies installed via npm" -->
 <!-- "Documentation-only — no runtime services needed" -->
 
-{{Runtime description}}
+[Runtime description]
 
 **Quality Tools**:
 
-- {{Primary linter/formatter}}: `{{command}}`
-- {{Type checker (if applicable)}}: `{{command}}`
-- {{Test runner}}: `{{command}}`
+- _[Primary linter/formatter]_: `[command]`
+- _[Type checker (if applicable)]_: `[command]`
+- _[Test runner]_: `[command]`
 
 ---
 
@@ -50,13 +50,13 @@ All commands from **repository root**.
 
 ```bash
 # Check all files
-{{lint_command_all}}
+[lint_command_all]
 
 # Check specific file
-{{lint_command_single}}
+[lint_command_single]
 
 # Auto-fix
-{{lint_fix_command}}
+[lint_fix_command]
 ```
 
 <!-- Add additional linting commands if your project has multiple linters -->
@@ -68,23 +68,23 @@ All commands from **repository root**.
 
 ```bash
 # Full project
-{{type_check_command_all}}
+[type_check_command_all]
 
 # Specific file or directory
-{{type_check_command_targeted}}
+[type_check_command_targeted]
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
-{{test_command_all}}
+[test_command_all]
 
 # Run specific test file
-{{test_command_single}}
+[test_command_single]
 
 # With coverage
-{{test_command_coverage}}
+[test_command_coverage]
 ```
 
 <!-- If tests require services (database, containers), note that here -->
@@ -118,13 +118,13 @@ Reference commands for DEV-RULES.PROJECT quality gates. See
 
 ```bash
 # Lint specific file
-{{lint_command_single}}
+[lint_command_single]
 
 # Type check specific file
-{{type_check_command_targeted}}
+[type_check_command_targeted]
 
 # Run specific test
-{{test_command_single}}
+[test_command_single]
 ```
 
 ### Full Suite — Tier 3 (per-phase / pre-PR)
@@ -132,11 +132,11 @@ Reference commands for DEV-RULES.PROJECT quality gates. See
 <!-- All checks at full project scope. Run after completing a phase or before creating a PR. -->
 
 ```bash
-# 1. {{Quality gate name}}
-{{command}}
+# 1. [Quality gate name]
+[command]
 
-# 2. {{Quality gate name}}
-{{command}}
+# 2. [Quality gate name]
+[command]
 
 # 3. Markdown Linting
 npx --yes markdownlint-cli2 "**/*.md"

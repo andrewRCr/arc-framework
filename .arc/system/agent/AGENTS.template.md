@@ -4,8 +4,8 @@
 
 {{PROJECT_DESCRIPTION}}
 
-**Project Type**: {{PROJECT_TYPE}}
-**Primary Goal**: {{PRIMARY_GOAL}}
+**Project Type**: [PROJECT_TYPE]
+**Primary Goal**: [PRIMARY_GOAL]
 
 ## Project Snapshot
 
@@ -16,19 +16,19 @@
 <!-- CLI tool: Language, Package manager, Distribution format -->
 <!-- Library: Language, Build system, Test framework, Documentation tool -->
 
-- **{{Component}}**: {{technology, version, notes}}
-- **{{Component}}**: {{technology, version, notes}}
-- **Quality Gates**: {{primary quality tools — linters, type checkers, test runners}}
-- **Infrastructure**: {{hosting, CI/CD, containerization if applicable}}
+- **[Component]**: [technology, version, notes]
+- **[Component]**: [technology, version, notes]
+- **Quality Gates**: [primary quality tools — linters, type checkers, test runners]
+- **Infrastructure**: [hosting, CI/CD, containerization if applicable]
 
 **Repository Layout:**
 
 <!-- List the top-level directories an agent needs to know about -->
 
-- `{{src_dir}}/` - {{description}}
-- `{{test_dir}}/` - {{description}}
-- `.arc/` - Development documentation (constitution, strategies, workflows, active tasks)
-- {{additional directories as needed}}
+- `[src_dir]/` - [description]
+- `[test_dir]/` - [description]
+- `{{ARC_DIR}}/` - Development documentation (constitution, strategies, workflows, active tasks)
+- [additional directories as needed]
 
 ## Critical Path Information
 
@@ -38,8 +38,8 @@
 <!-- Examples: "tests require a running database", "config lives in an unexpected location", -->
 <!-- "two build systems coexist", "working directory matters for certain commands" -->
 
-- {{Friction point with context}}
-- {{Friction point with context}}
+- [Friction point with context]
+- [Friction point with context]
 - **Commands in `QUICK-REFERENCE.md`**: All assume repo root — adjust paths based on working directory
 - **Working directory**: Check `WORK-STATUS.md` for current context
 

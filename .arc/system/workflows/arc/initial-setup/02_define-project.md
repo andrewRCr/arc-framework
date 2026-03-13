@@ -25,7 +25,7 @@ inline guidance — the questions below help you think through what matters befo
 Your project's vision, scope, and success criteria — the "why" and "what" that guides all other
 decisions.
 
-**Template**: [META-PRD.template.md][meta-prd-template]
+**Template**: [META-PRD.md][meta-prd-template]
 
 **Think through**:
 
@@ -39,7 +39,7 @@ decisions.
 Your technology stack, architectural patterns, and technical constraints — the "how" behind the
 project.
 
-**Template**: [TECHNICAL-OVERVIEW.template.md][tech-overview-template]
+**Template**: [TECHNICAL-OVERVIEW.md][tech-overview-template]
 
 **Think through**:
 
@@ -85,7 +85,7 @@ Your execution strategy — what gets built in what order, and why. The ROADMAP 
 sequencing decisions and dependency chains so you can plan work deliberately rather than
 reactively.
 
-**Template**: [ROADMAP.template.md][roadmap-template]
+**Template**: [ROADMAP.md][roadmap-template]
 
 **Think through**:
 
@@ -101,7 +101,7 @@ ROADMAP goes in `backlog/`.
 Progress tracking for initiatives and milestones — a snapshot of where the project stands
 against the roadmap.
 
-**Template**: [PROJECT-STATUS.template.md][project-status-template]
+**Template**: [PROJECT-STATUS.md][project-status-template]
 
 **Think through**:
 
@@ -144,9 +144,9 @@ If your project uses arc-in-git PM mode, also maintain:
 
 [arc-config]: ../../../system/arc-config.yml
 [init-arc]: 01_initialize-arc.md
-[meta-prd-template]: ../../../../reference/META-PRD.template.md
-[tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.template.md
+[meta-prd-template]: ../../../../reference/META-PRD.md
+[tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.md
 [dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
-[roadmap-template]: ../../../../backlog/ROADMAP.template.md
-[project-status-template]: ../../../../reference/PROJECT-STATUS.template.md
+[roadmap-template]: ../../../../backlog/ROADMAP.md
+[project-status-template]: ../../../../reference/PROJECT-STATUS.md
