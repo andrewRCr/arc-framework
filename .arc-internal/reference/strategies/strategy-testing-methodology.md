@@ -156,6 +156,11 @@ than observable outcomes.
   computation from the I/O.
 - **Small interfaces, deep implementations** — fewer public methods means fewer tests needed
   and a more stable API surface. Hide complexity behind simple interfaces.
+- **Bundle dependencies as they grow** — individual injectable parameters are clear and explicit
+  for 2-3 dependencies. When a function needs 4+, group related dependencies into a typed
+  context object (e.g., `IOContext` with `fs` and `git` fields). This keeps signatures readable
+  without sacrificing testability — tests construct a partial context with only the mocks they
+  need.
 
 ## Test Naming and Organization
 

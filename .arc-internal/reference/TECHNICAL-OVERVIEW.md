@@ -59,6 +59,17 @@ framework files for adopters. Published under the `arc-framework` npm organizati
 - **Templates**: `framework/` — ARC template files with `{{TOKEN}}` placeholders, rendered during
   `arc init`
 
+**Architecture** — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
+
+- **`src/lib/`** — Pure logic and injectable utilities (render, hash, manifest, git, files).
+  No direct side effects — filesystem and process dependencies are passed in for testability.
+- **`src/commands/`** — Command handlers. Orchestrate lib modules with real dependencies.
+- **`src/prompts/`** — Interactive UI via @clack/prompts. Collects input, feeds it to commands.
+- **`src/cli.ts`** — Entry point. Commander routing, dispatches to command handlers.
+
+Lib modules compose horizontally (e.g., `files.ts` imports `render.ts`) but never reach up to
+commands or prompts.
+
 ### Framework Development Workspace (`.arc-internal/`)
 
 Internal to this repository — not shipped to adopters. Mirrors `.arc/` structure for framework
