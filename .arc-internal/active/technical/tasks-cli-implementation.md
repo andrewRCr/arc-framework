@@ -304,27 +304,62 @@ working ARC installation.
 
     - [ ] **3.3.R.f File naming consistency**
 
-        - [ ] **3.3.R.f.i Enforce `.template` suffix on Configurable files**
-            - Audit all Configurable files in `.arc/` against file classification strategy
-              (`.template.md` suffix required for Configurable files, stripped at init time)
-            - Rename any Configurable files missing the suffix (e.g., `DEV-RULES.PROJECT.md`
-              → `DEV-RULES.PROJECT.template.md`)
-            - Update all references to renamed files (cross-references in other docs, recipe
-              paths in `init-recipe.json`, link definitions, workflow references)
-            - Verify no broken links via markdown linting and manual spot-check
+        - [x] **3.3.R.f.i Clarify `.template` suffix boundaries in file classification strategy**
+            - Original task assumed `.template` suffix was required for all Configurable files.
+              Audit found the suffix actually correlates with render-engine processing (tokens,
+              conditionals), not classification. Configurable files without rendering
+              (`DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `arc-methods.md`, etc.) are
+              correctly named without the suffix — they're copied as-is and edited in place
+            - Updated `strategy-file-classification.md` § Template suffix: clarified the suffix
+              marks render-engine input, not classification; added rationale for why in-place
+              Configurable files don't use it
+            - Updated `notes-cli-implementation.md`: split Configurable file table into
+              "rendered" and "copied as-is" sections with distinct headers
+            - No file renames needed — current naming was correct
 
-        - [ ] **3.3.R.f.ii Evaluate agent file naming convention**
-            - Open question: should agent files use ARC-specific names (e.g., `arc-claude.md`)
-              instead of colliding with tool-native conventions (`CLAUDE.md`, `GEMINI.md`)?
-            - ARC files aren't auto-discovered — they're loaded by session-init from `.arc/`.
-              The current names parallel tool-native conventions but serve a different purpose,
-              which could confuse adopters
-            - Either rename all spoke files (not AGENTS.md) to an ARC-specific convention, or
-              keep current names — should be all-or-none, not partial
-            - If renaming: update session-init workflow, file classification strategy, ADR-002,
-              configurability architecture strategy, init recipe conditions, README, all
-              cross-references
-            - Decision: evaluate during this task, implement if decided
+        - [x] **3.3.R.f.ii Evaluate agent file naming convention**
+            - Decision: **rename all agent files** (hub and spokes) to ARC-specific names.
+              Current tool-native names (`CLAUDE.md`, `AGENTS.md`) imply auto-discovery
+              functionality that doesn't exist — ARC loads these via session-init, not tool-native
+              mechanisms. The disclaimer header in every template file is evidence the names
+              mislead. Renaming eliminates the confusion and makes the file tree self-documenting
+            - Naming convention uses dot-namespace (matching `DEV-RULES.ARC.md` pattern) with
+              hub/spoke asymmetry: hub is `ARC-` prefixed (sorts first, signals entrypoint),
+              spokes use `.ARC` suffix (agent name leads for scanning)
+            - `copilot-instructions.md` normalizes to `COPILOT.ARC.md` (ALL-CAPS consistent
+              with other spokes within ARC's directory)
+            - Implementation deferred to 3.3.R.f.iii (separate subtask — ~50 files, ~150 changes)
+
+        - [ ] **3.3.R.f.iii Rename agent files to ARC-specific convention**
+
+            Rename all agent files (hub + spokes) per the convention decided in 3.3.R.f.ii:
+
+            | Current Name                       | New Name                   |
+            |------------------------------------|----------------------------|
+            | `AGENTS.template.md`               | `ARC-AGENTS.template.md`   |
+            | `CLAUDE.template.md`               | `CLAUDE.ARC.template.md`   |
+            | `CODEX.template.md`                | `CODEX.ARC.template.md`    |
+            | `CURSOR.template.md`               | `CURSOR.ARC.template.md`   |
+            | `GEMINI.template.md`               | `GEMINI.ARC.template.md`   |
+            | `WARP.template.md`                 | `WARP.ARC.template.md`     |
+            | `WINDSURF.template.md`             | `WINDSURF.ARC.template.md` |
+            | `copilot-instructions.template.md` | `COPILOT.ARC.template.md`  |
+
+            Physical renames (3 locations):
+
+            - `.arc/system/agent/` — 8 template files
+            - `.arc-internal/system/agent/` — 6 files (no CURSOR/WINDSURF internally)
+            - `packages/arc-framework/arc/system/agent/` — 6 files (no CURSOR/WINDSURF)
+
+            Reference updates by priority:
+
+            - **Critical**: init-recipe.json (8), agent file internals (~60), agent READMEs (2),
+              session-init workflows (2)
+            - **High**: file classification strategy + inventory (2), recipe test (1)
+            - **Medium**: notes/tasks/PRD (~5), other strategies (~4)
+            - **Low**: internal reference docs (~5), `.claude/agents/` (2),
+              README-ASPIRATIONAL (1)
+            - **Skip**: archive files and ADRs (historical reference, no update needed)
 
 - [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
     - @clack/prompts flow driven by init recipe

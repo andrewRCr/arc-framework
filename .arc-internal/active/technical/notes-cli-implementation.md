@@ -312,7 +312,7 @@ markers needed — the content reads correctly regardless of team mode setting.
 
 ### File-by-File Classification
 
-**Configurable files — need template processing:**
+**Configurable files — rendered (have tokens, conditionals, or guide-text placeholders):**
 
 | File                                            | Prompt Tokens        | Guide-Text Tokens   | Conditions |
 |-------------------------------------------------|----------------------|---------------------|------------|
@@ -330,11 +330,16 @@ markers needed — the content reads correctly regardless of team mode setting.
 | `reference/QUICK-REFERENCE.template.md`         | PROJECT_NAME,        | lint_command_*,     | —          |
 |                                                 | REPO_ROOT            | test_command_*,     |            |
 |                                                 |                      | type_check_*, etc.  |            |
-| `reference/constitution/DEV-RULES.PROJECT.md`   | —                    | (inline examples)   | —          |
-| `reference/strategies/STRATEGY-INDEX.md`        | —                    | —                   | —          |
-| `reference/archive/README.md`                   | —                    | —                   | —          |
-| `system/workflows/arc-methods.md`               | —                    | —                   | —          |
-| `system/workflows/arc-extensions.md`            | —                    | —                   | —          |
+
+**Configurable files — copied as-is (no rendering, customized in place by adopters):**
+
+| File                                            | Notes                                             |
+|-------------------------------------------------|---------------------------------------------------|
+| `reference/constitution/DEV-RULES.PROJECT.md`   | Inline examples serve as guidance, not templates  |
+| `reference/strategies/STRATEGY-INDEX.md`        | Users add project strategies to existing sections |
+| `reference/archive/README.md`                   | Light-configurable, user-populated section        |
+| `system/workflows/arc-methods.md`               | Users fill `.override` sections                   |
+| `system/workflows/arc-extensions.md`            | Users fill extension point slots                  |
 
 **Scaffolded files — template copies, user replaces all content:**
 

@@ -119,9 +119,17 @@ redundancy without the discoverability benefit that other artifact types get.
 
 ### Template suffix: `.template.md`
 
-Files in the `.arc/` template system that get instantiated during `arc init` use a `.template.md`
-suffix: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`, `AGENTS.template.md` becomes
-`AGENTS.md`. The suffix distinguishes "copy this to create yours" from "this is the actual file."
+Files that go through the CLI render engine during `arc init` — token substitution (`{{TOKEN}}`),
+conditional content (`<!-- arc:if -->`), or full placeholder replacement — use a `.template.md`
+suffix. The suffix is stripped at init time: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`,
+`AGENTS.template.md` becomes `AGENTS.md`.
+
+The suffix marks render-engine input, not classification. Both Configurable and Scaffolded files
+can carry it — the common trait is that the source file contains placeholders that produce a
+different output file. Configurable files that ship as functional content and are customized in
+place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `arc-methods.md`) don't use the suffix
+because no rendering transformation occurs — they're copied as-is during init and edited directly
+by adopters.
 
 The `template-` *prefix* (in `reference/templates/`) is different — those are copy-ready document
 templates used during work (e.g., `template-prd.md` is copied when creating a new PRD). They keep
