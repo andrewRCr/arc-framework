@@ -434,6 +434,9 @@ working ARC installation.
           pointer, keep directory tree and document audiences, dual-audience tone
         - Note: skill availability requires agent harness restart — post-init
           message (3.7) must account for this with both options
+        - Design decision: AGENTS.ARC.md must NOT contain a "if this is a fresh
+          installation" pointer — it's loaded every session and would confuse agents
+          during normal session-init. The skill/prompt handles first-time routing.
 
     - [ ] **3.4.e Implement prompts (`src/prompts/init-prompts.ts`)**
 
@@ -495,8 +498,8 @@ working ARC installation.
 
 - [ ] **3.7 Implement post-init messaging (bridge UX)**
 
-    The post-init message is the only bridge between CLI init and agent-led setup. It must be
-    clear, actionable, and account for the agent harness restart requirement.
+    The post-init message is the only bridge between CLI init and agent-led setup. See
+    `notes-cli-implementation.md` § Post-Init Bridge Message for finalized wording.
 
     - Print concise summary: files installed, install directory, key choices made
     - Primary path: "Restart your AI agent to load ARC configuration, then run `/arc-setup`"

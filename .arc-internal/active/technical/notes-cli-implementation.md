@@ -144,6 +144,31 @@ Type: select. Config key: `pm.mode`. Display labels map to config values: `none`
 Type: text. Token: `ARC_DIR`. Default: `.arc`. Prompted because changing post-install is
 essentially a re-install — all paths, cross-references, and agent instructions depend on it.
 
+### Post-Init Bridge Message (Task 3.7)
+
+Displayed after all files are created. Two paths: skill invocation (recommended) and
+copy-paste fallback. The skill won't be available until the agent harness restarts (needed
+anyway to pick up new config files).
+
+```text
+✔ ARC installed in .arc/ (42 files)
+
+Next: Restart your AI agent to load ARC configuration, then:
+  • Run /arc-setup                    (recommended)
+  • Or paste the prompt below
+
+  "Read .arc/system/agent/AGENTS.ARC.md and .arc/system/agent/AGENTS.PROJECT.md
+   for context, then read your agent-specific file if one exists, then run the
+   setup workflow at .arc/system/workflows/arc/initial-setup/"
+```
+
+If multiple tools were selected, tailor the message to the primary tool (first selected)
+or list all. The copy-paste fallback works regardless of harness — it's the universal path.
+
+The `/arc-setup` skill (created per selected tool during init — Task 3.4.d) contains the
+same bootstrap sequence: read AGENTS.ARC.md → AGENTS.PROJECT.md → agent-specific file →
+run setup workflow. The skill gives it a mechanical trigger instead of copy-paste.
+
 ## Template Rendering Syntax
 
 ### Token substitution
@@ -328,9 +353,8 @@ markers needed — the content reads correctly regardless of team mode setting.
 |-------------------------------------------|----------------------|---------------------|------------|
 | `system/arc-config.yml`                   | (programmatic write) | —                   | —          |
 | `system/agent/AGENTS.PROJECT.template.md` | PROJECT_NAME         | Component, src_dir, | —          |
-|                                           |                      | test_dir, etc.      |            |
-|                                           | PROJECT_TYPE,        |                     |            |
-|                                           | PRIMARY_GOAL         |                     |            |
+|                                           |                      | test_dir,           |            |
+|                                           |                      | PROJECT_TYPE, etc.  |            |
 | `reference/QUICK-REFERENCE.template.md`   | PROJECT_NAME,        | lint_command_*,     | —          |
 |                                           | REPO_ROOT            | test_command_*,     |            |
 |                                           |                      | type_check_*, etc.  |            |
@@ -357,8 +381,7 @@ markers needed — the content reads correctly regardless of team mode setting.
 | File                                              | Prompt Tokens       | Conditions |
 |---------------------------------------------------|---------------------|------------|
 | `active/WORK-STATUS.template.md`                  | —                   | —          |
-| `reference/META-PRD.template.md`                  | PROJECT_NAME,       | —          |
-|                                                   | PROJECT_DESCRIPTION |            |
+| `reference/META-PRD.template.md`                  | PROJECT_NAME        | —          |
 | `reference/TECHNICAL-OVERVIEW.template.md`        | PROJECT_NAME        | —          |
 | `reference/PROJECT-STATUS.template.md`            | PROJECT_NAME        | pm.mode    |
 | `backlog/ROADMAP.template.md`                     | —                   | pm.mode    |
@@ -367,7 +390,8 @@ markers needed — the content reads correctly regardless of team mode setting.
 
 **Framework files — copy as-is, except those with inline conditionals:**
 
-All 56 Framework files copy without modification. Two need inline `<!-- arc:if -->` markers:
+`system/agent/AGENTS.ARC.md` is Framework (added in 3.4.b). All other Framework files copy
+without modification. Two need inline `<!-- arc:if -->` markers:
 
 - `system/workflows/arc/session-lifecycle/session-init.md` (pm.mode sections)
 - `system/workflows/arc/3_process-task-loop.md` (ATOMIC-INBOX routing)
