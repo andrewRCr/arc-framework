@@ -3,7 +3,8 @@
 Guidance for Claude when working in the ARC framework repository. For shared rules and architecture, defer to the
 canonical docs:
 
-- [ARC-AGENTS](ARC-AGENTS.md) – Project context and collaboration principles
+- [AGENTS.ARC](AGENTS.ARC.md) – ARC framework orientation
+- [AGENTS.PROJECT](AGENTS.PROJECT.md) – Project context and collaboration principles
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
 - [DEV-RULES.PROJECT][dev-rules] – Project quality standards
 - [QUICK-REFERENCE][quick-ref] – Environment context and command patterns

@@ -25,7 +25,7 @@ carries for the entire session — whether or not it's relevant to the current t
 
 | Document                                  | Classification | Approx Size | Notes                                      |
 |-------------------------------------------|----------------|-------------|--------------------------------------------|
-| ARC-AGENTS.md                             | Agent context  | ~70 lines   | Project overview, collaboration principles |
+| AGENTS.ARC.md + AGENTS.PROJECT.md         | Agent context  | ~90 lines   | ARC orientation + project overview         |
 | Agent-specific file (e.g., CLAUDE.ARC.md) | Agent context  | ~60 lines   | Tool-specific guidance                     |
 | DEV-RULES.ARC.md                          | Constitutional | ~300 lines  | Methodology rules                          |
 | DEV-RULES.PROJECT.md                      | Constitutional | ~125 lines  | Project quality standards                  |
@@ -70,7 +70,7 @@ DEV-RULES.ARC is often a sharper sentence, not an additional paragraph.
 
 ### Remediation guidance by document zone
 
-**Zone 1 — Init-loaded documents** (ARC-AGENTS.md, DEV-RULES.ARC, DEV-RULES.PROJECT, STRATEGY-INDEX,
+**Zone 1 — Init-loaded documents** (AGENTS.ARC.md, AGENTS.PROJECT.md, DEV-RULES.ARC, DEV-RULES.PROJECT, STRATEGY-INDEX,
 QUICK-REFERENCE, agent-specific files):
 
 - **Hard constraint:** No net increase in document length. Every line added must be offset by a

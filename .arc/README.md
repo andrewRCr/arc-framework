@@ -33,7 +33,7 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 ├── user/                      # Personal workspace: per-developer session state and task capture
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
-    ├── agent/                 # AI agent configuration (ARC-AGENTS.md + tool-specific files)
+    ├── agent/                 # AI agent configuration (AGENTS.ARC.md, AGENTS.PROJECT.md, tool-specific)
     ├── commands/              # Slash commands
     ├── githooks/              # Git hook scripts
     └── workflows/             # Development process workflows

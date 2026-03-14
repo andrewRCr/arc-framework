@@ -82,57 +82,67 @@ on release tags extracts `packages/arc-framework/`, `.arc/` (framework templates
 files, then pushes to the public repo. npm publish happens directly from this private repo via
 CI (trusted publishing or npm token). See the WU4 plan for the full publish mirror pattern.
 
-## Init Recipe Sketch
+## Init Prompt UX Specification
 
-Declarative mapping — the render engine reads it to determine which files to process and which
-tokens/conditions to evaluate. Adding a new prompt or conditional file is a recipe edit, not a
-code change.
+Finalized prompt sequence for `arc init` (4 prompts). The recipe (`init-recipe.json`) stores
+config values and condition identifiers; the @clack/prompts implementation (Task 3.4.e) maps
+these to the user-facing rendering below.
 
-```json
-{
-  "prompts": [
-    {
-      "id": "project_name",
-      "type": "text",
-      "message": "Project name?",
-      "token": "PROJECT_NAME"
-    },
-    {
-      "id": "base_branch",
-      "type": "text",
-      "message": "Base branch?",
-      "default": "main",
-      "token": "BASE_BRANCH",
-      "config_key": "branch.base"
-    },
-    {
-      "id": "pm_mode",
-      "type": "select",
-      "message": "Where does your project management live?",
-      "options": ["none", "arc-in-git", "external"],
-      "default": "none",
-      "config_key": "pm.mode"
-    },
-    {
-      "id": "agents",
-      "type": "multiselect",
-      "message": "Which AI agents?",
-      "options": ["claude", "codex", "gemini", "copilot", "cursor", "windsurf"]
-    }
-  ],
-  "conditions": {
-    "pm.mode == arc-in-git": {
-      "include_files": [
-        "backlog/ROADMAP.template.md",
-        "backlog/feature/BACKLOG-FEATURE.template.md",
-        "backlog/technical/BACKLOG-TECHNICAL.template.md",
-        "reference/PROJECT-STATUS.template.md",
-        "reference/strategies/arc/strategy-backlog-organization.md"
-      ]
-    }
-  }
-}
+### Prompt 1: Project Name
+
+```text
+◆ Project name?
+│ my-project              ← default inferred from path.basename(cwd)
 ```
+
+Type: text. Token: `PROJECT_NAME`.
+
+### Prompt 2: Tool Selection
+
+```text
+◆ Which AI development tools do you use?
+│ ◻ Claude Code
+│ ◻ Codex
+│ ◻ Cursor
+│ ◻ GitHub Copilot
+│ ◻ Windsurf
+│ ◻ Gemini
+│ ◻ Warp
+```
+
+Type: multiselect. Display labels map to condition values: `claude`, `codex`, `cursor`,
+`copilot`, `windsurf`, `gemini`, `warp`. Joined as comma-separated string for condition
+evaluation (e.g., `tools includes claude`).
+
+### Prompt 3: Project Management Approach
+
+```text
+◆ Project management approach?
+│
+│ ● ARC Core — Methodology and workflows only
+│     Sessions, task execution, quality gates, context preservation.
+│     Use your own tools for planning and tracking.
+│
+│ ○ ARC Core + Planning — Built-in project management (recommended for solo/small teams)
+│     Everything in Core, plus roadmaps, backlogs, and status tracking
+│     managed alongside your code in git. (arc-in-git)
+│
+│ ○ External tools — Core methodology + external tracker integration
+│     Use ARC with Jira, Linear, GitHub Issues, or similar.
+```
+
+Type: select. Config key: `pm.mode`. Display labels map to config values: `none`,
+`arc-in-git`, `external`. Default: `none` (ARC Core).
+
+### Prompt 4: Install Directory
+
+```text
+◆ Install directory?
+│ .arc                    ← default
+```
+
+Type: text. Token: `ARC_DIR`. Default: `.arc`. Prompted because changing post-install is
+essentially a re-install — all paths, cross-references, and agent instructions depend on it.
 
 ## Template Rendering Syntax
 
@@ -251,14 +261,14 @@ relative to `.arc/`.
 
 **Prompt-driven tokens** — substituted by `renderTokens` during init from prompt responses:
 
-| Token                 | Source        | Default | Used In                                           |
-|-----------------------|---------------|---------|---------------------------------------------------|
-| `PROJECT_NAME`        | Init prompt   | —       | ARC-AGENTS.template, QUICK-REFERENCE.template,    |
-|                       |               |         | META-PRD.template, TECHNICAL-OVERVIEW.template,   |
-|                       |               |         | PROJECT-STATUS.template                           |
-| `PROJECT_DESCRIPTION` | Init prompt   | —       | ARC-AGENTS.template, META-PRD.template            |
-| `REPO_ROOT`           | Auto-detected | `pwd`   | QUICK-REFERENCE.template, session-init.md         |
-| `BASE_BRANCH`         | Init prompt   | `main`  | system/arc-config.yml (via config_key, not token) |
+| Token                 | Source        | Default | Used In                                            |
+|-----------------------|---------------|---------|----------------------------------------------------|
+| `PROJECT_NAME`        | Init prompt   | —       | AGENTS.PROJECT.template, QUICK-REFERENCE.template, |
+|                       |               |         | META-PRD.template, TECHNICAL-OVERVIEW.template,    |
+|                       |               |         | PROJECT-STATUS.template                            |
+| `PROJECT_DESCRIPTION` | _(removed)_   | —       | _(removed — filled during 02\_define-project)_     |
+| `REPO_ROOT`           | Auto-detected | `pwd`   | QUICK-REFERENCE.template, session-init.md          |
+| `BASE_BRANCH`         | Init prompt   | `main`  | system/arc-config.yml (via config_key, not token)  |
 
 Note: `BASE_BRANCH` writes to `arc-config.yml` via the `config_key` mapping in init-recipe,
 not through `{{TOKEN}}` substitution. The config file is written programmatically, not rendered.
@@ -306,7 +316,7 @@ Sections within Framework files that vary by configuration. These need `<!-- arc
 |----------------------------------------------------------|----------------|-------------------------------------|
 | `system/workflows/arc/session-lifecycle/session-init.md` | ~207-214       | none/external discovery alternative |
 
-**Note on team mode:** References to "team mode" in DEV-RULES.ARC, ARC-AGENTS.template, and
+**Note on team mode:** References to "team mode" in DEV-RULES.ARC, AGENTS.PROJECT.template, and
 process-task-loop are informational parentheticals, not conditional sections. No inline
 markers needed — the content reads correctly regardless of team mode setting.
 
@@ -314,33 +324,33 @@ markers needed — the content reads correctly regardless of team mode setting.
 
 **Configurable files — rendered (have tokens, conditionals, or guide-text placeholders):**
 
-| File                                            | Prompt Tokens        | Guide-Text Tokens   | Conditions |
-|-------------------------------------------------|----------------------|---------------------|------------|
-| `system/arc-config.yml`                         | (programmatic write) | —                   | —          |
-| `system/agent/ARC-AGENTS.template.md`           | PROJECT_NAME,        | Component, src_dir, | —          |
-|                                                 | PROJECT_DESCRIPTION, | test_dir, etc.      |            |
-|                                                 | PROJECT_TYPE,        |                     |            |
-|                                                 | PRIMARY_GOAL         |                     |            |
-| `reference/QUICK-REFERENCE.template.md`         | PROJECT_NAME,        | lint_command_*,     | —          |
-|                                                 | REPO_ROOT            | test_command_*,     |            |
-|                                                 |                      | type_check_*, etc.  |            |
+| File                                      | Prompt Tokens        | Guide-Text Tokens   | Conditions |
+|-------------------------------------------|----------------------|---------------------|------------|
+| `system/arc-config.yml`                   | (programmatic write) | —                   | —          |
+| `system/agent/AGENTS.PROJECT.template.md` | PROJECT_NAME         | Component, src_dir, | —          |
+|                                           |                      | test_dir, etc.      |            |
+|                                           | PROJECT_TYPE,        |                     |            |
+|                                           | PRIMARY_GOAL         |                     |            |
+| `reference/QUICK-REFERENCE.template.md`   | PROJECT_NAME,        | lint_command_*,     | —          |
+|                                           | REPO_ROOT            | test_command_*,     |            |
+|                                           |                      | type_check_*, etc.  |            |
 
 **Configurable files — copied as-is (no rendering, customized in place by adopters):**
 
-| File                                            | Notes                                             |
-|-------------------------------------------------|---------------------------------------------------|
-| `system/agent/CLAUDE.ARC.md`                    | Agent-specific config; conditionally included     |
-| `system/agent/CODEX.ARC.md`                     | Agent-specific config; conditionally included     |
-| `system/agent/GEMINI.ARC.md`                    | Agent-specific config; conditionally included     |
-| `system/agent/WARP.ARC.md`                      | Agent-specific config; conditionally included     |
-| `system/agent/COPILOT.ARC.md`                   | Agent-specific config; conditionally included     |
-| `system/agent/CURSOR.ARC.md`                    | Agent-specific config; conditionally included     |
-| `system/agent/WINDSURF.ARC.md`                  | Agent-specific config; conditionally included     |
-| `reference/constitution/DEV-RULES.PROJECT.md`   | Inline examples serve as guidance, not templates  |
-| `reference/strategies/STRATEGY-INDEX.md`        | Users add project strategies to existing sections |
-| `reference/archive/README.md`                   | Light-configurable, user-populated section        |
-| `system/workflows/arc-methods.md`               | Users fill `.override` sections                   |
-| `system/workflows/arc-extensions.md`            | Users fill extension point slots                  |
+| File                                          | Notes                                             |
+|-----------------------------------------------|---------------------------------------------------|
+| `system/agent/CLAUDE.ARC.md`                  | Agent-specific config; conditionally included     |
+| `system/agent/CODEX.ARC.md`                   | Agent-specific config; conditionally included     |
+| `system/agent/GEMINI.ARC.md`                  | Agent-specific config; conditionally included     |
+| `system/agent/WARP.ARC.md`                    | Agent-specific config; conditionally included     |
+| `system/agent/COPILOT.ARC.md`                 | Agent-specific config; conditionally included     |
+| `system/agent/CURSOR.ARC.md`                  | Agent-specific config; conditionally included     |
+| `system/agent/WINDSURF.ARC.md`                | Agent-specific config; conditionally included     |
+| `reference/constitution/DEV-RULES.PROJECT.md` | Inline examples serve as guidance, not templates  |
+| `reference/strategies/STRATEGY-INDEX.md`      | Users add project strategies to existing sections |
+| `reference/archive/README.md`                 | Light-configurable, user-populated section        |
+| `system/workflows/arc-methods.md`             | Users fill `.override` sections                   |
+| `system/workflows/arc-extensions.md`          | Users fill extension point slots                  |
 
 **Scaffolded files — template copies, user replaces all content:**
 

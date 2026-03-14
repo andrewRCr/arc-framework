@@ -1,4 +1,4 @@
-# ARC-AGENTS.md — ARC Framework Agent Briefing
+# AGENTS.PROJECT.md — ARC Framework Agent Briefing
 
 ## Project Overview
 
@@ -44,5 +44,6 @@ with strong default conventions that teams adapt to their context
 
 ---
 
-_This is the shared entry point for all AI agents working on this project.
-Agent-specific guidance lives in dedicated files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._
+_This is the project-specific entry point for AI agents. ARC framework orientation lives in
+[AGENTS.ARC.md](AGENTS.ARC.md). Agent-specific guidance lives in dedicated files
+(e.g., CLAUDE.ARC.md, CODEX.ARC.md)._

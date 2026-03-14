@@ -344,13 +344,111 @@ working ARC installation.
             - Archive files and ADRs left unchanged (historical reference)
             - All quality gates pass: 0 lint errors, typecheck clean, 84 tests passing
 
-- [ ] **3.4 Implement interactive prompts (`src/prompts/init-prompts.ts`)**
-    - @clack/prompts flow driven by init recipe
-    - Project identity prompts (name, description)
-    - Development environment prompts (test commands, lint commands)
-    - Workflow option prompts (base branch, branch protection, PM mode, team mode, merge strategy)
-    - Agent selection (multiselect)
-    - Install directory prompt (default `.arc/`)
+- [ ] **3.4 Init UX redesign — prompts, templates, and setup bridge**
+
+    **Goal:** Reduce init prompts from 10 to 4 (project name, tools, PM mode, install dir),
+    split agent hub file for clean ARC/project separation, revise post-init workflow for
+    agent-guided configuration, and establish a smooth bridge from CLI init to agent-led setup.
+
+    **Design context:** Init should collect only decisions with structural impact (which files
+    exist, where they go). Config-only values (base branch, protection mode, merge strategy,
+    platform, team mode) ship as documented defaults in `arc-config.yml` — editable anytime
+    with no post-init structural impact. Project description moves to `02_define-project`
+    workflow where it naturally belongs (META-PRD creation). The multiselect is reframed as
+    tool selection (not model selection) — each option represents a development tool ecosystem,
+    determining which agent config files and skill directories are created.
+
+    - [x] **3.4.a Recipe and template redesign**
+
+        Recipe reduced from 10 prompts to 4. Renamed `agents` → `tools` throughout.
+
+        - Removed 6 prompts (`project_description`, `base_branch`, `branch_protection`,
+          `team_mode`, `merge_strategy`, `platform`) — these ship as `arc-config.yml` defaults
+        - Renamed `agents` → `tools`: recipe key, `InstallConfig` field (removed `base_branch`
+          and `team_mode` fields), condition keys, JSDoc, all test fixtures
+        - Kept 4 prompts: `project_name` (text, token), `tools` (multiselect), `pm_mode`
+          (select, config_key), `arc_dir` (text, token)
+        - PM mode prompt message updated to "Project management approach?" (value-oriented
+          labels deferred to 3.4.e @clack/prompts implementation — recipe stores config values)
+        - Replaced `{{PROJECT_DESCRIPTION}}` token with placeholder text in
+          `META-PRD.template.md` and `ARC-AGENTS.template.md`
+        - Updated `WORK-STATUS.template.md` initial Next Action to point to
+          `initial-setup/01_verify-and-configure.md`
+        - All quality gates pass: typecheck clean, 84 tests passing, 0 lint errors
+
+    - [x] **3.4.b Agent file split: ARC-AGENTS → AGENTS.ARC + AGENTS.PROJECT**
+
+        Split agent hub into two files with distinct classifications, paralleling
+        `DEV-RULES.ARC` / `DEV-RULES.PROJECT`.
+
+        - Created `AGENTS.ARC.md` (Framework): ARC methodology brief — how ARC works,
+          key documents table, directory structure. 47 lines, concise for every-session loading.
+          `{{ARC_DIR}}` stays in AGENTS.PROJECT (project repo layout context, not ARC-structural)
+        - Renamed `ARC-AGENTS.template.md` → `AGENTS.PROJECT.template.md` (Configurable):
+          header updated, footer updated with sibling references
+        - Created `.arc-internal/` versions (AGENTS.ARC.md + AGENTS.PROJECT.md)
+        - Updated init recipe: added AGENTS.ARC.md to `include_files`, renamed template ref
+        - Updated file classification strategy: replaced ARC-AGENTS entry with two entries
+          (AGENTS.ARC Framework + AGENTS.PROJECT Configurable)
+        - Updated session-init loading order in both `.arc/` and `.arc-internal/`: items 1-2
+          now AGENTS.ARC + AGENTS.PROJECT, renumbered 3→4 through 9→10
+        - Updated 12 agent spoke files (7 template + 5 internal): link now references both hubs
+        - Updated agent/ README.md: rewrote architecture from hub-spoke to dual-hub pattern
+        - Updated cross-references in: strategy-file-classification (4 refs),
+          strategy-context-loading (2), strategy-core-philosophy (1), maintain-project-docs (3),
+          .arc/README (1), README-ASPIRATIONAL (1), internal META-PRD (1), PROJECT-STATUS (1),
+          analysis-workflow-clarity-audit (2), research-context-loading (4),
+          notes-cli-implementation (4), recipe.test.ts (1), .codex skill (1), .gemini command (1),
+          .claude agent (1)
+        - All quality gates pass: typecheck clean, 84 tests passing, 0 lint errors
+
+    - [ ] **3.4.c Workflow and session-init updates**
+
+        Rename post-init workflow to avoid collision with `arc init` CLI command.
+        Add agent-guided config walkthrough. Update session-init loading order.
+
+        - Rename `01_initialize-arc.md` → `01_verify-and-configure.md`
+        - Add agent-guided `arc-config.yml` walkthrough section: agent reads config,
+          presents each section conversationally, offers to adjust values
+        - Keep automated verification checks (directory structure, session state, agent setup)
+        - Ensure 01 flows explicitly to 02 ("Proceeding to project definition")
+        - Update `session-init.md` loading order:
+            1. `AGENTS.ARC.md` — ARC methodology (new)
+            2. `AGENTS.PROJECT.md` — Project identity (renamed)
+            3. `{AGENT}.ARC.md` — Agent-specific (unchanged)
+        - Update all cross-references to renamed workflow
+
+    - [ ] **3.4.d Setup bridge: arc-setup skill and README**
+
+        Establish the bridge from CLI init to agent-led setup. Two mechanisms:
+        skill invocation (recommended) and copy-paste fallback.
+
+        - Create `arc-setup` canonical skill content — a mini bootstrap sequence:
+            1. Read `.arc/system/agent/AGENTS.ARC.md` (understand ARC)
+            2. Read `.arc/system/agent/AGENTS.PROJECT.md` (understand project)
+            3. Read agent-specific file if one exists
+            4. Run setup workflow at `.arc/system/workflows/arc/initial-setup/`
+        - Add `arc-setup` to skill generation targets (generated per selected tool
+          during init — `.claude/skills/`, `.cursor/skills/`, etc.)
+        - Refresh `.arc/README.md`: add "What is ARC" section, add "Getting started"
+          pointer, keep directory tree and document audiences, dual-audience tone
+        - Note: skill availability requires agent harness restart — post-init
+          message (3.7) must account for this with both options
+
+    - [ ] **3.4.e Implement prompts (`src/prompts/init-prompts.ts`)**
+
+        @clack/prompts flow for the 4-prompt sequence. See `notes-cli-implementation.md`
+        § Init Prompt UX Specification for finalized wording, display labels, and
+        label-to-config-value mappings.
+
+        - `project_name`: text input, default from `path.basename(cwd)`
+        - `tools`: multiselect with display labels (Claude Code, Codex, Cursor,
+          GitHub Copilot, Windsurf, Gemini, Warp) mapped to condition values
+        - `pm_mode`: select with descriptive multi-line labels (ARC Core / ARC Core +
+          Planning / External tools) per @clack/prompts API
+        - `arc_dir`: text input, default `.arc`
+        - Map prompt responses to `InstallConfig` + token map + condition config
+        - Handle non-interactive mode (future: `--yes` flag with all defaults)
 
 - [ ] **3.5 Define skill generation interface (`src/lib/skills.ts`)**
 
@@ -358,10 +456,10 @@ working ARC installation.
     the real implementation behind a stable interface. Reference: ADR-011 (generation targets).
 
     - Define types: `SkillGenerationTarget`, `SkillOutput` — generation target table per
-      ADR-011 (Claude → `.claude/skills/`, Codex → `.agents/skills/`, Cursor →
-      `.cursor/skills/`, Copilot → `.github/skills/`, Windsurf → `.windsurf/skills/`,
-      Gemini → `.agents/skills/`)
-    - Define `generateSkills()` signature: selected agents, ARC dir, canonical skill path →
+      ADR-011 (Claude Code → `.claude/skills/`, Codex → `.agents/skills/`, Cursor →
+      `.cursor/skills/`, GitHub Copilot → `.github/skills/`, Windsurf → `.windsurf/skills/`,
+      Gemini → `.gemini/skills/`)
+    - Define `generateSkills()` signature: selected tools, ARC dir, canonical skill path →
       skill output list
     - Implement as no-op returning empty array (Phase 6 replaces with real implementation)
     - Export types for init command and Phase 6 consumption
@@ -371,7 +469,7 @@ working ARC installation.
     - [ ] **3.6.a Core init flow**
 
         Build `test-first` (one behavior at a time):
-        - Config assembly: prompt responses mapped to install config object; `agents`
+        - Config assembly: prompt responses mapped to install config object; `tools`
           multiselect joined as comma-separated string for condition evaluation
         - Condition evaluation: recipe conditions filter file list based on config
         - Token rendering: template files produce output with all placeholders resolved
@@ -381,7 +479,7 @@ working ARC installation.
         - File output: rendered files written to correct install directory paths
         - Config output: copy `arc-config.yml` template and overwrite specific values
           (preserves inline documentation comments for adopters)
-        - Skill generation: call `generateSkills()` interface (3.5) with selected agents
+        - Skill generation: call `generateSkills()` interface (3.5) with selected tools
         - No residual markers: output files contain no `{{TOKEN}}` or `<!-- arc:if -->` artifacts
 
     - [ ] **3.6.b Pristine and manifest creation**
@@ -395,11 +493,18 @@ working ARC installation.
         - Run `git config merge.ours.driver true`
         - Install markdownlint config (`.markdownlint-cli2.jsonc`)
 
-- [ ] **3.7 Implement post-init messaging**
-    - Print concise summary after init: what was installed, configuration choices made
-    - Point to verification workflow (`01_initialize-arc.md`)
-    - Highlight core workflow quartet: create-prd, generate-tasks, process-task-loop, session-init
-    - Orient without overwhelming — adopter's first interaction with ARC's workflow model
+- [ ] **3.7 Implement post-init messaging (bridge UX)**
+
+    The post-init message is the only bridge between CLI init and agent-led setup. It must be
+    clear, actionable, and account for the agent harness restart requirement.
+
+    - Print concise summary: files installed, install directory, key choices made
+    - Primary path: "Restart your AI agent to load ARC configuration, then run `/arc-setup`"
+    - Fallback path: copy-pasteable prompt for agents without skill support (read
+      `AGENTS.ARC.md`, `AGENTS.PROJECT.md`, agent-specific file, then run setup workflow)
+    - Agent-specific tailoring: if possible, customize the message based on selected
+      tools (e.g., "For Claude Code, say: ...")
+    - Orient without overwhelming — this is the adopter's first impression after init
 
 - [ ] **3.8 Write integration tests for init flow**
     - Test: init in empty git repo → verify directory structure, file contents, manifest, pristine
@@ -407,6 +512,8 @@ working ARC installation.
     - Test: `.gitignore` and `.gitattributes` contain expected entries
     - Test: manifest file inventory matches files on disk
     - Test: pristine hashes match rendered file content
+    - Test: agent file split present in output (`AGENTS.ARC.md` + `AGENTS.PROJECT.md`)
+    - Test: `WORK-STATUS.md` initial Next Action points to setup workflow
 
 - [ ] **3.9 Run quality gates**
     - Type checking passes

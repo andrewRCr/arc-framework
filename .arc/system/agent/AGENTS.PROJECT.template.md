@@ -1,8 +1,12 @@
-# ARC-AGENTS.md — {{PROJECT_NAME}} Agent Briefing
+# AGENTS.PROJECT.md — {{PROJECT_NAME}} Agent Briefing
+
+<!-- This file is an agent-facing executive summary. META-PRD.md (reference/constitution/)
+     and TECHNICAL-OVERVIEW.md (reference/) contain the full versions. Keep this file
+     concise — agents load it every session. -->
 
 ## Project Overview
 
-{{PROJECT_DESCRIPTION}}
+[Brief project description — filled during project definition (`02_define-project`)]
 
 **Project Type**: [PROJECT_TYPE]
 **Primary Goal**: [PRIMARY_GOAL]
@@ -43,5 +47,6 @@
 
 ---
 
-_This is the shared entry point for all AI agents working on this project.
-Agent-specific guidance lives in dedicated files._
+_This is the project-specific entry point for AI agents. ARC framework orientation lives in
+[AGENTS.ARC.md](AGENTS.ARC.md). Agent-specific guidance lives in dedicated files
+(e.g., CLAUDE.ARC.md, CODEX.ARC.md)._

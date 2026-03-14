@@ -305,9 +305,9 @@ compatible — some agent types are philosophically misaligned with ARC's co-dev
 goal is clarity about which assumptions are load-bearing and where the methodology applies, not
 universal compatibility.
 
-*Conventions:* The hub-spoke file architecture — ARC-AGENTS.md as the shared entry point for all
-agents, with agent-specific files (CLAUDE.ARC.md, GEMINI.ARC.md, etc.) supplementing guidance unique to
-each tool. This structure supports multi-agent use within a project: teams may use different agents
+*Conventions:* The hub-spoke file architecture — AGENTS.ARC.md (framework orientation) and
+AGENTS.PROJECT.md (project context) as shared entry points, with agent-specific files (CLAUDE.ARC.md,
+GEMINI.ARC.md, etc.) supplementing guidance unique to each tool. This structure supports multi-agent use within a project: teams may use different agents
 for different tasks or phases, and each agent loads the shared methodology plus its own operational
 guidance. The specific file naming, agent-neutral workflow abstractions, and what lives in shared
 docs versus agent-specific files are all convention.

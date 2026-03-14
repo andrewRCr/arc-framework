@@ -126,8 +126,8 @@ Stable, long-lived project knowledge:
 - **Strategies** — Implementation patterns codified from real usage (testing approach,
   component patterns, authentication, whatever applies to your project)
 - **ADRs** — Architecture Decision Records for significant design choices
-- **Agent configuration** — Central reference card (ARC-AGENTS.md) extended by
-  agent-specific files (CLAUDE.ARC.md, GEMINI.ARC.md, etc.)
+- **Agent configuration** — ARC orientation (AGENTS.ARC.md) + project context (AGENTS.PROJECT.md)
+  extended by agent-specific files (CLAUDE.ARC.md, GEMINI.ARC.md, etc.)
 - **Archive** — Completed work preserved as searchable project history
 
 ## Getting Started

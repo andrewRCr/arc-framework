@@ -52,42 +52,45 @@ override instead.
 
 **Project identity and agent context:**
 
-1. `.arc-internal/system/agent/ARC-AGENTS.md` - **MUST READ IN FULL**
-   - Project overview, technology stack, and AI collaboration principles
+1. `.arc-internal/system/agent/AGENTS.ARC.md` - **MUST READ IN FULL**
+   - ARC framework orientation — methodology, key documents, directory structure
 
-2. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
+2. `.arc-internal/system/agent/AGENTS.PROJECT.md` - **MUST READ IN FULL**
+   - Project overview, technology stack, and collaboration context
+
+3. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
    - Path: `.arc-internal/system/agent/[AGENT].ARC.md` (e.g., CLAUDE.ARC.md, GEMINI.ARC.md, CODEX.ARC.md)
    - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
    - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
 
 **Constitutional and process context:**
 
-3. `.arc/reference/constitution/DEV-RULES.ARC.md` - **MUST READ IN FULL**
+4. `.arc/reference/constitution/DEV-RULES.ARC.md` - **MUST READ IN FULL**
    - Framework development methodology: commit standards, verification, session/task management
 
-4. `.arc-internal/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
+5. `.arc-internal/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
    - Project quality gates, testing requirements, code quality, and architecture rules
 
-5. **Strategy indexes** (both) - **MUST READ IN FULL**
+6. **Strategy indexes** (both) - **MUST READ IN FULL**
    - `.arc/reference/strategies/STRATEGY-INDEX.md` — framework methodology strategies
    - `.arc-internal/reference/strategies/STRATEGY-INDEX.md` — project-specific strategies
    - Together these establish what domain-specific patterns exist across both layers
 
-6. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
+7. `.arc-internal/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
    - Environment context, command patterns, and quality gate commands
 
 **Active work context:**
 
-7. `.arc-internal/active/WORK-STATUS.md` - **MUST READ IN FULL**
+8. `.arc-internal/active/WORK-STATUS.md` - **MUST READ IN FULL**
    - Project state: branch, task list path, next task, blockers, and next action
    - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
-     Skip step 9 (task list loading). Session orientation will report this state and surface
+     Skip step 10 (task list loading). Session orientation will report this state and surface
      the Next Action from WORK-STATUS.md (typically: create a PRD or plan new work).
    - **Task reference format**: Next Task uses triple-anchor format —
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
-8. `.arc-internal/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
+9. `.arc-internal/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
    - Path: `.arc-internal/user/{identity}/SESSION-NOTES.md` where `{identity}` is resolved from
      `git config arc.identity` (or slugified `git config user.name` as fallback). Run these as
      separate commands — chained shell expressions may not match agent auto-approve patterns.
@@ -99,7 +102,7 @@ override instead.
      content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
      capability assumptions)
 
-9. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
+10. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
 
    **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task list to load.
 

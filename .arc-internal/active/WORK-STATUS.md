@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.4 — Implement interactive prompts (line ~364)
-**Last Completed**: Task 3.3.R — Recipe, template, and render engine fixes
+**Next Task**: Task 3.4.c — Workflow and session-init updates (line ~420)
+**Last Completed**: Task 3.4.b — Agent file split (AGENTS.ARC + AGENTS.PROJECT)
 **Blockers**: [none]
-**Next Action**: Begin 3.4 (implement `src/prompts/init-prompts.ts`)
+**Next Action**: Begin 3.4.c (rename 01_initialize-arc → 01_verify-and-configure, add config walkthrough)
 
 ---
 
