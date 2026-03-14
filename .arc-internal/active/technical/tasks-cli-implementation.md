@@ -432,8 +432,10 @@ working ARC installation.
           during init — `.claude/skills/`, `.cursor/skills/`, etc.)
         - Refresh `.arc/README.md`: add "What is ARC" section, add "Getting started"
           pointer, keep directory tree and document audiences, dual-audience tone
+        - Reference arc-verify as optional post-setup step: "run `/arc-verify`
+          to confirm everything installed correctly"
         - Note: skill availability requires agent harness restart — post-init
-          message (3.7) must account for this with both options
+          message (3.8) must account for this with both options
         - Design decision: AGENTS.ARC.md must NOT contain a "if this is a fresh
           installation" pointer — it's loaded every session and would confuse agents
           during normal session-init. The skill/prompt handles first-time routing.
@@ -453,23 +455,88 @@ working ARC installation.
         - Map prompt responses to `InstallConfig` + token map + condition config
         - Handle non-interactive mode (future: `--yes` flag with all defaults)
 
-- [ ] **3.5 Define skill generation interface (`src/lib/skills.ts`)**
+- [ ] **3.5 ARC integrity verification — scripts, workflow, and skill**
 
-    **Goal:** Establish the contract that the init command (3.6) calls, so Phase 6 fills in
+    **Goal:** Create a deterministic health-check capability for ARC installations. Verification
+    scripts run mechanical checks (config validity, file structure, reference integrity, hook
+    status); a workflow document defines severity levels and remediation guidance; a canonical
+    skill provides the user invocation point.
+
+    **Placement:** Scripts in `.arc/system/scripts/`, workflow in
+    `.arc/system/workflows/arc/supplemental/`, skill in `.arc/system/skills/`.
+
+    - [ ] **3.5.a Create scripts directory and `validate-config.sh`**
+
+        Establish `.arc/system/scripts/` as the home for deterministic tooling that
+        isn't a git hook.
+
+        - Create directory with README (purpose: mechanical checks, distinct from hooks)
+        - `validate-config.sh`: validate `arc-config.yml` — enum checking for all keys,
+          cross-field dependency enforcement (`custom` format requires pattern), unknown
+          key detection (typo protection)
+        - POSIX-compatible, no dependencies beyond standard unix tools
+        - Structured output: one line per check with PASS/WARN/ERROR prefix
+        - Exit codes: 0 (all pass), 1 (warnings), 2 (errors)
+        - Independent callers: hooks (DRY — could source instead of inline parsing),
+          verify-integrity script, agents validating post-edit config
+        - Add to init recipe `include_files`; mirror to `.arc-internal/`
+
+    - [ ] **3.5.b Write `verify-integrity.sh` and workflow document**
+
+        Orchestrator script that runs all mechanical checks, plus the workflow document
+        that defines what checks mean and how agents should interpret results.
+
+        **Script** (`verify-integrity.sh`):
+        - Config validation: calls `validate-config.sh`
+        - File structure: expected core files exist (AGENTS.ARC, AGENTS.PROJECT,
+          DEV-RULES.ARC, DEV-RULES.PROJECT, QUICK-REFERENCE, WORK-STATUS, arc-config,
+          arc-methods, arc-extensions); agent files match configured tools
+        - Reference integrity: reference-style markdown links resolve to existing files
+        - Strategy index consistency: entries ↔ files bidirectional check
+        - Hook status: hooks exist and are executable when enabled in config
+        - Session state: WORK-STATUS task list path valid, next task reference resolves
+        - Method/extension structure: `.override`/`.default`/`.steps` sections present
+        - Config-aware: reads `arc-config.yml` to determine expectations
+        - Manifest-aware: uses `.arc-manifest.json` if present, falls back to
+          config-based expectations
+        - Three-severity output: ERROR / WARN / INFO with summary line
+
+        **Workflow** (`supplemental/verify-arc-integrity.md`):
+        - Check category definitions and rationale
+        - Severity level guidance (error = broken, warn = drift, info = informational)
+        - Remediation hints for common failures
+        - Agent role: run script, interpret results, offer targeted fixes
+        - Integration points: post-setup, standalone health check, post-modification gate
+
+        - Add both to init recipe `include_files`; mirror to `.arc-internal/`
+
+    - [ ] **3.5.c Create `arc-verify` canonical skill**
+
+        Skill content that wraps the verification workflow for user invocation.
+
+        - Thin wrapper: run `verify-integrity.sh`, interpret results per workflow
+        - Add to canonical skill list for generation targets (Task 3.6 defines
+          interface, Phase 6 implements generation)
+        - Add skill source file to init recipe `include_files`
+
+- [ ] **3.6 Define skill generation interface (`src/lib/skills.ts`)**
+
+    **Goal:** Establish the contract that the init command (3.7) calls, so Phase 6 fills in
     the real implementation behind a stable interface. Reference: ADR-011 (generation targets).
 
     - Define types: `SkillGenerationTarget`, `SkillOutput` — generation target table per
       ADR-011 (Claude Code → `.claude/skills/`, Codex → `.agents/skills/`, Cursor →
       `.cursor/skills/`, GitHub Copilot → `.github/skills/`, Windsurf → `.windsurf/skills/`,
       Gemini → `.gemini/skills/`)
+    - Include `arc-verify` alongside `arc-setup` in canonical skill target list
     - Define `generateSkills()` signature: selected tools, ARC dir, canonical skill path →
       skill output list
     - Implement as no-op returning empty array (Phase 6 replaces with real implementation)
     - Export types for init command and Phase 6 consumption
 
-- [ ] **3.6 Implement init command (`src/commands/init.ts`)**
+- [ ] **3.7 Implement init command (`src/commands/init.ts`)**
 
-    - [ ] **3.6.a Core init flow**
+    - [ ] **3.7.a Core init flow**
 
         Build `test-first` (one behavior at a time):
         - Config assembly: prompt responses mapped to install config object; `tools`
@@ -482,21 +549,21 @@ working ARC installation.
         - File output: rendered files written to correct install directory paths
         - Config output: copy `arc-config.yml` template and overwrite specific values
           (preserves inline documentation comments for adopters)
-        - Skill generation: call `generateSkills()` interface (3.5) with selected tools
+        - Skill generation: call `generateSkills()` interface (3.6) with selected tools
         - No residual markers: output files contain no `{{TOKEN}}` or `<!-- arc:if -->` artifacts
 
-    - [ ] **3.6.b Pristine and manifest creation**
+    - [ ] **3.7.b Pristine and manifest creation**
         - Copy rendered Framework and Configurable files to `.pristine/`
         - Compute `pristine_hash` for each file
         - Write `.arc-manifest.json` with version, config, file inventory
 
-    - [ ] **3.6.c Git integration setup**
+    - [ ] **3.7.c Git integration setup**
         - Add `.pristine/` and `user/*/` contents to `.gitignore` (ADR-012: user dir gitignored)
         - Add `WORK-STATUS.md merge=ours` to `.gitattributes`
         - Run `git config merge.ours.driver true`
         - Install markdownlint config (`.markdownlint-cli2.jsonc`)
 
-- [ ] **3.7 Implement post-init messaging (bridge UX)**
+- [ ] **3.8 Implement post-init messaging (bridge UX)**
 
     The post-init message is the only bridge between CLI init and agent-led setup. See
     `notes-cli-implementation.md` § Post-Init Bridge Message for finalized wording.
@@ -509,7 +576,7 @@ working ARC installation.
       tools (e.g., "For Claude Code, say: ...")
     - Orient without overwhelming — this is the adopter's first impression after init
 
-- [ ] **3.8 Write integration tests for init flow**
+- [ ] **3.9 Write integration tests for init flow**
     - Test: init in empty git repo → verify directory structure, file contents, manifest, pristine
     - Test: rendered files contain no template tokens or conditional markers
     - Test: `.gitignore` and `.gitattributes` contain expected entries
@@ -517,8 +584,10 @@ working ARC installation.
     - Test: pristine hashes match rendered file content
     - Test: agent file split present in output (`AGENTS.ARC.md` + `AGENTS.PROJECT.md`)
     - Test: `WORK-STATUS.md` initial Next Action points to setup workflow
+    - Test: verify script files installed (`scripts/validate-config.sh`,
+      `scripts/verify-integrity.sh`)
 
-- [ ] **3.9 Run quality gates**
+- [ ] **3.10 Run quality gates**
     - Type checking passes
     - All tests pass (unit + integration)
     - Markdown linting passes
@@ -665,7 +734,7 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
         - Install `SESSION-NOTES.md` template (Core — all modes)
         - Install `ATOMIC-INBOX.md` template (arc-in-git only — gated by PM mode, task 7.2)
         - `user/README.md` tracked (explains personal workspace concept)
-        - `user/{identity}/` contents gitignored (added in 3.5.c pattern)
+        - `user/{identity}/` contents gitignored (added in 3.7.c pattern)
 
     - [ ] **7.1.c Init: team mode behavioral config**
         - `team.mode` config key in `arc-config.yml` (boolean: true/false)

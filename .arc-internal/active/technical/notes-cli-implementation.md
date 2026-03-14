@@ -144,7 +144,7 @@ Type: select. Config key: `pm.mode`. Display labels map to config values: `none`
 Type: text. Token: `ARC_DIR`. Default: `.arc`. Prompted because changing post-install is
 essentially a re-install — all paths, cross-references, and agent instructions depend on it.
 
-### Post-Init Bridge Message (Task 3.7)
+### Post-Init Bridge Message (Task 3.8)
 
 Displayed after all files are created. Two paths: skill invocation (recommended) and
 copy-paste fallback. The skill won't be available until the agent harness restarts (needed
