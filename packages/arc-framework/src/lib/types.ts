@@ -21,11 +21,9 @@ export interface FileEntry {
 /** Adopter's init configuration, stored in the manifest for re-rendering during updates. */
 export interface InstallConfig {
   project_name: string;
-  base_branch: string;
   pm_mode: string;
-  team_mode: boolean;
   arc_dir: string;
-  agents: string[];
+  tools: string[];
 }
 
 /** Top-level manifest structure (`.arc-manifest.json`). */

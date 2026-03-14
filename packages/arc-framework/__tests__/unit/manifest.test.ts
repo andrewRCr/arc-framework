@@ -15,11 +15,9 @@ function validManifest(): Manifest {
     installed_at: "2026-03-12T00:00:00.000Z",
     install_config: {
       project_name: "My App",
-      base_branch: "main",
       pm_mode: "none",
-      team_mode: false,
       arc_dir: ".arc",
-      agents: ["claude"],
+      tools: ["claude"],
     },
     files: {
       "reference/constitution/DEV-RULES.ARC.md": {

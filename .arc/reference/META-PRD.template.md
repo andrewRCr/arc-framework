@@ -6,8 +6,6 @@ reference this for context.
 
 ## 1. Purpose
 
-{{PROJECT_DESCRIPTION}}
-
 What your project does, who it's for, and why it exists. Include key external dependencies
 or integrations that shape the project's scope.
 

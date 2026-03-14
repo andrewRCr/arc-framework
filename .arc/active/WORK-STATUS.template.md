@@ -19,7 +19,7 @@
 **Next Task**: —
 **Last Completed**: —
 **Blockers**: [none]
-**Next Action**: Create a PRD when ready to start planned work → `1_create-prd.md`
+**Next Action**: Complete post-install setup → `initial-setup/01_verify-and-configure.md`
 
 ---
 

@@ -16,7 +16,8 @@ function validRecipe(): Recipe {
   return {
     include_files: [
       "reference/QUICK-REFERENCE.template.md",
-      "system/agent/ARC-AGENTS.template.md",
+      "system/agent/AGENTS.ARC.md",
+      "system/agent/AGENTS.PROJECT.template.md",
     ],
     computed_tokens: {
       REPO_ROOT: "Auto-detected from working directory at init time",
@@ -29,25 +30,18 @@ function validRecipe(): Recipe {
         token: "PROJECT_NAME",
       },
       {
+        id: "tools",
+        type: "multiselect",
+        message: "Which AI development tools do you use?",
+        options: ["claude", "codex", "cursor", "copilot", "windsurf", "gemini"],
+      },
+      {
         id: "pm_mode",
         type: "select",
-        message: "Where does your project management live?",
+        message: "Project management approach?",
         options: ["none", "arc-in-git", "external"],
         default: "none",
         config_key: "pm.mode",
-      },
-      {
-        id: "agents",
-        type: "multiselect",
-        message: "Which AI agents?",
-        options: ["claude", "codex", "gemini", "copilot", "cursor", "windsurf"],
-      },
-      {
-        id: "team_mode",
-        type: "confirm",
-        message: "Enable team mode?",
-        default: false,
-        config_key: "team.mode",
       },
       {
         id: "arc_dir",
@@ -64,7 +58,7 @@ function validRecipe(): Recipe {
           "reference/PROJECT-STATUS.template.md",
         ],
       },
-      "agents includes claude": {
+      "tools includes claude": {
         include_files: ["system/agent/CLAUDE.ARC.md"],
       },
     },
@@ -81,7 +75,7 @@ describe("validateRecipe", () => {
   it("accepts conditions with includes operator", () => {
     const recipe = validRecipe();
     recipe.conditions = {
-      "agents includes claude": {
+      "tools includes claude": {
         include_files: ["system/agent/CLAUDE.ARC.md"],
       },
     };
@@ -234,34 +228,34 @@ describe("evaluateCondition", () => {
 
   it("returns true when includes matches an item in comma-separated list", () => {
     expect(
-      evaluateCondition("agents includes claude", {
-        agents: "claude,codex,gemini",
+      evaluateCondition("tools includes claude", {
+        tools: "claude,codex,gemini",
       }),
     ).toBe(true);
   });
 
   it("returns true when includes matches a single-item list", () => {
     expect(
-      evaluateCondition("agents includes claude", { agents: "claude" }),
+      evaluateCondition("tools includes claude", { tools: "claude" }),
     ).toBe(true);
   });
 
   it("returns false when includes does not match any item", () => {
     expect(
-      evaluateCondition("agents includes cursor", {
-        agents: "claude,codex",
+      evaluateCondition("tools includes cursor", {
+        tools: "claude,codex",
       }),
     ).toBe(false);
   });
 
   it("includes does not do substring matching", () => {
     expect(
-      evaluateCondition("agents includes code", { agents: "claude,codex" }),
+      evaluateCondition("tools includes code", { tools: "claude,codex" }),
     ).toBe(false);
   });
 
   it("returns false for includes with missing config key", () => {
-    expect(evaluateCondition("agents includes claude", {})).toBe(false);
+    expect(evaluateCondition("tools includes claude", {})).toBe(false);
   });
 });
 
@@ -270,10 +264,10 @@ describe("getInitTokenNames", () => {
     const prompts = [
       { token: "PROJECT_NAME" },
       { config_key: "pm.mode" },
-      { token: "PROJECT_DESCRIPTION" },
+      { token: "ARC_DIR" },
     ];
     const tokens = getInitTokenNames(prompts);
-    expect(tokens).toEqual(new Set(["PROJECT_NAME", "PROJECT_DESCRIPTION"]));
+    expect(tokens).toEqual(new Set(["PROJECT_NAME", "ARC_DIR"]));
   });
 
   it("returns empty set when no prompts have tokens", () => {

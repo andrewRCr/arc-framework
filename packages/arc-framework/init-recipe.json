@@ -4,7 +4,8 @@
     "reference/META-PRD.template.md",
     "reference/TECHNICAL-OVERVIEW.template.md",
     "active/WORK-STATUS.template.md",
-    "system/agent/ARC-AGENTS.template.md",
+    "system/agent/AGENTS.ARC.md",
+    "system/agent/AGENTS.PROJECT.template.md",
     "system/agent/README.md",
     "system/arc-config.yml",
     "system/workflows/arc/session-lifecycle/session-init.md",
@@ -48,62 +49,18 @@
       "token": "PROJECT_NAME"
     },
     {
-      "id": "project_description",
-      "type": "text",
-      "message": "Brief project description (one sentence):",
-      "token": "PROJECT_DESCRIPTION"
-    },
-    {
-      "id": "base_branch",
-      "type": "text",
-      "message": "Base branch name?",
-      "default": "main",
-      "config_key": "branch.base"
-    },
-    {
-      "id": "branch_protection",
-      "type": "select",
-      "message": "Branch protection level?",
-      "options": ["partial", "full"],
-      "default": "partial",
-      "config_key": "branch.protection"
+      "id": "tools",
+      "type": "multiselect",
+      "message": "Which AI development tools do you use?",
+      "options": ["claude", "codex", "cursor", "copilot", "windsurf", "gemini", "warp"]
     },
     {
       "id": "pm_mode",
       "type": "select",
-      "message": "Where does your project management live?",
+      "message": "Project management approach?",
       "options": ["none", "arc-in-git", "external"],
       "default": "none",
       "config_key": "pm.mode"
-    },
-    {
-      "id": "team_mode",
-      "type": "confirm",
-      "message": "Enable team mode (multiple developers)?",
-      "default": false,
-      "config_key": "team.mode"
-    },
-    {
-      "id": "merge_strategy",
-      "type": "select",
-      "message": "How should branches be merged?",
-      "options": ["merge", "rebase", "squash"],
-      "default": "merge",
-      "config_key": "merge.strategy"
-    },
-    {
-      "id": "platform",
-      "type": "select",
-      "message": "Git hosting platform?",
-      "options": ["github", "gitlab", "bitbucket", "azure-devops"],
-      "default": "github",
-      "config_key": "platform.type"
-    },
-    {
-      "id": "agents",
-      "type": "multiselect",
-      "message": "Which AI agents will you use?",
-      "options": ["claude", "codex", "gemini", "copilot", "cursor", "windsurf", "warp"]
     },
     {
       "id": "arc_dir",
@@ -123,37 +80,37 @@
         "reference/strategies/arc/strategy-backlog-organization.md"
       ]
     },
-    "agents includes claude": {
+    "tools includes claude": {
       "include_files": [
         "system/agent/CLAUDE.ARC.md"
       ]
     },
-    "agents includes codex": {
+    "tools includes codex": {
       "include_files": [
         "system/agent/CODEX.ARC.md"
       ]
     },
-    "agents includes gemini": {
+    "tools includes gemini": {
       "include_files": [
         "system/agent/GEMINI.ARC.md"
       ]
     },
-    "agents includes copilot": {
+    "tools includes copilot": {
       "include_files": [
         "system/agent/COPILOT.ARC.md"
       ]
     },
-    "agents includes cursor": {
+    "tools includes cursor": {
       "include_files": [
         "system/agent/CURSOR.ARC.md"
       ]
     },
-    "agents includes windsurf": {
+    "tools includes windsurf": {
       "include_files": [
         "system/agent/WINDSURF.ARC.md"
       ]
     },
-    "agents includes warp": {
+    "tools includes warp": {
       "include_files": [
         "system/agent/WARP.ARC.md"
       ]

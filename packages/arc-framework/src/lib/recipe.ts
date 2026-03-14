@@ -134,7 +134,7 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
  * - `key == value` — exact string equality
  * - `key includes value` — checks if value is in a comma-separated list
  *
- * @param condition - Condition string (e.g., `pm.mode == arc-in-git`, `agents includes claude`)
+ * @param condition - Condition string (e.g., `pm.mode == arc-in-git`, `tools includes claude`)
  * @param config - Map of dotted config keys to string values
  * @returns Whether the condition matches
  */
