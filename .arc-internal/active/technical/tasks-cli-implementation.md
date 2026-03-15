@@ -1067,6 +1067,28 @@ all success criteria.
   the session management strategy's evidence base. This is about strengthening existing
   position, not adding enforcement.
 
+- [ ] Optimize session-init execution performance in `session-init.md`. Changes to execution
+  patterns only — no reduction in loaded content. Specific optimizations:
+    - **Parallel file reads**: Batch documents that have no ordering dependencies into
+      parallel reads. Most init docs are independent (AGENTS.ARC, AGENTS.PROJECT,
+      DEV-RULES.ARC, DEV-RULES.PROJECT, strategies, QUICK-REFERENCE). Evaluate whether
+      AGENTS.ARC → AGENTS.PROJECT and DEV-RULES.ARC → DEV-RULES.PROJECT have meaningful
+      sequential dependencies or can safely parallelize. Only hard dependency: WORK-STATUS
+      before task list (WORK-STATUS identifies which task to find). Target: two batches
+      instead of ~10 sequential reads.
+    - **Reduce non-user-facing reporting**: The "ARC session initialized" orientation block
+      is user-facing and must stay — it provides confidence the system is working. But
+      override scanning results, extension status, non-default config reporting, and
+      freshness check details are agent-internal and should not surface to the user unless
+      a problem is detected. Carry awareness silently; report only mismatches and problems.
+    - **Gate freshness checks**: If SESSION-NOTES `Commit at Handoff` hash == current HEAD,
+      skip gap analysis entirely (nothing has changed since last handoff). Only run freshness
+      comparison when the hashes diverge. Gate must be conservative — if hash is missing or
+      file doesn't exist, always run the check.
+    - **Batch config/methods scan**: Read `arc-config.yml` and scan `arc-methods.md` for
+      overrides in one parallel batch. If everything is at defaults (common case), produce
+      a single internal note, no user-facing output.
+
 ---
 
 ## Success Criteria
