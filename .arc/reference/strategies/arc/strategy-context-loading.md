@@ -151,7 +151,8 @@ instruction-following capacity.
 **Behavioral principles** — Constraints and values that govern how the agent approaches all work. Moderate
 attention cost. Worth front-loading because they apply to every action and the cost of violation is high.
 
-*Examples: DEV-RULES rules ("AI never initiates commits without approval"), AGENTS.ARC.md and AGENTS.PROJECT.md collaboration context.*
+*Examples: DEV-RULES rules ("AI never initiates commits without approval"), AGENTS.ARC.md and AGENTS.PROJECT.md
+collaboration context.*
 
 **Procedural instructions** — Step-by-step imperatives, decision trees, classification rubrics. High attention
 cost. These require active instruction-following — the agent must track where it is in a sequence, evaluate

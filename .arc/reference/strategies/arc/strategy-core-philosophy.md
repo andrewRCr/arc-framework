@@ -307,7 +307,8 @@ universal compatibility.
 
 *Conventions:* The hub-spoke file architecture — AGENTS.ARC.md (framework orientation) and
 AGENTS.PROJECT.md (project context) as shared entry points, with agent-specific files (CLAUDE.ARC.md,
-GEMINI.ARC.md, etc.) supplementing guidance unique to each tool. This structure supports multi-agent use within a project: teams may use different agents
+GEMINI.ARC.md, etc.) supplementing guidance unique to each tool. This structure supports multi-agent
+use within a project: teams may use different agents
 for different tasks or phases, and each agent loads the shared methodology plus its own operational
 guidance. The specific file naming, agent-neutral workflow abstractions, and what lives in shared
 docs versus agent-specific files are all convention.

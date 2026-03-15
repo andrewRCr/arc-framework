@@ -56,12 +56,12 @@ the same sense — it is existing project documentation that naturally absorbs p
 Beyond mechanisms, adopters extend ARC through **content-level customization** — creating their own files that add
 domain-specific guidance, project-specific procedures, or extended standards:
 
-| Content Channel       | What It Does                   | Location              | Example                                           |
-|-----------------------|--------------------------------|-----------------------|---------------------------------------------------|
-| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns    |
-| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist         |
-| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`      |
-| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.ARC.md`, `GEMINI.ARC.md` for agent-specific notes |
+| Content Channel       | What It Does                   | Location              | Example                                          |
+|-----------------------|--------------------------------|-----------------------|--------------------------------------------------|
+| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns   |
+| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist        |
+| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`     |
+| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.ARC.md`, `GEMINI.ARC.md` for agent notes |
 
 These are project-owned files — adopters create them, ARC doesn't ship them (except agent-specific templates).
 `DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows,
