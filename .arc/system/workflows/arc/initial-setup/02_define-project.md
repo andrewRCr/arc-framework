@@ -8,10 +8,10 @@ standards) and planning artifacts (execution strategy and status tracking).
 
 **When to use**:
 
-- **Initial setup**: After ARC initialization ([01_initialize-arc.md][init-arc])
+- **Initial setup**: After ARC initialization ([01_verify-and-configure.md][init-arc])
 - **Maintenance**: See [Maintaining Project Documents](#maintaining-project-documents) below
 
-**Prerequisite**: ARC framework initialized — run [01_initialize-arc.md][init-arc] first.
+**Prerequisite**: ARC framework initialized — run [01_verify-and-configure.md][init-arc] first.
 
 ---
 
@@ -143,7 +143,7 @@ If your project uses arc-in-git PM mode, also maintain:
 ---
 
 [arc-config]: ../../../system/arc-config.yml
-[init-arc]: 01_initialize-arc.md
+[init-arc]: 01_verify-and-configure.md
 [meta-prd-template]: ../../../../reference/META-PRD.md
 [tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.md
 [dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md

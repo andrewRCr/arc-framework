@@ -148,17 +148,17 @@ Complete classification of every artifact across layers:
 
 #### Core Artifacts (always installed)
 
-| Category          | Artifacts                                                    |
-| ----------------- | ------------------------------------------------------------ |
-| Session state     | WORK-STATUS.md, SESSION-NOTES.md                             |
-| Execution         | Task lists (tasks-\*.md), PRDs (prd-\*.md), plan-\* docs     |
-| Task list section | "Atomic Tasks — {name}" for WU off-plan work                 |
-| Configuration     | arc-config.yml, arc-methods.md, arc-extensions.md            |
-| Workflows         | All except weekly-review (with PM steps extension-pointed)   |
-| Strategies        | All except strategy-backlog-organization.md                  |
-| Constitution      | DEV-RULES.ARC.md, DEV-RULES.PROJECT template                 |
-| Team (personal)   | team/{name}/SESSION-NOTES.md                                 |
-| Setup             | 01_initialize-arc.md, 02_define-project.md (Core steps only) |
+| Category          | Artifacts                                                              |
+| ----------------- | ---------------------------------------------------------------------- |
+| Session state     | WORK-STATUS.md, SESSION-NOTES.md                                       |
+| Execution         | Task lists (tasks-\*.md), PRDs (prd-\*.md), plan-\* docs               |
+| Task list section | "Atomic Tasks — {name}" for WU off-plan work                           |
+| Configuration     | arc-config.yml, arc-methods.md, arc-extensions.md                      |
+| Workflows         | All except weekly-review (with PM steps extension-pointed)             |
+| Strategies        | All except strategy-backlog-organization.md                            |
+| Constitution      | DEV-RULES.ARC.md, DEV-RULES.PROJECT template                           |
+| Team (personal)   | team/{name}/SESSION-NOTES.md                                           |
+| Setup             | 01_verify-and-configure.md, 02_define-project.md (Core steps only)     |
 
 #### Solo PM Artifacts (optional, solo developers)
 

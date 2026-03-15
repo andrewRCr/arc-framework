@@ -15,7 +15,7 @@ Framework-specific workflow documentation for ARC development.
 Core ARC workflows (setup, create-prd, generate-tasks, process-task-loop) are maintained
 in the template system and should be referenced from `.arc/system/workflows/arc/`:
 
-- [initial-setup/01_initialize-arc.md][init-arc] + [initial-setup/02_define-project.md][define-project]
+- [initial-setup/01_verify-and-configure.md][init-arc] + [initial-setup/02_define-project.md][define-project]
 - [1_create-prd.md][create-prd]
 - [2_generate-tasks.md][generate-tasks]
 - [3_process-task-loop.md][process-task-loop]
@@ -27,7 +27,7 @@ Only framework-specific supplemental workflows live in this directory.
 
 ---
 
-[init-arc]: ../../../.arc/system/workflows/arc/initial-setup/01_initialize-arc.md
+[init-arc]: ../../../.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md
 [define-project]: ../../../.arc/system/workflows/arc/initial-setup/02_define-project.md
 [create-prd]: ../../../.arc/system/workflows/arc/1_create-prd.md
 [generate-tasks]: ../../../.arc/system/workflows/arc/2_generate-tasks.md

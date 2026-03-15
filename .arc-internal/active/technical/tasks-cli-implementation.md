@@ -404,9 +404,9 @@ working ARC installation.
           .claude agent (1)
         - All quality gates pass: typecheck clean, 84 tests passing, 0 lint errors
 
-    - [ ] **3.4.c Workflow and session-init updates**
+    - [x] **3.4.c Workflow and session-init updates**
 
-        Rename and rewrite post-init workflow. The original `01_initialize-arc.md` served
+        Renamed and rewrote post-init workflow. The original `01_initialize-arc.md` served
         dual duty as post-init check and at-will health check — those responsibilities now
         split: this workflow handles post-init setup, Task 3.5 (arc-verify) handles at-will
         health checking.
@@ -420,32 +420,41 @@ working ARC installation.
           root. No renaming, no relocation. Eliminates `arc_dir` prompt and `ARC_DIR`
           token (see 3.4.e for removal). Rationale: industry standard (no tool supports
           dir renaming), simplifies detection, no naming collision found.
-        - **Neutral config walkthrough**: Agent reads `arc-config.yml`, presents each
-          section with current value + alternatives, offers to adjust. Same language
-          for both paths — "Would you like to adjust this?" not "check with your team."
-          No hierarchy assumptions.
+        - **Neutral config walkthrough**: Dual-audience framing — "review each section
+          and consider alternatives." Works for developer solo or agent presenting
+          conversationally. No hierarchy assumptions.
         - **Config ownership model**: All `arc-config.yml` keys are team-wide policy.
           Per-developer overrides use `git config arc.*` (existing pattern from
           `user.sync_push`). No gap in current keys.
 
-        **Implementation:**
+        **Completed:**
 
-        - Rename `01_initialize-arc.md` → `01_verify-and-configure.md` (both `.arc/`
-          and `packages/arc-framework/arc/` copies, via `git mv`)
-        - Rewrite content with two paths:
-            - **Fresh install path**: verify directory structure, session state, agent
-              setup. Then agent-guided config walkthrough — read config, present each
-              section conversationally, offer to adjust values.
-            - **Join existing path**: verify local setup (agent dirs, hooks, identity).
-              Config walkthrough is informational review — present values, explain
-              what each means for the developer's workflow, offer adjustments.
-        - Remove "When to use" cases that belong to arc-verify (onboarding verification,
-          post-major-change checks)
-        - Keep explicit flow to 02 ("Proceeding to project definition") for fresh path;
-          join path skips or adapts 02 (constitutional docs already exist)
-        - Update all cross-references to renamed workflow (~13 locations)
-        - Session-init loading order already updated in 3.4.b (AGENTS.ARC + AGENTS.PROJECT
-          as items 1-2) — no further changes needed
+        - Renamed `01_initialize-arc.md` → `01_verify-and-configure.md` (`.arc/` via
+          `git mv`, `packages/arc-framework/arc/` via `mv` — untracked)
+        - Rewrote content with two paths: fresh install (verify structure + session
+          state + agent config, then config walkthrough) and join existing (verify
+          local setup, then informational config review)
+        - Removed at-will health check use cases (now 3.5/arc-verify territory)
+        - Added forward reference to `/arc-verify` as optional post-setup verification
+        - Updated cross-references in 7 active files: 02_define-project (both copies),
+          workflows README, file classification strategy, README-ASPIRATIONAL, PRD,
+          ADR-008
+        - Session-init loading order already done in 3.4.b — no changes needed
+
+        **Additional work in this session (methodology improvements):**
+
+        - Renamed `leave-it-cleaner` method → `issue-triage` in arc-methods.md (separates
+          behavioral principle from overridable triage thresholds)
+        - Rewrote leave-it-cleaner rule in DEV-RULES.ARC: broadened to general principle
+          with two operational paths (fix now via issue-triage method, or route to capture
+          surface via pm.mode-aware routing table)
+        - Added capture routing table and anti-pattern (completion notes aren't capture)
+        - Updated cross-references for method rename across 10 files
+        - Fixed markdownlint config: `!**/arc/**` → `!packages/arc-framework/arc/**`
+          (was over-excluding `.arc/system/workflows/arc/` and strategies)
+        - Fixed 11 pre-existing lint errors exposed by the config fix (table alignment,
+          line length in 4 strategy files)
+        - All quality gates pass: 0 lint errors (150 files), typecheck clean, 84 tests
 
     - [ ] **3.4.d Setup bridge: arc-setup skill and README**
 
@@ -1050,6 +1059,13 @@ all success criteria.
 <!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
 <!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
 <!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
+
+- [ ] Strengthen session boundary guidance in DEV-RULES.ARC § Context quality: add explicit
+  recognition that design-to-implementation transitions are natural session boundaries, not
+  just context pressure. Long sessions that span analysis and implementation risk the same
+  degradation that context limits cause — guidance loaded early gets deprioritized. Reference
+  the session management strategy's evidence base. This is about strengthening existing
+  position, not adding enforcement.
 
 ---
 

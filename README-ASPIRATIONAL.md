@@ -157,7 +157,7 @@ This creates a customized `.arc/` directory in your project.
 ### First Session
 
 <!-- [PLACEHOLDER] The guided setup workflow described here is aspirational. The
-     setup workflows (01_initialize-arc, 02_define-project) exist but a more
+     setup workflows (01_verify-and-configure, 02_define-project) exist but a more
      complete first-run experience is planned. -->
 
 1. **Set up your project with your agent** — ARC provides a guided startup workflow

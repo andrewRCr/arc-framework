@@ -170,7 +170,7 @@ configured path. Skills, agent files, and documentation all reference the correc
     on ADRs 007, 008, 009. Adopters should discover these capabilities through the workflows
     they already follow, not by reading ADRs
 20. **Post-init messaging** — after `arc init` completes, the CLI prints a concise next-steps
-    summary: what was installed, how to verify (`01_initialize-arc.md`), and the core workflow
+    summary: what was installed, how to verify (`01_verify-and-configure.md`), and the core workflow
     quartet to start with (create-prd, generate-tasks, process-task-loop, session-init). This
     is the adopter's first interaction with ARC's workflow model — the messaging should orient
     without overwhelming. Per ADR-004 Part 6 (requirement preserved by ADR-010 despite profile
