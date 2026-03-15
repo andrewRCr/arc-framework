@@ -460,7 +460,7 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 Config provides common pattern examples as inline comments to reduce regex-authoring friction: Jira prefix,
 ticket-plus-type, issue reference.
 
-For behavioral methods (session state, leave-it-cleaner, test-first) that do not have mechanical hook enforcement, the
+For behavioral methods (session state, issue-triage, test-first) that do not have mechanical hook enforcement, the
 override is purely agent-level: the agent reads the method override from `arc-methods.md` and follows it. No hook
 interaction needed.
 

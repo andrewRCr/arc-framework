@@ -81,7 +81,7 @@ DEV-RULES.PROJECT, internal ADRs, archives).
 Three mechanisms allow teams to adapt ARC without forking:
 
 - **`arc-config.yml`** — Settings: branch protection, commit format, hook toggles, PM mode
-- **`arc-methods.md`** — Overridable defaults for commit format, leave-it-cleaner triage,
+- **`arc-methods.md`** — Overridable defaults for commit format, issue-triage,
   test-first assessment, session state, quality gate commands
 - **`arc-extensions.md`** — Hook points for team-specific automation at task, unit, and
   work-unit lifecycle boundaries

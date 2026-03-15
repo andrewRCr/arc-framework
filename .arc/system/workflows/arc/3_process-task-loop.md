@@ -13,7 +13,7 @@ It ensures consistent execution, quality control, and documentation of work.
 encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
 `.default` if no override is configured.
 
-- [leave-it-cleaner][arc-methods-lic] — severity triage for pre-existing quality issues
+- [issue-triage][arc-methods-it] — severity triage for pre-existing issues (the "leave it cleaner" rule)
 - [quality-gate-commands][arc-methods-qg] — project quality gate definitions
 - [test-first][arc-methods-tf] — decision tree (only when task has `Build \`test-first\`` marker)
 
@@ -43,8 +43,8 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
   Test cases listed in the task are behaviors to cover, not an execution sequence — let each cycle
   inform the next. If your project has a testing methodology strategy, consult it for project-specific
   TDD details (mocking rules, fixture conventions, tier boundaries).
-- **Quality issue triage:** When you encounter pre-existing quality issues in files you're modifying,
-  follow the [leave-it-cleaner method][arc-methods-lic] for severity triage and fix-vs-defer decisions.
+- **Issue triage:** When you encounter pre-existing issues in files you're modifying,
+  follow the [issue-triage method][arc-methods-it] for severity assessment and fix-vs-defer decisions.
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):
@@ -238,6 +238,6 @@ permanent record committed to git — always update it before reporting completi
 [arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality
 [arc-methods]: ../arc-methods.md
 [arc-methods-tf]: ../arc-methods.md#test-first
-[arc-methods-lic]: ../arc-methods.md#leave-it-cleaner
+[arc-methods-it]: ../arc-methods.md#issue-triage
 [arc-methods-qg]: ../arc-methods.md#quality-gate-commands
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md

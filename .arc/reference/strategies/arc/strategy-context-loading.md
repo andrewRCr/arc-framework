@@ -158,7 +158,7 @@ cost. These require active instruction-following — the agent must track where 
 conditions, and execute precisely. Loading these when they're not actionable wastes the most valuable type of
 context capacity.
 
-*Examples: arc-methods decision trees (test-first, leave-it-cleaner), commit format specifications, review-triage
+*Examples: arc-methods decision trees (test-first, issue-triage), commit format specifications, review-triage
 classification rubrics.*
 
 **The principle:** Instruction density — not line count — determines context cost. A 50-line decision tree consumes
@@ -183,7 +183,7 @@ dependencies block.
 
 | Method                | Trigger Workflow    | Session Applicability                      |
 |-----------------------|---------------------|--------------------------------------------|
-| leave-it-cleaner      | process-task-loop   | Universal — every task execution session   |
+| issue-triage          | process-task-loop   | Universal — every task execution session   |
 | quality-gate-commands | process-task-loop   | Universal — every task execution session   |
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
 | commit-format         | prepare-commits     | User-triggered commit events               |
@@ -192,7 +192,7 @@ dependencies block.
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
 
-Universal methods (leave-it-cleaner, quality-gate-commands) load early in most sessions — when the agent enters
+Universal methods (issue-triage, quality-gate-commands) load early in most sessions — when the agent enters
 task execution — but not during planning-only, documentation, or evaluation sessions where no tasks execute.
 
 ### arc-extensions.md

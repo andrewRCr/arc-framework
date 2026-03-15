@@ -120,14 +120,41 @@ If quality gates fail after task completion:
 3. **Ask for guidance** on whether to fix immediately or defer
 4. **Never proceed** to the next task until resolved or the user approves
 
-### Leave it cleaner · P4 · `[configurable]`
+### Leave it cleaner · P4
 
-When touching any file, leave it cleaner than you found it. Quality issues discovered during
-work must be addressed — fix immediately or document and defer, but never ignore silently.
+When you encounter an issue that needs addressing — whether in a file you're modifying,
+during analysis, or anywhere in the course of work — take responsibility for it. Don't pass
+over an issue because it's outside your current task.
 
-ARC ships a severity-based triage tree (minor/moderate/major thresholds) and a decision
-framework for fix-now vs. capture-and-defer. The full protocol is in
-[`arc-methods.md`][arc-methods] → `#leave-it-cleaner`.
+**If you can fix it now** (in the file, manageable scope): · `[configurable]`
+
+Assess severity via the [`issue-triage`][arc-methods] method in `arc-methods.md`. The method
+determines fix-vs-defer thresholds; teams can override the triage defaults while keeping the
+principle intact.
+
+**If you can't fix it now** (not in the file, too large, or would derail current work):
+
+Route to an actionable capture surface — a location that gets reviewed as part of a workflow.
+
+| Scope                  | Size                        | Destination                                                        |
+|------------------------|-----------------------------|--------------------------------------------------------------------|
+| Current work unit      | Atomic                      | Active task list → Atomic Tasks section                            |
+| Current work unit      | Multi-step                  | Propose placement in existing task structure — user approves       |
+| Outside current domain | Atomic (arc-in-git)         | `user/{identity}/ATOMIC-INBOX.md`                                  |
+| Outside current domain | Atomic (other PM modes)     | Per project convention (DEV-RULES.PROJECT) — default: ask user     |
+| Outside current domain | Multi-step (arc-in-git)     | Appropriate backlog file or existing plan-\* doc                   |
+| Outside current domain | Multi-step (other PM modes) | Per project convention (DEV-RULES.PROJECT) — default: ask user     |
+
+**Multi-step in current work unit:** Search the active task list for a natural home — fold
+into an existing incomplete task, add a subtask, or insert a new task at a logical point. If
+the work needs a new phase, it may not belong in this work unit — present to user and
+consider escalating via [manage-incidental-work][manage-incidental].
+
+**Always propose placement to the user before acting.** The agent suggests, the user decides.
+
+**Anti-pattern:** Task completion notes and session notes are not capture surfaces for
+deferred work. They document what was done and contextual observations — they are not
+reviewed until integration prep, which is too late for actionable items.
 
 ### Test-first assessment · P4 · `[configurable]`
 
@@ -283,7 +310,7 @@ session initialization.
 
 - **Before starting task execution:** Load the [process-task-loop workflow][process-task-loop] —
   completion protocol, quality gate checkpoints, deferred review. The workflow's method dependencies
-  block triggers loading of leave-it-cleaner, quality-gate-commands, and (conditionally) test-first
+  block triggers loading of issue-triage, quality-gate-commands, and (conditionally) test-first
 - **Before complex commits:** Load the [commit guide][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis. The workflow's method dependencies block triggers
   loading of commit-format and commit-context-format
@@ -308,3 +335,4 @@ session initialization.
 [strategy-index]: ../strategies/STRATEGY-INDEX.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
 [session-mgmt]: ../strategies/arc/strategy-session-management.md
+[manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md

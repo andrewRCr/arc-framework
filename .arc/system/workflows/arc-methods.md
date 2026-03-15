@@ -23,7 +23,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [Method Dependencies](#method-dependencies) — coupled override guidance
 - [commit-format](#commit-format) — message structure, types, scope, body
 - [commit-context-format](#commit-context-format) — context footer patterns
-- [leave-it-cleaner](#leave-it-cleaner) — severity triage, fix-vs-defer decisions
+- [issue-triage](#issue-triage) — severity triage, fix-vs-defer decisions
 - [test-first](#test-first) — decision tree by change type
 - [session-state](#session-state) — reading and writing session state
 - [pre-merge-review](#pre-merge-review) — aggregate diff review before push
@@ -41,7 +41,7 @@ when populating any `.override` section.
 | --------------------- | ----------------------- | -------------------------------- |
 | commit-format         | commit-context-format   | Both govern the commit message   |
 | commit-context-format | commit-format           | Both govern the commit message   |
-| leave-it-cleaner      | —                       | Independent                      |
+| issue-triage          | —                       | Independent                      |
 | test-first            | —                       | Independent                      |
 | pre-merge-review      | review-triage           | Uses review-triage for findings  |
 | review-triage         | —                       | Independent                      |
@@ -128,38 +128,33 @@ in [`arc-config.yml`][arc-config].
 
 ---
 
-## leave-it-cleaner
+## issue-triage
 
-**Workflow:** [process-task-loop.md][process-task-loop] · **When:** Quality checks reveal issues in modified files
+**Workflow:** [process-task-loop.md][process-task-loop] · **When:** Pre-existing issues encountered in files being
+modified (the "leave it cleaner" rule in [DEV-RULES.ARC][dev-rules-arc])
 
-**Contract:** Pre-existing quality issues must be addressed — fix or document, but never ignore silently.
+**Contract:** Given an issue found in a file you are modifying, return a decision: fix inline or defer. Deferred
+issues route per the capture guidance in [DEV-RULES.ARC § Leave it cleaner][dev-rules-arc] — never to completion
+notes or session notes.
 
-### leave-it-cleaner.override
+### issue-triage.override
 
 [No override configured]
 
-### leave-it-cleaner.default
+### issue-triage.default
 
-Severity-based triage with documentation requirements.
+Severity-based triage.
 
-**Assess severity and scope:**
+**Assess severity and decide:**
 
 - **Minor** (< 5 minutes): Fix immediately without asking
 - **Moderate** (5–15 minutes): Fix immediately, document in commit message
-- **Major** (> 15 minutes): Ask for direction before proceeding
+- **Major** (> 15 minutes): Ask user for direction — fix now or defer
 
-**Choose one action:**
+**If fixing:** Note in commit message ("Also fixed X pre-existing issues").
 
-- **Fix immediately** — Preferred for all issues under 15 minutes
-- **Document and defer** — Create incidental task with: clear description of issue, why deferred (time/scope
-  constraints), estimated effort, file/line references
-- **Ignore silently** — Never acceptable
-
-**Document the outcome:**
-
-- Fixed issues: Note in commit message ("Also fixed X pre-existing issues")
-- Deferred issues: Create incidental task in the active work directory
-- Undocumented issues: Never leave issues unaddressed
+**If deferring:** Route per [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner — the routing table determines
+destination based on scope and PM mode. Never defer to completion notes or session notes.
 
 ---
 
@@ -367,3 +362,4 @@ references quality gates uniformly through the method layer, and teams with non-
 [arc-ext-pre-merge-review]: arc-extensions.md#pre-merge-review
 [context-loading]: ../../reference/strategies/arc/strategy-context-loading.md
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md

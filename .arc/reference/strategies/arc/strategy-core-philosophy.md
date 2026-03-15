@@ -231,8 +231,8 @@ review increments. The principle is about the existence of automated verificatio
 specific gates, tools, or strictness level.
 
 *Conventions:* Zero-tolerance policy, specific tier definitions (Tier 1/2/3), specific tools, and
-when each tier runs. The "leave it cleaner" practice (discovered issues must at minimum be
-documented rather than dismissed) is convention with a capture floor.
+when each tier runs. The "leave it cleaner" rule (issues found in files being modified must be
+addressed) and capture discipline (identified work routed to actionable locations) are conventions.
 
 #### P5. Context preservation
 
