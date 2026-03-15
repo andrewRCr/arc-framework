@@ -346,17 +346,19 @@ working ARC installation.
 
 - [ ] **3.4 Init UX redesign — prompts, templates, and setup bridge**
 
-    **Goal:** Reduce init prompts from 10 to 4 (project name, tools, PM mode, install dir),
-    split agent hub file for clean ARC/project separation, revise post-init workflow for
-    agent-guided configuration, and establish a smooth bridge from CLI init to agent-led setup.
+    **Goal:** Reduce init prompts from 10 to 3 (project name, tools, PM mode), split agent
+    hub file for clean ARC/project separation, revise post-init workflow for agent-guided
+    configuration, and establish a smooth bridge from CLI init to agent-led setup.
 
     **Design context:** Init should collect only decisions with structural impact (which files
-    exist, where they go). Config-only values (base branch, protection mode, merge strategy,
-    platform, team mode) ship as documented defaults in `arc-config.yml` — editable anytime
-    with no post-init structural impact. Project description moves to `02_define-project`
-    workflow where it naturally belongs (META-PRD creation). The multiselect is reframed as
-    tool selection (not model selection) — each option represents a development tool ecosystem,
-    determining which agent config files and skill directories are created.
+    exist). Config-only values (base branch, protection mode, merge strategy, platform, team
+    mode) ship as documented defaults in `arc-config.yml` — editable anytime with no post-init
+    structural impact. Project description moves to `02_define-project` workflow where it
+    naturally belongs (META-PRD creation). The multiselect is reframed as tool selection (not
+    model selection) — each option represents a development tool ecosystem, determining which
+    agent config files and skill directories are created. Install directory is fixed to `.arc/`
+    at repo root — no prompt needed (decision 2026-03-15: industry standard, simplifies
+    join-mode detection, no naming collisions found).
 
     - [x] **3.4.a Recipe and template redesign**
 
@@ -404,19 +406,46 @@ working ARC installation.
 
     - [ ] **3.4.c Workflow and session-init updates**
 
-        Rename post-init workflow to avoid collision with `arc init` CLI command.
-        Add agent-guided config walkthrough. Update session-init loading order.
+        Rename and rewrite post-init workflow. The original `01_initialize-arc.md` served
+        dual duty as post-init check and at-will health check — those responsibilities now
+        split: this workflow handles post-init setup, Task 3.5 (arc-verify) handles at-will
+        health checking.
 
-        - Rename `01_initialize-arc.md` → `01_verify-and-configure.md`
-        - Add agent-guided `arc-config.yml` walkthrough section: agent reads config,
-          presents each section conversationally, offers to adjust values
-        - Keep automated verification checks (directory structure, session state, agent setup)
-        - Ensure 01 flows explicitly to 02 ("Proceeding to project definition")
-        - Update `session-init.md` loading order:
-            1. `AGENTS.ARC.md` — ARC methodology (new)
-            2. `AGENTS.PROJECT.md` — Project identity (renamed)
-            3. `{AGENT}.ARC.md` — Agent-specific (unchanged)
-        - Update all cross-references to renamed workflow
+        **Design decisions (from analysis session 2026-03-15):**
+
+        - **Two-path workflow**: Fresh install (first ARC in repo) vs. join existing
+          (ARC already committed by another team member). Detection: CLI checks for
+          `.arc/system/arc-config.yml` at repo root (see 3.7.a for mechanism).
+        - **Fixed `.arc/` directory**: Name locked to `.arc/`, location locked to repo
+          root. No renaming, no relocation. Eliminates `arc_dir` prompt and `ARC_DIR`
+          token (see 3.4.e for removal). Rationale: industry standard (no tool supports
+          dir renaming), simplifies detection, no naming collision found.
+        - **Neutral config walkthrough**: Agent reads `arc-config.yml`, presents each
+          section with current value + alternatives, offers to adjust. Same language
+          for both paths — "Would you like to adjust this?" not "check with your team."
+          No hierarchy assumptions.
+        - **Config ownership model**: All `arc-config.yml` keys are team-wide policy.
+          Per-developer overrides use `git config arc.*` (existing pattern from
+          `user.sync_push`). No gap in current keys.
+
+        **Implementation:**
+
+        - Rename `01_initialize-arc.md` → `01_verify-and-configure.md` (both `.arc/`
+          and `packages/arc-framework/arc/` copies, via `git mv`)
+        - Rewrite content with two paths:
+            - **Fresh install path**: verify directory structure, session state, agent
+              setup. Then agent-guided config walkthrough — read config, present each
+              section conversationally, offer to adjust values.
+            - **Join existing path**: verify local setup (agent dirs, hooks, identity).
+              Config walkthrough is informational review — present values, explain
+              what each means for the developer's workflow, offer adjustments.
+        - Remove "When to use" cases that belong to arc-verify (onboarding verification,
+          post-major-change checks)
+        - Keep explicit flow to 02 ("Proceeding to project definition") for fresh path;
+          join path skips or adapts 02 (constitutional docs already exist)
+        - Update all cross-references to renamed workflow (~13 locations)
+        - Session-init loading order already updated in 3.4.b (AGENTS.ARC + AGENTS.PROJECT
+          as items 1-2) — no further changes needed
 
     - [ ] **3.4.d Setup bridge: arc-setup skill and README**
 
@@ -440,20 +469,45 @@ working ARC installation.
           installation" pointer — it's loaded every session and would confuse agents
           during normal session-init. The skill/prompt handles first-time routing.
 
-    - [ ] **3.4.e Implement prompts (`src/prompts/init-prompts.ts`)**
+    - [ ] **3.4.e Implement prompts and remove `arc_dir` (`src/prompts/init-prompts.ts`)**
 
-        @clack/prompts flow for the 4-prompt sequence. See `notes-cli-implementation.md`
-        § Init Prompt UX Specification for finalized wording, display labels, and
-        label-to-config-value mappings.
+        @clack/prompts flow for the 3-prompt sequence (reduced from 4 — `arc_dir` dropped).
+        See `notes-cli-implementation.md` § Init Prompt UX Specification for finalized
+        wording, display labels, and label-to-config-value mappings.
+
+        **Design decision (2026-03-15):** Install directory locked to `.arc/` at repo root.
+        No renaming, no relocation. The `arc_dir` prompt and `ARC_DIR` token are eliminated.
+        Rationale: no tool in the ecosystem supports directory renaming; relocation to
+        subdirectories is non-standard and unsupported by any major dev tool; no naming
+        collision with existing tools; fixed path simplifies join-mode detection (3.7.a).
+
+        **Prompts (3):**
 
         - `project_name`: text input, default from `path.basename(cwd)`
         - `tools`: multiselect with display labels (Claude Code, Codex, Cursor,
           GitHub Copilot, Windsurf, Gemini, Warp) mapped to condition values
         - `pm_mode`: select with descriptive multi-line labels (ARC Core / ARC Core +
           Planning / External tools) per @clack/prompts API
-        - `arc_dir`: text input, default `.arc`
         - Map prompt responses to `InstallConfig` + token map + condition config
         - Handle non-interactive mode (future: `--yes` flag with all defaults)
+
+        **`arc_dir` / `ARC_DIR` removal (bundled here — prompt is the root cause):**
+
+        - Remove `arc_dir` prompt from `init-recipe.json`
+        - Remove `arc_dir` from `InstallConfig` in `src/lib/types.ts`
+        - Replace `{{ARC_DIR}}` with `.arc` in 6 template files:
+          AGENTS.PROJECT.template.md, QUICK-REFERENCE.template.md,
+          PROJECT-STATUS.template.md, BACKLOG-FEATURE.template.md,
+          BACKLOG-TECHNICAL.template.md, and any others found
+        - Update test fixtures: `recipe.test.ts` (prompt fixtures, getInitTokenNames),
+          `manifest.test.ts` (validManifest fixture)
+        - Update `notes-cli-implementation.md`: remove Prompt 4 section, remove
+          `{{ARC_DIR}}` from token table
+        - Update `prd-cli-implementation.md`: revise UC7 (non-standard dir no longer
+          supported), revise requirement 13 (fixed `.arc/` directory)
+        - Add capture routing placeholder section to `DEV-RULES.PROJECT.md` template
+          (discoverability for teams using `pm.mode: external` or `none` — referenced
+          by DEV-RULES.ARC § Leave it cleaner routing table)
 
 - [ ] **3.5 ARC integrity verification — scripts, workflow, and skill**
 
@@ -529,8 +583,8 @@ working ARC installation.
       `.cursor/skills/`, GitHub Copilot → `.github/skills/`, Windsurf → `.windsurf/skills/`,
       Gemini → `.gemini/skills/`)
     - Include `arc-verify` alongside `arc-setup` in canonical skill target list
-    - Define `generateSkills()` signature: selected tools, ARC dir, canonical skill path →
-      skill output list
+    - Define `generateSkills()` signature: selected tools, canonical skill path →
+      skill output list (ARC dir is fixed `.arc/`, not a parameter)
     - Implement as no-op returning empty array (Phase 6 replaces with real implementation)
     - Export types for init command and Phase 6 consumption
 
@@ -539,6 +593,20 @@ working ARC installation.
     - [ ] **3.7.a Core init flow**
 
         Build `test-first` (one behavior at a time):
+
+        **Join-mode detection (design decision 2026-03-15):**
+
+        - Check `.arc/system/arc-config.yml` at repo root before prompting
+        - If found → **join mode**: ARC already initialized by another team member
+            - Skip structural setup (config creation, constitutional docs, workflows)
+            - Prompt only for `tools` (which agent platforms to set up locally)
+            - Set up agent directories, install git hooks, set `git config arc.identity`
+            - Post-init message adapts (review config, not configure from scratch)
+        - If not found → **fresh mode**: full init sequence
+        - Detection is deterministic: `.arc/` is fixed at repo root (no custom dirs)
+
+        **Fresh mode flow:**
+
         - Config assembly: prompt responses mapped to install config object; `tools`
           multiselect joined as comma-separated string for condition evaluation
         - Condition evaluation: recipe conditions filter file list based on config
@@ -546,7 +614,7 @@ working ARC installation.
         - Conditional rendering: `<!-- arc:if -->` blocks included/excluded per config
         - `.template` stripping: output filenames strip `.template` suffix (convention from
           file classification strategy — e.g., `WORK-STATUS.template.md` → `WORK-STATUS.md`)
-        - File output: rendered files written to correct install directory paths
+        - File output: rendered files written to `.arc/` at repo root
         - Config output: copy `arc-config.yml` template and overwrite specific values
           (preserves inline documentation comments for adopters)
         - Skill generation: call `generateSkills()` interface (3.6) with selected tools
@@ -586,6 +654,9 @@ working ARC installation.
     - Test: `WORK-STATUS.md` initial Next Action points to setup workflow
     - Test: verify script files installed (`scripts/validate-config.sh`,
       `scripts/verify-integrity.sh`)
+    - Test: join mode — init in repo with existing `.arc/` → detects existing ARC,
+      skips structural setup, sets up agent dirs and hooks only
+    - Test: rendered files use hardcoded `.arc/` paths (no `{{ARC_DIR}}` residuals)
 
 - [ ] **3.10 Run quality gates**
     - Type checking passes
