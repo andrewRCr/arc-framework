@@ -12,8 +12,8 @@
 **Next Task**: Task 3.4.d — Setup bridge: arc-setup skill and README (line ~450)
 **Last Completed**: Task 3.4.c — Workflow and session-init updates
 **Blockers**: [none]
-**Next Action**: Begin 3.4.d (create arc-setup canonical skill, add to generation targets, refresh .arc/README.md)
+**Next Action**: Complete remaining atomic tasks (session-init optimization, session boundary guidance) then resume 3.4.d
 
 ---
 
-**Last Updated**: 2026-03-15
+**Last Updated**: 2026-03-16
