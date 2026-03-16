@@ -157,17 +157,17 @@ Next: Restart your AI agent to load ARC configuration, then:
   • Run /arc-setup                    (recommended)
   • Or paste the prompt below
 
-  "Read .arc/system/agent/AGENTS.ARC.md and .arc/system/agent/AGENTS.PROJECT.md
-   for context, then read your agent-specific file if one exists, then run the
-   setup workflow at .arc/system/workflows/arc/initial-setup/"
+  "Read .arc/system/agent/AGENTS.ARC.md for context, then follow
+   .arc/system/workflows/arc/initial-setup/01_verify-and-configure.md"
 ```
 
 If multiple tools were selected, tailor the message to the primary tool (first selected)
 or list all. The copy-paste fallback works regardless of harness — it's the universal path.
 
 The `/arc-setup` skill (created per selected tool during init — Task 3.4.d) contains the
-same bootstrap sequence: read AGENTS.ARC.md → AGENTS.PROJECT.md → agent-specific file →
-run setup workflow. The skill gives it a mechanical trigger instead of copy-paste.
+same bootstrap sequence: read AGENTS.ARC.md → run setup workflow. AGENTS.PROJECT.md and
+agent-specific files are unpopulated templates at this point — the setup workflow handles
+discovery and verification of those files.
 
 ## Template Rendering Syntax
 

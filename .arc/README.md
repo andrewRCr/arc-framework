@@ -1,9 +1,18 @@
 # .arc — ARC Framework
 
-This directory contains the ARC framework for your project — development methodology, shared
-context, and active work tracking, implemented as portable markdown documents.
+Development methodology for human-AI collaboration. ARC structures how you and your AI agent
+plan, execute, verify, and preserve context across work sessions — expressed as markdown
+documents that work with any agent platform.
 
-**New to ARC?** See the [repository README](../README.md) for an overview of the framework.
+## Getting Started
+
+After running `arc init`, restart your AI agent to load the new configuration, then:
+
+- Run `/arc-setup` to walk through verification and project definition with your agent
+- Or paste: *"Read `.arc/system/agent/AGENTS.ARC.md` for context, then follow
+  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`"*
+
+After setup, run `/arc-verify` to confirm everything installed correctly.
 
 ## Directory Structure
 
@@ -34,10 +43,10 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
     ├── agent/                 # AI agent configuration (AGENTS.ARC.md, AGENTS.PROJECT.md, tool-specific)
-    ├── commands/              # Slash commands
+    ├── skills/                # Canonical skill definitions (arc-setup, arc-resume, arc-commit, arc-handoff)
     ├── githooks/              # Git hook scripts
     └── workflows/             # Development process workflows
-        ├── arc/               # ARC framework workflows (setup/ + supplemental/)
+        ├── arc/               # ARC framework workflows (setup, session lifecycle, supplemental)
         └── project/           # Project-specific workflows
 ```
 
@@ -46,12 +55,12 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 ARC documents serve different audiences — knowing this helps you understand what to read
 and what to leave for your agent:
 
-| Audience            | Documents                                                     | Who reads them                                                          |
-|---------------------|---------------------------------------------------------------|-------------------------------------------------------------------------|
-| **Agent-executed**  | Session init/handoff, process-task-loop, commit workflow      | Your agent follows these as procedures. Read when customizing.          |
-| **Collaborative**   | Setup workflows, create-prd, generate-tasks                   | You and your agent work through these together.                         |
-| **Shared context**  | Constitution, strategies, ADRs, task lists, project status    | Both you and your agent. The common project baseline.                   |
-| **Human-facing**    | Repository README, external documentation site                | You, when evaluating or onboarding to the framework.                    |
+| Audience           | Documents                                                  | Who reads them                                                |
+|--------------------|------------------------------------------------------------|---------------------------------------------------------------|
+| **Agent-executed** | Session init/handoff, process-task-loop, commit workflow   | Your agent follows these as procedures. Read when customizing |
+| **Collaborative**  | Setup workflows, create-prd, generate-tasks                | You and your agent work through these together                |
+| **Shared context** | Constitution, strategies, ADRs, task lists, project status | Both you and your agent — the common project baseline         |
+| **Human-facing**   | Repository README, external documentation site             | You, when evaluating or onboarding to the framework           |
 
 **Audience headers in workflows:** All workflow files include an `**Audience:**` line at the
 top indicating who drives the process. This makes it clear at a glance whether a workflow is

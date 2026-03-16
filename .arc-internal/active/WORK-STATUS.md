@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.4.d — Setup bridge: arc-setup skill and README (line ~450)
-**Last Completed**: Task 3.4.c — Workflow and session-init updates
+**Next Task**: Task 3.4.e — Implement prompts and remove `arc_dir` (line ~490)
+**Last Completed**: Task 3.4.d — Setup bridge: arc-setup skill and README
 **Blockers**: [none]
-**Next Action**: Resume Task 3.4.d — Setup bridge: arc-setup skill and README
+**Next Action**: Resume Task 3.4.e — Implement prompts and remove `arc_dir`
 
 ---
 

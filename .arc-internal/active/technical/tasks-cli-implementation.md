@@ -456,27 +456,33 @@ working ARC installation.
           line length in 4 strategy files)
         - All quality gates pass: 0 lint errors (150 files), typecheck clean, 84 tests
 
-    - [ ] **3.4.d Setup bridge: arc-setup skill and README**
+    - [x] **3.4.d Setup bridge: arc-setup skill and README**
 
-        Establish the bridge from CLI init to agent-led setup. Two mechanisms:
-        skill invocation (recommended) and copy-paste fallback.
+        Created `arc-setup` canonical skill and refreshed `.arc/README.md`.
 
-        - Create `arc-setup` canonical skill content — a mini bootstrap sequence:
-            1. Read `.arc/system/agent/AGENTS.ARC.md` (understand ARC)
-            2. Read `.arc/system/agent/AGENTS.PROJECT.md` (understand project)
-            3. Read agent-specific file if one exists
-            4. Run setup workflow at `.arc/system/workflows/arc/initial-setup/`
-        - Add `arc-setup` to skill generation targets (generated per selected tool
-          during init — `.claude/skills/`, `.cursor/skills/`, etc.)
-        - Refresh `.arc/README.md`: add "What is ARC" section, add "Getting started"
-          pointer, keep directory tree and document audiences, dual-audience tone
-        - Reference arc-verify as optional post-setup step: "run `/arc-verify`
-          to confirm everything installed correctly"
-        - Note: skill availability requires agent harness restart — post-init
-          message (3.8) must account for this with both options
-        - Design decision: AGENTS.ARC.md must NOT contain a "if this is a fresh
-          installation" pointer — it's loaded every session and would confuse agents
-          during normal session-init. The skill/prompt handles first-time routing.
+        - `arc-setup` skill: simplified to 2-step sequence (read AGENTS.ARC.md →
+          follow 01_verify-and-configure.md). AGENTS.PROJECT.md and agent-specific
+          files are unpopulated templates post-init — the setup workflow handles them.
+          `disable-model-invocation: true` (user-initiated, not auto-triggered).
+        - `.arc/README.md`: added "Getting Started" section with `/arc-setup` and
+          copy-paste fallback, `/arc-verify` pointer, updated directory tree (added
+          skills/), refreshed lead description and table alignment
+        - Updated skills README with arc-setup in default skill set
+        - Updated notes-cli-implementation.md post-init bridge message spec
+        - Skill generation targets: reassigned to Task 3.6 (already includes arc-setup)
+
+        **Additional work in this session (methodology improvements):**
+
+        - AGENTS.ARC.md (both copies): updated "portable markdown documents" phrasing
+          to "markdown documents that work with any agent platform"
+        - Session-init (both copies): added item 11 — conditional process-task-loop
+          load when WORK-STATUS shows active task work. Eliminates self-triggering
+          failure mode where agents skip loading the task execution workflow.
+        - Context loading strategy: added "State-Conditional Promotion" subsection
+          documenting T3→init promotion based on session state signals
+        - DEV-RULES.ARC: updated "When to Load Additional Guidance" to reflect
+          conditional init loading as primary, on-demand as fallback
+        - CLAUDE.ARC.md (internal): updated process-task-loop loading instruction
 
     - [ ] **3.4.e Implement prompts and remove `arc_dir` (`src/prompts/init-prompts.ts`)**
 
