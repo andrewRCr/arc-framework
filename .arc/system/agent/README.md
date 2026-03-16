@@ -121,7 +121,7 @@ conflicts during framework updates, and contradict the principle that these file
 
 **AGENTS.PROJECT.md (most important)**:
 
-- Init tokens (`{{PROJECT_NAME}}`, `{{ARC_DIR}}`) are filled automatically by `arc init`
+- Init tokens (`{{PROJECT_NAME}}`) are filled automatically by `arc init`
 - Guide-text placeholders (`[Component]`, `[description]`) are for you to fill in manually
 - Update "Project Snapshot" with your tech stack
 - Customize "Critical Path Information" with your project's gotchas

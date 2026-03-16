@@ -61,13 +61,6 @@
       "options": ["none", "arc-in-git", "external"],
       "default": "none",
       "config_key": "pm.mode"
-    },
-    {
-      "id": "arc_dir",
-      "type": "text",
-      "message": "Install directory?",
-      "default": ".arc",
-      "token": "ARC_DIR"
     }
   ],
   "conditions": {

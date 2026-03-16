@@ -85,11 +85,11 @@ the branch, and session init loads Alice's session context from the git note. Th
 context — what she tried, what didn't work, where the tricky parts are — transfers alongside the
 code, not through a separate Slack thread.
 
-### UC7: Adopter uses a non-standard install directory
+### UC7: Fixed install directory
 
-A team prefers `arc/` (visible) over `.arc/` (hidden), or needs the framework under `docs/.arc/`.
-During init, they specify a custom directory. The CLI renders all cross-references with the
-configured path. Skills, agent files, and documentation all reference the correct location.
+The framework installs to `.arc/` at repo root — no renaming, no relocation. No tool in the
+ecosystem supports directory renaming, and subdirectory paths are non-standard. The fixed path
+simplifies cross-references, join-mode detection, and tooling assumptions.
 
 ## Requirements
 
@@ -134,9 +134,8 @@ configured path. Skills, agent files, and documentation all reference the correc
     files). Identity resolved via `git config arc.identity` → slugified `user.name` → prompt.
     `team.mode` config key controls behavioral defaults (`user.sync_push`, team coordination
     guidance) — directory structure is identical for solo and team
-13. **Configurable install directory** — `{{ARC_DIR}}` token with `.arc/` default. Init prompt
-    allows custom directory name/path. All cross-references in rendered files use the configured
-    value
+13. **Fixed install directory** — installs to `.arc/` at repo root. No renaming or relocation
+    supported. Cross-references use `.arc/` directly (no token substitution needed)
 14. **PM mode awareness** — `pm.mode` (`none`, `arc-in-git`, `external`) controls which files are
     installed and managed. arc-in-git installs backlog templates, ROADMAP, PROJECT-STATUS,
     ATOMIC-INBOX.md (in `user/{identity}/`), strategy-backlog-organization. Manifest tracks per-file

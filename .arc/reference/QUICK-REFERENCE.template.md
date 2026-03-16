@@ -15,7 +15,7 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 |-----------------|-------------------------|---------------------------|
 | [Resource name] | `[path]`                | [brief explanation]       |
 | [Resource name] | `[path]`                | [brief explanation]       |
-| ARC docs        | `{{ARC_DIR}}/`          | Development documentation |
+| ARC docs        | `.arc/`                 | Development documentation |
 
 **Working Directory Note**: Your working directory may vary. Check WORK-STATUS.md for
 current context and adjusted paths.

@@ -484,45 +484,60 @@ working ARC installation.
           conditional init loading as primary, on-demand as fallback
         - CLAUDE.ARC.md (internal): updated process-task-loop loading instruction
 
-    - [ ] **3.4.e Implement prompts and remove `arc_dir` (`src/prompts/init-prompts.ts`)**
+    - [x] **3.4.e Implement prompts and remove `arc_dir` (`src/prompts/init-prompts.ts`)**
 
-        @clack/prompts flow for the 3-prompt sequence (reduced from 4 — `arc_dir` dropped).
-        See `notes-cli-implementation.md` § Init Prompt UX Specification for finalized
-        wording, display labels, and label-to-config-value mappings.
+        Created `src/prompts/init-prompts.ts` with @clack/prompts 3-prompt sequence
+        (`project_name` text, `tools` multiselect, `pm_mode` select). Prompt wording
+        iterated through audit of actual pm.mode behavioral differences — labels
+        refined to ARC Core / ARC Core + Planning Module / ARC Core + External Tracker
+        with hints grounded in what each mode concretely provides.
 
-        **Design decision (2026-03-15):** Install directory locked to `.arc/` at repo root.
-        No renaming, no relocation. The `arc_dir` prompt and `ARC_DIR` token are eliminated.
-        Rationale: no tool in the ecosystem supports directory renaming; relocation to
-        subdirectories is non-standard and unsupported by any major dev tool; no naming
-        collision with existing tools; fixed path simplifies join-mode detection (3.7.a).
+        `arc_dir` / `ARC_DIR` removal across the codebase:
 
-        **Prompts (3):**
+        - Removed `arc_dir` prompt from `init-recipe.json` (4→3 prompts)
+        - Removed `arc_dir` from `InstallConfig` in `src/lib/types.ts`
+        - Replaced `{{ARC_DIR}}` with `.arc` in 6 template files (AGENTS.PROJECT,
+          QUICK-REFERENCE, PROJECT-STATUS, BACKLOG-FEATURE, BACKLOG-TECHNICAL,
+          agent README)
+        - Updated test fixtures in `recipe.test.ts` and `manifest.test.ts`
+        - Updated notes (removed Prompt 4, removed `{{ARC_DIR}}` from token table,
+          updated prompt spec to match finalized wording)
+        - Updated PRD (revised UC7 and requirement 13 for fixed directory)
+        - Added Capture Routing placeholder section to `DEV-RULES.PROJECT.md` template
+        - Marked Task 7.5 (configurable install directory) as superseded `[~]`
+        - Added Task 3.4.f (external tracker integration setup workflow) to give
+          `pm.mode: external` a concrete post-init deliverable
 
-        - `project_name`: text input, default from `path.basename(cwd)`
-        - `tools`: multiselect with display labels (Claude Code, Codex, Cursor,
-          GitHub Copilot, Windsurf, Gemini, Warp) mapped to condition values
-        - `pm_mode`: select with descriptive multi-line labels (ARC Core / ARC Core +
-          Planning / External tools) per @clack/prompts API
-        - Map prompt responses to `InstallConfig` + token map + condition config
-        - Handle non-interactive mode (future: `--yes` flag with all defaults)
+- [ ] **3.4.f Create external tracker integration setup workflow**
 
-        **`arc_dir` / `ARC_DIR` removal (bundled here — prompt is the root cause):**
+        **Goal:** Give `pm.mode: external` a concrete post-init deliverable. Currently `external`
+        and `none` install identical file sets — the only difference is a semantic config value.
+        This workflow makes the selection meaningful: when `pm.mode: external`, the guided setup
+        sequence includes a third step that walks the user through connecting ARC workflows to
+        their external tracker.
 
-        - Remove `arc_dir` prompt from `init-recipe.json`
-        - Remove `arc_dir` from `InstallConfig` in `src/lib/types.ts`
-        - Replace `{{ARC_DIR}}` with `.arc` in 6 template files:
-          AGENTS.PROJECT.template.md, QUICK-REFERENCE.template.md,
-          PROJECT-STATUS.template.md, BACKLOG-FEATURE.template.md,
-          BACKLOG-TECHNICAL.template.md, and any others found
-        - Update test fixtures: `recipe.test.ts` (prompt fixtures, getInitTokenNames),
-          `manifest.test.ts` (validManifest fixture)
-        - Update `notes-cli-implementation.md`: remove Prompt 4 section, remove
-          `{{ARC_DIR}}` from token table
-        - Update `prd-cli-implementation.md`: revise UC7 (non-standard dir no longer
-          supported), revise requirement 13 (fixed `.arc/` directory)
-        - Add capture routing placeholder section to `DEV-RULES.PROJECT.md` template
-          (discoverability for teams using `pm.mode: external` or `none` — referenced
-          by DEV-RULES.ARC § Leave it cleaner routing table)
+        **Workflow** (`initial-setup/03_configure-external-integration.md`):
+
+        - Tool-agnostic — guides the user through decisions, not specific API integrations
+        - Identify which tracker the team uses (Jira, Linear, GitHub Issues, etc.)
+          — informational, shapes the guidance
+        - Walk through relevant `arc-extensions.md` sections:
+            - `post-task-completion` — sync task status to external tracker
+            - `post-work-unit-activate` — update sprint boards or project dashboards
+            - `post-work-unit-archive` — close epics, update dashboards
+        - Point to `arc-methods.md` overrides if tracker needs custom commit context
+          format or issue-triage routing
+        - Set up capture routing in `DEV-RULES.PROJECT` § Capture Routing — where
+          deferred issues go ("create a GitHub Issue", "add to Linear backlog", etc.)
+        - Lightweight: mostly guidance and prompting, not file generation
+
+        **Integration with existing setup sequence:**
+
+        - `02_define-project.md`: add conditional pointer at the end — "if `pm.mode`
+          is `external`, proceed to `03_configure-external-integration.md`"
+        - `arc-setup` skill: no change needed — skill triggers `01_` which chains to
+          `02_`, and `02_` chains to `03_` conditionally
+        - Add workflow file to init recipe `include_files`
 
 - [ ] **3.5 ARC integrity verification — scripts, workflow, and skill**
 
@@ -778,7 +793,7 @@ definitions.
     - Canonical skill → Codex output (`.agents/skills/` path, `openai.yaml` supplemental)
     - Canonical skill → Windsurf output (`.windsurf/skills/` path, no `.agents/`)
     - Multiple agents selected → correct output set for each
-    - `{{ARC_DIR}}` in skill instructions rendered with configured path
+    - Skill instructions use fixed `.arc/` path
 
 - [ ] **6.2 Integrate with init and update**
     - Init: generate skill files based on agent selection
@@ -795,11 +810,11 @@ definitions.
     - All tests pass
     - Markdown linting passes
 
-### **Phase 7:** User Directory, PM Mode, Portability, and Install Directory
+### **Phase 7:** User Directory, PM Mode, and Portability
 
 **Purpose:** Implement the unified user directory model (ADR-012), PM mode conditional handling,
-user directory portability via git notes, `arc log --atomic`, configurable install directory,
-framework template/doc updates, and `.arc-internal/` self-hosting migration.
+user directory portability via git notes, `arc log --atomic`, framework template/doc updates,
+and `.arc-internal/` self-hosting migration.
 
 **Strategies:** `strategy-file-classification.md` (file inventory), `strategy-team-coordination.md`,
 `strategy-backlog-organization.md`, `strategy-configurability-architecture.md`
@@ -910,12 +925,11 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
     - Non-atomic commits excluded
     - Filter flags work correctly
 
-- [ ] **7.5 Implement configurable install directory**
-    - `{{ARC_DIR}}` token processing throughout template rendering
-    - Init prompt with `.arc/` default
-    - All cross-references in rendered files use configured path
-    - Skill instructions render with correct base path
-    - Manifest and pristine paths use configured directory
+- [~] **7.5 ~~Implement configurable install directory~~**
+
+    Superseded by fixed `.arc/` directory decision (2026-03-15, implemented in Task 3.4.e).
+    Install directory locked to `.arc/` at repo root — no renaming, no relocation. `{{ARC_DIR}}`
+    token and `arc_dir` prompt eliminated. Cross-references use `.arc/` directly.
 
 - [x] **7.6 Update framework templates for unified model (ADR-012)**
 
@@ -1016,7 +1030,6 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
     - Test: init with team mode → same `user/` structure, `team.mode: true` in config,
       `user.sync_push: prompt`
     - Test: init with solo mode → `user.sync_push: always`
-    - Test: init with custom install dir → all `user/` paths under custom dir
     - Test: update respects PM mode (skips arc-in-git files when mode is none)
     - Test: no `completed-atomic` files in any mode
     - Test: `arc log --atomic` returns commits matching both companion file and standalone patterns

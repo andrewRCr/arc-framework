@@ -31,7 +31,7 @@
 
 - `[src_dir]/` - [description]
 - `[test_dir]/` - [description]
-- `{{ARC_DIR}}/` - Development documentation (constitution, strategies, workflows, active tasks)
+- `.arc/` - Development documentation (constitution, strategies, workflows, active tasks)
 - [additional directories as needed]
 
 ## Critical Path Information

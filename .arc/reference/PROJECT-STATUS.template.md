@@ -17,7 +17,7 @@ Current state at a glance. Updated when work is activated, completed, or archive
 **Currently Active:**
 
 - [ACTIVE_WORK_NAME] ([CATEGORY]) - [BRIEF_DESCRIPTION]
-    - Task list: `{{ARC_DIR}}/active/[CATEGORY]/tasks-[NAME].md`
+    - Task list: `.arc/active/[CATEGORY]/tasks-[NAME].md`
     - Branch(es): `[CATEGORY]/[BRANCH_NAME]`
 
 **Next Priority:**

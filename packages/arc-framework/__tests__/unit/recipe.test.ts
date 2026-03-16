@@ -43,13 +43,6 @@ function validRecipe(): Recipe {
         default: "none",
         config_key: "pm.mode",
       },
-      {
-        id: "arc_dir",
-        type: "text",
-        message: "Install directory?",
-        default: ".arc",
-        token: "ARC_DIR",
-      },
     ],
     conditions: {
       "pm.mode == arc-in-git": {
@@ -264,10 +257,9 @@ describe("getInitTokenNames", () => {
     const prompts = [
       { token: "PROJECT_NAME" },
       { config_key: "pm.mode" },
-      { token: "ARC_DIR" },
     ];
     const tokens = getInitTokenNames(prompts);
-    expect(tokens).toEqual(new Set(["PROJECT_NAME", "ARC_DIR"]));
+    expect(tokens).toEqual(new Set(["PROJECT_NAME"]));
   });
 
   it("returns empty set when no prompts have tokens", () => {
@@ -284,9 +276,9 @@ describe("getInitTokenNames", () => {
 
   it("works with computed tokens and no prompt tokens", () => {
     const prompts = [{ config_key: "pm.mode" }];
-    const computed = { REPO_ROOT: "description", ARC_DIR: "description" };
+    const computed = { REPO_ROOT: "description" };
     const tokens = getInitTokenNames(prompts, computed);
-    expect(tokens).toEqual(new Set(["REPO_ROOT", "ARC_DIR"]));
+    expect(tokens).toEqual(new Set(["REPO_ROOT"]));
   });
 });
 

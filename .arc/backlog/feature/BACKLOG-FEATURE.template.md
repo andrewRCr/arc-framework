@@ -2,7 +2,7 @@
 
 **Purpose:** Organized collection of feature work ideas and plans, prioritized for future development.
 
-**Processing:** When ready to work on an item, create a PRD in `{{ARC_DIR}}/active/feature/` and begin
+**Processing:** When ready to work on an item, create a PRD in `.arc/active/feature/` and begin
 the standard workflow.
 
 ---

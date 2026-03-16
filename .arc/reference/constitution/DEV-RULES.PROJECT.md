@@ -113,6 +113,16 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - Separate concerns: keep production code, tests, and configuration in distinct directories
 - Template files clearly marked as `.template.md` and copy-ready
 
+## Capture Routing
+
+<!-- Customize: Define where deferred issues and discovered work items are routed.
+     ARC's "leave it cleaner" rule (DEV-RULES.ARC § Leave it cleaner) routes deferred items
+     based on PM mode. Teams using pm.mode: external or pm.mode: none should define their
+     capture surfaces here (e.g., GitHub Issues, Linear project, a specific file).
+     Teams using pm.mode: arc-in-git use ATOMIC-INBOX.md and backlog files by default. -->
+
+[Define your capture routing here — where do deferred issues go?]
+
 ## Architecture Documentation
 
 ### Architecture Decision Records (ADRs)

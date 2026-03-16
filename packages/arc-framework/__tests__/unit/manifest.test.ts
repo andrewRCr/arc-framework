@@ -16,7 +16,6 @@ function validManifest(): Manifest {
     install_config: {
       project_name: "My App",
       pm_mode: "none",
-      arc_dir: ".arc",
       tools: ["claude"],
     },
     files: {

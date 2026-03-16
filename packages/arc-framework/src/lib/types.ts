@@ -22,7 +22,6 @@ export interface FileEntry {
 export interface InstallConfig {
   project_name: string;
   pm_mode: string;
-  arc_dir: string;
   tools: string[];
 }
 

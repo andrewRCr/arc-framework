@@ -84,7 +84,7 @@ CI (trusted publishing or npm token). See the WU4 plan for the full publish mirr
 
 ## Init Prompt UX Specification
 
-Finalized prompt sequence for `arc init` (4 prompts). The recipe (`init-recipe.json`) stores
+Finalized prompt sequence for `arc init` (3 prompts). The recipe (`init-recipe.json`) stores
 config values and condition identifiers; the @clack/prompts implementation (Task 3.4.e) maps
 these to the user-facing rendering below.
 
@@ -119,30 +119,25 @@ evaluation (e.g., `tools includes claude`).
 ```text
 ◆ Project management approach?
 │
-│ ● ARC Core — Methodology and workflows only
-│     Sessions, task execution, quality gates, context preservation.
-│     Use your own tools for planning and tracking.
+│ ● ARC Core
+│     The structured ARC development methodology — session continuity
+│     across tools and machines, spec-driven task execution, codified
+│     standards, and commit traceability. No integrated planning
+│     layer — can be added later.
 │
-│ ○ ARC Core + Planning — Built-in project management (recommended for solo/small teams)
-│     Everything in Core, plus roadmaps, backlogs, and status tracking
-│     managed alongside your code in git. (arc-in-git)
+│ ○ ARC Core + Planning Module
+│     Adds ARC's planning infrastructure — roadmap, backlogs, task
+│     capture, and project status — all managed in git alongside
+│     your code.
 │
-│ ○ External tools — Core methodology + external tracker integration
-│     Use ARC with Jira, Linear, GitHub Issues, or similar.
+│ ○ ARC Core + External Tracker
+│     Everything in Core, plus guided setup for connecting ARC
+│     workflows to Jira, Linear, GitHub Issues, or similar.
 ```
 
-Type: select. Config key: `pm.mode`. Display labels map to config values: `none`,
-`arc-in-git`, `external`. Default: `none` (ARC Core).
-
-### Prompt 4: Install Directory
-
-```text
-◆ Install directory?
-│ .arc                    ← default
-```
-
-Type: text. Token: `ARC_DIR`. Default: `.arc`. Prompted because changing post-install is
-essentially a re-install — all paths, cross-references, and agent instructions depend on it.
+Type: select. Config key: `pm.mode`. Display labels → config values: ARC Core → `none`,
+ARC Core + Planning Module → `arc-in-git`, ARC Core + External Tracker → `external`.
+Default: `none` (ARC Core).
 
 ### Post-Init Bridge Message (Task 3.8)
 
@@ -190,7 +185,6 @@ Known tokens (complete inventory finalized during implementation):
 | `{{BACKEND_TEST_CMD}}`  | Init prompt | "npm test"         |
 | `{{FRONTEND_TEST_CMD}}` | Init prompt | "npm run test:e2e" |
 | `{{LINT_CMD}}`          | Init prompt | "npm run lint"     |
-| `{{ARC_DIR}}`           | Init prompt | ".arc"             |
 
 ### Conditional sections
 
