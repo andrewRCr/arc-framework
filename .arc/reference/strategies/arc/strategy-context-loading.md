@@ -50,11 +50,12 @@ Always loaded at session start. Without this, the agent cannot determine what to
 - Task list overview and current task section (strategic partial read)
 
 **T3 — Procedural.** Step-by-step guidance for specific activities that may or may not happen in a given session.
-Loaded on-demand when the agent enters the relevant workflow phase. Never loaded at session initialization.
+Loaded on-demand when the agent enters the relevant workflow phase. Generally not loaded at session
+initialization — with one exception (see [State-Conditional Promotion](#state-conditional-promotion)).
 
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
-- Workflow documents (process-task-loop, prepare-commits, integrate-work-unit)
+- Workflow documents (prepare-commits, integrate-work-unit)
 - arc-extensions steps (post-task-quality, pre-merge-review, etc.)
 
 ### Why Not Load Everything Upfront?
@@ -71,6 +72,29 @@ Loading all guidance at session start has two costs:
 
 The tiered model addresses both: constitutional and state content earns its context cost because it governs
 everything; procedural content loads precisely when actionable.
+
+### State-Conditional Promotion
+
+Some T3 content becomes near-certain to be needed based on session state available at init time. When
+WORK-STATUS shows an active task list with a next task, the session will almost certainly involve task
+execution — making the process-task-loop workflow actionable from the start rather than hypothetical.
+
+Content that meets these criteria promotes from T3 (on-demand) to the session-init load set, conditional
+on the state signal:
+
+| Content           | State Signal                                       | Promotes When               |
+|-------------------|----------------------------------------------------|-----------------------------|
+| process-task-loop | `Following Task List: Yes` + Next Task populated   | Active task work expected   |
+
+**Why promote rather than always load?** Sessions without active task lists (planning, evaluation,
+exploratory) don't need ~240 lines of dense procedural content competing for attention. The state signal
+lets us load it precisely when it's relevant.
+
+**Why not rely on self-triggered loading?** On-demand loading relies on the agent recognizing a transition
+("I'm about to execute a task") and self-triggering the load. This fails when the transition is gradual —
+evaluation blending into implementation, discussion leading to code changes — and the loading instruction
+has decayed in context by that point. Conditional promotion at init eliminates the self-triggering failure
+mode.
 
 ---
 

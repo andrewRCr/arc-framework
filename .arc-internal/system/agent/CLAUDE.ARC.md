@@ -9,7 +9,8 @@ canonical docs:
 - [DEV-RULES.PROJECT][dev-rules] – Project quality standards
 - [QUICK-REFERENCE][quick-ref] – Environment context and command patterns
 
-Before starting task execution, load the [Process Task Loop][process-task-loop].
+The [Process Task Loop][process-task-loop] loads at session-init when WORK-STATUS shows active
+task work. If it wasn't loaded at init, load it before beginning any task.
 
 ## Claude-Specific Notes
 

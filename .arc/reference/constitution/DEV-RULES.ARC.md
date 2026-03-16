@@ -315,9 +315,11 @@ These documents contain detailed procedures for specific activities — procedur
 [Context Loading Strategy][context-loading]. Load them when you reach the relevant work — not during
 session initialization.
 
-- **Before starting task execution:** Load the [process-task-loop workflow][process-task-loop] —
-  completion protocol, quality gate checkpoints, deferred review. The workflow's method dependencies
-  block triggers loading of issue-triage, quality-gate-commands, and (conditionally) test-first
+- **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
+  conditionally at session-init when WORK-STATUS shows active task work (see session-init item 11).
+  If it wasn't loaded at init (no active task list, or session pivoted to task execution), load it
+  before beginning any task. The workflow's method dependencies block triggers loading of
+  issue-triage, quality-gate-commands, and (conditionally) test-first
 - **Before complex commits:** Load the [commit guide][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis. The workflow's method dependencies block triggers
   loading of commit-format and commit-context-format

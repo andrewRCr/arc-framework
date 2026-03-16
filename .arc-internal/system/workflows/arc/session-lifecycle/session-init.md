@@ -48,10 +48,11 @@ minimal by design — there's more value in having complete context upfront than
 mid-session.
 
 **Execution strategy:** Items 1–8, identity resolution, and configuration reads (Step 4) are independent —
-batch them into a single parallel read. SESSION-NOTES (needs identity) and the task list (needs WORK-STATUS
-path) form a second batch after the first completes. Within batches, `.ARC` files are listed before their
-`.PROJECT` counterparts for comprehension order. Sequential execution (follow item numbers) is fine if your
-platform doesn't support parallel reads.
+batch them into a single parallel read. SESSION-NOTES (needs identity), the task list (needs WORK-STATUS
+path), and conditionally the task execution workflow (item 11, needs WORK-STATUS) form a second batch after
+the first completes. Within batches, `.ARC` files are listed before their `.PROJECT` counterparts for
+comprehension order. Sequential execution (follow item numbers) is fine if your platform doesn't support
+parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
@@ -136,6 +137,19 @@ session-state, follow the override instead.
     - **Why partial read OK**: This is the ONLY exception — reference material, often 500+ lines,
       too large to internalize upfront. But you MUST read the overview + current task context.
     - **What to extract**: Current phase, task details, acceptance criteria
+
+11. **Task execution workflow** - **READ IN FULL** (Batch 2 — conditional)
+
+    **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task execution expected.
+
+    - Path: `.arc-internal/system/workflows/arc/3_process-task-loop.md`
+    - Contains: completion protocol, quality gate checkpoints, mandatory stops, deferred review,
+      incidental work routing, and method dependency triggers (issue-triage, quality-gate-commands,
+      test-first)
+    - **Why conditional**: This is procedural content (T3) that promotes to session-init when
+      WORK-STATUS confirms active task work. Without it, the agent skips completion protocol and
+      quality gates. Sessions without an active task list (planning, exploratory) skip this —
+      if the session pivots to task execution later, load it then.
 
 ### 3. Post-Context-Load Extensions · `#post-context-load`
 
