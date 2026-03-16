@@ -116,10 +116,14 @@ grep-searchable across commit history.
 - `Context: tasks-[filename].md (integration)` — integration prep and review fixes
 - `Context: tasks-[filename].md (archival)` — active to archive transition
 
+**With atomic companion file:**
+
+- `Context: atomic-[filename].md` — work-unit-scoped atomic task
+
 **Without task list:**
 
 - `Context: [category] (no associated task list)` — emergent work
-- `Context: [category] (atomic / no associated task list)` — small one-off work
+- `Context: [category] (atomic / no associated task list)` — standalone small one-off work
 
 **Categories:** `planning`, `documentation`, `maintenance`, `refactor`.
 

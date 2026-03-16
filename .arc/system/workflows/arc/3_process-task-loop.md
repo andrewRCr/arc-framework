@@ -194,19 +194,18 @@ immediately. **Quick decision tree**:
 
 ### Where to Capture Atomic Tasks
 
-Once you've decided something is an atomic task (not an incidental task list), route it to the
-right location:
+Once you've decided something is an atomic task (not an incidental task list), route it based
+on **lifecycle intent** — when you intend to handle it, not what domain it's in:
 
-- **Within the current work unit's domain** → add to the **Atomic Tasks section** at the end of
-  the current task list. All task lists have this section regardless of PM mode.
-- **Outside the current work unit's domain** → depends on PM mode:
+- **Will do during this work unit** → add to the **atomic companion file** (`atomic-{name}.md`
+  in the same directory as the task list). All task lists have a companion file.
+- **For later** (won't do during this WU) → depends on PM mode:
     <!-- arc:if pm.mode == arc-in-git -->
-    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal capture bucket,
-      gitignored — zero-friction local edit)
+    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal, gitignored,
+      branch-agnostic — persists across work unit boundaries)
     <!-- arc:endif -->
     <!-- arc:if pm.mode != arc-in-git -->
-    - `none` / `external`: capture in **session notes** for later triage, or add directly to your
-      external tracker
+    - `none` / `external`: per project convention (DEV-RULES.PROJECT) — default: ask user
     <!-- arc:endif -->
 
 ### Complete Workflow

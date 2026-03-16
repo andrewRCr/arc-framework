@@ -83,6 +83,7 @@ you what kind."
 | `tasks-`      | Task list                | User/agent | `tasks-api-modernization.md`      |
 | `completion-` | Completion record        | Agent      | `completion-api-modernization.md` |
 | `notes-`      | Work unit notes          | Agent      | `notes-api-modernization.md`      |
+| `atomic-`     | Atomic companion file    | Agent      | `atomic-api-modernization.md`     |
 | `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-api-migration.md`           |
 | `strategy-`   | Strategy document        | Framework  | `strategy-work-organization.md`   |
 | `research-`   | Research document        | User/agent | `research-context-loading.md`     |

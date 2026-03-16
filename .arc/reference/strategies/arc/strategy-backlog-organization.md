@@ -51,8 +51,16 @@ Bucket → plan-*.md (when scope clear) → prd-*.md (when ready, delete plan)
 ## Key Design Points
 
 - **No incidental/ in backlog** — Incidental work is discovered during active work, not pre-planned
-- **ATOMIC-INBOX.md** lives in `user/{identity}/` — Personal, gitignored capture bucket for small,
-  ready-to-execute items (GTD "Next Actions"). Items that grow beyond atomic scope promote to backlog.
+- **ATOMIC-INBOX.md** lives in `user/{identity}/` — Personal, gitignored, branch-agnostic capture
+  for items that **outlive the current work unit**. Three mechanical properties distinguish it from
+  the atomic companion file (`atomic-{name}.md`): it's gitignored (personal, not in diffs),
+  branch-agnostic (persists across branch switches), and not tied to any work unit's lifecycle
+  (survives activation, integration, and archival). Items that grow beyond atomic scope promote to
+  backlog.
+- **Companion file vs. inbox** — The distinguishing question is lifecycle intent, not domain:
+  "will I do this during the current work unit?" → `atomic-{name}.md` (branch-scoped, archives
+  with WU). "Is this for later?" → ATOMIC-INBOX (persistent, personal). In team contexts, the
+  inbox is especially valuable because you can't edit tracked backlog files from a feature branch.
 - **ROADMAP.md** is an internal planning artifact for sequencing, referenced from PROJECT-STATUS.md
 - **Bucket → plan → PRD graduation** — Items move to individual files when scope is defined
 - **Inbox → backlog graduation** — Items that turn out to be larger than expected promote from inbox
@@ -60,8 +68,16 @@ Bucket → plan-*.md (when scope clear) → prd-*.md (when ready, delete plan)
 
 ## Commit Context for Atomic Work
 
-Atomic work (whether from the inbox or done directly) uses boundary categories in the commit
-Context footer:
+Atomic work uses different context footer patterns depending on where it lives:
+
+**Work-unit-scoped** (from the atomic companion file):
+
+```text
+Context: atomic-api-modernization.md
+Context: atomic-theme-system.md
+```
+
+**Standalone** (from the inbox or done directly, no associated work unit):
 
 ```text
 Context: maintenance (atomic / no associated task list)
@@ -70,7 +86,8 @@ Context: documentation (atomic / no associated task list)
 ```
 
 The commit message is the canonical completion record — no separate archive file. `arc log --atomic`
-searches commit history by the `(atomic / no associated task list)` pattern.
+searches commit history by both the `atomic-` filename pattern and the
+`(atomic / no associated task list)` pattern.
 
 ---
 

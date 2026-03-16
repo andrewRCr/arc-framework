@@ -889,13 +889,18 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
         - Round-trip: save → modify local → load → verify restored to saved state
 
 - [ ] **7.4 Implement `arc log --atomic` subcommand**
-    - Search commit history: `git log --grep="(atomic / no associated task list)"` with
-      formatted output (date, type, scope, description)
-    - Optional filters: `--since`, `--author`, `--limit`
+    - Search commit history for two patterns:
+        - `git log --grep="Context: atomic-"` — work-unit-scoped atomic tasks (companion file)
+        - `git log --grep="(atomic / no associated task list)"` — standalone atomic tasks
+    - Formatted output (date, type, scope, description)
+    - Optional filters: `--since`, `--author`, `--limit`, `--work-unit` (filter by WU name
+      via `atomic-{name}` filename pattern)
     - Clear output when no matching commits found
 
     Build `test-first` (one behavior at a time):
-    - Commits with atomic context footer appear in output
+    - Commits with companion file context footer appear in output
+    - Commits with standalone atomic context footer appear in output
+    - `--work-unit` filter narrows to specific WU
     - Non-atomic commits excluded
     - Filter flags work correctly
 
@@ -1008,7 +1013,8 @@ framework template/doc updates, and `.arc-internal/` self-hosting migration.
     - Test: init with custom install dir → all `user/` paths under custom dir
     - Test: update respects PM mode (skips arc-in-git files when mode is none)
     - Test: no `completed-atomic` files in any mode
-    - Test: `arc log --atomic` returns matching commits
+    - Test: `arc log --atomic` returns commits matching both companion file and standalone patterns
+    - Test: `arc log --atomic --work-unit {name}` filters to specific WU
     - Test: `arc user save` → `arc user load` round-trip preserves user dir contents
 
 - [ ] **7.10 Run quality gates**
@@ -1051,43 +1057,6 @@ all success criteria.
     - Verify each PRD success criterion is met
     - Resolve any gaps or document deviations
     - Verify all atomic tasks resolved
-
----
-
-## Atomic Tasks — CLI Implementation
-
-<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
-<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
-
-- [ ] Strengthen session boundary guidance in DEV-RULES.ARC § Context quality: add explicit
-  recognition that design-to-implementation transitions are natural session boundaries, not
-  just context pressure. Long sessions that span analysis and implementation risk the same
-  degradation that context limits cause — guidance loaded early gets deprioritized. Reference
-  the session management strategy's evidence base. This is about strengthening existing
-  position, not adding enforcement.
-
-- [ ] Optimize session-init execution performance in `session-init.md`. Changes to execution
-  patterns only — no reduction in loaded content. Specific optimizations:
-    - **Parallel file reads**: Batch documents that have no ordering dependencies into
-      parallel reads. Most init docs are independent (AGENTS.ARC, AGENTS.PROJECT,
-      DEV-RULES.ARC, DEV-RULES.PROJECT, strategies, QUICK-REFERENCE). Evaluate whether
-      AGENTS.ARC → AGENTS.PROJECT and DEV-RULES.ARC → DEV-RULES.PROJECT have meaningful
-      sequential dependencies or can safely parallelize. Only hard dependency: WORK-STATUS
-      before task list (WORK-STATUS identifies which task to find). Target: two batches
-      instead of ~10 sequential reads.
-    - **Reduce non-user-facing reporting**: The "ARC session initialized" orientation block
-      is user-facing and must stay — it provides confidence the system is working. But
-      override scanning results, extension status, non-default config reporting, and
-      freshness check details are agent-internal and should not surface to the user unless
-      a problem is detected. Carry awareness silently; report only mismatches and problems.
-    - **Gate freshness checks**: If SESSION-NOTES `Commit at Handoff` hash == current HEAD,
-      skip gap analysis entirely (nothing has changed since last handoff). Only run freshness
-      comparison when the hashes diverge. Gate must be conservative — if hash is missing or
-      file doesn't exist, always run the check.
-    - **Batch config/methods scan**: Read `arc-config.yml` and scan `arc-methods.md` for
-      overrides in one parallel batch. If everything is at defaults (common case), produce
-      a single internal note, no user-facing output.
 
 ---
 

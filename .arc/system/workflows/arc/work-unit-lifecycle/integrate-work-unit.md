@@ -97,10 +97,15 @@ Commit all documentation updates to the child branch.
 
 ```bash
 git add .arc/active/{category}/tasks-{name}.md
-git add .arc/active/{category}/notes-{name}.md  # if exists
+git add .arc/active/{category}/notes-{name}.md   # if exists
+git add .arc/active/{category}/atomic-{name}.md  # if populated (delete if empty — see below)
 git add .arc/active/{category}/completion-{name}.md
-git add .arc/active/{category}/prd-{name}.md  # if planned work with PRD updates
+git add .arc/active/{category}/prd-{name}.md     # if planned work with PRD updates
 ```
+
+**Atomic companion file:** If `atomic-{name}.md` contains no checkbox items (no `- [` lines),
+delete it rather than archiving — an empty companion file has no archival value. If it contains
+completed or deferred items, include it in the commit for archival alongside the task list.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`

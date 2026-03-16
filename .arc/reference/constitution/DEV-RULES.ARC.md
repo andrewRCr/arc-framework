@@ -136,14 +136,13 @@ principle intact.
 
 Route to an actionable capture surface — a location that gets reviewed as part of a workflow.
 
-| Scope                  | Size                        | Destination                                                        |
-|------------------------|-----------------------------|--------------------------------------------------------------------|
-| Current work unit      | Atomic                      | Active task list → Atomic Tasks section                            |
-| Current work unit      | Multi-step                  | Propose placement in existing task structure — user approves       |
-| Outside current domain | Atomic (arc-in-git)         | `user/{identity}/ATOMIC-INBOX.md`                                  |
-| Outside current domain | Atomic (other PM modes)     | Per project convention (DEV-RULES.PROJECT) — default: ask user     |
-| Outside current domain | Multi-step (arc-in-git)     | Appropriate backlog file or existing plan-\* doc                   |
-| Outside current domain | Multi-step (other PM modes) | Per project convention (DEV-RULES.PROJECT) — default: ask user     |
+| Intent                   | Size       | Destination                                                       |
+|--------------------------|------------|-------------------------------------------------------------------|
+| Will do during this WU   | Atomic     | Atomic companion file (`atomic-{name}.md`)                        |
+| Will do during this WU   | Multi-step | Propose placement in existing task structure — user approves      |
+| For later (arc-in-git)   | Atomic     | `user/{identity}/ATOMIC-INBOX.md`                                 |
+| For later (arc-in-git)   | Multi-step | Appropriate backlog file or existing plan-\* doc                  |
+| For later (other modes)  | Any        | Per project convention (DEV-RULES.PROJECT) — default: ask user    |
 
 **Multi-step in current work unit:** Search the active task list for a natural home — fold
 into an existing incomplete task, add a subtask, or insert a new task at a logical point. If

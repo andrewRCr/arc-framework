@@ -39,7 +39,7 @@ a lightweight check that works whether the same person or a different team membe
 
 ## Task 3 — Verify All Atomic Tasks Resolved
 
-Review the Atomic Tasks section at the end of the task list. Every item must have a final
+Review the atomic companion file (`atomic-{name}.md`). Every item must have a final
 disposition — none should remain `[ ]`:
 
 - `[x]` — **Completed.** Work done, completion note present.
@@ -53,6 +53,8 @@ disposition — none should remain `[ ]`:
 - Deferred items (`[~]`) have a forward pointer (where the work will be picked up)
 
 If unresolved atomic tasks are found, address them before considering verification complete.
+If the companion file is empty (no checkbox items), it will be deleted during integration —
+no action needed.
 
 ---
 

@@ -21,7 +21,7 @@ documentation throughout the project lifecycle.
 6. [Common Mistakes](#common-mistakes)
 7. [Decision Guidelines](#decision-guidelines)
 8. [Verification Phase](#verification-phase)
-9. [Atomic Tasks Section](#atomic-tasks-section)
+9. [Atomic Companion File](#atomic-companion-file)
 10. [Success Criteria Section](#success-criteria-section)
 
 ---
@@ -42,8 +42,9 @@ Before finalizing any task list, verify:
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
-- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic tasks)
-- [ ] Atomic Tasks section present (empty by default, between verification phase and Success Criteria)
+- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic task check)
+- [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
+- [ ] Task list contains pointer to companion file (between verification phase and Success Criteria)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 ---
@@ -69,7 +70,7 @@ them may cause hook failures, workflow mismatches, or context loading errors.
   and session initialization
 - **File naming**: `tasks-{name}.md` in `active/` or `backlog/` — hook file matching, WORK-STATUS
   references
-- **Atomic Tasks section header**: `## Atomic Tasks — {name}` — workflows and archival expect this section
+- **Atomic companion file**: `atomic-{name}.md` created alongside `tasks-{name}.md` — workflows reference this file
 - **Success criteria markers**: `[x]`, `[ ]`, `[~]` — verification workflow reads these
 
 ### Style (human-facing quality)
@@ -708,14 +709,6 @@ This example demonstrates all formatting elements in proper context:
 
 ---
 
-## Atomic Tasks — Config Validation Error Reporting
-
-<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
-<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
-
----
-
 ## Success Criteria
 
 - [ ] Required-field validation reports all missing fields with paths
@@ -811,72 +804,105 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 
 - [ ] **N.1 Run Tier 3 quality gates**
 - [ ] **N.2 Validate success criteria against PRD**
-- [ ] **N.3 Verify all atomic tasks resolved**
+- [ ] **N.3 Verify all atomic tasks resolved** (`atomic-{name}.md`)
 ```
 
 The `**Workflow:**` line and `[verify-work-unit]` link reference are part of the template —
 include them in every generated task list. The workflow contains the step-by-step procedure,
-three-state success criteria model, and atomic task verification checklist.
+three-state success criteria model, and atomic task verification protocol.
 
 ---
 
-## Atomic Tasks Section
+## Atomic Companion File
 
-**Present in all task lists.** Placed after the verification phase and before Success Criteria.
-Empty by default — populated during execution as off-plan work is discovered.
+**Created alongside every task list.** A standalone file (`atomic-{name}.md`) in the same directory
+as `tasks-{name}.md`. Empty by default — populated during execution as off-plan work is discovered.
+The task list contains a pointer to it (between the verification phase and Success Criteria).
 
-**Purpose:** Captures small off-plan work **within this work unit's domain** — discoveries, fixes,
-and quality improvements that weren't anticipated during planning but belong to the same functional
-area. Items here archive with the task list, keeping all WU work in one place.
+**Purpose:** Tracks indivisible one-off tasks you elect to do in parallel to the planned work —
+discovered during execution, not required for the work unit's success criteria. Unlike the phased
+task list, these tasks have no position in the dependency sequence and are accessed at unpredictable
+times throughout execution, benefiting from a separate, quickly-accessible file.
 
-**Format:**
+**Why a standalone file, not an inline section:**
+
+- **Access pattern** — atomic tasks are captured and worked on at any point during execution, not
+  sequentially. In large task lists (500+ lines), finding an inline section means losing your place
+  in the phased work, in both directions.
+- **Staging hygiene** — committing an atomic task mid-phased-work doesn't require surgical staging
+  of the task list. The companion file is independent.
+- **Commit traceability** — `Context: atomic-{name}.md` is a clean file reference, no special
+  suffix needed.
+- **Parallel access** — human and agent can have the companion file open alongside the task list.
+
+**Companion file format:**
 
 ```markdown
+# Atomic Tasks — {Work Unit Name}
+
+**Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
+planned work — discovered during execution, not required for the work unit's success
+criteria. Flat checkbox list, no numbering hierarchy.
+
+> Multi-step work required for the WU belongs in the task list as a new phase.
+> For multi-step work outside the WU's concern, see `manage-incidental-work.md`.
+
 ---
-
-## Atomic Tasks — {Work Unit Name}
-
-<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
-<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
 
 - [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
 - [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
 - [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
+
+---
 ```
+
+**Task list pointer format** (between verification phase and Success Criteria):
+
+```markdown
+---
+
+**Atomic Tasks:** See companion file [`atomic-{name}.md`](atomic-{name}.md)
+
+---
+```
+
+**Naming convention:** `atomic-{name}.md` where `{name}` matches the task list's `tasks-{name}.md`.
+The `atomic-` prefix sorts before `tasks-` in directory listings, bookending the other work unit
+artifacts for easy visual identification.
 
 **Rules:**
 
-- Section header: `## Atomic Tasks — {Work Unit Name}` (em dash, matches task list title)
 - **Flat checkbox list** — no phase headers, no numbered tasks, no subtask hierarchy. Each item
   is a single checkbox with a brief description. This is deliberately simpler than the main task
-  structure.
+  structure. Bold headers and grouped sub-bullets are acceptable for larger items.
 - **Parenthetical context** — note where/when the item was discovered (e.g., "discovered during
   Task 3.2") to preserve traceability without formal numbering
 - **Scope guard — size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it
-  belongs in an [incidental task list][manage-incidental], not here
-- **Scope guard — domain** — items must belong to this work unit's functional area. Discoveries
-  outside the WU's domain don't go here — they go to your project's capture mechanism for
-  standalone work (varies by PM mode: `ATOMIC-TASKS.md` in arc-in-git, external tracker in
-  external mode, or a new task list / session note in core-only mode). The
-  [issue-triage method][arc-methods-it] applies if the fix is trivial and in a file you're
-  already touching.
-- **Empty by default** — the section exists in every task list from creation but starts with only
-  the inline guidance comment. Don't remove the empty section — its presence signals that off-plan
-  work has a home.
-- Horizontal rule (`---`) separates Atomic Tasks from the verification phase above
-
-**Structural note:** This section is a Core artifact — it exists in all task lists regardless of
-Project Management mode. It replaces the need for a standalone `ATOMIC-TASKS.md` file during work
-unit execution. The standalone file (in arc-in-git mode) remains the home for work that lives
-between or alongside work units — not scoped to any single task list.
+  is multi-step. Multi-step work required for the WU goes in the task list as a new phase.
+  Multi-step work outside the WU's concern goes through [manage-incidental-work][manage-incidental].
+- **Scope guard — relationship to WU** — items belong here if they are **elective, not required
+  for the work unit's success criteria**. If something is required for the WU to succeed but
+  doesn't fit existing phases, add it to the task list (new phase or subtask) — not here.
+  The companion file is for parallel work you choose to do because you have context.
+- **Scope guard — timing** — items belong here if you intend to do them **during this work unit's
+  lifecycle**. "Will I do this during this WU?" → companion file. "Is this for later?" →
+  ATOMIC-INBOX (arc-in-git) or your PM mechanism. The [issue-triage method][arc-methods-it]
+  applies if the fix is trivial and in a file you're already touching.
+- **Empty by default** — the file is created alongside every task list from generation but starts
+  with only the guidance comment. Don't remove an empty companion file — its presence signals that
+  off-plan work has a home.
+- **All work unit types** — feature, technical, and incidental task lists all get companion files.
+- **Commit context** — `Context: atomic-{name}.md` (no task number, no special suffix). The commit
+  message body describes the work.
+- **Archival** — archives alongside the task list if it contains any items. Deleted (not archived)
+  if empty at integration time.
 
 ---
 
 ## Success Criteria Section
 
-**Required for all task lists.** Placed at the bottom after Atomic Tasks, serves as outcome
-verification checklist.
+**Required for all task lists.** Placed at the bottom after the atomic companion file pointer,
+serves as outcome verification checklist.
 
 **Purpose:** Checkable operationalization of the PRD's success criteria. Each "Will Do" item
 should map to a verifiable criterion. These checkboxes are checked during the
