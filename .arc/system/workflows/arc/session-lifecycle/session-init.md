@@ -39,15 +39,21 @@ pwd
 # Some projects (documentation-only, config repos) may need nothing beyond git
 ```
 
-### 2. Load AI Context (read in order)
+### 2. Load AI Context
 
 **CRITICAL PRINCIPLE**: All documents are maintained to be lean, non-overlapping, and essential. Read everything
-in full EXCEPT the active task list (which is reference material). These docs are kept minimal by design - there's
-more value in having complete context upfront than discovering missing rules mid-session.
+in full EXCEPT the active task list (item 10 — reference material, often 500+ lines). These docs are kept
+minimal by design — there's more value in having complete context upfront than discovering missing rules
+mid-session.
 
-**Read these documents to establish complete context (general → specific).** The document set below is the
-[session-state method][arc-methods-session] default. If your project overrides session-state, follow the
-override instead.
+**Execution strategy:** Items 1–8, identity resolution, and configuration reads (Step 4) are independent —
+batch them into a single parallel read. SESSION-NOTES (needs identity) and the task list (needs WORK-STATUS
+path) form a second batch after the first completes. Within batches, `.ARC` files are listed before their
+`.PROJECT` counterparts for comprehension order. Sequential execution (follow item numbers) is fine if your
+platform doesn't support parallel reads.
+
+The document set below is the [session-state method][arc-methods-session] default. If your project overrides
+session-state, follow the override instead.
 
 **Project identity and agent context:**
 
@@ -84,49 +90,58 @@ override instead.
 8. `.arc/active/WORK-STATUS.md` - **MUST READ IN FULL**
    - Project state: branch, task list path, next task, blockers, and next action
    - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
-     Skip step 10 (task list loading). Session orientation will report this state and surface
+     Skip item 10 (task list loading). Session orientation will report this state and surface
      the Next Action from WORK-STATUS.md (typically: create a PRD or plan new work).
    - **Task reference format**: Next Task uses triple-anchor format —
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
-9. `.arc/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (gitignored — may not be present)
-   - Path: `.arc/user/{identity}/SESSION-NOTES.md` where `{identity}` is resolved from
-     `git config arc.identity` (or slugified `git config user.name` as fallback). Run these as
-     separate commands — chained shell expressions may not match agent auto-approve patterns.
+**Resolve identity** (run in Batch 1):
+
+1. Run `git config arc.identity`
+2. If non-empty, use this value as `{identity}`
+3. If empty: **skip all user workspace access** — SESSION-NOTES (item 9), ATOMIC-INBOX, and
+   git notes all depend on identity for path resolution. A wrong identity silently points at
+   the wrong directory. Surface a warning in the orientation summary: `arc.identity` is
+   configured during initial setup — if absent, the developer may be on a new machine or setup
+   was incomplete. Proceed with tracked state only (WORK-STATUS.md + task list).
+
+9. `.arc/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (Batch 2 — gitignored, may not be present)
+   - Uses `{identity}` resolved above
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
    - **If file doesn't exist or is stale**: Try restoring from git notes — run `arc user load` (or
      check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
      exist either, skip — the session starts with tracked state only (WORK-STATUS.md).
-   - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent, extract factual
-     content (decisions, file references, blockers) and disregard agent-specific references (tool syntax,
-     capability assumptions)
+   - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent,
+     extract factual content (decisions, file references, blockers) and disregard agent-specific
+     references (tool syntax, capability assumptions)
 
 > **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their
 > git notes namespace (`refs/notes/arc/user/{their-identity}`) and apply the agent-switching
 > filter to their SESSION-NOTES.md content. See [Team Coordination Strategy][team-coordination]
 > § Person-to-Person Task Handoff for the full incoming bootstrap protocol.
 
-10. **Active task list** - **STRATEGIC PARTIAL READ** (often 500+ lines)
+10. **Active task list** - **STRATEGIC PARTIAL READ** (Batch 2 — often 500+ lines)
 
-   **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task list to load.
+    **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task list to load.
 
-- Path referenced in WORK-STATUS.md
-- Example: `.arc/active/feature/tasks-[work-unit-name].md`
-- **Reading strategy**:
-    - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
-    - **ALWAYS read**: Current task section identified in WORK-STATUS.md (the specific task being worked on)
-        - **Graduated lookup** using the triple-anchor reference from WORK-STATUS.md:
-          1. Jump to line hint (`line ~N`) — if task number matches at that location, done
-          2. Search for task number (e.g., `**4.2`) if line hint is stale
-          3. Search for title fragment if task was renumbered
-        - If none of the anchors resolve, report the mismatch (Step 6)
-    - **Read on-demand**: Other phases and tasks as needed during work
-- **Why partial read OK**: This is the ONLY exception - it's reference material, often 500+ lines, and too
-     large to internalize upfront. But you MUST read the overview + current task context.
-- **What to extract**: Current phase, task details, acceptance criteria
+    - Path referenced in WORK-STATUS.md
+    - Example: `.arc/active/feature/tasks-[work-unit-name].md`
+    - **Reading strategy**:
+        - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
+        - **ALWAYS read**: Current task section identified in WORK-STATUS.md (the specific task
+          being worked on)
+            - **Graduated lookup** using the triple-anchor reference from WORK-STATUS.md:
+                1. Jump to line hint (`line ~N`) — if task number matches at that location, done
+                2. Search for task number (e.g., `**4.2`) if line hint is stale
+                3. Search for title fragment if task was renumbered
+            - If none of the anchors resolve, report the mismatch (Step 6)
+        - **Read on-demand**: Other phases and tasks as needed during work
+    - **Why partial read OK**: This is the ONLY exception — reference material, often 500+ lines,
+      too large to internalize upfront. But you MUST read the overview + current task context.
+    - **What to extract**: Current phase, task details, acceptance criteria
 
 ### 3. Post-Context-Load Extensions · `#post-context-load`
 
@@ -137,6 +152,10 @@ tool state, or environment checks before orientation.
 See: [`arc-extensions.md` § post-context-load][arc-ext-post-context-load]
 
 ### 4. Check Active Configuration
+
+The reads in this step (arc-config.yml, arc-methods.md) have no dependency on context documents —
+batch them with Batch 1 in Step 2 where your platform supports parallel reads, then process the
+results here.
 
 Read `arc-config.yml` and scan `arc-methods.md` for active overrides. This is a read-and-note step — carry
 the awareness through the session and apply it when encountering method references or platform-specific
@@ -159,14 +178,23 @@ needs no mention — the agent already follows default conventions from loaded d
 
 **Freshness check** (run before producing orientation — informational, not blocking):
 
-Assess how current the session documents are. This feeds confidence into mismatch
-recovery (Step 6).
+Assess how current the session documents are. This feeds confidence into mismatch recovery (Step 6).
 
-- **SESSION-NOTES.md**: If it has a `Commit at Handoff` field, compare that hash against
-  current HEAD. Report the gap count if commits have landed since handoff (e.g.,
-  "SESSION-NOTES written at abc1234, 3 commits behind HEAD").
-- **WORK-STATUS.md**: Run `git log -1 --format=%h -- {{WORK-STATUS-path}}` and compare
-  against HEAD. Report if WORK-STATUS.md hasn't been updated across recent commits.
+**Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
+Otherwise, or if no handoff hash exists:
+
+```bash
+# Get current HEAD hash
+git log -1 --format=%h
+
+# Count commits since SESSION-NOTES handoff (substitute the actual hash)
+git log --oneline <handoff-hash>..HEAD
+# Report: "SESSION-NOTES written at <hash>, N commits behind HEAD"
+
+# Check WORK-STATUS freshness
+git log -1 --format=%h -- .arc/active/WORK-STATUS.md
+# If this differs from HEAD, WORK-STATUS hasn't been updated across recent commits
+```
 
 Include freshness gaps in the orientation summary only when detected. A gap doesn't mean
 state is wrong — it means verify more carefully before trusting session documents.
@@ -178,7 +206,7 @@ Confirm successful initialization. Use this structure:
 **Active work state:**
 
 - **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Next task**: Task to work on per WORK-STATUS.md (or "none" when no task list / all tasks complete)
+- **Current task**: Task being worked on per WORK-STATUS.md (or "none" when no task list / all tasks complete)
 - **Blockers**: Any blockers or mismatches detected during initialization, or "none"
 
 **Next action:** What comes next per WORK-STATUS.md
@@ -186,7 +214,7 @@ Confirm successful initialization. Use this structure:
 Awaiting direction — proceed to Next Action?
 
 **"No active work" variant:** When WORK-STATUS.md shows `Task List: [none]`, there is no active
-work unit. Use the same format — Next task is "none", Next action comes from WORK-STATUS.md.
+work unit. Use the same format — Current task is "none", Next action comes from WORK-STATUS.md.
 This is the normal state after initialization or between work units.
 
 **Next work unit discovery:** When no active work exists, assess readiness for the next work
@@ -232,6 +260,9 @@ and reports — the user decides how to proceed.
 - Environment details (working directory, runtime, documents loaded) are implicit in a
   successful initialization. Only surface environment information when something is wrong
   (missing tools, failed verification, documents that couldn't be loaded)
+- Configuration defaults, extension status, and freshness results are agent-internal
+  processing — include in the orientation summary only when they reveal something actionable
+  (non-default settings, active method overrides, freshness gaps, missing identity)
 
 ### 6. If Context Seems Mismatched
 
@@ -279,6 +310,8 @@ Examples:
   renumbered, removed, or WORK-STATUS points to wrong task list
 - Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
   conflicting signals at the same trust tier
+
+---
 
 [activate-planning-branch]: ../work-unit-lifecycle/planning/activate-planning-branch.md
 [create-prd]: ../1_create-prd.md

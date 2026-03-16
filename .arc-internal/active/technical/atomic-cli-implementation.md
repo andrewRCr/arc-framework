@@ -51,7 +51,7 @@ criteria. Flat checkbox list, no numbering hierarchy.
     - Core/External mode: unresolved items at integration default to "ask the user"
     - Incidental task lists: included (full work units, get companion files)
 
-- [ ] **Strengthen session boundary guidance in DEV-RULES.ARC**
+- [x] **Strengthen session boundary guidance in DEV-RULES.ARC**
 
     DEV-RULES.ARC § Context quality: add explicit recognition that design-to-implementation
     transitions are natural session boundaries, not just context pressure. Long sessions that
@@ -59,7 +59,7 @@ criteria. Flat checkbox list, no numbering hierarchy.
     guidance loaded early gets deprioritized. Reference the session management strategy's
     evidence base. Strengthening existing position, not adding enforcement.
 
-- [ ] **Optimize session-init execution performance**
+- [x] **Optimize session-init execution performance**
 
     Changes to execution patterns in `session-init.md` only — no reduction in loaded content.
 

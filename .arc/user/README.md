@@ -8,8 +8,8 @@ each developer gets a `user/{identity}/` subdirectory.
 
 ## How It Works
 
-CLI init creates a personal subdirectory using your identity (resolved from
-`git config arc.identity`, falling back to `git config user.name`):
+CLI init creates a personal subdirectory using your identity (from `git config arc.identity`,
+configured during initial setup):
 
 ```text
 user/

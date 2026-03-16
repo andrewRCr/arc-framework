@@ -12,7 +12,7 @@
 **Next Task**: Task 3.4.d — Setup bridge: arc-setup skill and README (line ~450)
 **Last Completed**: Task 3.4.c — Workflow and session-init updates
 **Blockers**: [none]
-**Next Action**: Complete remaining atomic tasks (session-init optimization, session boundary guidance) then resume 3.4.d
+**Next Action**: Resume Task 3.4.d — Setup bridge: arc-setup skill and README
 
 ---
 

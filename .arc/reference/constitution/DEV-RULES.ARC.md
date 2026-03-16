@@ -195,25 +195,33 @@ and handoff boundaries.
 
 ### Context quality · P5
 
-Work quality must never be compromised due to context or resource limitations.
+**Never** degrade work quality or change approach due to context pressure — work at full
+specification throughout the session regardless of context window size or utilization.
 
-- Work at full specification throughout the session
-- When approaching context limits (thresholds defined in agent-specific files):
-  1. Complete the current work item — don't stop mid-edit
-  2. Evaluate remaining work scope
-  3. **Stop and ask** the user how to proceed (summary of completed and remaining work)
-  4. User decides: continue, commit completed work, or begin handoff
-- **Never** degrade work quality or change approach due to context pressure
-- **Never** make "efficiency" tradeoffs based on context window size
+**Prefer shorter, focused sessions.** Context quality degrades over session length — not
+just as windows fill, but as accumulated context pushes early guidance toward weaker retrieval
+positions. Focused sessions that reset at natural boundaries maintain higher quality than
+marathon sessions that technically fit in the window. See
+[Session Management Strategy][session-mgmt] for the evidence base and duration guidance.
 
-**End-of-session workflow:**
+**Natural session boundaries:**
 
-1. Commit all **complete** work
-2. Leave any **partial** work uncommitted
-3. Perform session handoff documenting partial work state
+- **Mode transitions** — design to implementation, investigation to fix, planning to
+  execution. Analysis context carried forward crowds the window without serving the new work.
+- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh
+  session starts with focused context even when the current session has headroom. At these
+  points, note the handoff opportunity if significant context has accumulated.
+- **Quality signals** — output becoming less precise, early-session guidance being missed,
+  re-deriving decisions already established in this session
 
-If insufficient context remains for commits, capture commit-message-level notes in the session
-handoff. The next session executes commits from documented state.
+When a boundary is reached or the user initiates handoff:
+
+1. Complete the current work item — don't stop mid-edit
+2. **Stop and ask** — summarize completed and remaining work
+3. User decides: continue, commit completed work, or begin handoff
+
+**End-of-session:** Commit complete work, leave partial work uncommitted, perform session
+handoff.
 
 ---
 
