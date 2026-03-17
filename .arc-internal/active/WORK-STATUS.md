@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.6 — Define skill generation interface (line ~616)
-**Last Completed**: Task 3.5 — ARC integrity verification — scripts, workflow, and skill
+**Next Task**: Task 3.7 — Implement init command (line ~637)
+**Last Completed**: Task 3.6 — Define skill generation interface
 **Blockers**: [none]
-**Next Action**: Begin Task 3.6 — Define skill generation interface
+**Next Action**: Begin Task 3.7 — Implement init command
 
 ---
 

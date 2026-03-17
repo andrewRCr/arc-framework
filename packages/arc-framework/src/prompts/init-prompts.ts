@@ -3,7 +3,7 @@
  *
  * Three-prompt sequence using @clack/prompts:
  * 1. project_name — text input, defaults to basename of cwd
- * 2. tools — multiselect of AI development tools
+ * 2. tools — grouped multiselect of AI development tools
  * 3. pm_mode — select for Project Management approach
  *
  * Returns an {@link InitPromptResult} that the init command maps to
@@ -13,16 +13,31 @@
 import * as p from "@clack/prompts";
 import { basename } from "node:path";
 
-/** Display-label to condition-value mapping for tool selection. */
-const TOOL_OPTIONS: { value: string; label: string }[] = [
-    { value: "claude", label: "Claude Code" },
-    { value: "codex", label: "Codex" },
-    { value: "cursor", label: "Cursor" },
-    { value: "copilot", label: "GitHub Copilot" },
-    { value: "windsurf", label: "Windsurf" },
-    { value: "gemini", label: "Gemini" },
-    { value: "warp", label: "Warp" },
-];
+/**
+ * Tool options grouped by skill directory tier.
+ *
+ * Universal tools share `.agents/skills/` — one copy serves all.
+ * Standalone tools require their own directories (noted in hints).
+ */
+const TOOL_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
+    "Universal (.agents/skills/)": [
+        { value: "amp", label: "Amp" },
+        { value: "cline", label: "Cline" },
+        { value: "codex", label: "Codex" },
+        { value: "cursor", label: "Cursor" },
+        { value: "gemini", label: "Gemini CLI" },
+        { value: "copilot", label: "GitHub Copilot" },
+        { value: "kimi", label: "Kimi Code CLI" },
+        { value: "opencode", label: "OpenCode" },
+        { value: "warp", label: "Warp" },
+        { value: "windsurf", label: "Windsurf" },
+    ],
+    "Standalone": [
+        { value: "antigravity", label: "Antigravity", hint: ".agent/skills/" },
+        { value: "augment", label: "Augment", hint: ".augment/skills/" },
+        { value: "claude", label: "Claude Code", hint: ".claude/skills/" },
+    ],
+};
 
 /** PM mode options with descriptive labels. */
 const PM_MODE_OPTIONS: { value: string; label: string; hint: string }[] = [
@@ -69,7 +84,7 @@ export async function runInitPrompts(
                 }),
 
             tools: () =>
-                p.multiselect({
+                p.groupMultiselect({
                     message: "Which AI development tools do you use?",
                     options: TOOL_OPTIONS,
                     required: false,

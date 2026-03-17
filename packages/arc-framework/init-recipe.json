@@ -58,7 +58,10 @@
       "id": "tools",
       "type": "multiselect",
       "message": "Which AI development tools do you use?",
-      "options": ["claude", "codex", "cursor", "copilot", "windsurf", "gemini", "warp"]
+      "options": [
+        "amp", "cline", "codex", "cursor", "gemini", "copilot", "kimi", "opencode", "warp", "windsurf",
+        "antigravity", "augment", "claude"
+      ]
     },
     {
       "id": "pm_mode",

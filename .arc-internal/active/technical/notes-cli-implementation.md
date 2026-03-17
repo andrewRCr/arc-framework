@@ -202,25 +202,26 @@ Adopters never see these markers. The CLI evaluates conditions against `install_
 emits only the matching content. Supported conditions: `pm.mode`, `team.mode`, agent selection,
 feature flags (ADR workflow, etc.). Simple equality checks only.
 
-## Skill Generation: Per-Tool Output
+## Skill Generation: Universal-First Output
 
-`arc-framework init` generates per-tool copies based on agent selection:
+`arc init` generates skill copies using a two-tier model (ADR-011 amendment, March 2026):
 
-- **Claude Code**: `.claude/skills/<name>/SKILL.md` (with `disable-model-invocation: true` for
-  arc-\* skills)
-- **Codex CLI**: `.agents/skills/<name>/SKILL.md` + `agents/openai.yaml` (UI metadata).
-  Codex also scans `.codex/skills/` but `.agents/` is the preferred cross-tool location.
-- **Gemini CLI**: `.agents/skills/<name>/SKILL.md` + `.gemini/commands/<name>.toml`
-  (for explicit `/command` invocation)
-- **GitHub Copilot**: `.github/skills/<name>/SKILL.md` (also scans `.agents/skills/`)
-- **Cursor**: `.cursor/skills/<name>/SKILL.md` (also scans `.agents/skills/`)
-- **Windsurf**: `.windsurf/skills/<name>/SKILL.md` (does NOT scan `.agents/skills/`)
+- **Universal tier** (`.agents/skills/`): One copy serves 20+ tools — Amp, Cline, Codex,
+  Cursor, Gemini CLI, GitHub Copilot, Kimi Code CLI, OpenCode, Warp, Windsurf
+- **Standalone tier**: Claude Code (`.claude/skills/`), Augment (`.augment/skills/`),
+  Antigravity (`.agent/skills/` — singular, no 's')
+
+**Existing directory detection:** For universal-tier tools, the generator checks for
+pre-existing native directories (e.g., `.gemini/skills/`, `.cursor/skills/`) before
+defaulting to `.agents/skills/`. This honors the user's existing layout and avoids
+splitting their skills across directories. Standalone tools use fixed directories.
 
 ### What the generator handles beyond file copying
 
 - **Invocation control frontmatter**: `disable-model-invocation: true` for arc-\* skills (de facto
   standard across Claude Code, VS Code/Copilot, Cursor — tools that don't recognize it ignore it)
-- **Supplemental files**: Codex requires `agents/openai.yaml`; Gemini uses `.toml` commands
+- **Codex supplement**: `agents/openai.yaml` generated alongside `.agents/skills/` when Codex is
+  selected — optional UI metadata (display names, icons, invocation policy)
 - **Path rendering**: skill instructions reference `.arc/` paths — if install directory is
   customized, these paths are rendered with the correct base
 

@@ -601,20 +601,36 @@ working ARC installation.
         `disable-model-invocation: true` (requires no AI generation, only script execution
         and interpretation).
 
-- [ ] **3.6 Define skill generation interface (`src/lib/skills.ts`)**
+- [x] **3.6 Define skill generation interface (`src/lib/skills.ts`)**
 
-    **Goal:** Establish the contract that the init command (3.7) calls, so Phase 6 fills in
-    the real implementation behind a stable interface. Reference: ADR-011 (generation targets).
+    **Goal:** Establish the skill generation contract that the init command (3.7) calls,
+    including the universal-first directory model per ADR-011 amendment.
 
-    - Define types: `SkillGenerationTarget`, `SkillOutput` — generation target table per
-      ADR-011 (Claude Code → `.claude/skills/`, Codex → `.agents/skills/`, Cursor →
-      `.cursor/skills/`, GitHub Copilot → `.github/skills/`, Windsurf → `.windsurf/skills/`,
-      Gemini → `.gemini/skills/`)
-    - Include `arc-verify` alongside `arc-setup` in canonical skill target list
-    - Define `generateSkills()` signature: selected tools, canonical skill path →
-      skill output list (ARC dir is fixed `.arc/`, not a parameter)
-    - Implement as no-op returning empty array (Phase 6 replaces with real implementation)
-    - Export types for init command and Phase 6 consumption
+    - [x] **3.6.a Initial interface**
+
+        Created `src/lib/skills.ts` with types, constants (`CANONICAL_SKILLS` — all 5
+        including `arc-setup` and `arc-verify`), and `generateSkills()` no-op. Initial
+        implementation used per-tool directory model from original ADR-011.
+
+    - [x] **3.6.b Universal-first generation model**
+
+        Ecosystem research (March 2026) found `.agents/skills/` is now the universal
+        standard supported by 20+ tools. Only Claude Code, Augment, and Antigravity
+        require standalone directories. Codex `openai.yaml` is optional UX sugar.
+        Gemini TOML files are for custom commands, not skills.
+
+        - Amended ADR-011 Part 2: universal-first two-tier model (universal +
+          standalone) replaces per-tool directories. Updated tool landscape, generation
+          target table, consequences, and risks
+        - Updated `skills.ts`: 13 tool IDs across two tiers, `resolveSkillTargets()`
+          with detection-aware resolution (honors existing tool-specific dirs, falls
+          back to `.agents/skills/`), `NATIVE_SKILL_DIRS` map, dropped `gemini-toml`
+        - Updated `init-prompts.ts`: `groupMultiselect` with universal and standalone
+          tiers (10 universal + 3 standalone tools)
+        - Updated `init-recipe.json`: expanded tool options list
+        - Updated `notes-cli-implementation.md` skill generation section
+        - Captured follow-up: agent config file decoupling from init (setup workflow
+          handles `{AGENT}.ARC.md`), broader agent file support
 
 - [ ] **3.7 Implement init command (`src/commands/init.ts`)**
 

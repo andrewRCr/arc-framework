@@ -51,6 +51,27 @@ criteria. Flat checkbox list, no numbering hierarchy.
     - Core/External mode: unresolved items at integration default to "ask the user"
     - Incidental task lists: included (full work units, get companion files)
 
+- [ ] **Decouple agent config files from init — setup workflow handles {AGENT}.ARC.md**
+
+    Agent config files (CLAUDE.ARC.md, CODEX.ARC.md, etc.) are unpopulated templates at init
+    time. The setup workflow is a better place to create them: the agent is running, knows its
+    own identity/model, and can populate with real content. Decoupling also solves the
+    tool-vs-model problem (Cursor with Claude, Augment with GPT, etc.).
+
+    - Remove `tools includes X` → agent file conditions from `init-recipe.json`
+    - Add a step to the initial-setup workflow for agent-specific config file creation from
+      a template (agent self-scaffolds based on its identity)
+    - Create `template-agent.md` in `.arc/reference/templates/` (on-demand template, not
+      init-rendered — uses `template-*` prefix per file classification convention)
+    - Existing agent files (CLAUDE.ARC.md, CODEX.ARC.md, etc.) remain as pre-built options
+      that the setup workflow can use instead of the generic template
+
+- [ ] **Broader tool support — agent files for Amp, Cline, OpenCode, Antigravity, Augment**
+
+    New tools added to the init prompt (Task 3.6.b) for skill generation. Follow-up: create
+    agent config files and assess whether these tools need tool-specific guidance beyond what
+    the generic template provides. Depends on the setup workflow decoupling above.
+
 - [ ] **Audit init-recipe.json for missing workflow files**
 
     16 workflow files in `.arc/system/workflows/` are not listed in `init-recipe.json`
