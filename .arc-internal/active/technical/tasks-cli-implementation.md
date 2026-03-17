@@ -344,7 +344,7 @@ working ARC installation.
             - Archive files and ADRs left unchanged (historical reference)
             - All quality gates pass: 0 lint errors, typecheck clean, 84 tests passing
 
-- [ ] **3.4 Init UX redesign — prompts, templates, and setup bridge**
+- [x] **3.4 Init UX redesign — prompts, templates, and setup bridge**
 
     **Goal:** Reduce init prompts from 10 to 3 (project name, tools, PM mode), split agent
     hub file for clean ARC/project separation, revise post-init workflow for agent-guided
@@ -508,36 +508,46 @@ working ARC installation.
         - Added Task 3.4.f (external tracker integration setup workflow) to give
           `pm.mode: external` a concrete post-init deliverable
 
-- [ ] **3.4.f Create external tracker integration setup workflow**
+- [x] **3.4.f Create external tracker integration setup workflow**
 
-        **Goal:** Give `pm.mode: external` a concrete post-init deliverable. Currently `external`
-        and `none` install identical file sets — the only difference is a semantic config value.
-        This workflow makes the selection meaningful: when `pm.mode: external`, the guided setup
-        sequence includes a third step that walks the user through connecting ARC workflows to
-        their external tracker.
+      Created `03_configure-external-integration.md` and overhauled the full
+      initial-setup workflow sequence (`01_`, `02_`, `03_`).
 
-        **Workflow** (`initial-setup/03_configure-external-integration.md`):
+      **`03_configure-external-integration.md`** (new):
 
-        - Tool-agnostic — guides the user through decisions, not specific API integrations
-        - Identify which tracker the team uses (Jira, Linear, GitHub Issues, etc.)
-          — informational, shapes the guidance
-        - Walk through relevant `arc-extensions.md` sections:
-            - `post-task-completion` — sync task status to external tracker
-            - `post-work-unit-activate` — update sprint boards or project dashboards
-            - `post-work-unit-archive` — close epics, update dashboards
-        - Point to `arc-methods.md` overrides if tracker needs custom commit context
-          format or issue-triage routing
-        - Set up capture routing in `DEV-RULES.PROJECT` § Capture Routing — where
-          deferred issues go ("create a GitHub Issue", "add to Linear backlog", etc.)
-        - Lightweight: mostly guidance and prompting, not file generation
+        - 4-step workflow giving `pm.mode: external` a concrete post-init deliverable
+        - Steps: identify tracker → set up capture routing in DEV-RULES.PROJECT →
+          configure workflow extensions (post-task-completion, post-work-unit-activate,
+          post-work-unit-archive) → review method overrides (commit-context-format,
+          issue-triage). Tool-agnostic, lightweight guidance
+        - `init-recipe.json`: added `pm.mode == external` condition block
+        - `strategy-file-classification.md`: added inventory entry and naming list
 
-        **Integration with existing setup sequence:**
+      **`01_verify-and-configure.md`** (overhauled):
 
-        - `02_define-project.md`: add conditional pointer at the end — "if `pm.mode`
-          is `external`, proceed to `03_configure-external-integration.md`"
-        - `arc-setup` skill: no change needed — skill triggers `01_` which chains to
-          `02_`, and `02_` chains to `03_` conditionally
-        - Add workflow file to init recipe `include_files`
+        - Added User Workspace section: identity verification, `user/{identity}/`
+          orientation, `user.sync_push` behavior and `git config arc.sync_push` override
+        - Added Customization Beyond Config section: dual-audience summary of
+          arc-methods/arc-extensions surfaces plus content-level customization
+          pointer (project strategies, project workflows, DEV-RULES.PROJECT)
+        - Join Existing path: added user workspace bullet, updated Next Step to list
+          all five project documents (added AGENTS.PROJECT and QUICK-REFERENCE)
+
+      **`02_define-project.md`** (overhauled):
+
+        - Resequenced steps: META-PRD → TECHNICAL-OVERVIEW → AGENTS.PROJECT →
+          QUICK-REFERENCE → DEV-RULES.PROJECT (→ ROADMAP/PROJECT-STATUS for
+          arc-in-git). Session-loaded docs identified explicitly; reference docs
+          distinguished from session-critical docs
+        - Added missing AGENTS.PROJECT (Step 3) and QUICK-REFERENCE (Step 4)
+        - arc-in-git content (Steps 6-7, maintenance items) wrapped in
+          `<!-- arc:if pm.mode == arc-in-git -->` conditional rendering —
+          stripped for non-arc-in-git installs
+        - Conditional pointers (external tracker) use blockquote style for
+          deemphasized visibility as discovery seams
+        - Rewrote Maintaining Project Documents: grounded in session-loaded vs
+          reference distinction, no prescriptive timing or obvious mappings
+        - Bundled copies synced to `packages/arc-framework/arc/`
 
 - [ ] **3.5 ARC integrity verification — scripts, workflow, and skill**
 

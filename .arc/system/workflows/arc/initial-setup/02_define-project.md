@@ -2,16 +2,16 @@
 
 **Audience:** Collaborative — developer and agent work through this together.
 
-**Purpose**: Establish the foundational project documents that guide all development decisions
-and provide persistent project context. Covers constitutional documents (project identity and
-standards) and planning artifacts (execution strategy and status tracking).
+**Purpose**: Establish the project documents that guide development and orient your agent.
+Some of these are loaded every session — the agent operates on whatever they say. Others
+are reference material consulted during planning and architecture decisions.
 
 **When to use**:
 
-- **Initial setup**: After ARC initialization ([01_verify-and-configure.md][init-arc])
+- **Initial setup**: After ARC verification ([01_verify-and-configure.md][init-arc])
 - **Maintenance**: See [Maintaining Project Documents](#maintaining-project-documents) below
 
-**Prerequisite**: ARC framework initialized — run [01_verify-and-configure.md][init-arc] first.
+**Prerequisite**: ARC framework verified — run [01_verify-and-configure.md][init-arc] first.
 
 ---
 
@@ -20,12 +20,15 @@ standards) and planning artifacts (execution strategy and status tracking).
 Work through these steps when setting up a new project. Each document has a template with
 inline guidance — the questions below help you think through what matters before filling it in.
 
+During setup, templates become project documents (dropping the `.template` suffix).
+
 ### Step 1: Define META-PRD
 
-Your project's vision, scope, and success criteria — the "why" and "what" that guides all other
-decisions.
+Your project's vision, scope, and success criteria — the "why" and "what" that guides all
+other decisions. This is the canonical source for project direction; subsequent documents
+distill from it.
 
-**Template**: [META-PRD.md][meta-prd-template]
+**Template**: [META-PRD.md][meta-prd-template] → goes in `reference/`
 
 **Think through**:
 
@@ -34,58 +37,87 @@ decisions.
 - What does success look like in 6-12 months?
 - What are the core features that deliver the most value?
 
+Focus on product direction, not implementation — technology choices belong in
+TECHNICAL-OVERVIEW (next step).
+
 ### Step 2: Define TECHNICAL-OVERVIEW
 
-Your technology stack, architectural patterns, and technical constraints — the "how" behind the
-project.
+Your technology stack, architectural patterns, and technical constraints — the "how" behind
+the project.
 
-**Template**: [TECHNICAL-OVERVIEW.md][tech-overview-template]
+**Template**: [TECHNICAL-OVERVIEW.md][tech-overview-template] → goes in `reference/`
 
 **Think through**:
 
 - What technologies best serve the project goals?
-- How will the system handle growth?
-- What are the critical performance requirements?
-- What security and reliability standards must be met?
+- How is the codebase structured?
+- What are the critical performance and infrastructure requirements?
+- What testing and build infrastructure exists?
 
-### Step 3: Define DEV-RULES.PROJECT
+### Step 3: Define AGENTS.PROJECT
 
-Your project's quality standards and development protocols — the rules specific to your
-codebase, tech stack, and team.
+Your project's executive summary for the agent — loaded every session. This distills
+META-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a concise
+briefing: project type, primary goal, technology stack, repository layout, and common
+friction points.
 
-**Template**: [DEV-RULES.PROJECT.md][dev-rules-template]
+**Template**: [AGENTS.PROJECT.md][agents-project-template] → stays in `system/agent/`
+
+**Think through**:
+
+- What does the agent need to know every session to make good decisions?
+- What are the gotchas that waste agent time — things not obvious from the code?
+- What's the one-paragraph summary of what this project is?
+
+Keep it concise — this is loaded every session, not a comprehensive reference.
+META-PRD and TECHNICAL-OVERVIEW carry the detail.
+
+### Step 4: Define QUICK-REFERENCE
+
+Command patterns and environment context for your project — loaded every session. This is
+where the agent finds correct commands for linting, testing, building, and quality gates.
+
+**Template**: [QUICK-REFERENCE.md][quick-ref-template] → goes in `reference/`
+
+**Think through**:
+
+- What commands does the agent run most often? (lint, test, build, type-check)
+- What runtime environment is required? (containers, services, tool versions)
+- What are the quality gate commands at each tier?
+
+QUICK-REFERENCE and DEV-RULES.PROJECT (next step) are coupled — quality gate *standards*
+are defined in DEV-RULES.PROJECT, quality gate *commands* are defined here.
+
+### Step 5: Define DEV-RULES.PROJECT
+
+Your project's quality standards and development protocols — loaded every session. The rules
+specific to your codebase, tech stack, and team.
+
+**Template**: [DEV-RULES.PROJECT.md][dev-rules-template] → goes in `reference/constitution/`
 
 **Note on scope:** ARC already provides framework-level development methodology — commit
 standards, session management, verification protocols, task execution rules — via
 [DEV-RULES.ARC.md][dev-rules-arc]. This is loaded automatically each session and applies
 universally across ARC projects. Your DEV-RULES.PROJECT complements this with
-project-specific content: quality gate commands for your tech stack, testing requirements,
-architecture rules, and any project-specific protocols.
+project-specific content: quality gate definitions, testing requirements, architecture
+rules, and any project-specific protocols.
 
 **Think through**:
 
-- What quality gate commands enforce standards for your stack?
+- What quality checks must pass before every commit?
 - What testing strategies will provide confidence?
 - What architecture rules are specific to this project?
-- How will collaboration and code review work?
+- Where do deferred issues go? (Capture Routing section)
 
-During project setup, these templates become your project documents (dropping the `.template`
-suffix). META-PRD and TECHNICAL-OVERVIEW go in `reference/`; DEV-RULES.PROJECT goes in
-`reference/constitution/`.
+<!-- arc:if pm.mode == arc-in-git -->
 
-### With arc-in-git PM (`pm.mode: arc-in-git`)
-
-If your project uses arc-in-git Project Management mode, create these additional documents
-during setup. Check `pm.mode` in [`arc-config.yml`][arc-config] — skip this section if
-set to `none`.
-
-#### Step 4: Plan ROADMAP
+### Step 6: Plan ROADMAP
 
 Your execution strategy — what gets built in what order, and why. The ROADMAP captures
 sequencing decisions and dependency chains so you can plan work deliberately rather than
 reactively.
 
-**Template**: [ROADMAP.md][roadmap-template]
+**Template**: [ROADMAP.md][roadmap-template] → goes in `backlog/`
 
 **Think through**:
 
@@ -94,14 +126,12 @@ reactively.
 - What dependencies exist between work items?
 - What's explicitly deferred and why?
 
-ROADMAP goes in `backlog/`.
-
-#### Step 5: Establish PROJECT-STATUS
+### Step 7: Establish PROJECT-STATUS
 
 Progress tracking for initiatives and milestones — a snapshot of where the project stands
 against the roadmap.
 
-**Template**: [PROJECT-STATUS.md][project-status-template]
+**Template**: [PROJECT-STATUS.md][project-status-template] → goes in `reference/`
 
 **Think through**:
 
@@ -109,43 +139,50 @@ against the roadmap.
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
 
-PROJECT-STATUS goes in `reference/`.
+<!-- arc:endif -->
+
+> **With External Tracker** (`pm.mode: external`) — Proceed to
+> [03_configure-external-integration.md][configure-external] to connect ARC workflows to your
+> tracker.
 
 ---
 
 ## Maintaining Project Documents
 
-### Triggered Updates
+Three of these documents are loaded every session — your agent operates on whatever they
+say. When they drift from reality, the agent works from wrong assumptions.
 
-**Update the relevant document when circumstances change:**
+**Session-loaded documents — keep current:**
 
-- **Technology changes**: Update TECHNICAL-OVERVIEW.md
-- **Contributor or process changes**: Review and update DEV-RULES.PROJECT.md
-- **Direction changes**: Revise META-PRD.md direction and success criteria
-- **Performance issues**: Update architecture and development standards
+- **AGENTS.PROJECT** — when the project's scope, stack, or friction points change. Stale
+  content here directly degrades every session's starting context.
+- **QUICK-REFERENCE** — when commands, paths, or environment requirements change. Wrong
+  commands here mean the agent fails quality gates or uses outdated tooling.
+- **DEV-RULES.PROJECT** — when quality gates change (new tooling, retired checks, adjusted
+  thresholds) or when team process evolves. Stale gates produce false confidence or false
+  failures.
 
-### Periodic Review
+**Reference documents — keep honest:**
 
-**Every ~3 months** (or before major feature development), review each document:
+- **META-PRD** — when the project's direction, scope, or success criteria shift. A pivot,
+  a deprioritized goal, or a new constraint changes what work gets planned.
+<!-- arc:if pm.mode == arc-in-git -->
+- **ROADMAP** — when sequencing shifts, phases complete, or new work emerges. Stale
+  roadmaps misguide next-work-unit discovery.
+- **PROJECT-STATUS** — when milestones are reached or project state changes materially.
+<!-- arc:endif -->
 
-- **META-PRD**: Does the stated direction still match reality? Are success metrics still relevant?
-- **TECHNICAL-OVERVIEW**: Do documented patterns reflect current practice? Any new constraints?
-- **DEV-RULES.PROJECT**: Are quality gates catching real issues? Any standards that aren't working?
-
-### With arc-in-git PM
-
-If your project uses arc-in-git PM mode, also maintain:
-
-- **Sequencing shifts**: Update ROADMAP.md phases and dependencies
-- **ROADMAP** (periodic): Is the sequencing still correct? Any completed phases to archive?
-- **PROJECT-STATUS** (periodic): Are milestones current? Does it accurately reflect project state?
+TECHNICAL-OVERVIEW evolves naturally alongside the code — update it when architectural
+decisions are made, not on a schedule.
 
 ---
 
-[arc-config]: ../../../system/arc-config.yml
 [init-arc]: 01_verify-and-configure.md
+[configure-external]: 03_configure-external-integration.md
 [meta-prd-template]: ../../../../reference/META-PRD.md
 [tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.md
+[agents-project-template]: ../../../agent/AGENTS.PROJECT.md
+[quick-ref-template]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [roadmap-template]: ../../../../backlog/ROADMAP.md

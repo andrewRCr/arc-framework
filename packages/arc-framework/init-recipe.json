@@ -64,6 +64,11 @@
     }
   ],
   "conditions": {
+    "pm.mode == external": {
+      "include_files": [
+        "system/workflows/arc/initial-setup/03_configure-external-integration.md"
+      ]
+    },
     "pm.mode == arc-in-git": {
       "include_files": [
         "backlog/ROADMAP.template.md",

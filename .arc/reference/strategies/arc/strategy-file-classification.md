@@ -142,7 +142,8 @@ Core pipeline workflows are numbered to indicate execution sequence:
 
 - `1_create-prd.md` → `2_generate-tasks.md` → `3_process-task-loop.md`
 
-Setup workflows use zero-padded numbers: `01_verify-and-configure.md`, `02_define-project.md`.
+Setup workflows use zero-padded numbers: `01_verify-and-configure.md`, `02_define-project.md`,
+`03_configure-external-integration.md`.
 
 Supplemental workflows are **unnumbered** — they're invoked on demand at various points, not in a
 fixed sequence. The absence of a number signals "this is called when needed, not as a pipeline
@@ -325,6 +326,7 @@ to update classification — both axes apply independently.
 | `arc/3_process-task-loop.md`                                    | Framework      | Core  | Core workflow.                        |
 | `arc/initial-setup/01_verify-and-configure.md`                  | Framework      | Core  | Setup workflow.                       |
 | `arc/initial-setup/02_define-project.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/initial-setup/03_configure-external-integration.md`        | Framework      | Core  | Setup workflow.                       |
 | `arc/session-lifecycle/session-handoff.md`                      | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/session-lifecycle/session-init.md`                         | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/session-lifecycle/session-loop.md`                         | Framework      | Core  | Session lifecycle workflow.           |
