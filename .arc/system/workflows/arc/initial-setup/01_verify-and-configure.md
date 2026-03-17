@@ -48,6 +48,15 @@ Confirm that agent-specific directories were created for the selected tools
 (e.g., `.claude/`, `.codex/`, `.gemini/`). Each contains pre-built skills and
 settings for that agent platform.
 
+**Agent config file:** Check whether a `{AGENT}.ARC.md` file exists in
+`system/agent/` for the agent running this workflow. Common agents (Claude,
+Codex, Gemini, Copilot, Cursor, Windsurf, Warp) ship with pre-built files
+installed by `arc init`. If no file exists for the current agent, create one
+from [template-agent.md][template-agent] — copy to `system/agent/{AGENT}.ARC.md`,
+replacing `[AGENT]` with the uppercase agent name and `[Agent]` with the
+display name. The agent can then populate it with real guidance as the project
+evolves.
+
 ### User Workspace
 
 `arc init` created `user/{identity}/` as a personal workspace directory (gitignored).
@@ -124,6 +133,9 @@ Confirm that `arc init` set up the local environment:
 
 - **Agent directories** — tool-specific directories created for your selected tools
   (e.g., `.claude/`, `.codex/`). These contain skills and settings.
+- **Agent config file** — check whether `system/agent/{AGENT}.ARC.md` exists for
+  the agent running this workflow. If not, create one from
+  [template-agent.md][template-agent] (see Path 1 § Verify Agent Configuration).
 - **Git hooks** — symlinks installed from `.git/hooks/` to `.arc/system/githooks/`.
   Verify with `ls -la .git/hooks/`.
 - **Identity** — `git config arc.identity` is set. This determines your personal
@@ -155,3 +167,4 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 ---
 
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
+[template-agent]: ../../../../reference/templates/template-agent.md

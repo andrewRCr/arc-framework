@@ -227,6 +227,7 @@ to update classification — both axes apply independently.
 | `template-adr.md`            | Framework      | Core  | Copy-ready ADR template.                   |
 | `template-prd.md`            | Framework      | Core  | Copy-ready PRD template.                   |
 | `template-plan.md`           | Framework      | Core  | Optional plan document starting structure. |
+| `template-agent.md`          | Framework      | Core  | Agent config file template for setup.      |
 | `template-completion-doc.md` | Framework      | Core  | Completion doc templates and guidance.     |
 
 ### reference/archive/
