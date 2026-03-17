@@ -9,7 +9,7 @@ documents that work with any agent platform.
 After running `arc init`, restart your AI agent to load the new configuration, then:
 
 - Run `/arc-setup` to walk through verification and project definition with your agent
-- Or paste: *"Read `.arc/system/agent/AGENTS.ARC.md` for context, then follow
+- Or paste: *"Read `.arc/system/agent/AGENT-BRIEFING.ARC.md` for context, then follow
   `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`"*
 
 After setup, run `/arc-verify` to confirm everything installed correctly.
@@ -42,7 +42,7 @@ Template files ship as `.template.md` — rename by removing `.template` during 
 ├── user/                      # Personal workspace: per-developer session state and task capture
 └── system/                    # Agent-facing operational files
     ├── arc-config.yml         # Project settings (base branch, protection mode)
-    ├── agent/                 # AI agent configuration (AGENTS.ARC.md, AGENTS.PROJECT.md, tool-specific)
+    ├── agent/                 # AI agent configuration (AGENT-BRIEFING.ARC.md, AGENT-BRIEFING.PROJECT.md, tool-specific)
     ├── skills/                # Canonical skill definitions (arc-setup, arc-resume, arc-commit, arc-handoff)
     ├── githooks/              # Git hook scripts
     └── workflows/             # Development process workflows

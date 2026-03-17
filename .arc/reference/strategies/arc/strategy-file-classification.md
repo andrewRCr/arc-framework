@@ -27,7 +27,7 @@ Framework structure combined with project-specific content. Contains both ARC me
 (sections, rules, processing guidance) and user content (project stack, quality gate commands,
 custom sections). Clean section-level separation in most files.
 
-**Examples:** DEV-RULES.PROJECT, AGENTS.PROJECT, CLAUDE.ARC, QUICK-REFERENCE, STRATEGY-INDEX.
+**Examples:** DEV-RULES.PROJECT, AGENT-BRIEFING.PROJECT, CLAUDE.ARC, QUICK-REFERENCE, STRATEGY-INDEX.
 
 **Update behavior:** Three-way merge. Conflicts expected in project-specific sections — CLI
 highlights for user resolution. Framework sections auto-merge cleanly when separation is
@@ -63,7 +63,7 @@ name their own artifacts and recognize what a file is from its name alone.
 **ALL-CAPS** files are organizational hubs — files you navigate *to* for project-wide context.
 They're dashboards, indexes, and governance documents that serve as stable reference points.
 
-Examples: `WORK-STATUS.md`, `AGENTS.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
+Examples: `WORK-STATUS.md`, `AGENT-BRIEFING.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
 `STRATEGY-INDEX.md`, `README.md`, `META-PRD.md`, `ROADMAP.md`
 
 **Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
@@ -123,7 +123,7 @@ redundancy without the discoverability benefit that other artifact types get.
 Files that go through the CLI render engine during `arc init` — token substitution (`{{TOKEN}}`),
 conditional content (`<!-- arc:if -->`), or full placeholder replacement — use a `.template.md`
 suffix. The suffix is stripped at init time: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`,
-`AGENTS.PROJECT.template.md` becomes `AGENTS.PROJECT.md`.
+`AGENT-BRIEFING.PROJECT.template.md` becomes `AGENT-BRIEFING.PROJECT.md`.
 
 The suffix marks render-engine input, not classification. Both Configurable and Scaffolded files
 can carry it — the common trait is that the source file contains placeholders that produce a
@@ -201,9 +201,9 @@ to update classification — both axes apply independently.
 
 ### user/
 
-| File        | Classification | Layer | Notes                                                               |
-|-------------|----------------|-------|---------------------------------------------------------------------|
-| `README.md` | Framework      | Core  | User directory overview. Explains personal workspace concept.       |
+| File        | Classification | Layer | Notes                                                         |
+|-------------|----------------|-------|---------------------------------------------------------------|
+| `README.md` | Framework      | Core  | User directory overview. Explains personal workspace concept. |
 
 ### reference/
 
@@ -288,16 +288,16 @@ to update classification — both axes apply independently.
 
 ### system/agent/
 
-| File                         | Classification | Layer | Notes                                            |
-|------------------------------|----------------|-------|--------------------------------------------------|
-| `AGENTS.ARC.md`              | Framework      | Core  | ARC methodology orientation for agents.          |
-| `AGENTS.PROJECT.template.md` | Configurable   | Core  | Project-specific stack, layout, friction points. |
-| `CLAUDE.ARC.md`              | Configurable   | Core  | Framework guidance + project-specific (MCP).     |
-| `CODEX.ARC.md`               | Configurable   | Core  | Mostly framework guidance, light customization.  |
-| `GEMINI.ARC.md`              | Configurable   | Core  | Mostly framework guidance, light customization.  |
-| `WARP.ARC.md`                | Configurable   | Core  | Mostly framework guidance, light customization.  |
-| `COPILOT.ARC.md`             | Configurable   | Core  | Mostly framework guidance, light customization.  |
-| `README.md`                  | Framework      | Core  | Agent system architecture documentation.         |
+| File                                 | Classification | Layer | Notes                                            |
+|--------------------------------------|----------------|-------|--------------------------------------------------|
+| `AGENT-BRIEFING.ARC.md`              | Framework      | Core  | ARC methodology orientation for agents.          |
+| `AGENT-BRIEFING.PROJECT.template.md` | Configurable   | Core  | Project-specific stack, layout, friction points. |
+| `CLAUDE.ARC.md`                      | Configurable   | Core  | Framework guidance + project-specific (MCP).     |
+| `CODEX.ARC.md`                       | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `GEMINI.ARC.md`                      | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `WARP.ARC.md`                        | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `COPILOT.ARC.md`                     | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `README.md`                          | Framework      | Core  | Agent system architecture documentation.         |
 
 ### system/skills/
 

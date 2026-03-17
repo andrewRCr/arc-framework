@@ -2,8 +2,8 @@
 
 Shared rules and project context live in:
 
-- [AGENTS.ARC](AGENTS.ARC.md) – ARC framework orientation
-- [AGENTS.PROJECT](AGENTS.PROJECT.md) – Project context and collaboration principles
+- [AGENT-BRIEFING.ARC](AGENT-BRIEFING.ARC.md) – ARC framework orientation
+- [AGENT-BRIEFING.PROJECT](AGENT-BRIEFING.PROJECT.md) – Project context and collaboration principles
 - [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
 - [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns

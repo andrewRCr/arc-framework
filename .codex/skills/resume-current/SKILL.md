@@ -7,7 +7,7 @@ description: Initialize and resume the active working session with required proj
 
 1. Read required context first.
 
-   - Read `.arc-internal/system/agent/AGENTS.ARC.md` and `.arc-internal/system/agent/AGENTS.PROJECT.md`
+   - Read `.arc-internal/system/agent/AGENT-BRIEFING.ARC.md` and `.arc-internal/system/agent/AGENT-BRIEFING.PROJECT.md`
      before other session workflow steps.
 
 2. Initialize the session.

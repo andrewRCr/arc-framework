@@ -152,7 +152,7 @@ Next: Restart your AI agent to load ARC configuration, then:
   • Run /arc-setup                    (recommended)
   • Or paste the prompt below
 
-  "Read .arc/system/agent/AGENTS.ARC.md for context, then follow
+  "Read .arc/system/agent/AGENT-BRIEFING.ARC.md for context, then follow
    .arc/system/workflows/arc/initial-setup/01_verify-and-configure.md"
 ```
 
@@ -160,7 +160,7 @@ If multiple tools were selected, tailor the message to the primary tool (first s
 or list all. The copy-paste fallback works regardless of harness — it's the universal path.
 
 The `/arc-setup` skill (created per selected tool during init — Task 3.4.d) contains the
-same bootstrap sequence: read AGENTS.ARC.md → run setup workflow. AGENTS.PROJECT.md and
+same bootstrap sequence: read AGENT-BRIEFING.ARC.md → run setup workflow. AGENT-BRIEFING.PROJECT.md and
 agent-specific files are unpopulated templates at this point — the setup workflow handles
 discovery and verification of those files.
 
@@ -281,14 +281,14 @@ relative to `.arc/`.
 
 **Prompt-driven tokens** — substituted by `renderTokens` during init from prompt responses:
 
-| Token                 | Source        | Default | Used In                                            |
-|-----------------------|---------------|---------|----------------------------------------------------|
-| `PROJECT_NAME`        | Init prompt   | —       | AGENTS.PROJECT.template, QUICK-REFERENCE.template, |
-|                       |               |         | META-PRD.template, TECHNICAL-OVERVIEW.template,    |
-|                       |               |         | PROJECT-STATUS.template                            |
-| `PROJECT_DESCRIPTION` | _(removed)_   | —       | _(removed — filled during 02\_define-project)_     |
-| `REPO_ROOT`           | Auto-detected | `pwd`   | QUICK-REFERENCE.template, session-init.md          |
-| `BASE_BRANCH`         | Init prompt   | `main`  | system/arc-config.yml (via config_key, not token)  |
+| Token                 | Source        | Default | Used In                                                    |
+|-----------------------|---------------|---------|------------------------------------------------------------|
+| `PROJECT_NAME`        | Init prompt   | —       | AGENT-BRIEFING.PROJECT.template, QUICK-REFERENCE.template, |
+|                       |               |         | META-PRD.template, TECHNICAL-OVERVIEW.template,            |
+|                       |               |         | PROJECT-STATUS.template                                    |
+| `PROJECT_DESCRIPTION` | _(removed)_   | —       | _(removed — filled during 02\_define-project)_             |
+| `REPO_ROOT`           | Auto-detected | `pwd`   | QUICK-REFERENCE.template, session-init.md                  |
+| `BASE_BRANCH`         | Init prompt   | `main`  | system/arc-config.yml (via config_key, not token)          |
 
 Note: `BASE_BRANCH` writes to `arc-config.yml` via the `config_key` mapping in init-recipe,
 not through `{{TOKEN}}` substitution. The config file is written programmatically, not rendered.
@@ -336,7 +336,7 @@ Sections within Framework files that vary by configuration. These need `<!-- arc
 |----------------------------------------------------------|----------------|-------------------------------------|
 | `system/workflows/arc/session-lifecycle/session-init.md` | ~207-214       | none/external discovery alternative |
 
-**Note on team mode:** References to "team mode" in DEV-RULES.ARC, AGENTS.PROJECT.template, and
+**Note on team mode:** References to "team mode" in DEV-RULES.ARC, AGENT-BRIEFING.PROJECT.template, and
 process-task-loop are informational parentheticals, not conditional sections. No inline
 markers needed — the content reads correctly regardless of team mode setting.
 
@@ -344,15 +344,15 @@ markers needed — the content reads correctly regardless of team mode setting.
 
 **Configurable files — rendered (have tokens, conditionals, or guide-text placeholders):**
 
-| File                                      | Prompt Tokens        | Guide-Text Tokens   | Conditions |
-|-------------------------------------------|----------------------|---------------------|------------|
-| `system/arc-config.yml`                   | (programmatic write) | —                   | —          |
-| `system/agent/AGENTS.PROJECT.template.md` | PROJECT_NAME         | Component, src_dir, | —          |
-|                                           |                      | test_dir,           |            |
-|                                           |                      | PROJECT_TYPE, etc.  |            |
-| `reference/QUICK-REFERENCE.template.md`   | PROJECT_NAME,        | lint_command_*,     | —          |
-|                                           | REPO_ROOT            | test_command_*,     |            |
-|                                           |                      | type_check_*, etc.  |            |
+| File                                              | Prompt Tokens        | Guide-Text Tokens   | Conditions |
+|---------------------------------------------------|----------------------|---------------------|------------|
+| `system/arc-config.yml`                           | (programmatic write) | —                   | —          |
+| `system/agent/AGENT-BRIEFING.PROJECT.template.md` | PROJECT_NAME         | Component, src_dir, | —          |
+|                                                   |                      | test_dir,           |            |
+|                                                   |                      | PROJECT_TYPE, etc.  |            |
+| `reference/QUICK-REFERENCE.template.md`           | PROJECT_NAME,        | lint_command_*,     | —          |
+|                                                   | REPO_ROOT            | test_command_*,     |            |
+|                                                   |                      | type_check_*, etc.  |            |
 
 **Configurable files — copied as-is (no rendering, customized in place by adopters):**
 
@@ -385,7 +385,7 @@ markers needed — the content reads correctly regardless of team mode setting.
 
 **Framework files — copy as-is, except those with inline conditionals:**
 
-`system/agent/AGENTS.ARC.md` is Framework (added in 3.4.b). All other Framework files copy
+`system/agent/AGENT-BRIEFING.ARC.md` is Framework (added in 3.4.b). All other Framework files copy
 without modification. Two need inline `<!-- arc:if -->` markers:
 
 - `system/workflows/arc/session-lifecycle/session-init.md` (pm.mode sections)

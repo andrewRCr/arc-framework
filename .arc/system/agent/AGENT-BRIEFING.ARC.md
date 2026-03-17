@@ -1,4 +1,4 @@
-# AGENTS.ARC.md — ARC Agent Briefing
+# AGENT-BRIEFING.ARC.md — ARC Orientation for Agents
 
 ARC is a development methodology for human-AI collaboration. It structures how a developer
 and an AI agent work together — planning, executing, verifying, and preserving context across
@@ -28,15 +28,15 @@ method.
 
 ## Key Documents
 
-| Document             | Purpose                                       | Location                  |
-|----------------------|-----------------------------------------------|---------------------------|
-| AGENTS.PROJECT.md    | Project overview, tech stack, friction points | `system/agent/`           |
-| {AGENT}.ARC.md       | Agent-specific configuration                  | `system/agent/`           |
-| DEV-RULES.ARC.md     | ARC methodology rules                         | `reference/constitution/` |
-| DEV-RULES.PROJECT.md | Project quality standards                     | `reference/constitution/` |
-| QUICK-REFERENCE.md   | Commands and environment context              | `reference/`              |
-| arc-config.yml       | Project settings                              | `system/`                 |
-| WORK-STATUS.md       | Current task, blockers, next action           | `active/`                 |
+| Document                    | Purpose                                       | Location                  |
+|-----------------------------|-----------------------------------------------|---------------------------|
+| AGENT-BRIEFING.PROJECT.md   | Project overview, tech stack, friction points | `system/agent/`           |
+| {AGENT}.ARC.md              | Agent-specific configuration                  | `system/agent/`           |
+| DEV-RULES.ARC.md            | ARC methodology rules                         | `reference/constitution/` |
+| DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
+| QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
+| arc-config.yml              | Project settings                              | `system/`                 |
+| WORK-STATUS.md              | Current task, blockers, next action           | `active/`                 |
 
 ## Directory Structure
 
@@ -51,5 +51,5 @@ method.
 ---
 
 _This is the shared ARC framework entry point for all AI agents. Project-specific context
-lives in [AGENTS.PROJECT.md](AGENTS.PROJECT.md). Agent-specific guidance lives in dedicated
-files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._
+lives in [AGENT-BRIEFING.PROJECT.md](AGENT-BRIEFING.PROJECT.md). Agent-specific guidance lives
+in dedicated files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._

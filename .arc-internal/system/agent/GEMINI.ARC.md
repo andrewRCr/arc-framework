@@ -3,8 +3,8 @@
 Guidance for Gemini when working in the ARC framework repository. Shared rules and project
 context live in:
 
-- [AGENTS.ARC](AGENTS.ARC.md) – ARC framework orientation
-- [AGENTS.PROJECT](AGENTS.PROJECT.md) – Project context and collaboration principles
+- [AGENT-BRIEFING.ARC](AGENT-BRIEFING.ARC.md) – ARC framework orientation
+- [AGENT-BRIEFING.PROJECT](AGENT-BRIEFING.PROJECT.md) – Project context and collaboration principles
 - [DEV-RULES.ARC][dev-rules-arc] – Framework development methodology
 - [DEV-RULES.PROJECT][dev-rules] – Project quality standards
 - [QUICK-REFERENCE][quick-ref] – Environment context and command patterns

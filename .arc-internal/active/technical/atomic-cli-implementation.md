@@ -88,11 +88,23 @@ criteria. Flat checkbox list, no numbering hierarchy.
     - Added template + 15 other missing files (READMEs, arc-setup skill) to `init-recipe.json`
       discovered during cross-check (same oversight class as the workflow audit)
 
-- [ ] **Broader tool support — agent files for Amp, Cline, OpenCode, Antigravity, Augment**
+- [x] **Broader tool support — agent files for Amp, Cline, OpenCode, Antigravity, Augment**
 
-    New tools added to the init prompt (Task 3.6.b) for skill generation. Follow-up: create
-    agent config files and assess whether these tools need tool-specific guidance beyond what
-    the generic template provides. Depends on the setup workflow decoupling above.
+    Assessed via external research: all five are harnesses wrapping known models, not unique
+    agents. Antigravity runs Gemini (reads `GEMINI.md`), Amp is a multi-model router (reads
+    `AGENTS.md`), Cline/OpenCode are model-agnostic (identify as configured backend),
+    Augment is a proprietary Claude+O1 blend with no agent config mechanism. None need
+    pre-built `{AGENT}.ARC.md` files — they either identify as the underlying model or use
+    cross-tool standards that map to existing ARC files. The generic `template-agent.md`
+    handles any edge case.
+
+- [x] **Rename AGENTS.ARC/PROJECT → AGENT-BRIEFING.ARC/PROJECT**
+
+    Renamed 4 files and updated references across ~37 files in both `.arc/` and
+    `.arc-internal/` layers. Resolved naming collision with emerging `AGENTS.md` cross-tool
+    standard — briefing files are universal orientation entrypoints, not model-specific
+    config. Fixed cascading table alignment issues (MD060) in file classification strategy,
+    notes, and analysis docs. Post-rename grep confirmed zero stale references.
 
 - [x] **Audit init-recipe.json for missing workflow files**
 

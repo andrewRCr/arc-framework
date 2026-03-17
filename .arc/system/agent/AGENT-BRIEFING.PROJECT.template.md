@@ -1,4 +1,4 @@
-# AGENTS.PROJECT.md — {{PROJECT_NAME}} Agent Briefing
+# AGENT-BRIEFING.PROJECT.md — {{PROJECT_NAME}} Orientation for Agents
 
 <!-- This file is an agent-facing executive summary. META-PRD.md (reference/constitution/)
      and TECHNICAL-OVERVIEW.md (reference/) contain the full versions. Keep this file
@@ -48,5 +48,5 @@
 ---
 
 _This is the project-specific entry point for AI agents. ARC framework orientation lives in
-[AGENTS.ARC.md](AGENTS.ARC.md). Agent-specific guidance lives in dedicated files
-(e.g., CLAUDE.ARC.md, CODEX.ARC.md)._
+[AGENT-BRIEFING.ARC.md](AGENT-BRIEFING.ARC.md). Agent-specific guidance lives in dedicated
+files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._

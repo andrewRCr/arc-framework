@@ -34,8 +34,8 @@ ARC organizes agent context into three tiers based on when the content becomes r
 without knowledge would cause incorrect behavior across any activity. Always loaded at session start, always in
 context.
 
-- AGENTS.ARC.md (ARC framework orientation)
-- AGENTS.PROJECT.md (project identity and collaboration context)
+- AGENT-BRIEFING.ARC.md (ARC framework orientation)
+- AGENT-BRIEFING.PROJECT.md (project identity and collaboration context)
 - Agent-specific file (operational guidance)
 - DEV-RULES — ARC and Project (quality standards, methodology rules)
 - STRATEGY-INDEX — both framework and project (navigation to domain guidance)
@@ -175,7 +175,7 @@ instruction-following capacity.
 **Behavioral principles** — Constraints and values that govern how the agent approaches all work. Moderate
 attention cost. Worth front-loading because they apply to every action and the cost of violation is high.
 
-*Examples: DEV-RULES rules ("AI never initiates commits without approval"), AGENTS.ARC.md and AGENTS.PROJECT.md
+*Examples: DEV-RULES rules ("AI never initiates commits without approval"), AGENT-BRIEFING.ARC.md and AGENT-BRIEFING.PROJECT.md
 collaboration context.*
 
 **Procedural instructions** — Step-by-step imperatives, decision trees, classification rubrics. High attention

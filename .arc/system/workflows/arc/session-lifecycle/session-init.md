@@ -58,10 +58,10 @@ session-state, follow the override instead.
 
 **Project identity and agent context:**
 
-1. `.arc/system/agent/AGENTS.ARC.md` - **MUST READ IN FULL**
+1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` - **MUST READ IN FULL**
    - ARC framework orientation — methodology, key documents, directory structure
 
-2. `.arc/system/agent/AGENTS.PROJECT.md` - **MUST READ IN FULL**
+2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` - **MUST READ IN FULL**
    - Project overview, technology stack, and collaboration context
 
 3. **Agent-specific file** - **MUST READ IN FULL** (if one exists)

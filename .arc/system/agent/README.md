@@ -8,8 +8,8 @@ the ARC framework.
 The AI instructions follow a **dual-hub pattern** with tool-specific extensions:
 
 ```
-AGENTS.ARC.md (ARC framework orientation — shared by all agents)
-AGENTS.PROJECT.md (project context — stack, layout, friction points)
+AGENT-BRIEFING.ARC.md (ARC framework orientation — shared by all agents)
+AGENT-BRIEFING.PROJECT.md (project context — stack, layout, friction points)
 ├── CLAUDE.ARC.md → tool-specific guidance for Claude Code
 ├── CODEX.ARC.md → tool-specific guidance for Codex
 ├── CURSOR.ARC.md → tool-specific guidance for Cursor
@@ -21,11 +21,11 @@ AGENTS.PROJECT.md (project context — stack, layout, friction points)
 
 ### Why Two Hub Files
 
-**AGENTS.ARC.md** (Framework classification) covers ARC itself — what it is, how it works, key documents,
+**AGENT-BRIEFING.ARC.md** (Framework classification) covers ARC itself — what it is, how it works, key documents,
 directory structure. This content is maintained by the framework and auto-merged on updates. It provides
 a stable orientation that never conflicts with project-specific edits.
 
-**AGENTS.PROJECT.md** (Configurable classification) covers your project — overview, technology stack,
+**AGENT-BRIEFING.PROJECT.md** (Configurable classification) covers your project — overview, technology stack,
 repository layout, friction points. This content is yours to customize; the framework provides a template
 with guidance placeholders.
 
@@ -45,7 +45,8 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 
 ### Design Principles
 
-1. **Two hubs, distinct concerns** — AGENTS.ARC.md for framework orientation, AGENTS.PROJECT.md for project context
+1. **Two hubs, distinct concerns** — AGENT-BRIEFING.ARC.md for framework orientation,
+   AGENT-BRIEFING.PROJECT.md for project context
 2. **Tool files hold tool-specific guidance only** — each file references both hubs and adds only what's unique to
    that tool (behavioral quirks, capability limitations, platform features)
 3. **No duplication** — shared context lives in hub files and constitutional docs, not repeated in tool files
@@ -56,7 +57,7 @@ Files live in `.arc/system/agent/` rather than where tools natively look (projec
 ### What Belongs in Tool-Specific Files
 
 Tool-specific files are for guidance that applies to **one tool but not others**. If it applies to all
-tools, it belongs in a shared doc (AGENTS.PROJECT.md, DEV-RULES, a workflow, or a strategy).
+tools, it belongs in a shared doc (AGENT-BRIEFING.PROJECT.md, DEV-RULES, a workflow, or a strategy).
 
 **Good examples:**
 
@@ -67,20 +68,20 @@ tools, it belongs in a shared doc (AGENTS.PROJECT.md, DEV-RULES, a workflow, or 
 
 **Does NOT belong here:**
 
-- Project context, technology stack, repository layout → AGENTS.PROJECT.md
+- Project context, technology stack, repository layout → AGENT-BRIEFING.PROJECT.md
 - Development methodology, commit discipline, session management → DEV-RULES, workflows
 - Quality gates, testing requirements → DEV-RULES.PROJECT
-- Generic best practices that apply to all tools → AGENTS.PROJECT.md
+- Generic best practices that apply to all tools → AGENT-BRIEFING.PROJECT.md
 
 ## Files in This Directory
 
-### AGENTS.ARC.md
+### AGENT-BRIEFING.ARC.md
 
 **Purpose**: ARC framework orientation for agents — what ARC is, how it works, key documents.
 
 **Classification**: Framework (auto-merged on update). Not customized by adopters.
 
-### AGENTS.PROJECT.template.md
+### AGENT-BRIEFING.PROJECT.template.md
 
 **Purpose**: Project-specific reference card for all AI tools — the project entry point.
 
@@ -105,21 +106,21 @@ conflicts during framework updates, and contradict the principle that these file
 ### Adding Files for Other Tools
 
 1. Create a minimal file following the same pattern: reference both hub files, add tool-specific guidance
-2. Ensure your session-init workflow reads the new file after AGENTS.PROJECT.md
+2. Ensure your session-init workflow reads the new file after AGENT-BRIEFING.PROJECT.md
 
 ## Adoption Guide
 
 ### For New Projects
 
-1. **AGENTS.ARC.md loads automatically** — no customization needed
-2. **Customize AGENTS.PROJECT.md** with your project-specific technology stack, layout, and friction points
+1. **AGENT-BRIEFING.ARC.md loads automatically** — no customization needed
+2. **Customize AGENT-BRIEFING.PROJECT.md** with your project-specific technology stack, layout, and friction points
 3. **Keep only the tool files you use** — remove the rest
 4. **Leave tool-specific notes empty** until you discover genuine tool-specific guidance through use
 5. **Configure MCP and sub-agent sections** as you set up your tooling
 
 ### Customization Tips
 
-**AGENTS.PROJECT.md (most important)**:
+**AGENT-BRIEFING.PROJECT.md (most important)**:
 
 - Init tokens (`{{PROJECT_NAME}}`) are filled automatically by `arc init`
 - Guide-text placeholders (`[Component]`, `[description]`) are for you to fill in manually
@@ -134,7 +135,7 @@ conflicts during framework updates, and contradict the principle that these file
 
 ## Maintenance
 
-### When to Update AGENTS.PROJECT.md
+### When to Update AGENT-BRIEFING.PROJECT.md
 
 - Project technology stack changes
 - New critical friction points discovered

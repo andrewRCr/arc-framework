@@ -15,7 +15,7 @@ When constitutional documents change, update related files to keep documentation
 
 **Update these files:**
 
-- `agent/AGENTS.PROJECT.md` - Project overview and features section
+- `agent/AGENT-BRIEFING.PROJECT.md` - Project overview and features section
 - `PROJECT-STATUS.md` - If scope or priorities change
 
 **Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
@@ -35,7 +35,7 @@ changes versus AI interpretation.
 
 **Update these files:**
 
-- `agent/AGENTS.PROJECT.md` - Technology stack and patterns section
+- `agent/AGENT-BRIEFING.PROJECT.md` - Technology stack and patterns section
 - `PROJECT-STATUS.md` - If architectural decisions affect roadmap
 
 **Why**: Technical architecture decisions cascade to implementation patterns and project timelines.
@@ -127,7 +127,7 @@ framework version — use any versioning scheme that works for your team.
 
 ### Always Read (Session Init)
 
-- `AGENTS.ARC.md` + `AGENTS.PROJECT.md` - ARC orientation and project context
+- `AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md` - ARC orientation and project context
 - `WORK-STATUS.md` - Active work state
 - `SESSION-NOTES.md` - Personal session context (if exists)
 - `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)

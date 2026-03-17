@@ -214,7 +214,7 @@ is more "instruction-like" and thus more vulnerable to this confusion. Factual/n
 
 - **(a) Constraints/rules** — moderate risk; these are true instructions but typically short and
   declarative. Performance depends on conflict density (see § 2.2).
-- **(b) Environment context** — low risk; narrative, factual. QUICK-REFERENCE.md and AGENTS.PROJECT.md
+- **(b) Environment context** — low risk; narrative, factual. QUICK-REFERENCE.md and AGENT-BRIEFING.PROJECT.md
   project overview sections are safe Tier 1 candidates.
 - **(c) Workflow procedures** — **high risk**; imperative, step-by-step, instruction-like. The
   full process-task-loop is the highest-risk document in Tier 1 by this measure.
@@ -235,7 +235,7 @@ Converging guidance on content placement:
 - Separating the two reduces ambiguity and instruction conflict.
 
 **Relevance:** ARC's Tier 1 documents span both categories — some are persistent constraints
-(DEV-RULES.ARC, DEV-RULES.PROJECT, AGENTS.PROJECT.md) and some are session-specific state (CURRENT-SESSION.md, active
+(DEV-RULES.ARC, DEV-RULES.PROJECT, AGENT-BRIEFING.PROJECT.md) and some are session-specific state (CURRENT-SESSION.md, active
 task context). The evidence suggests these should ideally occupy different prompt positions, though
 ARC's current delivery mechanism (sequential reads into the conversation) doesn't distinguish
 between system-level and session-level content.
@@ -304,7 +304,7 @@ load when the agent enters a relevant domain. This is a validated architecture.
 **What this means for ARC:** Within Tier 1, document **ordering matters**. The most critical
 constraints should appear early (primacy) or late (recency) in the loading sequence. Documents
 in the middle of the chain receive less attention weight. ARC's current session-init ordering
-(AGENTS.PROJECT.md → agent-specific → DEV-RULES.ARC → DEV-RULES.PROJECT → index → quick-ref →
+(AGENT-BRIEFING.PROJECT.md → agent-specific → DEV-RULES.ARC → DEV-RULES.PROJECT → index → quick-ref →
 process-task-loop → CURRENT-SESSION → task list) places behavioral constraints early and
 session state late — this is roughly aligned with the evidence, though it hasn't been
 deliberately optimized for positional effects.
@@ -404,7 +404,7 @@ Documented failure modes in long sessions:
   automatically cache these portions. Only dynamic/session-specific content at the end requires
   fresh processing each turn.
 
-**What this means for ARC:** Tier 1 documents that are static within a session (AGENTS.PROJECT.md,
+**What this means for ARC:** Tier 1 documents that are static within a session (AGENT-BRIEFING.PROJECT.md,
 DEV-RULES.ARC, DEV-RULES.PROJECT) benefit from prompt caching automatically when placed
 early. Explicit mid-session re-reading of these documents is unlikely to add value beyond what
 caching already provides — and could consume context window budget unnecessarily.

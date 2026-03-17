@@ -54,14 +54,14 @@ the project.
 - What are the critical performance and infrastructure requirements?
 - What testing and build infrastructure exists?
 
-### Step 3: Define AGENTS.PROJECT
+### Step 3: Define AGENT-BRIEFING.PROJECT
 
 Your project's executive summary for the agent — loaded every session. This distills
 META-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a concise
 briefing: project type, primary goal, technology stack, repository layout, and common
 friction points.
 
-**Template**: [AGENTS.PROJECT.md][agents-project-template] → stays in `system/agent/`
+**Template**: [AGENT-BRIEFING.PROJECT.md][agents-project-template] → stays in `system/agent/`
 
 **Think through**:
 
@@ -154,7 +154,7 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 **Session-loaded documents — keep current:**
 
-- **AGENTS.PROJECT** — when the project's scope, stack, or friction points change. Stale
+- **AGENT-BRIEFING.PROJECT** — when the project's scope, stack, or friction points change. Stale
   content here directly degrades every session's starting context.
 - **QUICK-REFERENCE** — when commands, paths, or environment requirements change. Wrong
   commands here mean the agent fails quality gates or uses outdated tooling.
@@ -181,7 +181,7 @@ decisions are made, not on a schedule.
 [configure-external]: 03_configure-external-integration.md
 [meta-prd-template]: ../../../../reference/META-PRD.md
 [tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.md
-[agents-project-template]: ../../../agent/AGENTS.PROJECT.md
+[agents-project-template]: ../../../agent/AGENT-BRIEFING.PROJECT.md
 [quick-ref-template]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

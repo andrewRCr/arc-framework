@@ -378,22 +378,22 @@ working ARC installation.
           `initial-setup/01_verify-and-configure.md`
         - All quality gates pass: typecheck clean, 84 tests passing, 0 lint errors
 
-    - [x] **3.4.b Agent file split: ARC-AGENTS → AGENTS.ARC + AGENTS.PROJECT**
+    - [x] **3.4.b Agent file split: ARC-AGENTS → AGENT-BRIEFING.ARC + AGENT-BRIEFING.PROJECT**
 
         Split agent hub into two files with distinct classifications, paralleling
         `DEV-RULES.ARC` / `DEV-RULES.PROJECT`.
 
-        - Created `AGENTS.ARC.md` (Framework): ARC methodology brief — how ARC works,
+        - Created `AGENT-BRIEFING.ARC.md` (Framework): ARC methodology brief — how ARC works,
           key documents table, directory structure. 47 lines, concise for every-session loading.
-          `{{ARC_DIR}}` stays in AGENTS.PROJECT (project repo layout context, not ARC-structural)
-        - Renamed `ARC-AGENTS.template.md` → `AGENTS.PROJECT.template.md` (Configurable):
+          `{{ARC_DIR}}` stays in AGENT-BRIEFING.PROJECT (project repo layout context, not ARC-structural)
+        - Renamed `ARC-AGENTS.template.md` → `AGENT-BRIEFING.PROJECT.template.md` (Configurable):
           header updated, footer updated with sibling references
-        - Created `.arc-internal/` versions (AGENTS.ARC.md + AGENTS.PROJECT.md)
-        - Updated init recipe: added AGENTS.ARC.md to `include_files`, renamed template ref
+        - Created `.arc-internal/` versions (AGENT-BRIEFING.ARC.md + AGENT-BRIEFING.PROJECT.md)
+        - Updated init recipe: added AGENT-BRIEFING.ARC.md to `include_files`, renamed template ref
         - Updated file classification strategy: replaced ARC-AGENTS entry with two entries
-          (AGENTS.ARC Framework + AGENTS.PROJECT Configurable)
+          (AGENT-BRIEFING.ARC Framework + AGENT-BRIEFING.PROJECT Configurable)
         - Updated session-init loading order in both `.arc/` and `.arc-internal/`: items 1-2
-          now AGENTS.ARC + AGENTS.PROJECT, renumbered 3→4 through 9→10
+          now AGENT-BRIEFING.ARC + AGENT-BRIEFING.PROJECT, renumbered 3→4 through 9→10
         - Updated 12 agent spoke files (7 template + 5 internal): link now references both hubs
         - Updated agent/ README.md: rewrote architecture from hub-spoke to dual-hub pattern
         - Updated cross-references in: strategy-file-classification (4 refs),
@@ -460,8 +460,8 @@ working ARC installation.
 
         Created `arc-setup` canonical skill and refreshed `.arc/README.md`.
 
-        - `arc-setup` skill: simplified to 2-step sequence (read AGENTS.ARC.md →
-          follow 01_verify-and-configure.md). AGENTS.PROJECT.md and agent-specific
+        - `arc-setup` skill: simplified to 2-step sequence (read AGENT-BRIEFING.ARC.md →
+          follow 01_verify-and-configure.md). AGENT-BRIEFING.PROJECT.md and agent-specific
           files are unpopulated templates post-init — the setup workflow handles them.
           `disable-model-invocation: true` (user-initiated, not auto-triggered).
         - `.arc/README.md`: added "Getting Started" section with `/arc-setup` and
@@ -473,7 +473,7 @@ working ARC installation.
 
         **Additional work in this session (methodology improvements):**
 
-        - AGENTS.ARC.md (both copies): updated "portable markdown documents" phrasing
+        - AGENT-BRIEFING.ARC.md (both copies): updated "portable markdown documents" phrasing
           to "markdown documents that work with any agent platform"
         - Session-init (both copies): added item 11 — conditional process-task-loop
           load when WORK-STATUS shows active task work. Eliminates self-triggering
@@ -496,7 +496,7 @@ working ARC installation.
 
         - Removed `arc_dir` prompt from `init-recipe.json` (4→3 prompts)
         - Removed `arc_dir` from `InstallConfig` in `src/lib/types.ts`
-        - Replaced `{{ARC_DIR}}` with `.arc` in 6 template files (AGENTS.PROJECT,
+        - Replaced `{{ARC_DIR}}` with `.arc` in 6 template files (AGENT-BRIEFING.PROJECT,
           QUICK-REFERENCE, PROJECT-STATUS, BACKLOG-FEATURE, BACKLOG-TECHNICAL,
           agent README)
         - Updated test fixtures in `recipe.test.ts` and `manifest.test.ts`
@@ -531,15 +531,15 @@ working ARC installation.
           arc-methods/arc-extensions surfaces plus content-level customization
           pointer (project strategies, project workflows, DEV-RULES.PROJECT)
         - Join Existing path: added user workspace bullet, updated Next Step to list
-          all five project documents (added AGENTS.PROJECT and QUICK-REFERENCE)
+          all five project documents (added AGENT-BRIEFING.PROJECT and QUICK-REFERENCE)
 
       **`02_define-project.md`** (overhauled):
 
-        - Resequenced steps: META-PRD → TECHNICAL-OVERVIEW → AGENTS.PROJECT →
+        - Resequenced steps: META-PRD → TECHNICAL-OVERVIEW → AGENT-BRIEFING.PROJECT →
           QUICK-REFERENCE → DEV-RULES.PROJECT (→ ROADMAP/PROJECT-STATUS for
           arc-in-git). Session-loaded docs identified explicitly; reference docs
           distinguished from session-critical docs
-        - Added missing AGENTS.PROJECT (Step 3) and QUICK-REFERENCE (Step 4)
+        - Added missing AGENT-BRIEFING.PROJECT (Step 3) and QUICK-REFERENCE (Step 4)
         - arc-in-git content (Steps 6-7, maintenance items) wrapped in
           `<!-- arc:if pm.mode == arc-in-git -->` conditional rendering —
           stripped for non-arc-in-git installs
@@ -683,7 +683,7 @@ working ARC installation.
     - Print concise summary: files installed, install directory, key choices made
     - Primary path: "Restart your AI agent to load ARC configuration, then run `/arc-setup`"
     - Fallback path: copy-pasteable prompt for agents without skill support (read
-      `AGENTS.ARC.md`, `AGENTS.PROJECT.md`, agent-specific file, then run setup workflow)
+      `AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.PROJECT.md`, agent-specific file, then run setup workflow)
     - Agent-specific tailoring: if possible, customize the message based on selected
       tools (e.g., "For Claude Code, say: ...")
     - Orient without overwhelming — this is the adopter's first impression after init
@@ -694,7 +694,7 @@ working ARC installation.
     - Test: `.gitignore` and `.gitattributes` contain expected entries
     - Test: manifest file inventory matches files on disk
     - Test: pristine hashes match rendered file content
-    - Test: agent file split present in output (`AGENTS.ARC.md` + `AGENTS.PROJECT.md`)
+    - Test: agent file split present in output (`AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md`)
     - Test: `WORK-STATUS.md` initial Next Action points to setup workflow
     - Test: verify script files installed (`scripts/validate-config.sh`,
       `scripts/verify-integrity.sh`)
