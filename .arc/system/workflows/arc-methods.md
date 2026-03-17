@@ -120,6 +120,10 @@ grep-searchable across commit history.
 
 - `Context: atomic-[filename].md` — work-unit-scoped atomic task
 
+Use `atomic-*.md` only for commits that complete work tracked in the companion file. Incidental
+fixes discovered *during* an atomic task but not themselves tracked there use the task list
+incidental pattern: `tasks-[filename].md (incidental - discovered during <context>)`.
+
 **Without task list:**
 
 - `Context: [category] (no associated task list)` — emergent work

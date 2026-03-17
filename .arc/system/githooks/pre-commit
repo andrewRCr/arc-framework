@@ -231,16 +231,22 @@ fi
 # ============================================================================
 # CHECK 9: WORK-STATUS.md co-staging with task lists
 # ============================================================================
-# If task lists are staged, WORK-STATUS.md should typically be staged too
-# (Current Task should advance to reflect the newly completed work)
+# If task lists are staged with checkbox completions, WORK-STATUS.md should
+# typically be staged too (Current Task should advance). Only warns when the
+# diff contains actual checkbox state changes — not for reference updates,
+# planning restructuring, or other non-completion edits.
 staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
 staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' || true)
 
 if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
-    echo -e "${YELLOW}Warning: Task list staged but WORK-STATUS.md is not${NC}"
-    echo "   Task list changes often mean the current task has advanced"
-    echo "   Remember to update and stage WORK-STATUS.md"
-    warnings=$((warnings + 1))
+    # Check if the diff actually contains checkbox completions (marked [x] or [~])
+    task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
+    if [ -n "$task_list_has_completions" ]; then
+        echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
+        echo "   Task list changes often mean the current task has advanced"
+        echo "   Remember to update and stage WORK-STATUS.md"
+        warnings=$((warnings + 1))
+    fi
 fi
 
 # ============================================================================
