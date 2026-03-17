@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.5 — ARC integrity verification — scripts, workflow, and skill (line ~552)
-**Last Completed**: Task 3.4.f — Create external tracker integration setup workflow
+**Next Task**: Task 3.6 — Define skill generation interface (line ~616)
+**Last Completed**: Task 3.5 — ARC integrity verification — scripts, workflow, and skill
 **Blockers**: [none]
-**Next Action**: Begin Task 3.5 — ARC integrity verification
+**Next Action**: Begin Task 3.6 — Define skill generation interface
 
 ---
 

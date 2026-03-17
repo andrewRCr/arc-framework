@@ -7,37 +7,14 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Source shared library (config reader, colors)
+. "$(dirname "$0")/../scripts/arc-lib.sh"
 
-# ============================================================================
-# CONFIG: Read settings from arc-config.yml
-# ============================================================================
-# Reads a value from .arc/system/arc-config.yml using shell-native parsing.
-# Falls back to default if config file is missing or key is not found.
-# Usage: arc_config_get <key> <default>
-arc_config_get() {
-    local key="$1"
-    local default="$2"
-    local config_file=".arc/system/arc-config.yml"
-
-    if [ ! -f "$config_file" ]; then
-        echo "$default"
-        return
-    fi
-
-    local value
-    value=$(grep -E "^${key}:" "$config_file" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-
-    if [ -z "$value" ]; then
-        echo "$default"
-    else
-        echo "$value"
-    fi
-}
+# Convenience aliases for color variables
+RED="$ARC_RED"
+YELLOW="$ARC_YELLOW"
+GREEN="$ARC_GREEN"
+NC="$ARC_NC"
 
 hook_enabled=$(arc_config_get "hooks.pre_commit" "enabled")
 base_branch=$(arc_config_get "branch.base" "main")

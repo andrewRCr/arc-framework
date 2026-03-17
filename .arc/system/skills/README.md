@@ -13,6 +13,7 @@ and personal skills use no prefix.
 **Default skill set:**
 
 - `arc-setup` — Post-install setup: verify, configure, define project (one-time)
+- `arc-verify` — Installation health check: config, files, references, hooks, session state
 - `arc-resume` — Session initialization (start of session)
 - `arc-commit` — Atomic commit with WORK-STATUS staging (during session)
 - `arc-handoff` — Session handoff (end of session)

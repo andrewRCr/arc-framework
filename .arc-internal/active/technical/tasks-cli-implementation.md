@@ -549,69 +549,57 @@ working ARC installation.
           reference distinction, no prescriptive timing or obvious mappings
         - Bundled copies synced to `packages/arc-framework/arc/`
 
-- [ ] **3.5 ARC integrity verification — scripts, workflow, and skill**
+- [x] **3.5 ARC integrity verification — scripts, workflow, and skill**
 
-    **Goal:** Create a deterministic health-check capability for ARC installations. Verification
-    scripts run mechanical checks (config validity, file structure, reference integrity, hook
-    status); a workflow document defines severity levels and remediation guidance; a canonical
-    skill provides the user invocation point.
+    **Goal:** Create a deterministic health-check capability for ARC installations.
 
     **Placement:** Scripts in `.arc/system/scripts/`, workflow in
     `.arc/system/workflows/arc/supplemental/`, skill in `.arc/system/skills/`.
 
-    - [ ] **3.5.a Create scripts directory and `validate-config.sh`**
+    - [x] **3.5.a Create scripts directory and `validate-config.sh`**
 
-        Establish `.arc/system/scripts/` as the home for deterministic tooling that
-        isn't a git hook.
+        Created `.arc/system/scripts/` with three files:
+        - `arc-lib.sh` — shared shell library extracted from hooks (config reader
+          `arc_config_get`, `arc_config_keys`, color definitions). DRY refactor: both
+          hooks now source this instead of duplicating the config parser.
+        - `validate-config.sh` — config validation: enum checking for all 14 keys,
+          cross-field dependency enforcement, unknown key detection (typo protection).
+          Structured PASS/WARN/ERROR output, exit codes 0/1/2.
+        - `README.md` — directory purpose, script inventory, usage, output format.
 
-        - Create directory with README (purpose: mechanical checks, distinct from hooks)
-        - `validate-config.sh`: validate `arc-config.yml` — enum checking for all keys,
-          cross-field dependency enforcement (`custom` format requires pattern), unknown
-          key detection (typo protection)
-        - POSIX-compatible, no dependencies beyond standard unix tools
-        - Structured output: one line per check with PASS/WARN/ERROR prefix
-        - Exit codes: 0 (all pass), 1 (warnings), 2 (errors)
-        - Independent callers: hooks (DRY — could source instead of inline parsing),
-          verify-integrity script, agents validating post-edit config
-        - Add to init recipe `include_files`; mirror to `.arc-internal/`
+        Refactored `pre-commit` and `commit-msg` hooks to source `arc-lib.sh` —
+        removed ~40 duplicated lines from each hook. Hooks verified working post-refactor.
 
-    - [ ] **3.5.b Write `verify-integrity.sh` and workflow document**
+        All mirrored to `.arc-internal/`, `packages/arc-framework/arc/`, and added to
+        `init-recipe.json`.
 
-        Orchestrator script that runs all mechanical checks, plus the workflow document
-        that defines what checks mean and how agents should interpret results.
+    - [x] **3.5.b Write `verify-integrity.sh` and workflow document**
 
-        **Script** (`verify-integrity.sh`):
-        - Config validation: calls `validate-config.sh`
-        - File structure: expected core files exist (AGENTS.ARC, AGENTS.PROJECT,
-          DEV-RULES.ARC, DEV-RULES.PROJECT, QUICK-REFERENCE, WORK-STATUS, arc-config,
-          arc-methods, arc-extensions); agent files match configured tools
-        - Reference integrity: reference-style markdown links resolve to existing files
-        - Strategy index consistency: entries ↔ files bidirectional check
-        - Hook status: hooks exist and are executable when enabled in config
-        - Session state: WORK-STATUS task list path valid, next task reference resolves
-        - Method/extension structure: `.override`/`.default`/`.steps` sections present
-        - Config-aware: reads `arc-config.yml` to determine expectations
-        - Manifest-aware: uses `.arc-manifest.json` if present, falls back to
-          config-based expectations
-        - Three-severity output: ERROR / WARN / INFO with summary line
+        **Script** (`verify-integrity.sh`) — 8-category orchestrator:
+        1. Config validation (delegates to `validate-config.sh`)
+        2. File structure (core files + config-conditional: ROADMAP for arc-in-git)
+        3. Hook status (existence, executable, `core.hooksPath` alignment)
+        4. Strategy index consistency (bidirectional: entries ↔ files)
+        5. Reference integrity (reference-style markdown links in key documents)
+        6. Session state (WORK-STATUS task list path, next task resolution)
+        7. Methods/extensions structure (sections and subsections present)
+        8. Manifest awareness (forward-compatible `.arc-manifest.json` check)
 
-        **Workflow** (`supplemental/verify-arc-integrity.md`):
-        - Check category definitions and rationale
-        - Severity level guidance (error = broken, warn = drift, info = informational)
-        - Remediation hints for common failures
-        - Agent role: run script, interpret results, offer targeted fixes
-        - Integration points: post-setup, standalone health check, post-modification gate
+        Config-aware via `ARC_CONFIG_FILE`, directory-aware via `ARC_DIR` env var.
+        Tested against both `.arc/` (template) and `.arc-internal/` (live installation).
 
-        - Add both to init recipe `include_files`; mirror to `.arc-internal/`
+        **Workflow** (`supplemental/verify-arc-integrity.md`) — check category
+        definitions, severity guidance, remediation hints, agent role, integration points.
 
-    - [ ] **3.5.c Create `arc-verify` canonical skill**
+        Both added to `init-recipe.json` and mirrored.
 
-        Skill content that wraps the verification workflow for user invocation.
+    - [x] **3.5.c Create `arc-verify` canonical skill**
 
-        - Thin wrapper: run `verify-integrity.sh`, interpret results per workflow
-        - Add to canonical skill list for generation targets (Task 3.6 defines
-          interface, Phase 6 implements generation)
-        - Add skill source file to init recipe `include_files`
+        Thin wrapper skill in `.arc/system/skills/arc-verify/SKILL.md` — runs
+        `verify-integrity.sh`, interprets results per workflow guidance, offers targeted
+        fixes on errors. Added to skills README default skill set and `init-recipe.json`.
+        `disable-model-invocation: true` (requires no AI generation, only script execution
+        and interpretation).
 
 - [ ] **3.6 Define skill generation interface (`src/lib/skills.ts`)**
 

@@ -51,6 +51,19 @@ criteria. Flat checkbox list, no numbering hierarchy.
     - Core/External mode: unresolved items at integration default to "ask the user"
     - Incidental task lists: included (full work units, get companion files)
 
+- [ ] **Audit init-recipe.json for missing workflow files**
+
+    16 workflow files in `.arc/system/workflows/` are not listed in `init-recipe.json`
+    `include_files` — adopters running `arc init` would not receive them. All files predate
+    the recipe creation, so this is likely an oversight during task list authoring, not
+    intentional omission. Evaluate before bulk-adding: a few may be conditional on config
+    (e.g., planning branch workflows on `pm.mode`, initial-setup `01_`/`02_` are always
+    needed). Missing files include session-handoff, session-loop, all supplemental workflows
+    (prepare-commits, manage-incidental-work, integrate-external-content,
+    maintain-project-docs), all work-unit-lifecycle workflows (activate, integrate, verify,
+    archive, clean, rotate-branch, planning/\*), initial-setup `01_`/`02_`, and
+    `project/README.md`.
+
 - [x] **Strengthen session boundary guidance in DEV-RULES.ARC**
 
     DEV-RULES.ARC § Context quality: add explicit recognition that design-to-implementation
