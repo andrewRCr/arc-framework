@@ -1,14 +1,21 @@
 #!/bin/bash
 # Git commit-msg hook - Validates commit message format
-# Location: .arc/system/githooks/commit-msg
+# Location: .arc-internal/system/githooks/commit-msg
 #
-# Setup: git config core.hooksPath .arc/system/githooks
+# Internal variant:
+#   - Reads config from .arc-internal/system/arc-config.yml
+#   - Searches both .arc/ and .arc-internal/ active directories
+#
+# Setup: git config core.hooksPath .arc-internal/system/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 
 set -e
 
 # Source shared library (config reader, colors)
 . "$(dirname "$0")/../scripts/arc-lib.sh"
+
+# Override config path for internal workspace
+ARC_CONFIG_FILE=".arc-internal/system/arc-config.yml"
 
 # Convenience aliases for color variables
 RED="$ARC_RED"
@@ -168,7 +175,8 @@ case "$context_footer_mode" in
 
                 # Check if task list file exists (search active directories)
                 task_found=false
-                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental; do
+                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental \
+                           .arc-internal/active/feature .arc-internal/active/technical .arc-internal/active/incidental; do
                     if [ -f "$dir/$task_file" ]; then
                         task_found=true
                         break
@@ -235,7 +243,8 @@ case "$context_footer_mode" in
 
                 # Check if atomic companion file exists (search active directories)
                 atomic_found=false
-                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental; do
+                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental \
+                           .arc-internal/active/feature .arc-internal/active/technical .arc-internal/active/incidental; do
                     if [ -f "$dir/$atomic_file" ]; then
                         atomic_found=true
                         break
@@ -315,7 +324,7 @@ if [ "$context_footer_mode" != "disabled" ] && [ "$context_footer_mode" != "cust
     committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
 
     if [ -n "$committed_task_num" ]; then
-        ws_file=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' | head -1 || true)
+        ws_file=$(git diff --cached --name-only | grep -E '^\.(arc|arc-internal)/active/WORK-STATUS\.md$' | head -1 || true)
         if [ -n "$ws_file" ]; then
             ws_current_num=$(git show ":$ws_file" 2>/dev/null | \
                 grep -E '^\*\*Current Task\*\*' | \
