@@ -1047,15 +1047,19 @@ mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolu
         - Caller stores result via `gitConfigSet()` (side effect not in utility)
         - 14 unit tests (7 slugify + 7 resolve) — all passing
 
-    - [ ] **7.1.b Init: user directory creation**
-        - Create `user/{identity}/` directory inside `.arc/`
-        - Install `SESSION-NOTES.md` from CLI-internal template (`src/templates/user/`)
-          — Core, all modes
-        - Install `ATOMIC-INBOX.md` from CLI-internal template — arc-in-git only (gated
-          by `install_config.pm_mode`)
-        - `user/README.md` tracked (already exists in `.arc/user/`, installed via recipe)
-        - `user/{identity}/` contents already gitignored (`.arc/user/*/` pattern added
-          in 3.7.c)
+    - [x] **7.1.b Init: user directory creation**
+
+        After identity storage, `runInit()` creates `user/{identity}/` via `ensureDir()`
+        and installs templates from `templates/user/` (CLI-internal, accessed via
+        `getInternalTemplatePath()`). SESSION-NOTES.md installed for all modes;
+        ATOMIC-INBOX.md gated by `prompts.pm_mode === "arc-in-git"`. Templates moved
+        from `src/templates/user/` to `templates/user/` to align with the existing
+        `getInternalTemplatePath()` resolver. Added `internalTemplateDir` to
+        `InitOptions` for testability. Also excluded `user/{identity}/` paths from
+        `listArcFiles` and `listFiles` (status command was reporting gitignored
+        personal files as "new"). 4 integration tests added (SESSION-NOTES presence,
+        content match, ATOMIC-INBOX exclusion for pm.mode=none, both files for
+        arc-in-git). All existing tests updated with the new parameter — 251 passing.
 
     - [ ] **7.1.c Init: team mode behavioral config**
 

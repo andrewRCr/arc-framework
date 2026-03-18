@@ -24,6 +24,7 @@ import {
   join,
   dirname,
   getArcTemplatePath,
+  getInternalTemplatePath,
 } from "../helpers/integration.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
@@ -153,6 +154,7 @@ describe("update integration — baseline (real recipe)", () => {
       cwd: tempDir,
       io: makeIOContext(tempDir),
       templateDir: realTemplateDir,
+      internalTemplateDir: getInternalTemplatePath(),
       recipe,
       prompts,
       identityResult: "test-user",

@@ -26,7 +26,7 @@ import type { IOContext } from "../../src/commands/init.js";
 import type { GitExec } from "../../src/lib/git.js";
 import type { Recipe } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
-import { getArcTemplatePath } from "../../src/lib/paths.js";
+import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -107,6 +107,7 @@ export async function initInTempRepo(
     cwd: dir,
     io,
     templateDir,
+    internalTemplateDir: getInternalTemplatePath(),
     recipe,
     prompts,
     identityResult: identity,
@@ -138,6 +139,8 @@ export async function listFiles(
       if (skipPristine && (relPath === ".pristine" || relPath.startsWith(".pristine/"))) {
         continue;
       }
+      // Skip user/{identity}/ directories (gitignored personal workspace)
+      if (/^user\/[^/]+\//.test(relPath)) continue;
       const s = await stat(fullPath);
       if (s.isDirectory()) {
         await walk(fullPath);
@@ -163,5 +166,5 @@ export async function fileExists(path: string): Promise<boolean> {
 // Re-export for convenience
 export { readFile, writeFile, mkdir, rm, readdir, stat, join, dirname };
 export { execFileAsync };
-export { getArcTemplatePath };
+export { getArcTemplatePath, getInternalTemplatePath };
 export type { IOContext, GitExec, Recipe, InitPromptResult };

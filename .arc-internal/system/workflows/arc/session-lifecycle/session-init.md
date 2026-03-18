@@ -142,7 +142,7 @@ session-state, follow the override instead.
 
     **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task execution expected.
 
-    - Path: `.arc-internal/system/workflows/arc/3_process-task-loop.md`
+    - Path: `.arc/system/workflows/arc/3_process-task-loop.md`
     - Contains: completion protocol, quality gate checkpoints, mandatory stops, deferred review,
       incidental work routing, and method dependency triggers (issue-triage, quality-gate-commands,
       test-first)

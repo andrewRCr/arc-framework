@@ -17,6 +17,7 @@ import {
   writeFile,
   join,
   getArcTemplatePath,
+  getInternalTemplatePath,
 } from "../helpers/integration.js";
 import { runInit } from "../../src/commands/init.js";
 import { runUpdate } from "../../src/commands/update.js";
@@ -44,6 +45,7 @@ async function initWithTools(
     cwd: dir,
     io,
     templateDir,
+    internalTemplateDir: getInternalTemplatePath(),
     recipe,
     prompts,
     identityResult: "test-user",

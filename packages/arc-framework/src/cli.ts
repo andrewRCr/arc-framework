@@ -21,7 +21,7 @@ import { runDiff, buildDiffOutput } from "./commands/diff.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
 import { resolveIdentity } from "./lib/identity.js";
-import { getArcTemplatePath } from "./lib/paths.js";
+import { getArcTemplatePath, getInternalTemplatePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
 import { readManifest } from "./lib/manifest.js";
 import { formatError } from "./lib/errors.js";
@@ -68,6 +68,8 @@ async function listArcFiles(dir: string): Promise<string[]> {
       const relPath = relative(dir, fullPath);
       // Skip .pristine directory
       if (relPath === ".pristine" || relPath.startsWith(".pristine/")) continue;
+      // Skip user/{identity}/ directories (gitignored personal workspace)
+      if (/^user\/[^/]+\//.test(relPath)) continue;
       const s = await stat(fullPath);
       if (s.isDirectory()) {
         await walk(fullPath);
@@ -147,6 +149,7 @@ program
       cwd: process.cwd(),
       io: createIOContext(),
       templateDir,
+      internalTemplateDir: getInternalTemplatePath(),
       recipe,
       prompts,
       identityResult,

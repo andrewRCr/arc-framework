@@ -308,12 +308,25 @@ describe("buildManifestFiles", () => {
 
 // --- runInit (orchestrator) ---
 
+/** Stub user template files for the internal templates directory. */
+function userTemplateFiles(internalDir: string): Record<string, string> {
+  return {
+    [`${internalDir}/user/SESSION-NOTES.md`]: "# Session Notes\n",
+    [`${internalDir}/user/ATOMIC-INBOX.md`]: "# Atomic Inbox\n",
+  };
+}
+
 /** Helper: create a mock IOContext with a virtual filesystem. */
 function mockIO(
   files: Record<string, string> = {},
   templateDir = "/templates",
+  internalDir = "/internal-templates",
 ): IOContext {
-  const allFiles = { ...canonicalSkillFiles(templateDir), ...files };
+  const allFiles = {
+    ...canonicalSkillFiles(templateDir),
+    ...userTemplateFiles(internalDir),
+    ...files,
+  };
   const written: Record<string, string> = {};
   return {
     readFile: vi.fn(async (path: string) => {
@@ -375,6 +388,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe: minimalRecipe,
       prompts: freshPromptResult,
       identityResult: "andrew",
@@ -418,6 +432,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: freshPromptResult,
       identityResult: "andrew",
@@ -446,6 +461,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: freshPromptResult,
       identityResult: "andrew",
@@ -474,6 +490,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: { ...freshPromptResult, tools: ["claude", "cursor"] },
       identityResult: "andrew",
@@ -506,6 +523,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe: minimalRecipe,
       prompts: null,
       identityResult: null,
@@ -530,6 +548,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: freshPromptResult,
       identityResult: "andrew",
@@ -572,6 +591,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: freshPromptResult,
       identityResult: "andrew",
@@ -613,6 +633,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: { ...freshPromptResult, tools: ["claude", "cursor"] },
       identityResult: "andrew",
@@ -652,6 +673,7 @@ describe("runInit", () => {
       cwd: "/project",
       io,
       templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
       recipe,
       prompts: freshPromptResult,
       identityResult: "andrew",

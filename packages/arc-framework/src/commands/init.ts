@@ -294,6 +294,8 @@ export interface InitOptions {
   cwd: string;
   io: IOContext;
   templateDir: string;
+  /** CLI-internal templates directory (user templates, etc.). */
+  internalTemplateDir: string;
   recipe: Recipe;
   /** Prompt results, or null if user cancelled. */
   prompts: InitPromptResult | null;
@@ -326,7 +328,7 @@ const CONFIG_KEY_MAP: Record<string, (p: InitPromptResult) => string> = {
 export async function runInit(
   options: InitOptions,
 ): Promise<InitResult | null> {
-  const { cwd, io, templateDir, recipe, prompts, identityResult } = options;
+  const { cwd, io, templateDir, internalTemplateDir, recipe, prompts, identityResult } = options;
 
   // User cancelled prompts
   if (!prompts) {
@@ -447,9 +449,27 @@ export async function runInit(
     await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
   }
 
-  // Store identity
+  // Store identity and create user directory
   if (identityResult) {
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
+
+    // Create user/{identity}/ with personal workspace files
+    const userDir = join(arcDir, "user", identityResult);
+    await ensureDir(userDir, io.mkdir);
+
+    // SESSION-NOTES.md — all modes
+    const sessionNotes = await io.readFile(
+      join(internalTemplateDir, "user", "SESSION-NOTES.md"),
+    );
+    await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
+
+    // ATOMIC-INBOX.md — arc-in-git only
+    if (prompts.pm_mode === "arc-in-git") {
+      const atomicInbox = await io.readFile(
+        join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
+      );
+      await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
+    }
   }
 
   return {

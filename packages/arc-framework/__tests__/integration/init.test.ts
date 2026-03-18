@@ -23,6 +23,7 @@ import {
   join,
   execFileAsync,
   getArcTemplatePath,
+  getInternalTemplatePath,
 } from "../helpers/integration.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
@@ -36,6 +37,7 @@ let arcDir: string;
 let result: InitResult;
 
 const templateDir = getArcTemplatePath();
+const internalTemplateDir = getInternalTemplatePath();
 const prompts: InitPromptResult = {
   project_name: "Integration Test Project",
   tools: ["claude"],
@@ -54,6 +56,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       cwd: tempDir,
       io,
       templateDir,
+      internalTemplateDir,
       recipe,
       prompts,
       identityResult: "test-user",
@@ -176,6 +179,36 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       { cwd: tempDir },
     );
     expect(stdout.trim()).toBe("test-user");
+  });
+
+  // --- User Directory ---
+
+  it("creates user/{identity}/ directory with SESSION-NOTES.md", async () => {
+    const sessionNotes = await stat(
+      join(arcDir, "user/test-user/SESSION-NOTES.md"),
+    );
+    expect(sessionNotes.isFile()).toBe(true);
+  });
+
+  it("SESSION-NOTES.md matches CLI-internal template content", async () => {
+    const installed = await readFile(
+      join(arcDir, "user/test-user/SESSION-NOTES.md"),
+      "utf-8",
+    );
+    const template = await readFile(
+      join(internalTemplateDir, "user/SESSION-NOTES.md"),
+      "utf-8",
+    );
+    expect(installed).toBe(template);
+  });
+
+  it("does not install ATOMIC-INBOX.md when pm.mode=none", async () => {
+    try {
+      await stat(join(arcDir, "user/test-user/ATOMIC-INBOX.md"));
+      expect.fail("ATOMIC-INBOX should not exist for pm.mode=none");
+    } catch (err: unknown) {
+      expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
+    }
   });
 
   // --- Manifest ---
@@ -364,6 +397,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       cwd: tempDir,
       io,
       templateDir,
+      internalTemplateDir,
       recipe,
       prompts: { ...prompts, pm_mode: "arc-in-git" },
       identityResult: "test-user",
@@ -377,5 +411,41 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       "utf-8",
     );
     expect(config).toContain("pm.mode: arc-in-git");
+  });
+
+  it("installs both SESSION-NOTES.md and ATOMIC-INBOX.md in user directory", async () => {
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    await runInit({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      recipe,
+      prompts: { ...prompts, pm_mode: "arc-in-git" },
+      identityResult: "test-user",
+    });
+
+    const sessionNotes = await stat(
+      join(tempDir, ".arc/user/test-user/SESSION-NOTES.md"),
+    );
+    expect(sessionNotes.isFile()).toBe(true);
+
+    const atomicInbox = await stat(
+      join(tempDir, ".arc/user/test-user/ATOMIC-INBOX.md"),
+    );
+    expect(atomicInbox.isFile()).toBe(true);
+
+    // Verify content matches templates
+    const installedInbox = await readFile(
+      join(tempDir, ".arc/user/test-user/ATOMIC-INBOX.md"),
+      "utf-8",
+    );
+    const templateInbox = await readFile(
+      join(internalTemplateDir, "user/ATOMIC-INBOX.md"),
+      "utf-8",
+    );
+    expect(installedInbox).toBe(templateInbox);
   });
 });
