@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.8 — Implement post-init messaging (line ~674)
-**Last Completed**: Task 3.7 — Implement init command
+**Next Task**: Task 4.1 — Three-way merge wrapper (line ~739)
+**Last Completed**: Task 3.11 — Run quality gates (Phase 3 complete)
 **Blockers**: [none]
-**Next Action**: Begin Task 3.8 — Implement post-init messaging (bridge UX)
+**Next Action**: Begin Phase 4 — Update command
 
 ---
 

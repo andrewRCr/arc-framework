@@ -676,37 +676,64 @@ working ARC installation.
         - Fixed `appendLineIfMissing` to handle ENOENT (creates file if missing)
         - 1 new orchestrator test verifying all git integration steps
 
-- [ ] **3.8 Implement post-init messaging (bridge UX)**
+- [x] **3.8 Implement post-init messaging (bridge UX)**
 
-    The post-init message is the only bridge between CLI init and agent-led setup. See
-    `notes-cli-implementation.md` § Post-Init Bridge Message for finalized wording.
+    `buildPostInitMessage(result: InitResult): string` in `src/commands/init.ts`.
+    Pure function — takes init result, returns formatted message. Two paths:
 
-    - Print concise summary: files installed, install directory, key choices made
-    - Primary path: "Restart your AI agent to load ARC configuration, then run `/arc-setup`"
-    - Fallback path: copy-pasteable prompt for agents without skill support (read
-      `AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.PROJECT.md`, agent-specific file, then run setup workflow)
-    - Agent-specific tailoring: if possible, customize the message based on selected
-      tools (e.g., "For Claude Code, say: ...")
-    - Orient without overwhelming — this is the adopter's first impression after init
+    - **With tools**: restart note (skills need discovery), `/arc-setup` as primary,
+      fallback prompt for tools without skill support
+    - **Without tools**: direct to fallback prompt (paste into agent conversation)
+    - Fallback always points to `AGENT-BRIEFING.ARC.md` + `01_verify-and-configure.md`
+    - Dropped agent-specific tailoring (no value — multiple tools possible, message
+      is universal) and stale file references (PROJECT briefing, agent-specific files
+      are unpopulated templates post-init)
+    - 7 new unit tests
 
-- [ ] **3.9 Write integration tests for init flow**
-    - Test: init in empty git repo → verify directory structure, file contents, manifest, pristine
-    - Test: rendered files contain no template tokens or conditional markers
-    - Test: `.gitignore` and `.gitattributes` contain expected entries
-    - Test: manifest file inventory matches files on disk
-    - Test: pristine hashes match rendered file content
-    - Test: agent file split present in output (`AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md`)
-    - Test: `WORK-STATUS.md` initial Next Action points to setup workflow
-    - Test: verify script files installed (`scripts/validate-config.sh`,
-      `scripts/verify-integrity.sh`)
-    - Test: join mode — init in repo with existing `.arc/` → detects existing ARC,
-      skips structural setup, sets up agent dirs and hooks only
-    - Test: rendered files use hardcoded `.arc/` paths (no `{{ARC_DIR}}` residuals)
+- [x] **3.9 Wire init CLI action handler**
 
-- [ ] **3.10 Run quality gates**
-    - Type checking passes
-    - All tests pass (unit + integration)
-    - Markdown linting passes
+    `src/cli.ts` — replaced init stub with full action handler wiring:
+
+    - `p.intro("arc init")` opener
+    - `runInitPrompts()` → interactive input (cancellation exits cleanly)
+    - `resolveIdentity()` with clack `p.text()` adapter for interactive prompt
+    - Recipe loaded from bundled `init-recipe.json`
+    - `p.spinner()` wrapping `runInit()` — "Installing ARC framework..."
+    - `p.note()` displaying `buildPostInitMessage()` under "What's next" header
+    - `p.outro("Done.")` closer
+    - Real `IOContext` using `node:fs/promises` and `child_process.execFile`
+
+- [x] **3.10 Write integration tests for init flow**
+
+    23 integration tests in `__tests__/integration/init.test.ts`. Runs `runInit`
+    against real temp git repos with the real recipe and template files. Two
+    describe blocks: `pm.mode=none` (21 tests) and `pm.mode=arc-in-git` (1 test).
+
+    - Directory structure: expected subdirectories created
+    - Token rendering: `{{PROJECT_NAME}}` resolved in AGENT-BRIEFING.PROJECT.md
+    - No init-time token residuals (`{{PROJECT_NAME}}`, `{{REPO_ROOT}}`)
+    - No unresolved conditional markers (line-start `arc:if`/`arc:endif`, excluding
+      backtick documentation references)
+    - Git integration: `.gitignore`, `.gitattributes`, `core.hooksPath`, `arc.identity`
+    - Manifest: structure, file inventory matches disk, pristine hashes match content
+    - Agent briefing split: ARC + PROJECT files present
+    - WORK-STATUS.md Next Action points to setup workflow
+    - Script files installed (`validate-config.sh`, `verify-integrity.sh`)
+    - Pristine copies: present for Framework/Configurable, absent for Scaffolded,
+      content matches `.arc/` copies
+    - arc-config.yml: pm.mode written correctly
+    - Conditional exclusion: no arc-in-git files when `pm.mode=none`, no unselected
+      tool agent files
+    - Post-init message: file count, `/arc-setup`, fallback prompt references
+    - arc-in-git mode: ROADMAP.md present, config reflects `pm.mode: arc-in-git`
+    - _(Join-mode integration test deferred to 7.1.d)_
+
+- [x] **3.11 Run quality gates**
+    - Type checking: zero errors
+    - Tests: 164 passed (141 unit + 23 integration)
+    - Markdown linting: zero errors in tracked files (pre-existing issues in
+      gitignored SESSION-NOTES.md only)
+    - Build: succeeds
 
 ### **Phase 4:** Update Command
 
@@ -865,6 +892,22 @@ and `.arc-internal/` self-hosting migration.
         - Team mode prompt: "Will other developers work in this repository?"
         - Team coordination guidance in init output (how team members set up their own
           `user/{name}/` directories)
+
+    - [ ] **7.1.d Init: join-mode orchestrator narrowing**
+
+        Narrow `runInit()` so join mode runs only the personal setup pipeline instead
+        of the full fresh-mode pipeline. Currently both modes run the same path
+        (noted in SESSION-NOTES during 3.7 implementation).
+
+        - Join mode skips: file rendering, pristine copies, manifest creation,
+          `.gitignore`/`.gitattributes` setup (already present)
+        - Join mode runs: identity resolution, user directory creation (7.1.b),
+          hook path configuration, agent-specific file setup
+        - Prompts narrowed: skip project name and PM mode (already configured),
+          only prompt for identity and tools (if not already set up)
+        - Integration test: init in repo with existing `.arc/` → detects join mode,
+          creates `user/{identity}/` without touching existing `.arc/` structure
+          (join-mode tests pending upcoming orchestrator narrowing work)
 
 - [ ] **7.2 Implement PM mode conditional file handling**
 

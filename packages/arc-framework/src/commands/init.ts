@@ -441,3 +441,43 @@ export async function runInit(
     tools: prompts.tools,
   };
 }
+
+// --- Post-Init Messaging ---
+
+/**
+ * Build the post-init message displayed after successful initialization.
+ *
+ * Two paths: skill invocation (primary) and copy-paste fallback for tools
+ * that don't support skill discovery. The restart note exists because most
+ * tools need a restart before newly installed skills become available.
+ *
+ * @param result - Result from a successful init run
+ * @returns Formatted message string ready for display
+ */
+export function buildPostInitMessage(result: InitResult): string {
+  const lines: string[] = [];
+
+  lines.push(`ARC installed in .arc/ (${result.filesWritten.length} files)`);
+
+  if (result.tools.length > 0) {
+    lines.push("");
+    lines.push(
+      "Next: Restart your AI tool so the new /arc-setup skill is available, then run it.",
+    );
+    lines.push("");
+    lines.push("  If your tool doesn't support skills, paste this prompt instead:");
+  } else {
+    lines.push("");
+    lines.push("Next: Start a conversation with your AI tool and paste this prompt:");
+  }
+
+  lines.push("");
+  lines.push(
+    '  "Read .arc/system/agent/AGENT-BRIEFING.ARC.md for context, then follow',
+  );
+  lines.push(
+    '   .arc/system/workflows/arc/initial-setup/01_verify-and-configure.md"',
+  );
+
+  return lines.join("\n");
+}

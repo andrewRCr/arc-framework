@@ -18,6 +18,7 @@ import {
   fileLayer,
   buildManifestFiles,
   runInit,
+  buildPostInitMessage,
 } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
@@ -557,6 +558,31 @@ describe("runInit", () => {
     expect(statusPristine).toBeUndefined();
   });
 
+  it("fresh mode: returns correct filesWritten and tools for message building", async () => {
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+    });
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    const result = await runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      recipe,
+      prompts: { ...freshPromptResult, tools: ["claude", "cursor"] },
+      identityResult: "andrew",
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.filesWritten).toHaveLength(2);
+    expect(result!.tools).toEqual(["claude", "cursor"]);
+  });
+
   it("fresh mode: sets up git integration (gitignore, gitattributes, config)", async () => {
     const existingGitignore = "node_modules/\n";
     const existingGitattributes = "*.png binary\n";
@@ -620,5 +646,72 @@ describe("runInit", () => {
     );
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/githooks");
+  });
+});
+
+// --- buildPostInitMessage ---
+
+describe("buildPostInitMessage", () => {
+  it("shows file count in summary line", () => {
+    const msg = buildPostInitMessage({
+      mode: "fresh",
+      filesWritten: ["README.md", "system/arc-config.yml", "system/agent/CLAUDE.ARC.md"],
+      tools: ["claude"],
+    });
+
+    expect(msg).toContain("ARC installed in .arc/ (3 files)");
+  });
+
+  it("includes skill restart path when tools are selected", () => {
+    const msg = buildPostInitMessage({
+      mode: "fresh",
+      filesWritten: ["README.md"],
+      tools: ["claude"],
+    });
+
+    expect(msg).toContain("/arc-setup skill is available, then run it");
+  });
+
+  it("shows direct prompt path when no tools are selected", () => {
+    const msg = buildPostInitMessage({
+      mode: "fresh",
+      filesWritten: ["README.md"],
+      tools: [],
+    });
+
+    expect(msg).not.toContain("/arc-setup");
+    expect(msg).toContain("paste this prompt");
+  });
+
+  it("always includes the fallback prompt with correct files", () => {
+    const msg = buildPostInitMessage({
+      mode: "fresh",
+      filesWritten: ["README.md"],
+      tools: ["claude", "cursor"],
+    });
+
+    expect(msg).toContain("AGENT-BRIEFING.ARC.md");
+    expect(msg).toContain("01_verify-and-configure.md");
+  });
+
+  it("does not reference AGENT-BRIEFING.PROJECT.md or agent-specific files", () => {
+    const msg = buildPostInitMessage({
+      mode: "fresh",
+      filesWritten: ["README.md"],
+      tools: ["claude"],
+    });
+
+    expect(msg).not.toContain("AGENT-BRIEFING.PROJECT");
+    expect(msg).not.toContain("CLAUDE.ARC.md");
+  });
+
+  it("handles single-file install", () => {
+    const msg = buildPostInitMessage({
+      mode: "fresh",
+      filesWritten: ["README.md"],
+      tools: [],
+    });
+
+    expect(msg).toContain("(1 files)");
   });
 });
