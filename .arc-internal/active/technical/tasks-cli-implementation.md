@@ -738,116 +738,320 @@ working ARC installation.
 ### **Phase 4:** Update Command
 
 **Purpose:** Build the three-way merge update system — the core value proposition of the CLI.
+Establish shared infrastructure (error handling, version resolution) before command work.
 
-- [ ] **4.1 Three-way merge wrapper (`src/lib/merge.ts`)**
-    - Shell out to `git merge-file` via `child_process.execFile`
-    - Parse exit code (0 = clean, 1 = conflicts, >1 = error)
-    - Return merge result with conflict flag and content
+**Design decisions resolved during Phase 4 audit (2026-03-18):**
+
+- `framework_version`: read from CLI package's own `package.json` at runtime (same
+  `import.meta.url` pattern as `paths.ts`). Replaces hardcoded `"0.0.0"`.
+- Error handling: shared `errors.ts` with structured error types, built first so all
+  commands use consistent patterns from the start.
+- Merge wrapper: `gitMergeFile()` already exists in `git.ts` (implemented in Phase 3,
+  3 unit tests). This phase builds a higher-level content-based wrapper over it.
+- Removed files on update: auto-remove Framework files; warn for Configurable (may
+  have adopter content); leave Scaffolded untouched (adopter-owned).
+- Recipe evolution: diff old manifest file list vs new recipe file list to detect
+  added/removed files across framework versions.
+
+- [ ] **4.1 Shared error handling utilities (`src/lib/errors.ts`)**
+
+    Build before any new command work. Small module establishing patterns used by
+    all subsequent commands (update, status, diff, user, sync).
+
+    - `ArcError` base class extending Error (adds `code` string for programmatic handling)
+    - `UserFacingError` subclass with `whatHappened`, `why`, `whatToDo` fields
+    - `formatError()` — formats UserFacingError for terminal output
+    - Error codes: `GIT_MISSING`, `MANIFEST_MISSING`, `MANIFEST_INVALID`, `MERGE_FAILED`,
+      `FILE_NOT_FOUND`, `REGISTRY_FETCH_FAILED`
 
     Build `test-first` (one behavior at a time):
-    - Non-overlapping changes auto-merge cleanly
-    - Overlapping changes produce conflict markers
-    - Unchanged file (pristine == current) takes new version cleanly
-    - File unchanged by framework (pristine == new) keeps adopter's version
+    - UserFacingError formats with all three fields
+    - formatError produces readable terminal output
+    - Error codes are accessible programmatically
 
-- [ ] **4.2 Update command (`src/commands/update.ts`)**
+- [ ] **4.2 Package version resolution (`src/lib/version.ts`)**
 
-    - [ ] **4.2.a Core update flow**
-        - Read manifest and `install_config`
-        - Read new framework files from bundled `arc/` directory
-        - Re-render templates with adopter's `install_config` (same tokens, fresh content)
-        - For each managed file: three-way merge (pristine × new rendered × adopter's current)
-        - Classify results: auto-merged, conflicted, skipped, new
+    Read `framework_version` from the CLI package's own `package.json` at runtime.
+    Same `import.meta.url` walk-up pattern used in `paths.ts` for template resolution.
 
-    - [ ] **4.2.b Conflict reporting and pristine update**
-        - Leave git conflict markers in conflicted files
-        - Report which files need attention
-        - Update pristine copies for cleanly merged files
-        - Update manifest with new `framework_version`
+    - `getFrameworkVersion()` — returns version string from nearest ancestor `package.json`
+    - Wire into init: replace hardcoded `"0.0.0"` in `init.ts:405` with
+      `getFrameworkVersion()` call
 
-    - [ ] **4.2.c New file handling**
-        - Framework files: auto-add without prompting
-        - Conditional files (depend on config choices): prompt adopter
+    Build `test-first` (one behavior at a time):
+    - Returns version string from package.json
+    - Handles missing package.json gracefully (fallback to `"0.0.0"`)
 
-- [ ] **4.3 Integration tests for update flow**
-    - Test: update with no adopter changes → all files take new version
-    - Test: update with non-overlapping changes → auto-merge preserves both
+- [ ] **4.3 Higher-level merge function (`src/lib/merge.ts`)**
+
+    Wraps existing `gitMergeFile()` from `git.ts`. That function takes file paths and
+    shells out to `git merge-file -p` — already implemented with 3 unit tests. This task
+    builds the content-level wrapper the update command needs: accepts content strings,
+    manages temp file lifecycle, and adds fast-path optimizations.
+
+    - `mergeFileContents(exec, current, base, updated)` — takes content strings, writes
+      temp files, calls `gitMergeFile()`, reads result, cleans up in `finally` block
+    - Fast paths: if `base === current` → return `updated` (no adopter changes); if
+      `base === updated` → return `current` (no framework changes)
+    - Returns `{content, status}` where status is `'clean' | 'conflict' | 'unchanged'`
+
+    Build `test-first` (one behavior at a time):
+    - Non-overlapping changes auto-merge cleanly (status: `clean`)
+    - Overlapping changes produce conflict markers (status: `conflict`)
+    - Unchanged adopter file (`base === current`) takes new version (fast path)
+    - Unchanged framework file (`base === updated`) keeps adopter version (fast path)
+    - Both sides unchanged returns current (status: `unchanged`)
+    - Temp files cleaned up even on error
+
+- [ ] **4.4 Update command — file list resolution**
+
+    Before merging, the update command determines WHAT to merge. The old manifest has
+    one file list; the new recipe + stored `install_config` produces another. Files may
+    be added, removed, or changed between framework versions.
+
+    - `diffFileLists(manifestFiles, newFileList)` — returns `{keep[], added[], removed[]}`
+        - `keep`: files in both old manifest and new recipe (merge candidates)
+        - `added`: files in new recipe but not old manifest (new framework content)
+        - `removed`: files in old manifest but not new recipe (framework dropped them)
+    - Uses existing `resolveFileList()` + `toOutputPath()` from `init.ts` to produce
+      new file list from recipe and `install_config`
+    - Lives in update command module or a shared utility
+
+    Build `test-first` (one behavior at a time):
+    - Identical file lists → all in `keep`, none added/removed
+    - New file in recipe → appears in `added`
+    - File removed from recipe → appears in `removed`
+    - Conditional files respect `install_config` (arc-in-git files excluded when mode=none)
+
+- [ ] **4.5 Update command (`src/commands/update.ts`)**
+
+    The main update orchestrator. Depends on 4.1 (errors), 4.2 (version), 4.3 (merge),
+    4.4 (file list diff).
+
+    - [ ] **4.5.a Core merge loop**
+        - Read manifest via `readManifest()` — hard fail with `UserFacingError` if
+          missing or invalid
+        - Read new recipe, resolve new file list using stored `install_config`
+          (same `buildConfigMap()` + `resolveFileList()` + `toOutputPath()` as init)
+        - Re-render templates with `install_config` tokens (same `renderTokens()` +
+          `renderConditionals()` as init)
+        - Diff file lists (4.4) to get keep/added/removed
+        - For each `keep` file: read pristine (`.arc/.pristine/`), read current
+          (`.arc/`), call `mergeFileContents()` (4.3)
+        - Classify results: clean-merged, conflicted, unchanged, skipped (Scaffolded)
+
+    - [ ] **4.5.b New and removed file handling**
+        - `added` files: render from new templates and install (adopter's
+          `install_config` already includes config choices — no prompting needed)
+        - `added` files: write pristine copies for Framework and Configurable
+        - `removed` Framework files: delete from `.arc/` and `.pristine/`
+        - `removed` Configurable files: warn but don't delete (may have adopter content)
+        - `removed` Scaffolded files: leave untouched (adopter-owned)
+
+    - [ ] **4.5.c Pristine and manifest update**
+        - Update pristine copies for all cleanly merged and newly added files
+        - Leave pristine unchanged for conflicted files (adopter resolves manually)
+        - Update manifest: new `framework_version` (from `getFrameworkVersion()`),
+          updated `pristine_hash` values, add new file entries, remove dropped entries
+        - Write updated manifest via `writeManifest()`
+
+    - [ ] **4.5.d Result reporting**
+        - Summary: N files updated, N conflicts, N new files added, N files removed
+        - List conflicted files with clear guidance on resolving conflicts
+        - List removed Configurable files with "kept for review" note
+        - Wire into `cli.ts`: replace update command stub with real handler
+
+- [ ] **4.6 Integration tests for update flow**
+    - Test: update with no adopter changes → all files take new version, pristine updated
+    - Test: update with non-overlapping adopter changes → auto-merge preserves both
     - Test: update with conflicting changes → conflict markers in file, reported
-    - Test: Scaffolded files skipped entirely
-    - Test: new framework file added during update
+    - Test: Scaffolded files skipped entirely (no merge attempted)
+    - Test: new Framework file added during update → installed and tracked in manifest
+    - Test: Framework file removed during update → deleted from `.arc/` and manifest
+    - Test: Configurable file removed → warning emitted, file kept on disk
     - Test: manifest and pristine updated correctly post-merge
+    - Test: manifest missing → hard fail with clear `UserFacingError`
 
-- [ ] **4.4 Run quality gates**
+- [ ] **4.7 Run quality gates**
     - Type checking passes
-    - All tests pass
+    - All tests pass (unit + integration)
     - Markdown linting passes
 
 ### **Phase 5:** Status, Diff, and CLI Polish
 
-**Purpose:** Build the inspection commands and finalize cross-cutting CLI concerns.
+**Purpose:** Build the inspection commands, add non-interactive mode for scripted/CI
+usage and E2E testability, and finalize cross-cutting CLI concerns.
 
-- [ ] **5.1 Implement status command (`src/commands/status.ts`)**
-    - Read manifest, compute current file hashes, compare against `pristine_hash`
-    - Report per-file state: modified, unmodified, missing
-    - Check for newer framework version availability
+**Design decisions resolved during Phase 5 audit (2026-03-18):**
+
+- Diff: `git diff --no-index` via existing `GitExec` pattern (consistent with
+  git-for-heavy-lifting approach; no JS diff dependency).
+- Version availability: native `fetch()` to npm registry (Node 18+ built-in; no
+  dependency). Non-fatal — graceful skip when offline.
+- Non-interactive mode: `--yes` flag + optional value flags. User-facing feature that
+  enables CI pipelines and scripted installs. Also required for E2E testing (Phase 8).
+
+- [ ] **5.1 Status command (`src/commands/status.ts`)**
+
+    - Read manifest via `readManifest()` — hard fail with `UserFacingError` if missing
+    - Compute current file hashes via `hashContent()`, compare against `pristine_hash`
+    - Report per-file state: unmodified, modified, missing, new (not in manifest)
+    - Version comparison: manifest `framework_version` vs `getFrameworkVersion()`
+      (local mismatch = update available)
     - Clear output formatting
+    - Wire into `cli.ts`: replace status command stub with real handler
 
-- [ ] **5.2 Implement diff command (`src/commands/diff.ts`)**
-    - For each managed file: unified diff of current content vs. pristine copy
-    - Filter to Framework and Configurable files only
-    - Skip unmodified files
+    Build `test-first` (one behavior at a time):
+    - Fresh init → all files unmodified
+    - Modified file → reports modified with filename
+    - Missing file → reports missing
+    - Manifest missing → hard fail with UserFacingError
+    - Version mismatch detected (manifest older than installed package)
 
-- [ ] **5.3 Implement error handling patterns**
+- [ ] **5.2 Version availability check (`src/lib/version.ts` extension)**
 
-    **Goal:** Consistent error handling across all commands per PRD error philosophy.
+    Extend the version module from 4.2 with npm registry checking.
 
-    - Git missing → hard fail with clear message
-    - Manifest missing/malformed → hard fail for update/status/diff, init creates new
-    - Individual file errors during update → report and continue
-    - All errors include what happened, why, and what to do
+    - `checkLatestVersion(packageName)` — native `fetch()` to
+      `https://registry.npmjs.org/{package}/latest`, returns version string or
+      null on failure (network errors are non-fatal)
+    - Integrate into status command: show "Latest: A.B.C" alongside installed version
+      when registry is reachable; omit line when offline
+    - Scoped package URL encoding: `/@arc-framework%2fcli/latest`
 
-- [ ] **5.4 Write integration tests for status and diff**
+    Build `test-first` (one behavior at a time):
+    - Successful registry response returns version string
+    - Network error returns null (non-fatal, no throw)
+    - Integrates cleanly with status output (present when available, absent when not)
+
+- [ ] **5.3 Diff command (`src/commands/diff.ts`)**
+
+    - For each managed file: shell out to `git diff --no-index` comparing `.pristine/`
+      copy against current `.arc/` file (uses existing `GitExec` pattern)
+    - Filter to Framework and Configurable files only (skip Scaffolded)
+    - Skip unmodified files (hash comparison via `hashContent()` first, diff only if
+      hashes differ)
+    - Output: standard unified diff per file, or "no changes" message
+    - Wire into `cli.ts`: replace diff command stub with real handler
+
+    Build `test-first` (one behavior at a time):
+    - Unmodified install → "no changes" message
+    - Modified file → shows unified diff with filename header
+    - Scaffolded files excluded from output
+    - Missing pristine → clear error per file (not fatal to whole command)
+
+- [ ] **5.4 Non-interactive mode for init**
+
+    User-facing feature enabling CI/CD pipelines, scripted installs, and E2E testing.
+    The prompt/orchestrator separation already exists (`runInitPrompts()` → `runInit()`).
+
+    - `--yes` flag on `arc init`: skip prompts, use defaults (project_name from
+      `basename(cwd)`, tools=`[]`, pm_mode=`"none"`)
+    - Optional value flags: `--name <string>`, `--pm-mode <mode>`, `--tools <csv>`
+      (override specific defaults when `--yes` is active)
+    - Wire in Commander: parse flags → construct `InitPromptResult` from flags +
+      defaults → pass to `runInit()`
+    - If `--yes` without `--tools`, log note that no agent tools were selected
+
+    Build `test-first` (one behavior at a time):
+    - `--yes` produces valid `InitPromptResult` with defaults
+    - `--yes --name foo` overrides project name
+    - `--yes --pm-mode arc-in-git` overrides PM mode
+    - Without `--yes`, prompts still run normally (existing behavior unchanged)
+
+- [ ] **5.5 Integration tests for status and diff**
     - Test: status on fresh init → all files unmodified
     - Test: status after modifying a file → reports modified
     - Test: diff on unmodified install → no output
     - Test: diff after modifying a file → shows unified diff
     - Test: status/diff with missing manifest → clear error
 
-- [ ] **5.5 Run quality gates**
+- [ ] **5.6 Run quality gates**
     - Type checking passes
     - All tests pass
     - Markdown linting passes
 
 ### **Phase 6:** Skill Generation
 
-**Purpose:** Build the system that generates per-agent-tool SKILL.md files from canonical
-definitions.
+**Purpose:** Build the system that copies canonical skill definitions to per-tool
+directories, add pre-commit protection for framework-owned files, and integrate skill
+generation with init and update commands.
 
 **Strategies:** `strategy-file-classification.md` (skill file inventory)
 
-- [ ] **6.1 Skill generation (`src/lib/skills.ts`)**
-    - Read canonical skills from bundled `arc/system/skills/`
-    - Generate per-tool output with correct paths, frontmatter, supplemental files
-    - Handle all 6 agent tools (Claude, Codex, Gemini, Copilot, Cursor, Windsurf)
+**Design decisions resolved during Phase 6 audit (2026-03-18):**
+
+- Skill generation is a straight copy from canonical to tool-specific directories.
+  Content is unchanged — skills reference `.arc/` paths which are fixed.
+- Codex supplement: `openai.yaml` with `interface.display_name`, `short_description`,
+  `default_prompt` derived from SKILL.md YAML frontmatter (see `.codex/skills/` for
+  format reference).
+- No manifest tracking for generated skills. Skills are cheap deterministic copies —
+  regenerate on every update. Modification detection by comparing existing file against
+  canonical source before overwriting.
+- Framework-owned file protection via pre-commit hook CHECK 10. Covers both `.arc/`
+  Framework-classified files (via manifest lookup) and generated skill files (via path
+  pattern matching). Warning, not error.
+
+- [ ] **6.1 Skill generation implementation (`src/lib/skills.ts`)**
+
+    Replace the `generateSkills()` stub. The resolution infrastructure
+    (`resolveSkillTargets()`, tool constants, directory detection) already exists and
+    is tested. 13 tools supported: 10 Universal tier + 3 Standalone tier.
+
+    - Read canonical SKILL.md files from bundled `arc/system/skills/` (5 skills:
+      arc-resume, arc-commit, arc-handoff, arc-setup, arc-verify)
+    - For each resolved target directory: copy each canonical skill into
+      `{skillDir}/{skillName}/SKILL.md`
+    - For targets with `codex-yaml` supplement: generate
+      `{skillDir}/{skillName}/agents/openai.yaml` with `interface.display_name`,
+      `short_description`, `default_prompt` derived from SKILL.md YAML frontmatter
+    - Modification detection: before overwriting an existing skill file, compare
+      current content against canonical source. If content differs, warn and overwrite
+      (note in output: "Overwriting modified skill file: {path}")
+    - Accept `IOContext` for filesystem operations (testability)
 
     Build `test-first` (one behavior at a time):
-    - Canonical skill → Claude Code output (correct path, `disable-model-invocation` frontmatter)
-    - Canonical skill → Codex output (`.agents/skills/` path, `openai.yaml` supplemental)
-    - Canonical skill → Windsurf output (`.windsurf/skills/` path, no `.agents/`)
-    - Multiple agents selected → correct output set for each
-    - Skill instructions use fixed `.arc/` path
+    - Canonical skill → output in `.agents/skills/` (universal default directory)
+    - Canonical skill → output in `.claude/skills/` (standalone tool directory)
+    - Codex selected → `openai.yaml` supplement generated alongside SKILL.md
+    - Multiple tools → correct output set for each resolved directory
+    - Existing modified skill file → warning emitted before overwrite
+    - Skill content unchanged from canonical (`.arc/` references preserved)
 
 - [ ] **6.2 Integrate with init and update**
-    - Init: generate skill files based on agent selection
-    - Update: regenerate when canonical skill definitions change (compare hashes)
-    - Track generated skill files in manifest
 
-- [ ] **6.3 Integration tests for skill generation**
-    - Test: init with Claude selected → `.claude/skills/` populated correctly
-    - Test: init with multiple agents → all agent directories populated
-    - Test: update with changed skill → regenerated files reflect changes
+    - Init: `generateSkills()` already called in `runInit()` (line 431) — replace
+      stub call with real generation. Pass `IOContext` for filesystem access.
+    - Update: call `generateSkills()` after file merge loop. Always regenerate (no
+      manifest tracking — skills are deterministic copies). Modification detection
+      from 6.1 handles existing files.
+    - Both: add skill output directory patterns to `.gitignore` if not already present
+      (e.g., `.agents/skills/arc-*/`, `.claude/skills/arc-*/`)
 
-- [ ] **6.4 Run quality gates**
+- [ ] **6.3 Pre-commit hook: framework-owned file protection (CHECK 10)**
+
+    Add to `.arc/system/githooks/pre-commit`. Warns when staged changes modify files
+    that `arc update` will overwrite. Covers two categories:
+
+    - **Manifest-based** (`.arc/` files): if `.arc-manifest.json` exists, read it and
+      check each staged `.arc/` file against manifest classification. Files classified
+      as `Framework` → warning.
+    - **Pattern-based** (generated skills): staged files matching
+      `*/skills/arc-*/SKILL.md` or `*/skills/arc-*/agents/*.yaml` → warning.
+      Forward-compatible — pattern catches any future skill additions.
+    - Warning text: "This file is managed by arc-framework and will be overwritten
+      during `arc update`. Consider reverting your changes."
+    - Warning level (not error) — doesn't block the commit.
+
+- [ ] **6.4 Integration tests for skill generation**
+    - Test: init with claude selected → `.claude/skills/` populated with all 5 skills
+    - Test: init with codex selected → `.agents/skills/` with `openai.yaml` per skill
+    - Test: init with multiple agents → all resolved directories populated
+    - Test: update regenerates skills (canonical content reflected in output)
+    - Test: modified skill file → warning emitted, file overwritten with canonical
+
+- [ ] **6.5 Run quality gates**
     - Type checking passes
     - All tests pass
     - Markdown linting passes
@@ -860,6 +1064,13 @@ and `.arc-internal/` self-hosting migration.
 
 **Strategies:** `strategy-file-classification.md` (file inventory), `strategy-team-coordination.md`,
 `strategy-backlog-organization.md`, `strategy-configurability-architecture.md`
+
+**Phase 7 audit notes (2026-03-18):** Tasks 7.1.a, 7.5, 7.6, 7.7, 7.8 are already complete
+(done during prior sessions). Remaining work: 7.1.b–d, 7.2, 7.3, 7.4, 7.9, 7.10. Task 7.1.c
+and 7.1.d have new prerequisite subtasks added to avoid the Phase 3 pattern of discovering
+missing prereqs mid-implementation. Task 7.2.a is largely complete — init already handles PM
+mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolution. Task
+7.3.d's open design question is resolved.
 
 - [ ] **7.1 Implement unified user directory and identity resolution**
 
@@ -879,19 +1090,41 @@ and `.arc-internal/` self-hosting migration.
         - 14 unit tests (7 slugify + 7 resolve) — all passing
 
     - [ ] **7.1.b Init: user directory creation**
-        - Create `user/{identity}/` directory
-        - Install `SESSION-NOTES.md` template (Core — all modes)
-        - Install `ATOMIC-INBOX.md` template (arc-in-git only — gated by PM mode, task 7.2)
-        - `user/README.md` tracked (explains personal workspace concept)
-        - `user/{identity}/` contents gitignored (added in 3.7.c pattern)
+        - Create `user/{identity}/` directory inside `.arc/`
+        - Install `SESSION-NOTES.md` from CLI-internal template (`src/templates/user/`)
+          — Core, all modes
+        - Install `ATOMIC-INBOX.md` from CLI-internal template — arc-in-git only (gated
+          by `install_config.pm_mode`)
+        - `user/README.md` tracked (already exists in `.arc/user/`, installed via recipe)
+        - `user/{identity}/` contents already gitignored (`.arc/user/*/` pattern added
+          in 3.7.c)
 
     - [ ] **7.1.c Init: team mode behavioral config**
-        - `team.mode` config key in `arc-config.yml` (boolean: true/false)
-        - Solo: `user.sync_push: always` default
-        - Team: `user.sync_push: prompt` default
-        - Team mode prompt: "Will other developers work in this repository?"
-        - Team coordination guidance in init output (how team members set up their own
-          `user/{name}/` directories)
+
+        **Prerequisites** (must be completed before behavioral wiring):
+
+        - [ ] **7.1.c.i Update templates and recipe**
+            - Add `team.mode` key to `.arc/system/arc-config.yml` template (with inline
+              comment documenting `true`/`false`, default `false`)
+            - Add `user.sync_push` key to the same template (values: `always`/`prompt`/
+              `manual`, default `always`)
+            - Add `team_mode` prompt entry to `init-recipe.json` (type: `confirm`,
+              config_key: `team.mode`)
+
+        - [ ] **7.1.c.ii Update init prompts**
+            - Add team mode prompt to `runInitPrompts()` (after PM mode): "Will other
+              developers work in this repository?"
+            - Update `InitPromptResult` interface to include `team_mode: boolean`
+            - Team prompt appears in fresh mode only (join mode skips it — project
+              team config already established)
+
+        - [ ] **7.1.c.iii Behavioral wiring**
+            - `writeArcConfig()` writes `team.mode` and `user.sync_push` values based
+              on team_mode prompt result
+            - Solo (`team_mode: false`): `user.sync_push: always`
+            - Team (`team_mode: true`): `user.sync_push: prompt`
+            - Post-init message: add team coordination guidance when team mode enabled
+              (how other developers join via `arc init` in existing repo)
 
     - [ ] **7.1.d Init: join-mode orchestrator narrowing**
 
@@ -899,29 +1132,46 @@ and `.arc-internal/` self-hosting migration.
         of the full fresh-mode pipeline. Currently both modes run the same path
         (noted in SESSION-NOTES during 3.7 implementation).
 
-        - Join mode skips: file rendering, pristine copies, manifest creation,
-          `.gitignore`/`.gitattributes` setup (already present)
-        - Join mode runs: identity resolution, user directory creation (7.1.b),
-          hook path configuration, agent-specific file setup
-        - Prompts narrowed: skip project name and PM mode (already configured),
-          only prompt for identity and tools (if not already set up)
-        - Integration test: init in repo with existing `.arc/` → detects join mode,
-          creates `user/{identity}/` without touching existing `.arc/` structure
-          (join-mode tests pending upcoming orchestrator narrowing work)
+        - [ ] **7.1.d.i Join-mode prompt flow**
+            - Add `mode` parameter to `runInitPrompts()`: `'fresh' | 'join'`
+            - Join mode skips: project_name, pm_mode, team_mode prompts (already
+              configured in existing `.arc/system/arc-config.yml`)
+            - Join mode prompts: identity (via `resolveIdentity()`) and tools only
+            - Read existing config from `.arc/system/arc-config.yml` for PM mode
+              context (needed for user directory creation in 7.1.b)
+
+        - [ ] **7.1.d.ii Orchestrator branching**
+            - Join mode skips: file rendering, pristine copies, manifest creation,
+              `.gitignore`/`.gitattributes` setup (all already present from initial
+              developer's `arc init`)
+            - Join mode runs: identity resolution, user directory creation (7.1.b),
+              hook path configuration (`core.hooksPath`), skill generation for
+              selected tools
+            - Integration test: init in repo with existing `.arc/` → detects join
+              mode, creates `user/{identity}/` without touching existing `.arc/`
+              structure
 
 - [ ] **7.2 Implement PM mode conditional file handling**
 
-    - [ ] **7.2.a Init: mode-aware file installation**
-        - `pm.mode: none` / `external` → install Core files only
-        - `pm.mode: arc-in-git` → install Core + arc-in-git files: backlog templates, ROADMAP,
-          PROJECT-STATUS, `user/{identity}/ATOMIC-INBOX.md`,
-          strategy-backlog-organization
-        - No `completed-atomic` files installed (ADR-012: commit record is the archive)
-        - Manifest tracks per-file `layer` membership
+    - [~] **7.2.a Init: mode-aware file installation**
+
+        **Largely complete.** Init already gates arc-in-git files via recipe conditions
+        (`pm.mode == arc-in-git` in `init-recipe.json`) and tracks `layer` in manifest
+        (`fileLayer()` + `buildManifestFiles()` in `init.ts`). Remaining piece:
+        ATOMIC-INBOX installation in user directory — covered by 7.1.b. No
+        `completed-atomic` files installed (ADR-012: commit record is the archive).
+        Mark complete when 7.1.b is done.
 
     - [ ] **7.2.b Update: mode-aware file management**
-        - Skip files from uninstalled modes (check manifest `layer` vs. `install_config.pm_mode`)
-        - Handle mode-conditional content within shared files (conditional sections)
+
+        **Depends on Phase 4.** The update command's file list resolution (4.4) already
+        handles this: `resolveFileList()` evaluates recipe conditions using stored
+        `install_config.pm_mode`, so arc-in-git files are naturally excluded from the
+        merge loop for `pm.mode: none` installs. Conditional sections within shared
+        files are handled by `renderConditionals()` during re-rendering.
+
+        Verify during Phase 4 implementation that this works correctly. This task may
+        reduce to a verification pass rather than new code.
 
 - [ ] **7.3 Implement user directory portability**
 
@@ -941,6 +1191,10 @@ and `.arc-internal/` self-hosting migration.
         - Handle missing/empty directory gracefully
 
     - [ ] **7.3.c Implement `arc user` subcommand (`src/commands/user.ts`)**
+
+        Introduces nested subcommand pattern (Commander `.command()` with sub-actions).
+        Existing commands are flat (`init`, `update`, `status`, `diff`).
+
         - `arc user add <identity>` — create `user/{identity}/` directory, populate from
           CLI-internal templates (SESSION-NOTES.md, ATOMIC-INBOX.md if arc-in-git), update
           `.gitignore`. Used for adding team members post-init.
@@ -956,11 +1210,13 @@ and `.arc-internal/` self-hosting migration.
         - Clear messaging: what was saved/loaded, which commit, which identity namespace
 
     - [ ] **7.3.d Implement `arc sync` sugar**
-        - Context-aware: `arc sync` after work → save + push; `arc sync` at start → pull + load
-        - Detection: if local user dir has content and remote note is stale → save + push;
-          if local user dir is empty/missing → pull + load
-        - Or simpler: `arc sync --save` / `arc sync --load` with bare `arc sync` as
-          save+push (the more common post-work use case). Decide during implementation.
+
+        `arc sync` = save + push (the common post-work case).
+        `arc sync --load` = pull + load (the start-of-work case).
+
+        Bare `arc sync` optimized for the more frequent workflow: end of session, save
+        and push. `--load` flag for the reverse direction. Simple, no ambiguity,
+        discoverable via `--help`.
 
     - [ ] **7.3.e Write tests for user portability**
 
@@ -969,11 +1225,14 @@ and `.arc-internal/` self-hosting migration.
         - Load walks ancestors when HEAD has no note
         - Identity resolution fallback chain works end-to-end
         - Push/pull interact with remote refs correctly (integration-level)
-        - Sync sugar triggers correct save/push or pull/load sequence
+        - Sync triggers correct save/push sequence; sync --load triggers pull/load
         - Clear error when user dir is empty (save) or no note found (load)
         - Round-trip: save → modify local → load → verify restored to saved state
 
 - [ ] **7.4 Implement `arc log --atomic` subcommand**
+
+    Introduces `log` command with `--atomic` flag. Uses `git log --grep` under the hood.
+
     - Search commit history for two patterns:
         - `git log --grep="Context: atomic-"` — work-unit-scoped atomic tasks (companion file)
         - `git log --grep="(atomic / no associated task list)"` — standalone atomic tasks
@@ -1094,10 +1353,7 @@ and `.arc-internal/` self-hosting migration.
     - Test: init with team mode → same `user/` structure, `team.mode: true` in config,
       `user.sync_push: prompt`
     - Test: init with solo mode → `user.sync_push: always`
-    - Test: update respects PM mode (skips arc-in-git files when mode is none)
     - Test: no `completed-atomic` files in any mode
-    - Test: `arc log --atomic` returns commits matching both companion file and standalone patterns
-    - Test: `arc log --atomic --work-unit {name}` filters to specific WU
     - Test: `arc user save` → `arc user load` round-trip preserves user dir contents
 
 - [ ] **7.10 Run quality gates**
@@ -1108,20 +1364,31 @@ and `.arc-internal/` self-hosting migration.
 ### **Phase 8:** E2E Tests and Verification
 
 **Purpose:** Validate the complete CLI through end-to-end tests in real git repos, then verify
-all success criteria.
+all success criteria. Depends on non-interactive mode (5.4) for prompt-free CLI invocation.
+
+**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for tasks 8.2–8.3.
 
 - [ ] **8.1 Write E2E test suite**
 
-    - [ ] **8.1.a Init E2E tests**
-        - `npx @arc-framework/cli init` in a fresh git repo → verify complete installed state
-        - Installed files pass the framework's own markdown linting
-        - Manifest is valid, pristine matches files on disk
+    - [ ] **8.1.a E2E test infrastructure**
+        - Test setup helper: `npm run build` as suite-level setup (build package once)
+        - Helper: `runArc(args, cwd)` — spawns `node dist/cli.js ...args` in given cwd,
+          captures stdout/stderr/exit code
+        - Per-test setup: create temp directory with `git init`, configure git user
+        - All E2E tests use `--yes` flag (non-interactive mode from 5.4) with value
+          overrides as needed
 
-    - [ ] **8.1.b Update E2E tests**
+    - [ ] **8.1.b Init E2E tests**
+        - `arc init --yes --name test-project` in fresh git repo → verify complete
+          installed state
+        - Installed files pass the framework's own markdown linting
+        - Manifest is valid, pristine copies match files on disk
+
+    - [ ] **8.1.c Update E2E tests**
         - Init → modify files → update → verify customizations preserved
         - Init → update with conflicting changes → verify conflict markers and reporting
 
-    - [ ] **8.1.c Round-trip E2E tests**
+    - [ ] **8.1.d Round-trip E2E tests**
         - Init → customize → update → verify customizations survive
         - Init → status → shows all unmodified
         - Init → modify → status → shows modified files
@@ -1134,12 +1401,9 @@ all success criteria.
     - Markdown linting passes (`npm run -s lint:md`)
 
 - [ ] **8.3 Validate success criteria against PRD**
-
-    **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this task.
-
     - Verify each PRD success criterion is met
     - Resolve any gaps or document deviations
-    - Verify all atomic tasks resolved
+    - Verify all atomic tasks resolved (`atomic-cli-implementation.md`)
 
 ---
 

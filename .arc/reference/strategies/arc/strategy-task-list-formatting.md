@@ -44,7 +44,6 @@ Before finalizing any task list, verify:
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
 - [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic task check)
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
-- [ ] Task list contains pointer to companion file (between verification phase and Success Criteria)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 ---
@@ -817,7 +816,6 @@ three-state success criteria model, and atomic task verification protocol.
 
 **Created alongside every task list.** A standalone file (`atomic-{name}.md`) in the same directory
 as `tasks-{name}.md`. Empty by default — populated during execution as off-plan work is discovered.
-The task list contains a pointer to it (between the verification phase and Success Criteria).
 
 **Purpose:** Tracks indivisible one-off tasks you elect to do in parallel to the planned work —
 discovered during execution, not required for the work unit's success criteria. Unlike the phased
@@ -852,16 +850,6 @@ criteria. Flat checkbox list, no numbering hierarchy.
 - [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
 - [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
 - [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
-
----
-```
-
-**Task list pointer format** (between verification phase and Success Criteria):
-
-```markdown
----
-
-**Atomic Tasks:** See companion file [`atomic-{name}.md`](atomic-{name}.md)
 
 ---
 ```
@@ -901,8 +889,8 @@ artifacts for easy visual identification.
 
 ## Success Criteria Section
 
-**Required for all task lists.** Placed at the bottom after the atomic companion file pointer,
-serves as outcome verification checklist.
+**Required for all task lists.** Placed at the bottom of the task list, serves as outcome
+verification checklist.
 
 **Purpose:** Checkable operationalization of the PRD's success criteria. Each "Will Do" item
 should map to a verifiable criterion. These checkboxes are checked during the
