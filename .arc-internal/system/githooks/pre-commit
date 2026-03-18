@@ -216,6 +216,7 @@ code_extensions="ts|tsx|py|js|jsx"
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^\.arc-internal/" | \
+    grep -v "^packages/arc-framework/" | \
     grep -v "^README\.md" | \
     grep -E "\.($code_extensions)$" | \
     while read file; do
