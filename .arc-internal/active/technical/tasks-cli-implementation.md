@@ -665,7 +665,12 @@ working ARC installation.
         - No residual markers: output files contain no `{{TOKEN}}` or `<!-- arc:if -->` artifacts
 
     - [ ] **3.7.b Pristine and manifest creation**
+        - File classification: code constants define Scaffolded (7 files) and Configurable
+          (~12 files) sets; everything else defaults to Framework. Layer derived from
+          condition source (`pm.mode == arc-in-git` → `arc-in-git`, else `core`). Based
+          on notes-cli-implementation.md § File-by-File Classification.
         - Copy rendered Framework and Configurable files to `.pristine/`
+          (Scaffolded files are user-owned — no pristine copy)
         - Compute `pristine_hash` for each file
         - Write `.arc-manifest.json` with version, config, file inventory
 
@@ -673,7 +678,7 @@ working ARC installation.
         - Add `.pristine/` and `user/*/` contents to `.gitignore` (ADR-012: user dir gitignored)
         - Add `WORK-STATUS.md merge=ours` to `.gitattributes`
         - Run `git config merge.ours.driver true`
-        - Install markdownlint config (`.markdownlint-cli2.jsonc`)
+        - Run `git config core.hooksPath .arc/system/githooks` (hook discovery)
 
 - [ ] **3.8 Implement post-init messaging (bridge UX)**
 
@@ -838,11 +843,17 @@ and `.arc-internal/` self-hosting migration.
     **Goal:** Every `arc init` creates a `user/{identity}/` directory with personal workspace files.
     Same structure for solo and team (ADR-012 Part 1).
 
-    - [ ] **7.1.a Identity resolution utility (`src/lib/identity.ts`)**
-        - Lookup sequence: `git config arc.identity` → slugified `git config user.name` → prompt
-        - Slug function: lowercase, spaces/dots → hyphens, filesystem-safe
-        - Store result: `git config --local arc.identity {value}`
-        - Used by init, `arc user` subcommand, and notes ref resolution
+    - [x] **7.1.a Identity resolution utility (`src/lib/identity.ts`)**
+
+        Pulled forward as prerequisite for Task 3.7 (init command needs identity
+        resolution for both fresh and join modes).
+
+        - `slugifyIdentity()`: lowercase, spaces/dots → hyphens, strip non-alphanumeric,
+          collapse consecutive hyphens, trim
+        - `resolveIdentity()`: lookup sequence with injectable `GitExec` and optional
+          prompt function. Returns resolved identity or null on cancellation.
+        - Caller stores result via `gitConfigSet()` (side effect not in utility)
+        - 14 unit tests (7 slugify + 7 resolve) — all passing
 
     - [ ] **7.1.b Init: user directory creation**
         - Create `user/{identity}/` directory

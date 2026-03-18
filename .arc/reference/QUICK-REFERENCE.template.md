@@ -43,10 +43,10 @@ current context and adjusted paths.
 All commands from **repository root**.
 
 <!-- Document the commands your agents will run most often. Group by concern -->
-<!-- (linting, testing, type checking, building) rather than by technology. -->
+<!-- (code linting, markdown linting, testing, type checking, building). -->
 <!-- Include both "check" and "fix" variants where applicable. -->
 
-### Linting
+### Code Linting
 
 ```bash
 # Check all files
@@ -59,8 +59,24 @@ All commands from **repository root**.
 [lint_fix_command]
 ```
 
-<!-- Add additional linting commands if your project has multiple linters -->
-<!-- (e.g., separate backend and frontend linters, markdown linting alongside code linting) -->
+### Markdown Linting
+
+<!-- ARC documentation benefits from markdown linting. Fill in your tool's commands below. -->
+<!-- Example using markdownlint-cli2 (zero-install via npx): -->
+<!-- npx --yes markdownlint-cli2 "**/*.md" -->
+<!-- npx --yes markdownlint-cli2 --no-globs "path/to/file.md" -->
+<!-- npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md" -->
+
+```bash
+# Check all documentation
+[md_lint_command_all]
+
+# Check specific file
+[md_lint_command_single]
+
+# Auto-fix specific file
+[md_lint_fix_command]
+```
 
 ### Type Checking
 
@@ -88,21 +104,6 @@ All commands from **repository root**.
 ```
 
 <!-- If tests require services (database, containers), note that here -->
-
-### Markdown Linting
-
-<!-- Keep this section if your project uses ARC documentation with markdown linting -->
-
-```bash
-# Check all documentation
-npx --yes markdownlint-cli2 "**/*.md"
-
-# Check specific file (bypass config globs)
-npx --yes markdownlint-cli2 --no-globs "path/to/file.md"
-
-# Auto-fix specific file
-npx --yes markdownlint-cli2 --fix --no-globs "path/to/file.md"
-```
 
 ---
 
@@ -139,7 +140,7 @@ Reference commands for DEV-RULES.PROJECT quality gates. See
 [command]
 
 # 3. Markdown Linting
-npx --yes markdownlint-cli2 "**/*.md"
+[md_lint_command_all]
 
 # 4. Git Status Check
 git status
