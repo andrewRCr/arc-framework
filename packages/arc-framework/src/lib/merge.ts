@@ -30,9 +30,9 @@ export interface ContentMergeResult {
  * Three-way merge operating on content strings.
  *
  * Fast paths avoid calling git when one or both sides are unchanged:
+ * - `current === updated` (both changed identically, or neither changed): return `current`
  * - `base === current` (no adopter changes): return `updated`
  * - `base === updated` (no framework changes): return `current`
- * - `current === updated` (both changed identically, or neither changed): return `current`
  *
  * For the general case, delegates to the injected merge function.
  *
@@ -48,6 +48,11 @@ export async function mergeFileContents(
   base: string,
   updated: string,
 ): Promise<ContentMergeResult> {
+  // Fast path: both sides identical (same change, or neither changed)
+  if (current === updated) {
+    return { content: current, status: "unchanged" };
+  }
+
   // Fast path: no adopter changes — take the new framework version
   if (base === current) {
     return { content: updated, status: "clean" };
@@ -55,11 +60,6 @@ export async function mergeFileContents(
 
   // Fast path: no framework changes — keep adopter's version
   if (base === updated) {
-    return { content: current, status: "unchanged" };
-  }
-
-  // Fast path: both sides identical (same change, or neither changed relative to each other)
-  if (current === updated) {
     return { content: current, status: "unchanged" };
   }
 

@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.5 — Update command (`src/commands/update.ts`) (line ~782)
-**Last Completed**: Task 4.4 — Update command — file list resolution
+**Next Task**: Task 5.1 — Status command (`src/commands/status.ts`) (line ~856)
+**Last Completed**: Task 4.7 — Run quality gates (Phase 4 complete)
 **Blockers**: [none]
-**Next Action**: Continue Phase 4 — implement update command orchestrator (4.5.a–d)
+**Next Action**: Begin Phase 5 — status, diff, and CLI polish
 
 ---
 

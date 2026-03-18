@@ -779,59 +779,80 @@ Establish shared infrastructure (error handling, version resolution) before comm
     returning `{keep, added, removed}`. Condition evaluation is the caller's
     responsibility via existing `resolveFileList()` + `toOutputPath()`. 6 unit tests.
 
-- [ ] **4.5 Update command (`src/commands/update.ts`)**
+- [x] **4.5 Update command (`src/commands/update.ts`)**
 
-    The main update orchestrator. Depends on 4.1 (errors), 4.2 (version), 4.3 (merge),
-    4.4 (file list diff).
+    Implemented `runUpdate()` orchestrator with `createContentMergeFn()` (temp file
+    lifecycle for `git merge-file`), `renderTemplate()` (shared renderer for arc-config.yml
+    programmatic override and standard token/conditional rendering), and `buildUpdateSummary()`
+    for user-facing output. Reconstructs config/token maps from stored `install_config`
+    without re-prompting. Wired into `cli.ts` with spinner, error handling (`UserFacingError`
+    catch), and conflict warnings.
 
-    - [ ] **4.5.a Core merge loop**
-        - Read manifest via `readManifest()` — hard fail with `UserFacingError` if
-          missing or invalid
-        - Read new recipe, resolve new file list using stored `install_config`
-          (same `buildConfigMap()` + `resolveFileList()` + `toOutputPath()` as init)
-        - Re-render templates with `install_config` tokens (same `renderTokens()` +
-          `renderConditionals()` as init)
-        - Diff file lists (4.4) to get keep/added/removed
-        - For each `keep` file: read pristine (`.arc/.pristine/`), read current
-          (`.arc/`), call `mergeFileContents()` (4.3)
-        - Classify results: clean-merged, conflicted, unchanged, skipped (Scaffolded)
+    - [x] **4.5.a Core merge loop**
+        - Reads manifest with `UserFacingError` for missing (`MANIFEST_MISSING`) and
+          invalid (`MANIFEST_INVALID`) cases
+        - Rebuilds config/token maps from `manifest.install_config` (mirrors init's
+          `buildConfigMap`/`buildTokenMap` without coupling to `InitPromptResult`)
+        - Re-renders all templates using same `renderTokens()` + `renderConditionals()`
+          pipeline; arc-config.yml uses programmatic line-by-line override
+        - Diffs file lists via `diffFileLists()` to get keep/added/removed
+        - For each `keep` file: reads pristine and current, calls `mergeFileContents()`
+        - Classifies results: clean, conflict, unchanged, skipped (Scaffolded)
+        - Edge cases: missing current file (treats as no adopter changes), missing
+          pristine (treats as fresh install — can't three-way merge without base)
 
-    - [ ] **4.5.b New and removed file handling**
-        - `added` files: render from new templates and install (adopter's
-          `install_config` already includes config choices — no prompting needed)
-        - `added` files: write pristine copies for Framework and Configurable
-        - `removed` Framework files: delete from `.arc/` and `.pristine/`
-        - `removed` Configurable files: warn but don't delete (may have adopter content)
-        - `removed` Scaffolded files: leave untouched (adopter-owned)
+    - [x] **4.5.b New and removed file handling**
+        - Added files: rendered from templates, installed to `.arc/`, pristine copies
+          written for Framework and Configurable (not Scaffolded)
+        - Removed Framework: auto-deleted from `.arc/` and `.pristine/` via `safeUnlink()`
+        - Removed Configurable: pristine deleted, file kept on disk for review
+        - Removed Scaffolded: left untouched (adopter-owned)
 
-    - [ ] **4.5.c Pristine and manifest update**
-        - Update pristine copies for all cleanly merged and newly added files
-        - Leave pristine unchanged for conflicted files (adopter resolves manually)
-        - Update manifest: new `framework_version` (from `getFrameworkVersion()`),
-          updated `pristine_hash` values, add new file entries, remove dropped entries
-        - Write updated manifest via `writeManifest()`
+    - [x] **4.5.c Pristine and manifest update**
+        - Clean merges and unchanged: pristine updated to new framework content,
+          `pristine_hash` set to `hashContent(updated)`
+        - Conflicts: pristine left unchanged, old manifest entry preserved
+        - Scaffolded files: existing manifest entry carried forward unchanged
+        - New manifest written with updated `framework_version`, preserved
+          `installed_at` and `install_config`, rebuilt `files` record
+        - Uses `io.writeFile` (consistent with init's pattern, not `writeManifest()`)
 
-    - [ ] **4.5.d Result reporting**
-        - Summary: N files updated, N conflicts, N new files added, N files removed
-        - List conflicted files with clear guidance on resolving conflicts
-        - List removed Configurable files with "kept for review" note
-        - Wire into `cli.ts`: replace update command stub with real handler
+    - [x] **4.5.d Result reporting**
+        - `buildUpdateSummary()`: counts line (updated, conflicts, new, removed,
+          unchanged, skipped), conflict file list with resolution guidance, kept-for-review
+          list for removed Configurable files
+        - Wired into `cli.ts`: recipe loading, spinner, `p.note` summary, `p.log.warn`
+          for conflicts, `UserFacingError` catch with `formatError()` display
 
-- [ ] **4.6 Integration tests for update flow**
-    - Test: update with no adopter changes → all files take new version, pristine updated
-    - Test: update with non-overlapping adopter changes → auto-merge preserves both
-    - Test: update with conflicting changes → conflict markers in file, reported
-    - Test: Scaffolded files skipped entirely (no merge attempted)
-    - Test: new Framework file added during update → installed and tracked in manifest
-    - Test: Framework file removed during update → deleted from `.arc/` and manifest
-    - Test: Configurable file removed → warning emitted, file kept on disk
-    - Test: manifest and pristine updated correctly post-merge
-    - Test: manifest missing → hard fail with clear `UserFacingError`
+- [x] **4.6 Integration tests for update flow**
 
-- [ ] **4.7 Run quality gates**
-    - Type checking passes
-    - All tests pass (unit + integration)
-    - Markdown linting passes
+    11 integration tests in `__tests__/integration/update.test.ts`. Synthetic test harness
+    (`setupInitialState`, `createTemplateDir`) gives full control over initial state and
+    template modifications without depending on `runInit` for most tests. Baseline test uses
+    real recipe + `runInit` to validate the full pipeline.
+
+    Also fixed `mergeFileContents` fast-path ordering in `merge.ts` — moved `current === updated`
+    check before `base === current` so the all-three-equal case (init → immediate update, no
+    changes anywhere) correctly returns "unchanged" instead of "clean". Existing unit tests
+    unaffected (they never hit the all-three-equal case).
+
+    - Baseline: init → immediate update → all unchanged/skipped, no conflicts/added/removed
+    - No adopter changes → files updated, pristine = v2, manifest hashes match new content
+    - Non-overlapping adopter changes → auto-merge preserves both (real `git merge-file`)
+    - Conflicting changes → conflict markers in file, in `result.conflicts`, pristine unchanged
+    - Scaffolded files skipped → adopter content preserved regardless of template changes
+    - New Framework file added → installed in `.arc/` and `.pristine/`, tracked in manifest
+    - Framework file removed → deleted from `.arc/` and `.pristine/`, removed from manifest
+    - Configurable file removed → file kept on disk, pristine deleted, in `keptForReview`
+    - Manifest missing → `UserFacingError` with code `MANIFEST_MISSING`
+    - Manifest invalid JSON → `UserFacingError` with code `MANIFEST_INVALID`
+    - Manifest invalid schema → `UserFacingError` with code `MANIFEST_INVALID`
+
+- [x] **4.7 Run quality gates**
+    - Type checking: zero errors
+    - Tests: 199/199 passing (165 unit + 34 integration)
+    - Markdown linting: zero violations
+    - Build: success (31.45 KB)
 
 ### **Phase 5:** Status, Diff, and CLI Polish
 

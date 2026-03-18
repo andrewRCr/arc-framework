@@ -14,10 +14,13 @@ import { promisify } from "node:util";
 
 import { runInit, buildPostInitMessage } from "./commands/init.js";
 import type { IOContext } from "./commands/init.js";
+import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { resolveIdentity } from "./lib/identity.js";
 import { getArcTemplatePath } from "./lib/paths.js";
 import { getFrameworkVersion } from "./lib/version.js";
+import { formatError } from "./lib/errors.js";
+import { UserFacingError } from "./lib/errors.js";
 import type { GitExec } from "./lib/git.js";
 import type { Recipe } from "./lib/types.js";
 
@@ -113,8 +116,45 @@ program
 program
   .command("update")
   .description("Update ARC framework files to the latest version")
-  .action(() => {
-    console.log("arc update — not yet implemented");
+  .action(async () => {
+    p.intro("arc update");
+
+    // Load recipe
+    const templateDir = getArcTemplatePath();
+    const recipeContent = await readFile(
+      new URL("../../init-recipe.json", import.meta.url),
+      "utf-8",
+    );
+    const recipe: Recipe = JSON.parse(recipeContent) as Recipe;
+
+    const spinner = p.spinner();
+    spinner.start("Updating ARC framework files...");
+
+    try {
+      const result = await runUpdate({
+        cwd: process.cwd(),
+        io: createIOContext(),
+        templateDir,
+        recipe,
+      });
+
+      spinner.stop("Update complete.");
+
+      p.note(buildUpdateSummary(result), "Update summary");
+
+      if (result.conflicts.length > 0) {
+        p.log.warn("Resolve conflicts before committing.");
+      }
+    } catch (err) {
+      spinner.stop("Update failed.");
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
+
+    p.outro("Done.");
   });
 
 program
