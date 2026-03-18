@@ -13,6 +13,7 @@ import type { ReadFileFn, WriteFileFn, MkdirFn } from "../lib/files.js";
 import { ensureDir, appendToGitignore, appendToGitattributes } from "../lib/files.js";
 import { renderTokens, renderConditionals } from "../lib/render.js";
 import type { GitExec } from "../lib/git.js";
+import { configureNotesRefspec } from "../lib/git.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Classification, Layer, FileEntry, Manifest } from "../lib/types.js";
 import type { Recipe } from "../lib/types.js";
@@ -405,6 +406,9 @@ export async function runInit(
       }
     }
 
+    // Configure notes fetch refspec for user directory portability
+    await configureNotesRefspec(io.exec);
+
     return {
       mode,
       filesWritten: [],
@@ -545,6 +549,9 @@ export async function runInit(
       await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
     }
   }
+
+  // Configure notes fetch refspec for user directory portability
+  await configureNotesRefspec(io.exec);
 
   return {
     mode,

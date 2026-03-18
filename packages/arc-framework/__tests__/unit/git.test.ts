@@ -5,6 +5,7 @@ import {
   gitConfigGet,
   gitConfigSet,
   gitMergeFile,
+  configureNotesRefspec,
 } from "../../src/lib/git.js";
 
 describe("checkGitAvailable", () => {
@@ -70,6 +71,67 @@ describe("gitConfigSet", () => {
       "config",
       "arc.identity",
       "andrew",
+    ]);
+  });
+});
+
+describe("configureNotesRefspec", () => {
+  const REFSPEC = "+refs/notes/arc/user/*:refs/notes/arc/user/*";
+
+  it("adds refspec when remote.origin exists and refspec is absent", async () => {
+    const mockExec = vi.fn()
+      // gitConfigGet for remote.origin.url
+      .mockResolvedValueOnce({ stdout: "git@github.com:org/repo.git\n" })
+      // git config --get-all remote.origin.fetch
+      .mockResolvedValueOnce({ stdout: "+refs/heads/*:refs/remotes/origin/*\n" })
+      // git config --add
+      .mockResolvedValueOnce({ stdout: "" });
+
+    const result = await configureNotesRefspec(mockExec);
+    expect(result).toBe(true);
+    expect(mockExec).toHaveBeenCalledWith("git", [
+      "config",
+      "--add",
+      "remote.origin.fetch",
+      REFSPEC,
+    ]);
+  });
+
+  it("skips add when refspec is already present", async () => {
+    const mockExec = vi.fn()
+      .mockResolvedValueOnce({ stdout: "git@github.com:org/repo.git\n" })
+      .mockResolvedValueOnce({
+        stdout: `+refs/heads/*:refs/remotes/origin/*\n${REFSPEC}\n`,
+      });
+
+    const result = await configureNotesRefspec(mockExec);
+    expect(result).toBe(true);
+    expect(mockExec).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns false when no remote origin exists", async () => {
+    const mockExec = vi.fn()
+      .mockRejectedValueOnce(new Error("exit code 1"));
+
+    const result = await configureNotesRefspec(mockExec);
+    expect(result).toBe(false);
+    expect(mockExec).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds refspec when no fetch entries exist yet", async () => {
+    const mockExec = vi.fn()
+      .mockResolvedValueOnce({ stdout: "git@github.com:org/repo.git\n" })
+      // --get-all fails (no entries)
+      .mockRejectedValueOnce(new Error("exit code 1"))
+      .mockResolvedValueOnce({ stdout: "" });
+
+    const result = await configureNotesRefspec(mockExec);
+    expect(result).toBe(true);
+    expect(mockExec).toHaveBeenCalledWith("git", [
+      "config",
+      "--add",
+      "remote.origin.fetch",
+      REFSPEC,
     ]);
   });
 });

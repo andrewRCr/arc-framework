@@ -10,7 +10,7 @@ import { Command } from "commander";
 import * as p from "@clack/prompts";
 import { readFile, writeFile, mkdir, access, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 import { runInit, buildPostInitMessage, detectInitMode, parseArcConfig } from "./commands/init.js";
@@ -18,6 +18,13 @@ import type { IOContext, InitMode } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runStatus, buildStatusSummary } from "./commands/status.js";
 import { runDiff, buildDiffOutput } from "./commands/diff.js";
+import {
+  runUserSave, runUserLoad, runUserAdd, runUserPush, runUserPull,
+  buildSaveSummary, buildLoadSummary,
+  UserSaveError,
+} from "./commands/user.js";
+import type { UserIOContext } from "./commands/user.js";
+import type { DirEntry } from "./lib/user-sync.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
 import { resolveIdentity } from "./lib/identity.js";
@@ -48,6 +55,95 @@ function createIOContext(): IOContext {
     access: (path) => access(path),
     exec: gitExec,
   };
+}
+
+/**
+ * Write content to a git note ref on a commit, piping via stdin.
+ * Uses `-F -` to read from stdin (avoids ARG_MAX limits for large manifests).
+ */
+async function writeGitNote(
+  ref: string,
+  content: string,
+  commit: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("git", [
+      "notes", "--ref", ref, "add", "-f", "-F", "-", commit,
+    ]);
+    let stderr = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`git notes add failed (code ${code}): ${stderr}`));
+    });
+    proc.on("error", reject);
+    proc.stdin.write(content);
+    proc.stdin.end();
+  });
+}
+
+/**
+ * Read content from a git note ref on a commit.
+ * Returns null if no note exists on the commit.
+ */
+async function readGitNote(
+  ref: string,
+  commit: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "notes", "--ref", ref, "show", commit,
+    ]);
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read directory entries with name and size for user directory serialization.
+ */
+async function readUserDir(dirPath: string): Promise<DirEntry[]> {
+  let names: string[];
+  try {
+    names = await readdir(dirPath);
+  } catch {
+    return [];
+  }
+  const entries: DirEntry[] = [];
+  for (const name of names) {
+    const s = await stat(join(dirPath, name));
+    if (s.isFile()) {
+      entries.push({ name, size: s.size });
+    }
+  }
+  return entries;
+}
+
+/** Create the UserIOContext with real I/O implementations. */
+function createUserIOContext(): UserIOContext {
+  return {
+    exec: gitExec,
+    readFile: (path) => readFile(path, "utf-8"),
+    writeFile: (path, content) => writeFile(path, content, "utf-8"),
+    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
+    readDir: readUserDir,
+    writeNote: writeGitNote,
+    readNote: readGitNote,
+  };
+}
+
+/**
+ * Resolve identity for user commands. Requires arc.identity to be set.
+ * Returns the identity string or exits with an error message.
+ */
+async function resolveUserIdentity(): Promise<string> {
+  const identity = await resolveIdentity({ exec: gitExec });
+  if (!identity) {
+    p.log.error("No identity configured. Run 'arc init' first.");
+    process.exit(1);
+  }
+  return identity;
 }
 
 /**
@@ -328,6 +424,209 @@ program
         return;
       }
       throw err;
+    }
+
+    p.outro("Done.");
+  });
+
+// --- User subcommand ---
+
+const userCmd = program
+  .command("user")
+  .description("Manage ARC user directory and portability");
+
+userCmd
+  .command("add <identity>")
+  .description("Create a user directory for a team member")
+  .action(async (identity: string) => {
+    p.intro("arc user add");
+
+    const cwd = process.cwd();
+    const io = createUserIOContext();
+
+    // Read pm.mode from arc-config.yml
+    let pmMode = "none";
+    try {
+      const configContent = await readFile(
+        join(cwd, ".arc", "system", "arc-config.yml"), "utf-8",
+      );
+      const config = parseArcConfig(configContent);
+      pmMode = config["pm.mode"] ?? "none";
+    } catch {
+      // Config unreadable — use default
+    }
+
+    const spinner = p.spinner();
+    spinner.start(`Creating user directory for ${identity}...`);
+
+    await runUserAdd({
+      cwd,
+      io,
+      identity,
+      internalTemplateDir: getInternalTemplatePath(),
+      pmMode,
+    });
+
+    spinner.stop(`User directory created for ${identity}.`);
+    p.outro("Done.");
+  });
+
+userCmd
+  .command("save")
+  .description("Save user directory to a git note on HEAD")
+  .action(async () => {
+    p.intro("arc user save");
+
+    const identity = await resolveUserIdentity();
+    const io = createUserIOContext();
+    const spinner = p.spinner();
+    spinner.start("Saving user directory...");
+
+    try {
+      const result = await runUserSave({
+        cwd: process.cwd(),
+        io,
+        identity,
+      });
+
+      spinner.stop("Save complete.");
+      p.note(buildSaveSummary(result), "Saved");
+
+      if (result.warnings.length > 0) {
+        p.log.warn("Some files were skipped (see details above).");
+      }
+    } catch (err) {
+      spinner.stop("Save failed.");
+      if (err instanceof UserSaveError) {
+        p.log.error(err.message);
+        return;
+      }
+      throw err;
+    }
+
+    p.outro("Done.");
+  });
+
+userCmd
+  .command("load")
+  .description("Restore user directory from a git note")
+  .action(async () => {
+    p.intro("arc user load");
+
+    const identity = await resolveUserIdentity();
+    const io = createUserIOContext();
+    const spinner = p.spinner();
+    spinner.start("Loading user directory...");
+
+    const result = await runUserLoad({
+      cwd: process.cwd(),
+      io,
+      identity,
+    });
+
+    if (!result) {
+      spinner.stop("No note found.");
+      p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+      return;
+    }
+
+    spinner.stop("Load complete.");
+    p.note(buildLoadSummary(result), "Loaded");
+
+    p.outro("Done.");
+  });
+
+userCmd
+  .command("push")
+  .description("Push user notes to remote")
+  .action(async () => {
+    p.intro("arc user push");
+
+    const identity = await resolveUserIdentity();
+    const io = createUserIOContext();
+    const spinner = p.spinner();
+    spinner.start("Pushing user notes...");
+
+    await runUserPush({ io, identity });
+
+    spinner.stop("Push complete.");
+    p.outro("Done.");
+  });
+
+userCmd
+  .command("pull")
+  .description("Fetch user notes from remote")
+  .action(async () => {
+    p.intro("arc user pull");
+
+    const identity = await resolveUserIdentity();
+    const io = createUserIOContext();
+    const spinner = p.spinner();
+    spinner.start("Pulling user notes...");
+
+    await runUserPull({ io, identity });
+
+    spinner.stop("Pull complete.");
+    p.outro("Done.");
+  });
+
+// --- Sync sugar ---
+
+program
+  .command("sync")
+  .description("Save and push user directory (or --load to pull and restore)")
+  .option("--load", "Pull and load instead of save and push")
+  .action(async (opts: { load?: boolean }) => {
+    p.intro("arc sync");
+
+    const identity = await resolveUserIdentity();
+    const io = createUserIOContext();
+    const cwd = process.cwd();
+
+    if (opts.load) {
+      // Pull + load
+      const spinner = p.spinner();
+      spinner.start("Pulling user notes...");
+      await runUserPull({ io, identity });
+      spinner.stop("Pull complete.");
+
+      const loadSpinner = p.spinner();
+      loadSpinner.start("Loading user directory...");
+      const result = await runUserLoad({ cwd, io, identity });
+
+      if (!result) {
+        loadSpinner.stop("No note found.");
+        p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+        return;
+      }
+
+      loadSpinner.stop("Load complete.");
+      p.note(buildLoadSummary(result), "Loaded");
+    } else {
+      // Save + push
+      const spinner = p.spinner();
+      spinner.start("Saving user directory...");
+
+      try {
+        const result = await runUserSave({ cwd, io, identity });
+        spinner.stop("Save complete.");
+
+        if (result.warnings.length > 0) {
+          p.note(buildSaveSummary(result), "Saved");
+        }
+      } catch (err) {
+        spinner.stop("Save failed.");
+        if (err instanceof UserSaveError) {
+          p.log.error(err.message);
+          return;
+        }
+        throw err;
+      }
+
+      const pushSpinner = p.spinner();
+      pushSpinner.start("Pushing user notes...");
+      await runUserPush({ io, identity });
+      pushSpinner.stop("Push complete.");
     }
 
     p.outro("Done.");
