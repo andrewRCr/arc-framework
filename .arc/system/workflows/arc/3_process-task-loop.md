@@ -21,17 +21,20 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval. In team mode, this applies per developer-agent pair — concurrent pairs may work
   different tasks.
+
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
   happens independently as PRs merge. When creating additional branches for an existing task list,
   update the `**Branch(es):**` header field to include the new branch name. For intermediate merges,
   see [rotate-branch][rotate-branch]. See [Work Organization Strategy][work-org] for the full
   relationship model.
+
 - **Co-development awareness:** The developer may be working alongside you — editing files, running
   commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
   single-threaded, small-scope tasks keep the developer close enough to the work to contribute
   directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
   your current task, flag the conflict and ask how to proceed.
+
 - **Test-first execution:** When a task has a `Build \`test-first\` (one behavior at a time):` marker
   (per the [test-first method][arc-methods-tf]), execute as vertical slices — one behavior at a time:
     1. **RED:** Write one test for one behavior listed in the task → run it → confirm it fails
@@ -43,8 +46,16 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
   Test cases listed in the task are behaviors to cover, not an execution sequence — let each cycle
   inform the next. If your project has a testing methodology strategy, consult it for project-specific
   TDD details (mocking rules, fixture conventions, tier boundaries).
+
+  **Batching judgment:** When behaviors are tightly coupled (single function, shared setup, no
+  independent discovery value), batching tests before implementing is a pragmatic alternative to
+  strict one-at-a-time slicing. When you batch rather than slice, note the rationale briefly in
+  your completion report (e.g., "behaviors tightly coupled, single-pass implementation"). This
+  makes the decision visible — silent compliance and silent deviation should not look identical.
+
 - **Issue triage:** When you encounter pre-existing issues in files you're modifying,
   follow the [issue-triage method][arc-methods-it] for severity assessment and fix-vs-defer decisions.
+
 - **Completion protocol:**
 
   1. When you finish a **single task** (one checkbox item):

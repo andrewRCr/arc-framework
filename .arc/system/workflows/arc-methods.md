@@ -199,8 +199,10 @@ Decision tree by change type.
 **If unsure, default to test-first.** Writing tests after implementation is harder and less effective.
 
 **Execution discipline — one behavior at a time:** The behavior list under the marker is a discovery guide, not a
-batch spec. Write one test, make it pass, then write the next — each cycle informs the next. Never write all tests
-upfront then implement; that tests *imagined* behavior, not actual behavior.
+batch spec. The default is vertical slices: write one test, make it pass, then write the next — each cycle informs
+the next. Avoid writing all tests upfront then implementing; that tests *imagined* behavior, not actual behavior.
+When behaviors are tightly coupled and slicing adds no discovery value, batching is acceptable — note the rationale
+in the completion report so the decision is visible (see [process-task-loop][process-task-loop] § Batching judgment).
 
 **During task list creation:** Group test and implementation together — by module or concern, not by activity.
 A test-first task covers both writing tests and writing the code that makes them pass. Use the
