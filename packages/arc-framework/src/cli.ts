@@ -17,6 +17,7 @@ import type { IOContext } from "./commands/init.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { resolveIdentity } from "./lib/identity.js";
 import { getArcTemplatePath } from "./lib/paths.js";
+import { getFrameworkVersion } from "./lib/version.js";
 import type { GitExec } from "./lib/git.js";
 import type { Recipe } from "./lib/types.js";
 
@@ -48,7 +49,7 @@ const program = new Command();
 program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
-  .version("0.0.0");
+  .version(getFrameworkVersion());
 
 program
   .command("init")

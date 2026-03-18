@@ -19,6 +19,7 @@ import type { Recipe } from "../lib/types.js";
 import { evaluateCondition } from "../lib/recipe.js";
 import { generateSkills } from "../lib/skills.js";
 import { hashContent } from "../lib/hash.js";
+import { getFrameworkVersion } from "../lib/version.js";
 
 // --- Types ---
 
@@ -402,7 +403,7 @@ export async function runInit(
   // Build and write manifest
   const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);
   const manifest: Manifest = {
-    framework_version: "0.0.0",
+    framework_version: getFrameworkVersion(),
     installed_at: new Date().toISOString(),
     install_config: {
       project_name: prompts.project_name,
