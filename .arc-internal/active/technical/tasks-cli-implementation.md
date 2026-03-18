@@ -773,25 +773,11 @@ Establish shared infrastructure (error handling, version resolution) before comm
     where status is `'clean' | 'conflict' | 'unchanged'`. Temp file lifecycle deferred
     to the update command's wiring layer (4.5) — keeps merge logic pure. 7 unit tests.
 
-- [ ] **4.4 Update command — file list resolution**
+- [x] **4.4 Update command — file list resolution**
 
-    Before merging, the update command determines WHAT to merge. The old manifest has
-    one file list; the new recipe + stored `install_config` produces another. Files may
-    be added, removed, or changed between framework versions.
-
-    - `diffFileLists(manifestFiles, newFileList)` — returns `{keep[], added[], removed[]}`
-        - `keep`: files in both old manifest and new recipe (merge candidates)
-        - `added`: files in new recipe but not old manifest (new framework content)
-        - `removed`: files in old manifest but not new recipe (framework dropped them)
-    - Uses existing `resolveFileList()` + `toOutputPath()` from `init.ts` to produce
-      new file list from recipe and `install_config`
-    - Lives in update command module or a shared utility
-
-    Build `test-first` (one behavior at a time):
-    - Identical file lists → all in `keep`, none added/removed
-    - New file in recipe → appears in `added`
-    - File removed from recipe → appears in `removed`
-    - Conditional files respect `install_config` (arc-in-git files excluded when mode=none)
+    Implemented `diffFileLists()` in `src/lib/update-files.ts` — pure set-diff
+    returning `{keep, added, removed}`. Condition evaluation is the caller's
+    responsibility via existing `resolveFileList()` + `toOutputPath()`. 6 unit tests.
 
 - [ ] **4.5 Update command (`src/commands/update.ts`)**
 

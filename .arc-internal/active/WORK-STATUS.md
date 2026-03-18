@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.4 — Update command — file list resolution (line ~789)
-**Last Completed**: Task 4.3 — Higher-level merge function
+**Next Task**: Task 4.5 — Update command (`src/commands/update.ts`) (line ~782)
+**Last Completed**: Task 4.4 — Update command — file list resolution
 **Blockers**: [none]
-**Next Action**: Continue Phase 4 — implement file list diffing for update command
+**Next Action**: Continue Phase 4 — implement update command orchestrator (4.5.a–d)
 
 ---
 
