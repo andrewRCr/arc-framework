@@ -753,55 +753,25 @@ Establish shared infrastructure (error handling, version resolution) before comm
 - Recipe evolution: diff old manifest file list vs new recipe file list to detect
   added/removed files across framework versions.
 
-- [ ] **4.1 Shared error handling utilities (`src/lib/errors.ts`)**
+- [x] **4.1 Shared error handling utilities (`src/lib/errors.ts`)**
 
-    Build before any new command work. Small module establishing patterns used by
-    all subsequent commands (update, status, diff, user, sync).
+    Implemented `src/lib/errors.ts` with `ArcError` (base + code), `UserFacingError`
+    (whatHappened/why/whatToDo), `formatError()`, and `ArcErrorCode` union type.
+    Test-first: 8 unit tests covering all three behaviors.
 
-    - `ArcError` base class extending Error (adds `code` string for programmatic handling)
-    - `UserFacingError` subclass with `whatHappened`, `why`, `whatToDo` fields
-    - `formatError()` — formats UserFacingError for terminal output
-    - Error codes: `GIT_MISSING`, `MANIFEST_MISSING`, `MANIFEST_INVALID`, `MERGE_FAILED`,
-      `FILE_NOT_FOUND`, `REGISTRY_FETCH_FAILED`
+- [x] **4.2 Package version resolution (`src/lib/version.ts`)**
 
-    Build `test-first` (one behavior at a time):
-    - UserFacingError formats with all three fields
-    - formatError produces readable terminal output
-    - Error codes are accessible programmatically
+    Implemented `getFrameworkVersion()` and testable `findVersionFromDir()` with
+    walk-up-to-package.json pattern. Wired into both call sites: `cli.ts` (Commander
+    `.version()`) and `init.ts` (manifest `framework_version`). 3 unit tests.
 
-- [ ] **4.2 Package version resolution (`src/lib/version.ts`)**
+- [x] **4.3 Higher-level merge function (`src/lib/merge.ts`)**
 
-    Read `framework_version` from the CLI package's own `package.json` at runtime.
-    Same `import.meta.url` walk-up pattern used in `paths.ts` for template resolution.
-
-    - `getFrameworkVersion()` — returns version string from nearest ancestor `package.json`
-    - Wire into init: replace hardcoded `"0.0.0"` in `init.ts:405` with
-      `getFrameworkVersion()` call
-
-    Build `test-first` (one behavior at a time):
-    - Returns version string from package.json
-    - Handles missing package.json gracefully (fallback to `"0.0.0"`)
-
-- [ ] **4.3 Higher-level merge function (`src/lib/merge.ts`)**
-
-    Wraps existing `gitMergeFile()` from `git.ts`. That function takes file paths and
-    shells out to `git merge-file -p` — already implemented with 3 unit tests. This task
-    builds the content-level wrapper the update command needs: accepts content strings,
-    manages temp file lifecycle, and adds fast-path optimizations.
-
-    - `mergeFileContents(exec, current, base, updated)` — takes content strings, writes
-      temp files, calls `gitMergeFile()`, reads result, cleans up in `finally` block
-    - Fast paths: if `base === current` → return `updated` (no adopter changes); if
-      `base === updated` → return `current` (no framework changes)
-    - Returns `{content, status}` where status is `'clean' | 'conflict' | 'unchanged'`
-
-    Build `test-first` (one behavior at a time):
-    - Non-overlapping changes auto-merge cleanly (status: `clean`)
-    - Overlapping changes produce conflict markers (status: `conflict`)
-    - Unchanged adopter file (`base === current`) takes new version (fast path)
-    - Unchanged framework file (`base === updated`) keeps adopter version (fast path)
-    - Both sides unchanged returns current (status: `unchanged`)
-    - Temp files cleaned up even on error
+    Implemented `mergeFileContents()` with injectable `FileMergeFn` (accepts bound
+    `gitMergeFile` in production, mocks in tests). Three fast paths for unchanged
+    sides, delegates to merge function for general case. Returns `{content, status}`
+    where status is `'clean' | 'conflict' | 'unchanged'`. Temp file lifecycle deferred
+    to the update command's wiring layer (4.5) — keeps merge logic pure. 7 unit tests.
 
 - [ ] **4.4 Update command — file list resolution**
 

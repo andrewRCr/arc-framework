@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.1 — Shared error handling utilities (line ~751)
-**Last Completed**: Task 3.11 — Run quality gates (Phase 3 complete)
+**Next Task**: Task 4.4 — Update command — file list resolution (line ~789)
+**Last Completed**: Task 4.3 — Higher-level merge function
 **Blockers**: [none]
-**Next Action**: Begin Phase 4 — start with error handling utilities (`src/lib/errors.ts`)
+**Next Action**: Continue Phase 4 — implement file list diffing for update command
 
 ---
 
