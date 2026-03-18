@@ -8,17 +8,20 @@
 
 import { Command } from "commander";
 import * as p from "@clack/prompts";
-import { readFile, writeFile, mkdir, access } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access, readdir, stat } from "node:fs/promises";
+import { join, relative } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { runInit, buildPostInitMessage } from "./commands/init.js";
 import type { IOContext } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
+import { runStatus, buildStatusSummary } from "./commands/status.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { resolveIdentity } from "./lib/identity.js";
 import { getArcTemplatePath } from "./lib/paths.js";
 import { getFrameworkVersion } from "./lib/version.js";
+import { readManifest } from "./lib/manifest.js";
 import { formatError } from "./lib/errors.js";
 import { UserFacingError } from "./lib/errors.js";
 import type { GitExec } from "./lib/git.js";
@@ -43,6 +46,36 @@ function createIOContext(): IOContext {
     access: (path) => access(path),
     exec: gitExec,
   };
+}
+
+/**
+ * Recursively list files under a directory, returning paths relative to it.
+ * Skips the `.pristine/` directory (internal baseline, not user-facing).
+ */
+async function listArcFiles(dir: string): Promise<string[]> {
+  const results: string[] = [];
+  async function walk(current: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await readdir(current);
+    } catch {
+      return; // Directory doesn't exist
+    }
+    for (const entry of entries) {
+      const fullPath = join(current, entry);
+      const relPath = relative(dir, fullPath);
+      // Skip .pristine directory
+      if (relPath === ".pristine" || relPath.startsWith(".pristine/")) continue;
+      const s = await stat(fullPath);
+      if (s.isDirectory()) {
+        await walk(fullPath);
+      } else {
+        results.push(relPath);
+      }
+    }
+  }
+  await walk(dir);
+  return results;
 }
 
 // --- CLI Program ---
@@ -160,8 +193,35 @@ program
 program
   .command("status")
   .description("Show status of installed ARC framework files")
-  .action(() => {
-    console.log("arc status — not yet implemented");
+  .action(async () => {
+    p.intro("arc status");
+
+    try {
+      const cwd = process.cwd();
+      const result = await runStatus({
+        cwd,
+        io: {
+          readFile: (path) => readFile(path, "utf-8"),
+          readManifest: (path) => readManifest(path),
+          readdir: (arcDir) => listArcFiles(arcDir),
+        },
+        frameworkVersion: getFrameworkVersion(),
+      });
+
+      p.note(buildStatusSummary(result), "Status");
+
+      if (result.updateAvailable) {
+        p.log.warn("Run 'arc update' to apply framework changes.");
+      }
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
+
+    p.outro("Done.");
   });
 
 program

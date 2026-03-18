@@ -868,22 +868,15 @@ usage and E2E testability, and finalize cross-cutting CLI concerns.
 - Non-interactive mode: `--yes` flag + optional value flags. User-facing feature that
   enables CI pipelines and scripted installs. Also required for E2E testing (Phase 8).
 
-- [ ] **5.1 Status command (`src/commands/status.ts`)**
+- [x] **5.1 Status command (`src/commands/status.ts`)**
 
-    - Read manifest via `readManifest()` — hard fail with `UserFacingError` if missing
-    - Compute current file hashes via `hashContent()`, compare against `pristine_hash`
-    - Report per-file state: unmodified, modified, missing, new (not in manifest)
-    - Version comparison: manifest `framework_version` vs `getFrameworkVersion()`
-      (local mismatch = update available)
-    - Clear output formatting
-    - Wire into `cli.ts`: replace status command stub with real handler
-
-    Build `test-first` (one behavior at a time):
-    - Fresh init → all files unmodified
-    - Modified file → reports modified with filename
-    - Missing file → reports missing
-    - Manifest missing → hard fail with UserFacingError
-    - Version mismatch detected (manifest older than installed package)
+    `StatusIOContext` with injectable `readFile`, `readManifest`, and `readdir` for testability.
+    `runStatus()` orchestrator: reads manifest (hard fail `MANIFEST_MISSING`), hashes each tracked
+    file against `pristine_hash`, scans `.arc/` for untracked files (excluding `.pristine/`),
+    compares `framework_version` vs CLI version. `buildStatusSummary()` formats output with version
+    info, file counts, and M/!/? indicators for modified/missing/new files. Wired into `cli.ts`
+    with `listArcFiles()` recursive walker. 6 unit tests (test-first): manifest missing, fresh init
+    all unmodified, modified detection, missing detection, version mismatch, new file detection.
 
 - [ ] **5.2 Version availability check (`src/lib/version.ts` extension)**
 

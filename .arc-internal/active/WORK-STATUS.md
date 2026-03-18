@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 5.1 — Status command (`src/commands/status.ts`) (line ~856)
-**Last Completed**: Task 4.7 — Run quality gates (Phase 4 complete)
+**Next Task**: Task 5.2 — Version availability check (`src/lib/version.ts` extension) (line ~888)
+**Last Completed**: Task 5.1 — Status command (`src/commands/status.ts`)
 **Blockers**: [none]
-**Next Action**: Begin Phase 5 — status, diff, and CLI polish
+**Next Action**: Continue Phase 5 — version availability check for status command
 
 ---
 
