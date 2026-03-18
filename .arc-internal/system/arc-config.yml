@@ -88,3 +88,18 @@ platform.type: github
 #   external   - External tool integration (Jira, Linear, GitHub Issues, etc.)
 # See strategy-configurability-architecture.md § Adoption flexibility model.
 pm.mode: arc-in-git
+
+# --- Team Mode ---
+
+# Team mode. Controls behavioral defaults for multi-developer collaboration.
+#   false - Solo mode. Single developer, auto-sync session context. (default)
+#   true  - Team mode. Multiple developers, conscious sync decisions.
+team.mode: false
+
+# --- User Directory ---
+
+# Automatic push of user/{identity}/ directory via git notes.
+#   always - Push session state automatically after every handoff. (default)
+#   prompt - Ask whether to push after handoff.
+#   manual - Never auto-push; user runs `arc session push` explicitly.
+user.sync_push: always

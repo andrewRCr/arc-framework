@@ -85,6 +85,7 @@ export function buildConfigMap(
   return {
     "pm.mode": prompts.pm_mode,
     "tools": prompts.tools.join(","),
+    "team.mode": String(prompts.team_mode),
   };
 }
 
@@ -287,6 +288,25 @@ export async function writeArcConfig(
   await writeFile(destPath, result.join("\n"));
 }
 
+/**
+ * Parse an arc-config.yml file into a key-value map.
+ *
+ * Reads the flat `key.name: value` format, skipping comments and blank lines.
+ *
+ * @param content - Raw file content
+ * @returns Map of dotted config keys to string values
+ */
+export function parseArcConfig(content: string): Record<string, string> {
+  const config: Record<string, string> = {};
+  for (const line of content.split("\n")) {
+    const match = line.match(/^([\w.]+):\s*(.*)$/);
+    if (match) {
+      config[match[1]!] = match[2]!.trim();
+    }
+  }
+  return config;
+}
+
 // --- Orchestrator ---
 
 /** Options for the init orchestrator. */
@@ -297,6 +317,8 @@ export interface InitOptions {
   /** CLI-internal templates directory (user templates, etc.). */
   internalTemplateDir: string;
   recipe: Recipe;
+  /** Pre-detected init mode. If omitted, detected automatically. */
+  mode?: InitMode;
   /** Prompt results, or null if user cancelled. */
   prompts: InitPromptResult | null;
   /** Resolved identity, or null if cancelled/unavailable. */
@@ -308,11 +330,14 @@ export interface InitResult {
   mode: InitMode;
   filesWritten: string[];
   tools: string[];
+  team_mode: boolean;
 }
 
 /** Config keys derived from prompt results for arc-config.yml. */
 const CONFIG_KEY_MAP: Record<string, (p: InitPromptResult) => string> = {
   "pm.mode": (p) => p.pm_mode,
+  "team.mode": (p) => String(p.team_mode),
+  "user.sync_push": (p) => p.team_mode ? "prompt" : "always",
 };
 
 /**
@@ -335,8 +360,60 @@ export async function runInit(
     return null;
   }
 
-  // Detect mode
-  const mode = await detectInitMode(cwd, io.access);
+  // Detect mode (use pre-detected if provided)
+  const mode = options.mode ?? await detectInitMode(cwd, io.access);
+  const arcDir = join(cwd, ".arc");
+
+  // --- Join mode: personal setup only ---
+  if (mode === "join") {
+    // Hook path configuration
+    await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
+
+    // Skill generation for selected tools
+    const skillResult = await generateSkills(
+      prompts.tools,
+      join(templateDir, "system", "skills"),
+      [],
+      cwd,
+      { readFile: io.readFile },
+    );
+    await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
+
+    // Add gitignore entries for generated skill directories
+    const gitignorePath = join(cwd, ".gitignore");
+    for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
+      await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
+    }
+
+    // Store identity and create user directory
+    if (identityResult) {
+      await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
+
+      const userDir = join(arcDir, "user", identityResult);
+      await ensureDir(userDir, io.mkdir);
+
+      const sessionNotes = await io.readFile(
+        join(internalTemplateDir, "user", "SESSION-NOTES.md"),
+      );
+      await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
+
+      if (prompts.pm_mode === "arc-in-git") {
+        const atomicInbox = await io.readFile(
+          join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
+        );
+        await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
+      }
+    }
+
+    return {
+      mode,
+      filesWritten: [],
+      tools: prompts.tools,
+      team_mode: prompts.team_mode,
+    };
+  }
+
+  // --- Fresh mode: full installation ---
 
   // Build maps
   const config = buildConfigMap(prompts);
@@ -344,7 +421,6 @@ export async function runInit(
 
   // Resolve file list
   const templateFiles = resolveFileList(recipe, config);
-  const arcDir = join(cwd, ".arc");
 
   // Build config_key overrides for arc-config.yml
   const configKeyOverrides: Record<string, string> = {};
@@ -415,6 +491,7 @@ export async function runInit(
       project_name: prompts.project_name,
       pm_mode: prompts.pm_mode,
       tools: prompts.tools,
+      team_mode: prompts.team_mode,
     },
     files: manifestFiles,
   };
@@ -453,17 +530,14 @@ export async function runInit(
   if (identityResult) {
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
 
-    // Create user/{identity}/ with personal workspace files
     const userDir = join(arcDir, "user", identityResult);
     await ensureDir(userDir, io.mkdir);
 
-    // SESSION-NOTES.md — all modes
     const sessionNotes = await io.readFile(
       join(internalTemplateDir, "user", "SESSION-NOTES.md"),
     );
     await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
 
-    // ATOMIC-INBOX.md — arc-in-git only
     if (prompts.pm_mode === "arc-in-git") {
       const atomicInbox = await io.readFile(
         join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
@@ -476,6 +550,7 @@ export async function runInit(
     mode,
     filesWritten,
     tools: prompts.tools,
+    team_mode: prompts.team_mode,
   };
 }
 
@@ -515,6 +590,12 @@ export function buildPostInitMessage(result: InitResult): string {
   lines.push(
     '   .arc/system/workflows/arc/initial-setup/01_verify-and-configure.md"',
   );
+
+  if (result.team_mode) {
+    lines.push("");
+    lines.push("Team mode enabled. Other developers join by running 'arc init'");
+    lines.push("in this repository after cloning.");
+  }
 
   return lines.join("\n");
 }

@@ -23,6 +23,7 @@ export interface InstallConfig {
   project_name: string;
   pm_mode: string;
   tools: string[];
+  team_mode?: boolean;
 }
 
 /** Top-level manifest structure (`.arc-manifest.json`). */

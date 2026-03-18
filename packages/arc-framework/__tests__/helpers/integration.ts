@@ -89,6 +89,14 @@ export async function loadRecipe(): Promise<Recipe> {
   return JSON.parse(content) as Recipe;
 }
 
+/** Sensible defaults for InitPromptResult. Override only what matters per test. */
+export const DEFAULT_PROMPTS: InitPromptResult = {
+  project_name: "Test Project",
+  tools: ["claude"],
+  pm_mode: "none",
+  team_mode: false,
+};
+
 /**
  * Run a full `arc init` in a temp repo with the given prompt values.
  *

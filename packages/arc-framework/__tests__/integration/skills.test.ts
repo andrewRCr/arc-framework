@@ -18,11 +18,11 @@ import {
   join,
   getArcTemplatePath,
   getInternalTemplatePath,
+  DEFAULT_PROMPTS,
 } from "../helpers/integration.js";
 import { runInit } from "../../src/commands/init.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills.js";
-import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 
 // --- Helpers ---
 
@@ -35,11 +35,7 @@ async function initWithTools(
   const dir = await createTempRepo("arc-skills-test-");
   const recipe = await loadRecipe();
   const io = makeIOContext(dir);
-  const prompts: InitPromptResult = {
-    project_name: "Skills Test",
-    tools,
-    pm_mode: pmMode,
-  };
+  const prompts = { ...DEFAULT_PROMPTS, tools, pm_mode: pmMode };
 
   await runInit({
     cwd: dir,

@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.1.c — Init: team mode behavioral config (line ~1060)
-**Last Completed**: Task 7.1.b — Init: user directory creation
+**Next Task**: Task 7.2 — Implement PM mode conditional file handling (line ~1117)
+**Last Completed**: Task 7.1 — Implement unified user directory and identity resolution
 **Blockers**: [none]
-**Next Action**: Begin Task 7.1.c — team mode template/recipe updates and prompt wiring
+**Next Action**: Begin Task 7.2 — PM mode conditional file handling
 
 ---
 

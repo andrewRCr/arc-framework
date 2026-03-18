@@ -20,10 +20,31 @@ import {
   runInit,
   buildPostInitMessage,
 } from "../../src/commands/init.js";
-import type { IOContext } from "../../src/commands/init.js";
+import type { IOContext, InitResult } from "../../src/commands/init.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills.js";
+
+// --- Shared Fixtures ---
+
+/** Default prompts — override only what matters per test. */
+const DEFAULT_PROMPTS: InitPromptResult = {
+  project_name: "Test Project",
+  tools: ["claude"],
+  pm_mode: "none",
+  team_mode: false,
+};
+
+/** Default InitResult — override only what matters per test. */
+function makeInitResult(overrides: Partial<InitResult> = {}): InitResult {
+  return {
+    mode: "fresh",
+    filesWritten: ["README.md"],
+    tools: ["claude"],
+    team_mode: false,
+    ...overrides,
+  };
+}
 
 /** Build stub canonical skill files for a template directory. */
 function canonicalSkillFiles(templateDir: string): Record<string, string> {
@@ -67,6 +88,7 @@ describe("buildConfigMap", () => {
     project_name: "My App",
     tools: ["claude", "cursor"],
     pm_mode: "arc-in-git",
+    team_mode: false,
   };
 
   it("maps pm_mode to pm.mode config key", () => {
@@ -87,6 +109,11 @@ describe("buildConfigMap", () => {
   it("handles single tool", () => {
     const config = buildConfigMap({ ...basePrompt, tools: ["codex"] });
     expect(config["tools"]).toBe("codex");
+  });
+
+  it("maps team_mode to team.mode config key", () => {
+    const config = buildConfigMap({ ...basePrompt, team_mode: true });
+    expect(config["team.mode"]).toBe("true");
   });
 });
 
@@ -355,11 +382,6 @@ function mockIO(
 }
 
 describe("runInit", () => {
-  const freshPromptResult: InitPromptResult = {
-    project_name: "Test Project",
-    tools: ["claude"],
-    pm_mode: "none",
-  };
 
   const minimalRecipe: Recipe = {
     include_files: ["README.md", "system/arc-config.yml"],
@@ -390,7 +412,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe: minimalRecipe,
-      prompts: freshPromptResult,
+      prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
@@ -434,7 +456,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: freshPromptResult,
+      prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
@@ -463,7 +485,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: freshPromptResult,
+      prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
@@ -492,7 +514,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: { ...freshPromptResult, tools: ["claude", "cursor"] },
+      prompts: { ...DEFAULT_PROMPTS, tools: ["claude", "cursor"] },
       identityResult: "andrew",
     });
 
@@ -550,7 +572,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: freshPromptResult,
+      prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
@@ -566,6 +588,7 @@ describe("runInit", () => {
       project_name: "Test Project",
       pm_mode: "none",
       tools: ["claude"],
+      team_mode: false,
     });
 
     const files = manifest.files as Record<string, { classification: string; pristine_hash: string }>;
@@ -593,7 +616,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: freshPromptResult,
+      prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
@@ -635,7 +658,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: { ...freshPromptResult, tools: ["claude", "cursor"] },
+      prompts: { ...DEFAULT_PROMPTS, tools: ["claude", "cursor"] },
       identityResult: "andrew",
     });
 
@@ -675,7 +698,7 @@ describe("runInit", () => {
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
       recipe,
-      prompts: freshPromptResult,
+      prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
@@ -715,65 +738,56 @@ describe("runInit", () => {
 
 describe("buildPostInitMessage", () => {
   it("shows file count in summary line", () => {
-    const msg = buildPostInitMessage({
-      mode: "fresh",
+    const msg = buildPostInitMessage(makeInitResult({
       filesWritten: ["README.md", "system/arc-config.yml", "system/agent/CLAUDE.ARC.md"],
-      tools: ["claude"],
-    });
+    }));
 
     expect(msg).toContain("ARC installed in .arc/ (3 files)");
   });
 
   it("includes skill restart path when tools are selected", () => {
-    const msg = buildPostInitMessage({
-      mode: "fresh",
-      filesWritten: ["README.md"],
-      tools: ["claude"],
-    });
+    const msg = buildPostInitMessage(makeInitResult());
 
     expect(msg).toContain("/arc-setup skill is available, then run it");
   });
 
   it("shows direct prompt path when no tools are selected", () => {
-    const msg = buildPostInitMessage({
-      mode: "fresh",
-      filesWritten: ["README.md"],
-      tools: [],
-    });
+    const msg = buildPostInitMessage(makeInitResult({ tools: [] }));
 
     expect(msg).not.toContain("/arc-setup");
     expect(msg).toContain("paste this prompt");
   });
 
   it("always includes the fallback prompt with correct files", () => {
-    const msg = buildPostInitMessage({
-      mode: "fresh",
-      filesWritten: ["README.md"],
-      tools: ["claude", "cursor"],
-    });
+    const msg = buildPostInitMessage(makeInitResult({ tools: ["claude", "cursor"] }));
 
     expect(msg).toContain("AGENT-BRIEFING.ARC.md");
     expect(msg).toContain("01_verify-and-configure.md");
   });
 
   it("does not reference AGENT-BRIEFING.PROJECT.md or agent-specific files", () => {
-    const msg = buildPostInitMessage({
-      mode: "fresh",
-      filesWritten: ["README.md"],
-      tools: ["claude"],
-    });
+    const msg = buildPostInitMessage(makeInitResult());
 
     expect(msg).not.toContain("AGENT-BRIEFING.PROJECT");
     expect(msg).not.toContain("CLAUDE.ARC.md");
   });
 
   it("handles single-file install", () => {
-    const msg = buildPostInitMessage({
-      mode: "fresh",
-      filesWritten: ["README.md"],
-      tools: [],
-    });
+    const msg = buildPostInitMessage(makeInitResult({ tools: [] }));
 
     expect(msg).toContain("(1 files)");
+  });
+
+  it("includes team coordination guidance when team mode enabled", () => {
+    const msg = buildPostInitMessage(makeInitResult({ team_mode: true }));
+
+    expect(msg).toContain("Team mode enabled");
+    expect(msg).toContain("arc init");
+  });
+
+  it("omits team guidance when team mode disabled", () => {
+    const msg = buildPostInitMessage(makeInitResult());
+
+    expect(msg).not.toContain("Team mode");
   });
 });

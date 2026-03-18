@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   initInTempRepo,
   cleanupTempDir,
+  DEFAULT_PROMPTS,
   readFile,
   writeFile,
   mkdir,
@@ -24,8 +25,6 @@ import { runDiff } from "../../src/commands/diff.js";
 import type { DiffIOContext } from "../../src/commands/diff.js";
 import { readManifest } from "../../src/lib/manifest.js";
 import { UserFacingError } from "../../src/lib/errors.js";
-import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
-
 // --- Helpers ---
 
 function makeStatusIO(cwd: string): StatusIOContext {
@@ -59,11 +58,7 @@ function makeDiffIO(cwd: string): DiffIOContext {
   };
 }
 
-const prompts: InitPromptResult = {
-  project_name: "Status Diff Test",
-  tools: [],
-  pm_mode: "none",
-};
+const prompts = { ...DEFAULT_PROMPTS, project_name: "Status Diff Test", tools: [] as string[] };
 
 // --- Tests ---
 

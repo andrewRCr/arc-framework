@@ -103,6 +103,13 @@
       "options": ["none", "arc-in-git", "external"],
       "default": "none",
       "config_key": "pm.mode"
+    },
+    {
+      "id": "team_mode",
+      "type": "confirm",
+      "message": "Will other developers work in this repository?",
+      "default": false,
+      "config_key": "team.mode"
     }
   ],
   "conditions": {

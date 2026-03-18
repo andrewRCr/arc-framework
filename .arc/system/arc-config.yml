@@ -116,3 +116,13 @@ pm.mode: none
 #   true  - Team mode. Multiple developers, conscious sync decisions.
 # See strategy-team-coordination.md for the full coordination protocol.
 team.mode: false
+
+# --- User Directory ---
+
+# Automatic push of user/{identity}/ directory via git notes.
+# Controls whether `arc session push` runs automatically after handoff.
+#   always - Push session state automatically after every handoff. (default)
+#   prompt - Ask whether to push after handoff.
+#   manual - Never auto-push; user runs `arc session push` explicitly.
+# Per-developer override: `git config arc.sync_push <value>`
+user.sync_push: always

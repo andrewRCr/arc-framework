@@ -17,6 +17,7 @@ describe("buildNonInteractivePrompts", () => {
     expect(result.project_name).toBe("my-project");
     expect(result.tools).toEqual([]);
     expect(result.pm_mode).toBe("none");
+    expect(result.team_mode).toBe(false);
   });
 
   it("overrides project name with --name", () => {
@@ -55,10 +56,12 @@ describe("buildNonInteractivePrompts", () => {
       name: "foo",
       pmMode: "external",
       tools: "claude",
+      team: true,
     });
 
     expect(result.project_name).toBe("foo");
     expect(result.pm_mode).toBe("external");
     expect(result.tools).toEqual(["claude"]);
+    expect(result.team_mode).toBe(true);
   });
 });

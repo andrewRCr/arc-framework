@@ -25,6 +25,7 @@ import {
   dirname,
   getArcTemplatePath,
   getInternalTemplatePath,
+  DEFAULT_PROMPTS,
 } from "../helpers/integration.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
@@ -35,7 +36,7 @@ import type {
   Classification,
   Layer,
 } from "../../src/lib/types.js";
-import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
+// InitPromptResult imported via helpers (DEFAULT_PROMPTS)
 
 // --- Synthetic test helpers (update-specific) ---
 
@@ -140,11 +141,7 @@ function makeRecipe(
 describe("update integration — baseline (real recipe)", () => {
   let tempDir: string;
   const realTemplateDir = getArcTemplatePath();
-  const prompts: InitPromptResult = {
-    project_name: "Update Test Project",
-    tools: ["claude"],
-    pm_mode: "none",
-  };
+  const prompts = { ...DEFAULT_PROMPTS, project_name: "Update Test Project" };
 
   beforeEach(async () => {
     tempDir = await createTempRepo("arc-update-test-");

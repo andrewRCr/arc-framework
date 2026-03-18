@@ -63,17 +63,51 @@ export interface InitPromptResult {
     project_name: string;
     tools: string[];
     pm_mode: string;
+    team_mode: boolean;
 }
 
 /**
  * Run the interactive init prompt sequence.
  *
+ * In fresh mode, prompts for all values. In join mode, only prompts for tools
+ * (project-level config is read from the existing installation).
+ *
  * @param cwd - Working directory (used to derive default project name)
+ * @param mode - Init mode: 'fresh' (default) or 'join'
  * @returns Prompt results, or `null` if the user cancelled
  */
 export async function runInitPrompts(
     cwd: string,
+    mode: "fresh" | "join" = "fresh",
 ): Promise<InitPromptResult | null> {
+    if (mode === "join") {
+        // Join mode: only tools prompt — project config already established
+        const result = await p.group(
+            {
+                tools: () =>
+                    p.groupMultiselect({
+                        message: "Which AI development tools do you use?",
+                        options: TOOL_OPTIONS,
+                        required: false,
+                    }),
+            },
+            {
+                onCancel: () => {
+                    p.cancel("Setup cancelled.");
+                    process.exit(0);
+                },
+            },
+        );
+
+        return {
+            project_name: "",
+            tools: result.tools as string[],
+            pm_mode: "",
+            team_mode: false,
+        };
+    }
+
+    // Fresh mode: full prompt sequence
     const result = await p.group(
         {
             project_name: () =>
@@ -96,6 +130,12 @@ export async function runInitPrompts(
                     options: PM_MODE_OPTIONS,
                     initialValue: "none",
                 }),
+
+            team_mode: () =>
+                p.confirm({
+                    message: "Will other developers work in this repository?",
+                    initialValue: false,
+                }),
         },
         {
             onCancel: () => {
@@ -109,5 +149,6 @@ export async function runInitPrompts(
         project_name: result.project_name,
         tools: result.tools as string[],
         pm_mode: result.pm_mode as string,
+        team_mode: result.team_mode as boolean,
     };
 }

@@ -16,6 +16,7 @@ import {
   cleanupTempDir,
   makeIOContext,
   loadRecipe,
+  DEFAULT_PROMPTS,
   listFiles,
   sha256,
   readFile,
@@ -28,7 +29,6 @@ import {
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Manifest } from "../../src/lib/types.js";
-import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 
 // --- Test Setup ---
 
@@ -38,11 +38,7 @@ let result: InitResult;
 
 const templateDir = getArcTemplatePath();
 const internalTemplateDir = getInternalTemplatePath();
-const prompts: InitPromptResult = {
-  project_name: "Integration Test Project",
-  tools: ["claude"],
-  pm_mode: "none",
-};
+const prompts = { ...DEFAULT_PROMPTS, project_name: "Integration Test Project" };
 
 describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   beforeEach(async () => {
@@ -222,6 +218,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       project_name: "Integration Test Project",
       pm_mode: "none",
       tools: ["claude"],
+      team_mode: false,
     });
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
   });
@@ -345,6 +342,15 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(config).toContain("pm.mode: none");
   });
 
+  it("writes arc-config.yml with solo team mode defaults", async () => {
+    const config = await readFile(
+      join(arcDir, "system/arc-config.yml"),
+      "utf-8",
+    );
+    expect(config).toContain("team.mode: false");
+    expect(config).toContain("user.sync_push: always");
+  });
+
   // --- Conditional File Exclusion ---
 
   it("excludes arc-in-git files when pm.mode=none", async () => {
@@ -447,5 +453,129 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       "utf-8",
     );
     expect(installedInbox).toBe(templateInbox);
+  });
+});
+
+// --- team mode ---
+
+describe("init integration (fresh mode, team_mode=true)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-init-team-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("writes team mode config values and includes team guidance in post-init message", async () => {
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    const result = await runInit({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      recipe,
+      prompts: { ...prompts, team_mode: true },
+      identityResult: "test-user",
+    });
+
+    expect(result).not.toBeNull();
+
+    const config = await readFile(
+      join(tempDir, ".arc/system/arc-config.yml"),
+      "utf-8",
+    );
+    expect(config).toContain("team.mode: true");
+    expect(config).toContain("user.sync_push: prompt");
+
+    const message = buildPostInitMessage(result!);
+    expect(message).toContain("Team mode enabled");
+  });
+});
+
+// --- join mode ---
+
+describe("init integration (join mode)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    // Fresh init first to create .arc/ structure
+    tempDir = await createTempRepo("arc-init-join-");
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    await runInit({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      recipe,
+      prompts: { ...prompts, pm_mode: "arc-in-git" },
+      identityResult: "first-dev",
+    });
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("detects join mode and creates user directory without touching existing .arc/ files", async () => {
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    // Record pre-join state
+    const manifestBefore = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
+
+    const result = await runInit({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      recipe,
+      mode: "join",
+      prompts: { ...prompts, pm_mode: "arc-in-git", tools: ["cursor"] },
+      identityResult: "second-dev",
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.mode).toBe("join");
+    expect(result!.filesWritten).toEqual([]);
+
+    // Manifest unchanged (join mode doesn't write manifest)
+    const manifestAfter = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
+    expect(manifestAfter).toBe(manifestBefore);
+
+    // Second developer's user directory created
+    const sessionNotes = await stat(
+      join(tempDir, ".arc/user/second-dev/SESSION-NOTES.md"),
+    );
+    expect(sessionNotes.isFile()).toBe(true);
+
+    const atomicInbox = await stat(
+      join(tempDir, ".arc/user/second-dev/ATOMIC-INBOX.md"),
+    );
+    expect(atomicInbox.isFile()).toBe(true);
+
+    // First developer's user directory still intact
+    const firstDevNotes = await stat(
+      join(tempDir, ".arc/user/first-dev/SESSION-NOTES.md"),
+    );
+    expect(firstDevNotes.isFile()).toBe(true);
+
+    // Identity stored for second developer
+    const { stdout } = await execFileAsync(
+      "git", ["config", "arc.identity"], { cwd: tempDir },
+    );
+    expect(stdout.trim()).toBe("second-dev");
+
+    // Hooks path configured
+    const { stdout: hooksPath } = await execFileAsync(
+      "git", ["config", "core.hooksPath"], { cwd: tempDir },
+    );
+    expect(hooksPath.trim()).toBe(".arc/system/githooks");
   });
 });

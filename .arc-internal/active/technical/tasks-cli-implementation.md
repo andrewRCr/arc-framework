@@ -1030,7 +1030,7 @@ missing prereqs mid-implementation. Task 7.2.a is largely complete — init alre
 mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolution. Task
 7.3.d's open design question is resolved.
 
-- [ ] **7.1 Implement unified user directory and identity resolution**
+- [x] **7.1 Implement unified user directory and identity resolution**
 
     **Goal:** Every `arc init` creates a `user/{identity}/` directory with personal workspace files.
     Same structure for solo and team (ADR-012 Part 1).
@@ -1061,57 +1061,54 @@ mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolu
         content match, ATOMIC-INBOX exclusion for pm.mode=none, both files for
         arc-in-git). All existing tests updated with the new parameter — 251 passing.
 
-    - [ ] **7.1.c Init: team mode behavioral config**
+    - [x] **7.1.c Init: team mode behavioral config**
 
-        **Prerequisites** (must be completed before behavioral wiring):
+        - [x] **7.1.c.i Update templates and recipe**
 
-        - [ ] **7.1.c.i Update templates and recipe**
-            - Add `team.mode` key to `.arc/system/arc-config.yml` template (with inline
-              comment documenting `true`/`false`, default `false`)
-            - Add `user.sync_push` key to the same template (values: `always`/`prompt`/
-              `manual`, default `always`)
-            - Add `team_mode` prompt entry to `init-recipe.json` (type: `confirm`,
-              config_key: `team.mode`)
+            `team.mode` already existed in arc-config.yml template. Added
+            `user.sync_push` key (always/prompt/manual, default always) to the
+            template. Added `team_mode` confirm prompt to `init-recipe.json`.
+            Synced template to bundled `packages/arc-framework/arc/`. Also added
+            both keys to the internal arc-config.yml.
 
-        - [ ] **7.1.c.ii Update init prompts**
-            - Add team mode prompt to `runInitPrompts()` (after PM mode): "Will other
-              developers work in this repository?"
-            - Update `InitPromptResult` interface to include `team_mode: boolean`
-            - Team prompt appears in fresh mode only (join mode skips it — project
-              team config already established)
+        - [x] **7.1.c.ii Update init prompts**
 
-        - [ ] **7.1.c.iii Behavioral wiring**
-            - `writeArcConfig()` writes `team.mode` and `user.sync_push` values based
-              on team_mode prompt result
-            - Solo (`team_mode: false`): `user.sync_push: always`
-            - Team (`team_mode: true`): `user.sync_push: prompt`
-            - Post-init message: add team coordination guidance when team mode enabled
-              (how other developers join via `arc init` in existing repo)
+            Added `team_mode: boolean` to `InitPromptResult`. Interactive prompt
+            via `p.confirm()` after PM mode. Non-interactive via `--team` CLI
+            flag (defaults to `false`). Added `team` option to
+            `NonInteractiveOptions` and `--team` flag to CLI.
 
-    - [ ] **7.1.d Init: join-mode orchestrator narrowing**
+        - [x] **7.1.c.iii Behavioral wiring**
 
-        Narrow `runInit()` so join mode runs only the personal setup pipeline instead
-        of the full fresh-mode pipeline. Currently both modes run the same path
-        (noted in SESSION-NOTES during 3.7 implementation).
+            `CONFIG_KEY_MAP` writes `team.mode` (stringified boolean) and
+            `user.sync_push` (solo: `always`, team: `prompt`) to arc-config.yml.
+            `team_mode` added to `buildConfigMap` for condition evaluation,
+            `InstallConfig` for manifest storage, and `InitResult` for post-init
+            messaging. Post-init message includes team coordination guidance when
+            team mode enabled. 5 new tests (unit + integration): config map
+            mapping, post-init message with/without team mode, integration test
+            for team config values. 256 tests passing.
 
-        - [ ] **7.1.d.i Join-mode prompt flow**
-            - Add `mode` parameter to `runInitPrompts()`: `'fresh' | 'join'`
-            - Join mode skips: project_name, pm_mode, team_mode prompts (already
-              configured in existing `.arc/system/arc-config.yml`)
-            - Join mode prompts: identity (via `resolveIdentity()`) and tools only
-            - Read existing config from `.arc/system/arc-config.yml` for PM mode
-              context (needed for user directory creation in 7.1.b)
+    - [x] **7.1.d Init: join-mode orchestrator narrowing**
 
-        - [ ] **7.1.d.ii Orchestrator branching**
-            - Join mode skips: file rendering, pristine copies, manifest creation,
-              `.gitignore`/`.gitattributes` setup (all already present from initial
-              developer's `arc init`)
-            - Join mode runs: identity resolution, user directory creation (7.1.b),
-              hook path configuration (`core.hooksPath`), skill generation for
-              selected tools
-            - Integration test: init in repo with existing `.arc/` → detects join
-              mode, creates `user/{identity}/` without touching existing `.arc/`
-              structure
+        - [x] **7.1.d.i Join-mode prompt flow**
+
+            `runInitPrompts()` accepts `mode` parameter (`'fresh' | 'join'`,
+            defaults to `'fresh'`). Join mode shows only tools multiselect.
+            `cli.ts` detects mode via `detectInitMode()` before prompts, reads
+            existing `arc-config.yml` via `parseArcConfig()` to populate
+            `pm_mode` and `team_mode` from the installed config. Non-interactive
+            mode also reads existing config for join mode.
+
+        - [x] **7.1.d.ii Orchestrator branching**
+
+            `runInit()` accepts optional `mode` in `InitOptions`. Join mode
+            branch runs: hooks path config, skill generation + gitignore
+            entries, identity storage + user directory creation. Skips: file
+            rendering, pristine copies, manifest, gitignore/gitattributes
+            setup. Returns `filesWritten: []`. Integration test verifies:
+            manifest unchanged, second dev's user dir created, first dev's
+            intact, identity stored, hooks configured. 257 tests passing.
 
 - [ ] **7.2 Implement PM mode conditional file handling**
 

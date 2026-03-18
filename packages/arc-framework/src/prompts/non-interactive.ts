@@ -20,6 +20,8 @@ export interface NonInteractiveOptions {
   pmMode?: string;
   /** Override tools as CSV string (--tools flag). */
   tools?: string;
+  /** Override team mode (--team flag). */
+  team?: boolean;
 }
 
 /**
@@ -40,5 +42,6 @@ export function buildNonInteractivePrompts(
       ? options.tools.split(",").map((t) => t.trim()).filter(Boolean)
       : [],
     pm_mode: options.pmMode ?? "none",
+    team_mode: options.team ?? false,
   };
 }

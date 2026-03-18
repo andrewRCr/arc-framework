@@ -13,8 +13,8 @@ import { join, relative } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { runInit, buildPostInitMessage } from "./commands/init.js";
-import type { IOContext } from "./commands/init.js";
+import { runInit, buildPostInitMessage, detectInitMode, parseArcConfig } from "./commands/init.js";
+import type { IOContext, InitMode } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runStatus, buildStatusSummary } from "./commands/status.js";
 import { runDiff, buildDiffOutput } from "./commands/diff.js";
@@ -98,25 +98,59 @@ program
   .option("--name <string>", "Project name (requires --yes)")
   .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external (requires --yes)")
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
-  .action(async (opts: { yes?: boolean; name?: string; pmMode?: string; tools?: string }) => {
+  .option("--team", "Enable team mode (requires --yes)")
+  .action(async (opts: { yes?: boolean; name?: string; pmMode?: string; tools?: string; team?: boolean }) => {
     p.intro("arc init");
+
+    const cwd = process.cwd();
+    const io = createIOContext();
+
+    // Detect mode before prompts — join mode shows fewer prompts
+    const mode: InitMode = await detectInitMode(cwd, (path) => access(path));
+
+    // For join mode, read existing config to populate project-level values
+    let existingConfig: Record<string, string> = {};
+    if (mode === "join") {
+      try {
+        const configContent = await readFile(
+          join(cwd, ".arc", "system", "arc-config.yml"), "utf-8",
+        );
+        existingConfig = parseArcConfig(configContent);
+      } catch {
+        // Config unreadable — fall back to defaults
+      }
+      p.log.info("Existing ARC installation detected — running join mode.");
+    }
 
     // Build prompts from flags or interactive prompts
     let prompts;
     if (opts.yes) {
       prompts = buildNonInteractivePrompts({
-        cwd: process.cwd(),
+        cwd,
         name: opts.name,
-        pmMode: opts.pmMode,
+        pmMode: mode === "join" ? (existingConfig["pm.mode"] ?? "none") : opts.pmMode,
         tools: opts.tools,
+        team: mode === "join" ? (existingConfig["team.mode"] === "true") : opts.team,
       });
       if (!opts.tools) {
         p.log.info("No agent tools selected (use --tools to specify).");
       }
     } else {
-      prompts = await runInitPrompts(process.cwd());
-      if (!prompts) {
-        return; // User cancelled — runInitPrompts handles exit
+      if (mode === "join") {
+        // Join mode: only tools prompt — project config already established
+        prompts = await runInitPrompts(cwd, "join");
+        if (!prompts) {
+          return;
+        }
+        // Populate project-level values from existing config
+        prompts.pm_mode = existingConfig["pm.mode"] ?? "none";
+        prompts.team_mode = existingConfig["team.mode"] === "true";
+        prompts.project_name = existingConfig["project.name"] ?? "";
+      } else {
+        prompts = await runInitPrompts(cwd);
+        if (!prompts) {
+          return; // User cancelled — runInitPrompts handles exit
+        }
       }
     }
 
@@ -143,14 +177,15 @@ program
 
     // Run init with progress feedback
     const spinner = p.spinner();
-    spinner.start("Installing ARC framework...");
+    spinner.start(mode === "join" ? "Setting up developer workspace..." : "Installing ARC framework...");
 
     const result = await runInit({
-      cwd: process.cwd(),
-      io: createIOContext(),
+      cwd,
+      io,
       templateDir,
       internalTemplateDir: getInternalTemplatePath(),
       recipe,
+      mode,
       prompts,
       identityResult,
     });
@@ -160,7 +195,7 @@ program
       return;
     }
 
-    spinner.stop("Installation complete.");
+    spinner.stop(mode === "join" ? "Workspace setup complete." : "Installation complete.");
 
     // Post-init message
     p.note(buildPostInitMessage(result), "What's next");
