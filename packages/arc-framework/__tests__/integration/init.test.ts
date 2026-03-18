@@ -9,66 +9,25 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  mkdtemp, rm, readFile, readdir, stat, writeFile, mkdir, access,
-} from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { createHash } from "node:crypto";
+import { stat } from "node:fs/promises";
 
+import {
+  createTempRepo,
+  cleanupTempDir,
+  makeIOContext,
+  loadRecipe,
+  listFiles,
+  sha256,
+  readFile,
+  writeFile,
+  join,
+  execFileAsync,
+  getArcTemplatePath,
+} from "../helpers/integration.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
-import type { IOContext, InitResult } from "../../src/commands/init.js";
-import type { Recipe } from "../../src/lib/types.js";
-import type { GitExec } from "../../src/lib/git.js";
+import type { InitResult } from "../../src/commands/init.js";
 import type { Manifest } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
-import { getArcTemplatePath } from "../../src/lib/paths.js";
-
-const execFileAsync = promisify(execFile);
-
-// --- Helpers ---
-
-/** Create a real GitExec bound to a specific cwd. */
-function makeGitExec(cwd: string): GitExec {
-  return async (cmd, args) => {
-    const { stdout, stderr } = await execFileAsync(cmd, args, { cwd });
-    return { stdout: stdout.trimEnd(), stderr };
-  };
-}
-
-/** Create a real IOContext for a given cwd. */
-function makeIOContext(cwd: string): IOContext {
-  return {
-    readFile: (path) => readFile(path, "utf-8"),
-    writeFile: (path, content) => writeFile(path, content, "utf-8"),
-    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
-    access: (path) => access(path),
-    exec: makeGitExec(cwd),
-  };
-}
-
-/** Recursively collect all file paths under a directory (relative to root). */
-async function walkDir(dir: string, root?: string): Promise<string[]> {
-  root = root ?? dir;
-  const entries = await readdir(dir, { withFileTypes: true });
-  const paths: string[] = [];
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      paths.push(...(await walkDir(full, root)));
-    } else {
-      paths.push(full.slice(root.length + 1));
-    }
-  }
-  return paths.sort();
-}
-
-/** SHA-256 hex digest of a string. */
-function sha256(content: string): string {
-  return createHash("sha256").update(content, "utf-8").digest("hex");
-}
 
 // --- Test Setup ---
 
@@ -83,31 +42,13 @@ const prompts: InitPromptResult = {
   pm_mode: "none",
 };
 
-/** Load the real init recipe. */
-async function loadRecipe(): Promise<Recipe> {
-  const content = await readFile(
-    join(templateDir, "..", "init-recipe.json"),
-    "utf-8",
-  );
-  return JSON.parse(content) as Recipe;
-}
-
 describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   beforeEach(async () => {
-    // Create temp dir with a real git repo
-    tempDir = await mkdtemp(join(tmpdir(), "arc-init-test-"));
+    tempDir = await createTempRepo("arc-init-test-");
     arcDir = join(tempDir, ".arc");
 
-    await execFileAsync("git", ["init", tempDir]);
-    await execFileAsync("git", ["config", "user.email", "test@test.com"], {
-      cwd: tempDir,
-    });
-    await execFileAsync("git", ["config", "user.name", "Test User"], {
-      cwd: tempDir,
-    });
-
     const recipe = await loadRecipe();
-    const io = await makeIOContext(tempDir);
+    const io = makeIOContext(tempDir);
 
     const initResult = await runInit({
       cwd: tempDir,
@@ -123,7 +64,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+    await cleanupTempDir(tempDir);
   });
 
   // --- Directory Structure ---
@@ -159,7 +100,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   // --- File Contents ---
 
   it("renders init-time tokens in output files", async () => {
-    // AGENT-BRIEFING.PROJECT.md is rendered from .template.md with {{PROJECT_NAME}}
     const briefing = await readFile(
       join(arcDir, "system/agent/AGENT-BRIEFING.PROJECT.md"),
       "utf-8",
@@ -168,7 +108,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("leaves no init-time token residuals in rendered files", async () => {
-    const files = await walkDir(arcDir);
+    const files = await listFiles(arcDir, { skipPristine: false });
     const mdFiles = files.filter(
       (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
     );
@@ -186,13 +126,11 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("leaves no unresolved conditional markers in rendered files", async () => {
-    const files = await walkDir(arcDir);
+    const files = await listFiles(arcDir, { skipPristine: false });
     const mdFiles = files.filter(
       (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
     );
 
-    // Match actual conditional comment lines (what the render engine produces/consumes),
-    // not documentation references inside backtick code spans.
     const arcIfLine = /^\s*<!--\s*arc:if\b/m;
     const arcEndifLine = /^\s*<!--\s*arc:endif\s*-->\s*$/m;
 
@@ -260,13 +198,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const manifest = JSON.parse(raw) as Manifest;
 
     const manifestPaths = Object.keys(manifest.files).sort();
-    const diskFiles = await walkDir(arcDir);
-    // Filter out .pristine/ directory — not in manifest
-    const arcFiles = diskFiles
-      .filter((f) => !f.startsWith(".pristine/"))
-      .sort();
+    const diskFiles = await listFiles(arcDir);
+    // listFiles skips .pristine/ by default
 
-    expect(arcFiles).toEqual(manifestPaths);
+    expect(diskFiles).toEqual(manifestPaths);
   });
 
   it("pristine hashes match rendered file content", async () => {
@@ -327,13 +262,11 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   // --- Pristine Copies ---
 
   it("creates .pristine/ copies for Framework and Configurable files", async () => {
-    // Framework file
     const pristineReadme = await stat(
       join(arcDir, ".pristine/README.md"),
     );
     expect(pristineReadme.isFile()).toBe(true);
 
-    // Configurable file
     const pristineConfig = await stat(
       join(arcDir, ".pristine/system/arc-config.yml"),
     );
@@ -350,7 +283,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("pristine copies match .arc/ copies exactly", async () => {
-    // Spot-check a few files
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
@@ -392,7 +324,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("excludes unselected tool agent files", async () => {
-    // CODEX.ARC.md should not exist since tools=["claude"]
     try {
       await stat(join(arcDir, "system/agent/CODEX.ARC.md"));
       expect.fail("CODEX.ARC.md should not exist when codex not selected");
@@ -418,23 +349,16 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "arc-init-arcingit-"));
-    await execFileAsync("git", ["init", tempDir]);
-    await execFileAsync("git", ["config", "user.email", "test@test.com"], {
-      cwd: tempDir,
-    });
-    await execFileAsync("git", ["config", "user.name", "Test User"], {
-      cwd: tempDir,
-    });
+    tempDir = await createTempRepo("arc-init-arcingit-");
   });
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true });
+    await cleanupTempDir(tempDir);
   });
 
   it("includes arc-in-git conditional files", async () => {
     const recipe = await loadRecipe();
-    const io = await makeIOContext(tempDir);
+    const io = makeIOContext(tempDir);
 
     await runInit({
       cwd: tempDir,
