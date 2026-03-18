@@ -1,0 +1,316 @@
+/**
+ * Unit tests for skill generation.
+ *
+ * Tests canonical skill copying to per-tool directories, codex YAML supplement
+ * generation, modification detection, and frontmatter parsing using injectable
+ * I/O dependencies.
+ */
+
+import { describe, it, expect } from "vitest";
+import {
+  generateSkills,
+  parseSkillFrontmatter,
+  buildCodexYaml,
+  CANONICAL_SKILLS,
+  type SkillGenerationIO,
+} from "../../src/lib/skills.js";
+
+// --- Test helpers ---
+
+/** Minimal SKILL.md content with YAML frontmatter. */
+function skillMd(name: string, description: string): string {
+  return [
+    "---",
+    `name: ${name}`,
+    `description: ${description}`,
+    "disable-model-invocation: false",
+    "---",
+    "",
+    `# ${name}`,
+    "",
+    "Do the thing.",
+    "",
+  ].join("\n");
+}
+
+/** Build a file system map with all 5 canonical skills. */
+function buildCanonicalFiles(
+  skillsDir: string,
+): Record<string, string> {
+  const files: Record<string, string> = {};
+  const descriptions: Record<string, string> = {
+    "arc-resume": "Initialize and resume the active working ARC session.",
+    "arc-commit": "Commit current repository changes with atomic boundaries.",
+    "arc-handoff": "Update and finalize current ARC session documentation.",
+    "arc-setup": "Run post-install ARC setup.",
+    "arc-verify": "Run ARC installation health checks.",
+  };
+  for (const name of CANONICAL_SKILLS) {
+    files[`${skillsDir}/${name}/SKILL.md`] = skillMd(
+      name,
+      descriptions[name]!,
+    );
+  }
+  return files;
+}
+
+/** Build a SkillGenerationIO from a file map. */
+function buildIO(files: Record<string, string>): SkillGenerationIO {
+  return {
+    readFile: async (path: string) => {
+      if (path in files) return files[path]!;
+      const err = new Error(`ENOENT: ${path}`) as NodeJS.ErrnoException;
+      err.code = "ENOENT";
+      throw err;
+    },
+  };
+}
+
+const SKILLS_DIR = "/repo/.arc/system/skills";
+const CWD = "/repo";
+
+// --- Tests ---
+
+describe("generateSkills", () => {
+  it("copies all canonical skills to universal default directory", async () => {
+    const files = buildCanonicalFiles(SKILLS_DIR);
+    const io = buildIO(files);
+
+    const result = await generateSkills(
+      ["cursor", "windsurf"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    // Should produce one SKILL.md per canonical skill in .agents/skills/
+    const skillOutputs = result.outputs.filter((o) =>
+      o.path.endsWith("/SKILL.md"),
+    );
+    expect(skillOutputs).toHaveLength(CANONICAL_SKILLS.length);
+
+    for (const name of CANONICAL_SKILLS) {
+      const output = result.outputs.find(
+        (o) => o.path === `.agents/skills/${name}/SKILL.md`,
+      );
+      expect(output).toBeDefined();
+      // Content matches canonical source
+      expect(output!.content).toBe(files[`${SKILLS_DIR}/${name}/SKILL.md`]);
+    }
+
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("copies all canonical skills to standalone tool directory", async () => {
+    const files = buildCanonicalFiles(SKILLS_DIR);
+    const io = buildIO(files);
+
+    const result = await generateSkills(
+      ["claude"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    const skillOutputs = result.outputs.filter((o) =>
+      o.path.endsWith("/SKILL.md"),
+    );
+    expect(skillOutputs).toHaveLength(CANONICAL_SKILLS.length);
+
+    for (const name of CANONICAL_SKILLS) {
+      const output = result.outputs.find(
+        (o) => o.path === `.claude/skills/${name}/SKILL.md`,
+      );
+      expect(output).toBeDefined();
+      expect(output!.content).toBe(files[`${SKILLS_DIR}/${name}/SKILL.md`]);
+    }
+
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("produces outputs for multiple resolved directories", async () => {
+    const files = buildCanonicalFiles(SKILLS_DIR);
+    const io = buildIO(files);
+
+    // claude (standalone: .claude/skills/) + cursor (universal: .agents/skills/)
+    const result = await generateSkills(
+      ["claude", "cursor"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    // Two directories × 5 skills = 10 SKILL.md outputs
+    const skillOutputs = result.outputs.filter((o) =>
+      o.path.endsWith("/SKILL.md"),
+    );
+    expect(skillOutputs).toHaveLength(CANONICAL_SKILLS.length * 2);
+
+    // Verify both directories are represented
+    const claudeOutputs = skillOutputs.filter((o) =>
+      o.path.startsWith(".claude/skills/"),
+    );
+    const agentsOutputs = skillOutputs.filter((o) =>
+      o.path.startsWith(".agents/skills/"),
+    );
+    expect(claudeOutputs).toHaveLength(CANONICAL_SKILLS.length);
+    expect(agentsOutputs).toHaveLength(CANONICAL_SKILLS.length);
+  });
+
+  it("emits warning when existing skill file differs from canonical", async () => {
+    const canonicalFiles = buildCanonicalFiles(SKILLS_DIR);
+    // Add a modified existing file at the target path
+    const existingFiles: Record<string, string> = {
+      ...canonicalFiles,
+      [`${CWD}/.agents/skills/arc-resume/SKILL.md`]: "modified content\n",
+    };
+    const io = buildIO(existingFiles);
+
+    const result = await generateSkills(
+      ["cursor"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    // Should emit exactly one warning for the modified file
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toBe(
+      "Overwriting modified skill file: .agents/skills/arc-resume/SKILL.md",
+    );
+
+    // Output still contains canonical content (overwrite)
+    const resumeOutput = result.outputs.find(
+      (o) => o.path === ".agents/skills/arc-resume/SKILL.md",
+    );
+    expect(resumeOutput!.content).toBe(
+      canonicalFiles[`${SKILLS_DIR}/arc-resume/SKILL.md`],
+    );
+  });
+
+  it("does not warn when existing skill file matches canonical", async () => {
+    const canonicalFiles = buildCanonicalFiles(SKILLS_DIR);
+    // Existing file with identical content
+    const existingFiles: Record<string, string> = {
+      ...canonicalFiles,
+      [`${CWD}/.agents/skills/arc-resume/SKILL.md`]:
+        canonicalFiles[`${SKILLS_DIR}/arc-resume/SKILL.md`]!,
+    };
+    const io = buildIO(existingFiles);
+
+    const result = await generateSkills(
+      ["cursor"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("preserves .arc/ references in skill content unchanged", async () => {
+    const contentWithRef = [
+      "---",
+      "name: arc-resume",
+      "description: Resume the session.",
+      "disable-model-invocation: false",
+      "---",
+      "",
+      "Read `.arc/system/workflows/arc/session-lifecycle/session-init.md`.",
+      "",
+    ].join("\n");
+
+    const files: Record<string, string> = {
+      ...buildCanonicalFiles(SKILLS_DIR),
+      [`${SKILLS_DIR}/arc-resume/SKILL.md`]: contentWithRef,
+    };
+    const io = buildIO(files);
+
+    const result = await generateSkills(
+      ["cursor"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    const output = result.outputs.find(
+      (o) => o.path === ".agents/skills/arc-resume/SKILL.md",
+    );
+    expect(output!.content).toBe(contentWithRef);
+    expect(output!.content).toContain(".arc/system/workflows/");
+  });
+
+  it("generates codex openai.yaml supplement when codex is selected", async () => {
+    const files = buildCanonicalFiles(SKILLS_DIR);
+    const io = buildIO(files);
+
+    const result = await generateSkills(
+      ["codex"],
+      SKILLS_DIR,
+      [],
+      CWD,
+      io,
+    );
+
+    // Should have SKILL.md + openai.yaml for each canonical skill
+    const skillOutputs = result.outputs.filter((o) =>
+      o.path.endsWith("/SKILL.md"),
+    );
+    const yamlOutputs = result.outputs.filter((o) =>
+      o.path.endsWith("/agents/openai.yaml"),
+    );
+    expect(skillOutputs).toHaveLength(CANONICAL_SKILLS.length);
+    expect(yamlOutputs).toHaveLength(CANONICAL_SKILLS.length);
+
+    // Verify one yaml output structure
+    const resumeYaml = result.outputs.find(
+      (o) => o.path === ".agents/skills/arc-resume/agents/openai.yaml",
+    );
+    expect(resumeYaml).toBeDefined();
+    expect(resumeYaml!.content).toContain('display_name: "ARC Resume"');
+    expect(resumeYaml!.content).toContain("short_description:");
+    expect(resumeYaml!.content).toContain("default_prompt:");
+  });
+});
+
+describe("parseSkillFrontmatter", () => {
+  it("extracts name and description from valid frontmatter", () => {
+    const content = skillMd("arc-resume", "Resume the session.");
+    const result = parseSkillFrontmatter(content);
+    expect(result).toEqual({
+      name: "arc-resume",
+      description: "Resume the session.",
+    });
+  });
+
+  it("returns null for content without frontmatter", () => {
+    expect(parseSkillFrontmatter("# Just a heading\n")).toBeNull();
+  });
+
+  it("returns null when required fields are missing", () => {
+    const content = "---\ntitle: something\n---\n";
+    expect(parseSkillFrontmatter(content)).toBeNull();
+  });
+});
+
+describe("buildCodexYaml", () => {
+  it("produces valid yaml from frontmatter", () => {
+    const yaml = buildCodexYaml({
+      name: "arc-resume",
+      description: "Initialize and resume the active working ARC session.",
+    });
+
+    expect(yaml).toContain('display_name: "ARC Resume"');
+    expect(yaml).toContain(
+      'short_description: "Initialize and resume the active working ARC session."',
+    );
+    expect(yaml).toContain("default_prompt:");
+    expect(yaml).toContain("interface:");
+  });
+});

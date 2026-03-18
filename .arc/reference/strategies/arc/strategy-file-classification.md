@@ -21,6 +21,11 @@ ARC methodology files. Rarely customized by adopters. Updated via three-way merg
 
 **Update behavior:** Auto-merge. Flag conflicts for review (indicates unexpected customization).
 
+**If you need to customize:** Framework files shouldn't be edited directly — changes will be
+overwritten during updates. See [Configurability Architecture][config-arch] §
+[Which mechanism do I use?][config-arch-which] for the right customization surface (config
+settings, method overrides, extensions, or Configurable files).
+
 ### Configurable
 
 Framework structure combined with project-specific content. Contains both ARC methodology
@@ -366,5 +371,11 @@ counted.*
 
 ## Related Documentation
 
+- [Configurability Architecture Strategy][config-arch] — Customization mechanisms and adopter guidance
 - [Work Organization Strategy](strategy-work-organization.md) — Directory structure, work categories
 - [DEV-RULES.PROJECT](../../constitution/DEV-RULES.PROJECT.md) — Project quality standards
+
+---
+
+[config-arch]: strategy-configurability-architecture.md
+[config-arch-which]: strategy-configurability-architecture.md#which-mechanism-do-i-use

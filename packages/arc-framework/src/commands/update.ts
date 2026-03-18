@@ -26,11 +26,17 @@ import { gitMergeFile } from "../lib/git.js";
 import type { GitExec } from "../lib/git.js";
 import { diffFileLists } from "../lib/update-files.js";
 import { renderTokens, renderConditionals } from "../lib/render.js";
-import { ensureDir } from "../lib/files.js";
+import { ensureDir, appendToGitignore } from "../lib/files.js";
 import { hashContent } from "../lib/hash.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError } from "../lib/errors.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
+import {
+  generateSkills,
+  writeSkillOutputs,
+  skillGitignoreEntries,
+  detectExistingSkillDirs,
+} from "../lib/skills.js";
 
 // --- Types ---
 
@@ -380,6 +386,23 @@ export async function runUpdate(
         break;
     }
     // Not added to newManifestFiles — removed from tracking
+  }
+
+  // Regenerate skills — deterministic copies, always overwrite
+  const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
+  const skillResult = await generateSkills(
+    ic.tools,
+    join(templateDir, "system", "skills"),
+    existingSkillDirs,
+    cwd,
+    { readFile: io.readFile },
+  );
+  await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
+
+  // Ensure gitignore entries for skill directories
+  const gitignorePath = join(cwd, ".gitignore");
+  for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
+    await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
   }
 
   // Build and write updated manifest

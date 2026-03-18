@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.1 — Skill generation implementation (`src/lib/skills.ts`) (line ~973)
-**Last Completed**: Task 5.6 — Run quality gates (Phase 5 complete)
+**Next Task**: Task 7.1 — Implement unified user directory and identity resolution (line ~1035)
+**Last Completed**: Task 6.5 — Run quality gates (Phase 6 complete)
 **Blockers**: [none]
-**Next Action**: Begin Phase 6 — skill generation
+**Next Action**: Begin Phase 7 — user directory, PM mode, and portability
 
 ---
 

@@ -953,68 +953,66 @@ generation with init and update commands.
   Framework-classified files (via manifest lookup) and generated skill files (via path
   pattern matching). Warning, not error.
 
-- [ ] **6.1 Skill generation implementation (`src/lib/skills.ts`)**
+- [x] **6.1 Skill generation implementation (`src/lib/skills.ts`)**
 
-    Replace the `generateSkills()` stub. The resolution infrastructure
-    (`resolveSkillTargets()`, tool constants, directory detection) already exists and
-    is tested. 13 tools supported: 10 Universal tier + 3 Standalone tier.
+    Replaced `generateSkills()` stub with full implementation. New signature adds
+    `cwd` and `SkillGenerationIO` params; returns `SkillGenerationResult` with
+    `outputs` (skill files to write) and `warnings` (modification detection).
 
-    - Read canonical SKILL.md files from bundled `arc/system/skills/` (5 skills:
-      arc-resume, arc-commit, arc-handoff, arc-setup, arc-verify)
-    - For each resolved target directory: copy each canonical skill into
-      `{skillDir}/{skillName}/SKILL.md`
-    - For targets with `codex-yaml` supplement: generate
-      `{skillDir}/{skillName}/agents/openai.yaml` with `interface.display_name`,
-      `short_description`, `default_prompt` derived from SKILL.md YAML frontmatter
-    - Modification detection: before overwriting an existing skill file, compare
-      current content against canonical source. If content differs, warn and overwrite
-      (note in output: "Overwriting modified skill file: {path}")
-    - Accept `IOContext` for filesystem operations (testability)
+    - `parseSkillFrontmatter()`: regex-based YAML frontmatter extraction (name, description)
+    - `buildCodexYaml()`: generates `openai.yaml` from frontmatter (display_name uses "ARC"
+      uppercase, not title-case)
+    - `generateSkills()`: reads canonicals, resolves targets, produces outputs per
+      skill × target, generates codex-yaml supplements, detects modified existing files
+    - Updated `init.ts` call site to pass new args (output handling deferred to 6.2)
+    - Updated `init.test.ts`: `mockIO` auto-includes canonical skill stubs via
+      `canonicalSkillFiles()` helper
+    - 11 unit tests (6 generateSkills behaviors + 3 frontmatter + 1 codexYaml + 1 edge case)
 
-    Build `test-first` (one behavior at a time):
-    - Canonical skill → output in `.agents/skills/` (universal default directory)
-    - Canonical skill → output in `.claude/skills/` (standalone tool directory)
-    - Codex selected → `openai.yaml` supplement generated alongside SKILL.md
-    - Multiple tools → correct output set for each resolved directory
-    - Existing modified skill file → warning emitted before overwrite
-    - Skill content unchanged from canonical (`.arc/` references preserved)
+- [x] **6.2 Integrate with init and update**
 
-- [ ] **6.2 Integrate with init and update**
+    - Init: `generateSkills()` result now written to disk via `writeSkillOutputs()`.
+      Gitignore entries added per resolved target directory (`{dir}/arc-*/`).
+    - Update: added `generateSkills()` call after file merge loop. Uses
+      `detectExistingSkillDirs()` to honor existing tool directories. Always
+      regenerates (no manifest tracking). Gitignore entries ensured.
+    - Shared helpers in `skills.ts`: `writeSkillOutputs()`, `skillGitignoreEntries()`,
+      `detectExistingSkillDirs()`
+    - Updated init unit test to assert skill file writes (10 files for claude+cursor)
+      and gitignore entries
 
-    - Init: `generateSkills()` already called in `runInit()` (line 431) — replace
-      stub call with real generation. Pass `IOContext` for filesystem access.
-    - Update: call `generateSkills()` after file merge loop. Always regenerate (no
-      manifest tracking — skills are deterministic copies). Modification detection
-      from 6.1 handles existing files.
-    - Both: add skill output directory patterns to `.gitignore` if not already present
-      (e.g., `.agents/skills/arc-*/`, `.claude/skills/arc-*/`)
+- [x] **6.3 Pre-commit hook: framework-owned file protection (CHECK 10)**
 
-- [ ] **6.3 Pre-commit hook: framework-owned file protection (CHECK 10)**
+    Added CHECK 10 to public hook, CHECK 11 to internal hook (internal already
+    has CHECK 10 for boundary enforcement). Two detection categories:
 
-    Add to `.arc/system/githooks/pre-commit`. Warns when staged changes modify files
-    that `arc update` will overwrite. Covers two categories:
+    - **Manifest-based**: staged `.arc/` files looked up in `.arc-manifest.json`;
+      `Framework` classification triggers warning. Skipped when no manifest exists.
+    - **Pattern-based**: staged files matching `skills/arc-*/SKILL.md` or
+      `skills/arc-*/agents/*.yaml` trigger separate warning.
+    - Warning tone: factual ("Changes will be overwritten by arc update.") with
+      pointer to `strategy-configurability-architecture.md` for Framework files
+      (no pointer for generated skills — no customization path exists).
+    - Added "If you need to customize" paragraph to `strategy-file-classification.md`
+      § Framework with link to configurability architecture § Which mechanism do I use?
+      Creates the complete breadcrumb: hook → classification → customization path.
 
-    - **Manifest-based** (`.arc/` files): if `.arc-manifest.json` exists, read it and
-      check each staged `.arc/` file against manifest classification. Files classified
-      as `Framework` → warning.
-    - **Pattern-based** (generated skills): staged files matching
-      `*/skills/arc-*/SKILL.md` or `*/skills/arc-*/agents/*.yaml` → warning.
-      Forward-compatible — pattern catches any future skill additions.
-    - Warning text: "This file is managed by arc-framework and will be overwritten
-      during `arc update`. Consider reverting your changes."
-    - Warning level (not error) — doesn't block the commit.
+- [x] **6.4 Integration tests for skill generation**
 
-- [ ] **6.4 Integration tests for skill generation**
-    - Test: init with claude selected → `.claude/skills/` populated with all 5 skills
-    - Test: init with codex selected → `.agents/skills/` with `openai.yaml` per skill
-    - Test: init with multiple agents → all resolved directories populated
-    - Test: update regenerates skills (canonical content reflected in output)
-    - Test: modified skill file → warning emitted, file overwritten with canonical
+    6 integration tests in `__tests__/integration/skills.test.ts`:
+    - init with claude → `.claude/skills/` has all 5 SKILL.md files
+    - init with codex → `.agents/skills/` has SKILL.md + `agents/openai.yaml` per skill
+    - init with claude+cursor → both `.claude/skills/` and `.agents/skills/` populated
+    - generated skill content matches canonical source byte-for-byte
+    - init adds skill directory patterns (`.claude/skills/arc-*/` etc.) to `.gitignore`
+    - init → modify skill → update → canonical content restored
 
-- [ ] **6.5 Run quality gates**
-    - Type checking passes
-    - All tests pass
-    - Markdown linting passes
+- [x] **6.5 Run quality gates**
+    - TypeScript type checking: clean (strict mode)
+    - Full test suite: 21 files, 247 tests (200 unit + 47 integration), all pass
+    - Markdown linting: 158 files, 0 errors
+    - Build: ESM + DTS success
+    - Phase 6 complete
 
 ### **Phase 7:** User Directory, PM Mode, and Portability
 

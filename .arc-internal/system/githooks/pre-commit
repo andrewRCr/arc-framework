@@ -285,6 +285,47 @@ if [ -n "$internal_refs_in_public" ]; then
 fi
 
 # ============================================================================
+# CHECK 11: Framework-owned file protection
+# ============================================================================
+# Warns when staged changes modify files that arc update will overwrite.
+# Two categories: manifest-classified Framework files and generated skill files.
+# Warning only — does not block the commit.
+
+# 11a: Manifest-based — .arc/ files classified as Framework
+if [ -f ".arc-manifest.json" ]; then
+    framework_files=""
+    staged_arc_files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^\.arc/' || true)
+    for file in $staged_arc_files; do
+        # Strip .arc/ prefix to get the manifest key
+        file_rel="${file#.arc/}"
+        # Look up classification in manifest (grep -A2 finds the classification line)
+        classification=$(grep -A2 "\"${file_rel}\"" .arc-manifest.json 2>/dev/null | grep '"classification"' | sed 's/.*: *"//;s/".*//' || true)
+        if [ "$classification" = "Framework" ]; then
+            framework_files="${framework_files}${file}\n"
+        fi
+    done
+
+    if [ -n "$framework_files" ]; then
+        echo -e "${YELLOW}Warning: Framework-managed file staged:${NC}"
+        echo -e "$framework_files" | sed '/^$/d' | sed 's/^/   /'
+        echo "   Changes will be overwritten by arc update."
+        echo "   To customize ARC behavior, see strategy-configurability-architecture.md"
+        warnings=$((warnings + 1))
+    fi
+fi
+
+# 11b: Pattern-based — generated skill files
+generated_skill_files=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '(^|/)skills/arc-[^/]+/(SKILL\.md|agents/.*\.yaml)$' || true)
+
+if [ -n "$generated_skill_files" ]; then
+    echo -e "${YELLOW}Warning: Generated skill file staged:${NC}"
+    echo "$generated_skill_files" | sed 's/^/   /'
+    echo "   Changes will be overwritten by arc update."
+    warnings=$((warnings + 1))
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

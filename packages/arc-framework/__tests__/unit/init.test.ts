@@ -23,6 +23,25 @@ import {
 import type { IOContext } from "../../src/commands/init.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
+import { CANONICAL_SKILLS } from "../../src/lib/skills.js";
+
+/** Build stub canonical skill files for a template directory. */
+function canonicalSkillFiles(templateDir: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const name of CANONICAL_SKILLS) {
+    files[`${templateDir}/system/skills/${name}/SKILL.md`] = [
+      "---",
+      `name: ${name}`,
+      `description: Stub skill for testing.`,
+      "disable-model-invocation: false",
+      "---",
+      "",
+      `# ${name}`,
+      "",
+    ].join("\n");
+  }
+  return files;
+}
 
 // --- detectInitMode ---
 
@@ -290,11 +309,15 @@ describe("buildManifestFiles", () => {
 // --- runInit (orchestrator) ---
 
 /** Helper: create a mock IOContext with a virtual filesystem. */
-function mockIO(files: Record<string, string> = {}): IOContext {
+function mockIO(
+  files: Record<string, string> = {},
+  templateDir = "/templates",
+): IOContext {
+  const allFiles = { ...canonicalSkillFiles(templateDir), ...files };
   const written: Record<string, string> = {};
   return {
     readFile: vi.fn(async (path: string) => {
-      if (path in files) return files[path]!;
+      if (path in allFiles) return allFiles[path]!;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     writeFile: vi.fn(async (path: string, content: string) => {
@@ -302,7 +325,7 @@ function mockIO(files: Record<string, string> = {}): IOContext {
     }),
     mkdir: vi.fn(async () => undefined),
     access: vi.fn(async (path: string) => {
-      if (path in files) return;
+      if (path in allFiles) return;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     exec: vi.fn(async (_cmd: string, args: string[]) => {
@@ -457,6 +480,23 @@ describe("runInit", () => {
     });
 
     expect(result.tools).toEqual(["claude", "cursor"]);
+
+    // Skill files written to disk for both resolved directories
+    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
+    const skillWrites = writeCalls.filter(
+      (c: [string, string]) =>
+        c[0].includes("/skills/arc-") && c[0].endsWith("/SKILL.md"),
+    );
+    // 5 skills × 2 directories (.claude/skills/ + .agents/skills/)
+    expect(skillWrites).toHaveLength(10);
+
+    // Gitignore entries added for skill directories
+    const gitignoreWrites = writeCalls
+      .filter((c: [string, string]) => c[0] === "/project/.gitignore")
+      .map((c: [string, string]) => c[1] as string);
+    const allGitignoreContent = gitignoreWrites.join("\n");
+    expect(allGitignoreContent).toContain(".claude/skills/arc-*/");
+    expect(allGitignoreContent).toContain(".agents/skills/arc-*/");
   });
 
   it("returns null when prompts is null (user cancelled)", async () => {

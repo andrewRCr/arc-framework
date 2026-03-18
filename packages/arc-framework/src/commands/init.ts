@@ -17,7 +17,11 @@ import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Classification, Layer, FileEntry, Manifest } from "../lib/types.js";
 import type { Recipe } from "../lib/types.js";
 import { evaluateCondition } from "../lib/recipe.js";
-import { generateSkills } from "../lib/skills.js";
+import {
+  generateSkills,
+  writeSkillOutputs,
+  skillGitignoreEntries,
+} from "../lib/skills.js";
 import { hashContent } from "../lib/hash.js";
 import { getFrameworkVersion } from "../lib/version.js";
 
@@ -428,8 +432,20 @@ export async function runInit(
   await io.exec("git", ["config", "merge.ours.driver", "true"]);
   await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
 
-  // Skill generation
-  await generateSkills(prompts.tools, join(templateDir, "system", "skills"), []);
+  // Skill generation — copy canonical skills to per-tool directories
+  const skillResult = await generateSkills(
+    prompts.tools,
+    join(templateDir, "system", "skills"),
+    [],
+    cwd,
+    { readFile: io.readFile },
+  );
+  await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
+
+  // Add gitignore entries for generated skill directories
+  for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
+    await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
+  }
 
   // Store identity
   if (identityResult) {
