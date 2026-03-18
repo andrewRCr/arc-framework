@@ -35,6 +35,8 @@ export interface StatusResult {
   versionCurrent: string;
   /** Whether the CLI is newer than the installed version. */
   updateAvailable: boolean;
+  /** Latest version from npm registry, or null if unavailable. */
+  latestVersion: string | null;
 }
 
 /** I/O dependencies for the status command. */
@@ -50,6 +52,8 @@ export interface StatusOptions {
   cwd: string;
   io: StatusIOContext;
   frameworkVersion: string;
+  /** Latest version from npm registry (pre-fetched by caller), or null. */
+  latestVersion?: string | null;
 }
 
 // --- Orchestrator ---
@@ -121,6 +125,7 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
     versionInstalled,
     versionCurrent: frameworkVersion,
     updateAvailable,
+    latestVersion: options.latestVersion ?? null,
   };
 }
 
@@ -138,6 +143,9 @@ export function buildStatusSummary(result: StatusResult): string {
   // Version info
   lines.push(`Installed: v${result.versionInstalled}`);
   lines.push(`CLI:       v${result.versionCurrent}`);
+  if (result.latestVersion) {
+    lines.push(`Latest:    v${result.latestVersion}`);
+  }
   if (result.updateAvailable) {
     lines.push("");
     lines.push("Update available — run 'arc update' to apply.");

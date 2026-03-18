@@ -17,10 +17,12 @@ import { runInit, buildPostInitMessage } from "./commands/init.js";
 import type { IOContext } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runStatus, buildStatusSummary } from "./commands/status.js";
+import { runDiff, buildDiffOutput } from "./commands/diff.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
+import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
 import { resolveIdentity } from "./lib/identity.js";
 import { getArcTemplatePath } from "./lib/paths.js";
-import { getFrameworkVersion } from "./lib/version.js";
+import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
 import { readManifest } from "./lib/manifest.js";
 import { formatError } from "./lib/errors.js";
 import { UserFacingError } from "./lib/errors.js";
@@ -90,13 +92,30 @@ program
 program
   .command("init")
   .description("Initialize ARC framework in the current project")
-  .action(async () => {
+  .option("-y, --yes", "Skip prompts, use defaults")
+  .option("--name <string>", "Project name (requires --yes)")
+  .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external (requires --yes)")
+  .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .action(async (opts: { yes?: boolean; name?: string; pmMode?: string; tools?: string }) => {
     p.intro("arc init");
 
-    // Interactive prompts
-    const prompts = await runInitPrompts(process.cwd());
-    if (!prompts) {
-      return; // User cancelled — runInitPrompts handles exit
+    // Build prompts from flags or interactive prompts
+    let prompts;
+    if (opts.yes) {
+      prompts = buildNonInteractivePrompts({
+        cwd: process.cwd(),
+        name: opts.name,
+        pmMode: opts.pmMode,
+        tools: opts.tools,
+      });
+      if (!opts.tools) {
+        p.log.info("No agent tools selected (use --tools to specify).");
+      }
+    } else {
+      prompts = await runInitPrompts(process.cwd());
+      if (!prompts) {
+        return; // User cancelled — runInitPrompts handles exit
+      }
     }
 
     // Identity resolution (with clack prompt adapter)
@@ -198,6 +217,8 @@ program
 
     try {
       const cwd = process.cwd();
+      // Check npm registry in parallel with status computation (non-blocking)
+      const latestVersionPromise = checkLatestVersion("@arc-framework/cli");
       const result = await runStatus({
         cwd,
         io: {
@@ -206,6 +227,7 @@ program
           readdir: (arcDir) => listArcFiles(arcDir),
         },
         frameworkVersion: getFrameworkVersion(),
+        latestVersion: await latestVersionPromise,
       });
 
       p.note(buildStatusSummary(result), "Status");
@@ -227,8 +249,50 @@ program
 program
   .command("diff")
   .description("Show differences between installed and latest framework files")
-  .action(() => {
-    console.log("arc diff — not yet implemented");
+  .action(async () => {
+    p.intro("arc diff");
+
+    try {
+      const result = await runDiff({
+        cwd: process.cwd(),
+        io: {
+          readFile: (path) => readFile(path, "utf-8"),
+          readManifest: (path) => readManifest(path),
+          gitDiff: async (pristinePath, currentPath) => {
+            try {
+              const { stdout } = await execFileAsync("git", [
+                "diff",
+                "--no-index",
+                "--",
+                pristinePath,
+                currentPath,
+              ]);
+              return stdout;
+            } catch (err: unknown) {
+              // git diff --no-index exits 1 when differences found — not an error
+              const stdout = (err as { stdout?: string }).stdout;
+              if (typeof stdout === "string") return stdout;
+              throw err;
+            }
+          },
+        },
+      });
+
+      const output = buildDiffOutput(result);
+      if (result.totalChanged > 0 || result.errors.length > 0) {
+        p.log.message(output);
+      } else {
+        p.log.success(output);
+      }
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
+
+    p.outro("Done.");
   });
 
 program.parse();

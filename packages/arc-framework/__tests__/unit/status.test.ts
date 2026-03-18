@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { runStatus } from "../../src/commands/status.js";
+import { runStatus, buildStatusSummary } from "../../src/commands/status.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import type { StatusIOContext } from "../../src/commands/status.js";
 import type { Manifest } from "../../src/lib/types.js";
@@ -198,5 +198,54 @@ describe("runStatus", () => {
     const newFile = result.fileStatuses.find((f) => f.path === "custom/my-file.md");
     expect(newFile).toBeDefined();
     expect(newFile!.state).toBe("new");
+  });
+
+  it("passes latestVersion through to result", async () => {
+    const manifest = buildManifest({ framework_version: "1.0.0" });
+    const io = buildIO({ manifest, arcFiles: [] });
+
+    const result = await runStatus({
+      cwd: CWD,
+      io,
+      frameworkVersion: "1.0.0",
+      latestVersion: "2.0.0",
+    });
+
+    expect(result.latestVersion).toBe("2.0.0");
+  });
+
+  it("latestVersion defaults to null when not provided", async () => {
+    const manifest = buildManifest();
+    const io = buildIO({ manifest, arcFiles: [] });
+
+    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+
+    expect(result.latestVersion).toBeNull();
+  });
+});
+
+describe("buildStatusSummary", () => {
+  it("includes Latest line when latestVersion is present", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: "2.0.0",
+    });
+
+    expect(summary).toContain("Latest:    v2.0.0");
+  });
+
+  it("omits Latest line when latestVersion is null", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: null,
+    });
+
+    expect(summary).not.toContain("Latest:");
   });
 });

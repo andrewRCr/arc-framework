@@ -878,68 +878,58 @@ usage and E2E testability, and finalize cross-cutting CLI concerns.
     with `listArcFiles()` recursive walker. 6 unit tests (test-first): manifest missing, fresh init
     all unmodified, modified detection, missing detection, version mismatch, new file detection.
 
-- [ ] **5.2 Version availability check (`src/lib/version.ts` extension)**
+- [x] **5.2 Version availability check (`src/lib/version.ts` extension)**
 
-    Extend the version module from 4.2 with npm registry checking.
+    `checkLatestVersion(packageName, fetchImpl)` with injectable `FetchFn` for testability.
+    Scoped package URL encoding (`/@arc-framework%2fcli/latest`). Returns `string | null` —
+    network errors and non-ok responses return null (non-fatal). Integrated into status command:
+    `latestVersion` field on `StatusResult`, "Latest: vX.Y.Z" line in summary when available,
+    omitted when null. Registry check runs in parallel with status computation in `cli.ts`.
+    8 new tests: 4 for `checkLatestVersion` (success, network error, non-ok response, URL
+    encoding), 4 for status integration (latestVersion passthrough, null default, summary
+    with/without latest). Batched — tightly coupled behaviors per function, single-pass
+    implementation.
 
-    - `checkLatestVersion(packageName)` — native `fetch()` to
-      `https://registry.npmjs.org/{package}/latest`, returns version string or
-      null on failure (network errors are non-fatal)
-    - Integrate into status command: show "Latest: A.B.C" alongside installed version
-      when registry is reachable; omit line when offline
-    - Scoped package URL encoding: `/@arc-framework%2fcli/latest`
+- [x] **5.3 Diff command (`src/commands/diff.ts`)**
 
-    Build `test-first` (one behavior at a time):
-    - Successful registry response returns version string
-    - Network error returns null (non-fatal, no throw)
-    - Integrates cleanly with status output (present when available, absent when not)
+    `DiffIOContext` with injectable `readFile`, `readManifest`, and `gitDiff`. `runDiff()`
+    orchestrator: reads manifest (hard fail `MANIFEST_MISSING`), iterates Framework and
+    Configurable files, skips Scaffolded (count tracked), skips unmodified via hash comparison,
+    verifies pristine exists before calling gitDiff (missing pristine → per-file error, non-fatal).
+    `buildDiffOutput()` formats with file headers and error section. Wired into `cli.ts` with
+    inline `gitDiff` using `execFileAsync` (handles exit code 1 = differences found). 5 unit
+    tests: manifest missing, unmodified, modified with diff output, scaffolded exclusion, missing
+    pristine error. Batched — single orchestrator with varying mock file states.
 
-- [ ] **5.3 Diff command (`src/commands/diff.ts`)**
+- [x] **5.4 Non-interactive mode for init**
 
-    - For each managed file: shell out to `git diff --no-index` comparing `.pristine/`
-      copy against current `.arc/` file (uses existing `GitExec` pattern)
-    - Filter to Framework and Configurable files only (skip Scaffolded)
-    - Skip unmodified files (hash comparison via `hashContent()` first, diff only if
-      hashes differ)
-    - Output: standard unified diff per file, or "no changes" message
-    - Wire into `cli.ts`: replace diff command stub with real handler
+    `buildNonInteractivePrompts()` in `src/prompts/non-interactive.ts` — pure function that
+    builds `InitPromptResult` from CLI flags + defaults. Defaults: `basename(cwd)` for name,
+    `[]` for tools, `"none"` for pm_mode. Each flag (`--name`, `--pm-mode`, `--tools`) overrides
+    one default. CSV parsing for `--tools` with trim and empty-filter. Commander options wired
+    on init command (`-y/--yes`, `--name`, `--pm-mode`, `--tools`). When `--yes` without
+    `--tools`, logs info note. Without `--yes`, existing interactive flow unchanged. 5 unit
+    tests: defaults only, name override, pm-mode override, tools override, all combined.
+    Batched — pure function exercised with different input combinations.
 
-    Build `test-first` (one behavior at a time):
-    - Unmodified install → "no changes" message
-    - Modified file → shows unified diff with filename header
-    - Scaffolded files excluded from output
-    - Missing pristine → clear error per file (not fatal to whole command)
+- [x] **5.5 Integration tests for status and diff**
 
-- [ ] **5.4 Non-interactive mode for init**
+    7 integration tests in `__tests__/integration/status-diff.test.ts` exercising real
+    filesystem I/O against a temp repo created by `arc init`. Extracted shared test
+    infrastructure into `__tests__/helpers/integration.ts` (`createTempRepo`,
+    `initInTempRepo`, `makeGitExec`, `makeIOContext`, `listFiles`, `loadRecipe`, etc.)
+    to DRY the duplicated setup across init, update, and status-diff integration tests.
+    Existing tests not migrated (opportunistic later).
 
-    User-facing feature enabling CI/CD pipelines, scripted installs, and E2E testing.
-    The prompt/orchestrator separation already exists (`runInitPrompts()` → `runInit()`).
+    - Status: fresh init all unmodified, modified file detected, new untracked file detected
+    - Diff: unmodified install → no diffs, modified file → unified diff with content
+    - Missing manifest: both status and diff throw UserFacingError
 
-    - `--yes` flag on `arc init`: skip prompts, use defaults (project_name from
-      `basename(cwd)`, tools=`[]`, pm_mode=`"none"`)
-    - Optional value flags: `--name <string>`, `--pm-mode <mode>`, `--tools <csv>`
-      (override specific defaults when `--yes` is active)
-    - Wire in Commander: parse flags → construct `InitPromptResult` from flags +
-      defaults → pass to `runInit()`
-    - If `--yes` without `--tools`, log note that no agent tools were selected
-
-    Build `test-first` (one behavior at a time):
-    - `--yes` produces valid `InitPromptResult` with defaults
-    - `--yes --name foo` overrides project name
-    - `--yes --pm-mode arc-in-git` overrides PM mode
-    - Without `--yes`, prompts still run normally (existing behavior unchanged)
-
-- [ ] **5.5 Integration tests for status and diff**
-    - Test: status on fresh init → all files unmodified
-    - Test: status after modifying a file → reports modified
-    - Test: diff on unmodified install → no output
-    - Test: diff after modifying a file → shows unified diff
-    - Test: status/diff with missing manifest → clear error
-
-- [ ] **5.6 Run quality gates**
-    - Type checking passes
-    - All tests pass
-    - Markdown linting passes
+- [x] **5.6 Run quality gates**
+    - Markdown linting: 158 files, 0 errors
+    - TypeScript type checking: clean (strict mode)
+    - Full test suite: 19 files, 230 tests (189 unit + 41 integration), all pass
+    - Also migrated init and update integration tests to shared `__tests__/helpers/integration.ts`
 
 ### **Phase 6:** Skill Generation
 

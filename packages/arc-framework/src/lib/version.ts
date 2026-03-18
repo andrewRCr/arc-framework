@@ -1,8 +1,9 @@
 /**
- * Package version resolution.
+ * Package version resolution and registry checking.
  *
  * Reads the framework version from the CLI package's own `package.json`
- * at runtime, using the same walk-up pattern as `paths.ts`.
+ * at runtime, and optionally checks the npm registry for the latest
+ * published version.
  *
  * @module
  */
@@ -52,4 +53,46 @@ export function findVersionFromDir(startDir: string): string {
     dir = parent;
   }
   return FALLBACK_VERSION;
+}
+
+// --- npm Registry Checking ---
+
+/** Minimal fetch response shape for dependency injection. */
+export interface FetchResponse {
+  ok: boolean;
+  json: () => Promise<unknown>;
+}
+
+/** Injectable fetch function for testability. */
+export type FetchFn = (url: string) => Promise<FetchResponse>;
+
+const NPM_REGISTRY = "https://registry.npmjs.org";
+
+/**
+ * Check the npm registry for the latest published version of a package.
+ *
+ * Uses native `fetch()` (Node 18+). Network errors are non-fatal — returns
+ * null so callers can gracefully skip the version display when offline.
+ *
+ * @param packageName - npm package name (supports scoped packages)
+ * @param fetchImpl - Injectable fetch function (defaults to global `fetch`)
+ * @returns Latest version string, or null if the registry is unreachable
+ */
+export async function checkLatestVersion(
+  packageName: string,
+  fetchImpl: FetchFn = fetch as unknown as FetchFn,
+): Promise<string | null> {
+  // Encode scoped package names: @scope/name → @scope%2fname
+  const encoded = packageName.replace(/\//, "%2f");
+  const url = `${NPM_REGISTRY}/${encoded}/latest`;
+
+  try {
+    const response = await fetchImpl(url);
+    if (!response.ok) return null;
+    const data = response.json() as Promise<{ version?: string }>;
+    const pkg = await data;
+    return typeof pkg.version === "string" ? pkg.version : null;
+  } catch {
+    return null;
+  }
 }
