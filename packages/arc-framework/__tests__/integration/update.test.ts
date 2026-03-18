@@ -17,9 +17,10 @@ import {
   sha256,
   ensureDir,
   fileExists,
+  setupInitialState,
+  createTemplateDir,
   readFile,
   writeFile,
-  mkdir,
   rm,
   join,
   dirname,
@@ -29,86 +30,9 @@ import {
 } from "../helpers/integration.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
-import type {
-  Recipe,
-  Manifest,
-  FileEntry,
-  Classification,
-  Layer,
-} from "../../src/lib/types.js";
-// InitPromptResult imported via helpers (DEFAULT_PROMPTS)
+import type { Recipe, Manifest } from "../../src/lib/types.js";
 
-// --- Synthetic test helpers (update-specific) ---
-
-interface FileSpec {
-  content: string;
-  classification: Classification;
-  layer?: Layer;
-}
-
-/**
- * Set up a minimal ARC installation in a temp dir.
- * Writes .arc/ files, .pristine/ copies, and .arc-manifest.json.
- */
-async function setupInitialState(
-  dir: string,
-  files: Record<string, FileSpec>,
-  installConfig?: Manifest["install_config"],
-): Promise<void> {
-  const arcDir = join(dir, ".arc");
-  const pristineDir = join(arcDir, ".pristine");
-
-  const manifestFiles: Record<string, FileEntry> = {};
-
-  for (const [path, { content, classification, layer }] of Object.entries(
-    files,
-  )) {
-    await ensureDir(dirname(join(arcDir, path)));
-    await writeFile(join(arcDir, path), content, "utf-8");
-
-    if (classification !== "Scaffolded") {
-      await ensureDir(dirname(join(pristineDir, path)));
-      await writeFile(join(pristineDir, path), content, "utf-8");
-    }
-
-    manifestFiles[path] = {
-      classification,
-      layer: layer ?? "core",
-      pristine_hash: sha256(content),
-    };
-  }
-
-  const manifest: Manifest = {
-    framework_version: "1.0.0",
-    installed_at: "2026-01-01T00:00:00.000Z",
-    install_config: installConfig ?? {
-      project_name: "Test Project",
-      pm_mode: "none",
-      tools: [],
-    },
-    files: manifestFiles,
-  };
-
-  await writeFile(
-    join(dir, ".arc-manifest.json"),
-    JSON.stringify(manifest, null, 2) + "\n",
-    "utf-8",
-  );
-}
-
-/** Create a template directory with given file contents. */
-async function createTemplateDir(
-  files: Record<string, string>,
-): Promise<string> {
-  const { mkdtemp } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-  const dir = await mkdtemp(join(tmpdir(), "arc-templates-"));
-  for (const [path, content] of Object.entries(files)) {
-    await ensureDir(dirname(join(dir, path)));
-    await writeFile(join(dir, path), content, "utf-8");
-  }
-  return dir;
-}
+// --- Update-specific helpers ---
 
 /** Read the manifest from a project directory. */
 async function readManifestFromDir(dir: string): Promise<Manifest> {

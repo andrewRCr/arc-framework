@@ -6,15 +6,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { readdir, stat, readFile, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
+import { readFile, writeFile, mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import {
-  createTempRepo,
   cleanupTempDir,
   initInTempRepo,
-  makeGitExec,
+  makeUserIO,
+  makeCommit,
+  addBareRemote,
   execFileAsync,
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
@@ -27,97 +28,6 @@ import {
   runUserPull,
   UserSaveError,
 } from "../../src/commands/user.js";
-import type { UserIOContext } from "../../src/commands/user.js";
-import type { DirEntry } from "../../src/lib/user-sync.js";
-
-// --- Test Helpers ---
-
-/** Read directory entries with name and size (real filesystem). */
-async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  let names: string[];
-  try {
-    names = await readdir(dirPath);
-  } catch {
-    return [];
-  }
-  const entries: DirEntry[] = [];
-  for (const name of names) {
-    const s = await stat(join(dirPath, name));
-    if (s.isFile()) {
-      entries.push({ name, size: s.size });
-    }
-  }
-  return entries;
-}
-
-/** Write content to a git note via stdin piping (real implementation). */
-function writeGitNote(cwd: string) {
-  return (ref: string, content: string, commit: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      const proc = spawn("git", [
-        "notes", "--ref", ref, "add", "-f", "-F", "-", commit,
-      ], { cwd });
-      let stderr = "";
-      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-      proc.on("close", (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`git notes add failed (code ${code}): ${stderr}`));
-      });
-      proc.on("error", reject);
-      proc.stdin.write(content);
-      proc.stdin.end();
-    });
-  };
-}
-
-/** Read content from a git note (real implementation). */
-function readGitNote(cwd: string) {
-  return async (ref: string, commit: string): Promise<string | null> => {
-    try {
-      const { stdout } = await execFileAsync("git", [
-        "notes", "--ref", ref, "show", commit,
-      ], { cwd });
-      return stdout;
-    } catch {
-      return null;
-    }
-  };
-}
-
-/** Build a real UserIOContext for a temp repo. */
-function makeUserIO(cwd: string): UserIOContext {
-  return {
-    exec: makeGitExec(cwd),
-    readFile: (path) => readFile(path, "utf-8"),
-    writeFile: (path, content) => writeFile(path, content, "utf-8"),
-    mkdir: (path, opts) =>
-      import("node:fs/promises").then((fs) =>
-        fs.mkdir(path, opts).then(() => undefined),
-      ),
-    readDir: readUserDir,
-    writeNote: writeGitNote(cwd),
-    readNote: readGitNote(cwd),
-  };
-}
-
-/** Create a bare remote repo and add it as origin to the working repo. */
-async function addBareRemote(cwd: string): Promise<string> {
-  const { mkdtemp } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-  const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
-  await execFileAsync("git", ["init", "--bare", remoteDir]);
-  await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
-  // Push the main branch so origin has a valid ref
-  await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
-  return remoteDir;
-}
-
-/** Create a commit in a temp repo. */
-async function makeCommit(cwd: string, message: string): Promise<string> {
-  await execFileAsync("git", ["commit", "--allow-empty", "-m", message], { cwd });
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
-  return stdout.trim();
-}
 
 // --- Tests ---
 
@@ -217,9 +127,7 @@ describe("user save and load", () => {
   it("throws UserSaveError when user dir is empty", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "empty-user");
-    await import("node:fs/promises").then((fs) =>
-      fs.mkdir(userDir, { recursive: true }),
-    );
+    await mkdir(userDir, { recursive: true });
 
     await expect(
       runUserSave({ cwd: tempDir, io, identity: "empty-user" }),
@@ -332,8 +240,6 @@ describe("user push and pull", () => {
     expect(remoteRefs).toContain("refs/notes/arc/user/test-user");
 
     // Clone into a second repo and pull the notes
-    const { mkdtemp } = await import("node:fs/promises");
-    const { tmpdir } = await import("node:os");
     cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
     await execFileAsync("git", ["clone", remoteDir, cloneDir]);
     await execFileAsync(

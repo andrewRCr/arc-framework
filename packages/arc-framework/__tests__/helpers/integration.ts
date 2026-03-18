@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { runInit } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { GitExec } from "../../src/lib/git.js";
-import type { Recipe } from "../../src/lib/types.js";
+import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
 
@@ -171,8 +171,175 @@ export async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+// --- ARC State Setup ---
+
+/** File spec for setupInitialState. */
+export interface FileSpec {
+  content: string;
+  classification: Classification;
+  layer?: Layer;
+}
+
+/**
+ * Set up a minimal ARC installation in a temp dir.
+ * Writes .arc/ files, .pristine/ copies (for non-Scaffolded), and .arc-manifest.json.
+ */
+export async function setupInitialState(
+  dir: string,
+  files: Record<string, FileSpec>,
+  installConfig?: Manifest["install_config"],
+): Promise<void> {
+  const arcDir = join(dir, ".arc");
+  const pristineDir = join(arcDir, ".pristine");
+
+  const manifestFiles: Record<string, FileEntry> = {};
+
+  for (const [path, { content, classification, layer }] of Object.entries(files)) {
+    await ensureDir(dirname(join(arcDir, path)));
+    await writeFile(join(arcDir, path), content, "utf-8");
+
+    if (classification !== "Scaffolded") {
+      await ensureDir(dirname(join(pristineDir, path)));
+      await writeFile(join(pristineDir, path), content, "utf-8");
+    }
+
+    manifestFiles[path] = {
+      classification,
+      layer: layer ?? "core",
+      pristine_hash: sha256(content),
+    };
+  }
+
+  const manifest: Manifest = {
+    framework_version: "1.0.0",
+    installed_at: "2026-01-01T00:00:00.000Z",
+    install_config: installConfig ?? {
+      project_name: "Test Project",
+      pm_mode: "none",
+      tools: [],
+    },
+    files: manifestFiles,
+  };
+
+  await writeFile(
+    join(dir, ".arc-manifest.json"),
+    JSON.stringify(manifest, null, 2) + "\n",
+    "utf-8",
+  );
+}
+
+/**
+ * Create a temporary directory populated with given file contents.
+ * Caller is responsible for cleanup via cleanupTempDir().
+ */
+export async function createTemplateDir(
+  files: Record<string, string>,
+): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "arc-templates-"));
+  for (const [path, content] of Object.entries(files)) {
+    await ensureDir(dirname(join(dir, path)));
+    await writeFile(join(dir, path), content, "utf-8");
+  }
+  return dir;
+}
+
+// --- Git Notes Helpers ---
+
+import { spawn } from "node:child_process";
+import type { DirEntry } from "../../src/lib/user-sync.js";
+import type { UserIOContext } from "../../src/commands/user.js";
+
+/**
+ * Write content to a git note ref on a commit via stdin piping.
+ * Returns a function bound to the given cwd.
+ */
+export function makeGitNoteWriter(cwd: string) {
+  return (ref: string, content: string, commit: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const proc = spawn("git", [
+        "notes", "--ref", ref, "add", "-f", "-F", "-", commit,
+      ], { cwd });
+      let stderr = "";
+      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`git notes add failed (code ${code}): ${stderr}`));
+      });
+      proc.on("error", reject);
+      proc.stdin.write(content);
+      proc.stdin.end();
+    });
+  };
+}
+
+/**
+ * Read content from a git note ref on a commit.
+ * Returns a function bound to the given cwd.
+ */
+export function makeGitNoteReader(cwd: string) {
+  return async (ref: string, commit: string): Promise<string | null> => {
+    try {
+      const { stdout } = await execFileAsync("git", [
+        "notes", "--ref", ref, "show", commit,
+      ], { cwd });
+      return stdout;
+    } catch {
+      return null;
+    }
+  };
+}
+
+/**
+ * Read directory entries with name and size (real filesystem).
+ */
+export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
+  let names: string[];
+  try {
+    names = await readdir(dirPath);
+  } catch {
+    return [];
+  }
+  const entries: DirEntry[] = [];
+  for (const name of names) {
+    const s = await stat(join(dirPath, name));
+    if (s.isFile()) {
+      entries.push({ name, size: s.size });
+    }
+  }
+  return entries;
+}
+
+/** Create a real UserIOContext for a temp repo. */
+export function makeUserIO(cwd: string): UserIOContext {
+  return {
+    exec: makeGitExec(cwd),
+    readFile: (path) => readFile(path, "utf-8"),
+    writeFile: (path, content) => writeFile(path, content, "utf-8"),
+    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
+    readDir: readUserDir,
+    writeNote: makeGitNoteWriter(cwd),
+    readNote: makeGitNoteReader(cwd),
+  };
+}
+
+/** Create a commit in a temp repo. Returns the commit hash. */
+export async function makeCommit(cwd: string, message: string): Promise<string> {
+  await execFileAsync("git", ["commit", "--allow-empty", "-m", message], { cwd });
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
+  return stdout.trim();
+}
+
+/** Create a bare remote repo and add it as origin to the working repo. */
+export async function addBareRemote(cwd: string): Promise<string> {
+  const remoteDir = await mkdtemp(join(tmpdir(), "arc-remote-"));
+  await execFileAsync("git", ["init", "--bare", remoteDir]);
+  await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd });
+  await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd });
+  return remoteDir;
+}
+
 // Re-export for convenience
 export { readFile, writeFile, mkdir, rm, readdir, stat, join, dirname };
 export { execFileAsync };
 export { getArcTemplatePath, getInternalTemplatePath };
-export type { IOContext, GitExec, Recipe, InitPromptResult };
+export type { IOContext, GitExec, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };

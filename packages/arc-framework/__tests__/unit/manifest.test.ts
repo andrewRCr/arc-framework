@@ -7,10 +7,10 @@ import {
   readManifest,
   writeManifest,
 } from "../../src/lib/manifest.js";
-import type { Manifest } from "../../src/lib/types.js";
+import { buildManifest, buildFileEntry } from "../helpers/factories.js";
 
-function validManifest(): Manifest {
-  return {
+function validManifest() {
+  return buildManifest({
     framework_version: "0.1.0",
     installed_at: "2026-03-12T00:00:00.000Z",
     install_config: {
@@ -19,13 +19,9 @@ function validManifest(): Manifest {
       tools: ["claude"],
     },
     files: {
-      "reference/constitution/DEV-RULES.ARC.md": {
-        classification: "Framework",
-        layer: "core",
-        pristine_hash: "abc123",
-      },
+      "reference/constitution/DEV-RULES.ARC.md": buildFileEntry(),
     },
-  };
+  });
 }
 
 describe("validateManifest", () => {

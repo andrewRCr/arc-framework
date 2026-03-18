@@ -1310,6 +1310,59 @@ mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolu
     - All tests pass
     - Markdown linting passes (including all updated methodology docs and templates)
 
+### **Phase 7.5:** Package Internal Organization
+
+**Purpose:** Restructure `src/lib/` and `__tests__/` to maintain navigability as the module
+count grows. Phase 7 adds the final batch of new modules — reorganize before Phase 8's E2E
+suite adds more test files to a flat structure.
+
+**Approach:** Domain-based subdirectories in `src/lib/`, mirrored in `__tests__/unit/`. Pure
+refactor — no behavioral changes, no new features. All imports updated, all tests pass.
+
+- [ ] **7.5.a Reorganize `src/lib/` into domain subdirectories**
+
+    Group 14 flat modules into domain directories. Keep general-purpose modules at
+    `lib/` top level.
+
+    - `lib/git/` — `git.ts`, `identity.ts`, `user-sync.ts` (git operations, identity
+      resolution, user directory portability)
+    - `lib/template/` — `render.ts`, `recipe.ts`, `files.ts` (template rendering,
+      recipe evaluation, file operations)
+    - `lib/manifest/` — `manifest.ts`, `hash.ts`, `update-files.ts`, `merge.ts`
+      (manifest I/O, hashing, update diffing, three-way merge)
+    - `lib/` (top-level) — `types.ts`, `errors.ts`, `paths.ts`, `version.ts`,
+      `skills.ts` (shared types, cross-cutting utilities)
+    - Update all import paths in `src/commands/`, `src/prompts/`, `src/cli.ts`
+    - Verify `npm run typecheck` and `npm run build` pass
+
+- [ ] **7.5.b Mirror `src/lib/` structure in `__tests__/unit/`**
+
+    Move unit test files to match new source layout.
+
+    - `unit/git/` — `git.test.ts`, `identity.test.ts`, `user-sync.test.ts`
+    - `unit/template/` — `render.test.ts`, `recipe.test.ts`, `files.test.ts`
+    - `unit/manifest/` — `manifest.test.ts`, `hash.test.ts`, `update-files.test.ts`,
+      `merge.test.ts`
+    - `unit/` (top-level) — `errors.test.ts`, `paths.test.ts`, `version.test.ts`,
+      `skills.test.ts`, `init.test.ts`, `status.test.ts`, `diff.test.ts`,
+      `non-interactive.test.ts`
+    - Update all import paths in test files
+    - Verify `npm test` passes with no test count changes
+
+- [ ] **7.5.c Clean up `__tests__/fixtures/` and `__tests__/helpers/`**
+
+    - Remove empty `fixtures/` directory (no static fixtures needed — test data is
+      inline or constructed by helpers, which is appropriate for our test complexity)
+    - Verify `helpers/integration.ts` import paths still resolve after source moves
+    - No structural changes to `__tests__/integration/` (5 files, well-scoped by
+      command — subdivision not yet warranted)
+
+- [ ] **7.5.d Run Tier 2 quality gates**
+    - `npm run typecheck` — zero errors
+    - `npm test` — same test count, all pass
+    - `npm run -s lint:md` — zero violations
+    - `npm run build` — succeeds
+
 ### **Phase 8:** E2E Tests and Verification
 
 **Purpose:** Validate the complete CLI through end-to-end tests in real git repos, then verify

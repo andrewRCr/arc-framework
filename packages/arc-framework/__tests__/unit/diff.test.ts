@@ -12,24 +12,13 @@ import { UserFacingError } from "../../src/lib/errors.js";
 import type { DiffIOContext } from "../../src/commands/diff.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { hashContent } from "../../src/lib/hash.js";
+import { buildManifest } from "../helpers/factories.js";
 
 // --- Test helpers ---
 
 const FILE_CONTENT = "hello world\n";
 const FILE_HASH = hashContent(FILE_CONTENT);
 const MODIFIED_CONTENT = "hello modified\n";
-
-function buildManifest(
-  overrides: Partial<Manifest> & { files?: Manifest["files"] } = {},
-): Manifest {
-  return {
-    framework_version: "1.0.0",
-    installed_at: "2026-01-01T00:00:00Z",
-    install_config: { project_name: "test", pm_mode: "none", tools: [] },
-    files: {},
-    ...overrides,
-  };
-}
 
 function buildIO(opts: {
   manifest?: Manifest | null;
