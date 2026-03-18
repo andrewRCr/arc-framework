@@ -67,7 +67,14 @@ async function appendLineIfMissing(
   readFile: ReadFileFn,
   writeFile: WriteFileFn,
 ): Promise<void> {
-  const content = await readFile(filePath);
+  let content: string;
+  try {
+    content = await readFile(filePath);
+  } catch {
+    // File doesn't exist — create it with just this entry
+    await writeFile(filePath, entry + "\n");
+    return;
+  }
   const lines = content.split("\n");
   if (lines.includes(entry)) {
     return;

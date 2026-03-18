@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.7 — Implement init command (line ~637)
-**Last Completed**: Task 3.6 — Define skill generation interface
+**Next Task**: Task 3.8 — Implement post-init messaging (line ~674)
+**Last Completed**: Task 3.7 — Implement init command
 **Blockers**: [none]
-**Next Action**: Begin Task 3.7 — Implement init command
+**Next Action**: Begin Task 3.8 — Implement post-init messaging (bridge UX)
 
 ---
 

@@ -632,53 +632,49 @@ working ARC installation.
         - Captured follow-up: agent config file decoupling from init (setup workflow
           handles `{AGENT}.ARC.md`), broader agent file support
 
-- [ ] **3.7 Implement init command (`src/commands/init.ts`)**
+- [x] **3.7 Implement init command (`src/commands/init.ts`)**
 
-    - [ ] **3.7.a Core init flow**
+    - [x] **3.7.a Core init flow**
 
-        Build `test-first` (one behavior at a time):
+        Implemented `src/commands/init.ts` with IOContext dependency injection pattern
+        (per session notes guidance for 4+ injectable dependencies). Decomposed into
+        tested pure functions + orchestrator:
 
-        **Join-mode detection (design decision 2026-03-15):**
+        - `detectInitMode()` — checks `.arc/system/arc-config.yml` existence
+        - `buildConfigMap()` — prompt results → condition evaluation config
+        - `buildTokenMap()` — prompt results + cwd → token substitution map
+        - `resolveFileList()` — recipe + config → deduplicated file list
+        - `toOutputPath()` — `.template` suffix stripping
+        - `writeArcConfig()` — programmatic config write preserving comments
+        - `runInit()` — orchestrator: mode detection → file rendering → skill
+          generation → identity storage. All I/O via IOContext.
+        - 26 unit tests covering all behaviors including cancellation
 
-        - Check `.arc/system/arc-config.yml` at repo root before prompting
-        - If found → **join mode**: ARC already initialized by another team member
-            - Skip structural setup (config creation, constitutional docs, workflows)
-            - Prompt only for `tools` (which agent platforms to set up locally)
-            - Set up agent directories, install git hooks, set `git config arc.identity`
-            - Post-init message adapts (review config, not configure from scratch)
-        - If not found → **fresh mode**: full init sequence
-        - Detection is deterministic: `.arc/` is fixed at repo root (no custom dirs)
+    - [x] **3.7.b Pristine and manifest creation**
 
-        **Fresh mode flow:**
+        Integrated into `runInit()` orchestrator:
 
-        - Config assembly: prompt responses mapped to install config object; `tools`
-          multiselect joined as comma-separated string for condition evaluation
-        - Condition evaluation: recipe conditions filter file list based on config
-        - Token rendering: template files produce output with all placeholders resolved
-        - Conditional rendering: `<!-- arc:if -->` blocks included/excluded per config
-        - `.template` stripping: output filenames strip `.template` suffix (convention from
-          file classification strategy — e.g., `WORK-STATUS.template.md` → `WORK-STATUS.md`)
-        - File output: rendered files written to `.arc/` at repo root
-        - Config output: copy `arc-config.yml` template and overwrite specific values
-          (preserves inline documentation comments for adopters)
-        - Skill generation: call `generateSkills()` interface (3.6) with selected tools
-        - No residual markers: output files contain no `{{TOKEN}}` or `<!-- arc:if -->` artifacts
+        - `classifyFile()` — Scaffolded (7), Configurable (14), Framework (default)
+          as code constants from notes § File-by-File Classification
+        - `fileLayer()` — derives layer from `pm.mode == arc-in-git` condition membership
+        - `buildManifestFiles()` — assembles file entries with classification, layer,
+          and SHA-256 pristine_hash via `hashContent()`
+        - Orchestrator writes `.pristine/` copies for Framework + Configurable only
+          (Scaffolded excluded — user-owned from day one)
+        - Writes `.arc-manifest.json` with version, install_config, file inventory
+        - 9 new tests (classifyFile, fileLayer, buildManifestFiles, orchestrator
+          manifest + pristine assertions)
 
-    - [ ] **3.7.b Pristine and manifest creation**
-        - File classification: code constants define Scaffolded (7 files) and Configurable
-          (~12 files) sets; everything else defaults to Framework. Layer derived from
-          condition source (`pm.mode == arc-in-git` → `arc-in-git`, else `core`). Based
-          on notes-cli-implementation.md § File-by-File Classification.
-        - Copy rendered Framework and Configurable files to `.pristine/`
-          (Scaffolded files are user-owned — no pristine copy)
-        - Compute `pristine_hash` for each file
-        - Write `.arc-manifest.json` with version, config, file inventory
+    - [x] **3.7.c Git integration setup**
 
-    - [ ] **3.7.c Git integration setup**
-        - Add `.pristine/` and `user/*/` contents to `.gitignore` (ADR-012: user dir gitignored)
-        - Add `WORK-STATUS.md merge=ours` to `.gitattributes`
-        - Run `git config merge.ours.driver true`
-        - Run `git config core.hooksPath .arc/system/githooks` (hook discovery)
+        Integrated into `runInit()` orchestrator:
+
+        - `.gitignore`: appends `.arc/.pristine/` and `.arc/user/*/`
+        - `.gitattributes`: appends `.arc/active/WORK-STATUS.md merge=ours`
+        - `git config merge.ours.driver true` — merge driver for WORK-STATUS
+        - `git config core.hooksPath .arc/system/githooks` — hook discovery
+        - Fixed `appendLineIfMissing` to handle ENOENT (creates file if missing)
+        - 1 new orchestrator test verifying all git integration steps
 
 - [ ] **3.8 Implement post-init messaging (bridge UX)**
 
