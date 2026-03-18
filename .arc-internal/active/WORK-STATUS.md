@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.1 — Three-way merge wrapper (line ~739)
+**Next Task**: Task 4.1 — Shared error handling utilities (line ~751)
 **Last Completed**: Task 3.11 — Run quality gates (Phase 3 complete)
 **Blockers**: [none]
-**Next Action**: Begin Phase 4 — Update command
+**Next Action**: Begin Phase 4 — start with error handling utilities (`src/lib/errors.ts`)
 
 ---
 
