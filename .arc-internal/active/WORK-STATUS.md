@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.1.a — E2E test infrastructure (line ~1375)
-**Last Completed**: Task 7.5.e — DRY/SOLID pass and barrel exports (Parts 1 & 2)
+**Next Task**: Task 8.2.a — Smoke tests (line ~1410)
+**Last Completed**: Task 8.1.b — Update CI workflow
 **Blockers**: [none]
-**Next Action**: Begin Phase 8 — E2E test infrastructure, then E2E tests
+**Next Action**: Continue Phase 8 — E2E smoke tests, then init/update/status-diff E2E tests
 
 ---
 

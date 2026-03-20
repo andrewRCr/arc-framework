@@ -35,7 +35,8 @@
     "**/venv/**",
     ".arc/reference/archive/**",
     ".arc-internal/reference/archive/**",
-    "packages/arc-framework/arc/**"
+    "packages/arc-framework/arc/**",
+    "arc/**"
   ],
 
   "customRules": []

@@ -14,6 +14,7 @@
     "build": "npm run build -w packages/arc-framework",
     "test": "npm run test -w packages/arc-framework",
     "test:unit": "npm run test:unit -w packages/arc-framework",
+    "test:e2e": "npm run test:e2e -w packages/arc-framework",
     "typecheck": "npm run typecheck -w packages/arc-framework"
   },
   "devDependencies": {

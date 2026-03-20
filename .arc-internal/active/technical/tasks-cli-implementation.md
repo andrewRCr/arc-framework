@@ -1365,46 +1365,116 @@ refactor — no behavioral changes, no new features. All imports updated, all te
       with barrel `skills/index.ts`. Moved test to `__tests__/unit/skills/`
     - Extracted `listArcFiles()` from cli.ts into `lib/fs.ts` as shared utility
 
-### **Phase 8:** E2E Tests and Verification
+### **Phase 8:** E2E Tests, CI, and Verification
 
-**Purpose:** Validate the complete CLI through end-to-end tests in real git repos, then verify
-all success criteria. Depends on non-interactive mode (5.4) for prompt-free CLI invocation.
+**Purpose:** Validate the complete CLI through end-to-end tests against the built `dist/cli.js`
+artifact in real git repos, update CI for the hybrid project, then verify all success criteria.
+Depends on non-interactive mode (5.4) for prompt-free CLI invocation.
 
-**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for tasks 8.2–8.3.
+**What E2E adds over integration tests:** Integration tests exercise `runInit()` etc. directly.
+E2E tests invoke the built binary as a subprocess — verifying the build output works (shebang,
+ESM resolution, bundled templates), Commander flag parsing maps to behavior, exit codes are
+correct, and the full binary → command → library pipeline is wired end-to-end.
 
-- [ ] **8.1 Write E2E test suite**
+**What to skip:** Interactive prompt rendering (clack's concern), exhaustive flag permutations
+(cover meaningful behavioral switches, not the cartesian product), dependencies' behavior
+(Commander parsing, git merge-file algorithm).
 
-    - [ ] **8.1.a E2E test infrastructure**
-        - Test setup helper: `npm run build` as suite-level setup (build package once)
-        - Helper: `runArc(args, cwd)` — spawns `node dist/cli.js ...args` in given cwd,
-          captures stdout/stderr/exit code
-        - Per-test setup: create temp directory with `git init`, configure git user
-        - All E2E tests use `--yes` flag (non-interactive mode from 5.4) with value
-          overrides as needed
+**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for tasks 8.4–8.5.
 
-    - [ ] **8.1.b Init E2E tests**
-        - `arc init --yes --name test-project` in fresh git repo → verify complete
-          installed state
-        - Installed files pass the framework's own markdown linting
-        - Manifest is valid, pristine copies match files on disk
+- [x] **8.1 E2E test infrastructure and CI**
 
-    - [ ] **8.1.c Update E2E tests**
-        - Init → modify files → update → verify customizations preserved
-        - Init → update with conflicting changes → verify conflict markers and reporting
+    - [x] **8.1.a E2E test infrastructure**
 
-    - [ ] **8.1.d Round-trip E2E tests**
-        - Init → customize → update → verify customizations survive
-        - Init → status → shows all unmodified
-        - Init → modify → status → shows modified files
-        - Init → modify → diff → shows correct unified diff
+        Separate vitest config approach: `vitest.e2e.config.ts` with `globalSetup` that
+        builds via `npm run build`, keeping unit/integration runs build-free. Standalone
+        E2E helpers (`helpers.ts`) with no source imports — `runArc()` invokes the built
+        `dist/cli.js` artifact, `createTempRepo()` pre-sets `arc.identity` to avoid
+        interactive prompt in `--yes` mode.
 
-- [ ] **8.2 Run full quality gate suite (Tier 3)**
+        - `__tests__/e2e/global-setup.ts` — builds CLI package once before E2E suite
+        - `__tests__/e2e/helpers.ts` — `runArc(args, cwd)`, `createTempRepo()`,
+          `cleanupTempDir()` (standalone, no source dependencies)
+        - `vitest.e2e.config.ts` — 30s timeout, globalSetup, `passWithNoTests`
+        - `vitest.config.ts` — added `exclude: ["__tests__/e2e/**"]`
+        - Package scripts: `test` runs both configs sequentially, `test:e2e` added
+        - Root `package.json`: `test:e2e` convenience script added
+
+    - [x] **8.1.b Update CI workflow**
+
+        Replaced stale `Documentation Quality CI` (markdown-only, referenced nonexistent
+        `templates/` and `profiles/` directories) with two-job pipeline.
+
+        - **quality** (all branches): `npm ci` → build → lint:md → typecheck → test:unit
+        - **full-suite** (PRs to main only): `npm ci` → `npm test` (full suite with E2E)
+        - Incidental: added `"arc/**"` to `.markdownlint-cli2.jsonc` ignores — root-level
+          `arc/` build artifact was unexcluded (pre-existing gap)
+
+- [ ] **8.2 E2E test suite — core commands**
+
+    - [ ] **8.2.a Smoke tests** (`smoke.e2e.test.ts`)
+        - `arc --version` → exits 0, outputs version matching package.json
+        - `arc --help` → exits 0, lists available commands
+        - `arc nonexistent` → exits non-zero
+
+    - [ ] **8.2.b Init E2E tests** (`init.e2e.test.ts`)
+        - Fresh init with defaults: `arc init --yes --name test-project` → exits 0,
+          `.arc/` directory created with expected structure, `.arc-manifest.json` valid,
+          `.arc/.pristine/` contains pristine copies
+        - Init with PM mode: `--pm-mode arc-in-git` → additional arc-in-git files installed
+          (backlog structure, ROADMAP, PROJECT-STATUS, ATOMIC-INBOX)
+        - Init with tools: `--tools claude,codex` → agent-specific files installed for
+          each tool
+        - Init with team mode: `--team` → team mode set in arc-config.yml
+        - Installed markdown passes linting: run `markdownlint-cli2` against installed `.arc/`
+        - Join mode: init once → init again in same directory → join mode activates
+          (developer workspace setup without overwriting project config)
+        - Error: `arc update` before init (no manifest) → exits non-zero, user-facing message
+        - Error: `arc status` before init → exits non-zero, user-facing message
+
+    - [ ] **8.2.c Update E2E tests** (`update.e2e.test.ts`)
+        - Clean update: init → update (no changes) → exits 0, no files changed
+        - Customization preserved: init → modify a Configurable file → update → user changes
+          survive, framework changes applied
+        - Conflict handling: init → modify a Framework file in a way that conflicts with
+          a template change → update reports conflict markers
+
+    - [ ] **8.2.d Status and diff E2E tests** (`status-diff.e2e.test.ts`)
+        - Status after clean init: all files show as unmodified
+        - Status after modification: modified files reported
+        - Diff after modification: unified diff output for changed files
+        - Diff with no changes: clean output
+
+- [ ] **8.3 E2E test suite — user and log commands**
+
+    - [ ] **8.3.a User command E2E tests** (`user.e2e.test.ts`)
+        - `arc user add <identity>`: creates user directory with expected structure
+        - Save/load round-trip: init → `arc user save` → delete user directory →
+          `arc user load` → user files restored
+        - Error: `arc user save` without identity configured → exits non-zero
+        - Push/pull with bare remote: init → commit → add bare remote → `arc user save` →
+          `arc user push` → clone fresh → `arc user pull` → `arc user load` → files present
+          (tests the full portability contract)
+
+    - [ ] **8.3.b Log command E2E tests** (`log.e2e.test.ts`)
+        - `arc log atomic` with matching commits: create commits with `Context: atomic-*`
+          footers → log shows them
+        - Filters: `--since`, `--author`, `--limit`, `--work-unit` narrow results correctly
+        - Empty result: no matching commits → clean empty output
+
+    - [ ] **8.3.c Lifecycle E2E test** (`lifecycle.e2e.test.ts`)
+        - Golden path: init → verify installed → modify files → status shows changes →
+          diff shows correct output → update → customizations preserved → status clean
+          after update
+        - This is the "beta is functional enough" success criterion exercised end-to-end
+
+- [ ] **8.4 Run full quality gate suite (Tier 3)**
     - TypeScript strict mode passes (`npm run typecheck`)
     - Full test suite passes (`npm test` — unit + integration + e2e)
     - Build succeeds (`npm run build`)
     - Markdown linting passes (`npm run -s lint:md`)
 
-- [ ] **8.3 Validate success criteria against PRD**
+- [ ] **8.5 Validate success criteria against PRD**
     - Verify each PRD success criterion is met
     - Resolve any gaps or document deviations
     - Verify all atomic tasks resolved (`atomic-cli-implementation.md`)

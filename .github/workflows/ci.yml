@@ -1,39 +1,36 @@
-name: Documentation Quality CI
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: ['**']
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  documentation-quality:
-    name: Documentation Quality Checks
+  quality:
+    name: Quality Checks
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
       with:
         node-version: '18'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - run: npm run -s lint:md
+    - run: npm run typecheck
+    - run: npm run test:unit
 
-    - name: Lint markdown files
-      run: npx markdownlint-cli2 "**/*.md"
-
-    - name: Validate template structure
-      run: |
-        echo "=== Validating template tokens ==="
-        # Check that templates contain expected tokens
-        find templates -name "*.template.md" -exec grep -L "{{.*}}" {} \; | while read file; do
-          echo "WARNING: Template $file may be missing tokens"
-        done
-
-        echo "=== Validating file naming conventions ==="
-        # Check naming conventions
-        find .arc -name "*.template.md" -not -path "templates/*" | head -5
-        find templates -name "*.template.md" | head -5
-        find profiles -name "*.profile.md" | head -5
-
+  full-suite:
+    name: Full Test Suite
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm test
