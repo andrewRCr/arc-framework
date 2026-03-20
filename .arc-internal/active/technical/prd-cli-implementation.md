@@ -1,7 +1,9 @@
 # PRD: CLI Implementation (WU3)
 
 **Type:** Technical
-**Updated:** 2026-03-10
+**Updated:** 2026-03-20
+**Status:** Complete
+**Completed:** 2026-03-20
 
 ---
 
@@ -303,27 +305,24 @@ and CLI wiring.
 
 ## Open Questions
 
-**Resolve during implementation:**
+**Resolved during implementation:**
 
-- **Conflict resolution UX** — after the adopter resolves merge conflicts, how do they confirm
-  resolution and trigger pristine update? Dedicated subcommand, flag on update, or automatic
-  detection? The requirement is clear (adopter must be able to confirm); the command shape is an
-  implementation decision
-- **Init prompt exact set** — the init-recipe defines prompts declaratively. The complete prompt
-  inventory (beyond what the plan sketches) will be finalized during implementation of the init
-  command, informed by the token inventory across all template files
-- **Skills directory strategy default** — cross-tool `.agents/skills/` directory vs. tool-specific
-  only. The plan leans cross-tool with config override. Final default validated during
-  implementation against current agent tool conventions
+- **Conflict resolution UX** — `arc update` leaves standard git conflict markers in the file
+  and reports which files need attention. Re-running `arc update` after manual resolution
+  detects the resolved state and updates pristine. No dedicated subcommand needed.
+- **Init prompt exact set** — finalized in init-recipe.json: project name, base branch, PM mode,
+  agent tools, team mode. Identity resolved via `git config arc.identity` → slugified user.name →
+  interactive prompt. Non-interactive mode (`--yes`) uses defaults with CLI flag overrides.
+- **Skills directory strategy default** — tool-specific directories only (`.claude/skills/`,
+  `.agents/skills/`, etc.). No cross-tool directory — each tool reads from its own conventional
+  path. Skill generation runs during init and regenerates on update when definitions change.
 
-**Evaluate during E2E testing:**
+**Resolved during E2E testing:**
 
-- **Cold-start enforcement friction** (ADR-010 Part 4) — ADR-010 deferred the question of
-  whether full-enforcement defaults create a cold-start problem. The lean is against a
-  "relaxed start?" toggle: adopters won't know what friction they'll hit until they've used the
-  framework, at which point editing `arc-config.yml` is the right mechanism. Evaluate during
-  E2E testing whether the defaults are reasonable out of the box. If init-flow testing surfaces
-  a genuine blocker, revisit — but the bar is high
+- **Cold-start enforcement friction** — defaults are reasonable out of the box. E2E tests
+  confirm init → work → update cycle works without adopter friction. Commit hooks validate
+  format and context footer (both configurable to `any`/`disabled` if too strict). No
+  cold-start toggle needed.
 
 ## Document History
 

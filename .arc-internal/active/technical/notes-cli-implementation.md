@@ -1,8 +1,21 @@
 # Implementation Reference: CLI Implementation (WU3)
 
-Reference content migrated from `plan-wu3-cli-distribution.md` during PRD creation. Contains
-implementation-level detail that the PRD captures as requirements but doesn't repeat as design
-specification. Consult during task generation and implementation.
+**Status:** Complete
+**Completed:** 2026-03-20
+
+Implementation-level design specification for the `@arc-framework/cli` npm package.
+Migrated from `plan-wu3-cli-distribution.md` during PRD creation.
+
+## Contents
+
+- [Repository Structure](#repository-structure) — monorepo layout, published package, public repo sync
+- [Init Prompt UX Specification](#init-prompt-ux-specification) — prompt sequence, post-init messaging
+- [Template Rendering Syntax](#template-rendering-syntax) — tokens, conditional sections
+- [Skill Generation](#skill-generation-universal-first-output) — universal-first output model
+- [Reconfiguration and Migration](#reconfiguration-and-migration-deferred-to-post-beta) — deferred design reference
+- [Identity Resolution](#identity-resolution) — lookup sequence
+- [Template File Audit](#template-file-audit) — token/condition inventory, file classification
+- [Versioning and Release Progression](#versioning-and-release-progression) — semver plan
 
 ---
 
@@ -139,7 +152,7 @@ Type: select. Config key: `pm.mode`. Display labels → config values: ARC Core 
 ARC Core + Planning Module → `arc-in-git`, ARC Core + External Tracker → `external`.
 Default: `none` (ARC Core).
 
-### Post-Init Bridge Message (Task 3.8)
+### Post-Init Bridge Message
 
 Displayed after all files are created. Two paths: skill invocation (recommended) and
 copy-paste fallback. The skill won't be available until the agent harness restarts (needed
@@ -272,7 +285,7 @@ Concrete lookup sequence (ADR-012 consolidated to `arc.identity`):
 `git config --local arc.identity`. Used for `user/{identity}/` directory, git notes refs,
 and session tracking.
 
-## Template File Audit (Task 3.3.a)
+## Template File Audit
 
 Mapping of `.arc/` files to tokens and conditions for the CLI template engine. All paths
 relative to `.arc/`.
