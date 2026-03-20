@@ -10,12 +10,9 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("lifecycle", () => {
   let tmpDir: string;

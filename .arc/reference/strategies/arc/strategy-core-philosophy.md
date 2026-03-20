@@ -45,17 +45,17 @@ context without leaving the framework.
 
 Terms with ARC-specific meaning, referenced throughout the framework.
 
-| Term             | Definition                                                                                       | Principle |
-|------------------|--------------------------------------------------------------------------------------------------|-----------|
-| Work unit        | A planned scope of work with a PRD and task list — the primary unit of project delivery          | P1, P7    |
-| Review increment | The bounded chunk of autonomous execution between human review points — typically one task       | P2, P3    |
-| Co-development   | Human and agent collaborating through tight iterative loops during work, not review-at-merge     | P2        |
-| Protection mode  | Branch model setting (partial or full) controlling when branches and PRs are required            | P6        |
-| Planning branch  | A branch used during PRD and task generation phases, before the work branch is created           | P1        |
-| Atomic task      | An indivisible, one-off task — captured per-task-list (WU-scoped) or in ATOMIC-TASKS.md (global) | P7        |
-| Session handoff  | Structured transfer of working context at session end, enabling recovery by the next session     | P5        |
-| Context footer   | The `Context:` line in commit messages linking each commit to its task or work context           | P6        |
-| Leave-it-cleaner | Addressing quality issues discovered in files you touch — fix or document, never ignore          | P4        |
+| Term             | Definition                                                                                         | Principle |
+|------------------|----------------------------------------------------------------------------------------------------|-----------|
+| Work unit        | A planned scope of work with a PRD and task list — the primary unit of project delivery            | P1, P7    |
+| Review increment | The bounded chunk of autonomous execution between human review points — typically one task         | P2, P3    |
+| Co-development   | Human and agent collaborating through tight iterative loops during work, not review-at-merge       | P2        |
+| Protection mode  | Branch model setting (partial or full) controlling when branches and PRs are required              | P6        |
+| Planning branch  | A branch used during PRD and task generation phases, before the work branch is created             | P1        |
+| Atomic task      | An indivisible, one-off task — captured per-task-list (WU-scoped) or in ATOMIC-INBOX.md (per-user) | P7        |
+| Session handoff  | Structured transfer of working context at session end, enabling recovery by the next session       | P5        |
+| Context footer   | The `Context:` line in commit messages linking each commit to its task or work context             | P6        |
+| Leave-it-cleaner | Addressing quality issues discovered in files you touch — fix or document, never ignore            | P4        |
 
 ---
 

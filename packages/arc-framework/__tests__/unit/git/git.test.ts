@@ -16,11 +16,10 @@ describe("checkGitAvailable", () => {
     expect(mockExec).toHaveBeenCalledWith("git", ["--version"]);
   });
 
-  it("throws with clear error when git is missing", async () => {
+  it("returns false when git is missing", async () => {
     const mockExec = vi.fn().mockRejectedValue(new Error("ENOENT"));
-    await expect(checkGitAvailable(mockExec)).rejects.toThrow(
-      "git is not installed or not on PATH",
-    );
+    const result = await checkGitAvailable(mockExec);
+    expect(result).toBe(false);
   });
 });
 

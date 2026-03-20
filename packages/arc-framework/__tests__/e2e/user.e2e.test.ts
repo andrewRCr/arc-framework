@@ -8,15 +8,12 @@
 
 import { execFile } from "node:child_process";
 import { access, rm, readdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Check whether a path exists. */
 async function pathExists(p: string): Promise<boolean> {
@@ -66,19 +63,22 @@ describe("user add", () => {
   it("with arc-in-git PM mode also creates ATOMIC-INBOX.md", async () => {
     // Re-init with arc-in-git so config reflects PM mode
     const tmpDir2 = await createTempRepo();
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project", "--pm-mode", "arc-in-git"],
-      tmpDir2,
-    );
-    expect(init.exitCode).toBe(0);
 
-    const result = await runArc(["user", "add", "bob"], tmpDir2);
+    try {
+      const init = await runArc(
+        ["init", "--yes", "--name", "test-project", "--pm-mode", "arc-in-git"],
+        tmpDir2,
+      );
+      expect(init.exitCode).toBe(0);
 
-    expect(result.exitCode).toBe(0);
-    expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "SESSION-NOTES.md"))).toBe(true);
-    expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "ATOMIC-INBOX.md"))).toBe(true);
+      const result = await runArc(["user", "add", "bob"], tmpDir2);
 
-    await cleanupTempDir(tmpDir2);
+      expect(result.exitCode).toBe(0);
+      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "SESSION-NOTES.md"))).toBe(true);
+      expect(await pathExists(join(tmpDir2, ".arc", "user", "bob", "ATOMIC-INBOX.md"))).toBe(true);
+    } finally {
+      await cleanupTempDir(tmpDir2);
+    }
   });
 });
 

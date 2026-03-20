@@ -104,19 +104,20 @@ describe("status and diff integration", () => {
       const original = await readFile(filePath, "utf-8");
       await writeFile(filePath, original + "\n# Modified by test\n", "utf-8");
 
-      const result = await runStatus({
-        cwd: tempDir,
-        io: makeStatusIO(tempDir),
-        frameworkVersion: "0.0.0",
-      });
+      try {
+        const result = await runStatus({
+          cwd: tempDir,
+          io: makeStatusIO(tempDir),
+          frameworkVersion: "0.0.0",
+        });
 
-      const modified = result.fileStatuses.find(
-        (f) => f.path === relPath && f.state === "modified",
-      );
-      expect(modified).toBeDefined();
-
-      // Restore the file
-      await writeFile(filePath, original, "utf-8");
+        const modified = result.fileStatuses.find(
+          (f) => f.path === relPath && f.state === "modified",
+        );
+        expect(modified).toBeDefined();
+      } finally {
+        await writeFile(filePath, original, "utf-8");
+      }
     });
 
     it("reports new file not tracked in manifest", async () => {
@@ -125,20 +126,21 @@ describe("status and diff integration", () => {
       await mkdir(join(arcDir, "custom"), { recursive: true });
       await writeFile(newFilePath, "# Untracked file\n", "utf-8");
 
-      const result = await runStatus({
-        cwd: tempDir,
-        io: makeStatusIO(tempDir),
-        frameworkVersion: "0.0.0",
-      });
+      try {
+        const result = await runStatus({
+          cwd: tempDir,
+          io: makeStatusIO(tempDir),
+          frameworkVersion: "0.0.0",
+        });
 
-      const newFile = result.fileStatuses.find(
-        (f) => f.path === "custom/untracked.md" && f.state === "new",
-      );
-      expect(newFile).toBeDefined();
-
-      // Clean up
-      const { rm } = await import("node:fs/promises");
-      await rm(join(arcDir, "custom"), { recursive: true, force: true });
+        const newFile = result.fileStatuses.find(
+          (f) => f.path === "custom/untracked.md" && f.state === "new",
+        );
+        expect(newFile).toBeDefined();
+      } finally {
+        const { rm } = await import("node:fs/promises");
+        await rm(join(arcDir, "custom"), { recursive: true, force: true });
+      }
     });
   });
 
@@ -170,18 +172,19 @@ describe("status and diff integration", () => {
       const original = await readFile(filePath, "utf-8");
       await writeFile(filePath, original + "\n# Modified by test\n", "utf-8");
 
-      const result = await runDiff({
-        cwd: tempDir,
-        io: makeDiffIO(tempDir),
-      });
+      try {
+        const result = await runDiff({
+          cwd: tempDir,
+          io: makeDiffIO(tempDir),
+        });
 
-      expect(result.totalChanged).toBeGreaterThanOrEqual(1);
-      const fileDiff = result.diffs.find((d) => d.path === relPath);
-      expect(fileDiff).toBeDefined();
-      expect(fileDiff!.diff).toContain("Modified by test");
-
-      // Restore
-      await writeFile(filePath, original, "utf-8");
+        expect(result.totalChanged).toBeGreaterThanOrEqual(1);
+        const fileDiff = result.diffs.find((d) => d.path === relPath);
+        expect(fileDiff).toBeDefined();
+        expect(fileDiff!.diff).toContain("Modified by test");
+      } finally {
+        await writeFile(filePath, original, "utf-8");
+      }
     });
   });
 

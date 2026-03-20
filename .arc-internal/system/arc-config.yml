@@ -71,6 +71,23 @@ hooks.pre_commit: enabled
 #   disabled - Skips commit message validation
 hooks.commit_msg: enabled
 
+# Task numbering format check in pre-commit hook.
+# Per strategy-task-list-formatting.md: third level uses letters (1.1.a not 1.1.1).
+#   error   - Block commit on violations (default)
+#   warning - Warn but allow commit
+#   off     - Skip check entirely
+hooks.task_numbering: error
+
+# --- Review ---
+
+# Pre-merge diff review before push.
+# Controls whether the agent reviews the aggregate diff before pushing.
+# The pre-merge-review method (arc-methods.md) defines the review activity;
+# this setting controls whether it runs.
+#   enabled  - Agent reviews aggregate diff before pushing (default)
+#   disabled - Skip local review; rely on PR-time review only
+review.pre_merge: enabled
+
 # --- Platform ---
 
 # Git hosting platform.

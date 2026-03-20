@@ -425,15 +425,25 @@ userCmd
     const spinner = p.spinner();
     spinner.start(`Creating user directory for ${identity}...`);
 
-    await runUserAdd({
-      cwd,
-      io,
-      identity,
-      internalTemplateDir: getInternalTemplatePath(),
-      pmMode,
-    });
+    try {
+      await runUserAdd({
+        cwd,
+        io,
+        identity,
+        internalTemplateDir: getInternalTemplatePath(),
+        pmMode,
+      });
 
-    spinner.stop(`User directory created for ${identity}.`);
+      spinner.stop(`User directory created for ${identity}.`);
+    } catch (err) {
+      spinner.stop("Failed.");
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
+
     p.outro("Done.");
   });
 
@@ -484,11 +494,21 @@ userCmd
     const spinner = p.spinner();
     spinner.start("Loading user directory...");
 
-    const result = await runUserLoad({
-      cwd: process.cwd(),
-      io,
-      identity,
-    });
+    let result;
+    try {
+      result = await runUserLoad({
+        cwd: process.cwd(),
+        io,
+        identity,
+      });
+    } catch (err) {
+      spinner.stop("Load failed.");
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
 
     if (!result) {
       spinner.stop("No note found.");
@@ -513,9 +533,18 @@ userCmd
     const spinner = p.spinner();
     spinner.start("Pushing user notes...");
 
-    await runUserPush({ io, identity });
+    try {
+      await runUserPush({ io, identity });
+      spinner.stop("Push complete.");
+    } catch (err) {
+      spinner.stop("Push failed.");
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
 
-    spinner.stop("Push complete.");
     p.outro("Done.");
   });
 
@@ -530,9 +559,18 @@ userCmd
     const spinner = p.spinner();
     spinner.start("Pulling user notes...");
 
-    await runUserPull({ io, identity });
+    try {
+      await runUserPull({ io, identity });
+      spinner.stop("Pull complete.");
+    } catch (err) {
+      spinner.stop("Pull failed.");
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
 
-    spinner.stop("Pull complete.");
     p.outro("Done.");
   });
 

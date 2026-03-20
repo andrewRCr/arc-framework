@@ -174,7 +174,16 @@ export async function runUserLoad(
   }
 
   // Parse and deserialize
-  const manifest: SyncManifest = JSON.parse(noteContent) as SyncManifest;
+  let manifest: SyncManifest;
+  try {
+    manifest = JSON.parse(noteContent) as SyncManifest;
+  } catch {
+    throw new Error(
+      `Corrupt git note on ${foundCommit.slice(0, 7)} — JSON parse failed. ` +
+      "The note may have been manually edited or partially written. " +
+      "Try a different ancestor with `arc user load`, or `arc user save` to overwrite.",
+    );
+  }
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, manifest, io.writeFile);

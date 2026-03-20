@@ -27,7 +27,7 @@ export interface SkillOutput {
 }
 
 /** Injectable I/O for skill generation (testability). */
-export interface SkillGenerationIO extends ReadIO {}
+export type SkillGenerationIO = ReadIO;
 
 /** Result from skill generation — outputs to write and any warnings emitted. */
 export interface SkillGenerationResult {

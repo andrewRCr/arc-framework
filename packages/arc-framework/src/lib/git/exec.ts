@@ -28,7 +28,7 @@ export async function checkGitAvailable(exec: GitExec): Promise<boolean> {
     await exec("git", ["--version"]);
     return true;
   } catch {
-    throw new Error("git is not installed or not on PATH");
+    return false;
   }
 }
 

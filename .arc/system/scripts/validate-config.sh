@@ -110,6 +110,9 @@ validate_enum "pm.mode" "none arc-in-git external" "none"
 # Team
 validate_enum "team.mode" "false true" "false"
 
+# User directory
+validate_enum "user.sync_push" "always prompt manual" "always"
+
 # ============================================================================
 # Cross-field dependency checks
 # ============================================================================
@@ -147,7 +150,7 @@ fi
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering review.pre_merge platform.type pm.mode team.mode"
+known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering review.pre_merge platform.type pm.mode team.mode user.sync_push"
 
 for key in $(arc_config_keys); do
     found=false

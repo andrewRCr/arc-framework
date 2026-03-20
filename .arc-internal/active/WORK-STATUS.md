@@ -12,7 +12,7 @@
 **Next Task**: [none — all tasks complete, integration in progress]
 **Last Completed**: Task 8.5 — Validate success criteria against PRD (all 8 criteria met)
 **Blockers**: [none]
-**Next Action**: Integration Phase 2 — pre-merge review, PR, merge
+**Next Action**: Integration Phase 2 — CodeRabbit review (Pass 1), then push and PR
 
 ---
 

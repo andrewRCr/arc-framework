@@ -7,6 +7,7 @@ Shared rules and project context live in:
 - [DEV-RULES.ARC](../../reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
 - [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
+- [Process Task Loop](../workflows/arc/3_process-task-loop.md) – One-task workflow
 
 ## Copilot-Specific Notes
 

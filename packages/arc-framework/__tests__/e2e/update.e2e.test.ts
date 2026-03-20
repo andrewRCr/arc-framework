@@ -7,12 +7,9 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("update", () => {
   let tmpDir: string;

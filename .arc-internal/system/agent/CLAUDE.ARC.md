@@ -46,4 +46,4 @@ _[None configured]_
 [dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
 [dev-rules]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [quick-ref]: ../../reference/QUICK-REFERENCE.md
-[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md
+[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.template.md

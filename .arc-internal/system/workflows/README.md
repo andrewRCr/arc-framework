@@ -31,4 +31,4 @@ Only framework-specific supplemental workflows live in this directory.
 [define-project]: ../../../.arc/system/workflows/arc/initial-setup/02_define-project.md
 [create-prd]: ../../../.arc/system/workflows/arc/1_create-prd.md
 [generate-tasks]: ../../../.arc/system/workflows/arc/2_generate-tasks.md
-[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.md
+[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.template.md

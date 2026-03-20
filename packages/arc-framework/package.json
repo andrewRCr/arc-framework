@@ -10,6 +10,7 @@
     "build": "tsup && node -e \"const{cpSync}=require('fs');cpSync('../../.arc','arc',{recursive:true})\"",
     "test": "vitest run && vitest run -c vitest.e2e.config.ts",
     "test:unit": "vitest run __tests__/unit",
+    "test:integration": "vitest run __tests__/integration",
     "test:e2e": "vitest run -c vitest.e2e.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

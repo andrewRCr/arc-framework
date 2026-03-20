@@ -8,6 +8,7 @@ context live in:
 - [DEV-RULES.ARC](../../../.arc/reference/constitution/DEV-RULES.ARC.md) – Framework development methodology
 - [DEV-RULES.PROJECT](../../reference/constitution/DEV-RULES.PROJECT.md) – Project quality standards
 - [QUICK-REFERENCE](../../reference/QUICK-REFERENCE.md) – Environment context and command patterns
+- [Process Task Loop][process-task-loop] – One-task workflow
 
 ## Copilot-Specific Notes
 
@@ -20,3 +21,7 @@ _[None configured]_
 ## Sub-Agent Availability
 
 _[None configured]_
+
+---
+
+[process-task-loop]: ../../../.arc/system/workflows/arc/3_process-task-loop.template.md

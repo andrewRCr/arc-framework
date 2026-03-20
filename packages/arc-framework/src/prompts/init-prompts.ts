@@ -20,50 +20,50 @@ import { basename } from "node:path";
  * Standalone tools require their own directories (noted in hints).
  */
 const TOOL_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
-    "Universal (.agents/skills/)": [
-        { value: "amp", label: "Amp" },
-        { value: "cline", label: "Cline" },
-        { value: "codex", label: "Codex" },
-        { value: "cursor", label: "Cursor" },
-        { value: "gemini", label: "Gemini CLI" },
-        { value: "copilot", label: "GitHub Copilot" },
-        { value: "kimi", label: "Kimi Code CLI" },
-        { value: "opencode", label: "OpenCode" },
-        { value: "warp", label: "Warp" },
-        { value: "windsurf", label: "Windsurf" },
-    ],
-    "Standalone": [
-        { value: "antigravity", label: "Antigravity", hint: ".agent/skills/" },
-        { value: "augment", label: "Augment", hint: ".augment/skills/" },
-        { value: "claude", label: "Claude Code", hint: ".claude/skills/" },
-    ],
+  "Universal (.agents/skills/)": [
+    { value: "amp", label: "Amp" },
+    { value: "cline", label: "Cline" },
+    { value: "codex", label: "Codex" },
+    { value: "cursor", label: "Cursor" },
+    { value: "gemini", label: "Gemini CLI" },
+    { value: "copilot", label: "GitHub Copilot" },
+    { value: "kimi", label: "Kimi Code CLI" },
+    { value: "opencode", label: "OpenCode" },
+    { value: "warp", label: "Warp" },
+    { value: "windsurf", label: "Windsurf" },
+  ],
+  "Standalone": [
+    { value: "antigravity", label: "Antigravity", hint: ".agent/skills/" },
+    { value: "augment", label: "Augment", hint: ".augment/skills/" },
+    { value: "claude", label: "Claude Code", hint: ".claude/skills/" },
+  ],
 };
 
 /** PM mode options with descriptive labels. */
 const PM_MODE_OPTIONS: { value: string; label: string; hint: string }[] = [
-    {
-        value: "none",
-        label: "ARC Core",
-        hint: "The structured ARC development methodology \u2014 session continuity across tools and machines, spec-driven task execution, codified standards, and commit traceability. No integrated planning layer (can be added later).",
-    },
-    {
-        value: "arc-in-git",
-        label: "ARC Core + Planning Module",
-        hint: "Adds ARC's planning infrastructure \u2014 roadmap, backlogs, task capture, and project status \u2014 all managed in git alongside your code.",
-    },
-    {
-        value: "external",
-        label: "ARC Core + External Tracker",
-        hint: "Everything in Core, plus guided setup for connecting ARC workflows to Jira, Linear, GitHub Issues, or similar.",
-    },
+  {
+    value: "none",
+    label: "ARC Core",
+    hint: "The structured ARC development methodology \u2014 session continuity across tools and machines, spec-driven task execution, codified standards, and commit traceability. No integrated planning layer (can be added later).",
+  },
+  {
+    value: "arc-in-git",
+    label: "ARC Core + Planning Module",
+    hint: "Adds ARC's planning infrastructure \u2014 roadmap, backlogs, task capture, and project status \u2014 all managed in git alongside your code.",
+  },
+  {
+    value: "external",
+    label: "ARC Core + External Tracker",
+    hint: "Everything in Core, plus guided setup for connecting ARC workflows to Jira, Linear, GitHub Issues, or similar.",
+  },
 ];
 
 /** Result from the interactive init prompt sequence. */
 export interface InitPromptResult {
-    project_name: string;
-    tools: string[];
-    pm_mode: string;
-    team_mode: boolean;
+  project_name: string;
+  tools: string[];
+  pm_mode: string;
+  team_mode: boolean;
 }
 
 /**
@@ -77,78 +77,78 @@ export interface InitPromptResult {
  * @returns Prompt results, or `null` if the user cancelled
  */
 export async function runInitPrompts(
-    cwd: string,
-    mode: "fresh" | "join" = "fresh",
+  cwd: string,
+  mode: "fresh" | "join" = "fresh",
 ): Promise<InitPromptResult | null> {
-    if (mode === "join") {
-        // Join mode: only tools prompt — project config already established
-        const result = await p.group(
-            {
-                tools: () =>
-                    p.groupMultiselect({
-                        message: "Which AI development tools do you use?",
-                        options: TOOL_OPTIONS,
-                        required: false,
-                    }),
-            },
-            {
-                onCancel: () => {
-                    p.cancel("Setup cancelled.");
-                    process.exit(0);
-                },
-            },
-        );
-
-        return {
-            project_name: "",
-            tools: result.tools as string[],
-            pm_mode: "",
-            team_mode: false,
-        };
-    }
-
-    // Fresh mode: full prompt sequence
+  if (mode === "join") {
+    // Join mode: only tools prompt — project config already established
     const result = await p.group(
-        {
-            project_name: () =>
-                p.text({
-                    message: "Project name?",
-                    defaultValue: basename(cwd),
-                    placeholder: basename(cwd),
-                }),
-
-            tools: () =>
-                p.groupMultiselect({
-                    message: "Which AI development tools do you use?",
-                    options: TOOL_OPTIONS,
-                    required: false,
-                }),
-
-            pm_mode: () =>
-                p.select({
-                    message: "Project management approach?",
-                    options: PM_MODE_OPTIONS,
-                    initialValue: "none",
-                }),
-
-            team_mode: () =>
-                p.confirm({
-                    message: "Will other developers work in this repository?",
-                    initialValue: false,
-                }),
+      {
+        tools: () =>
+          p.groupMultiselect({
+            message: "Which AI development tools do you use?",
+            options: TOOL_OPTIONS,
+            required: false,
+          }),
+      },
+      {
+        onCancel: () => {
+          p.cancel("Setup cancelled.");
+          process.exit(0);
         },
-        {
-            onCancel: () => {
-                p.cancel("Setup cancelled.");
-                process.exit(0);
-            },
-        },
+      },
     );
 
     return {
-        project_name: result.project_name,
-        tools: result.tools as string[],
-        pm_mode: result.pm_mode as string,
-        team_mode: result.team_mode as boolean,
+      project_name: "",
+      tools: result.tools as string[],
+      pm_mode: "",
+      team_mode: false,
     };
+  }
+
+  // Fresh mode: full prompt sequence
+  const result = await p.group(
+    {
+      project_name: () =>
+        p.text({
+          message: "Project name?",
+          defaultValue: basename(cwd),
+          placeholder: basename(cwd),
+        }),
+
+      tools: () =>
+        p.groupMultiselect({
+          message: "Which AI development tools do you use?",
+          options: TOOL_OPTIONS,
+          required: false,
+        }),
+
+      pm_mode: () =>
+        p.select({
+          message: "Project management approach?",
+          options: PM_MODE_OPTIONS,
+          initialValue: "none",
+        }),
+
+      team_mode: () =>
+        p.confirm({
+          message: "Will other developers work in this repository?",
+          initialValue: false,
+        }),
+    },
+    {
+      onCancel: () => {
+        p.cancel("Setup cancelled.");
+        process.exit(0);
+      },
+    },
+  );
+
+  return {
+    project_name: result.project_name,
+    tools: result.tools as string[],
+    pm_mode: result.pm_mode as string,
+    team_mode: result.team_mode as boolean,
+  };
 }

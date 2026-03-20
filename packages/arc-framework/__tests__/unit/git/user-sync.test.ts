@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   isAllowedFile,
-  isExcludedFile,
   serialize,
   deserialize,
   MAX_FILE_SIZE,

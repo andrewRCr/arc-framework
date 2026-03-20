@@ -7,15 +7,12 @@
 
 import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Run a git command in a given directory. */
 async function git(args: string[], cwd: string): Promise<string> {

@@ -104,7 +104,7 @@ check_file "$ARC_DIR/reference/strategies/STRATEGY-INDEX.md" "Strategy index"
 
 # Workflows
 check_file "$ARC_DIR/system/workflows/arc/session-lifecycle/session-init.md" "Session init workflow"
-check_file "$ARC_DIR/system/workflows/arc/3_process-task-loop.md" "Process task loop"
+check_file "$ARC_DIR/system/workflows/arc/3_process-task-loop.template.md" "Process task loop"
 
 # Scripts
 check_file "$ARC_DIR/system/scripts/arc-lib.sh" "Shared library"
