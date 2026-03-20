@@ -112,13 +112,13 @@ Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with
 context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
 integration use the same pattern.
 
-**⛔ CHECKPOINT:** Phase 1 complete. Do NOT push yet. Proceed to Phase 2 for code review before PR.
+**⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
 
 ---
 
 ## Phase 2: Code Review & Merge
 
-**Context:** Still on child branch, docs are clean and committed. **Branch is NOT pushed yet.**
+**Context:** Still on child branch, docs are clean and committed. **PR is not created yet.**
 
 ### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`
 

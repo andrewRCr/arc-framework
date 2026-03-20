@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: [none — all tasks complete, pending integration]
+**Next Task**: [none — all tasks complete, integration in progress]
 **Last Completed**: Task 8.5 — Validate success criteria against PRD (all 8 criteria met)
 **Blockers**: [none]
-**Next Action**: Integration — run integrate-work-unit workflow
+**Next Action**: Integration Phase 2 — pre-merge review, PR, merge
 
 ---
 
