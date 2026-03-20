@@ -13,14 +13,10 @@ import { writeFile as fsWriteFile, mkdtemp, rm, unlink } from "node:fs/promises"
 import { tmpdir } from "node:os";
 
 import type { IOContext } from "./init.js";
+import { buildConfigMap, buildTokenMap } from "../lib/config.js";
 import {
-  resolveFileList,
-  toOutputPath,
-  classifyFile,
-  fileLayer,
-  buildConfigMap,
-  buildTokenMap,
-} from "./init.js";
+  resolveFileList, toOutputPath, classifyFile, fileLayer,
+} from "../lib/classification.js";
 import {
   readManifest, mergeFileContents, diffFileLists, hashContent,
   type FileMergeFn,
@@ -33,11 +29,14 @@ import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
 import {
+  ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION, CONFIG_KEY_PM_MODE,
+} from "../lib/constants.js";
+import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
   detectExistingSkillDirs,
-} from "../lib/skills.js";
+} from "../lib/skills/index.js";
 
 // --- Types ---
 
@@ -102,7 +101,7 @@ export function createContentMergeFn(exec: GitExec): FileMergeFn {
 
 // --- Internal helpers ---
 
-const ARC_CONFIG_TEMPLATE = "system/arc-config.yml";
+const ARC_CONFIG_TEMPLATE = ARC_CONFIG_TEMPLATE_PATH;
 
 /**
  * Render a template file with stored install config.
@@ -177,13 +176,12 @@ export async function runUpdate(
   const config = buildConfigMap(ic);
   const tokens = buildTokenMap(ic, cwd);
   const configKeyOverrides: Record<string, string> = {
-    "pm.mode": ic.pm_mode,
+    [CONFIG_KEY_PM_MODE]: ic.pm_mode,
   };
 
   // Determine arc-in-git files for layer classification
-  const arcInGitCondition = "pm.mode == arc-in-git";
   const arcInGitFiles = new Set<string>();
-  const condEntry = recipe.conditions[arcInGitCondition];
+  const condEntry = recipe.conditions[ARC_IN_GIT_CONDITION];
   if (condEntry) {
     for (const f of condEntry.include_files) {
       arcInGitFiles.add(f);

@@ -9,21 +9,17 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   detectInitMode,
-  buildConfigMap,
-  buildTokenMap,
-  resolveFileList,
-  toOutputPath,
-  writeArcConfig,
-  classifyFile,
-  fileLayer,
-  buildManifestFiles,
   runInit,
   buildPostInitMessage,
 } from "../../src/commands/init.js";
 import type { IOContext, InitResult } from "../../src/commands/init.js";
+import { buildConfigMap, buildTokenMap, writeArcConfig } from "../../src/lib/config.js";
+import {
+  resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles,
+} from "../../src/lib/classification.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
-import { CANONICAL_SKILLS } from "../../src/lib/skills.js";
+import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import { DEFAULT_PROMPTS } from "../helpers/integration.js";
 
 // --- Shared Fixtures ---

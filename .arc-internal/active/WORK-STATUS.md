@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.5.e Part 2 — Structural improvements (line ~1349)
-**Last Completed**: Task 7.5.e Part 1 — Barrel exports, naming, and mechanical DRY fixes
+**Next Task**: Task 8.1.a — E2E test infrastructure (line ~1375)
+**Last Completed**: Task 7.5.e — DRY/SOLID pass and barrel exports (Parts 1 & 2)
 **Blockers**: [none]
-**Next Action**: Continue Task 7.5.e Part 2 — IOContext unification, init ceremony extraction, skills split, constants, listFiles unification
+**Next Action**: Begin Phase 8 — E2E test infrastructure, then E2E tests
 
 ---
 

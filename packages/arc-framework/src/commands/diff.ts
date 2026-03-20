@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
-import type { Manifest } from "../lib/types.js";
+import type { Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
 
@@ -42,8 +42,7 @@ export interface DiffResult {
 }
 
 /** I/O dependencies for the diff command. */
-export interface DiffIOContext {
-  readFile: (path: string) => Promise<string>;
+export interface DiffIOContext extends ReadIO {
   readManifest: (path: string) => Promise<Manifest | null>;
   /** Run git diff --no-index between two paths, returning the diff output. */
   gitDiff: (pristinePath: string, currentPath: string) => Promise<string>;

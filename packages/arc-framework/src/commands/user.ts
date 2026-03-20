@@ -8,21 +8,18 @@
 import { join } from "node:path";
 import {
   ensureDir, appendToGitignore,
-  type ReadFileFn, type WriteFileFn, type MkdirFn,
 } from "../lib/template/index.js";
 import {
   serialize, deserialize,
-  type GitExec, type SyncManifest, type DirEntry, type SkipWarning,
+  type SyncManifest, type DirEntry, type SkipWarning,
 } from "../lib/git/index.js";
+import { PM_MODE_ARC_IN_GIT } from "../lib/constants.js";
+import type { CoreIO } from "../lib/types.js";
 
 // --- Types ---
 
 /** I/O dependencies for the user command. */
-export interface UserIOContext {
-  exec: GitExec;
-  readFile: ReadFileFn;
-  writeFile: WriteFileFn;
-  mkdir: MkdirFn;
+export interface UserIOContext extends CoreIO {
   /** Read directory entries (name + size) from a user directory. */
   readDir: (dirPath: string) => Promise<DirEntry[]>;
   /** Write content to a git note ref on a commit. */
@@ -222,7 +219,7 @@ export async function runUserAdd(
   );
   await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
 
-  if (pmMode === "arc-in-git") {
+  if (pmMode === PM_MODE_ARC_IN_GIT) {
     const atomicInbox = await io.readFile(
       join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
     );

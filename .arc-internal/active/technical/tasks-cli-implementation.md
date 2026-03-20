@@ -1336,32 +1336,34 @@ refactor — no behavioral changes, no new features. All imports updated, all te
     - Typecheck: zero errors. Tests: 303 pass (25 files). Lint: zero violations.
       Build: succeeds.
 
-- [ ] **7.5.e DRY/SOLID pass and barrel exports**
+- [x] **7.5.e DRY/SOLID pass and barrel exports**
 
-    Consolidate imports via barrel exports, fix naming, extract duplicated logic,
-    and improve module responsibilities. Pure refactor — no behavioral changes.
+    Consolidated imports via barrel exports, fixed naming, extracted duplicated logic,
+    and improved module responsibilities. Pure refactor — no behavioral changes.
 
-    **Part 1 — Barrel exports, naming, and mechanical DRY fixes:**
+    **Part 1 — Barrel exports, naming, and mechanical DRY fixes** (8be2ba3):
 
-    - Rename `git/git.ts` → `git/exec.ts`, `manifest/manifest.ts` → `manifest/store.ts`
-    - Add `index.ts` barrel exports for `git/`, `template/`, `manifest/`
-    - Consolidate imports across commands and cli.ts to use barrels
-    - Extract duplicate test helpers: status.test.ts `buildManifest` → use
-      factories.ts, init.test.ts `DEFAULT_PROMPTS` → use integration.ts
-    - Extract `renderConfigOverrides()` shared by init.ts and update.ts
-    - Extract shared `buildConfigMap`/`buildTokenMap` (fixes update.ts missing
-      `team.mode`)
-    - Extract `manifestMissingError(command)` factory to lib/errors.ts
+    - Renamed `git/git.ts` → `git/exec.ts`, `manifest/manifest.ts` → `manifest/store.ts`
+    - Added `index.ts` barrel exports for `git/`, `template/`, `manifest/`
+    - Consolidated imports across commands and cli.ts to use barrels
+    - Extracted duplicate test helpers to `factories.ts` and `integration.ts`
+    - Extracted `renderConfigOverrides()`, shared `buildConfigMap`/`buildTokenMap`,
+      and `manifestMissingError()` factory
 
     **Part 2 — Structural improvements:**
 
-    - Unify IOContext: shared base `CoreIO` interface (readFile, writeFile, mkdir,
-      exec) composed by command-specific interfaces
-    - Extract `runPostInitSetup()` from init.ts (fresh/join duplication)
-    - Split `skills.ts` (456 LOC) → `skills/resolution.ts` + `skills/generation.ts`
-      with barrel
-    - Extract constants: config path, pm.mode values, arc-in-git condition string
-    - Unify `listFiles`/`listArcFiles` directory traversal into shared utility
+    - Created `lib/constants.ts` — centralizes config paths, pm.mode key/values,
+      and the `pm.mode == arc-in-git` condition string (was duplicated in init.ts
+      and update.ts)
+    - Added `ReadIO` and `CoreIO` base interfaces in `lib/types.ts` — command-specific
+      IOContext interfaces now extend these (`IOContext extends CoreIO`,
+      `StatusIOContext extends ReadIO`, `DiffIOContext extends ReadIO`,
+      `UserIOContext extends CoreIO`, `SkillGenerationIO extends ReadIO`)
+    - Extracted `runPostInitSetup()` in init.ts — deduplicates the identity storage,
+      user directory creation, and notes refspec configuration shared by fresh/join modes
+    - Split `skills.ts` (459 LOC) → `skills/resolution.ts` + `skills/generation.ts`
+      with barrel `skills/index.ts`. Moved test to `__tests__/unit/skills/`
+    - Extracted `listArcFiles()` from cli.ts into `lib/fs.ts` as shared utility
 
 ### **Phase 8:** E2E Tests and Verification
 

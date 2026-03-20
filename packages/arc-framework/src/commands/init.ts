@@ -11,19 +11,25 @@
 import { join, dirname } from "node:path";
 import {
   ensureDir, appendToGitignore, appendToGitattributes,
-  renderTokens, renderConditionals, renderConfigOverrides, evaluateCondition,
-  type ReadFileFn, type WriteFileFn, type MkdirFn,
+  renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
-import { configureNotesRefspec, type GitExec } from "../lib/git/index.js";
+import { configureNotesRefspec } from "../lib/git/index.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
-import type { Classification, Layer, FileEntry, Manifest, Recipe } from "../lib/types.js";
+import type { Manifest, Recipe, CoreIO } from "../lib/types.js";
 import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
-} from "../lib/skills.js";
-import { hashContent } from "../lib/manifest/index.js";
+} from "../lib/skills/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
+import {
+  ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
+  CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE, PM_MODE_ARC_IN_GIT,
+} from "../lib/constants.js";
+import { buildConfigMap, buildTokenMap } from "../lib/config.js";
+import {
+  resolveFileList, toOutputPath, classifyFile, buildManifestFiles,
+} from "../lib/classification.js";
 
 // --- Types ---
 
@@ -31,12 +37,8 @@ import { getFrameworkVersion } from "../lib/version.js";
 export type AccessFn = (path: string) => Promise<void>;
 
 /** Bundled I/O dependencies for testability. */
-export interface IOContext {
-  readFile: ReadFileFn;
-  writeFile: WriteFileFn;
-  mkdir: MkdirFn;
+export interface IOContext extends CoreIO {
   access: AccessFn;
-  exec: GitExec;
 }
 
 /** Init mode: fresh install or joining existing project. */
@@ -60,251 +62,53 @@ export async function detectInitMode(
   access: AccessFn,
 ): Promise<InitMode> {
   try {
-    await access(join(cwd, ".arc", "system", "arc-config.yml"));
+    await access(join(cwd, ...ARC_CONFIG_SEGMENTS));
     return "join";
   } catch {
     return "fresh";
   }
 }
 
-// --- Config and Token Assembly ---
+// --- Post-Init Setup ---
 
-/**
- * Build the condition evaluation config map from prompt results.
- *
- * Maps prompt responses to the dotted keys used in recipe conditions:
- * - `pm.mode` from pm_mode selection
- * - `tools` as comma-separated string from tools multiselect
- *
- * @param prompts - Prompt results from the init prompts
- * @returns Config map for condition evaluation
- */
-export function buildConfigMap(
-  source: { pm_mode: string; tools: string[]; team_mode?: boolean },
-): Record<string, string> {
-  return {
-    "pm.mode": source.pm_mode,
-    "tools": source.tools.join(","),
-    "team.mode": String(source.team_mode ?? false),
-  };
+/** Options for post-init user setup. */
+interface PostInitSetupOptions {
+  arcDir: string;
+  internalTemplateDir: string;
+  io: IOContext;
+  pmMode: string;
+  identityResult: string | null;
 }
 
 /**
- * Build the token substitution map from prompt results or install config.
+ * Run post-init user setup shared by both fresh and join modes.
  *
- * Only init-time tokens are included here. Guide-text placeholders in
- * template files are left untouched by the render engine.
- *
- * @param source - Prompt results or stored install config
- * @param cwd - Repository root directory
- * @returns Token map for `{{TOKEN}}` substitution
+ * Stores identity in git config, creates the user directory with templates,
+ * and configures git notes refspec for cross-machine portability.
  */
-export function buildTokenMap(
-  source: { project_name: string },
-  cwd: string,
-): Record<string, string> {
-  return {
-    PROJECT_NAME: source.project_name,
-    REPO_ROOT: cwd,
-  };
-}
+async function runPostInitSetup(options: PostInitSetupOptions): Promise<void> {
+  const { arcDir, internalTemplateDir, io, pmMode, identityResult } = options;
 
-// --- File Resolution ---
+  if (identityResult) {
+    await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
 
-/**
- * Resolve the full list of files to install based on recipe and config.
- *
- * Starts with the recipe's unconditional `include_files`, then evaluates
- * each condition against the config map and adds matching files.
- * Deduplicates the result.
- *
- * @param recipe - The init recipe
- * @param config - Config map from buildConfigMap
- * @returns Deduplicated list of template-relative file paths to install
- */
-export function resolveFileList(
-  recipe: Recipe,
-  config: Record<string, string>,
-): string[] {
-  const files = new Set<string>(recipe.include_files ?? []);
+    const userDir = join(arcDir, "user", identityResult);
+    await ensureDir(userDir, io.mkdir);
 
-  for (const [condition, entry] of Object.entries(recipe.conditions)) {
-    if (evaluateCondition(condition, config)) {
-      for (const file of entry.include_files) {
-        files.add(file);
-      }
+    const sessionNotes = await io.readFile(
+      join(internalTemplateDir, "user", "SESSION-NOTES.md"),
+    );
+    await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
+
+    if (pmMode === PM_MODE_ARC_IN_GIT) {
+      const atomicInbox = await io.readFile(
+        join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
+      );
+      await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
     }
   }
 
-  return [...files];
-}
-
-// --- Output Path ---
-
-/**
- * Compute the output path for a template file, stripping the `.template` suffix.
- *
- * Convention from file-classification strategy: template files like
- * `WORK-STATUS.template.md` become `WORK-STATUS.md` in the installed output.
- * Only strips `.template` immediately before the file extension in the filename.
- *
- * @param templatePath - Template-relative path (e.g., `active/WORK-STATUS.template.md`)
- * @returns Output path with `.template` stripped from filename
- */
-export function toOutputPath(templatePath: string): string {
-  return templatePath.replace(/\.template(\.[^/]+)$/, "$1");
-}
-
-// --- File Classification ---
-
-/**
- * Scaffolded files — user replaces all content. No pristine copy.
- * Uses template-relative paths (before .template stripping).
- */
-const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
-  "active/WORK-STATUS.template.md",
-  "reference/META-PRD.template.md",
-  "reference/TECHNICAL-OVERVIEW.template.md",
-  "reference/PROJECT-STATUS.template.md",
-  "backlog/ROADMAP.template.md",
-  "backlog/feature/BACKLOG-FEATURE.template.md",
-  "backlog/technical/BACKLOG-TECHNICAL.template.md",
-]);
-
-/**
- * Configurable files — adopters customize specific sections. Gets pristine copy.
- * Uses template-relative paths (before .template stripping).
- */
-const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
-  // Rendered (have tokens or programmatic write)
-  "system/arc-config.yml",
-  "system/agent/AGENT-BRIEFING.PROJECT.template.md",
-  "reference/QUICK-REFERENCE.template.md",
-  // Copied as-is (customized in place by adopters)
-  "system/agent/CLAUDE.ARC.md",
-  "system/agent/CODEX.ARC.md",
-  "system/agent/GEMINI.ARC.md",
-  "system/agent/WARP.ARC.md",
-  "system/agent/COPILOT.ARC.md",
-  "system/agent/CURSOR.ARC.md",
-  "system/agent/WINDSURF.ARC.md",
-  "reference/constitution/DEV-RULES.PROJECT.md",
-  "reference/strategies/STRATEGY-INDEX.md",
-  "reference/archive/README.md",
-  "system/workflows/arc-methods.md",
-  "system/workflows/arc-extensions.md",
-]);
-
-/**
- * Classify a file by its template-relative path.
- *
- * @param templatePath - Template-relative path (before .template stripping)
- * @returns Classification: Scaffolded, Configurable, or Framework (default)
- */
-export function classifyFile(templatePath: string): Classification {
-  if (SCAFFOLDED_FILES.has(templatePath)) return "Scaffolded";
-  if (CONFIGURABLE_FILES.has(templatePath)) return "Configurable";
-  return "Framework";
-}
-
-/**
- * Determine the layer for a file based on whether it came from an arc-in-git condition.
- *
- * @param templatePath - Template-relative path
- * @param arcInGitFiles - Set of files included via `pm.mode == arc-in-git` condition
- * @returns Layer: 'arc-in-git' or 'core'
- */
-export function fileLayer(
-  templatePath: string,
-  arcInGitFiles: ReadonlySet<string>,
-): Layer {
-  return arcInGitFiles.has(templatePath) ? "arc-in-git" : "core";
-}
-
-/**
- * Build the manifest `files` record from rendered file contents.
- *
- * @param fileContents - Map of output-relative paths to rendered content
- * @param arcInGitFiles - Set of template paths from arc-in-git conditions
- * @param templatePaths - Map of output-relative paths back to template paths (for classification)
- * @returns File entries keyed by output-relative path
- */
-export function buildManifestFiles(
-  fileContents: Record<string, string>,
-  arcInGitFiles: ReadonlySet<string>,
-  templatePaths?: Record<string, string>,
-): Record<string, FileEntry> {
-  const entries: Record<string, FileEntry> = {};
-
-  for (const [outputPath, content] of Object.entries(fileContents)) {
-    const templatePath = templatePaths?.[outputPath] ?? outputPath;
-    entries[outputPath] = {
-      classification: classifyFile(templatePath),
-      layer: fileLayer(templatePath, arcInGitFiles),
-      pristine_hash: hashContent(content),
-    };
-  }
-
-  return entries;
-}
-
-// --- arc-config.yml Handling ---
-
-/**
- * Write arc-config.yml by reading the template and overwriting specific values.
- *
- * Preserves all comments and structure from the template. Only lines matching
- * a `config_key` pattern (`key: value`) are overwritten. This gives adopters
- * the full documented config file with their chosen values.
- *
- * @param templatePath - Path to the template arc-config.yml
- * @param destPath - Path to write the output
- * @param configKeys - Map of dotted config keys to values (e.g., `pm.mode` → `arc-in-git`)
- * @param readFile - Injectable read function
- * @param writeFile - Injectable write function
- */
-export async function writeArcConfig(
-  templatePath: string,
-  destPath: string,
-  configKeys: Record<string, string>,
-  readFile: ReadFileFn,
-  writeFile: WriteFileFn,
-): Promise<void> {
-  const content = await readFile(templatePath);
-  const lines = content.split("\n");
-
-  const result = lines.map((line) => {
-    // Match config lines: "key.name: value" (not comments or blank lines)
-    const match = line.match(/^([\w.]+):\s*(.*)$/);
-    if (match) {
-      const key = match[1]!;
-      if (key in configKeys) {
-        return `${key}: ${configKeys[key]}`;
-      }
-    }
-    return line;
-  });
-
-  await writeFile(destPath, result.join("\n"));
-}
-
-/**
- * Parse an arc-config.yml file into a key-value map.
- *
- * Reads the flat `key.name: value` format, skipping comments and blank lines.
- *
- * @param content - Raw file content
- * @returns Map of dotted config keys to string values
- */
-export function parseArcConfig(content: string): Record<string, string> {
-  const config: Record<string, string> = {};
-  for (const line of content.split("\n")) {
-    const match = line.match(/^([\w.]+):\s*(.*)$/);
-    if (match) {
-      config[match[1]!] = match[2]!.trim();
-    }
-  }
-  return config;
+  await configureNotesRefspec(io.exec);
 }
 
 // --- Orchestrator ---
@@ -335,8 +139,8 @@ export interface InitResult {
 
 /** Config keys derived from prompt results for arc-config.yml. */
 const CONFIG_KEY_MAP: Record<string, (p: InitPromptResult) => string> = {
-  "pm.mode": (p) => p.pm_mode,
-  "team.mode": (p) => String(p.team_mode),
+  [CONFIG_KEY_PM_MODE]: (p) => p.pm_mode,
+  [CONFIG_KEY_TEAM_MODE]: (p) => String(p.team_mode),
   "user.sync_push": (p) => p.team_mode ? "prompt" : "always",
 };
 
@@ -385,28 +189,11 @@ export async function runInit(
       await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
     }
 
-    // Store identity and create user directory
-    if (identityResult) {
-      await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
-
-      const userDir = join(arcDir, "user", identityResult);
-      await ensureDir(userDir, io.mkdir);
-
-      const sessionNotes = await io.readFile(
-        join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-      );
-      await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
-
-      if (prompts.pm_mode === "arc-in-git") {
-        const atomicInbox = await io.readFile(
-          join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
-        );
-        await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
-      }
-    }
-
-    // Configure notes fetch refspec for user directory portability
-    await configureNotesRefspec(io.exec);
+    // Identity, user directory, and notes refspec setup
+    await runPostInitSetup({
+      arcDir, internalTemplateDir, io,
+      pmMode: prompts.pm_mode, identityResult,
+    });
 
     return {
       mode,
@@ -432,10 +219,9 @@ export async function runInit(
   }
 
   // Determine arc-in-git files for layer classification
-  const arcInGitCondition = "pm.mode == arc-in-git";
   const arcInGitFiles = new Set<string>();
-  if (recipe.conditions[arcInGitCondition]) {
-    for (const f of recipe.conditions[arcInGitCondition].include_files) {
+  if (recipe.conditions[ARC_IN_GIT_CONDITION]) {
+    for (const f of recipe.conditions[ARC_IN_GIT_CONDITION].include_files) {
       arcInGitFiles.add(f);
     }
   }
@@ -444,7 +230,7 @@ export async function runInit(
   const filesWritten: string[] = [];
   const fileContents: Record<string, string> = {};
   const templatePathMap: Record<string, string> = {};
-  const ARC_CONFIG_PATH = "system/arc-config.yml";
+  const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
   const pristineDir = join(arcDir, ".pristine");
 
   for (const templateFile of templateFiles) {
@@ -523,28 +309,11 @@ export async function runInit(
     await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
   }
 
-  // Store identity and create user directory
-  if (identityResult) {
-    await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
-
-    const userDir = join(arcDir, "user", identityResult);
-    await ensureDir(userDir, io.mkdir);
-
-    const sessionNotes = await io.readFile(
-      join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-    );
-    await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
-
-    if (prompts.pm_mode === "arc-in-git") {
-      const atomicInbox = await io.readFile(
-        join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
-      );
-      await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
-    }
-  }
-
-  // Configure notes fetch refspec for user directory portability
-  await configureNotesRefspec(io.exec);
+  // Identity, user directory, and notes refspec setup
+  await runPostInitSetup({
+    arcDir, internalTemplateDir, io,
+    pmMode: prompts.pm_mode, identityResult,
+  });
 
   return {
     mode,

@@ -22,7 +22,7 @@ import {
 } from "../helpers/integration.js";
 import { runInit } from "../../src/commands/init.js";
 import { runUpdate } from "../../src/commands/update.js";
-import { CANONICAL_SKILLS } from "../../src/lib/skills.js";
+import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 
 // --- Helpers ---
 

@@ -9,11 +9,12 @@
 import { Command } from "commander";
 import * as p from "@clack/prompts";
 import { readFile, writeFile, mkdir, access, readdir, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
-import { runInit, buildPostInitMessage, detectInitMode, parseArcConfig } from "./commands/init.js";
+import { runInit, buildPostInitMessage, detectInitMode } from "./commands/init.js";
+import { parseArcConfig } from "./lib/config.js";
 import type { IOContext, InitMode } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runStatus, buildStatusSummary } from "./commands/status.js";
@@ -33,6 +34,8 @@ import { getArcTemplatePath, getInternalTemplatePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
 import { formatError, UserFacingError } from "./lib/errors.js";
 import type { Recipe } from "./lib/types.js";
+import { ARC_CONFIG_SEGMENTS, CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "./lib/constants.js";
+import { listArcFiles } from "./lib/fs.js";
 
 // --- Real I/O Adapters ---
 
@@ -144,38 +147,6 @@ async function resolveUserIdentity(): Promise<string> {
   return identity;
 }
 
-/**
- * Recursively list files under a directory, returning paths relative to it.
- * Skips the `.pristine/` directory (internal baseline, not user-facing).
- */
-async function listArcFiles(dir: string): Promise<string[]> {
-  const results: string[] = [];
-  async function walk(current: string): Promise<void> {
-    let entries: string[];
-    try {
-      entries = await readdir(current);
-    } catch {
-      return; // Directory doesn't exist
-    }
-    for (const entry of entries) {
-      const fullPath = join(current, entry);
-      const relPath = relative(dir, fullPath);
-      // Skip .pristine directory
-      if (relPath === ".pristine" || relPath.startsWith(".pristine/")) continue;
-      // Skip user/{identity}/ directories (gitignored personal workspace)
-      if (/^user\/[^/]+\//.test(relPath)) continue;
-      const s = await stat(fullPath);
-      if (s.isDirectory()) {
-        await walk(fullPath);
-      } else {
-        results.push(relPath);
-      }
-    }
-  }
-  await walk(dir);
-  return results;
-}
-
 // --- CLI Program ---
 
 const program = new Command();
@@ -207,7 +178,7 @@ program
     if (mode === "join") {
       try {
         const configContent = await readFile(
-          join(cwd, ".arc", "system", "arc-config.yml"), "utf-8",
+          join(cwd, ...ARC_CONFIG_SEGMENTS), "utf-8",
         );
         existingConfig = parseArcConfig(configContent);
       } catch {
@@ -222,9 +193,9 @@ program
       prompts = buildNonInteractivePrompts({
         cwd,
         name: opts.name,
-        pmMode: mode === "join" ? (existingConfig["pm.mode"] ?? "none") : opts.pmMode,
+        pmMode: mode === "join" ? (existingConfig[CONFIG_KEY_PM_MODE] ?? "none") : opts.pmMode,
         tools: opts.tools,
-        team: mode === "join" ? (existingConfig["team.mode"] === "true") : opts.team,
+        team: mode === "join" ? (existingConfig[CONFIG_KEY_TEAM_MODE] === "true") : opts.team,
       });
       if (!opts.tools) {
         p.log.info("No agent tools selected (use --tools to specify).");
@@ -237,8 +208,8 @@ program
           return;
         }
         // Populate project-level values from existing config
-        prompts.pm_mode = existingConfig["pm.mode"] ?? "none";
-        prompts.team_mode = existingConfig["team.mode"] === "true";
+        prompts.pm_mode = existingConfig[CONFIG_KEY_PM_MODE] ?? "none";
+        prompts.team_mode = existingConfig[CONFIG_KEY_TEAM_MODE] === "true";
         prompts.project_name = existingConfig["project.name"] ?? "";
       } else {
         prompts = await runInitPrompts(cwd);
@@ -446,10 +417,10 @@ userCmd
     let pmMode = "none";
     try {
       const configContent = await readFile(
-        join(cwd, ".arc", "system", "arc-config.yml"), "utf-8",
+        join(cwd, ...ARC_CONFIG_SEGMENTS), "utf-8",
       );
       const config = parseArcConfig(configContent);
-      pmMode = config["pm.mode"] ?? "none";
+      pmMode = config[CONFIG_KEY_PM_MODE] ?? "none";
     } catch {
       // Config unreadable — use default
     }

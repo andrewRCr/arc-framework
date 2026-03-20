@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
-import type { Manifest } from "../lib/types.js";
+import type { Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
 
@@ -40,8 +40,7 @@ export interface StatusResult {
 }
 
 /** I/O dependencies for the status command. */
-export interface StatusIOContext {
-  readFile: (path: string) => Promise<string>;
+export interface StatusIOContext extends ReadIO {
   readManifest: (path: string) => Promise<Manifest | null>;
   /** List files under .arc/ (relative paths, no .pristine/). */
   readdir: (arcDir: string) => Promise<string[]>;

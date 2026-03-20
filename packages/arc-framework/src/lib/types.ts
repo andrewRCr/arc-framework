@@ -5,6 +5,25 @@
  * recipe types used across manifest I/O, init, update, and status commands.
  */
 
+import type { ReadFileFn, WriteFileFn, MkdirFn } from "./template/index.js";
+import type { GitExec } from "./git/index.js";
+
+// --- Core I/O ---
+
+/** Read-only I/O — the minimal set shared by all commands. */
+export interface ReadIO {
+  readFile: ReadFileFn;
+}
+
+/** Full I/O for commands that write files and run git. */
+export interface CoreIO extends ReadIO {
+  writeFile: WriteFileFn;
+  mkdir: MkdirFn;
+  exec: GitExec;
+}
+
+// --- Manifest and File Metadata ---
+
 /** File classification determines update behavior during `arc update`. */
 export type Classification = "Framework" | "Configurable" | "Scaffolded";
 

@@ -13,7 +13,7 @@ import {
   buildCodexYaml,
   CANONICAL_SKILLS,
   type SkillGenerationIO,
-} from "../../src/lib/skills.js";
+} from "../../../src/lib/skills/index.js";
 
 // --- Test helpers ---
 
