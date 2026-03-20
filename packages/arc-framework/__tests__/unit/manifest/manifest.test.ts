@@ -70,7 +70,7 @@ describe("readManifest / writeManifest", () => {
   });
 
   afterEach(async () => {
-    await rm(tmpDir, { recursive: true });
+    if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
   });
 
   it("round-trips: write then read back produces equal manifest", async () => {

@@ -92,11 +92,12 @@ function toDisplayName(name: string): string {
  */
 export function buildCodexYaml(frontmatter: SkillFrontmatter): string {
     const display = toDisplayName(frontmatter.name);
+    const esc = (s: string): string => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return [
         "interface:",
-        `  display_name: "${display}"`,
-        `  short_description: "${frontmatter.description}"`,
-        `  default_prompt: "Use /${frontmatter.name} — ${frontmatter.description}"`,
+        `  display_name: "${esc(display)}"`,
+        `  short_description: "${esc(frontmatter.description)}"`,
+        `  default_prompt: "Use /${esc(frontmatter.name)} — ${esc(frontmatter.description)}"`,
         "",
     ].join("\n");
 }

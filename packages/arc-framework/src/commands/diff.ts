@@ -122,7 +122,16 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     }
 
     // Run git diff
-    const diffOutput = await io.gitDiff(pristinePath, currentPath);
+    let diffOutput: string;
+    try {
+      diffOutput = await io.gitDiff(pristinePath, currentPath);
+    } catch (err) {
+      result.errors.push({
+        path: relativePath,
+        message: `Diff failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      continue;
+    }
 
     result.diffs.push({ path: relativePath, diff: diffOutput });
     result.totalChanged++;

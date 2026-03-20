@@ -32,7 +32,12 @@ export async function listArcFiles(dir: string): Promise<string[]> {
       if (relPath === ".pristine" || relPath.startsWith(".pristine/")) continue;
       // Skip user/{identity}/ directories (gitignored personal workspace)
       if (/^user\/[^/]+\//.test(relPath)) continue;
-      const s = await stat(fullPath);
+      let s;
+      try {
+        s = await stat(fullPath);
+      } catch {
+        continue; // Broken symlink, deleted between readdir and stat, etc.
+      }
       if (s.isDirectory()) {
         await walk(fullPath);
       } else {

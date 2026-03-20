@@ -7,9 +7,9 @@
 
 import { describe, it, expect } from "vitest";
 import { runStatus, buildStatusSummary } from "../../src/commands/status.js";
-import { UserFacingError } from "../../src/lib/errors.js";
 import { hashContent } from "../../src/lib/manifest/index.js";
 import type { StatusIOContext } from "../../src/commands/status.js";
+import type { Manifest } from "../../src/lib/types.js";
 import { buildManifest } from "../helpers/factories.js";
 
 // --- Test helpers ---
@@ -54,14 +54,7 @@ describe("runStatus", () => {
     const io = buildIO({ manifest: null });
 
     await expect(runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" }))
-      .rejects.toThrow(UserFacingError);
-
-    try {
-      await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
-    } catch (err) {
-      expect(err).toBeInstanceOf(UserFacingError);
-      expect((err as UserFacingError).code).toBe("MANIFEST_MISSING");
-    }
+      .rejects.toMatchObject({ code: "MANIFEST_MISSING" });
   });
 
   it("reports all files as unmodified after fresh init", async () => {

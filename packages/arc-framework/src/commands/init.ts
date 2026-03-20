@@ -341,7 +341,8 @@ export async function runInit(
 export function buildPostInitMessage(result: InitResult): string {
   const lines: string[] = [];
 
-  lines.push(`ARC installed in .arc/ (${result.filesWritten.length} files)`);
+  const fileCount = result.filesWritten.length;
+  lines.push(`ARC installed in .arc/ (${fileCount} ${fileCount === 1 ? "file" : "files"})`);
 
   if (result.tools.length > 0) {
     lines.push("");

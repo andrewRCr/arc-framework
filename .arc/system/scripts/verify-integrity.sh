@@ -52,8 +52,8 @@ echo "--- Config Validation ---"
 config_script="$ARC_DIR/system/scripts/validate-config.sh"
 if [ -f "$config_script" ] && [ -x "$config_script" ]; then
     # Capture output and exit code
-    config_output=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" "$config_script" 2>&1) || true
-    config_exit=$?
+    config_exit=0
+    config_output=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" "$config_script" 2>&1) || config_exit=$?
 
     # Relay output (skip the Summary line — we produce our own)
     echo "$config_output" | grep -v '^Summary:' | grep -v '^$'
@@ -189,15 +189,13 @@ if [ -f "$strategy_index" ] && [ -d "$strategy_dir" ]; then
     done
 
     # Check files exist that aren't indexed
-    if command -v find > /dev/null 2>&1; then
-        for file in "$strategy_dir"/strategy-*.md; do
-            [ -f "$file" ] || continue
-            basename=$(basename "$file")
-            if ! echo "$indexed_files" | grep -q "$basename"; then
-                warn "Strategy file exists but not indexed: arc/$basename"
-            fi
-        done
-    fi
+    for file in "$strategy_dir"/strategy-*.md; do
+        [ -f "$file" ] || continue
+        basename=$(basename "$file")
+        if ! echo "$indexed_files" | grep -q "$basename"; then
+            warn "Strategy file exists but not indexed: arc/$basename"
+        fi
+    done
 
     pass "Strategy index consistency checked"
 else
@@ -392,7 +390,6 @@ echo ""
 # ============================================================================
 
 echo "==========================================="
-total=$((errors + warnings + info))
 if [ "$errors" -gt 0 ]; then
     printf "${ARC_RED}Integrity check: %d errors, %d warnings, %d info${ARC_NC}\n" "$errors" "$warnings" "$info"
 elif [ "$warnings" -gt 0 ]; then

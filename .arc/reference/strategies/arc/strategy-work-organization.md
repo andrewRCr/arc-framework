@@ -608,6 +608,7 @@ of committing planning artifacts directly to the base branch.
 
 ```
 .arc/active/
+  WORK-STATUS.md
   feature/
     prd-<name>.md, tasks-<name>.md, notes-<name>.md
   technical/

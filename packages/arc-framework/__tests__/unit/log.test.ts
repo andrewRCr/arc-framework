@@ -78,7 +78,10 @@ describe("runLogAtomic", () => {
     });
   });
 
-  it("excludes commits without atomic context footers", async () => {
+  it("includes non-atomic commits if git returns them (filtering is git-level)", async () => {
+    // Git's --grep filters for atomic context footers. If a non-atomic commit
+    // somehow appears in the output, parseGitLogOutput still includes it as long
+    // as it has a Context: line — the parse layer doesn't re-filter by pattern.
     const mockExec: GitExec = vi.fn().mockResolvedValue({
       stdout: buildGitOutput(
         fakeCommit({
@@ -91,10 +94,23 @@ describe("runLogAtomic", () => {
 
     const result = await runLogAtomic({ exec: mockExec });
 
-    // git grep already filters, but parseGitLogOutput requires a Context: line
-    // If somehow a non-atomic commit appears, it should still have a Context: line
-    // to be included — this verifies parsing doesn't crash on unexpected input
     expect(result.entries).toHaveLength(1);
+  });
+
+  it("excludes commits without a Context: line", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({
+      stdout: buildGitOutput(
+        fakeCommit({
+          hash: "n0c0ntx",
+          subject: "fix(auth): quick patch",
+          body: "- Fixed something\n\nNo context footer here",
+        }),
+      ),
+    });
+
+    const result = await runLogAtomic({ exec: mockExec });
+
+    expect(result.entries).toHaveLength(0);
   });
 
   it("returns empty entries when no commits match", async () => {

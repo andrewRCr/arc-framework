@@ -70,10 +70,12 @@ async function appendLineIfMissing(
   let content: string;
   try {
     content = await readFile(filePath);
-  } catch {
-    // File doesn't exist — create it with just this entry
-    await writeFile(filePath, entry + "\n");
-    return;
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      await writeFile(filePath, entry + "\n");
+      return;
+    }
+    throw err;
   }
   const lines = content.split("\n");
   if (lines.includes(entry)) {

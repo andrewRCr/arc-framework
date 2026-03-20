@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { runDiff } from "../../src/commands/diff.js";
-import { UserFacingError } from "../../src/lib/errors.js";
+
 import type { DiffIOContext } from "../../src/commands/diff.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { hashContent } from "../../src/lib/manifest/index.js";
@@ -50,13 +50,9 @@ describe("runDiff", () => {
   it("throws UserFacingError when manifest is missing", async () => {
     const io = buildIO({ manifest: null });
 
-    await expect(runDiff({ cwd: CWD, io })).rejects.toThrow(UserFacingError);
-
-    try {
-      await runDiff({ cwd: CWD, io });
-    } catch (err) {
-      expect((err as UserFacingError).code).toBe("MANIFEST_MISSING");
-    }
+    await expect(runDiff({ cwd: CWD, io })).rejects.toMatchObject({
+      code: "MANIFEST_MISSING",
+    });
   });
 
   it("returns no changes message for unmodified install", async () => {

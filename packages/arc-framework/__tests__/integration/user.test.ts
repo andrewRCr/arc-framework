@@ -256,9 +256,7 @@ describe("user push and pull", () => {
 
     // Load from the pulled note
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
-    await import("node:fs/promises").then((fs) =>
-      fs.mkdir(cloneUserDir, { recursive: true }),
-    );
+    await mkdir(cloneUserDir, { recursive: true });
     const loadResult = await runUserLoad({
       cwd: cloneDir, io: cloneIO, identity: "test-user",
     });

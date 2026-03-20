@@ -179,9 +179,9 @@ describe("init", () => {
     try {
       await execFileAsync(MARKDOWNLINT_BIN, [], { cwd: tmpDir, timeout: 30_000 });
     } catch (err: unknown) {
-      const e = err as { stdout?: string; stderr?: string };
+      const e = err as { stdout?: string; stderr?: string; code?: number | string };
       const output = (e.stdout ?? "") + (e.stderr ?? "");
-      expect.fail(`Markdown linting failed on installed .arc/ files:\n${output}`);
+      expect.fail(`Markdown linting failed (exit ${e.code ?? "?"}) on installed .arc/ files:\n${output}`);
     }
   });
 

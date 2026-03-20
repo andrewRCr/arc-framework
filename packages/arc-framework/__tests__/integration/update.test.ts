@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 import {
   createTempRepo,
@@ -475,8 +477,6 @@ describe("update integration — error cases", () => {
 
   beforeEach(async () => {
     tempDir = await createTempRepo("arc-update-test-");
-    const { mkdtemp } = await import("node:fs/promises");
-    const { tmpdir } = await import("node:os");
     templateDir = await mkdtemp(join(tmpdir(), "arc-templates-"));
     await ensureDir(dirname(join(templateDir, FRAMEWORK_FILE)));
     await writeFile(join(templateDir, FRAMEWORK_FILE), "# Content\n", "utf-8");

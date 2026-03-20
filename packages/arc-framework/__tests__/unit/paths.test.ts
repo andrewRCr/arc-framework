@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
 
 describe("getArcTemplatePath", () => {
   it("returns an absolute path ending with /arc", () => {
     const result = getArcTemplatePath();
-    expect(result).toMatch(/^\//);
+    expect(isAbsolute(result)).toBe(true);
     expect(result).toMatch(/\/arc$/);
   });
 
@@ -25,7 +26,7 @@ describe("getArcTemplatePath", () => {
 describe("getInternalTemplatePath", () => {
   it("returns an absolute path ending with /templates", () => {
     const result = getInternalTemplatePath();
-    expect(result).toMatch(/^\//);
+    expect(isAbsolute(result)).toBe(true);
     expect(result).toMatch(/\/templates$/);
   });
 

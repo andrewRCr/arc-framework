@@ -75,7 +75,9 @@ describe("update", () => {
     await writeFile(pristinePath, "# Old ARC Title\n" + lines.slice(1).join("\n"), "utf-8");
 
     // Now update: base (pristine) = "# Old ARC Title", current = "# My Customized ARC",
-    // updated (template) = "# .arc — ARC Framework" — all three differ on line 1 → conflict
+    // updated (template) = "# .arc — ARC Framework" — all three differ on line 1 → conflict.
+    // arc update exits 0 even with conflicts — conflicts are an expected merge outcome
+    // (like git merge-file), not an error. The adopter resolves markers manually.
     const update = await runArc(["update"], tmpDir);
 
     expect(update.exitCode).toBe(0);

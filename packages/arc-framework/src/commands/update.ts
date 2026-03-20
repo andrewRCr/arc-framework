@@ -342,7 +342,6 @@ export async function runUpdate(
     newManifestFiles[outputPath] = buildEntry(templateFile, rendered);
 
     result.added.push(outputPath);
-    result.updated++;
   }
 
   // Process removed files

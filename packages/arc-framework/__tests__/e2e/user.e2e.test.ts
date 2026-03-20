@@ -7,7 +7,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { access, rm, readdir } from "node:fs/promises";
+import { access, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";

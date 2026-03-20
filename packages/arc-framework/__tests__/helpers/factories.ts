@@ -5,7 +5,7 @@
  * Static data lives here; test utilities and I/O helpers live in integration.ts.
  */
 
-import type { Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
+import type { Manifest, FileEntry } from "../../src/lib/types.js";
 
 /**
  * Build a valid Manifest with sensible defaults. Override any field.
@@ -33,8 +33,8 @@ export function buildFileEntry(
   overrides: Partial<FileEntry> = {},
 ): FileEntry {
   return {
-    classification: "Framework" as Classification,
-    layer: "core" as Layer,
+    classification: "Framework",
+    layer: "core",
     pristine_hash: "abc123",
     ...overrides,
   };

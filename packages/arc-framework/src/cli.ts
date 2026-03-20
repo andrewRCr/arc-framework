@@ -591,8 +591,15 @@ program
       // Pull + load
       const spinner = p.spinner();
       spinner.start("Pulling user notes...");
-      await runUserPull({ io, identity });
-      spinner.stop("Pull complete.");
+      try {
+        await runUserPull({ io, identity });
+        spinner.stop("Pull complete.");
+      } catch (err) {
+        spinner.stop("Pull failed.");
+        const msg = err instanceof Error ? err.message : String(err);
+        p.log.error(`Failed to pull user notes: ${msg}`);
+        return;
+      }
 
       const loadSpinner = p.spinner();
       loadSpinner.start("Loading user directory...");
@@ -629,8 +636,16 @@ program
 
       const pushSpinner = p.spinner();
       pushSpinner.start("Pushing user notes...");
-      await runUserPush({ io, identity });
-      pushSpinner.stop("Push complete.");
+      try {
+        await runUserPush({ io, identity });
+        pushSpinner.stop("Push complete.");
+      } catch (err) {
+        pushSpinner.stop("Push failed.");
+        const msg = err instanceof Error ? err.message : String(err);
+        p.log.error(`Failed to push user notes: ${msg}`);
+        p.log.warn("User directory was saved locally — push manually with 'arc user push'.");
+        return;
+      }
     }
 
     p.outro("Done.");

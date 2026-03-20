@@ -301,13 +301,14 @@ if [ -f ".arc-manifest.json" ]; then
         # Look up classification in manifest (grep -A2 finds the classification line)
         classification=$(grep -A2 "\"${file_rel}\"" .arc-manifest.json 2>/dev/null | grep '"classification"' | sed 's/.*: *"//;s/".*//' || true)
         if [ "$classification" = "Framework" ]; then
-            framework_files="${framework_files}${file}\n"
+            framework_files="${framework_files}${file}
+"
         fi
     done
 
     if [ -n "$framework_files" ]; then
-        echo -e "${YELLOW}Warning: Framework-managed file staged:${NC}"
-        echo -e "$framework_files" | sed '/^$/d' | sed 's/^/   /'
+        printf '%s\n' "${YELLOW}Warning: Framework-managed file staged:${NC}"
+        printf '%s\n' "$framework_files" | sed '/^$/d' | sed 's/^/   /'
         echo "   Changes will be overwritten by arc update."
         echo "   To customize ARC behavior, see strategy-configurability-architecture.md"
         warnings=$((warnings + 1))

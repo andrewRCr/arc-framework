@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ensureDir,
   copyWithRendering,
@@ -23,6 +23,10 @@ describe("ensureDir", () => {
 
 describe("copyWithRendering", () => {
   const mockWrite = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    mockWrite.mockClear();
+  });
 
   it("substitutes {{TOKEN}} placeholders from config map", async () => {
     const mockRead = vi

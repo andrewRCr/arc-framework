@@ -157,8 +157,8 @@ export function buildStatusSummary(result: StatusResult): string {
   }
 
   lines.push("");
-  const total = result.fileStatuses.length;
-  const parts: string[] = [`${total} files tracked`];
+  const trackedCount = result.fileStatuses.length - counts.new;
+  const parts: string[] = [`${trackedCount} files tracked`];
   if (counts.unmodified > 0) parts.push(`${counts.unmodified} unmodified`);
   if (counts.modified > 0) parts.push(`${counts.modified} modified`);
   if (counts.missing > 0) parts.push(`${counts.missing} missing`);

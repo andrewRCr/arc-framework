@@ -35,7 +35,7 @@ function makeStatusIO(cwd: string): StatusIOContext {
   };
 }
 
-function makeDiffIO(cwd: string): DiffIOContext {
+function makeDiffIO(): DiffIOContext {
   return {
     readFile: (path) => readFile(path, "utf-8"),
     readManifest: (path) => readManifest(path),
@@ -148,7 +148,7 @@ describe("status and diff integration", () => {
     it("returns no diffs on unmodified install", async () => {
       const result = await runDiff({
         cwd: tempDir,
-        io: makeDiffIO(tempDir),
+        io: makeDiffIO(),
       });
 
       expect(result.diffs).toHaveLength(0);
@@ -175,7 +175,7 @@ describe("status and diff integration", () => {
       try {
         const result = await runDiff({
           cwd: tempDir,
-          io: makeDiffIO(tempDir),
+          io: makeDiffIO(),
         });
 
         expect(result.totalChanged).toBeGreaterThanOrEqual(1);
@@ -209,7 +209,7 @@ describe("status and diff integration", () => {
       await expect(
         runDiff({
           cwd: emptyDir,
-          io: makeDiffIO(emptyDir),
+          io: makeDiffIO(),
         }),
       ).rejects.toThrow(UserFacingError);
     });

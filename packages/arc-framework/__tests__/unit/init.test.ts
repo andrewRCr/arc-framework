@@ -325,15 +325,15 @@ describe("buildManifestFiles", () => {
   });
 
   it("uses output path (not template path) for classification lookup", () => {
-    // WORK-STATUS.template.md → Scaffolded, but output key is WORK-STATUS.md
-    // The caller passes output paths as keys
+    // WORK-STATUS.template.md → Scaffolded via template path, but buildManifestFiles
+    // receives the output path (WORK-STATUS.md). classifyFile checks template paths,
+    // so the output path doesn't match SCAFFOLDED_FILES and falls through to Framework.
     const fileContents: Record<string, string> = {
       "active/WORK-STATUS.md": "# Status",
     };
     const entries = buildManifestFiles(fileContents, new Set());
-    // WORK-STATUS.md is not in the Scaffolded set (which uses template paths)
-    // We need to check classification against the template path
     expect(entries["active/WORK-STATUS.md"]).toBeDefined();
+    expect(entries["active/WORK-STATUS.md"]!.classification).toBe("Framework");
   });
 });
 
@@ -811,7 +811,7 @@ describe("buildPostInitMessage", () => {
   it("handles single-file install", () => {
     const msg = buildPostInitMessage(makeInitResult({ tools: [] }));
 
-    expect(msg).toContain("(1 files)");
+    expect(msg).toContain("(1 file)");
   });
 
   it("includes team coordination guidance when team mode enabled", () => {

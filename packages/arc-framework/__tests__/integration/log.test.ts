@@ -110,13 +110,15 @@ describe("arc log atomic integration", () => {
   it("returns empty results when no atomic commits exist", async () => {
     // Fresh repo with no atomic commits
     const emptyDir = await createTempRepo("arc-log-empty-");
-    const emptyExec = makeGitExec(emptyDir);
+    try {
+      const emptyExec = makeGitExec(emptyDir);
 
-    await makeCommit(emptyDir, "feat: initial commit\n\nContext: tasks-foo.md (Task 1.1)");
+      await makeCommit(emptyDir, "feat: initial commit\n\nContext: tasks-foo.md (Task 1.1)");
 
-    const result = await runLogAtomic({ exec: emptyExec });
-    expect(result.entries).toHaveLength(0);
-
-    await cleanupTempDir(emptyDir);
+      const result = await runLogAtomic({ exec: emptyExec });
+      expect(result.entries).toHaveLength(0);
+    } finally {
+      await cleanupTempDir(emptyDir);
+    }
   });
 });
