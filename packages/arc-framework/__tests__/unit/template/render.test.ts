@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderTokens, renderConditionals } from "../../../src/lib/template/render.js";
+import { renderTokens, renderConditionals } from "../../../src/lib/template/index.js";
 
 describe("renderTokens", () => {
   it("replaces a single token", () => {

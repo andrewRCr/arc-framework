@@ -11,8 +11,8 @@
  * caller (typically the init command).
  */
 
-import { gitConfigGet } from "./git.js";
-import type { GitExec } from "./git.js";
+import { gitConfigGet } from "./exec.js";
+import type { GitExec } from "./exec.js";
 
 /**
  * Options for identity resolution.

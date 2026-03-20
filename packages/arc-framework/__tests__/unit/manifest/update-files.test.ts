@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { diffFileLists } from "../../../src/lib/manifest/update-files.js";
+import { diffFileLists } from "../../../src/lib/manifest/index.js";
 
 describe("diffFileLists", () => {
   it("returns all files in keep when lists are identical", () => {

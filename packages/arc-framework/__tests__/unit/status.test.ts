@@ -8,29 +8,16 @@
 import { describe, it, expect } from "vitest";
 import { runStatus, buildStatusSummary } from "../../src/commands/status.js";
 import { UserFacingError } from "../../src/lib/errors.js";
+import { hashContent } from "../../src/lib/manifest/index.js";
 import type { StatusIOContext } from "../../src/commands/status.js";
-import type { Manifest } from "../../src/lib/types.js";
+import { buildManifest } from "../helpers/factories.js";
 
 // --- Test helpers ---
-
-/** Build a minimal valid manifest for testing. */
-function buildManifest(
-  overrides: Partial<Manifest> & { files?: Manifest["files"] } = {},
-): Manifest {
-  return {
-    framework_version: "1.0.0",
-    installed_at: "2026-01-01T00:00:00Z",
-    install_config: { project_name: "test", pm_mode: "none", tools: [] },
-    files: {},
-    ...overrides,
-  };
-}
 
 /** Content that produces a known hash for test assertions. */
 const FILE_CONTENT = "hello world\n";
 
 /** SHA-256 of FILE_CONTENT (precomputed). */
-import { hashContent } from "../../src/lib/manifest/hash.js";
 const FILE_HASH = hashContent(FILE_CONTENT);
 
 /** Build a mock StatusIOContext with controllable filesystem state. */

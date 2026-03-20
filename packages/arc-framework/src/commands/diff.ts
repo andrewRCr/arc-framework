@@ -11,8 +11,8 @@
 
 import { join } from "node:path";
 
-import { hashContent } from "../lib/manifest/hash.js";
-import { UserFacingError } from "../lib/errors.js";
+import { hashContent } from "../lib/manifest/index.js";
+import { manifestMissingError } from "../lib/errors.js";
 import type { Manifest } from "../lib/types.js";
 
 // --- Types ---
@@ -77,12 +77,7 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
   // Read manifest — hard fail if missing
   const manifest = await io.readManifest(manifestPath);
   if (!manifest) {
-    throw new UserFacingError({
-      code: "MANIFEST_MISSING",
-      whatHappened: "No .arc-manifest.json found",
-      why: "The diff command requires an existing ARC installation with a manifest file.",
-      whatToDo: "Run 'arc init' first to install the ARC framework.",
-    });
+    throw manifestMissingError("diff");
   }
 
   const result: DiffResult = {

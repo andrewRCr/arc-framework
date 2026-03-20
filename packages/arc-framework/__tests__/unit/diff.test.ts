@@ -11,7 +11,7 @@ import { runDiff } from "../../src/commands/diff.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import type { DiffIOContext } from "../../src/commands/diff.js";
 import type { Manifest } from "../../src/lib/types.js";
-import { hashContent } from "../../src/lib/manifest/hash.js";
+import { hashContent } from "../../src/lib/manifest/index.js";
 import { buildManifest } from "../helpers/factories.js";
 
 // --- Test helpers ---

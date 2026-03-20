@@ -8,7 +8,7 @@ import {
   type SerializeResult,
   type SyncManifest,
 } from "../../../src/lib/git/user-sync.js";
-import type { DirEntry } from "../../../src/lib/git/user-sync.js";
+import type { DirEntry } from "../../../src/lib/git/index.js";
 
 describe("isAllowedFile", () => {
   it("allows extensionless known files by name", () => {

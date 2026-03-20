@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.1.a — E2E test infrastructure (line ~1366)
-**Last Completed**: Task 7.5.d — Tier 2 quality gates (Phase 7.5 complete)
+**Next Task**: Task 7.5.e Part 2 — Structural improvements (line ~1349)
+**Last Completed**: Task 7.5.e Part 1 — Barrel exports, naming, and mechanical DRY fixes
 **Blockers**: [none]
-**Next Action**: Begin Phase 8 — E2E tests and verification
+**Next Action**: Continue Task 7.5.e Part 2 — IOContext unification, init ceremony extraction, skills split, constants, listFiles unification
 
 ---
 

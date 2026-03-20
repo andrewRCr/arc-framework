@@ -18,18 +18,19 @@ import {
   toOutputPath,
   classifyFile,
   fileLayer,
+  buildConfigMap,
+  buildTokenMap,
 } from "./init.js";
-import { readManifest } from "../lib/manifest/manifest.js";
-import { mergeFileContents } from "../lib/manifest/merge.js";
-import type { FileMergeFn } from "../lib/manifest/merge.js";
-import { gitMergeFile } from "../lib/git/git.js";
-import type { GitExec } from "../lib/git/git.js";
-import { diffFileLists } from "../lib/manifest/update-files.js";
-import { renderTokens, renderConditionals } from "../lib/template/render.js";
-import { ensureDir, appendToGitignore } from "../lib/template/files.js";
-import { hashContent } from "../lib/manifest/hash.js";
+import {
+  readManifest, mergeFileContents, diffFileLists, hashContent,
+  type FileMergeFn,
+} from "../lib/manifest/index.js";
+import { gitMergeFile, type GitExec } from "../lib/git/index.js";
+import {
+  renderTokens, renderConditionals, renderConfigOverrides, ensureDir, appendToGitignore,
+} from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
-import { UserFacingError } from "../lib/errors.js";
+import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
 import {
   generateSkills,
@@ -120,15 +121,7 @@ async function renderTemplate(
   const raw = await readFile(join(templateDir, templateFile));
 
   if (templateFile === ARC_CONFIG_TEMPLATE) {
-    const lines = raw.split("\n");
-    return lines
-      .map((line) => {
-        const m = line.match(/^([\w.]+):\s*(.*)$/);
-        return m && m[1]! in configKeyOverrides
-          ? `${m[1]}: ${configKeyOverrides[m[1]!]}`
-          : line;
-      })
-      .join("\n");
+    return renderConfigOverrides(raw, configKeyOverrides);
   }
 
   return renderConditionals(renderTokens(raw, tokens), config);
@@ -176,24 +169,13 @@ export async function runUpdate(
     });
   }
   if (!manifest) {
-    throw new UserFacingError({
-      code: "MANIFEST_MISSING",
-      whatHappened: "No .arc-manifest.json found",
-      why: "The update command requires an existing ARC installation with a manifest file.",
-      whatToDo: "Run 'arc init' first to install the ARC framework.",
-    });
+    throw manifestMissingError("update");
   }
 
   // Rebuild config/token maps from stored install_config
   const { install_config: ic } = manifest;
-  const config: Record<string, string> = {
-    "pm.mode": ic.pm_mode,
-    tools: ic.tools.join(","),
-  };
-  const tokens: Record<string, string> = {
-    PROJECT_NAME: ic.project_name,
-    REPO_ROOT: cwd,
-  };
+  const config = buildConfigMap(ic);
+  const tokens = buildTokenMap(ic, cwd);
   const configKeyOverrides: Record<string, string> = {
     "pm.mode": ic.pm_mode,
   };

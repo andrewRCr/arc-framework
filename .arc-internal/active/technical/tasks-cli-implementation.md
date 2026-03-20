@@ -1336,6 +1336,33 @@ refactor — no behavioral changes, no new features. All imports updated, all te
     - Typecheck: zero errors. Tests: 303 pass (25 files). Lint: zero violations.
       Build: succeeds.
 
+- [ ] **7.5.e DRY/SOLID pass and barrel exports**
+
+    Consolidate imports via barrel exports, fix naming, extract duplicated logic,
+    and improve module responsibilities. Pure refactor — no behavioral changes.
+
+    **Part 1 — Barrel exports, naming, and mechanical DRY fixes:**
+
+    - Rename `git/git.ts` → `git/exec.ts`, `manifest/manifest.ts` → `manifest/store.ts`
+    - Add `index.ts` barrel exports for `git/`, `template/`, `manifest/`
+    - Consolidate imports across commands and cli.ts to use barrels
+    - Extract duplicate test helpers: status.test.ts `buildManifest` → use
+      factories.ts, init.test.ts `DEFAULT_PROMPTS` → use integration.ts
+    - Extract `renderConfigOverrides()` shared by init.ts and update.ts
+    - Extract shared `buildConfigMap`/`buildTokenMap` (fixes update.ts missing
+      `team.mode`)
+    - Extract `manifestMissingError(command)` factory to lib/errors.ts
+
+    **Part 2 — Structural improvements:**
+
+    - Unify IOContext: shared base `CoreIO` interface (readFile, writeFile, mkdir,
+      exec) composed by command-specific interfaces
+    - Extract `runPostInitSetup()` from init.ts (fresh/join duplication)
+    - Split `skills.ts` (456 LOC) → `skills/resolution.ts` + `skills/generation.ts`
+      with barrel
+    - Extract constants: config path, pm.mode values, arc-in-git condition string
+    - Unify `listFiles`/`listArcFiles` directory traversal into shared utility
+
 ### **Phase 8:** E2E Tests and Verification
 
 **Purpose:** Validate the complete CLI through end-to-end tests in real git repos, then verify

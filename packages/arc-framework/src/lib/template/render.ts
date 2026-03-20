@@ -73,3 +73,29 @@ export function renderConditionals(
 
   return result.join("\n");
 }
+
+/**
+ * Override specific key-value lines in an arc-config.yml template.
+ *
+ * Matches lines of the form `key.name: value` and replaces the value
+ * for keys present in the overrides map. Non-matching lines pass through
+ * unchanged (comments, blank lines, etc.).
+ *
+ * @param content - Raw arc-config.yml template content
+ * @param overrides - Map of dotted config keys to override values
+ * @returns Content with matching keys overridden
+ */
+export function renderConfigOverrides(
+  content: string,
+  overrides: Record<string, string>,
+): string {
+  return content
+    .split("\n")
+    .map((line) => {
+      const m = line.match(/^([\w.]+):\s*(.*)$/);
+      return m && m[1]! in overrides
+        ? `${m[1]}: ${overrides[m[1]!]}`
+        : line;
+    })
+    .join("\n");
+}

@@ -6,7 +6,7 @@ import {
   validateManifest,
   readManifest,
   writeManifest,
-} from "../../../src/lib/manifest/manifest.js";
+} from "../../../src/lib/manifest/store.js";
 import { buildManifest, buildFileEntry } from "../../helpers/factories.js";
 
 function validManifest() {

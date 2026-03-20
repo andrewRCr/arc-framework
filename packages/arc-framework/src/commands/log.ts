@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { GitExec } from "../lib/git/git.js";
+import type { GitExec } from "../lib/git/index.js";
 
 // --- Types ---
 

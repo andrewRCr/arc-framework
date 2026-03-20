@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { mergeFileContents, type FileMergeFn } from "../../../src/lib/manifest/merge.js";
+import { mergeFileContents, type FileMergeFn } from "../../../src/lib/manifest/index.js";
 
 /** Mock merge that simulates clean non-overlapping merge. */
 const cleanMerge: FileMergeFn = async () => ({

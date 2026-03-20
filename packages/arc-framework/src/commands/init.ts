@@ -9,21 +9,20 @@
  */
 
 import { join, dirname } from "node:path";
-import type { ReadFileFn, WriteFileFn, MkdirFn } from "../lib/template/files.js";
-import { ensureDir, appendToGitignore, appendToGitattributes } from "../lib/template/files.js";
-import { renderTokens, renderConditionals } from "../lib/template/render.js";
-import type { GitExec } from "../lib/git/git.js";
-import { configureNotesRefspec } from "../lib/git/git.js";
+import {
+  ensureDir, appendToGitignore, appendToGitattributes,
+  renderTokens, renderConditionals, renderConfigOverrides, evaluateCondition,
+  type ReadFileFn, type WriteFileFn, type MkdirFn,
+} from "../lib/template/index.js";
+import { configureNotesRefspec, type GitExec } from "../lib/git/index.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
-import type { Classification, Layer, FileEntry, Manifest } from "../lib/types.js";
-import type { Recipe } from "../lib/types.js";
-import { evaluateCondition } from "../lib/template/recipe.js";
+import type { Classification, Layer, FileEntry, Manifest, Recipe } from "../lib/types.js";
 import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
 } from "../lib/skills.js";
-import { hashContent } from "../lib/manifest/hash.js";
+import { hashContent } from "../lib/manifest/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 
 // --- Types ---
@@ -81,31 +80,31 @@ export async function detectInitMode(
  * @returns Config map for condition evaluation
  */
 export function buildConfigMap(
-  prompts: InitPromptResult,
+  source: { pm_mode: string; tools: string[]; team_mode?: boolean },
 ): Record<string, string> {
   return {
-    "pm.mode": prompts.pm_mode,
-    "tools": prompts.tools.join(","),
-    "team.mode": String(prompts.team_mode),
+    "pm.mode": source.pm_mode,
+    "tools": source.tools.join(","),
+    "team.mode": String(source.team_mode ?? false),
   };
 }
 
 /**
- * Build the token substitution map from prompt results and environment.
+ * Build the token substitution map from prompt results or install config.
  *
  * Only init-time tokens are included here. Guide-text placeholders in
  * template files are left untouched by the render engine.
  *
- * @param prompts - Prompt results from the init prompts
+ * @param source - Prompt results or stored install config
  * @param cwd - Repository root directory
  * @returns Token map for `{{TOKEN}}` substitution
  */
 export function buildTokenMap(
-  prompts: InitPromptResult,
+  source: { project_name: string },
   cwd: string,
 ): Record<string, string> {
   return {
-    PROJECT_NAME: prompts.project_name,
+    PROJECT_NAME: source.project_name,
     REPO_ROOT: cwd,
   };
 }
@@ -461,13 +460,7 @@ export async function runInit(
     const raw = await io.readFile(srcPath);
     let renderedContent: string;
     if (templateFile === ARC_CONFIG_PATH) {
-      const lines = raw.split("\n");
-      renderedContent = lines.map((line) => {
-        const m = line.match(/^([\w.]+):\s*(.*)$/);
-        return m && m[1]! in configKeyOverrides
-          ? `${m[1]}: ${configKeyOverrides[m[1]!]}`
-          : line;
-      }).join("\n");
+      renderedContent = renderConfigOverrides(raw, configKeyOverrides);
     } else {
       renderedContent = renderConditionals(renderTokens(raw, tokens), config);
     }

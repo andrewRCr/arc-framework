@@ -14,7 +14,7 @@ import {
   makeCommit,
 } from "../helpers/integration.js";
 import { runLogAtomic } from "../../src/commands/log.js";
-import type { GitExec } from "../../src/lib/git/git.js";
+import type { GitExec } from "../../src/lib/git/index.js";
 
 let tempDir: string;
 let exec: GitExec;

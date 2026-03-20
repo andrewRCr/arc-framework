@@ -7,7 +7,7 @@ import {
   evaluateCondition,
   getInitTokenNames,
   findResidualInitTokens,
-} from "../../../src/lib/template/recipe.js";
+} from "../../../src/lib/template/index.js";
 import type { Recipe } from "../../../src/lib/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

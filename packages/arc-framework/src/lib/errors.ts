@@ -97,6 +97,21 @@ export function formatError(err: Error): string {
   return `✖ ${err.message}`;
 }
 
+/**
+ * Create a MANIFEST_MISSING error for a command that requires an existing installation.
+ *
+ * @param command - The command name for the error message (e.g., "status", "diff", "update")
+ * @returns A UserFacingError with consistent messaging
+ */
+export function manifestMissingError(command: string): UserFacingError {
+  return new UserFacingError({
+    code: "MANIFEST_MISSING",
+    whatHappened: "No .arc-manifest.json found",
+    why: `The ${command} command requires an existing ARC installation with a manifest file.`,
+    whatToDo: "Run 'arc init' first to install the ARC framework.",
+  });
+}
+
 /** Ensures a string ends with a sentence-terminal punctuation mark. */
 function ensureTrailingPeriod(text: string): string {
   if (/[.!?]$/.test(text)) return text;

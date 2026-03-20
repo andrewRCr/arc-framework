@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 
 import { runInit } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
-import type { GitExec } from "../../src/lib/git/git.js";
+import type { GitExec } from "../../src/lib/git/index.js";
 import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
@@ -246,7 +246,7 @@ export async function createTemplateDir(
 // --- Git Notes Helpers ---
 
 import { spawn } from "node:child_process";
-import type { DirEntry } from "../../src/lib/git/user-sync.js";
+import type { DirEntry } from "../../src/lib/git/index.js";
 import type { UserIOContext } from "../../src/commands/user.js";
 
 /**

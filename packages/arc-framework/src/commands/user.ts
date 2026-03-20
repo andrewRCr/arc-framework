@@ -6,16 +6,14 @@
  */
 
 import { join } from "node:path";
-import type { ReadFileFn, WriteFileFn, MkdirFn } from "../lib/template/files.js";
-import { ensureDir, appendToGitignore } from "../lib/template/files.js";
-import type { GitExec } from "../lib/git/git.js";
 import {
-  serialize,
-  deserialize,
-  type SyncManifest,
-  type DirEntry,
-  type SkipWarning,
-} from "../lib/git/user-sync.js";
+  ensureDir, appendToGitignore,
+  type ReadFileFn, type WriteFileFn, type MkdirFn,
+} from "../lib/template/index.js";
+import {
+  serialize, deserialize,
+  type GitExec, type SyncManifest, type DirEntry, type SkipWarning,
+} from "../lib/git/index.js";
 
 // --- Types ---
 

@@ -25,16 +25,13 @@ import {
 } from "./commands/user.js";
 import { runLogAtomic, buildLogAtomicOutput } from "./commands/log.js";
 import type { UserIOContext } from "./commands/user.js";
-import type { DirEntry } from "./lib/git/user-sync.js";
+import { resolveIdentity, type GitExec, type DirEntry } from "./lib/git/index.js";
+import { readManifest } from "./lib/manifest/index.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
-import { resolveIdentity } from "./lib/git/identity.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
-import { readManifest } from "./lib/manifest/manifest.js";
-import { formatError } from "./lib/errors.js";
-import { UserFacingError } from "./lib/errors.js";
-import type { GitExec } from "./lib/git/git.js";
+import { formatError, UserFacingError } from "./lib/errors.js";
 import type { Recipe } from "./lib/types.js";
 
 // --- Real I/O Adapters ---

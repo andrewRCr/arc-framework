@@ -4,7 +4,7 @@ import {
   copyWithRendering,
   appendToGitignore,
   appendToGitattributes,
-} from "../../../src/lib/template/files.js";
+} from "../../../src/lib/template/index.js";
 
 describe("ensureDir", () => {
   it("creates nested directories recursively", async () => {

@@ -24,16 +24,9 @@ import type { IOContext, InitResult } from "../../src/commands/init.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills.js";
+import { DEFAULT_PROMPTS } from "../helpers/integration.js";
 
 // --- Shared Fixtures ---
-
-/** Default prompts — override only what matters per test. */
-const DEFAULT_PROMPTS: InitPromptResult = {
-  project_name: "Test Project",
-  tools: ["claude"],
-  pm_mode: "none",
-  team_mode: false,
-};
 
 /** Default InitResult — override only what matters per test. */
 function makeInitResult(overrides: Partial<InitResult> = {}): InitResult {
