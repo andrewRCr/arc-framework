@@ -23,6 +23,7 @@ import {
   buildSaveSummary, buildLoadSummary,
   UserSaveError,
 } from "./commands/user.js";
+import { runLogAtomic, buildLogAtomicOutput } from "./commands/log.js";
 import type { UserIOContext } from "./commands/user.js";
 import type { DirEntry } from "./lib/user-sync.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
@@ -630,6 +631,40 @@ program
     }
 
     p.outro("Done.");
+  });
+
+// --- Log subcommand ---
+
+const logCmd = program
+  .command("log")
+  .description("Browse ARC commit history");
+
+logCmd
+  .command("atomic")
+  .description("Show atomic task commits")
+  .option("--since <date>", "Show commits after date (e.g., 2026-03-01)")
+  .option("--author <name>", "Filter by author")
+  .option("--limit <n>", "Maximum number of commits", parseInt)
+  .option("--work-unit <name>", "Filter by work unit name (matches atomic-{name})")
+  .action(async (opts: { since?: string; author?: string; limit?: number; workUnit?: string }) => {
+    try {
+      const result = await runLogAtomic({
+        exec: gitExec,
+        since: opts.since,
+        author: opts.author,
+        limit: opts.limit,
+        workUnit: opts.workUnit,
+      });
+
+      const output = buildLogAtomicOutput(result);
+      p.log.message(output);
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        p.log.error(formatError(err));
+        return;
+      }
+      throw err;
+    }
   });
 
 program.parse();

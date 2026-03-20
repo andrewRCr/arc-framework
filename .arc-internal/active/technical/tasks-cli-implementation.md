@@ -1178,24 +1178,15 @@ mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolu
         direct git notes verification in 7.3.c tests. Push/pull covered
         by end-to-end test: save → push → clone → pull → load → verify.
 
-- [ ] **7.4 Implement `arc log --atomic` subcommand**
+- [x] **7.4 Implement `arc log --atomic` subcommand**
 
-    Introduces `log` command with `--atomic` flag. Uses `git log --grep` under the hood.
+    `src/commands/log.ts` — orchestrator (`runLogAtomic`) + formatter (`buildLogAtomicOutput`).
+    Uses `git log --grep` with OR matching for two context footer patterns (companion file
+    `atomic-{name}.md` and standalone `(atomic / no associated task list)`). Parses conventional
+    commit subjects into type/scope/description. Wired as `arc log atomic` in `cli.ts`.
 
-    - Search commit history for two patterns:
-        - `git log --grep="Context: atomic-"` — work-unit-scoped atomic tasks (companion file)
-        - `git log --grep="(atomic / no associated task list)"` — standalone atomic tasks
-    - Formatted output (date, type, scope, description)
-    - Optional filters: `--since`, `--author`, `--limit`, `--work-unit` (filter by WU name
-      via `atomic-{name}` filename pattern)
-    - Clear output when no matching commits found
-
-    Build `test-first` (one behavior at a time):
-    - Commits with companion file context footer appear in output
-    - Commits with standalone atomic context footer appear in output
-    - `--work-unit` filter narrows to specific WU
-    - Non-atomic commits excluded
-    - Filter flags work correctly
+    - Filters: `--since`, `--author`, `--limit` passed to git; `--work-unit` post-filters
+    - 9 unit tests (TDD, behaviors batched — tightly coupled parse+filter pipeline)
 
 - [~] **7.5 ~~Implement configurable install directory~~**
 
@@ -1295,20 +1286,21 @@ mode via recipe conditions. Task 7.2.b is verified by Phase 4's file list resolu
         - `completed-atomic-2026-q1.md` left as historical record in archive
         - No active methodology docs reference the protocol (cleaned in 7.7)
 
-- [ ] **7.9 Write integration tests for unified model and mode variations**
-    - Test: init creates `user/{identity}/` with SESSION-NOTES.md
-    - Test: init with `pm.mode: arc-in-git` → ATOMIC-INBOX.md in user dir
-    - Test: init with `pm.mode: none` → no ATOMIC-INBOX, no backlog files
-    - Test: init with team mode → same `user/` structure, `team.mode: true` in config,
-      `user.sync_push: prompt`
-    - Test: init with solo mode → `user.sync_push: always`
-    - Test: no `completed-atomic` files in any mode
-    - Test: `arc user save` → `arc user load` round-trip preserves user dir contents
+- [x] **7.9 Write integration tests for remaining Phase 7 gaps**
 
-- [ ] **7.10 Run quality gates**
-    - Type checking passes
-    - All tests pass
-    - Markdown linting passes (including all updated methodology docs and templates)
+    Most unified-model integration coverage was written during Tasks 7.1–7.3 (init.test.ts,
+    user.test.ts). This task covers the remaining gaps.
+
+    - `log.test.ts` (6 tests): `arc log atomic` against real git repos — companion file
+      footers, standalone footers, non-atomic exclusion, `--work-unit` filter, `--limit`,
+      empty repo. Exercises end-to-end git log parsing with real commits.
+    - `init.test.ts` (+2 tests): `completed-atomic` file absence in both pm.mode=none
+      and pm.mode=arc-in-git. Join mode + arc-in-git ATOMIC-INBOX was already covered
+      (line 558).
+
+- [x] **7.10 Run quality gates**
+    - Tier 3: markdown lint 0 errors (158 files), typecheck 0 errors, 303 tests pass
+      (25 files), build succeeds
 
 ### **Phase 7.5:** Package Internal Organization
 

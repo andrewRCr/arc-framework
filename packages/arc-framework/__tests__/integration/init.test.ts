@@ -371,6 +371,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
+  it("does not produce any completed-atomic files", async () => {
+    const allFiles = await listFiles(arcDir, { skipPristine: false });
+    const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));
+    expect(completedAtomic).toEqual([]);
+  });
+
   // --- Post-Init Message ---
 
   it("post-init message contains file count and next steps", () => {
@@ -453,6 +459,25 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       "utf-8",
     );
     expect(installedInbox).toBe(templateInbox);
+  });
+
+  it("does not produce any completed-atomic files in arc-in-git mode", async () => {
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    await runInit({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      recipe,
+      prompts: { ...prompts, pm_mode: "arc-in-git" },
+      identityResult: "test-user",
+    });
+
+    const allFiles = await listFiles(join(tempDir, ".arc"), { skipPristine: false });
+    const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));
+    expect(completedAtomic).toEqual([]);
   });
 });
 
