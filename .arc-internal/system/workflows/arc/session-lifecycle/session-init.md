@@ -181,16 +181,19 @@ operations.
 4. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
    active patterns from `commit.custom_pattern` / `commit.context_pattern`
 
-Include non-default configuration in the orientation summary only when present. Default configuration
-needs no mention — the agent already follows default conventions from loaded documents.
+**Do not mention defaults in the orientation.** Only surface non-default config values and active
+method overrides. "All methods at defaults" and "all config at defaults" are the expected state —
+reporting them is noise.
 
-### 5. Confirm Orientation
+### 5. Assess Readiness
 
-**Freshness check** (run before producing orientation — informational, not blocking):
+Run the freshness check and, when no active work exists, discover what's next. Both feed
+into the orientation summary in Step 6.
 
-Assess how current the session documents are. This feeds confidence into mismatch recovery (Step 6).
+#### Freshness check
 
 **Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
+
 Otherwise, or if no handoff hash exists:
 
 ```bash
@@ -199,36 +202,21 @@ git log -1 --format=%h
 
 # Count commits since SESSION-NOTES handoff (substitute the actual hash)
 git log --oneline <handoff-hash>..HEAD
-# Report: "SESSION-NOTES written at <hash>, N commits behind HEAD"
 
 # Check WORK-STATUS freshness
 git log -1 --format=%h -- .arc-internal/active/WORK-STATUS.md
 # If this differs from HEAD, WORK-STATUS hasn't been updated across recent commits
 ```
 
-Include freshness gaps in the orientation summary only when detected. A gap doesn't mean
-state is wrong — it means verify more carefully before trusting session documents.
+A freshness gap doesn't mean state is wrong — it means verify more carefully before trusting
+session documents. **Only mention gaps in the orientation if they exist.** A clean check
+produces no output.
 
-Confirm successful initialization. Use this structure:
+#### Next work unit discovery
 
-**ARC session initialized** · `{branch-name}` · {clean | uncommitted changes}
+**Skip if** WORK-STATUS.md shows an active task list — discovery only applies between work units.
 
-**Active work state:**
-
-- **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Current task**: Task being worked on per WORK-STATUS.md
-- **Blockers**: Any blockers or mismatches detected during initialization, or "none"
-
-**Next action:** What comes next per WORK-STATUS.md
-
-Awaiting direction — proceed to Next Action?
-
-**"No active work" variant:** When WORK-STATUS.md shows `Task List: [none]`, there is no active
-work unit. Use the same format — Current task is "none", Next action comes from WORK-STATUS.md.
-This is the normal state after initialization or between work units.
-
-**Next work unit discovery (`pm.mode: arc-in-git`):** When no active work exists, assess
-readiness for the next work unit before producing the orientation summary:
+When WORK-STATUS.md shows `Task List: [none]`, assess readiness for the next work unit:
 
 1. Read ROADMAP.md — identify the next queued or suggested item
 2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
@@ -240,18 +228,38 @@ need refinement, a `plan-*` doc may need development before a PRD can be created
 entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
 and reports — the user decides how to proceed.
 
-**Formatting guidance:**
+### 6. Confirm Orientation
 
-- The header line confirms: protocol ran, active branch, and tree status — at a glance
-- **Next action** is standalone and prominent — it's the user's primary scanning target
-- Environment details (working directory, runtime, documents loaded) are implicit in a
-  successful initialization. Only surface environment information when something is wrong
-  (missing tools, failed verification, documents that couldn't be loaded)
-- Configuration defaults, extension status, and freshness results are agent-internal
-  processing — include in the orientation summary only when they reveal something actionable
-  (non-default settings, active method overrides, freshness gaps, missing identity)
+Produce the orientation summary. This is the user's first view of session state — keep it
+focused on what matters and suppress anything that resolved cleanly.
 
-### 6. If Context Seems Mismatched
+**Output format:**
+
+**ARC session initialized** · `{branch-name}` · {clean | uncommitted changes}
+
+**Active work state:**
+
+- **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
+- **Current task**: Task being worked on per WORK-STATUS.md (or "none" between work units)
+- **Blockers**: Any blockers or mismatches detected during initialization, or "none"
+
+**Next action:** What comes next per WORK-STATUS.md
+
+Awaiting direction — proceed to Next Action?
+
+**What to include and what to suppress:**
+
+The orientation should surface *problems and decisions*, not a log of checks that passed.
+
+- **Always include**: active work state, next action, blockers, and discovery results
+  (when between work units)
+- **Include only if non-default or actionable**: configuration overrides, freshness gaps,
+  method overrides, missing identity, environment issues
+- **Never include**: confirmation that defaults are active, that freshness is clean, that
+  no overrides were found, that extensions had no steps, or that environment checks passed.
+  These are the expected state — reporting them is noise.
+
+### 7. If Context Seems Mismatched
 
 If documented state doesn't match reality during initialization, use the trust hierarchy to
 determine the correct response.
