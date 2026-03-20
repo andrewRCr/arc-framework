@@ -7,8 +7,8 @@ import {
   evaluateCondition,
   getInitTokenNames,
   findResidualInitTokens,
-} from "../../src/lib/recipe.js";
-import type { Recipe } from "../../src/lib/types.js";
+} from "../../../src/lib/template/recipe.js";
+import type { Recipe } from "../../../src/lib/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -314,7 +314,7 @@ describe("findResidualInitTokens", () => {
 
 describe("init-recipe.json", () => {
   it("passes schema validation", () => {
-    const recipePath = resolve(__dirname, "../../init-recipe.json");
+    const recipePath = resolve(__dirname, "../../../init-recipe.json");
     const data = JSON.parse(readFileSync(recipePath, "utf-8"));
     const result = validateRecipe(data);
     expect(result.errors).toEqual([]);
@@ -322,14 +322,14 @@ describe("init-recipe.json", () => {
   });
 
   it("has no duplicate prompt ids", () => {
-    const recipePath = resolve(__dirname, "../../init-recipe.json");
+    const recipePath = resolve(__dirname, "../../../init-recipe.json");
     const data = JSON.parse(readFileSync(recipePath, "utf-8")) as Recipe;
     const ids = data.prompts.map((p) => p.id);
     expect(ids.length).toBe(new Set(ids).size);
   });
 
   it("declares init tokens only for prompts that produce template substitutions", () => {
-    const recipePath = resolve(__dirname, "../../init-recipe.json");
+    const recipePath = resolve(__dirname, "../../../init-recipe.json");
     const data = JSON.parse(readFileSync(recipePath, "utf-8")) as Recipe;
     const tokenPrompts = data.prompts.filter((p) => p.token);
     // Every token prompt should be a text prompt (tokens come from user input, not selection)

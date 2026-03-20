@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import type { GitExec } from "../../src/lib/git.js";
+import type { GitExec } from "../../src/lib/git/git.js";
 import { runLogAtomic, buildLogAtomicOutput } from "../../src/commands/log.js";
 
 /** Helper to build a mock git log entry in the --format output. */

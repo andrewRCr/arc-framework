@@ -23,7 +23,7 @@ import { runStatus } from "../../src/commands/status.js";
 import type { StatusIOContext } from "../../src/commands/status.js";
 import { runDiff } from "../../src/commands/diff.js";
 import type { DiffIOContext } from "../../src/commands/diff.js";
-import { readManifest } from "../../src/lib/manifest.js";
+import { readManifest } from "../../src/lib/manifest/manifest.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 // --- Helpers ---
 

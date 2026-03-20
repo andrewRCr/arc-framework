@@ -19,15 +19,15 @@ import {
   classifyFile,
   fileLayer,
 } from "./init.js";
-import { readManifest } from "../lib/manifest.js";
-import { mergeFileContents } from "../lib/merge.js";
-import type { FileMergeFn } from "../lib/merge.js";
-import { gitMergeFile } from "../lib/git.js";
-import type { GitExec } from "../lib/git.js";
-import { diffFileLists } from "../lib/update-files.js";
-import { renderTokens, renderConditionals } from "../lib/render.js";
-import { ensureDir, appendToGitignore } from "../lib/files.js";
-import { hashContent } from "../lib/hash.js";
+import { readManifest } from "../lib/manifest/manifest.js";
+import { mergeFileContents } from "../lib/manifest/merge.js";
+import type { FileMergeFn } from "../lib/manifest/merge.js";
+import { gitMergeFile } from "../lib/git/git.js";
+import type { GitExec } from "../lib/git/git.js";
+import { diffFileLists } from "../lib/manifest/update-files.js";
+import { renderTokens, renderConditionals } from "../lib/template/render.js";
+import { ensureDir, appendToGitignore } from "../lib/template/files.js";
+import { hashContent } from "../lib/manifest/hash.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError } from "../lib/errors.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";

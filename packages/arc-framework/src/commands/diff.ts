@@ -11,7 +11,7 @@
 
 import { join } from "node:path";
 
-import { hashContent } from "../lib/hash.js";
+import { hashContent } from "../lib/manifest/hash.js";
 import { UserFacingError } from "../lib/errors.js";
 import type { Manifest } from "../lib/types.js";
 

@@ -30,7 +30,7 @@ function buildManifest(
 const FILE_CONTENT = "hello world\n";
 
 /** SHA-256 of FILE_CONTENT (precomputed). */
-import { hashContent } from "../../src/lib/hash.js";
+import { hashContent } from "../../src/lib/manifest/hash.js";
 const FILE_HASH = hashContent(FILE_CONTENT);
 
 /** Build a mock StatusIOContext with controllable filesystem state. */

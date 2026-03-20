@@ -6,8 +6,8 @@ import {
   validateManifest,
   readManifest,
   writeManifest,
-} from "../../src/lib/manifest.js";
-import { buildManifest, buildFileEntry } from "../helpers/factories.js";
+} from "../../../src/lib/manifest/manifest.js";
+import { buildManifest, buildFileEntry } from "../../helpers/factories.js";
 
 function validManifest() {
   return buildManifest({

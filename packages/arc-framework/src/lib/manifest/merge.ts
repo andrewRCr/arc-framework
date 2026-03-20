@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { MergeResult } from "./git.js";
+import type { MergeResult } from "../git/git.js";
 
 /** A file-path-based merge function matching gitMergeFile's signature. */
 export type FileMergeFn = (

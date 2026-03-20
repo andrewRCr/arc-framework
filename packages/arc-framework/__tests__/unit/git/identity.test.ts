@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { slugifyIdentity, resolveIdentity } from "../../src/lib/identity.js";
-import type { GitExec } from "../../src/lib/git.js";
+import { slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
+import type { GitExec } from "../../../src/lib/git/git.js";
 
 // --- slugifyIdentity ---
 

@@ -6,7 +6,7 @@
  * structure and evaluates conditions against config values.
  */
 
-import type { PromptType } from "./types.js";
+import type { PromptType } from "../types.js";
 
 const VALID_PROMPT_TYPES: readonly PromptType[] = [
   "text",

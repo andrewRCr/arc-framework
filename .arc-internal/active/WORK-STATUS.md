@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.5.a — Reorganize `src/lib/` into domain subdirectories (line ~1313)
-**Last Completed**: Task 7.10 — Run quality gates (Phase 7 complete)
+**Next Task**: Task 8.1.a — E2E test infrastructure (line ~1366)
+**Last Completed**: Task 7.5.d — Tier 2 quality gates (Phase 7.5 complete)
 **Blockers**: [none]
-**Next Action**: Begin Phase 7.5 — package internal organization
+**Next Action**: Begin Phase 8 — E2E tests and verification
 
 ---
 

@@ -6,7 +6,7 @@ import {
   gitConfigSet,
   gitMergeFile,
   configureNotesRefspec,
-} from "../../src/lib/git.js";
+} from "../../../src/lib/git/git.js";
 
 describe("checkGitAvailable", () => {
   it("returns true when git is on PATH", async () => {

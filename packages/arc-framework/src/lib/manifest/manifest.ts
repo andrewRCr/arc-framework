@@ -6,7 +6,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import type { Classification, Layer, Manifest } from "./types.js";
+import type { Classification, Layer, Manifest } from "../types.js";
 
 const VALID_CLASSIFICATIONS: readonly Classification[] = [
   "Framework",

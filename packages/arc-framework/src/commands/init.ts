@@ -9,21 +9,21 @@
  */
 
 import { join, dirname } from "node:path";
-import type { ReadFileFn, WriteFileFn, MkdirFn } from "../lib/files.js";
-import { ensureDir, appendToGitignore, appendToGitattributes } from "../lib/files.js";
-import { renderTokens, renderConditionals } from "../lib/render.js";
-import type { GitExec } from "../lib/git.js";
-import { configureNotesRefspec } from "../lib/git.js";
+import type { ReadFileFn, WriteFileFn, MkdirFn } from "../lib/template/files.js";
+import { ensureDir, appendToGitignore, appendToGitattributes } from "../lib/template/files.js";
+import { renderTokens, renderConditionals } from "../lib/template/render.js";
+import type { GitExec } from "../lib/git/git.js";
+import { configureNotesRefspec } from "../lib/git/git.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Classification, Layer, FileEntry, Manifest } from "../lib/types.js";
 import type { Recipe } from "../lib/types.js";
-import { evaluateCondition } from "../lib/recipe.js";
+import { evaluateCondition } from "../lib/template/recipe.js";
 import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
 } from "../lib/skills.js";
-import { hashContent } from "../lib/hash.js";
+import { hashContent } from "../lib/manifest/hash.js";
 import { getFrameworkVersion } from "../lib/version.js";
 
 // --- Types ---

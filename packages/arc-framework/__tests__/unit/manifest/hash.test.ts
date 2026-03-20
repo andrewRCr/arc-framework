@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hashContent } from "../../src/lib/hash.js";
+import { hashContent } from "../../../src/lib/manifest/hash.js";
 
 describe("hashContent", () => {
   it("produces expected SHA-256 for known content", () => {

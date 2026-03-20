@@ -7,8 +7,8 @@ import {
   MAX_FILE_SIZE,
   type SerializeResult,
   type SyncManifest,
-} from "../../src/lib/user-sync.js";
-import type { DirEntry } from "../../src/lib/user-sync.js";
+} from "../../../src/lib/git/user-sync.js";
+import type { DirEntry } from "../../../src/lib/git/user-sync.js";
 
 describe("isAllowedFile", () => {
   it("allows extensionless known files by name", () => {

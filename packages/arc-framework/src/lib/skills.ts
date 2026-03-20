@@ -17,8 +17,8 @@
  */
 
 import { join, dirname } from "node:path";
-import type { ReadFileFn, WriteFileFn, MkdirFn } from "./files.js";
-import { ensureDir } from "./files.js";
+import type { ReadFileFn, WriteFileFn, MkdirFn } from "./template/files.js";
+import { ensureDir } from "./template/files.js";
 
 // --- Types ---
 
