@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.3.a — User command E2E tests (line ~1454)
-**Last Completed**: Task 8.2.d — Status and diff E2E tests
+**Next Task**: [none — all tasks complete, pending integration]
+**Last Completed**: Task 8.5 — Validate success criteria against PRD (all 8 criteria met)
 **Blockers**: [none]
-**Next Action**: Continue Phase 8 — user and log command E2E tests (Task 8.3)
+**Next Action**: Integration — run integrate-work-unit workflow
 
 ---
 

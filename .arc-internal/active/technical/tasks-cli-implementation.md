@@ -1449,60 +1449,67 @@ correct, and the full binary → command → library pipeline is wired end-to-en
         - Diff with no changes: "No changes detected"
         - Diff after modification: shows file path and changed content
 
-- [ ] **8.3 E2E test suite — user and log commands**
+- [x] **8.3 E2E test suite — user and log commands**
 
-    - [ ] **8.3.a User command E2E tests** (`user.e2e.test.ts`)
-        - `arc user add <identity>`: creates user directory with expected structure
-        - Save/load round-trip: init → `arc user save` → delete user directory →
-          `arc user load` → user files restored
-        - Error: `arc user save` without identity configured → exits non-zero
-        - Push/pull with bare remote: init → commit → add bare remote → `arc user save` →
-          `arc user push` → clone fresh → `arc user pull` → `arc user load` → files present
-          (tests the full portability contract)
+    - [x] **8.3.a User command E2E tests** (`user.e2e.test.ts`)
+        - `arc user add`: creates user directory with SESSION-NOTES.md; arc-in-git mode
+          also creates ATOMIC-INBOX.md
+        - Save/load round-trip: init → commit → save → delete user dir → load → files restored
+        - Error: save without identity (isolated git config via HOME/GIT_CONFIG_NOSYSTEM
+          override to prevent global user.name fallback) → exits non-zero
+        - Full portability contract: init → commit → save → bare remote → push → clone →
+          pull → load → SESSION-NOTES.md present in clone
+        - Extended `runArc` helper with optional `env` parameter for git config isolation
 
-    - [ ] **8.3.b Log command E2E tests** (`log.e2e.test.ts`)
-        - `arc log atomic` with matching commits: create commits with `Context: atomic-*`
-          footers → log shows them
-        - Filters: `--since`, `--author`, `--limit`, `--work-unit` narrow results correctly
-        - Empty result: no matching commits → clean empty output
+    - [x] **8.3.b Log command E2E tests** (`log.e2e.test.ts`)
+        - `arc log atomic` shows commits with `Context: atomic-*` and `(atomic / no associated
+          task list)` footers; excludes non-atomic task commits
+        - `--limit` restricts result count; `--work-unit` filters by companion file name
+        - `--author` filters by committer; non-matching author returns empty result
+        - `--since` with future date returns empty; past date includes commits
+        - Empty result: no atomic commits → "No atomic task commits found"
 
-    - [ ] **8.3.c Lifecycle E2E test** (`lifecycle.e2e.test.ts`)
-        - Golden path: init → verify installed → modify files → status shows changes →
-          diff shows correct output → update → customizations preserved → status clean
-          after update
-        - This is the "beta is functional enough" success criterion exercised end-to-end
+    - [x] **8.3.c Lifecycle E2E test** (`lifecycle.e2e.test.ts`)
+        - Golden path: init → verify key files → status clean → modify DEV-RULES.PROJECT.md →
+          status shows modified → diff shows file and change content → update → customization
+          preserved → status still shows modified (customized file correctly differs from pristine)
+        - Corrected spec: "status clean after update" → "status still modified" — customized
+          files remain different from pristine after update, which is correct behavior
 
-- [ ] **8.4 Run full quality gate suite (Tier 3)**
-    - TypeScript strict mode passes (`npm run typecheck`)
-    - Full test suite passes (`npm test` — unit + integration + e2e)
-    - Build succeeds (`npm run build`)
-    - Markdown linting passes (`npm run -s lint:md`)
+- [x] **8.4 Run full quality gate suite (Tier 3)**
+    - TypeScript strict mode: clean (`npm run typecheck`)
+    - Full test suite: 307 unit/integration + 31 E2E = 338 tests, all pass
+    - Build: clean (`npm run build`)
+    - Markdown linting: 158 files, 0 errors (`npm run -s lint:md`)
 
-- [ ] **8.5 Validate success criteria against PRD**
-    - Verify each PRD success criterion is met
-    - Resolve any gaps or document deviations
-    - Verify all atomic tasks resolved (`atomic-cli-implementation.md`)
+- [x] **8.5 Validate success criteria against PRD**
+    - All 8 success criteria verified — each maps to specific test coverage:
+      init+linting (E2E), update preservation+conflicts (E2E), file inventory match
+      (integration), lifecycle golden path (E2E), user portability contract (E2E),
+      log atomic (E2E), quality gates (Tier 3), internal docs (Phase 1)
+    - Atomic companion file (`atomic-cli-implementation.md`): all 6 items marked `[x]`
+    - No gaps or deviations identified
 
 ---
 
 ## Success Criteria
 
-- [ ] `npx @arc-framework/cli init` produces a complete, working ARC installation that passes the
+- [x] `npx @arc-framework/cli init` produces a complete, working ARC installation that passes the
   framework's own markdown linting
-- [ ] `npx @arc-framework/cli@latest update` correctly preserves adopter customizations through
+- [x] `npx @arc-framework/cli@latest update` correctly preserves adopter customizations through
   three-way merge — auto-resolving non-overlapping changes, flagging real conflicts
-- [ ] Installed file set matches the authoritative inventory in `strategy-file-classification.md`
+- [x] Installed file set matches the authoritative inventory in `strategy-file-classification.md`
   for the selected PM mode and options
-- [ ] Beta is functional enough to install ARC in a real project and exercise the full
+- [x] Beta is functional enough to install ARC in a real project and exercise the full
   init → work sessions → update cycle
-- [ ] `arc user save/load/push/pull` and `arc sync` complete the ADR-012/ADR-007 portability
+- [x] `arc user save/load/push/pull` and `arc sync` complete the ADR-012/ADR-007 portability
   contract — the user directory (session notes, inbox, personal files) travels across machines
   and between developers via git notes
-- [ ] `arc log --atomic` provides browsable completion history for atomic/inbox work from commit
+- [x] `arc log --atomic` provides browsable completion history for atomic/inbox work from commit
   records
-- [ ] All quality gates pass: TypeScript strict mode, vitest test suite, markdown linting on
+- [x] All quality gates pass: TypeScript strict mode, vitest test suite, markdown linting on
   generated output
-- [ ] Internal project docs (DEV-RULES.PROJECT, QUICK-REFERENCE, TECHNICAL-OVERVIEW) reflect
+- [x] Internal project docs (DEV-RULES.PROJECT, QUICK-REFERENCE, TECHNICAL-OVERVIEW) reflect
   the hybrid code + documentation project reality
 
 ---

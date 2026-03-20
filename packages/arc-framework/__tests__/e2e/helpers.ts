@@ -38,13 +38,13 @@ export interface RunResult {
  *
  * @param args - CLI arguments (e.g., `["init", "--yes", "--name", "test"]`)
  * @param cwd - Working directory for the CLI process
- * @param options - Optional timeout in milliseconds (default: 30s)
+ * @param options - Optional timeout and env overrides
  * @returns Captured stdout, stderr, and exit code
  */
 export async function runArc(
   args: string[],
   cwd: string,
-  options?: { timeout?: number },
+  options?: { timeout?: number; env?: Record<string, string> },
 ): Promise<RunResult> {
   const timeout = options?.timeout ?? 30_000;
   try {
@@ -54,7 +54,7 @@ export async function runArc(
       {
         cwd,
         timeout,
-        env: { ...process.env, NO_COLOR: "1" },
+        env: { ...process.env, NO_COLOR: "1", ...options?.env },
       },
     );
     return { stdout, stderr, exitCode: 0 };
