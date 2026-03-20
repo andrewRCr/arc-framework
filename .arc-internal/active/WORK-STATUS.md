@@ -9,10 +9,10 @@
 **Branch**: `technical/cli-implementation`
 **Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.2.a — Smoke tests (line ~1410)
-**Last Completed**: Task 8.1.b — Update CI workflow
+**Next Task**: Task 8.3.a — User command E2E tests (line ~1454)
+**Last Completed**: Task 8.2.d — Status and diff E2E tests
 **Blockers**: [none]
-**Next Action**: Continue Phase 8 — E2E smoke tests, then init/update/status-diff E2E tests
+**Next Action**: Continue Phase 8 — user and log command E2E tests (Task 8.3)
 
 ---
 

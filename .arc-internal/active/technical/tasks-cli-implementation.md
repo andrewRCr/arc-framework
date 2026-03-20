@@ -1410,40 +1410,44 @@ correct, and the full binary → command → library pipeline is wired end-to-en
         - Incidental: added `"arc/**"` to `.markdownlint-cli2.jsonc` ignores — root-level
           `arc/` build artifact was unexcluded (pre-existing gap)
 
-- [ ] **8.2 E2E test suite — core commands**
+- [x] **8.2 E2E test suite — core commands**
 
-    - [ ] **8.2.a Smoke tests** (`smoke.e2e.test.ts`)
+    - [x] **8.2.a Smoke tests** (`smoke.e2e.test.ts`)
         - `arc --version` → exits 0, outputs version matching package.json
         - `arc --help` → exits 0, lists available commands
         - `arc nonexistent` → exits non-zero
 
-    - [ ] **8.2.b Init E2E tests** (`init.e2e.test.ts`)
-        - Fresh init with defaults: `arc init --yes --name test-project` → exits 0,
-          `.arc/` directory created with expected structure, `.arc-manifest.json` valid,
-          `.arc/.pristine/` contains pristine copies
-        - Init with PM mode: `--pm-mode arc-in-git` → additional arc-in-git files installed
-          (backlog structure, ROADMAP, PROJECT-STATUS, ATOMIC-INBOX)
-        - Init with tools: `--tools claude,codex` → agent-specific files installed for
-          each tool
-        - Init with team mode: `--team` → team mode set in arc-config.yml
-        - Installed markdown passes linting: run `markdownlint-cli2` against installed `.arc/`
-        - Join mode: init once → init again in same directory → join mode activates
-          (developer workspace setup without overwriting project config)
-        - Error: `arc update` before init (no manifest) → exits non-zero, user-facing message
-        - Error: `arc status` before init → exits non-zero, user-facing message
+    - [x] **8.2.b Init E2E tests** (`init.e2e.test.ts`)
+        - Fresh init with defaults, PM mode, tools, team mode, join mode, error paths
+        - Installed markdown passes linting (markdownlint-cli2 against rendered `.arc/`)
+        - Incidental fixes discovered during E2E testing:
+            - **Recipe path resolution**: `cli.ts` used `new URL("../../init-recipe.json",
+              import.meta.url)` which resolved incorrectly from bundled `dist/cli.js` — replaced
+              with `getRecipePath()` using the existing `findPackageRoot()` approach from `paths.ts`
+            - **Exit code on error**: `UserFacingError` catch blocks logged the error but returned
+              without setting `process.exitCode = 1` — `update`/`status`/`diff`/`log` exited 0 on
+              failure
+            - **Conditional whitespace collapsing**: `renderConditionals()` left double blank lines
+              when stripping false conditional blocks — added post-processing `\n{3,}` → `\n\n`
+              collapse so template authors don't need to contort formatting around conditionals
+            - **Template suffix alignment**: Three workflow files with `<!-- arc:if -->` conditionals
+              lacked `.template` suffix — renamed `session-init.md`, `3_process-task-loop.md`,
+              `02_define-project.md` to `.template.md`. Added `needsRendering()` gate so only
+              `.template` files go through the render pipeline (aligns with strategy doc intent).
+              Wrapped conditional link definitions in `02_define-project.template.md` to avoid
+              MD053 unused-reference violations when conditions are false
 
-    - [ ] **8.2.c Update E2E tests** (`update.e2e.test.ts`)
-        - Clean update: init → update (no changes) → exits 0, no files changed
-        - Customization preserved: init → modify a Configurable file → update → user changes
-          survive, framework changes applied
-        - Conflict handling: init → modify a Framework file in a way that conflicts with
-          a template change → update reports conflict markers
+    - [x] **8.2.c Update E2E tests** (`update.e2e.test.ts`)
+        - Clean update: init → update → exits 0, reports "unchanged"
+        - Customization preserved: modify DEV-RULES.PROJECT.md → update → custom section survives
+        - Conflict handling: modify installed file + pristine (simulates old template) → update
+          detects conflict, file contains `<<<<<<<`/`>>>>>>>` markers
 
-    - [ ] **8.2.d Status and diff E2E tests** (`status-diff.e2e.test.ts`)
-        - Status after clean init: all files show as unmodified
-        - Status after modification: modified files reported
-        - Diff after modification: unified diff output for changed files
-        - Diff with no changes: clean output
+    - [x] **8.2.d Status and diff E2E tests** (`status-diff.e2e.test.ts`)
+        - Status after clean init: all unmodified, no modified/missing counts
+        - Status after modification: reports modified file count
+        - Diff with no changes: "No changes detected"
+        - Diff after modification: shows file path and changed content
 
 - [ ] **8.3 E2E test suite — user and log commands**
 
