@@ -28,7 +28,7 @@ import {
 } from "../lib/constants.js";
 import { buildConfigMap, buildTokenMap } from "../lib/config.js";
 import {
-  resolveFileList, toOutputPath, classifyFile, buildManifestFiles,
+  resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
 
 // --- Types ---
@@ -242,13 +242,16 @@ export async function runInit(
     // Ensure destination directory exists
     await ensureDir(dirname(destPath), io.mkdir);
 
-    // Render content — arc-config.yml uses programmatic write, all others use template rendering
+    // Render content: arc-config.yml has its own path, .template files get
+    // token + conditional rendering, everything else is copied as-is.
     const raw = await io.readFile(srcPath);
     let renderedContent: string;
     if (templateFile === ARC_CONFIG_PATH) {
       renderedContent = renderConfigOverrides(raw, configKeyOverrides);
-    } else {
+    } else if (needsRendering(templateFile)) {
       renderedContent = renderConditionals(renderTokens(raw, tokens), config);
+    } else {
+      renderedContent = raw;
     }
 
     // Write to .arc/

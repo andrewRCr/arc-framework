@@ -15,7 +15,7 @@ import {
 import type { IOContext, InitResult } from "../../src/commands/init.js";
 import { buildConfigMap, buildTokenMap, writeArcConfig } from "../../src/lib/config.js";
 import {
-  resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles,
+  resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
@@ -274,7 +274,22 @@ describe("classifyFile", () => {
     expect(classifyFile("README.md")).toBe("Framework");
     expect(classifyFile("reference/constitution/DEV-RULES.ARC.md")).toBe("Framework");
     expect(classifyFile("system/agent/AGENT-BRIEFING.ARC.md")).toBe("Framework");
-    expect(classifyFile("system/workflows/arc/3_process-task-loop.md")).toBe("Framework");
+    expect(classifyFile("system/workflows/arc/3_process-task-loop.template.md")).toBe("Framework");
+  });
+});
+
+// --- needsRendering ---
+
+describe("needsRendering", () => {
+  it("returns true for .template files", () => {
+    expect(needsRendering("active/WORK-STATUS.template.md")).toBe(true);
+    expect(needsRendering("system/workflows/arc/3_process-task-loop.template.md")).toBe(true);
+  });
+
+  it("returns false for non-template files", () => {
+    expect(needsRendering("README.md")).toBe(false);
+    expect(needsRendering("reference/constitution/DEV-RULES.ARC.md")).toBe(false);
+    expect(needsRendering("system/arc-config.yml")).toBe(false);
   });
 });
 
@@ -387,9 +402,13 @@ describe("runInit", () => {
     },
   };
 
-  it("fresh mode: renders template files to .arc/ with tokens applied", async () => {
+  it("fresh mode: renders .template files with tokens, copies others as-is", async () => {
+    const recipe: Recipe = {
+      ...minimalRecipe,
+      include_files: ["README.template.md", "system/arc-config.yml"],
+    };
     const templateFiles: Record<string, string> = {
-      "/templates/README.md": "# {{PROJECT_NAME}}",
+      "/templates/README.template.md": "# {{PROJECT_NAME}}",
       "/templates/system/arc-config.yml": "pm.mode: none\nbranch.base: main",
       "/templates/system/agent/CLAUDE.ARC.md": "Claude config",
     };
@@ -400,22 +419,23 @@ describe("runInit", () => {
       io,
       templateDir: "/templates",
       internalTemplateDir: "/internal-templates",
-      recipe: minimalRecipe,
+      recipe,
       prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
 
     expect(result.mode).toBe("fresh");
 
-    // README.md rendered with token
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
+
+    // .template file rendered with token and suffix stripped
     const readmeWrite = writeCalls.find(
       (c: [string, string]) => c[0] === "/project/.arc/README.md",
     );
     expect(readmeWrite).toBeDefined();
     expect(readmeWrite![1]).toBe("# Test Project");
 
-    // arc-config.yml written with no token rendering (programmatic)
+    // arc-config.yml written with programmatic overrides (not token rendering)
     const configWrite = writeCalls.find(
       (c: [string, string]) => c[0] === "/project/.arc/system/arc-config.yml",
     );
@@ -427,6 +447,33 @@ describe("runInit", () => {
       (c: [string, string]) => c[0] === "/project/.arc/system/agent/CLAUDE.ARC.md",
     );
     expect(claudeWrite).toBeDefined();
+  });
+
+  it("fresh mode: copies non-template files without rendering tokens", async () => {
+    const templateFiles: Record<string, string> = {
+      "/templates/README.md": "# {{PROJECT_NAME}}",
+      "/templates/system/arc-config.yml": "pm.mode: none\nbranch.base: main",
+    };
+    const io = mockIO(templateFiles);
+    const noToolsPrompts = { ...DEFAULT_PROMPTS, tools: [] as string[] };
+
+    await runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe: minimalRecipe,
+      prompts: noToolsPrompts,
+      identityResult: "andrew",
+    });
+
+    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
+    const readmeWrite = writeCalls.find(
+      (c: [string, string]) => c[0] === "/project/.arc/README.md",
+    );
+    expect(readmeWrite).toBeDefined();
+    // Token left as-is — README.md has no .template suffix
+    expect(readmeWrite![1]).toBe("# {{PROJECT_NAME}}");
   });
 
   it("fresh mode: strips .template from output filenames", async () => {

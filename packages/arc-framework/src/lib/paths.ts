@@ -52,3 +52,12 @@ export function getArcTemplatePath(): string {
 export function getInternalTemplatePath(): string {
   return resolve(packageRoot, "templates");
 }
+
+/**
+ * Returns the absolute path to the init recipe file.
+ *
+ * @returns Absolute path to `init-recipe.json`
+ */
+export function getRecipePath(): string {
+  return resolve(packageRoot, "init-recipe.json");
+}

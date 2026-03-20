@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import type { IOContext } from "./init.js";
 import { buildConfigMap, buildTokenMap } from "../lib/config.js";
 import {
-  resolveFileList, toOutputPath, classifyFile, fileLayer,
+  resolveFileList, toOutputPath, classifyFile, fileLayer, needsRendering,
 } from "../lib/classification.js";
 import {
   readManifest, mergeFileContents, diffFileLists, hashContent,
@@ -123,7 +123,11 @@ async function renderTemplate(
     return renderConfigOverrides(raw, configKeyOverrides);
   }
 
-  return renderConditionals(renderTokens(raw, tokens), config);
+  if (needsRendering(templateFile)) {
+    return renderConditionals(renderTokens(raw, tokens), config);
+  }
+
+  return raw;
 }
 
 /** Delete a file, ignoring ENOENT. */

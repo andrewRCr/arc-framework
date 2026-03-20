@@ -30,7 +30,7 @@ import { resolveIdentity, type GitExec, type DirEntry } from "./lib/git/index.js
 import { readManifest } from "./lib/manifest/index.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
-import { getArcTemplatePath, getInternalTemplatePath } from "./lib/paths.js";
+import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
 import { formatError, UserFacingError } from "./lib/errors.js";
 import type { Recipe } from "./lib/types.js";
@@ -234,10 +234,7 @@ program
 
     // Load recipe
     const templateDir = getArcTemplatePath();
-    const recipeContent = await readFile(
-      new URL("../../init-recipe.json", import.meta.url),
-      "utf-8",
-    );
+    const recipeContent = await readFile(getRecipePath(), "utf-8");
     const recipe: Recipe = JSON.parse(recipeContent) as Recipe;
 
     // Run init with progress feedback
@@ -276,10 +273,7 @@ program
 
     // Load recipe
     const templateDir = getArcTemplatePath();
-    const recipeContent = await readFile(
-      new URL("../../init-recipe.json", import.meta.url),
-      "utf-8",
-    );
+    const recipeContent = await readFile(getRecipePath(), "utf-8");
     const recipe: Recipe = JSON.parse(recipeContent) as Recipe;
 
     const spinner = p.spinner();
@@ -304,6 +298,7 @@ program
       spinner.stop("Update failed.");
       if (err instanceof UserFacingError) {
         p.log.error(formatError(err));
+        process.exitCode = 1;
         return;
       }
       throw err;
@@ -341,6 +336,7 @@ program
     } catch (err) {
       if (err instanceof UserFacingError) {
         p.log.error(formatError(err));
+        process.exitCode = 1;
         return;
       }
       throw err;
@@ -390,6 +386,7 @@ program
     } catch (err) {
       if (err instanceof UserFacingError) {
         p.log.error(formatError(err));
+        process.exitCode = 1;
         return;
       }
       throw err;
@@ -629,6 +626,7 @@ logCmd
     } catch (err) {
       if (err instanceof UserFacingError) {
         p.log.error(formatError(err));
+        process.exitCode = 1;
         return;
       }
       throw err;

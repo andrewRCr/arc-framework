@@ -28,6 +28,7 @@ import {
 } from "../helpers/integration.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
+import type { Recipe } from "../../src/lib/types.js";
 import type { Manifest } from "../../src/lib/types.js";
 
 // --- Test Setup ---
@@ -35,6 +36,7 @@ import type { Manifest } from "../../src/lib/types.js";
 let tempDir: string;
 let arcDir: string;
 let result: InitResult;
+let recipe: Recipe;
 
 const templateDir = getArcTemplatePath();
 const internalTemplateDir = getInternalTemplatePath();
@@ -45,7 +47,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     tempDir = await createTempRepo("arc-init-test-");
     arcDir = join(tempDir, ".arc");
 
-    const recipe = await loadRecipe();
+    recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
     const initResult = await runInit({
@@ -108,11 +110,22 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("leaves no init-time token residuals in rendered files", async () => {
     const files = await listFiles(arcDir, { skipPristine: false });
+    // Only check rendered files — non-template files may legitimately reference
+    // token syntax in documentation examples (e.g., agent/README.md explains
+    // `{{PROJECT_NAME}}`). Rendered files are those whose source had a .template
+    // suffix, plus arc-config.yml (programmatic render path).
     const mdFiles = files.filter(
       (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
     );
+    // Identify which output files came from .template sources
+    const templateOutputs = new Set(
+      recipe.include_files
+        .filter((f: string) => /\.template\.[^/]+$/.test(f))
+        .map((f: string) => f.replace(/\.template(\.[^/]+)$/, "$1")),
+    );
 
     for (const file of mdFiles) {
+      if (!templateOutputs.has(file)) continue;
       const content = await readFile(join(arcDir, file), "utf-8");
       expect(
         content,

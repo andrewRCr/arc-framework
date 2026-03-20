@@ -65,6 +65,24 @@ describe("renderConditionals", () => {
     expect(result).toBe("before\nafter");
   });
 
+  it("collapses multiple blank lines left by stripped blocks", () => {
+    const input = [
+      "before",
+      "",
+      "<!-- arc:if pm.mode == arc-in-git -->",
+      "",
+      "### Conditional Heading",
+      "",
+      "Conditional content",
+      "",
+      "<!-- arc:endif -->",
+      "",
+      "after",
+    ].join("\n");
+    const result = renderConditionals(input, { "pm.mode": "none" });
+    expect(result).toBe("before\n\nafter");
+  });
+
   it("handles nested conditionals", () => {
     const input = [
       "top",

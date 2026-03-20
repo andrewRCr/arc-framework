@@ -26,6 +26,21 @@ export function toOutputPath(templatePath: string): string {
   return templatePath.replace(/\.template(\.[^/]+)$/, "$1");
 }
 
+/**
+ * Check whether a template file requires rendering (token/conditional processing).
+ *
+ * Files with a `.template` suffix contain tokens (`{{TOKEN}}`) or conditional
+ * blocks (`<!-- arc:if -->`) that must be processed during init/update. Files
+ * without the suffix are copied as-is. `arc-config.yml` has its own render
+ * path and is handled separately.
+ *
+ * @param templatePath - Template-relative path
+ * @returns true if the file should go through the render pipeline
+ */
+export function needsRendering(templatePath: string): boolean {
+  return /\.template\.[^/]+$/.test(templatePath);
+}
+
 // --- File Classification ---
 
 /**

@@ -185,5 +185,7 @@ decisions are made, not on a schedule.
 [quick-ref-template]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
+<!-- arc:if pm.mode == arc-in-git -->
 [roadmap-template]: ../../../../backlog/ROADMAP.md
 [project-status-template]: ../../../../reference/PROJECT-STATUS.md
+<!-- arc:endif -->
