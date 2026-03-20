@@ -801,7 +801,7 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-- [ ] **N.1 Run Tier 3 quality gates**
+- [ ] **N.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
 - [ ] **N.2 Validate success criteria against PRD**
 - [ ] **N.3 Verify all atomic tasks resolved** (`atomic-{name}.md`)
 ```
@@ -809,6 +809,11 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 The `**Workflow:**` line and `[verify-work-unit]` link reference are part of the template —
 include them in every generated task list. The workflow contains the step-by-step procedure,
 three-state success criteria model, and atomic task verification protocol.
+
+The workflow reference also appears on **N.1** (the first verification subtask) as a gate
+reminder. Agents using graduated reads may jump directly to a subtask via WORK-STATUS,
+skipping the phase preamble — the inline reference ensures the workflow is loaded regardless
+of entry point.
 
 ---
 
