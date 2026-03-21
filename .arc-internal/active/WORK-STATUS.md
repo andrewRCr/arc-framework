@@ -12,8 +12,8 @@
 **Next Task**: [none — all tasks complete, integration in progress]
 **Last Completed**: Task 8.5 — Validate success criteria against PRD (all 8 criteria met)
 **Blockers**: [none]
-**Next Action**: Integration Phase 2 — push branch, create PR, CodeRabbit Pass 2 (PR comments)
+**Next Action**: Integration Phase 2 — create PR against main, CodeRabbit Pass 2 (PR comments)
 
 ---
 
-**Last Updated**: 2026-03-20
+**Last Updated**: 2026-03-21
