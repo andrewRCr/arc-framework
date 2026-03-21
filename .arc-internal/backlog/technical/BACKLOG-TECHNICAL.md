@@ -45,11 +45,11 @@ quality improvements.
 ## Superseded by 1.0 Work Units
 
 - ~~Structural analysis pass~~ → WU2 Cluster M (`plan-wu2-methodology-completion.md`)
-- ~~README.md refresh~~ → WU4 (`plan-wu4-public-release.md`)
+- ~~README.md refresh~~ → WU5 (`plan-wu5-public-release.md`)
 - ~~Migration tools for template updates~~ → WU3 (`prd-cli-implementation.md`)
 - ~~Profile system enhancements~~ → WU3 interactive init
-- ~~Documentation site~~ → WU4 docs site
-- ~~Community contribution pipeline~~ → WU4 community infrastructure
+- ~~Documentation site~~ → WU5 docs site
+- ~~Community contribution pipeline~~ → WU4 contributor support (ADR-014), WU5 community infrastructure
 
 ---
 
