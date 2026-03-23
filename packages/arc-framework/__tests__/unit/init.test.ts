@@ -13,7 +13,7 @@ import {
   buildPostInitMessage,
 } from "../../src/commands/init.js";
 import type { IOContext, InitResult } from "../../src/commands/init.js";
-import { buildConfigMap, buildTokenMap, writeArcConfig } from "../../src/lib/config.js";
+import { buildConfigMap, buildTokenMap } from "../../src/lib/config.js";
 import {
   resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
@@ -205,52 +205,6 @@ describe("toOutputPath", () => {
   });
 });
 
-// --- writeArcConfig ---
-
-describe("writeArcConfig", () => {
-  const sampleConfig = [
-    "# ARC config",
-    "branch.base: main",
-    "branch.protection: partial",
-    "pm.mode: none",
-    "platform.type: github",
-  ].join("\n");
-
-  it("overwrites config_key values while preserving other lines", async () => {
-    const readFile = vi.fn().mockResolvedValue(sampleConfig);
-    const writeFile = vi.fn().mockResolvedValue(undefined);
-
-    await writeArcConfig("/tpl/arc-config.yml", "/out/arc-config.yml", { "pm.mode": "arc-in-git" }, readFile, writeFile);
-
-    const written = writeFile.mock.calls[0]![1] as string;
-    expect(written).toContain("pm.mode: arc-in-git");
-    expect(written).toContain("branch.base: main");
-    expect(written).toContain("branch.protection: partial");
-  });
-
-  it("leaves lines without matching config_key unchanged", async () => {
-    const readFile = vi.fn().mockResolvedValue(sampleConfig);
-    const writeFile = vi.fn().mockResolvedValue(undefined);
-
-    await writeArcConfig("/tpl/arc-config.yml", "/out/arc-config.yml", {}, readFile, writeFile);
-
-    const written = writeFile.mock.calls[0]![1] as string;
-    expect(written).toBe(sampleConfig);
-  });
-
-  it("handles comments and blank lines", async () => {
-    const configWithComments = "# Comment\n\npm.mode: none\n# Another comment";
-    const readFile = vi.fn().mockResolvedValue(configWithComments);
-    const writeFile = vi.fn().mockResolvedValue(undefined);
-
-    await writeArcConfig("/tpl", "/out", { "pm.mode": "external" }, readFile, writeFile);
-
-    const written = writeFile.mock.calls[0]![1] as string;
-    expect(written).toContain("# Comment");
-    expect(written).toContain("pm.mode: external");
-    expect(written).toContain("# Another comment");
-  });
-});
 
 // --- classifyFile ---
 

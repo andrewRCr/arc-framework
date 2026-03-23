@@ -183,6 +183,40 @@ describe("renderConditionals", () => {
     ).toBe("top\nbottom");
   });
 
+  it("handles deeply nested conditionals (3+ levels)", () => {
+    const input = [
+      "top",
+      "<!-- arc:if a == yes -->",
+      "level-1",
+      "<!-- arc:if b == yes -->",
+      "level-2",
+      "<!-- arc:if c == yes -->",
+      "level-3",
+      "<!-- arc:endif -->",
+      "after-level-3",
+      "<!-- arc:endif -->",
+      "after-level-2",
+      "<!-- arc:endif -->",
+      "bottom",
+    ].join("\n");
+    // All true
+    expect(renderConditionals(input, { a: "yes", b: "yes", c: "yes" })).toBe(
+      "top\nlevel-1\nlevel-2\nlevel-3\nafter-level-3\nafter-level-2\nbottom",
+    );
+    // Outer true, middle true, innermost false
+    expect(renderConditionals(input, { a: "yes", b: "yes", c: "no" })).toBe(
+      "top\nlevel-1\nlevel-2\nafter-level-3\nafter-level-2\nbottom",
+    );
+    // Outer true, middle false — everything inside middle excluded
+    expect(renderConditionals(input, { a: "yes", b: "no", c: "yes" })).toBe(
+      "top\nlevel-1\nafter-level-2\nbottom",
+    );
+    // Outer false — everything inside excluded
+    expect(renderConditionals(input, { a: "no", b: "yes", c: "yes" })).toBe(
+      "top\nbottom",
+    );
+  });
+
   it("existing == behavior unchanged alongside !=", () => {
     const input = [
       "start",

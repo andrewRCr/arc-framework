@@ -6,7 +6,6 @@
  * during join mode.
  */
 
-import type { ReadFileFn, WriteFileFn } from "./template/index.js";
 import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "./constants.js";
 
 // --- Config Map Assembly ---
@@ -51,45 +50,7 @@ export function buildTokenMap(
   };
 }
 
-// --- arc-config.yml I/O ---
-
-/**
- * Write arc-config.yml by reading the template and overwriting specific values.
- *
- * Preserves all comments and structure from the template. Only lines matching
- * a `config_key` pattern (`key: value`) are overwritten. This gives adopters
- * the full documented config file with their chosen values.
- *
- * @param templatePath - Path to the template arc-config.yml
- * @param destPath - Path to write the output
- * @param configKeys - Map of dotted config keys to values (e.g., `pm.mode` → `arc-in-git`)
- * @param readFile - Injectable read function
- * @param writeFile - Injectable write function
- */
-export async function writeArcConfig(
-  templatePath: string,
-  destPath: string,
-  configKeys: Record<string, string>,
-  readFile: ReadFileFn,
-  writeFile: WriteFileFn,
-): Promise<void> {
-  const content = await readFile(templatePath);
-  const lines = content.split("\n");
-
-  const result = lines.map((line) => {
-    // Match config lines: "key.name: value" (not comments or blank lines)
-    const match = line.match(/^([\w.]+):\s*(.*)$/);
-    if (match) {
-      const key = match[1]!;
-      if (key in configKeys) {
-        return `${key}: ${configKeys[key]}`;
-      }
-    }
-    return line;
-  });
-
-  await writeFile(destPath, result.join("\n"));
-}
+// --- arc-config.yml Parsing ---
 
 /**
  * Parse an arc-config.yml file into a key-value map.
@@ -104,7 +65,12 @@ export function parseArcConfig(content: string): Record<string, string> {
   for (const line of content.split("\n")) {
     const match = line.match(/^([\w.]+):\s*(.*)$/);
     if (match) {
-      config[match[1]!] = match[2]!.trim();
+      const value = match[2]!.trim();
+      // Skip empty values — matches shell-side arc_config_get behavior
+      // where empty values fall through to the default
+      if (value) {
+        config[match[1]!] = value;
+      }
     }
   }
   return config;

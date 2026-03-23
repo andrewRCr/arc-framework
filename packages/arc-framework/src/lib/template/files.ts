@@ -60,6 +60,9 @@ export async function copyWithRendering(
 /**
  * Appends a line to a file if it isn't already present.
  * Used for .gitignore and .gitattributes management.
+ *
+ * Note: callers must `await` each call sequentially — concurrent calls
+ * would create a read-check-write race condition (TOCTOU).
  */
 async function appendLineIfMissing(
   filePath: string,

@@ -26,7 +26,7 @@ import {
 } from "./commands/user.js";
 import { runLogAtomic, buildLogAtomicOutput } from "./commands/log.js";
 import type { UserIOContext } from "./commands/user.js";
-import { resolveIdentity, type GitExec, type DirEntry } from "./lib/git/index.js";
+import { resolveIdentity, slugifyIdentity, type GitExec, type DirEntry } from "./lib/git/index.js";
 import { readManifest } from "./lib/manifest/index.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
@@ -321,7 +321,7 @@ program
         cwd,
         io: {
           readFile: (path) => readFile(path, "utf-8"),
-          readManifest: (path) => readManifest(path),
+          readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
           readdir: (arcDir) => listArcFiles(arcDir),
         },
         frameworkVersion: getFrameworkVersion(),
@@ -356,7 +356,7 @@ program
         cwd: process.cwd(),
         io: {
           readFile: (path) => readFile(path, "utf-8"),
-          readManifest: (path) => readManifest(path),
+          readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
           gitDiff: async (pristinePath, currentPath) => {
             try {
               const { stdout } = await execFileAsync("git", [
@@ -404,8 +404,18 @@ const userCmd = program
 userCmd
   .command("add <identity>")
   .description("Create a user directory for a team member")
-  .action(async (identity: string) => {
+  .action(async (rawIdentity: string) => {
     p.intro("arc user add");
+
+    // Sanitize identity to prevent path traversal from raw CLI input
+    const identity = slugifyIdentity(rawIdentity);
+    if (!identity) {
+      p.log.error("Invalid identity — must contain at least one alphanumeric character.");
+      return;
+    }
+    if (identity !== rawIdentity) {
+      p.log.info(`Identity normalized to: ${identity}`);
+    }
 
     const cwd = process.cwd();
     const io = createUserIOContext();
@@ -603,16 +613,23 @@ program
 
       const loadSpinner = p.spinner();
       loadSpinner.start("Loading user directory...");
-      const result = await runUserLoad({ cwd, io, identity });
+      try {
+        const result = await runUserLoad({ cwd, io, identity });
 
-      if (!result) {
-        loadSpinner.stop("No note found.");
-        p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+        if (!result) {
+          loadSpinner.stop("No note found.");
+          p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+          return;
+        }
+
+        loadSpinner.stop("Load complete.");
+        p.note(buildLoadSummary(result), "Loaded");
+      } catch (err) {
+        loadSpinner.stop("Load failed.");
+        const msg = err instanceof Error ? err.message : String(err);
+        p.log.error(`Failed to load user directory: ${msg}`);
         return;
       }
-
-      loadSpinner.stop("Load complete.");
-      p.note(buildLoadSummary(result), "Loaded");
     } else {
       // Save + push
       const spinner = p.spinner();

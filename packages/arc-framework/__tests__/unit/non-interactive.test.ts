@@ -50,6 +50,25 @@ describe("buildNonInteractivePrompts", () => {
     expect(result.tools).toEqual(["claude", "cursor"]);
   });
 
+  it("throws on invalid --pm-mode value", () => {
+    expect(() =>
+      buildNonInteractivePrompts({
+        cwd: "/home/user/my-project",
+        pmMode: "invalid",
+      }),
+    ).toThrow("Invalid --pm-mode 'invalid'");
+  });
+
+  it("accepts all valid --pm-mode values", () => {
+    for (const mode of ["none", "arc-in-git", "external"]) {
+      const result = buildNonInteractivePrompts({
+        cwd: "/home/user/my-project",
+        pmMode: mode,
+      });
+      expect(result.pm_mode).toBe(mode);
+    }
+  });
+
   it("handles all overrides together", () => {
     const result = buildNonInteractivePrompts({
       cwd: "/home/user/my-project",

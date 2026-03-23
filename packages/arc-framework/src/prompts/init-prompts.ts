@@ -13,6 +13,9 @@
 import * as p from "@clack/prompts";
 import { basename } from "node:path";
 
+/** Sentinel thrown from onCancel to abort prompt group without process.exit. */
+const PROMPT_CANCELLED = Symbol("prompt-cancelled");
+
 /**
  * Tool options grouped by skill directory tier.
  *
@@ -80,75 +83,75 @@ export async function runInitPrompts(
   cwd: string,
   mode: "fresh" | "join" = "fresh",
 ): Promise<InitPromptResult | null> {
-  if (mode === "join") {
-    // Join mode: only tools prompt — project config already established
+  const onCancel = (): never => {
+    p.cancel("Setup cancelled.");
+    throw PROMPT_CANCELLED;
+  };
+
+  try {
+    if (mode === "join") {
+      // Join mode: only tools prompt — project config already established
+      const result = await p.group(
+        {
+          tools: () =>
+            p.groupMultiselect({
+              message: "Which AI development tools do you use?",
+              options: TOOL_OPTIONS,
+              required: false,
+            }),
+        },
+        { onCancel },
+      );
+
+      return {
+        project_name: "",
+        tools: result.tools as string[],
+        pm_mode: "",
+        team_mode: false,
+      };
+    }
+
+    // Fresh mode: full prompt sequence
     const result = await p.group(
       {
+        project_name: () =>
+          p.text({
+            message: "Project name?",
+            defaultValue: basename(cwd),
+            placeholder: basename(cwd),
+          }),
+
         tools: () =>
           p.groupMultiselect({
             message: "Which AI development tools do you use?",
             options: TOOL_OPTIONS,
             required: false,
           }),
+
+        pm_mode: () =>
+          p.select({
+            message: "Project management approach?",
+            options: PM_MODE_OPTIONS,
+            initialValue: "none",
+          }),
+
+        team_mode: () =>
+          p.confirm({
+            message: "Will other developers work in this repository?",
+            initialValue: false,
+          }),
       },
-      {
-        onCancel: () => {
-          p.cancel("Setup cancelled.");
-          process.exit(0);
-        },
-      },
+      { onCancel },
     );
 
     return {
-      project_name: "",
+      project_name: result.project_name,
       tools: result.tools as string[],
-      pm_mode: "",
-      team_mode: false,
+      pm_mode: result.pm_mode as string,
+      team_mode: result.team_mode as boolean,
     };
+  } catch (err) {
+    if (err === PROMPT_CANCELLED) return null;
+    throw err;
   }
-
-  // Fresh mode: full prompt sequence
-  const result = await p.group(
-    {
-      project_name: () =>
-        p.text({
-          message: "Project name?",
-          defaultValue: basename(cwd),
-          placeholder: basename(cwd),
-        }),
-
-      tools: () =>
-        p.groupMultiselect({
-          message: "Which AI development tools do you use?",
-          options: TOOL_OPTIONS,
-          required: false,
-        }),
-
-      pm_mode: () =>
-        p.select({
-          message: "Project management approach?",
-          options: PM_MODE_OPTIONS,
-          initialValue: "none",
-        }),
-
-      team_mode: () =>
-        p.confirm({
-          message: "Will other developers work in this repository?",
-          initialValue: false,
-        }),
-    },
-    {
-      onCancel: () => {
-        p.cancel("Setup cancelled.");
-        process.exit(0);
-      },
-    },
-  );
-
-  return {
-    project_name: result.project_name,
-    tools: result.tools as string[],
-    pm_mode: result.pm_mode as string,
-    team_mode: result.team_mode as boolean,
-  };
 }

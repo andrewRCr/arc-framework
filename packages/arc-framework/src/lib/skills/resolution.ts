@@ -18,21 +18,21 @@ import { join } from "node:path";
  * tool-specific directories. Standalone tools always use their own.
  */
 export type ToolId =
-    // Universal tier — default to .agents/skills/
-    | "amp"
-    | "cline"
-    | "codex"
-    | "cursor"
-    | "gemini"
-    | "copilot"
-    | "kimi"
-    | "opencode"
-    | "warp"
-    | "windsurf"
-    // Standalone tier — always use tool-specific directories
-    | "antigravity"
-    | "augment"
-    | "claude";
+  // Universal tier — default to .agents/skills/
+  | "amp"
+  | "cline"
+  | "codex"
+  | "cursor"
+  | "gemini"
+  | "copilot"
+  | "kimi"
+  | "opencode"
+  | "warp"
+  | "windsurf"
+  // Standalone tier — always use tool-specific directories
+  | "antigravity"
+  | "augment"
+  | "claude";
 
 /**
  * Supplemental file types that provide UX enhancements alongside SKILL.md.
@@ -49,10 +49,10 @@ export type SupplementType = "codex-yaml";
  * unique directory that needs skill files written to it.
  */
 export interface SkillGenerationTarget {
-    /** Output directory relative to repo root (e.g., `.agents/skills`). */
-    skillDir: string;
-    /** Supplemental files to generate for this directory. */
-    supplements: SupplementType[];
+  /** Output directory relative to repo root (e.g., `.agents/skills`). */
+  skillDir: string;
+  /** Supplemental files to generate for this directory. */
+  supplements: SupplementType[];
 }
 
 // --- Constants ---
@@ -64,11 +64,11 @@ export interface SkillGenerationTarget {
  * of truth for all generated per-tool copies.
  */
 export const CANONICAL_SKILLS = [
-    "arc-resume",
-    "arc-commit",
-    "arc-handoff",
-    "arc-setup",
-    "arc-verify",
+  "arc-resume",
+  "arc-commit",
+  "arc-handoff",
+  "arc-setup",
+  "arc-verify",
 ] as const;
 
 export type CanonicalSkillName = (typeof CANONICAL_SKILLS)[number];
@@ -84,16 +84,16 @@ export const UNIVERSAL_SKILL_DIR = ".agents/skills";
  * honor it instead of creating `.agents/skills/`.
  */
 export const UNIVERSAL_TOOLS: ReadonlySet<string> = new Set<ToolId>([
-    "amp",
-    "cline",
-    "codex",
-    "cursor",
-    "gemini",
-    "copilot",
-    "kimi",
-    "opencode",
-    "warp",
-    "windsurf",
+  "amp",
+  "cline",
+  "codex",
+  "cursor",
+  "gemini",
+  "copilot",
+  "kimi",
+  "opencode",
+  "warp",
+  "windsurf",
 ]);
 
 /**
@@ -103,16 +103,16 @@ export const UNIVERSAL_TOOLS: ReadonlySet<string> = new Set<ToolId>([
  * we write skills there instead of `.agents/skills/`.
  */
 export const NATIVE_SKILL_DIRS: Readonly<Record<string, string>> = {
-    amp: ".amp/skills",
-    cline: ".cline/skills",
-    codex: ".codex/skills",
-    cursor: ".cursor/skills",
-    gemini: ".gemini/skills",
-    copilot: ".github/skills",
-    kimi: ".kimi/skills",
-    opencode: ".opencode/skills",
-    warp: ".warp/skills",
-    windsurf: ".windsurf/skills",
+  amp: ".amp/skills",
+  cline: ".cline/skills",
+  codex: ".codex/skills",
+  cursor: ".cursor/skills",
+  gemini: ".gemini/skills",
+  copilot: ".github/skills",
+  kimi: ".kimi/skills",
+  opencode: ".opencode/skills",
+  warp: ".warp/skills",
+  windsurf: ".windsurf/skills",
 };
 
 /**
@@ -122,9 +122,9 @@ export const NATIVE_SKILL_DIRS: Readonly<Record<string, string>> = {
  * tool-specific directory for discovery. No detection needed.
  */
 export const STANDALONE_SKILL_DIRS: Readonly<Record<string, string>> = {
-    antigravity: ".agent/skills",
-    augment: ".augment/skills",
-    claude: ".claude/skills",
+  antigravity: ".agent/skills",
+  augment: ".augment/skills",
+  claude: ".claude/skills",
 };
 
 // --- Directory Resolution ---
@@ -151,56 +151,56 @@ export const STANDALONE_SKILL_DIRS: Readonly<Record<string, string>> = {
  * @returns Deduplicated list of directories to generate skills into
  */
 export function resolveSkillTargets(
-    tools: string[],
-    existingDirs: string[],
+  tools: string[],
+  existingDirs: string[],
 ): SkillGenerationTarget[] {
-    const existing = new Set(existingDirs);
-    const targetDirs = new Map<string, SupplementType[]>();
+  const existing = new Set(existingDirs);
+  const targetDirs = new Map<string, SupplementType[]>();
 
-    // Resolve universal-tier tools
-    for (const tool of tools) {
-        if (!UNIVERSAL_TOOLS.has(tool)) continue;
+  // Resolve universal-tier tools
+  for (const tool of tools) {
+    if (!UNIVERSAL_TOOLS.has(tool)) continue;
 
-        const nativeDir = NATIVE_SKILL_DIRS[tool];
-        let resolvedDir: string;
+    const nativeDir = NATIVE_SKILL_DIRS[tool];
+    let resolvedDir: string;
 
-        if (nativeDir && existing.has(nativeDir)) {
-            // Honor existing tool-specific directory
-            resolvedDir = nativeDir;
-        } else {
-            // Fall back to universal directory
-            resolvedDir = UNIVERSAL_SKILL_DIR;
-        }
-
-        // Merge into target map (deduplicates when multiple tools resolve to same dir)
-        if (!targetDirs.has(resolvedDir)) {
-            targetDirs.set(resolvedDir, []);
-        }
-
-        // Add codex-yaml supplement when Codex resolves to a directory
-        if (tool === "codex") {
-            const supplements = targetDirs.get(resolvedDir)!;
-            if (!supplements.includes("codex-yaml")) {
-                supplements.push("codex-yaml");
-            }
-        }
+    if (nativeDir && existing.has(nativeDir)) {
+      // Honor existing tool-specific directory
+      resolvedDir = nativeDir;
+    } else {
+      // Fall back to universal directory
+      resolvedDir = UNIVERSAL_SKILL_DIR;
     }
 
-    // Resolve standalone-tier tools (fixed directories, no detection)
-    for (const tool of tools) {
-        const dir = STANDALONE_SKILL_DIRS[tool];
-        if (dir && !targetDirs.has(dir)) {
-            targetDirs.set(dir, []);
-        }
+    // Merge into target map (deduplicates when multiple tools resolve to same dir)
+    if (!targetDirs.has(resolvedDir)) {
+      targetDirs.set(resolvedDir, []);
     }
 
-    // Convert map to target array
-    const targets: SkillGenerationTarget[] = [];
-    for (const [skillDir, supplements] of targetDirs) {
-        targets.push({ skillDir, supplements });
+    // Add codex-yaml supplement when Codex resolves to a directory
+    if (tool === "codex") {
+      const supplements = targetDirs.get(resolvedDir)!;
+      if (!supplements.includes("codex-yaml")) {
+        supplements.push("codex-yaml");
+      }
     }
+  }
 
-    return targets;
+  // Resolve standalone-tier tools (fixed directories, no detection)
+  for (const tool of tools) {
+    const dir = STANDALONE_SKILL_DIRS[tool];
+    if (dir && !targetDirs.has(dir)) {
+      targetDirs.set(dir, []);
+    }
+  }
+
+  // Convert map to target array
+  const targets: SkillGenerationTarget[] = [];
+  for (const [skillDir, supplements] of targetDirs) {
+    targets.push({ skillDir, supplements });
+  }
+
+  return targets;
 }
 
 /**
@@ -215,22 +215,22 @@ export function resolveSkillTargets(
  * @returns Directories that exist (relative to repo root)
  */
 export async function detectExistingSkillDirs(
-    cwd: string,
-    accessFn: (path: string) => Promise<void>,
+  cwd: string,
+  accessFn: (path: string) => Promise<void>,
 ): Promise<string[]> {
-    const allDirs = [
-        UNIVERSAL_SKILL_DIR,
-        ...Object.values(NATIVE_SKILL_DIRS),
-        ...Object.values(STANDALONE_SKILL_DIRS),
-    ];
-    const existing: string[] = [];
-    for (const dir of allDirs) {
-        try {
-            await accessFn(join(cwd, dir));
-            existing.push(dir);
-        } catch {
-            // Doesn't exist
-        }
+  const allDirs = [
+    UNIVERSAL_SKILL_DIR,
+    ...Object.values(NATIVE_SKILL_DIRS),
+    ...Object.values(STANDALONE_SKILL_DIRS),
+  ];
+  const existing: string[] = [];
+  for (const dir of allDirs) {
+    try {
+      await accessFn(join(cwd, dir));
+      existing.push(dir);
+    } catch {
+      // Doesn't exist
     }
-    return existing;
+  }
+  return existing;
 }

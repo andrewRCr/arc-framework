@@ -30,7 +30,9 @@ export async function listArcFiles(dir: string): Promise<string[]> {
       const relPath = relative(dir, fullPath);
       // Skip .pristine directory
       if (relPath === ".pristine" || relPath.startsWith(".pristine/")) continue;
-      // Skip user/{identity}/ directories (gitignored personal workspace)
+      // Skip per-identity user directories (e.g., user/alice/) — these are
+      // gitignored personal workspaces. Top-level user/ files like README.md
+      // are included since they are tracked framework content.
       if (/^user\/[^/]+\//.test(relPath)) continue;
       let s;
       try {

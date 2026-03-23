@@ -15,7 +15,14 @@ const VALID_PROMPT_TYPES: readonly PromptType[] = [
   "confirm",
 ];
 
-/** Matches `key == value` or `key includes value` condition formats. */
+/**
+ * Matches `key == value` or `key includes value` condition formats.
+ *
+ * Note: recipe conditions use `==` and `includes` operators (set membership
+ * for multiselect values). Template rendering conditionals (render.ts) use
+ * `==` and `!=` operators. The operator sets differ by design — recipes
+ * evaluate prompt-level config, templates evaluate simple key-value equality.
+ */
 const CONDITION_PATTERN = /^([\w.]+)\s+(==|includes)\s+(\S+)$/;
 
 /** Result of recipe validation. */

@@ -25,12 +25,15 @@ import { runDiff } from "../../src/commands/diff.js";
 import type { DiffIOContext } from "../../src/commands/diff.js";
 import { readManifest } from "../../src/lib/manifest/index.js";
 import { UserFacingError } from "../../src/lib/errors.js";
+
+const readFileFn = (path: string): Promise<string> => readFile(path, "utf-8");
+
 // --- Helpers ---
 
 function makeStatusIO(cwd: string): StatusIOContext {
   return {
     readFile: (path) => readFile(path, "utf-8"),
-    readManifest: (path) => readManifest(path),
+    readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
     readdir: (arcDir) => listFiles(arcDir),
   };
 }
@@ -38,7 +41,7 @@ function makeStatusIO(cwd: string): StatusIOContext {
 function makeDiffIO(): DiffIOContext {
   return {
     readFile: (path) => readFile(path, "utf-8"),
-    readManifest: (path) => readManifest(path),
+    readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
     gitDiff: async (pristinePath, currentPath) => {
       try {
         const { stdout } = await execFileAsync("git", [
@@ -91,7 +94,7 @@ describe("status and diff integration", () => {
     it("reports modified after changing a file", async () => {
       const arcDir = join(tempDir, ".arc");
       // Find a Configurable file from the manifest
-      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"));
+      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"), readFileFn);
       expect(manifest).not.toBeNull();
       const configurableFile = Object.entries(manifest!.files).find(
         ([, entry]) => entry.classification === "Configurable",
@@ -157,7 +160,7 @@ describe("status and diff integration", () => {
 
     it("shows unified diff after modifying a file", async () => {
       const arcDir = join(tempDir, ".arc");
-      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"));
+      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"), readFileFn);
       expect(manifest).not.toBeNull();
 
       // Find a Framework or Configurable file

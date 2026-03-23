@@ -375,7 +375,7 @@ echo ""
 
 echo "--- Manifest ---"
 
-manifest="$ARC_DIR/.arc-manifest.json"
+manifest=".arc-manifest.json"
 if [ -f "$manifest" ]; then
     info "Manifest found: $manifest"
     # Future: validate manifest entries match files on disk

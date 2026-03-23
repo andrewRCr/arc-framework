@@ -124,6 +124,23 @@ describe("user save and load", () => {
     expect(loadResult).toBeNull();
   });
 
+  it("throws on corrupt git note (malformed JSON)", async () => {
+    const io = makeUserIO(tempDir);
+
+    // Write corrupt JSON directly to the git note
+    const ref = "refs/notes/arc/user/test-user";
+    const { stdout: head } = await execFileAsync(
+      "git", ["-C", tempDir, "rev-parse", "HEAD"],
+    );
+    await execFileAsync(
+      "git", ["-C", tempDir, "notes", "--ref", ref, "add", "-f", "-m", "not valid json {{{", head.trim()],
+    );
+
+    await expect(
+      runUserLoad({ cwd: tempDir, io, identity: "test-user" }),
+    ).rejects.toThrow("Corrupt git note");
+  });
+
   it("throws UserSaveError when user dir is empty", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "empty-user");

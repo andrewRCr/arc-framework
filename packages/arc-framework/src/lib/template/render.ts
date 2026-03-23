@@ -27,6 +27,10 @@ export function renderTokens(
  * conditional blocks. Includes the block content when the condition matches,
  * removes it (including the directive lines) when it doesn't.
  *
+ * Note: template conditionals use `==` and `!=` operators for simple equality.
+ * Recipe conditions (recipe.ts) use `==` and `includes` operators — the
+ * `includes` operator supports set-membership checks on multiselect values.
+ *
  * @param content - Template string with conditional directives
  * @param config - Map of dotted config keys to their values (e.g., `pm.mode` → `arc-in-git`)
  * @returns Content with conditional blocks resolved and directive lines removed
@@ -37,8 +41,7 @@ export function renderConditionals(
 ): string {
   const lines = content.split("\n");
   const result: string[] = [];
-  let depth = 0;
-  let includeDepth = 0;
+  const includeStack: boolean[] = [];
   let including = true;
 
   for (const line of lines) {
@@ -48,24 +51,16 @@ export function renderConditionals(
     const endifMatch = line.match(/^\s*<!--\s*arc:endif\s*-->\s*$/);
 
     if (ifMatch) {
-      depth++;
+      includeStack.push(including);
       if (including) {
         const key = ifMatch[1]!;
         const operator = ifMatch[2]!;
         const value = ifMatch[3]!;
-        const matches = operator === "==" ? config[key] === value : config[key] !== value;
-        if (matches) {
-          includeDepth = depth;
-        } else {
-          including = false;
-          includeDepth = depth - 1;
-        }
+        including = operator === "==" ? config[key] === value : config[key] !== value;
       }
+      // If already excluding, nested blocks stay excluded
     } else if (endifMatch) {
-      if (!including && depth === includeDepth + 1) {
-        including = true;
-      }
-      depth--;
+      including = includeStack.pop() ?? true;
     } else if (including) {
       result.push(line);
     }

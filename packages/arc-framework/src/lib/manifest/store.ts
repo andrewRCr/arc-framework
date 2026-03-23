@@ -5,8 +5,10 @@
  * configuration, and per-file metadata (classification, layer, pristine hash).
  */
 
-import { readFile, writeFile } from "node:fs/promises";
 import type { Classification, Layer, Manifest } from "../types.js";
+
+/** Read function signature for dependency injection. */
+type ReadFileFn = (path: string) => Promise<string>;
 
 const VALID_CLASSIFICATIONS: readonly Classification[] = [
   "Framework",
@@ -88,13 +90,17 @@ export function validateManifest(data: unknown): ValidationResult {
  * Read and parse a manifest from disk.
  *
  * @param path - Path to the manifest JSON file
+ * @param readFile - Injectable read function for testability
  * @returns The parsed manifest, or null if the file doesn't exist
  * @throws Error if the file exists but contains malformed JSON
  */
-export async function readManifest(path: string): Promise<Manifest | null> {
+export async function readManifest(
+  path: string,
+  readFile: ReadFileFn,
+): Promise<Manifest | null> {
   let content: string;
   try {
-    content = await readFile(path, "utf-8");
+    content = await readFile(path);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
@@ -119,15 +125,3 @@ export async function readManifest(path: string): Promise<Manifest | null> {
   return parsed as Manifest;
 }
 
-/**
- * Write a manifest to disk as formatted JSON.
- *
- * @param path - Path to write the manifest file
- * @param manifest - The manifest to write
- */
-export async function writeManifest(
-  path: string,
-  manifest: Manifest,
-): Promise<void> {
-  await writeFile(path, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
-}

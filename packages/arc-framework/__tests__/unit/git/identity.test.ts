@@ -39,6 +39,13 @@ describe("slugifyIdentity", () => {
   it("handles empty string", () => {
     expect(slugifyIdentity("")).toBe("");
   });
+
+  it("neutralizes path traversal attempts", () => {
+    expect(slugifyIdentity("../../etc")).toBe("etc");
+    expect(slugifyIdentity("../../../passwd")).toBe("passwd");
+    expect(slugifyIdentity("foo/bar")).toBe("foobar");
+    expect(slugifyIdentity("..")).toBe("");
+  });
 });
 
 // --- resolveIdentity ---

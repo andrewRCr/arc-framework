@@ -66,7 +66,7 @@ fi
 # CHECK 2: Large file check (prevent accidental commits)
 # ============================================================================
 large_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
-    size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+    size=$(wc -c < "$file" 2>/dev/null || echo 0)
     if [ "$size" -gt 1048576 ]; then  # 1MB
         echo "$file ($(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "$size bytes"))"
     fi

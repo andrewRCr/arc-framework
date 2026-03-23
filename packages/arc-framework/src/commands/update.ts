@@ -162,7 +162,7 @@ export async function runUpdate(
   // Read manifest — hard fail if missing or invalid
   let manifest: Manifest | null;
   try {
-    manifest = await readManifest(manifestPath);
+    manifest = await readManifest(manifestPath, io.readFile);
   } catch (err) {
     throw new UserFacingError({
       code: "MANIFEST_INVALID",

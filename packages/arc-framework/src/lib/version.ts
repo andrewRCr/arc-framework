@@ -84,8 +84,11 @@ export async function checkLatestVersion(
   // that doesn't structurally match globalThis.fetch's full Response type.
   fetchImpl: FetchFn = fetch as unknown as FetchFn,
 ): Promise<string | null> {
-  // Encode scoped package names: @scope/name → @scope%2fname
-  const encoded = packageName.replace(/\//, "%2f");
+  // Encode scoped package names: @scope/name → @scope%2Fname
+  const parts = packageName.split("/");
+  const encoded = parts.length === 2
+    ? `${parts[0]}%2F${encodeURIComponent(parts[1]!)}`
+    : encodeURIComponent(packageName);
   const url = `${NPM_REGISTRY}/${encoded}/latest`;
 
   try {

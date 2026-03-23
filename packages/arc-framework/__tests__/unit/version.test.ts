@@ -77,7 +77,7 @@ describe("checkLatestVersion", () => {
 
     await checkLatestVersion("@arc-framework/cli", mockFetch);
     expect(capturedUrl).toBe(
-      "https://registry.npmjs.org/@arc-framework%2fcli/latest",
+      "https://registry.npmjs.org/@arc-framework%2Fcli/latest",
     );
   });
 });

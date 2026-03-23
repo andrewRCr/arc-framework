@@ -366,7 +366,8 @@ describe("update integration — file add/remove", () => {
     });
 
     expect(result.added).toEqual([NEW_FILE]);
-    expect(result.updated).toBe(1);
+    // FRAMEWORK_FILE content is unchanged (same in template and on disk)
+    expect(result.unchanged).toBe(1);
 
     const content = await readFile(
       join(tempDir, ".arc", NEW_FILE),
