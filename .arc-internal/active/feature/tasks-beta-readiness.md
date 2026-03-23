@@ -80,35 +80,73 @@ This is the highest-risk phase — take it step by step with verification betwee
 
 **Strategies:** `strategy-file-classification.md` (merge strategies for migrated files)
 
-- [ ] **2.1 Pre-migration artifact cleanup**
+- [x] **2.1 Pre-migration artifact cleanup**
 
     **Goal:** Tidy `.arc-internal/` before migration so we don't carry dead weight into `.arc/`.
 
-    - [ ] **2.1.a Audit `.arc-internal/backlog/` and `.arc-internal/active/`**
-        - Identify completed PRDs, superseded plans, working notes that no longer serve a purpose
-        - Keep: active PRD/tasks, ADRs, completed task lists, archive with lasting reference value
-        - Delete: superseded `notes-*.md`, old plan drafts already absorbed into PRDs
+    - [x] **2.1.a Audit `.arc-internal/backlog/` and `.arc-internal/active/`**
+        - Backlog clean: 5 files, all current (ROADMAP, both backlogs, 2 plan docs)
+        - Active clean: 3 WU4 files + WORK-STATUS, all current
+        - No superseded plans or dead notes found — nothing to delete
 
-    - [ ] **2.1.b Audit `.arc-internal/reference/research/`**
-        - Research files may have lasting reference value — keep those that inform future decisions
-        - Delete files that are fully absorbed into ADRs or strategy docs
+    - [x] **2.1.b Audit `.arc-internal/reference/research/`**
+        - 12 research files audited: 6 fully absorbed into strategies, 2 broad reference,
+          4 still informing active work
+        - Decision: keep all for now — extract before going public (WU5)
+        - Documented extraction candidates in `plan-wu5-public-release.md` §
+          Pre-Public Extraction Candidates
 
-- [ ] **2.2 Run `arc init` on the dev repo**
+- [x] **2.2 Remove old `.arc/` directory**
+
+    **Goal:** Clear the old template-source `.arc/` so `arc init` can create a fresh installation.
+
+    - Verified full parity with `packages/arc-framework/arc/` (Task 1.1)
+    - Removed via `git rm -r .arc/` — staged, not yet committed (will commit with init)
+
+- [x] **2.3 Relocate manifest and pristine storage to `.arc/system/.internal/`**
+
+    **Goal:** Move framework bookkeeping out of repo root and eliminate the `.pristine/` directory
+    that clutters the adopter's `.arc/` workspace. Both files move to `.arc/system/.internal/` —
+    a clearly-named subdirectory within the infrastructure area, invisible to daily workspace use.
+
+    - [x] **2.3.a Refactor init to write `.arc/system/.internal/`**
+        - `manifest.json` replaces `.arc-manifest.json` at repo root
+        - `pristine.json` replaces `.arc/.pristine/` directory tree — single JSON file
+          keyed by output-relative path
+        - `.gitignore` entry: `.arc/system/.internal/pristine.json`
+        - Added path constants to `constants.ts` (DRY across all commands)
+
+    - [x] **2.3.b Refactor update to read from `.arc/system/.internal/`**
+        - Pristine loaded as JSON object, entries accessed by key instead of file reads
+        - Updated pristine written back as JSON at end (single write vs. per-file writes)
+        - Removed files excluded from new store by not carrying forward (no delete needed)
+
+    - [x] **2.3.c Refactor status and diff commands**
+        - Status reads manifest from new `.internal/` location
+        - Diff reads pristine from JSON store, writes temp files for `git diff --no-index`
+        - `fs.ts` skip pattern updated from `.pristine` to `system/.internal`
+
+    - [x] **2.3.d Update tests and verify full suite**
+        - Added DRY helpers to integration test helper: `manifestPath()`, `pristineStorePath()`,
+          `readManifestFile()`, `readPristineStore()`, `writePristineStore()`
+        - Updated all 11 test files with path references
+        - All 358 tests pass (327 unit/integration + 31 E2E)
+
+- [ ] **2.4 Run `arc init` on the dev repo**
 
     **Goal:** Create a real `.arc/` installation from the authoritative `packages/arc-framework/arc/`
-    source.
+    source, using the new `.internal/` storage layout.
 
-    - First remove current `.arc/` (it's now fully represented in `packages/arc-framework/arc/`)
-    - Run `node packages/arc-framework/dist/cli.js init` with appropriate project settings
-    - Verify: `.arc/` created with rendered files, `.arc-manifest.json`, `.arc/.pristine/`, hooks
-      configured
+    - Run `node packages/arc-framework/dist/cli.js init` with project settings
+    - Verify: `.arc/` created with rendered files, `.arc/system/.internal/manifest.json`,
+      `.arc/system/.internal/pristine.json`, hooks configured
     - The init creates the skeleton — migration fills in project-specific content next
 
-- [ ] **2.3 Migrate `.arc-internal/` content into `.arc/`**
+- [ ] **2.5 Migrate `.arc-internal/` content into `.arc/`**
 
     **Goal:** Move all project-specific content from the internal directory to the real installation.
 
-    - [ ] **2.3.a Migrate reference content**
+    - [ ] **2.5.a Migrate reference content**
         - `reference/constitution/DEV-RULES.PROJECT.md` → merge into `.arc/reference/constitution/`
         - `reference/strategies/` → move project strategies to `.arc/reference/strategies/project/`
         - `reference/adr/` → move to `.arc/reference/adr/`
@@ -116,59 +154,59 @@ This is the highest-risk phase — take it step by step with verification betwee
         - `reference/QUICK-REFERENCE.md` → merge project-specific content into init-generated skeleton
         - `reference/PROJECT-STATUS.md` → move to `.arc/reference/`
 
-    - [ ] **2.3.b Migrate active work and backlog**
+    - [ ] **2.5.b Migrate active work and backlog**
         - `active/` → move to `.arc/active/`
         - `backlog/` → move to `.arc/backlog/`
 
-    - [ ] **2.3.c Migrate agent and user content**
+    - [ ] **2.5.c Migrate agent and user content**
         - `system/agent/CLAUDE.ARC.md` (and other agent files) → merge into `.arc/system/agent/`
         - `user/` → move to `.arc/user/`
 
-    - [ ] **2.3.d Evaluate `system/workflows/project/`**
+    - [ ] **2.5.d Evaluate `system/workflows/project/`**
         - Determine what's needed post-migration vs. what's covered by the init-generated structure
         - Migrate needed content, discard redundant files
 
-- [ ] **2.4 Migrate hooks**
+- [ ] **2.6 Migrate hooks**
 
     **Goal:** Replace dual-path internal hooks with clean single-directory hooks based on the
     template versions.
 
-    - [ ] **2.4.a Review framework-specific hook checks**
+    - [ ] **2.6.a Review framework-specific hook checks**
         - CHECK 10 (public/internal boundary enforcement) → confirm it dissolves post-migration
         - CHECK 11 (framework-owned file protection) → decide: dissolve or transform into
           contributor-aware protection (Phase 4 may subsume this)
         - CHECK 8 (`packages/arc-framework/` exclusion) → evaluate whether still needed
         - Document decisions for each check
 
-    - [ ] **2.4.b Install template hooks as the active hooks**
+    - [ ] **2.6.b Install template hooks as the active hooks**
         - The init-generated `.arc/system/githooks/` should have the template hooks
         - Verify `core.hooksPath` points to `.arc/system/githooks/`
         - Simplify any remaining dual-path regex patterns to single `.arc/` paths
 
-- [ ] **2.5 Update all `.arc-internal/` references**
+- [ ] **2.7 Update all `.arc-internal/` references**
 
     **Goal:** Eliminate every reference to the deleted directory across the repo.
 
-    - [ ] **2.5.a Update session-init workflow paths**
+    - [ ] **2.7.a Update session-init workflow paths**
         - `.arc-internal/` paths in session-init template → `.arc/` paths
         - Update any hardcoded paths in workflow documents
 
-    - [ ] **2.5.b Update CLAUDE.md and skill files**
+    - [ ] **2.7.b Update CLAUDE.md and skill files**
         - `.claude/` directory skill definitions reference `.arc-internal/` paths
         - Update to `.arc/` equivalents
 
-    - [ ] **2.5.c Update `.gitignore`, CI config, README**
+    - [ ] **2.7.c Update `.gitignore`, CI config, README**
         - `.gitignore`: `.arc-internal/user/` → `.arc/user/`
         - `.github/workflows/ci.yml`: any `.arc-internal/` lint paths or references
         - `README.md`: repo structure description
 
-- [ ] **2.6 Delete `.arc-internal/` and verify end-to-end**
+- [ ] **2.8 Delete `.arc-internal/` and verify end-to-end**
 
-    - [ ] **2.6.a Delete `.arc-internal/`**
+    - [ ] **2.8.a Delete `.arc-internal/`**
         - `git rm -r .arc-internal/`
         - Confirm no remaining references via grep
 
-    - [ ] **2.6.b Post-migration verification**
+    - [ ] **2.8.b Post-migration verification**
         - Session init: loads correctly from `.arc/` paths
         - Quality gates: `npm run -s lint:md`, `npm run typecheck`, `npm test`, `npm run build`
         - Hooks: test a commit — pre-commit and commit-msg both fire correctly

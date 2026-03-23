@@ -71,6 +71,36 @@ not "the only approach."
 
 ---
 
+## Pre-Public Extraction Candidates
+
+Content in `.arc-internal/reference/research/` that has value as personal/developer reference but
+doesn't belong in the public repo. Extract to a private archive before the clean initial commit.
+
+**Fully absorbed into strategies/ADRs** (citation-level detail only — strategies are authoritative):
+
+- `research-attention-single-tasking.md` → strategy-core-philosophy (P2)
+- `research-context-degradation.md` → strategy-session-management
+- `research-context-loading.md` → strategy-context-loading
+- `research-instruction-reliability.md` → strategy-context-loading
+- `research-planning-lifecycle.md` → strategy-work-planning
+- `research-session-lifecycle.md` → strategy-session-management
+
+**Broad reference** (not tied to a single strategy — competitive/ecosystem surveys):
+
+- `research-dev-methodology.md` → methodology inventory
+- `research-dev-methodology-integration-mapping.md` → integration point mapping
+
+**Still informing active work** (keep until their domains stabilize):
+
+- `research-agent-landscape.md` → competitive landscape, ADR-005
+- `research-agent-hooks-landscape.md` → hook ecosystem, WU4 scope
+- `research-context-visibility-platforms.md` → platform-specific data
+- `research-landscape-analysis-2026-02.md` → competitive snapshot
+
+**Analysis docs** (`reference/analysis/`) — same treatment: extract before going public.
+
+---
+
 ## Open Questions (Carried Forward)
 
 - **GitHub Discussions:** Evaluate need based on beta testing experience

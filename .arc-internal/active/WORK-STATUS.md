@@ -9,10 +9,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc-internal/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.1 — Pre-migration artifact cleanup (line ~73)
-**Last Completed**: Phase 1 — Content Source Promotion (Tasks 1.1–1.3)
+**Next Task**: Task 2.4 — Run `arc init` on the dev repo (line ~117)
+**Last Completed**: Task 2.3 — Relocate manifest/pristine to `.arc/system/.internal/`
 **Blockers**: [none]
-**Next Action**: Begin Phase 2 — audit `.arc-internal/` artifacts before migration
+**Next Action**: Address `arc init` UX polish (atomic tasks), then run `arc init` on dev repo
 
 ---
 
