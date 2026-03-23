@@ -27,7 +27,7 @@ beta is functional for the full init → work sessions → update cycle.
 - **User directory portability** — `arc user save/load/push/pull` and `arc sync` wrapping git notes
   for cross-machine session state transfer (ADR-012 contract)
 - **Log command** — `arc log atomic` for browsing atomic task commit history with filters
-- **Test suite** — unit (237 tests), integration (70 tests), E2E (31 tests) covering all commands
+- **Test suite** — unit, integration, and E2E tiers covering all commands and core libraries
 - **Monorepo workspace** — `packages/arc-framework/` with TypeScript strict mode, tsup build, vitest
 
 ## Implementation Highlights
@@ -38,15 +38,23 @@ beta is functional for the full init → work sessions → update cycle.
   time, giving `git merge-file` a common ancestor for clean adopter-preserving updates.
 - **User sync via git notes**: Serializes `user/{identity}/` into JSON manifests stored as git notes,
   with ancestor-walk loading (up to 20 commits) for robustness after branch switches.
+- **Security hardening via local code review** (4 CodeRabbit passes): path traversal fix in
+  `deserialize()`, `--basic-regexp` for git log, stdin error handler on git note writes, identity
+  slugification from interactive prompts, POSIX-correct `IFS= read -r` in hook pipelines.
+- **DRY refactor**: Extracted `buildConfigKeyOverrides()`, `runWithSpinner()`, and `isHandledError()`
+  shared helpers — reduced duplication across 5+ command files.
 - **Six atomic tasks completed** during implementation — standalone companion file convention,
   session boundary guidance strengthening, session-init performance optimization, agent config
   decoupling, broader tool support assessment, AGENT-BRIEFING rename, init-recipe audit.
 
 ## Verification
 
-- **Quality gates**: Tier 3 all passed — TypeScript strict mode clean, 338 tests pass (unit +
-  integration + E2E), build clean, markdown linting clean (158 files, 0 errors)
+- **Quality gates**: Tier 3 all passed — TypeScript strict mode clean, 358 tests pass (unit +
+  integration + E2E), build clean, markdown linting clean
 - **Success criteria**: 8 of 8 met (all `[x]`). No deviations or supersessions.
+- **Integration hardening**: 4 local CodeRabbit review passes before PR — 1 critical, 4 major,
+  and 9 minor findings fixed across security, robustness, and code quality. DRY refactor extracted
+  shared helpers. 17 tests added covering hardened code paths.
 
 ## Related Documentation
 
@@ -62,3 +70,4 @@ beta is functional for the full init → work sessions → update cycle.
 - Team-integrated skill generation — adopter-registered skills alongside framework skills (post-beta)
 - Docs site, README updates, public repo sync (WU4)
 - Extract save-path logic to `arc-methods.md` — deferred until `reconfigure` is implemented
+- Lower-priority test coverage gaps documented in BACKLOG-TECHNICAL.md during integration

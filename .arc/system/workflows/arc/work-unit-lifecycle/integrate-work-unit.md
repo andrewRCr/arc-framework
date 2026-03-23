@@ -149,6 +149,21 @@ If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
 When disabled, proceed directly to push and PR creation.
 
+### 6b) Completion Metadata Freshness Check
+
+**Skip if** no commits were made during Phase 2 (steps 5–6). If review-driven fixes, refactoring,
+or additional tests were committed during Phase 2, verify `completion-{name}.md` still reflects the
+delivered state:
+
+- **Verification section**: Quality gate status and claims still accurate?
+- **Implementation Highlights**: Do review fixes add noteworthy technical content? (security
+  hardening, extracted helpers, new patterns)
+- **Key Deliverables**: Do new tests or capabilities change the deliverable summary?
+- **Follow-Up Work**: Were new deferrals captured during review?
+
+Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
+description — stale metadata in the PR undermines the review it's meant to support.
+
 ### 7) Push and Create PR
 
 ```bash

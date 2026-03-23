@@ -90,6 +90,11 @@ Update session state files before ending session:
 
 _Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
 WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
+
+_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
+activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
+push and create PR". Task-list-driven workflows (process-task-loop) don't need this; the task list
+checkbox state is the pointer._
 ```
 
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
