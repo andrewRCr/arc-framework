@@ -136,13 +136,17 @@ function createUserIOContext(): UserIOContext {
 
 /**
  * Resolve identity for user commands. Requires arc.identity to be set.
- * Returns the identity string or exits with an error message.
+ * Throws UserFacingError if identity is not configured.
  */
 async function resolveUserIdentity(): Promise<string> {
   const identity = await resolveIdentity({ exec: gitExec });
   if (!identity) {
-    p.log.error("No identity configured. Run 'arc init' first.");
-    process.exit(1);
+    throw new UserFacingError({
+      code: "IDENTITY_MISSING",
+      whatHappened: "No identity configured.",
+      why: "User commands require arc.identity to be set in git config.",
+      whatToDo: "Run 'arc init' first.",
+    });
   }
   return identity;
 }
@@ -679,15 +683,17 @@ logCmd
   .description("Show atomic task commits")
   .option("--since <date>", "Show commits after date (e.g., 2026-03-01)")
   .option("--author <name>", "Filter by author")
-  .option("--limit <n>", "Maximum number of commits", parseInt)
+  .option("--limit <n>", "Maximum number of commits (default: 50)", parseInt)
+  .option("--all", "Show all matching commits (no limit)")
   .option("--work-unit <name>", "Filter by work unit name (matches atomic-{name})")
-  .action(async (opts: { since?: string; author?: string; limit?: number; workUnit?: string }) => {
+  .action(async (opts: { since?: string; author?: string; limit?: number; all?: boolean; workUnit?: string }) => {
     try {
       const result = await runLogAtomic({
         exec: gitExec,
         since: opts.since,
         author: opts.author,
         limit: opts.limit,
+        all: opts.all,
         workUnit: opts.workUnit,
       });
 

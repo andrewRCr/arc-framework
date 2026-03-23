@@ -197,8 +197,20 @@ export async function serialize(
   };
 }
 
+/** Check whether a filename is safe for deserialization (no path traversal). */
+function isSafeFilename(name: string): boolean {
+  if (name !== name.trim()) return false;
+  if (name.length === 0) return false;
+  if (name.includes("/") || name.includes("\\")) return false;
+  if (name === "." || name === ".." || name.includes("..")) return false;
+  return true;
+}
+
 /**
  * Deserialize a manifest back into files in the user directory.
+ *
+ * Validates each filename to prevent path traversal from untrusted git
+ * note content. Files with suspicious names are silently skipped.
  *
  * @param userDir - Absolute path to the user directory
  * @param manifest - Previously serialized manifest
@@ -210,6 +222,7 @@ export async function deserialize(
   writeFile: WriteFileFn,
 ): Promise<void> {
   for (const [name, content] of Object.entries(manifest.files)) {
+    if (!isSafeFilename(name)) continue;
     await writeFile(`${userDir}/${name}`, content);
   }
 }

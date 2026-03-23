@@ -94,8 +94,7 @@ export async function checkLatestVersion(
   try {
     const response = await fetchImpl(url);
     if (!response.ok) return null;
-    const data = response.json() as Promise<{ version?: string }>;
-    const pkg = await data;
+    const pkg = await response.json() as { version?: string };
     return typeof pkg.version === "string" ? pkg.version : null;
   } catch {
     return null;

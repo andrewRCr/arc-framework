@@ -27,12 +27,16 @@ export interface LogAtomicResult {
   entries: AtomicLogEntry[];
 }
 
+/** Default number of commits shown when no --limit or --all is specified. */
+export const DEFAULT_LOG_LIMIT = 50;
+
 /** Options for the log --atomic orchestrator. */
 export interface LogAtomicOptions {
   exec: GitExec;
   since?: string;
   author?: string;
   limit?: number;
+  all?: boolean;
   workUnit?: string;
 }
 
@@ -103,10 +107,11 @@ function parseGitLogOutput(raw: string): AtomicLogEntry[] {
 export async function runLogAtomic(
   options: LogAtomicOptions,
 ): Promise<LogAtomicResult> {
-  const { exec, since, author, limit, workUnit } = options;
+  const { exec, since, author, limit, all, workUnit } = options;
 
   const args = [
     "log",
+    "--basic-regexp",
     `--grep=Context: atomic-`,
     `--grep=(atomic / no associated task list)`,
     `--format=${RECORD_SEP}%n%h%n%ai%n%s%n%b`,
@@ -114,7 +119,8 @@ export async function runLogAtomic(
 
   if (since) args.push(`--since=${since}`);
   if (author) args.push(`--author=${author}`);
-  if (limit) args.push(`-n`, String(limit));
+  const effectiveLimit = all ? undefined : (limit ?? DEFAULT_LOG_LIMIT);
+  if (effectiveLimit) args.push(`-n`, String(effectiveLimit));
 
   const { stdout } = await exec("git", args);
 

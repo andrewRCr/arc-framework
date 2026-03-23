@@ -46,6 +46,17 @@ export function validateManifest(data: unknown): ValidationResult {
   }
   if (typeof obj.install_config !== "object" || obj.install_config === null) {
     errors.push("Missing or invalid 'install_config' (expected object)");
+  } else {
+    const ic = obj.install_config as Record<string, unknown>;
+    if (typeof ic.project_name !== "string") {
+      errors.push("install_config.project_name must be a string");
+    }
+    if (typeof ic.pm_mode !== "string") {
+      errors.push("install_config.pm_mode must be a string");
+    }
+    if (!Array.isArray(ic.tools)) {
+      errors.push("install_config.tools must be an array");
+    }
   }
   if (typeof obj.files !== "object" || obj.files === null) {
     errors.push("Missing or invalid 'files' (expected object)");

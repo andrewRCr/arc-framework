@@ -80,11 +80,11 @@ export async function runUserSave(
 
   // Write manifest as git note
   const json = JSON.stringify(result.manifest);
-  await io.writeNote(notesRef(identity), json, commit.trim());
+  await io.writeNote(notesRef(identity), json, commit);
 
   return {
     identity,
-    commit: commit.trim().slice(0, 7),
+    commit: commit.slice(0, 7),
     fileCount: Object.keys(result.manifest.files).length,
     warnings: result.warnings,
   };
@@ -143,7 +143,7 @@ export async function runUserLoad(
 
   // Get HEAD
   const { stdout: head } = await io.exec("git", ["rev-parse", "HEAD"]);
-  const headHash = head.trim();
+  const headHash = head;
 
   noteContent = await io.readNote(ref, headHash);
   if (noteContent) {
@@ -155,7 +155,7 @@ export async function runUserLoad(
         const { stdout: ancestor } = await io.exec("git", [
           "rev-parse", `HEAD~${i}`,
         ]);
-        const ancestorHash = ancestor.trim();
+        const ancestorHash = ancestor;
         noteContent = await io.readNote(ref, ancestorHash);
         if (noteContent) {
           foundCommit = ancestorHash;
@@ -182,6 +182,14 @@ export async function runUserLoad(
       `Corrupt git note on ${foundCommit.slice(0, 7)} — JSON parse failed. ` +
       "The note may have been manually edited or partially written. " +
       "Try a different ancestor with `arc user load`, or `arc user save` to overwrite.",
+    );
+  }
+
+  if (manifest.version !== 1 || typeof manifest.files !== "object" || manifest.files === null) {
+    throw new Error(
+      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${String((manifest as unknown as Record<string, unknown>).version ?? "unknown")}). ` +
+      "This note may have been created by a newer version of ARC. " +
+      "Update the CLI and try again, or `arc user save` to overwrite.",
     );
   }
 

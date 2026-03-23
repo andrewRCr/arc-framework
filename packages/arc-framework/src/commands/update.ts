@@ -29,7 +29,7 @@ import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
 import {
-  ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION, CONFIG_KEY_PM_MODE,
+  ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION, CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE,
 } from "../lib/constants.js";
 import {
   generateSkills,
@@ -181,6 +181,8 @@ export async function runUpdate(
   const tokens = buildTokenMap(ic, cwd);
   const configKeyOverrides: Record<string, string> = {
     [CONFIG_KEY_PM_MODE]: ic.pm_mode,
+    [CONFIG_KEY_TEAM_MODE]: String(ic.team_mode ?? false),
+    "user.sync_push": ic.team_mode ? "prompt" : "always",
   };
 
   // Determine arc-in-git files for layer classification

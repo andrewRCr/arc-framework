@@ -15,7 +15,8 @@ export type ArcErrorCode =
   | "MANIFEST_INVALID"
   | "MERGE_FAILED"
   | "FILE_NOT_FOUND"
-  | "REGISTRY_FETCH_FAILED";
+  | "REGISTRY_FETCH_FAILED"
+  | "IDENTITY_MISSING";
 
 /**
  * Base error class for all ARC CLI errors.
