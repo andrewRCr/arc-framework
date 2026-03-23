@@ -78,6 +78,9 @@ async function writeGitNote(
       else reject(new Error(`git notes add failed (code ${code}): ${stderr}`));
     });
     proc.on("error", reject);
+    proc.stdin.on("error", (err) => {
+      reject(new Error(`git notes stdin write failed: ${err.message}`));
+    });
     proc.stdin.write(content);
     proc.stdin.end();
   });
@@ -95,7 +98,7 @@ async function readGitNote(
     const { stdout } = await execFileAsync("git", [
       "notes", "--ref", ref, "show", commit,
     ]);
-    return stdout;
+    return stdout.trimEnd();
   } catch {
     return null;
   }

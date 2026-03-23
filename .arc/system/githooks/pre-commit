@@ -58,7 +58,7 @@ fi
 # ============================================================================
 # CHECK 2: Large file check (prevent accidental commits)
 # ============================================================================
-large_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+large_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     size=$(wc -c < "$file" 2>/dev/null || echo 0)
     if [ "$size" -gt 1048576 ]; then  # 1MB
         echo "$file ($(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "$size bytes"))"
@@ -96,7 +96,7 @@ done
 # ============================================================================
 # CHECK 4: Check for common merge conflict markers
 # ============================================================================
-conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
         echo "$file"
     fi
@@ -124,7 +124,7 @@ debug_patterns=(
 )
 
 for pattern in "${debug_patterns[@]}"; do
-    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
         # Skip test files
         if echo "$file" | grep -qE "(test_|_test\.py|\.test\.ts|\.test\.tsx|spec\.)"; then
             continue
@@ -169,7 +169,7 @@ task_numbering_mode=$(arc_config_get "hooks.task_numbering" "error")
 if [ "$task_numbering_mode" != "off" ]; then
     task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
         grep -E '^\.arc/(active|backlog)/.*/tasks-.*\.md$' | \
-        while read file; do
+        while IFS= read -r file; do
             # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
             # Pattern: checkbox followed by optional bold, then three numeric segments
             violations=$(grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' "$file" 2>/dev/null || true)
@@ -210,7 +210,7 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^README\.md" | \
     grep -E "\.($code_extensions)$" | \
-    while read file; do
+    while IFS= read -r file; do
         # Check for "Task X.Y" or "Phase X" patterns (case insensitive)
         refs=$(grep -nE "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/" "$file" 2>/dev/null || true)
         if [ -n "$refs" ]; then

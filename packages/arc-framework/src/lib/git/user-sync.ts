@@ -202,7 +202,7 @@ function isSafeFilename(name: string): boolean {
   if (name !== name.trim()) return false;
   if (name.length === 0) return false;
   if (name.includes("/") || name.includes("\\")) return false;
-  if (name === "." || name === ".." || name.includes("..")) return false;
+  if (name === "." || name === "..") return false;
   return true;
 }
 

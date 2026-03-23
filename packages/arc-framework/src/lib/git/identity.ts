@@ -81,7 +81,8 @@ export async function resolveIdentity(
     if (typeof result === "symbol") {
       return null;
     }
-    return result;
+    const slugified = slugifyIdentity(typeof result === "string" ? result : "");
+    return slugified || null;
   }
 
   return null;
