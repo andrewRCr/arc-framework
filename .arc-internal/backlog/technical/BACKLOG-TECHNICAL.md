@@ -56,6 +56,18 @@ all are hardening for edge cases unlikely to surface in normal use.
     - `readGitNote` with corrupt refs or missing commits
     - Spinner lifecycle edge cases (exception during spinner.start/stop)
 
+### CI/TTY Auto-Detection for Non-Interactive Mode
+
+- **Problem:** `arc init` requires `--yes` flag for non-interactive use; increasingly standard for CLI
+  tools to auto-detect CI environments (`CI=true`) and non-TTY stdin and suppress prompts automatically
+- **Scope:** Small (~5 lines of detection logic) but has UX decisions: warn vs. silent, apply to all
+  commands vs. init only, interaction with explicit `--yes` flag
+- **Approach:** Check `process.env.CI === 'true'` or `!process.stdin.isTTY` at command entry; imply
+  `--yes` behavior when detected. Only `init` currently has interactive prompts.
+- **Context:** Discovered during WU4 Phase 1 when `--yes` mode wasn't fully non-interactive (identity
+  prompt bypassed the flag — fixed). Research confirmed CI/TTY detection is standard practice across
+  npm, Terraform, Yeoman, and others.
+
 ### Compatibility Testing Across Agent Platforms
 
 - Problem: ARC claims agent-agnosticism but isn't tested across platforms
