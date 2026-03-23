@@ -7,7 +7,7 @@
     "arc": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup && node --input-type=module -e \"import{cpSync}from'node:fs';cpSync('../../.arc','arc',{recursive:true})\"",
+    "build": "tsup",
     "test": "vitest run && vitest run -c vitest.e2e.config.ts",
     "test:unit": "vitest run __tests__/unit",
     "test:integration": "vitest run __tests__/integration",

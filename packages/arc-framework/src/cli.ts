@@ -267,10 +267,10 @@ program
       }
     }
 
-    // Identity resolution (with clack prompt adapter)
+    // Identity resolution — interactive prompt only when not in --yes mode
     const identityResult = await resolveIdentity({
       exec: gitExec,
-      prompt: async (message, defaultValue) => {
+      prompt: opts.yes ? undefined : async (message, defaultValue) => {
         const result = await p.text({
           message,
           defaultValue,

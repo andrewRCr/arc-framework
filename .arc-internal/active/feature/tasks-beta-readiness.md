@@ -41,27 +41,37 @@ framework for real-world beta testing.
 **Purpose:** Make `packages/arc-framework/arc/` the authoritative source for framework content,
 eliminating the fragile cpSync build step.
 
-- [ ] **1.1 Sync `.arc/` content into `packages/arc-framework/arc/`**
+- [x] **1.1 Sync `.arc/` content into `packages/arc-framework/arc/`**
 
     **Goal:** Resolve known drift so the package directory matches the current `.arc/` state.
 
-    - [ ] **1.1.a Diff `.arc/` against `packages/arc-framework/arc/` and catalog divergences**
-        - At minimum: `integrate-work-unit.md` has diverged, several files exist only in bundled copy
-        - Document all differences before overwriting
+    - [x] **1.1.a Diff `.arc/` against `packages/arc-framework/arc/` and catalog divergences**
+        - 1 content divergence: `integrate-work-unit.md` missing section 6b (Completion Metadata Freshness Check)
+        - 3 stale rendered artifacts (non-template duplicates alongside `.template.md` counterparts):
+          `3_process-task-loop.md`, `02_define-project.md`, `session-init.md`
+        - 1 orphaned package-only file: `ARC-AGENTS.template.md` (not in init recipe, unreferenced — preserved)
+        - 0 files only in `.arc/`
 
-    - [ ] **1.1.b Copy `.arc/` content into `packages/arc-framework/arc/`**
-        - Overwrite divergent files with `.arc/` versions (the canonical source)
-        - Remove files in `arc/` that don't belong (artifacts from stale builds)
-        - Preserve `arc/` files that are correctly newer if any exist
+    - [x] **1.1.b Copy `.arc/` content into `packages/arc-framework/arc/`**
+        - Overwrote `integrate-work-unit.md` with canonical `.arc/` version
+        - Removed 3 stale rendered artifacts
+        - Deleted deprecated `ARC-AGENTS.template.md` (predecessor to AGENT-BRIEFING split, unreferenced)
+        - Post-sync diff confirms full parity between `.arc/` and `packages/arc-framework/arc/`
 
-- [ ] **1.2 Remove cpSync from build script**
-    - Update `packages/arc-framework/package.json` `build` script to `tsup` only
-    - The `cpSync` step that copies `.arc/` → `arc/` is no longer needed
+- [x] **1.2 Remove cpSync from build script**
+    - Simplified `build` script to `"tsup"` — removed inline cpSync one-liner
+    - Build verified: tsup succeeds, output unchanged
 
-- [ ] **1.3 Verify CLI works with promoted source**
-    - Run `arc init` in a temp directory — confirm it scaffolds `.arc/` correctly
-    - Run existing test suite (`npm test`) — confirm no path resolution failures
-    - Confirm `paths.ts`, `init-recipe.json`, and `package.json` `files` field need no changes
+- [x] **1.3 Verify CLI works with promoted source**
+    - Full test suite passes (327 unit/integration + 31 E2E = 358 tests)
+    - `arc init --yes` verified in temp directory — scaffolds correctly with `.gitkeep` structure
+    - `paths.ts` and `package.json` `files` field need no changes
+    - `init-recipe.json` updated: added 6 `.gitkeep` files for `active/` and `archive/` subdirectories
+      (feature, technical, incidental) — scaffolds directory structure for adopters
+    - `classification.ts` updated: `.gitkeep` files classified as Scaffolded (adopter-owned, no pristine)
+    - Incidental fix: `--yes` mode wasn't fully non-interactive — identity resolution always prompted
+      via clack regardless of flag. Fixed in `cli.ts` to omit prompt adapter in `--yes` mode, falling
+      back to `user.name` slugification. CI/TTY auto-detection deferred to backlog.
 
 ### **Phase 2:** Self-Hosting Migration
 

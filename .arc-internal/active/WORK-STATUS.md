@@ -9,10 +9,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc-internal/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 1.1 — Sync `.arc/` content into `packages/arc-framework/arc/` (line ~44)
-**Last Completed**: CLI Implementation / WU3 (archived)
+**Next Task**: Task 2.1 — Pre-migration artifact cleanup (line ~73)
+**Last Completed**: Phase 1 — Content Source Promotion (Tasks 1.1–1.3)
 **Blockers**: [none]
-**Next Action**: Begin Phase 1 — sync content source, remove cpSync, verify CLI
+**Next Action**: Begin Phase 2 — audit `.arc-internal/` artifacts before migration
 
 ---
 
