@@ -7,13 +7,14 @@ architecture.
 
 ## 1. Overview
 
-The ARC Framework is a pure documentation and process system — not a software application. It
-defines how a developer and an AI agent collaborate through structured workflows, templates, and
-constitutional documents.
+The ARC Framework is a development methodology for human-AI collaboration, delivered as documentation
+and a CLI tool. The methodology is expressed as workflows, templates, strategies, and constitutional
+documents. The CLI (`@arc-framework/cli`) manages installation, configuration, and updates of these
+files in adopter projects.
 
 **Key characteristics:**
 
-- **Documentation-only** — No runtime, no containers, no services. All artifacts are markdown
+- **Hybrid project** — Documentation system (`.arc/`) plus TypeScript CLI (`packages/arc-framework/`)
 - **Template-first** — Rich, copy-ready documents with inline guidance and framework defaults
 - **Self-hosting** — Framework development follows its own ARC methodology
 - **Configurable conventions** — 11 non-negotiable principles with strong defaults that teams
@@ -47,6 +48,28 @@ customized, and committed to their repositories.
   ATOMIC-TASKS, category subdirectories)
 - **Backlog** (`backlog/`) — Future work pipeline (ROADMAP, category backlogs)
 
+### CLI Package (`packages/arc-framework/`)
+
+The `@arc-framework/cli` npm package — a TypeScript CLI that installs, updates, and manages ARC
+framework files for adopters. Published under the `arc-framework` npm organization.
+
+- **Entry point**: `src/cli.ts` — Commander-based with `init`, `update`, `status`, `diff` commands
+- **Build**: tsup (ESM output, Node 18+ target, shebang injection, declaration files)
+- **Tests**: Vitest (`__tests__/unit/`, `__tests__/integration/`, `__tests__/e2e/`)
+- **Templates**: `.arc/` is the canonical source — bundled into the package at build time.
+  `src/templates/` holds CLI-internal resources (user templates) not in `.arc/`
+
+**Architecture** — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
+
+- **`src/lib/`** — Pure logic and injectable utilities (render, hash, manifest, git, files).
+  No direct side effects — filesystem and process dependencies are passed in for testability.
+- **`src/commands/`** — Command handlers. Orchestrate lib modules with real dependencies.
+- **`src/prompts/`** — Interactive UI via @clack/prompts. Collects input, feeds it to commands.
+- **`src/cli.ts`** — Entry point. Commander routing, dispatches to command handlers.
+
+Lib modules compose horizontally (e.g., `files.ts` imports `render.ts`) but never reach up to
+commands or prompts.
+
 ### Framework Development Workspace (`.arc-internal/`)
 
 Internal to this repository — not shipped to adopters. Mirrors `.arc/` structure for framework
@@ -58,7 +81,7 @@ DEV-RULES.PROJECT, internal ADRs, archives).
 Three mechanisms allow teams to adapt ARC without forking:
 
 - **`arc-config.yml`** — Settings: branch protection, commit format, hook toggles, PM mode
-- **`arc-methods.md`** — Overridable defaults for commit format, leave-it-cleaner triage,
+- **`arc-methods.md`** — Overridable defaults for commit format, issue-triage,
   test-first assessment, session state, quality gate commands
 - **`arc-extensions.md`** — Hook points for team-specific automation at task, unit, and
   work-unit lifecycle boundaries
@@ -67,24 +90,35 @@ Three mechanisms allow teams to adapt ARC without forking:
 
 - **Version Control**: Git (primary runtime dependency)
 - **Development Environment**: Cross-platform (Windows/WSL/Linux/Mac), all work at repo root
-- **Dependencies**: Node.js with pinned local `markdownlint-cli2` — `npm install` to set up,
-  `npm run -s lint:md` for quality gates
-- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — markdown linting, template structure
-  validation, internal link checking, ARC system structure validation
+- **Package Manager**: npm with workspaces — root `package.json` delegates build/test/typecheck
+  to the CLI workspace at `packages/arc-framework/`
+- **TypeScript**: Strict mode, ES2022 target, Node16 module resolution
+- **Build**: tsup — ESM output, shebang injection, declaration generation
+- **Test Framework**: Vitest — unit, integration, and E2E test tiers
+- **Documentation Linting**: markdownlint-cli2 (pinned local) — `npm run -s lint:md`
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — markdown linting, TypeScript type
+  checking, test suite, build verification, template structure validation, internal link checking
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line
-  ending normalization
+  ending normalization, `tsconfig.json` for TypeScript, `tsup.config.ts` for build,
+  `vitest.config.ts` for tests
 
 ## 4. Testing Infrastructure
 
-Documentation-only framework — no unit tests, integration tests, or test runners.
+### Test Tiers
+
+- **Unit** (`__tests__/unit/`) — Pure function and module tests, no side effects
+- **Integration** (`__tests__/integration/`) — Module interaction, may use temp filesystem
+- **E2E** (`__tests__/e2e/`) — Full CLI invocation against real (temporary) git repos
 
 ### Quality Gates
 
 - **Markdown linting** — `markdownlint-cli2` with zero-tolerance policy
-- **CI validation** — GitHub Actions validates linting, template structure, and link integrity
-  on push and PR
-- **Tiered approach** — Tier 1 (per-task, incremental), Tier 2 (coherent unit boundaries),
-  Tier 3 (phase completion / pre-PR full suite)
+- **TypeScript type checking** — `tsc --noEmit` with strict mode
+- **Test suite** — Vitest with all tests passing
+- **Build verification** — tsup produces working CLI output
+- **CI validation** — GitHub Actions validates all gates on push and PR
+- **Tiered approach** — Tier 1 (per-task: lint + unit tests), Tier 2 (coherent unit: full lint +
+  typecheck + tests), Tier 3 (phase/pre-PR: all + build + git review)
 
 ### Methodology Validation
 

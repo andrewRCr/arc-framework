@@ -1,0 +1,46 @@
+{
+  "name": "@arc-framework/cli",
+  "version": "0.0.0",
+  "description": "CLI tool for installing, updating, and managing ARC framework files",
+  "type": "module",
+  "bin": {
+    "arc": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup && node --input-type=module -e \"import{cpSync}from'node:fs';cpSync('../../.arc','arc',{recursive:true})\"",
+    "test": "vitest run && vitest run -c vitest.e2e.config.ts",
+    "test:unit": "vitest run __tests__/unit",
+    "test:integration": "vitest run __tests__/integration",
+    "test:e2e": "vitest run -c vitest.e2e.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  },
+  "files": [
+    "dist",
+    "arc",
+    "templates",
+    "init-recipe.json"
+  ],
+  "keywords": [
+    "arc",
+    "framework",
+    "cli",
+    "ai",
+    "development",
+    "methodology"
+  ],
+  "license": "MIT"
+}

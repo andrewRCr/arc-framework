@@ -7,40 +7,17 @@
 
 set -e
 
+# Source shared library (config reader, colors)
+. "$(dirname "$0")/../scripts/arc-lib.sh"
+
+# Convenience aliases for color variables
+RED="$ARC_RED"
+YELLOW="$ARC_YELLOW"
+GREEN="$ARC_GREEN"
+NC="$ARC_NC"
+
 commit_msg_file="$1"
 commit_msg=$(cat "$commit_msg_file")
-
-# Colors for output
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
-
-# ============================================================================
-# CONFIG: Read settings from arc-config.yml
-# ============================================================================
-# Reads a value from .arc/system/arc-config.yml using shell-native parsing.
-# Falls back to default if config file is missing or key is not found.
-# Usage: arc_config_get <key> <default>
-arc_config_get() {
-    local key="$1"
-    local default="$2"
-    local config_file=".arc/system/arc-config.yml"
-
-    if [ ! -f "$config_file" ]; then
-        echo "$default"
-        return
-    fi
-
-    local value
-    value=$(grep -E "^${key}:" "$config_file" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-
-    if [ -z "$value" ]; then
-        echo "$default"
-    else
-        echo "$value"
-    fi
-}
 
 hook_enabled=$(arc_config_get "hooks.commit_msg" "enabled")
 commit_format=$(arc_config_get "commit.format" "conventional")
@@ -169,6 +146,7 @@ case "$context_footer_mode" in
             echo "   Context: tasks-structural-pass.md (activation)"
             echo "   Context: tasks-auth-system.md (integration)"
             echo "   Context: tasks-auth-system.md (archival)"
+            echo "   Context: atomic-auth-system.md"
             echo "   Context: maintenance (atomic / no associated task list)"
             echo "   Context: refactor (no associated task list)"
             echo "   Context: documentation (atomic / no associated task list)"
@@ -250,6 +228,26 @@ case "$context_footer_mode" in
                     echo "   Your Context line: $context_line"
                 fi
 
+            # Matches: Context: atomic-[name].md (work-unit-scoped atomic task)
+            elif echo "$context_line" | grep -qE '^Context: atomic-[a-z0-9-]+\.md$'; then
+                # Atomic companion file reference — valid, no task number needed
+                atomic_file=$(echo "$context_line" | sed -E 's/Context: (atomic-[a-z0-9-]+\.md).*/\1/')
+
+                # Check if atomic companion file exists (search active directories)
+                atomic_found=false
+                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental; do
+                    if [ -f "$dir/$atomic_file" ]; then
+                        atomic_found=true
+                        break
+                    fi
+                done
+
+                if [ "$atomic_found" = false ]; then
+                    echo -e "${YELLOW}Warning: Atomic companion file '$atomic_file' not found in active directories${NC}"
+                    echo "   This may be intentional if the file was just created or archived"
+                    warnings=$((warnings + 1))
+                fi
+
             # Matches: Context: planning (no associated task list), Context: maintenance (atomic / no associated task list)
             elif echo "$context_line" | grep -qE '^Context: (planning|documentation|maintenance|refactor|content) \((atomic / )?no associated task list\)$'; then
                 :
@@ -260,6 +258,7 @@ case "$context_footer_mode" in
                 echo "   - Context: tasks-[name].md (Tasks X.Y-X.Z)"
                 echo "   - Context: tasks-[name].md (incidental - discovered during <context>)"
                 echo "   - Context: tasks-[name].md (planning), (activation), (integration), (maintenance), or (archival)"
+                echo "   - Context: atomic-[name].md"
                 echo "   - Context: [category] (no associated task list)"
                 echo "   - Context: [category] (atomic / no associated task list)"
                 echo ""

@@ -69,9 +69,10 @@ Use this strategy when:
 
 ```
 .arc/active/
-  feature/      # Planned user-facing work (implements product features)
-  technical/    # Planned infrastructure work (improves "how we build")
-  incidental/   # Unplanned quality work (discovered during development)
+  WORK-STATUS.md  # Project state (tracked)
+  feature/        # Planned user-facing work (implements product features)
+  technical/      # Planned infrastructure work (improves "how we build")
+  incidental/     # Unplanned quality work (discovered during development)
 ```
 
 ### Git Branch Naming
@@ -607,6 +608,7 @@ of committing planning artifacts directly to the base branch.
 
 ```
 .arc/active/
+  WORK-STATUS.md
   feature/
     prd-<name>.md, tasks-<name>.md, notes-<name>.md
   technical/

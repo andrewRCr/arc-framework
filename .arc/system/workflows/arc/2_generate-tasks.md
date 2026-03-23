@@ -44,7 +44,7 @@ to the user for review before breaking down into sub-tasks.
 
 - Each phase should produce testable, verifiable progress
 - Order phases to minimize dependencies and enable incremental delivery
-- Place tests before or alongside implementation, not in a separate final phase
+- When test-first applies, group test and implementation together by module or concern
 - **Always end with a verification phase** — two tasks: (1) run Tier 3 quality gates,
   (2) validate success criteria against PRD. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
@@ -64,10 +64,13 @@ For each phase, define specific, actionable sub-tasks:
   executing agent know what to consult without re-scanning STRATEGY-INDEX. Lightweight
   convention — use when it adds value, skip when the connection is obvious.
 
-**Test-first ordering (critical):** For data models, API endpoints, business logic, and complex
-algorithms — write test sub-tasks BEFORE implementation sub-tasks. See
-[DEV-RULES.ARC][dev-rules-arc]
-§ Test-first assessment for what requires test-first vs test-after.
+**Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API
+endpoints, business logic, complex algorithms), group test and implementation together in each
+task — named by module or concern, not by activity. Use the `Build \`test-first\` (one behavior at a time):`
+marker line to introduce the behavior list; the executing agent treats this as the signal to apply the
+red-green-refactor loop. See [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the
+decision tree, and [strategy-task-list-formatting][task-list-formatting] § Test-First Task
+Structure for the full pattern.
 
 **If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`),
 consult it for project-specific test patterns and coverage expectations.
@@ -137,6 +140,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
+[arc-methods-tf]: ../../workflows/arc-methods.md#test-first
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md

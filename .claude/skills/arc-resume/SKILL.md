@@ -9,6 +9,8 @@ disable-model-invocation: false
 1. Initialize the session.
 
    - Run the workflow in `.arc-internal/system/workflows/arc/session-lifecycle/session-init.md`.
+   - Follow the workflow steps in order. Environment verification (Step 1) gates document
+     loading — confirm working directory before any other commands.
    - Read every document in full unless the workflow explicitly says otherwise. The load
      order matters — general context before active work state.
 

@@ -126,8 +126,8 @@ Stable, long-lived project knowledge:
 - **Strategies** — Implementation patterns codified from real usage (testing approach,
   component patterns, authentication, whatever applies to your project)
 - **ADRs** — Architecture Decision Records for significant design choices
-- **Agent configuration** — Central reference card (AGENTS.md) extended by
-  agent-specific files (CLAUDE.md, GEMINI.md, etc.)
+- **Agent configuration** — ARC orientation (AGENT-BRIEFING.ARC.md) + project context (AGENT-BRIEFING.PROJECT.md)
+  extended by agent-specific files (CLAUDE.ARC.md, GEMINI.ARC.md, etc.)
 - **Archive** — Completed work preserved as searchable project history
 
 ## Getting Started
@@ -157,7 +157,7 @@ This creates a customized `.arc/` directory in your project.
 ### First Session
 
 <!-- [PLACEHOLDER] The guided setup workflow described here is aspirational. The
-     setup workflows (01_initialize-arc, 02_define-project) exist but a more
+     setup workflows (01_verify-and-configure, 02_define-project) exist but a more
      complete first-run experience is planned. -->
 
 1. **Set up your project with your agent** — ARC provides a guided startup workflow

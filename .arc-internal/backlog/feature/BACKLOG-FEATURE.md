@@ -21,9 +21,9 @@ These overlap with WU4 docs site scope but may exceed what ships at 1.0 launch.
 ## Superseded by 1.0 Work Units
 
 - ~~Distribution & update system~~ → WU3 (`prd-cli-implementation.md`)
-- ~~Public release & adoption~~ → WU4 (`plan-wu4-public-release.md`)
+- ~~Public release & adoption~~ → WU4 (`plan-wu4-beta-readiness.md`), WU5 (`plan-wu5-public-release.md`)
 - ~~Interactive init experience~~ → WU3 interactive init section
-- ~~Auto-compact recommendation~~ → WU4 onboarding content
+- ~~Auto-compact recommendation~~ → WU5 onboarding content
 
 ---
 

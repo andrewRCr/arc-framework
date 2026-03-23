@@ -21,13 +21,18 @@ ARC methodology files. Rarely customized by adopters. Updated via three-way merg
 
 **Update behavior:** Auto-merge. Flag conflicts for review (indicates unexpected customization).
 
+**If you need to customize:** Framework files shouldn't be edited directly — changes will be
+overwritten during updates. See [Configurability Architecture][config-arch] §
+[Which mechanism do I use?][config-arch-which] for the right customization surface (config
+settings, method overrides, extensions, or Configurable files).
+
 ### Configurable
 
 Framework structure combined with project-specific content. Contains both ARC methodology
 (sections, rules, processing guidance) and user content (project stack, quality gate commands,
 custom sections). Clean section-level separation in most files.
 
-**Examples:** DEV-RULES.PROJECT, AGENTS, CLAUDE, QUICK-REFERENCE, STRATEGY-INDEX.
+**Examples:** DEV-RULES.PROJECT, AGENT-BRIEFING.PROJECT, CLAUDE.ARC, QUICK-REFERENCE, STRATEGY-INDEX.
 
 **Update behavior:** Three-way merge. Conflicts expected in project-specific sections — CLI
 highlights for user resolution. Framework sections auto-merge cleanly when separation is
@@ -63,7 +68,7 @@ name their own artifacts and recognize what a file is from its name alone.
 **ALL-CAPS** files are organizational hubs — files you navigate *to* for project-wide context.
 They're dashboards, indexes, and governance documents that serve as stable reference points.
 
-Examples: `WORK-STATUS.md`, `AGENTS.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
+Examples: `WORK-STATUS.md`, `AGENT-BRIEFING.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
 `STRATEGY-INDEX.md`, `README.md`, `META-PRD.md`, `ROADMAP.md`
 
 **Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
@@ -83,12 +88,12 @@ you what kind."
 | `tasks-`      | Task list                | User/agent | `tasks-api-modernization.md`      |
 | `completion-` | Completion record        | Agent      | `completion-api-modernization.md` |
 | `notes-`      | Work unit notes          | Agent      | `notes-api-modernization.md`      |
+| `atomic-`     | Atomic companion file    | Agent      | `atomic-api-modernization.md`     |
 | `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-api-migration.md`           |
 | `strategy-`   | Strategy document        | Framework  | `strategy-work-organization.md`   |
 | `research-`   | Research document        | User/agent | `research-context-loading.md`     |
 | `adr-`        | Architecture Decision    | User/agent | `adr-001-define-core-identity.md` |
 | `template-`   | Copy-ready template      | Framework  | `template-prd.md`                 |
-| `completed-`  | Quarterly summary        | Agent      | `completed-atomic-2026-q1.md`     |
 
 Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug across files — the
 slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
@@ -120,9 +125,17 @@ redundancy without the discoverability benefit that other artifact types get.
 
 ### Template suffix: `.template.md`
 
-Files in the `.arc/` template system that get instantiated during `arc init` use a `.template.md`
-suffix: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`, `AGENTS.template.md` becomes
-`AGENTS.md`. The suffix distinguishes "copy this to create yours" from "this is the actual file."
+Files that go through the CLI render engine during `arc init` — token substitution (`{{TOKEN}}`),
+conditional content (`<!-- arc:if -->`), or full placeholder replacement — use a `.template.md`
+suffix. The suffix is stripped at init time: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`,
+`AGENT-BRIEFING.PROJECT.template.md` becomes `AGENT-BRIEFING.PROJECT.md`.
+
+The suffix marks render-engine input, not classification. Both Configurable and Scaffolded files
+can carry it — the common trait is that the source file contains placeholders that produce a
+different output file. Configurable files that ship as functional content and are customized in
+place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `arc-methods.md`) don't use the suffix
+because no rendering transformation occurs — they're copied as-is during init and edited directly
+by adopters.
 
 The `template-` *prefix* (in `reference/templates/`) is different — those are copy-ready document
 templates used during work (e.g., `template-prd.md` is copied when creating a new PRD). They keep
@@ -134,7 +147,8 @@ Core pipeline workflows are numbered to indicate execution sequence:
 
 - `1_create-prd.md` → `2_generate-tasks.md` → `3_process-task-loop.md`
 
-Setup workflows use zero-padded numbers: `01_initialize-arc.md`, `02_define-project.md`.
+Setup workflows use zero-padded numbers: `01_verify-and-configure.md`, `02_define-project.md`,
+`03_configure-external-integration.md`.
 
 Supplemental workflows are **unnumbered** — they're invoked on demand at various points, not in a
 fixed sequence. The absence of a number signals "this is called when needed, not as a pipeline
@@ -177,12 +191,10 @@ to update classification — both axes apply independently.
 
 ### active/
 
-| File                                      | Classification       | Layer      | Notes                                                                          |
-|-------------------------------------------|----------------------|------------|--------------------------------------------------------------------------------|
-| `ATOMIC-TASKS.template.md`                | Configurable (light) | arc-in-git | Framework processing rules + user task content. Clean section separation.      |
-| `SESSION-NOTES.template.md`               | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
-| `WORK-STATUS.template.md`                 | Scaffolded           | Core       | Template structure replaced entirely by user. Project-owned after init.        |
-| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Core       | Directory structure scaffolding.                                               |
+| File                                      | Classification | Layer | Notes                                                                   |
+|-------------------------------------------|----------------|-------|-------------------------------------------------------------------------|
+| `WORK-STATUS.template.md`                 | Scaffolded     | Core  | Template structure replaced entirely by user. Project-owned after init. |
+| `{feature,technical,incidental}/.gitkeep` | Scaffolded     | Core  | Directory structure scaffolding.                                        |
 
 ### backlog/
 
@@ -192,13 +204,11 @@ to update classification — both axes apply independently.
 | `feature/BACKLOG-FEATURE.template.md`     | Scaffolded     | arc-in-git | Template structure replaced entirely.      |
 | `technical/BACKLOG-TECHNICAL.template.md` | Scaffolded     | arc-in-git | Template structure replaced entirely.      |
 
-### team/
+### user/
 
-| File                        | Classification       | Layer      | Notes                                                                          |
-|-----------------------------|----------------------|------------|--------------------------------------------------------------------------------|
-| `README.md`                 | Framework            | Core       | Team directory overview and structure guidance.                                |
-| `ATOMIC-TASKS.template.md`  | Configurable (light) | arc-in-git | Per-member atomic tasks. Same structure as `active/` variant.                  |
-| `SESSION-NOTES.template.md` | Framework            | Core       | Reference structure for gitignored SESSION-NOTES.md. Agents follow at handoff. |
+| File        | Classification | Layer | Notes                                                         |
+|-------------|----------------|-------|---------------------------------------------------------------|
+| `README.md` | Framework      | Core  | User directory overview. Explains personal workspace concept. |
 
 ### reference/
 
@@ -222,6 +232,7 @@ to update classification — both axes apply independently.
 | `template-adr.md`            | Framework      | Core  | Copy-ready ADR template.                   |
 | `template-prd.md`            | Framework      | Core  | Copy-ready PRD template.                   |
 | `template-plan.md`           | Framework      | Core  | Optional plan document starting structure. |
+| `template-agent.md`          | Framework      | Core  | Agent config file template for setup.      |
 | `template-completion-doc.md` | Framework      | Core  | Completion doc templates and guidance.     |
 
 ### reference/archive/
@@ -282,15 +293,16 @@ to update classification — both axes apply independently.
 
 ### system/agent/
 
-| File                               | Classification | Layer | Notes                                                        |
-|------------------------------------|----------------|-------|--------------------------------------------------------------|
-| `AGENTS.template.md`               | Configurable   | Core  | Framework principles + project-specific stack/layout.        |
-| `CLAUDE.template.md`               | Configurable   | Core  | Framework guidance + project-specific (MCP servers, agents). |
-| `CODEX.template.md`                | Configurable   | Core  | Mostly framework guidance with light customization.          |
-| `GEMINI.template.md`               | Configurable   | Core  | Mostly framework guidance with light customization.          |
-| `WARP.template.md`                 | Configurable   | Core  | Mostly framework guidance with light customization.          |
-| `copilot-instructions.template.md` | Configurable   | Core  | Mostly framework guidance with light customization.          |
-| `README.md`                        | Framework      | Core  | Agent system architecture documentation.                     |
+| File                                 | Classification | Layer | Notes                                            |
+|--------------------------------------|----------------|-------|--------------------------------------------------|
+| `AGENT-BRIEFING.ARC.md`              | Framework      | Core  | ARC methodology orientation for agents.          |
+| `AGENT-BRIEFING.PROJECT.template.md` | Configurable   | Core  | Project-specific stack, layout, friction points. |
+| `CLAUDE.ARC.md`                      | Configurable   | Core  | Framework guidance + project-specific (MCP).     |
+| `CODEX.ARC.md`                       | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `GEMINI.ARC.md`                      | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `WARP.ARC.md`                        | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `COPILOT.ARC.md`                     | Configurable   | Core  | Mostly framework guidance, light customization.  |
+| `README.md`                          | Framework      | Core  | Agent system architecture documentation.         |
 
 ### system/skills/
 
@@ -318,8 +330,9 @@ to update classification — both axes apply independently.
 | `arc/1_create-prd.md`                                           | Framework      | Core  | Core workflow.                        |
 | `arc/2_generate-tasks.md`                                       | Framework      | Core  | Core workflow.                        |
 | `arc/3_process-task-loop.md`                                    | Framework      | Core  | Core workflow.                        |
-| `arc/initial-setup/01_initialize-arc.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/initial-setup/01_verify-and-configure.md`                  | Framework      | Core  | Setup workflow.                       |
 | `arc/initial-setup/02_define-project.md`                        | Framework      | Core  | Setup workflow.                       |
+| `arc/initial-setup/03_configure-external-integration.md`        | Framework      | Core  | Setup workflow.                       |
 | `arc/session-lifecycle/session-handoff.md`                      | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/session-lifecycle/session-init.md`                         | Framework      | Core  | Session lifecycle workflow.           |
 | `arc/session-lifecycle/session-loop.md`                         | Framework      | Core  | Session lifecycle workflow.           |
@@ -343,12 +356,12 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 58    | Three-way merge. Conflicts rare.                      |
-| Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 56    | Three-way merge. Conflicts rare.                      |
+| Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 13    | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 86.
+**Total template files:** 82.
 
 *Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
 are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not
@@ -358,5 +371,11 @@ counted.*
 
 ## Related Documentation
 
+- [Configurability Architecture Strategy][config-arch] — Customization mechanisms and adopter guidance
 - [Work Organization Strategy](strategy-work-organization.md) — Directory structure, work categories
 - [DEV-RULES.PROJECT](../../constitution/DEV-RULES.PROJECT.md) — Project quality standards
+
+---
+
+[config-arch]: strategy-configurability-architecture.md
+[config-arch-which]: strategy-configurability-architecture.md#which-mechanism-do-i-use

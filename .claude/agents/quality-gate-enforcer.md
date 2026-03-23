@@ -54,7 +54,7 @@ Your primary responsibilities:
 
 6. **Project Context Awareness**:
    - Check for and respect .eslintrc, tsconfig.json, pytest.ini, .prettierrc, and similar configuration files
-   - Follow any custom quality standards documented in CLAUDE.md or similar project documentation
+   - Follow any custom quality standards documented in CLAUDE.ARC.md or similar project documentation
    - Respect .gitignore patterns when scanning files
    - Focus on files that would be included in the commit
 

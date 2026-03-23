@@ -33,15 +33,45 @@ and task list integration.
    - Auto-fix: `npm run -s lint:md:fix`
    - Config: `.markdownlint-cli2.jsonc`
 
-2. **CI Validation**: All checks pass
+2. **TypeScript Type Checking**: Zero errors
+   - Command: `npm run typecheck`
+   - Config: `packages/arc-framework/tsconfig.json` (strict mode)
+
+3. **Tests**: All pass
+   - Command: `npm test` (full suite), `npm run test:unit` (unit only)
+   - Framework: Vitest
+   - Config: `packages/arc-framework/vitest.config.ts`
+
+4. **Build**: Succeeds
+   - Command: `npm run build`
+   - Tooling: tsup (ESM output, declarations, shebang injection)
+
+5. **CI Validation**: All checks pass
    - GitHub Actions runs automatically on push/PR
    - Markdown linting (zero violations policy)
+   - TypeScript type checking, test suite, build verification
    - Template structure validation
    - Internal link checking
 
 ## Testing Requirements
 
-**N/A for documentation-only framework** — markdown linting serves as primary quality gate.
+**Test framework:** Vitest with three test tiers matching the directory structure:
+
+- **Unit** (`__tests__/unit/`): Pure function and module tests, no filesystem or process side effects.
+  Fast, isolated, run on every change.
+- **Integration** (`__tests__/integration/`): Module interaction tests. May touch the filesystem
+  via temp directories but no external services.
+- **E2E** (`__tests__/e2e/`): Full CLI invocation tests. Run `arc init`, `arc update`, etc. against
+  real (temporary) git repos to validate end-to-end behavior.
+
+**Coverage expectations:** Business logic and core libraries should have unit test coverage. Commands
+are validated through integration and E2E tests. No hard coverage percentage target — focus on
+meaningful assertions over line counting.
+
+**Testing methodology:** See [Testing Methodology Strategy][testing-methodology] for the full
+approach — TDD decision tree, mocking rules, vertical slice workflow, test naming conventions.
+
+**Markdown linting** remains the primary quality gate for `.arc/` and `.arc-internal/` documentation.
 
 ## Code Quality Principles
 
@@ -53,6 +83,15 @@ Apply standard software engineering principles:
 - **YAGNI** (you aren't gonna need it)
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
+
+**TypeScript standards:**
+
+- Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
+- ESM throughout (`type: "module"`, Node16 module resolution)
+- Prefer explicit return types on exported functions
+- Use `unknown` over `any` for external data; validate and narrow before use
+- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
+  describing the module's purpose
 
 ## Documentation Standards
 
@@ -124,3 +163,4 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 [dev-rules-arc]: ../../../.arc/reference/constitution/DEV-RULES.ARC.md
 [quality-gates]: ../../../.arc/reference/strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../../../.arc/reference/strategies/arc/strategy-adr-methodology.md
+[testing-methodology]: ../strategies/strategy-testing-methodology.md

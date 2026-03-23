@@ -120,14 +120,40 @@ If quality gates fail after task completion:
 3. **Ask for guidance** on whether to fix immediately or defer
 4. **Never proceed** to the next task until resolved or the user approves
 
-### Leave it cleaner · P4 · `[configurable]`
+### Leave it cleaner · P4
 
-When touching any file, leave it cleaner than you found it. Quality issues discovered during
-work must be addressed — fix immediately or document and defer, but never ignore silently.
+When you encounter an issue that needs addressing — whether in a file you're modifying,
+during analysis, or anywhere in the course of work — take responsibility for it. Don't pass
+over an issue because it's outside your current task.
 
-ARC ships a severity-based triage tree (minor/moderate/major thresholds) and a decision
-framework for fix-now vs. capture-and-defer. The full protocol is in
-[`arc-methods.md`][arc-methods] → `#leave-it-cleaner`.
+**If you can fix it now** (in the file, manageable scope): · `[configurable]`
+
+Assess severity via the [`issue-triage`][arc-methods] method in `arc-methods.md`. The method
+determines fix-vs-defer thresholds; teams can override the triage defaults while keeping the
+principle intact.
+
+**If you can't fix it now** (not in the file, too large, or would derail current work):
+
+Route to an actionable capture surface — a location that gets reviewed as part of a workflow.
+
+| Intent                   | Size       | Destination                                                       |
+|--------------------------|------------|-------------------------------------------------------------------|
+| Will do during this WU   | Atomic     | Atomic companion file (`atomic-{name}.md`)                        |
+| Will do during this WU   | Multi-step | Propose placement in existing task structure — user approves      |
+| For later (arc-in-git)   | Atomic     | `user/{identity}/ATOMIC-INBOX.md`                                 |
+| For later (arc-in-git)   | Multi-step | Appropriate backlog file or existing plan-\* doc                  |
+| For later (other modes)  | Any        | Per project convention (DEV-RULES.PROJECT) — default: ask user    |
+
+**Multi-step in current work unit:** Search the active task list for a natural home — fold
+into an existing incomplete task, add a subtask, or insert a new task at a logical point. If
+the work needs a new phase, it may not belong in this work unit — present to user and
+consider escalating via [manage-incidental-work][manage-incidental].
+
+**Always propose placement to the user before acting.** The agent suggests, the user decides.
+
+**Anti-pattern:** Task completion notes and session notes are not capture surfaces for
+deferred work. They document what was done and contextual observations — they are not
+reviewed until integration prep, which is too late for actionable items.
 
 ### Test-first assessment · P4 · `[configurable]`
 
@@ -139,7 +165,11 @@ logic, and complex transformations; test-after acceptable for simple CRUD, prese
 components, config changes, and trivial refactoring. If unsure, default to test-first. The
 full decision tree is in [`arc-methods.md`][arc-methods] → `#test-first`.
 
-During task list creation, place test tasks BEFORE implementation tasks for test-first work.
+During task list creation, group test and implementation together by module or concern — not as
+separate "write tests" and "implement" tasks. The executing agent applies the red-green-refactor
+loop within each task — one behavior at a time, never batching all tests before implementing
+(see [`arc-methods.md`][arc-methods] → `#test-first` for execution discipline,
+[process-task-loop][process-task-loop] for the full loop).
 
 ---
 
@@ -149,40 +179,49 @@ During task list creation, place test tasks BEFORE implementation tasks for test
 
 Session state uses two files with different update triggers:
 
-- **WORK-STATUS.md** (tracked) — updated at commit time and session handoff only
+- **WORK-STATUS.md** (tracked, `active/`) — updated at commit time and session handoff only
     - **Commit time**: Advance alongside task list changes (§ Commit Discipline, "Work status
       accuracy"). Staged as part of the commit — not a separate operation.
     - **Session handoff**: If dirty with no pending commit, propose a standalone commit.
     - **Not at other times** — mid-session updates are churn. The next session recovers state
       from committed WORK-STATUS.md, git log, and task list checkboxes.
-- **SESSION-NOTES.md** (gitignored) — written only at session handoff. Personal working context
-  for the next session. In team mode, moves to `team/{name}/SESSION-NOTES.md` so concurrent
-  developers don't conflict on session state.
+- **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
+  Personal working context for the next session. Each developer has their own directory
+  (`user/{identity}/`), so concurrent developers don't conflict on session state. Portability
+  across machines via git notes — see [Session Management Strategy][session-mgmt] § Portability.
 
 AI reports progress throughout the session; session state files capture the summary at commit
 and handoff boundaries.
 
 ### Context quality · P5
 
-Work quality must never be compromised due to context or resource limitations.
+**Never** degrade work quality or change approach due to context pressure — work at full
+specification throughout the session regardless of context window size or utilization.
 
-- Work at full specification throughout the session
-- When approaching context limits (thresholds defined in agent-specific files):
-  1. Complete the current work item — don't stop mid-edit
-  2. Evaluate remaining work scope
-  3. **Stop and ask** the user how to proceed (summary of completed and remaining work)
-  4. User decides: continue, commit completed work, or begin handoff
-- **Never** degrade work quality or change approach due to context pressure
-- **Never** make "efficiency" tradeoffs based on context window size
+**Prefer shorter, focused sessions.** Context quality degrades over session length — not
+just as windows fill, but as accumulated context pushes early guidance toward weaker retrieval
+positions. Focused sessions that reset at natural boundaries maintain higher quality than
+marathon sessions that technically fit in the window. See
+[Session Management Strategy][session-mgmt] for the evidence base and duration guidance.
 
-**End-of-session workflow:**
+**Natural session boundaries:**
 
-1. Commit all **complete** work
-2. Leave any **partial** work uncommitted
-3. Perform session handoff documenting partial work state
+- **Mode transitions** — design to implementation, investigation to fix, planning to
+  execution. Analysis context carried forward crowds the window without serving the new work.
+- **Structural boundaries** — phase or work unit completion, clean commit points. A fresh
+  session starts with focused context even when the current session has headroom. At these
+  points, note the handoff opportunity if significant context has accumulated.
+- **Quality signals** — output becoming less precise, early-session guidance being missed,
+  re-deriving decisions already established in this session
 
-If insufficient context remains for commits, capture commit-message-level notes in the session
-handoff. The next session executes commits from documented state.
+When a boundary is reached or the user initiates handoff:
+
+1. Complete the current work item — don't stop mid-edit
+2. **Stop and ask** — summarize completed and remaining work
+3. User decides: continue, commit completed work, or begin handoff
+
+**End-of-session:** Commit complete work, leave partial work uncommitted, perform session
+handoff.
 
 ---
 
@@ -272,17 +311,23 @@ document.
 
 ## When to Load Additional Guidance
 
-These documents contain detailed procedures for specific activities. Load them when you reach
-the relevant work — not during session initialization.
+These documents contain detailed procedures for specific activities — procedural content (T3) in the
+[Context Loading Strategy][context-loading]. Load them when you reach the relevant work — not during
+session initialization.
 
-- **Before starting task execution:** Load the [process-task-loop workflow][process-task-loop] —
-  completion protocol, quality gate checkpoints, deferred review
+- **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
+  conditionally at session-init when WORK-STATUS shows active task work (see session-init item 11).
+  If it wasn't loaded at init (no active task list, or session pivoted to task execution), load it
+  before beginning any task. The workflow's method dependencies block triggers loading of
+  issue-triage, quality-gate-commands, and (conditionally) test-first
 - **Before complex commits:** Load the [commit guide][prepare-commits] — multi-session
-  work, interleaved concerns, atomicity analysis
+  work, interleaved concerns, atomicity analysis. The workflow's method dependencies block triggers
+  loading of commit-format and commit-context-format
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
   strategy documents
-- **For method overrides and defaults:** Load [`arc-methods.md`][arc-methods] → specific method
-  heading — configurable behavior (commit format, leave-it-cleaner, test-first)
+- **For method defaults and overrides:** Workflow documents include method dependencies blocks
+  that trigger loading of the relevant [`arc-methods.md`][arc-methods] sections on-demand. Follow
+  the workflow — method loading is embedded in the steps
 - **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
   Tier 1/2/3 boundaries, escalation guidance
 
@@ -293,7 +338,10 @@ the relevant work — not during session initialization.
 [arc-methods]: ../../system/workflows/arc-methods.md
 [core-philosophy]: ../strategies/arc/strategy-core-philosophy.md
 [config-arch]: ../strategies/arc/strategy-configurability-architecture.md
+[context-loading]: ../strategies/arc/strategy-context-loading.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../strategies/STRATEGY-INDEX.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
+[session-mgmt]: ../strategies/arc/strategy-session-management.md
+[manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md

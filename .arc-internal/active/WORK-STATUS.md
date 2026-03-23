@@ -6,14 +6,14 @@
 
 ## Active Work
 
-**Branch**: `technical/plan-cli-distribution`
-**Task List**: `.arc-internal/backlog/technical/tasks-cli-implementation.md`
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: WU3 task list generated (8 phases, ~45 tasks)
+**Branch**: `technical/cli-implementation`
+**Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
+**Following Task List**: Yes
+**Next Task**: [none — all tasks complete, integration in progress]
+**Last Completed**: Task 8.5 — Validate success criteria against PRD (all 8 criteria met)
 **Blockers**: [none]
-**Next Action**: Integrate planning branch (run integrate-planning-branch workflow)
+**Next Action**: Integration Phase 2 — create PR against main
 
 ---
 
-**Last Updated**: 2026-03-10
+**Last Updated**: 2026-03-23

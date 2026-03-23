@@ -104,3 +104,25 @@ platform.type: github
 #   external   - External tool integration (Jira, Linear, GitHub Issues, etc.)
 # See strategy-configurability-architecture.md § Adoption flexibility model.
 pm.mode: none
+
+# --- Team Mode ---
+
+# Team mode. Controls behavioral defaults for multi-developer collaboration.
+# Behavioral, not structural — the user/{identity}/ directory layout is
+# identical in solo and team modes. Team mode affects:
+#   - user.sync_push default (solo: always, team: prompt)
+#   - Team coordination guidance (task ownership, handoff conventions)
+#   false - Solo mode. Single developer, auto-sync session context. (default)
+#   true  - Team mode. Multiple developers, conscious sync decisions.
+# See strategy-team-coordination.md for the full coordination protocol.
+team.mode: false
+
+# --- User Directory ---
+
+# Automatic push of user/{identity}/ directory via git notes.
+# Controls whether `arc session push` runs automatically after handoff.
+#   always - Push session state automatically after every handoff. (default)
+#   prompt - Ask whether to push after handoff.
+#   manual - Never auto-push; user runs `arc session push` explicitly.
+# Per-developer override: `git config arc.sync_push <value>`
+user.sync_push: always

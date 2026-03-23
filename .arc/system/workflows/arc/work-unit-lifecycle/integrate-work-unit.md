@@ -25,6 +25,13 @@ at the end.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
+**Method dependencies (load on first reference):** This workflow references two arc-methods. When first
+encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
+`.default` if no override is configured.
+
+- [pre-merge-review][arc-methods-pmr] — aggregate diff review before push
+- [review-triage][arc-methods-rt] — classifying and acting on review findings
+
 ## Workflow Overview
 
 **All work follows the same integration workflow**, regardless of category (feature/technical/incidental):
@@ -90,25 +97,48 @@ Commit all documentation updates to the child branch.
 
 ```bash
 git add .arc/active/{category}/tasks-{name}.md
-git add .arc/active/{category}/notes-{name}.md  # if exists
+git add .arc/active/{category}/notes-{name}.md   # if exists
+git add .arc/active/{category}/atomic-{name}.md  # if populated (delete if empty — see below)
 git add .arc/active/{category}/completion-{name}.md
-git add .arc/active/{category}/prd-{name}.md  # if planned work with PRD updates
+git add .arc/active/{category}/prd-{name}.md     # if planned work with PRD updates
 ```
+
+**Atomic companion file:** If `atomic-{name}.md` contains no checkbox items (no `- [` lines),
+delete it rather than archiving — an empty companion file has no archival value. If it contains
+completed or deferred items, include it in the commit for archival alongside the task list.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
 context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
 integration use the same pattern.
 
-**⛔ CHECKPOINT:** Phase 1 complete. Do NOT push yet. Proceed to Phase 2 for code review before PR.
+**⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
 
 ---
 
 ## Phase 2: Code Review & Merge
 
-**Context:** Still on child branch, docs are clean and committed. **Branch is NOT pushed yet.**
+**Context:** Still on child branch, docs are clean and committed. **PR is not created yet.**
 
-### 5) Pre-Merge Review · `#pre-merge-review`
+### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`
+
+**arc-in-git mode only** (`pm.mode: arc-in-git`). Skip if inbox is empty or PM mode is `none`/`external`.
+
+Before pushing, triage any items in `user/{identity}/ATOMIC-INBOX.md`. This ensures captured
+items are processed before the work unit closes, rather than accumulating indefinitely.
+
+**Triage actions per item:**
+
+- **Keep** — still relevant, still yours → leave in inbox
+- **Do now** — small enough to complete before integration → execute, commit, remove from inbox
+- **Promote** — bigger than expected or shared concern → move to appropriate `BACKLOG-*.md`
+- **Redirect** (team) — another domain or team member's area → promote to backlog with context note
+- **Drop** — stale or no longer relevant → remove
+
+Promoted items are committed on the work unit branch (included in the PR). Cross-member
+transfer routes through backlog, not into another person's inbox.
+
+### 6) Pre-Merge Review · `#pre-merge-review`
 
 If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
@@ -119,7 +149,22 @@ If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
 When disabled, proceed directly to push and PR creation.
 
-### 6) Push and Create PR
+### 6b) Completion Metadata Freshness Check
+
+**Skip if** no commits were made during Phase 2 (steps 5–6). If review-driven fixes, refactoring,
+or additional tests were committed during Phase 2, verify `completion-{name}.md` still reflects the
+delivered state:
+
+- **Verification section**: Quality gate status and claims still accurate?
+- **Implementation Highlights**: Do review fixes add noteworthy technical content? (security
+  hardening, extracted helpers, new patterns)
+- **Key Deliverables**: Do new tests or capabilities change the deliverable summary?
+- **Follow-Up Work**: Were new deferrals captured during review?
+
+Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
+description — stale metadata in the PR undermines the review it's meant to support.
+
+### 7) Push and Create PR
 
 ```bash
 git push -u origin {branch-name}
@@ -128,7 +173,7 @@ gh pr create --base {parent-branch} --head {branch-name}
 
 Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
 
-### 7) Address PR Review Findings
+### 8) Address PR Review Findings
 
 Process findings from PR reviewers (human or automated) using the
 [review-triage method][arc-methods-rt]. For each finding, classify and act:
@@ -139,7 +184,7 @@ Process findings from PR reviewers (human or automated) using the
 - **Re-run Tier 1 quality gates** on all modified files — mandatory after review-driven commits
 - Commit fixes with the `(integration)` context footer
 
-### 8) Merge Pull Request
+### 9) Merge Pull Request
 
 ```bash
 # Via GitHub CLI — use flag matching merge.strategy in arc-config.yml
@@ -233,6 +278,7 @@ architectural pivot, not abandoned work.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
+[arc-methods]: ../../arc-methods.md
 [arc-methods-rt]: ../../arc-methods.md#review-triage
 [arc-methods-pmr]: ../../arc-methods.md#pre-merge-review
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review

@@ -83,6 +83,7 @@ Use `git mv` to preserve history:
 ```bash
 git mv .arc/backlog/{category}/prd-{name}.md .arc/active/{category}/
 git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
+git mv .arc/backlog/{category}/atomic-{name}.md .arc/active/{category}/
 ```
 
 ### Step 4: Update Task List Status
@@ -135,10 +136,12 @@ Stage the activation files and commit. The exact set depends on pm.mode:
 # arc-in-git: moved files + status updates
 git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/tasks-{name}.md \
+       .arc/active/{category}/atomic-{name}.md \
        .arc/active/WORK-STATUS.md
 
 # none / external: status updates only (files already in active/)
 git add .arc/active/{category}/tasks-{name}.md \
+       .arc/active/{category}/atomic-{name}.md \
        .arc/active/WORK-STATUS.md
 
 git commit -m "docs(arc): activate {work-name} work unit
@@ -169,7 +172,7 @@ This is optional but recommended - establishes remote tracking early.
 Before proceeding to task execution, verify:
 
 - [ ] Implementation branch created and checked out
-- [ ] PRD and task list in `.arc/active/{category}/` (moved from backlog if arc-in-git)
+- [ ] PRD, task list, and atomic companion file in `.arc/active/{category}/` (moved from backlog if arc-in-git)
 - [ ] Task list `Status` changed to `In Progress`
 - [ ] WORK-STATUS.md updated (branch, task list, current task)
 - [ ] All changes committed on feature branch

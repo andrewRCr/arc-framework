@@ -34,6 +34,28 @@ quality improvements.
     - Approach: CI that creates and validates instantiated templates
     - Note: May evolve into CLI integration tests during WU3
 
+### CLI Test Coverage Gaps (Post-WU3)
+
+Lower-priority test gaps identified during WU3 integration code review. None are blocking;
+all are hardening for edge cases unlikely to surface in normal use.
+
+- **Template rendering edge cases** (unit)
+    - Unbalanced `arc:if`/`arc:endif` directives (stack underflow recovery)
+    - Deeply nested conditionals
+    - Tokens containing regex metacharacters
+- **Filesystem edge cases** (unit/integration)
+    - Symlinks in `.arc/` directory (circular symlinks, external targets)
+    - Race conditions between `readdir()` and `readFile()` in status/diff
+    - Very large `.arc/` directories (1000+ files performance)
+- **Network error simulation** (unit)
+    - `checkLatestVersion` with timeout, invalid JSON, partial response
+- **Concurrent operations** (integration)
+    - Parallel init + update, multiple developers syncing simultaneously
+- **CLI entry point wiring** (unit)
+    - `writeGitNote` stdin write failures (process closes stdin early)
+    - `readGitNote` with corrupt refs or missing commits
+    - Spinner lifecycle edge cases (exception during spinner.start/stop)
+
 ### Compatibility Testing Across Agent Platforms
 
 - Problem: ARC claims agent-agnosticism but isn't tested across platforms
@@ -45,11 +67,11 @@ quality improvements.
 ## Superseded by 1.0 Work Units
 
 - ~~Structural analysis pass~~ → WU2 Cluster M (`plan-wu2-methodology-completion.md`)
-- ~~README.md refresh~~ → WU4 (`plan-wu4-public-release.md`)
+- ~~README.md refresh~~ → WU5 (`plan-wu5-public-release.md`)
 - ~~Migration tools for template updates~~ → WU3 (`prd-cli-implementation.md`)
 - ~~Profile system enhancements~~ → WU3 interactive init
-- ~~Documentation site~~ → WU4 docs site
-- ~~Community contribution pipeline~~ → WU4 community infrastructure
+- ~~Documentation site~~ → WU5 docs site
+- ~~Community contribution pipeline~~ → WU4 contributor support (ADR-014), WU5 community infrastructure
 
 ---
 

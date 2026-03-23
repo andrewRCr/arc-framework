@@ -65,6 +65,16 @@ for branch mode descriptions and
 [strategy-task-list-formatting.md](../../reference/strategies/arc/strategy-task-list-formatting.md)
 for the task numbering convention.
 
+## Shared Library
+
+Both hooks source `.arc/system/scripts/arc-lib.sh` for config reading (`arc_config_get`) and
+color definitions. If you add custom hooks, source the same library to avoid duplicating the
+config parser:
+
+```bash
+. "$(dirname "$0")/../scripts/arc-lib.sh"
+```
+
 ## Customization
 
 Edit the hook scripts directly to add project-specific checks. Common additions:

@@ -2,47 +2,26 @@
 # Git pre-commit hook - Runs before commit is created
 # Location: .arc-internal/system/githooks/pre-commit
 #
-# Internal copy — mirrors .arc/system/githooks/pre-commit with framework-specific paths:
+# Internal variant:
 #   - Reads config from .arc-internal/system/arc-config.yml
 #   - Searches both .arc/ and .arc-internal/ active directories
-#   - Adds CHECK 10: public/internal boundary enforcement
 #
 # Setup: git config core.hooksPath .arc-internal/system/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Source shared library (config reader, colors)
+. "$(dirname "$0")/../scripts/arc-lib.sh"
 
-# ============================================================================
-# CONFIG: Read settings from arc-config.yml
-# ============================================================================
-# Reads a value from .arc-internal/system/arc-config.yml using shell-native parsing.
-# Falls back to default if config file is missing or key is not found.
-# Usage: arc_config_get <key> <default>
-arc_config_get() {
-    local key="$1"
-    local default="$2"
-    local config_file=".arc-internal/system/arc-config.yml"
+# Override config path for internal workspace
+ARC_CONFIG_FILE=".arc-internal/system/arc-config.yml"
 
-    if [ ! -f "$config_file" ]; then
-        echo "$default"
-        return
-    fi
-
-    local value
-    value=$(grep -E "^${key}:" "$config_file" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-
-    if [ -z "$value" ]; then
-        echo "$default"
-    else
-        echo "$value"
-    fi
-}
+# Convenience aliases for color variables
+RED="$ARC_RED"
+YELLOW="$ARC_YELLOW"
+GREEN="$ARC_GREEN"
+NC="$ARC_NC"
 
 hook_enabled=$(arc_config_get "hooks.pre_commit" "enabled")
 base_branch=$(arc_config_get "branch.base" "main")
@@ -86,8 +65,8 @@ fi
 # ============================================================================
 # CHECK 2: Large file check (prevent accidental commits)
 # ============================================================================
-large_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
-    size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+large_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
+    size=$(wc -c < "$file" 2>/dev/null || echo 0)
     if [ "$size" -gt 1048576 ]; then  # 1MB
         echo "$file ($(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "$size bytes"))"
     fi
@@ -124,7 +103,7 @@ done
 # ============================================================================
 # CHECK 4: Check for common merge conflict markers
 # ============================================================================
-conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
         echo "$file"
     fi
@@ -152,7 +131,7 @@ debug_patterns=(
 )
 
 for pattern in "${debug_patterns[@]}"; do
-    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
         # Skip test files
         if echo "$file" | grep -qE "(test_|_test\.py|\.test\.ts|\.test\.tsx|spec\.)"; then
             continue
@@ -191,26 +170,40 @@ fi
 # ============================================================================
 # Per strategy-task-list-formatting.md: Third level uses letters (1.1.a not 1.1.1)
 # Format: X.Y (parent) -> X.Y.a (subtask) -> X.Y.a.1 (fourth level, rare)
-task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -E '^\.(arc|arc-internal)/(active|backlog)/.*/tasks-.*\.md$' | \
-    while read file; do
-        # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
-        # Pattern: checkbox followed by optional bold, then three numeric segments
-        violations=$(grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' "$file" 2>/dev/null || true)
-        if [ -n "$violations" ]; then
-            echo "$file:"
-            echo "$violations" | sed 's/^/     /'
-        fi
-    done)
+# Configurable: hooks.task_numbering = error (default) | warning | off
+task_numbering_mode=$(arc_config_get "hooks.task_numbering" "error")
 
-if [ -n "$task_numbering_violations" ]; then
-    echo -e "${RED}Error: Invalid task numbering format in task lists:${NC}"
-    echo "$task_numbering_violations"
-    echo ""
-    echo "   Per strategy-task-list-formatting.md:"
-    echo "   - Third level uses letters: 1.1.a, 1.1.b (not 1.1.1, 1.1.2)"
-    echo "   - Fourth level (if needed): 1.1.a.1, 1.1.a.2"
-    errors=$((errors + 1))
+if [ "$task_numbering_mode" != "off" ]; then
+    task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
+        grep -E '^\.(arc|arc-internal)/(active|backlog)/.*/tasks-.*\.md$' | \
+        while IFS= read -r file; do
+            # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
+            # Pattern: checkbox followed by optional bold, then three numeric segments
+            violations=$(grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' "$file" 2>/dev/null || true)
+            if [ -n "$violations" ]; then
+                echo "$file:"
+                echo "$violations" | sed 's/^/     /'
+            fi
+        done)
+
+    if [ -n "$task_numbering_violations" ]; then
+        if [ "$task_numbering_mode" = "warning" ]; then
+            echo -e "${YELLOW}Warning: Task numbering uses numeric third level (letters recommended):${NC}"
+        else
+            echo -e "${RED}Error: Invalid task numbering format in task lists:${NC}"
+        fi
+        echo "$task_numbering_violations"
+        echo ""
+        echo "   Per strategy-task-list-formatting.md:"
+        echo "   - Third level uses letters: 1.1.a, 1.1.b (not 1.1.1, 1.1.2)"
+        echo "   - Fourth level (if needed): 1.1.a.1, 1.1.a.2"
+        if [ "$task_numbering_mode" = "warning" ]; then
+            echo "   Configure: hooks.task_numbering in arc-config.yml"
+            warnings=$((warnings + 1))
+        else
+            errors=$((errors + 1))
+        fi
+    fi
 fi
 
 # ============================================================================
@@ -223,9 +216,10 @@ code_extensions="ts|tsx|py|js|jsx"
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^\.arc-internal/" | \
+    grep -v "^packages/arc-framework/" | \
     grep -v "^README\.md" | \
     grep -E "\.($code_extensions)$" | \
-    while read file; do
+    while IFS= read -r file; do
         # Check for "Task X.Y" or "Phase X" patterns (case insensitive)
         refs=$(grep -nE "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/" "$file" 2>/dev/null || true)
         if [ -n "$refs" ]; then
@@ -246,16 +240,22 @@ fi
 # ============================================================================
 # CHECK 9: WORK-STATUS.md co-staging with task lists
 # ============================================================================
-# If task lists are staged, WORK-STATUS.md should typically be staged too
-# (Current Task should advance to reflect the newly completed work)
+# If task lists are staged with checkbox completions, WORK-STATUS.md should
+# typically be staged too (Current Task should advance). Only warns when the
+# diff contains actual checkbox state changes — not for reference updates,
+# planning restructuring, or other non-completion edits.
 staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.(arc|arc-internal)/active/.*/tasks-.*\.md$' || true)
 staged_work_status=$(git diff --cached --name-only | grep -E '^\.(arc|arc-internal)/active/WORK-STATUS\.md$' || true)
 
 if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
-    echo -e "${YELLOW}Warning: Task list staged but WORK-STATUS.md is not${NC}"
-    echo "   Task list changes often mean the current task has advanced"
-    echo "   Remember to update and stage WORK-STATUS.md"
-    warnings=$((warnings + 1))
+    # Check if the diff actually contains checkbox completions (marked [x] or [~])
+    task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
+    if [ -n "$task_list_has_completions" ]; then
+        echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
+        echo "   Task list changes often mean the current task has advanced"
+        echo "   Remember to update and stage WORK-STATUS.md"
+        warnings=$((warnings + 1))
+    fi
 fi
 
 # ============================================================================
@@ -267,7 +267,7 @@ fi
 internal_refs_in_public=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^\.arc/' | \
     grep -v '^\.arc-internal/' | \
-    while read file; do
+    while IFS= read -r file; do
         refs=$(grep -nF '.arc-internal/' "$file" 2>/dev/null || true)
         if [ -n "$refs" ]; then
             echo "$file:"
@@ -282,6 +282,48 @@ if [ -n "$internal_refs_in_public" ]; then
     echo "   Per DEV-RULES.PROJECT: Public .arc/ files must not reference .arc-internal/ paths"
     echo "   Use the public equivalent (.arc/ strategy, workflow, or config path)"
     errors=$((errors + 1))
+fi
+
+# ============================================================================
+# CHECK 11: Framework-owned file protection
+# ============================================================================
+# Warns when staged changes modify files that arc update will overwrite.
+# Two categories: manifest-classified Framework files and generated skill files.
+# Warning only — does not block the commit.
+
+# 11a: Manifest-based — .arc/ files classified as Framework
+if [ -f ".arc-manifest.json" ]; then
+    framework_files=""
+    staged_arc_files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^\.arc/' || true)
+    for file in $staged_arc_files; do
+        # Strip .arc/ prefix to get the manifest key
+        file_rel="${file#.arc/}"
+        # Look up classification in manifest (grep -A2 finds the classification line)
+        classification=$(grep -A2 "\"${file_rel}\"" .arc-manifest.json 2>/dev/null | grep '"classification"' | sed 's/.*: *"//;s/".*//' || true)
+        if [ "$classification" = "Framework" ]; then
+            framework_files="${framework_files}${file}
+"
+        fi
+    done
+
+    if [ -n "$framework_files" ]; then
+        printf '%s\n' "${YELLOW}Warning: Framework-managed file staged:${NC}"
+        printf '%s\n' "$framework_files" | sed '/^$/d' | sed 's/^/   /'
+        echo "   Changes will be overwritten by arc update."
+        echo "   To customize ARC behavior, see strategy-configurability-architecture.md"
+        warnings=$((warnings + 1))
+    fi
+fi
+
+# 11b: Pattern-based — generated skill files
+generated_skill_files=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '(^|/)skills/arc-[^/]+/(SKILL\.md|agents/.*\.yaml)$' || true)
+
+if [ -n "$generated_skill_files" ]; then
+    echo -e "${YELLOW}Warning: Generated skill file staged:${NC}"
+    echo "$generated_skill_files" | sed 's/^/   /'
+    echo "   Changes will be overwritten by arc update."
+    warnings=$((warnings + 1))
 fi
 
 # ============================================================================

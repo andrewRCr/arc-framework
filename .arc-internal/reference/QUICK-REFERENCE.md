@@ -9,22 +9,29 @@ Command patterns and environment context for the ARC framework.
 
 ### Critical Path Reference
 
-| Resource           | Location from Repo Root       | Why It Matters                        |
-|--------------------|-------------------------------|---------------------------------------|
-| Template documents | `.arc/reference/`             | Template/example content for adopters |
-| Internal docs      | `.arc-internal/reference/`    | Framework-specific documentation      |
-| Active work        | `.arc-internal/active/`       | Current feature work                  |
-| Quality gate       | `npm run -s lint:md`          | Zero-tolerance linting                |
+| Resource           | Location from Repo Root          | Why It Matters                        |
+|--------------------|----------------------------------|---------------------------------------|
+| Template documents | `.arc/reference/`                | Template/example content for adopters |
+| Internal docs      | `.arc-internal/reference/`       | Framework-specific documentation      |
+| Active work        | `.arc-internal/active/`          | Current feature work                  |
+| CLI package        | `packages/arc-framework/`        | `@arc-framework/cli` npm package      |
+| Quality gates      | `npm run -s lint:md`, `npm test` | Zero-tolerance checks                 |
 
-**Working Directory Note**: This is a documentation-only framework. All work happens at repository root.
+**Working Directory Note**: This is a hybrid project — documentation (`.arc/`, `.arc-internal/`) plus a
+TypeScript CLI package (`packages/arc-framework/`). All commands run from repository root; npm workspaces
+delegates to the CLI package automatically.
 
 ### Runtime Environment
 
-**No Runtime Containers**: This framework is documentation-only (no backend, frontend, database, or services).
+**No Runtime Containers**: No backend, frontend, database, or services. The CLI package builds locally
+via tsup.
 
 **Quality Tools**:
 
 - Markdown linting via pinned local `markdownlint-cli2` (`npm run -s lint:md`)
+- TypeScript type checking (`npm run typecheck`)
+- Vitest test suite (`npm test`)
+- tsup build (`npm run build`)
 - Git for version control
 
 ---
@@ -96,6 +103,25 @@ npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file
 - Re-indents code blocks inside list items to 4-space indent (correct per MD007 config,
   but may change existing formatting).
 
+### TypeScript / Build / Test
+
+```bash
+# Build CLI package (ESM output with shebang and declarations)
+npm run build
+
+# Type checking (strict mode, no emit)
+npm run typecheck
+
+# Run full test suite
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run tests in watch mode (during development)
+npm run -w packages/arc-framework test:watch
+```
+
 ---
 
 ## Quality Gate Commands
@@ -106,8 +132,20 @@ Reference commands for DEV-RULES.PROJECT quality gates. See
 ### Incremental — Tier 1 (per-task)
 
 ```bash
-# Lint specific file
+# Lint specific markdown file
 npm run -s lint:md:file -- "path/to/file.md"
+
+# Run relevant unit tests (for code changes)
+npm run test:unit
+```
+
+### Integration — Tier 2 (coherent unit)
+
+```bash
+# Full markdown lint + type check + test suite
+npm run -s lint:md
+npm run typecheck
+npm test
 ```
 
 ### Full Suite — Tier 3 (per-phase / pre-PR)
@@ -116,10 +154,19 @@ npm run -s lint:md:file -- "path/to/file.md"
 # 1. Markdown Linting (zero violations required)
 npm run -s lint:md
 
-# 2. Git Status Check
+# 2. TypeScript (zero errors required)
+npm run typecheck
+
+# 3. Full test suite (all pass required)
+npm test
+
+# 4. Build verification
+npm run build
+
+# 5. Git Status Check
 git status
 
-# 3. Review Changes
+# 6. Review Changes
 git --no-pager diff --stat
 ```
 
@@ -129,28 +176,26 @@ git --no-pager diff --stat
 
 ### Path Confusion
 
-❌ Forgetting this is documentation-only (no Docker, no services)
-❌ Assuming complex build/test infrastructure exists
-❌ Using commands meant for application projects
+❌ Running commands from inside `packages/arc-framework/` (use repo root — npm workspaces delegates)
+❌ Assuming Docker, venv, or backend services exist
+❌ Forgetting markdown linting applies to `.arc/` and `.arc-internal/` docs alongside code quality
 
-✅ Remember: Markdown linting is the primary quality gate
-✅ All work is documentation editing
-✅ Git is the only runtime "service" needed
+✅ All commands from repo root
+✅ `npm run build/test/typecheck` delegate to the CLI workspace automatically
+✅ Markdown linting and code quality gates are both enforced
 
 ### Command Construction
 
-❌ Running backend/frontend commands (no code to run)
-❌ Looking for test suites (documentation doesn't have unit tests)
-❌ Assuming venv or Docker are needed
+❌ Using `-w` flag for routine commands (root convenience scripts already delegate)
+❌ Running `npx tsc` or `npx vitest` directly (use npm scripts for consistent config)
 
 ✅ Use commands from this file (paths correct for repo root)
-✅ Focus on documentation quality
 ✅ Follow framework-specific workflows
 
 ---
 
-**Commands assume repo root.** This is a documentation-only framework with markdown linting
-as the primary quality gate.
+**Commands assume repo root.** This is a hybrid documentation + TypeScript project with markdown
+linting and code quality gates.
 
 ---
 

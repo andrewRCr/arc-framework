@@ -56,12 +56,12 @@ the same sense — it is existing project documentation that naturally absorbs p
 Beyond mechanisms, adopters extend ARC through **content-level customization** — creating their own files that add
 domain-specific guidance, project-specific procedures, or extended standards:
 
-| Content Channel       | What It Does                   | Location              | Example                                           |
-|-----------------------|--------------------------------|-----------------------|---------------------------------------------------|
-| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns    |
-| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist         |
-| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`      |
-| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.md`, `GEMINI.md` for agent-specific notes |
+| Content Channel       | What It Does                   | Location              | Example                                          |
+|-----------------------|--------------------------------|-----------------------|--------------------------------------------------|
+| Project strategies    | Domain-specific guidance       | `strategies/project/` | `strategy-authentication.md` for auth patterns   |
+| Project workflows     | Project-specific procedures    | `workflows/project/`  | Custom deploy workflow, release checklist        |
+| Domain-specific rules | Extended project standards     | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`     |
+| Agent-specific files  | Per-agent operational guidance | `agent/`              | `CLAUDE.ARC.md`, `GEMINI.ARC.md` for agent notes |
 
 These are project-owned files — adopters create them, ARC doesn't ship them (except agent-specific templates).
 `DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows,
@@ -109,7 +109,7 @@ configurability path (how teams adapt it).
 | Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
 | Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
-| WORK-STATUS.md + SESSION-NOTES.md       | P5        | Two-file session state              | Method override — substitute session mechanism        |
+| WORK-STATUS.md + user/{identity}/ state | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 
 #### Design commitment conventions
@@ -119,7 +119,7 @@ configurability path (how teams adapt it).
 | Collaborative voice in docs        | P9        | Team perspective, no "user/AI" framing   | Behavioral guidance — documentation style    |
 | Reference-style markdown links     | P9        | Reference links, definitions at file end | Behavioral guidance — link formatting style  |
 | No meta-project references in code | P9        | Task IDs stay in `.arc/` docs            | Behavioral guidance — enforcement strictness |
-| Agent-specific file structure      | P8        | `CLAUDE.md`, `GEMINI.md`, etc.           | File-customizable — file naming and location |
+| Agent-specific file structure      | P8        | `CLAUDE.ARC.md`, `GEMINI.ARC.md`, etc.   | File-customizable — file naming and location |
 
 **Configurability path definitions:**
 
@@ -137,11 +137,12 @@ configurability path (how teams adapt it).
 ### Agent discovery
 
 The agent learns about the active configuration during session initialization. After loading standard documents, the
-agent reads `arc-config.yml` and `arc-methods.md`:
+agent reads `arc-config.yml` and scans `arc-methods.md` for override presence:
 
 1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for platform-appropriate commands
-2. **Active method overrides**: If any method in `arc-methods.md` has a populated project override, note it and follow
-   the override when that method is encountered in workflows
+2. **Method override presence**: Scan `arc-methods.md` `.override` headings to note which methods have active
+   overrides — a list of names, not content. Method defaults and override content load on-demand when workflows
+   reference them (see [Context Loading Strategy][context-loading])
 3. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
 
 This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies it when
@@ -288,16 +289,16 @@ layering mechanism. This is a deliberate design choice:
 - Every current setting (`branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`) is inherently project-wide.
   The team agrees on commit format, branch protection, and merge strategy. Per-developer variation on these would
   create inconsistency.
-- Per-developer values (e.g., session identity for git notes) route through **git config** (`git config
-  arc.session.identity alice`), which is already per-developer by design. Git config is the standard mechanism
-  for local, personal configuration in git-based projects.
-- Project-level defaults that individual developers may want to override (e.g., `session.notes_push`) follow the
-  same pattern: `arc-config.yml` sets the team default, git config provides a personal override. This is how git
-  itself handles project vs. personal settings.
+- Per-developer values (e.g., identity for user directory and git notes) route through **git config** (`git config
+  arc.identity alice`), which is already per-developer by design. Git config is the standard mechanism for local,
+  personal configuration in git-based projects.
+- Project-level defaults that individual developers may want to override (e.g., `user.sync_push`) follow the
+  same pattern: `arc-config.yml` sets the team default, git config provides a personal override (`git config
+  arc.sync_push`). This is how git itself handles project vs. personal settings.
 
-**Why not layered config:** A layered system (`arc-config.yml` → `team/{name}/config.yml`) would add resolution
+**Why not layered config:** A layered system (`arc-config.yml` → `user/{identity}/config.yml`) would add resolution
 mechanics, documentation overhead, and implementation complexity for currently 1-2 per-developer settings. YAGNI
-applies. If per-developer config needs grow significantly, the `team/{name}/` directory is the natural home for a
+applies. If per-developer config needs grow significantly, the `user/{identity}/` directory is the natural home for a
 future personal config file — the architecture accommodates this without committing to it now.
 
 ### Settings with behavioral implications
@@ -418,8 +419,9 @@ enables automated tooling and readable history.
 Conventional commit format: `type(scope): description`
 ```
 
-When an override is populated, the agent follows the override instead of the default. The agent reads `arc-methods.md`
-during session initialization and carries the awareness through the session.
+When an override is populated, the agent follows the override instead of the default. Method content loads on-demand
+when the agent reaches a workflow step that references the method — not at session initialization. The agent notes
+which methods have overrides during init; the full content arrives at the point of action.
 
 ### Method references in workflows
 
@@ -458,7 +460,7 @@ commit.context_pattern: "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"
 Config provides common pattern examples as inline comments to reduce regex-authoring friction: Jira prefix,
 ticket-plus-type, issue reference.
 
-For behavioral methods (session state, leave-it-cleaner, test-first) that do not have mechanical hook enforcement, the
+For behavioral methods (session state, issue-triage, test-first) that do not have mechanical hook enforcement, the
 override is purely agent-level: the agent reads the method override from `arc-methods.md` and follows it. No hook
 interaction needed.
 
@@ -648,6 +650,7 @@ period demonstrated the conventions in practice before enforcement was activated
 
 ---
 
+[context-loading]: strategy-context-loading.md
 [core-philosophy]: strategy-core-philosophy.md
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md

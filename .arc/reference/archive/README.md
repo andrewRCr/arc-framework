@@ -16,7 +16,6 @@ archive/
 │   │   └── {{NN}}_{{name}}/       # e.g., 01_logging-system/
 │   └── incidental/
 │       └── {{NN}}_{{name}}/       # e.g., 04_security-fixes/
-└── completed-atomic-{{QUARTER}}.md # Completed atomic tasks
 ```
 
 **Categories:**

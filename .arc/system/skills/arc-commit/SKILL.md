@@ -17,26 +17,32 @@ disable-model-invocation: false
    - Complex path: multiple concerns, accumulated multi-session work, or interleaved edits
      that should be separated.
 
-3. Execute the chosen workflow.
+3. Load commit format guidance.
 
-   - For simple path: stage only files for one logical change and commit using
-     `arc-methods.md` § commit-format and § commit-context-format.
+   - Read `arc-methods.md` § commit-format and § commit-context-format before composing
+     any commit message. Both paths require this — the format spec includes context footer
+     patterns that are not safe to assume from memory.
+
+4. Execute the chosen workflow.
+
+   - For simple path: stage only files for one logical change and commit using the loaded
+     format guidance.
    - For complex path: follow
      `.arc/system/workflows/arc/supplemental/prepare-commits.md` to analyze and split
      changes into atomic commits.
 
-4. Stage WORK-STATUS.md with every task commit.
+5. Stage WORK-STATUS.md with every task commit.
 
    - Before staging, update WORK-STATUS.md — advance Next Task, Last Completed, and
      Next Action to reflect the post-commit state.
    - Stage it alongside the task list changes. This is the primary update mechanism.
 
-5. Enforce atomicity.
+6. Enforce atomicity.
 
    - Do not include unrelated files in the same commit.
    - If separation is unclear, stop and re-check file-level intent before committing.
 
-6. Verify staging before committing.
+7. Verify staging before committing.
 
    - Run `git diff --cached --stat` after staging. Pre-staged files can silently slip in;
      intended files can be left out. Verify the staging area matches intent.

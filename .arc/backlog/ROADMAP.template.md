@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** {{DATE}}
+**Last Updated:** [DATE]
 
 ---
 
@@ -14,32 +14,32 @@ and record (achievements, current status), see `PROJECT-STATUS.md`.
      milestones, dependency chains, risk-ordered priorities, or capability areas.
      Adjust the number and naming of phases to fit your planning granularity. -->
 
-### Phase A: {{PHASE_NAME}}
+### Phase A: [PHASE_NAME]
 
-{{Phase description and rationale}}
+[Phase description and rationale]
 
-1. **{{Work Item 1}}**
-   - PRD/Plan: `{{category}}/{{filename}}.md`
-   - Rationale: {{Why this comes first}}
-   - Scope: {{High-level scope}}
+1. **[Work Item 1]**
+   - PRD/Plan: `[category]/[filename].md`
+   - Rationale: [Why this comes first]
+   - Scope: [High-level scope]
 
-2. **{{Work Item 2}}**
-   - Backlog: `{{category}}/BACKLOG-{{CATEGORY}}.md`
-   - Rationale: {{Why this sequence position}}
-   - Scope: {{High-level scope}}
+2. **[Work Item 2]**
+   - Backlog: `[category]/BACKLOG-[CATEGORY].md`
+   - Rationale: [Why this sequence position]
+   - Scope: [High-level scope]
 
-### Phase B: {{PHASE_NAME}}
+### Phase B: [PHASE_NAME]
 
-{{Phase description}}
+[Phase description]
 
-3. **{{Work Item 3}}**
-   - Plan: `{{category}}/plan-{{name}}.md`
-   - Rationale: {{Sequencing rationale}}
-   - Scope: {{High-level scope}}
+3. **[Work Item 3]**
+   - Plan: `[category]/plan-[name].md`
+   - Rationale: [Sequencing rationale]
+   - Scope: [High-level scope]
 
-### Phase C: {{PHASE_NAME}}
+### Phase C: [PHASE_NAME]
 
-{{Final phase items — often polish, deployment, etc.}}
+[Final phase items — often polish, deployment, etc.]
 
 ---
 
@@ -50,8 +50,8 @@ and record (achievements, current status), see `PROJECT-STATUS.md`.
      if dependencies are straightforward or self-evident from the phase structure. -->
 
 ```
-{{Item 1}} ──────────► {{What it enables}}
-{{Item 2}} ──────────► {{What depends on it}}
+[Item 1] ──────────► [What it enables]
+[Item 2] ──────────► [What depends on it]
 ```
 
 ---
@@ -65,20 +65,20 @@ and record (achievements, current status), see `PROJECT-STATUS.md`.
 
 | Technology/Approach | Rationale |
 |---------------------|-----------|
-| {{Tech 1}}          | {{Why}}   |
-| {{Tech 2}}          | {{Why}}   |
+| [Tech 1]            | [Why]     |
+| [Tech 2]            | [Why]     |
 
 ### Lower Priority
 
-| Technology/Approach | Rationale              | When                |
-|---------------------|------------------------|---------------------|
-| {{Tech 3}}          | {{Why lower priority}} | {{When to revisit}} |
+| Technology/Approach | Rationale            | When              |
+|---------------------|----------------------|-------------------|
+| [Tech 3]            | [Why lower priority] | [When to revisit] |
 
 ### Skipped
 
-| Technology/Approach | Rationale            |
-|---------------------|----------------------|
-| {{Tech 4}}          | {{Why not included}} |
+| Technology/Approach | Rationale          |
+|---------------------|--------------------|
+| [Tech 4]            | [Why not included] |
 
 ---
 
@@ -88,14 +88,14 @@ and record (achievements, current status), see `PROJECT-STATUS.md`.
      resolution when decided. Prune resolved items during weekly review once
      they're no longer useful context. -->
 
-- {{Question needing decision}}
+- [Question needing decision]
 
 **Resolved:**
 
-- ~~{{Previously open question}}~~: {{Resolution}}
+- ~~[Previously open question]~~: [Resolution]
 
 ---
 
 ## Change Log
 
-- **{{DATE}}**: {{Change description}}
+- **[DATE]**: [Change description]

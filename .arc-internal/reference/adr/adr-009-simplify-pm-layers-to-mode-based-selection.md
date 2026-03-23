@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Part 2 file placement superseded by ADR-012)
 
 ## Context
 

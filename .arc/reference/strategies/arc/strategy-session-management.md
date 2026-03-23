@@ -16,6 +16,7 @@ follow), see the [session-loop workflow][session-loop]. For agent-executed sessi
 - [Session Duration Guidance](#session-duration-guidance) — practical thresholds
 - [Shared Responsibility Model](#shared-responsibility-model) — who monitors what
 - [Auto-Compaction](#auto-compaction) — ARC's stance and reasoning
+- [Session State Portability](#session-state-portability) — cross-machine and team scenarios
 
 ---
 
@@ -110,7 +111,7 @@ indicators — status bars, on-demand commands, threshold warnings. The user dec
 context state, work progress, and judgment about session quality. This is an active responsibility: check periodically,
 don't wait for emergencies.
 
-**The agent is the secondary safety net.** Agent-specific configuration files (e.g., CLAUDE.md) may define
+**The agent is the secondary safety net.** Agent-specific configuration files (e.g., CLAUDE.ARC.md) may define
 threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches cases where the user isn't monitoring,
 but it's imprecise: agents assess their own token usage approximately, and the check-in interrupts workflow. It's a
 fallback, not the designed mechanism.
@@ -153,10 +154,57 @@ occurred — so you can factor it into your workflow.
 
 ---
 
+## Session State Portability
+
+ARC's session state files — SESSION-NOTES.md and other personal workspace content in `user/{identity}/` — are
+gitignored by design. This keeps personal context out of git history but creates a portability challenge: session
+context doesn't travel with the branch when you switch machines or hand off to a teammate.
+
+### Why portability matters
+
+- **Multi-machine development.** A developer working from a laptop and a desktop needs session context to follow
+  the branch, not stay on one machine's filesystem.
+- **Team handoff.** When a teammate picks up a branch mid-work, the session context from the previous developer's
+  handoff provides essential continuity — what was decided, what was tried, what to watch for.
+- **Disaster recovery.** Gitignored files are vulnerable to machine failure or accidental deletion. Session context
+  at the end of a long work unit represents accumulated knowledge worth preserving.
+
+### The git notes mechanism
+
+ARC uses [git notes][git-notes] to serialize and transport personal workspace content without polluting git history.
+A single notes ref — `refs/notes/arc/user/{identity}` — stores the user directory contents as a note attached to
+HEAD at handoff time.
+
+**How it works:**
+
+- **Save** (`arc user save`): Serialize `user/{identity}/` contents to a git note on HEAD
+- **Load** (`arc user load`): Restore user directory from git note (on HEAD, walking ancestors if needed)
+- **Push/pull** (`arc user push` / `arc user pull`): Transport notes refs to/from remote
+
+Session workflows integrate these automatically: session handoff triggers save + push; session init triggers
+pull + load when local files are missing or stale.
+
+**Push policy** (`user.sync_push` in `arc-config.yml`):
+
+- `always` — solo default. Auto-push after save, no friction.
+- `prompt` — team default. Conscious choice per handoff.
+- `manual` — full control. Push only when explicitly requested.
+
+Per-developer override via `git config arc.sync_push`.
+
+### Scope
+
+Any file in the `user/{identity}/` directory — session notes, inbox items (arc-in-git), personal scratch notes —
+travels through one mechanism. New file types added to the user directory are automatically included without
+additional plumbing.
+
+---
+
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [core-philosophy]: strategy-core-philosophy.md
+[git-notes]: https://git-scm.com/docs/git-notes
 [ctx-length-hurts]: https://arxiv.org/abs/2510.05381
 [ruler]: https://arxiv.org/abs/2404.06654
 [web-agents]: https://arxiv.org/abs/2512.04307

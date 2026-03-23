@@ -12,6 +12,12 @@ otherwise be lost when the session ends. Agents with persistent memory may need 
 principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
 via [`arc-methods.md` § session-state][arc-methods-session].
 
+**Method dependency (load on first reference):** This workflow references one arc-method. Load the relevant
+section of [`arc-methods.md`][arc-methods] — check `.override` first; use `.default` if no override is
+configured.
+
+- [session-state][arc-methods-session] — reading and writing session state
+
 ## Handoff Protocol
 
 ### Pre-Update Verification
@@ -29,17 +35,12 @@ via [`arc-methods.md` § session-state][arc-methods-session].
 Session state is split across two files (per the [session-state method][arc-methods-session] default — if your
 project overrides session-state, follow the override instead):
 
-- **WORK-STATUS.md** (tracked) — project state: branch, task list, next task, blockers, next action
-- **SESSION-NOTES.md** (gitignored) — personal context: completed work, decisions, debugging insights,
-  things tried. Replaced each handoff (not appended). Created only when there's context worth
-  preserving. Between work units, reset to persistent context only (if any exists) or a minimal
-  completion marker.
+- **WORK-STATUS.md** (tracked, `.arc/active/`) — project state: branch, task list, next task, blockers, next action
+- **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/`) — personal context: completed work, decisions,
+  debugging insights, things tried. Replaced each handoff (not appended). Created only when there's context
+  worth preserving. Between work units, reset to persistent context only (if any exists) or a minimal
+  completion marker. Identity resolved from `git config arc.identity`.
 
-> **Team mode:** SESSION-NOTES.md moves to `team/{name}/SESSION-NOTES.md` (personal, per
-> developer). WORK-STATUS.md stays in `active/` (shared, one per branch). Paths in the
-> templates below show the solo (default) layout. See [Team Coordination
-> Strategy][team-coordination] § Workflow Adaptations.
->
 > **Person-to-person handoff:** If handing off to a different developer (not just ending your
 > own session), write SESSION-NOTES.md for someone with no prior context on this work and
 > reassign task ownership via `(@name)` markers. See [Team Coordination
@@ -89,9 +90,14 @@ Update session state files before ending session:
 
 _Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
 WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
+
+_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
+activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
+push and create PR". Task-list-driven workflows (process-task-loop) don't need this; the task list
+checkbox state is the pointer._
 ```
 
-**Update `.arc/active/SESSION-NOTES.md`** (personal session context — gitignored):
+**Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
 
 ```markdown
 ### Completed Work
@@ -269,6 +275,22 @@ path. Preserve any Persistent Context entries that span work units; reset epheme
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
 may skip it by default — pass the path explicitly or use an IDE-integrated linter.
 
+### Save to Git Notes
+
+After writing SESSION-NOTES.md, save the user directory to git notes for portability:
+
+```bash
+arc user save    # serialize user/{identity}/ to git note on HEAD
+```
+
+Then push based on `user.sync_push` setting in `arc-config.yml`:
+
+- `always` (solo default): run `arc user push` automatically
+- `prompt` (team default): ask the user whether to push
+- `manual`: skip — user pushes when ready
+
+Per-developer override: `git config arc.sync_push`.
+
 ### Conditional WORK-STATUS.md Commit
 
 If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
@@ -320,5 +342,6 @@ confirmation for the human — the session state files are the durable artifacts
   "Next action"
 
 [session-init]: session-init.md
+[arc-methods]: ../../arc-methods.md
 [arc-methods-session]: ../../arc-methods.md#session-state
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

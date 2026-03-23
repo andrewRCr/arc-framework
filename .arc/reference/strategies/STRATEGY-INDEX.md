@@ -24,6 +24,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults
     - Consult when: working on config, extensions, or methods infrastructure
+- `arc/strategy-context-loading.md` - Three-tier loading model, instruction density, method/extension on-demand patterns
+    - Consult when: adding new guidance content, deciding loading tier, working on session-init or method loading
 - `arc/strategy-core-philosophy.md` - Principles (P1-P11), philosophical foundation, positioning
     - Consult when: resolving principle conflicts, checking P1–P11 definitions or rationale
 - `arc/strategy-file-classification.md` - File taxonomy, naming conventions, merge strategies, complete inventory

@@ -1,0 +1,93 @@
+/**
+ * Lifecycle E2E test.
+ *
+ * Golden path: init → verify installed → modify files → status shows changes →
+ * diff shows correct output → update → customizations preserved → status
+ * still shows modified (customized file differs from pristine).
+ *
+ * This is the "beta is functional enough" success criterion exercised
+ * end-to-end in a single test.
+ */
+
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { describe, it, expect, afterEach } from "vitest";
+import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+
+describe("lifecycle", () => {
+  let tmpDir: string;
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("golden path: init → status → modify → diff → update → customization preserved", async () => {
+    tmpDir = await createTempRepo();
+
+    // --- Init ---
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+
+    // Verify key files installed
+    const configContent = await readFile(
+      join(tmpDir, ".arc", "system", "arc-config.yml"),
+      "utf-8",
+    );
+    expect(configContent).toContain("branch.base: main");
+
+    const workStatus = await readFile(
+      join(tmpDir, ".arc", "active", "WORK-STATUS.md"),
+      "utf-8",
+    );
+    expect(workStatus).toContain("Work Status");
+
+    // --- Status after clean init ---
+    const cleanStatus = await runArc(["status"], tmpDir);
+    expect(cleanStatus.exitCode).toBe(0);
+    const cleanOutput = cleanStatus.stdout + cleanStatus.stderr;
+    expect(cleanOutput).toContain("unmodified");
+    expect(cleanOutput).not.toMatch(/\d+ modified/);
+
+    // --- Modify a file ---
+    const rulesPath = join(
+      tmpDir,
+      ".arc",
+      "reference",
+      "constitution",
+      "DEV-RULES.PROJECT.md",
+    );
+    const original = await readFile(rulesPath, "utf-8");
+    const customized = original + "\n## My Custom Quality Gate\n\nRun integration tests nightly.\n";
+    await writeFile(rulesPath, customized, "utf-8");
+
+    // --- Status shows modification ---
+    const modifiedStatus = await runArc(["status"], tmpDir);
+    expect(modifiedStatus.exitCode).toBe(0);
+    const modOutput = modifiedStatus.stdout + modifiedStatus.stderr;
+    expect(modOutput).toMatch(/\d+ modified/);
+
+    // --- Diff shows the change ---
+    const diff = await runArc(["diff"], tmpDir);
+    expect(diff.exitCode).toBe(0);
+    const diffOutput = diff.stdout + diff.stderr;
+    expect(diffOutput).toContain("DEV-RULES.PROJECT.md");
+    expect(diffOutput).toContain("My Custom Quality Gate");
+
+    // --- Update preserves customization ---
+    const update = await runArc(["update"], tmpDir);
+    expect(update.exitCode).toBe(0);
+
+    const afterUpdate = await readFile(rulesPath, "utf-8");
+    expect(afterUpdate).toContain("## My Custom Quality Gate");
+    expect(afterUpdate).toContain("Run integration tests nightly.");
+
+    // --- Status after update: customization still shows as modified ---
+    // The file differs from its pristine copy because the user customized it.
+    // Update preserved the customization (three-way merge), but doesn't reset
+    // the pristine to match the customized version.
+    const postUpdateStatus = await runArc(["status"], tmpDir);
+    expect(postUpdateStatus.exitCode).toBe(0);
+    const postOutput = postUpdateStatus.stdout + postUpdateStatus.stderr;
+    expect(postOutput).toMatch(/\d+ modified/);
+  });
+});

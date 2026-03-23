@@ -4,9 +4,14 @@ Default implementations for ARC's configurable conventions. Each method defines 
 accomplished) and a default (how ARC does it out of the box).
 
 **How overrides work:** To replace a default, fill in the method's `.override` section with your team's
-implementation. The agent reads this file during session initialization — for each method, it checks `.override`
-first. If populated, follow the override and skip `.default`. Contracts are advisory: your override should satisfy
-the same invariant as the default.
+implementation. For each method, the agent checks `.override` first. If populated, follow the override and skip
+`.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
+
+**Loading model:** Method defaults and overrides load on-demand at workflow trigger points, not at session
+initialization. Session-init scans only for override *presence* (which methods have active overrides) without
+reading method content. Workflow documents include method dependencies blocks that trigger loading when the agent
+reaches the relevant activity. See the [Context Loading Strategy][context-loading] for the tiered model and
+ADR-013 for the decision rationale.
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
@@ -18,7 +23,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [Method Dependencies](#method-dependencies) — coupled override guidance
 - [commit-format](#commit-format) — message structure, types, scope, body
 - [commit-context-format](#commit-context-format) — context footer patterns
-- [leave-it-cleaner](#leave-it-cleaner) — severity triage, fix-vs-defer decisions
+- [issue-triage](#issue-triage) — severity triage, fix-vs-defer decisions
 - [test-first](#test-first) — decision tree by change type
 - [session-state](#session-state) — reading and writing session state
 - [pre-merge-review](#pre-merge-review) — aggregate diff review before push
@@ -36,7 +41,7 @@ when populating any `.override` section.
 | --------------------- | ----------------------- | -------------------------------- |
 | commit-format         | commit-context-format   | Both govern the commit message   |
 | commit-context-format | commit-format           | Both govern the commit message   |
-| leave-it-cleaner      | —                       | Independent                      |
+| issue-triage          | —                       | Independent                      |
 | test-first            | —                       | Independent                      |
 | pre-merge-review      | review-triage           | Uses review-triage for findings  |
 | review-triage         | —                       | Independent                      |
@@ -111,10 +116,18 @@ grep-searchable across commit history.
 - `Context: tasks-[filename].md (integration)` — integration prep and review fixes
 - `Context: tasks-[filename].md (archival)` — active to archive transition
 
+**With atomic companion file:**
+
+- `Context: atomic-[filename].md` — work-unit-scoped atomic task
+
+Use `atomic-*.md` only for commits that complete work tracked in the companion file. Incidental
+fixes discovered *during* an atomic task but not themselves tracked there use the task list
+incidental pattern: `tasks-[filename].md (incidental - discovered during <context>)`.
+
 **Without task list:**
 
 - `Context: [category] (no associated task list)` — emergent work
-- `Context: [category] (atomic / no associated task list)` — small one-off work
+- `Context: [category] (atomic / no associated task list)` — standalone small one-off work
 
 **Categories:** `planning`, `documentation`, `maintenance`, `refactor`.
 
@@ -123,38 +136,33 @@ in [`arc-config.yml`][arc-config].
 
 ---
 
-## leave-it-cleaner
+## issue-triage
 
-**Workflow:** [process-task-loop.md][process-task-loop] · **When:** Quality checks reveal issues in modified files
+**Workflow:** [process-task-loop.md][process-task-loop] · **When:** Pre-existing issues encountered in files being
+modified (the "leave it cleaner" rule in [DEV-RULES.ARC][dev-rules-arc])
 
-**Contract:** Pre-existing quality issues must be addressed — fix or document, but never ignore silently.
+**Contract:** Given an issue found in a file you are modifying, return a decision: fix inline or defer. Deferred
+issues route per the capture guidance in [DEV-RULES.ARC § Leave it cleaner][dev-rules-arc] — never to completion
+notes or session notes.
 
-### leave-it-cleaner.override
+### issue-triage.override
 
 [No override configured]
 
-### leave-it-cleaner.default
+### issue-triage.default
 
-Severity-based triage with documentation requirements.
+Severity-based triage.
 
-**Assess severity and scope:**
+**Assess severity and decide:**
 
 - **Minor** (< 5 minutes): Fix immediately without asking
 - **Moderate** (5–15 minutes): Fix immediately, document in commit message
-- **Major** (> 15 minutes): Ask for direction before proceeding
+- **Major** (> 15 minutes): Ask user for direction — fix now or defer
 
-**Choose one action:**
+**If fixing:** Note in commit message ("Also fixed X pre-existing issues").
 
-- **Fix immediately** — Preferred for all issues under 15 minutes
-- **Document and defer** — Create incidental task with: clear description of issue, why deferred (time/scope
-  constraints), estimated effort, file/line references
-- **Ignore silently** — Never acceptable
-
-**Document the outcome:**
-
-- Fixed issues: Note in commit message ("Also fixed X pre-existing issues")
-- Deferred issues: Create incidental task in the active work directory
-- Undocumented issues: Never leave issues unaddressed
+**If deferring:** Route per [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner — the routing table determines
+destination based on scope and PM mode. Never defer to completion notes or session notes.
 
 ---
 
@@ -162,7 +170,7 @@ Severity-based triage with documentation requirements.
 
 **Workflow:** [process-task-loop.md][process-task-loop] · **When:** Agent begins implementing any task
 
-**Contract:** Assess whether tests should be written before implementation. The assessment must inform task order.
+**Contract:** Assess whether tests should be written before implementation. The assessment must inform task structure.
 
 ### test-first.override
 
@@ -172,7 +180,7 @@ Severity-based triage with documentation requirements.
 
 Decision tree by change type.
 
-**Requires test-first** (write tests BEFORE implementation):
+**Requires test-first** (red-green-refactor within the task):
 
 - New data models or schemas
 - New API endpoints or endpoint modifications
@@ -190,8 +198,17 @@ Decision tree by change type.
 
 **If unsure, default to test-first.** Writing tests after implementation is harder and less effective.
 
-**During task list creation:** Place test tasks BEFORE implementation tasks for test-first work. This makes the
-ordering visible during execution.
+**Execution discipline — one behavior at a time:** The behavior list under the marker is a discovery guide, not a
+batch spec. The default is vertical slices: write one test, make it pass, then write the next — each cycle informs
+the next. Avoid writing all tests upfront then implementing; that tests *imagined* behavior, not actual behavior.
+When behaviors are tightly coupled and slicing adds no discovery value, batching is acceptable — note the rationale
+in the completion report so the decision is visible (see [process-task-loop][process-task-loop] § Batching judgment).
+
+**During task list creation:** Group test and implementation together — by module or concern, not by activity.
+A test-first task covers both writing tests and writing the code that makes them pass. Use the
+`Build \`test-first\` (one behavior at a time):` marker line to introduce the behavior list — this signals the
+executing agent to apply the red-green-refactor loop (see [process-task-loop][process-task-loop] for execution
+details).
 
 ---
 
@@ -208,7 +225,13 @@ writes session state
 
 ### session-state.default
 
-Read/write WORK-STATUS.md and SESSION-NOTES.md at session boundaries.
+Read/write session state at session boundaries:
+
+- **WORK-STATUS.md** (`active/`) — tracked project state, updated at commit time and handoff
+- **SESSION-NOTES.md** (`user/{identity}/`) — gitignored personal context, written at handoff
+- **Git notes** (`refs/notes/arc/user/{identity}`) — portability layer for the user directory.
+  Save at handoff, load at init when local files are missing or stale. Push per `user.sync_push`
+  config (`always` / `prompt` / `manual`; per-developer override via `git config arc.sync_push`).
 
 ---
 
@@ -332,7 +355,10 @@ Rejected:
 
 ### quality-gate-commands.default
 
-Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates.
+Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates. This is a passthrough by
+design — no universal default command set exists across projects. The method exists so the process-task-loop
+references quality gates uniformly through the method layer, and teams with non-standard setups
+(environment-specific commands, conditional logic) have a clean override path.
 
 ---
 
@@ -344,4 +370,6 @@ Commands specified in [DEV-RULES.PROJECT][dev-rules-project] § Quality Gates.
 [session-handoff]: arc/session-lifecycle/session-handoff.md
 [arc-config]: ../arc-config.yml
 [arc-ext-pre-merge-review]: arc-extensions.md#pre-merge-review
+[context-loading]: ../../reference/strategies/arc/strategy-context-loading.md
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
+[dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md

@@ -1,19 +1,20 @@
 ---
-name: resume-current
-description: Initialize and resume the active working session with required project context. Use when starting or resuming work and the agent must reload critical operating instructions and session initialization steps.
+name: arc-resume
+description: Initialize and resume the active working ARC session with required project context. Use when explicitly asked to initialize a session.
 ---
 
-# Resume Current
+# ARC Resume
 
-1. Read required context first.
-
-   - Read `.arc-internal/system/agent/AGENTS.md` before other session workflow steps.
-
-2. Initialize the session.
+1. Initialize the session.
 
    - Run the workflow in `.arc-internal/system/workflows/arc/session-lifecycle/session-init.md`.
+   - Follow the workflow steps in order. Environment verification (Step 1) gates document
+     loading — confirm working directory before any other commands.
+   - Read every document in full unless the workflow explicitly says otherwise. The load
+     order matters — general context before active work state.
 
-3. Confirm readiness.
+2. Surface problems, not procedure.
 
-   - Ensure the active constraints, workflow expectations, and session state are loaded
-     before proceeding with feature work.
+   - The orientation summary should foreground mismatches, blockers, and freshness gaps.
+   - If everything loaded cleanly, confirm and state the next action — don't recap the
+     documents you read.

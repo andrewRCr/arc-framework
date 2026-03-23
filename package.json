@@ -3,11 +3,20 @@
   "private": true,
   "version": "0.0.0",
   "description": "ARC Framework development tooling",
+  "workspaces": [
+    "packages/arc-framework"
+  ],
   "scripts": {
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:md:file": "markdownlint-cli2 --no-globs",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
-    "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs"
+    "lint:md:fix:file": "markdownlint-cli2 --fix --no-globs",
+    "build": "npm run build -w packages/arc-framework",
+    "test": "npm run test -w packages/arc-framework",
+    "test:unit": "npm run test:unit -w packages/arc-framework",
+    "test:integration": "npm run test:integration -w packages/arc-framework",
+    "test:e2e": "npm run test:e2e -w packages/arc-framework",
+    "typecheck": "npm run typecheck -w packages/arc-framework"
   },
   "devDependencies": {
     "markdownlint-cli2": "0.21.0"

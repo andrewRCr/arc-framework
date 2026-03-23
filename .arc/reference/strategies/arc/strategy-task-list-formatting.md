@@ -21,7 +21,7 @@ documentation throughout the project lifecycle.
 6. [Common Mistakes](#common-mistakes)
 7. [Decision Guidelines](#decision-guidelines)
 8. [Verification Phase](#verification-phase)
-9. [Atomic Tasks Section](#atomic-tasks-section)
+9. [Atomic Companion File](#atomic-companion-file)
 10. [Success Criteria Section](#success-criteria-section)
 
 ---
@@ -37,14 +37,13 @@ Before finalizing any task list, verify:
 - [ ] Blank lines between subtasks when they have detail bullets beneath
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
 - [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
-- [ ] Test subtasks come BEFORE implementation subtasks
+- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
-- [ ] "Expect tests to FAIL initially" noted in test subtasks
-- [ ] "Tests should now PASS" noted after implementation subtasks
-- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic tasks)
-- [ ] Atomic Tasks section present (empty by default, between verification phase and Success Criteria)
+- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic task check)
+- [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 ---
@@ -70,7 +69,7 @@ them may cause hook failures, workflow mismatches, or context loading errors.
   and session initialization
 - **File naming**: `tasks-{name}.md` in `active/` or `backlog/` — hook file matching, WORK-STATUS
   references
-- **Atomic Tasks section header**: `## Atomic Tasks — {name}` — workflows and archival expect this section
+- **Atomic companion file**: `atomic-{name}.md` created alongside `tasks-{name}.md` — workflows reference this file
 - **Success criteria markers**: `[x]`, `[ ]`, `[~]` — verification workflow reads these
 
 ### Style (human-facing quality)
@@ -82,7 +81,7 @@ preference without breaking workflows.
 - Bold formatting on task descriptions
 - Goal/Note line placement and formatting
 - Blank lines between subtasks with detail bullets
-- Test-first task ordering within phases
+- Test-first task grouping within phases
 - Backticks on technical terms
 - Emoji policy
 - Indentation depth (4-space convention)
@@ -305,22 +304,24 @@ Task list headers provide essential metadata and context. Format varies by task 
 - **Bold description when subtask has detail bullets beneath** (creates visual hierarchy)
 - Indented 4 spaces from parent task
 - Each subtask should be completable/testable independently
-- Use test-first ordering (test subtask before implementation subtask)
+- For test-first work, group by concern — subtask covers both test and implementation
 - **Blank lines between subtasks when they have detail bullets** (improves readability)
 
 ```markdown
 ✅ Subtasks with detail bullets:
 
-- [ ] **1.1 Write tests for data models**
+- [ ] **1.1 `User` model (`models.py`)**
 
-    - [ ] **1.1.a Create test for `User` model validation**
-        - Test: Email format validation
-        - Test: Username uniqueness constraint
-        - Expect tests to FAIL initially
+    - [ ] **1.1.a Field validation**
 
-    - [ ] **1.1.b Create test for `Profile` model relationships**
-        - Test: Foreign key to `User`
-        - Expect tests to FAIL initially
+        Build `test-first` (one behavior at a time):
+        - Email format validation
+        - Username uniqueness constraint
+
+    - [ ] **1.1.b Password hashing**
+
+        Build `test-first` (one behavior at a time):
+        - Password stored as hash, not plaintext
 
 ✅ Simple single-line subtasks:
 
@@ -392,16 +393,16 @@ completable steps that warrant tracking separately.
 - Blank line after (before first subtask)
 
 ```markdown
-✅ - [ ] **1.1 Write tests for data models**
+✅ - [ ] **1.1 `User` model (`models.py`)**
 
-       **Goal:** Validate field constraints and relationships before implementation.
+       **Goal:** Validated user model with email, username, and password constraints.
 
-       - [ ] **1.1.a Create test for `User` model validation**
+       - [ ] **1.1.a Field validation**
 
-❌     **Goal:** Write tests for the data models.  # Repeats title, adds no value
-❌     **Goal:** This task involves writing comprehensive tests for all data
-       models in the application to ensure field validation works correctly
-       and relationships are properly established.  # Too long, should be 1 line
+❌     **Goal:** Create the User model.  # Repeats title, adds no value
+❌     **Goal:** This task involves building a comprehensive user model
+       with field validation, password hashing, and relationship setup
+       to ensure data integrity across the application.  # Too long, should be 1 line
 ```
 
 ### Revision Numbering (R Scheme)
@@ -416,11 +417,15 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
     - [x] 3.1.1 Update hook to extract metadata
 
     - [ ] **3.1.R Additional integration tests discovered**
-        - [ ] **3.1.R.1 Write tests for `PaginatedQuery` handler**
-            - Expect tests to FAIL initially
+        - [ ] **3.1.R.1 `PaginatedQuery` handler tests**
 
-        - [ ] **3.1.R.2 Write stability tests for `ResultsList`**
-            - Expect tests to FAIL initially
+            Build `test-first` (one behavior at a time):
+            - Correct metadata extraction from paginated response
+
+        - [ ] **3.1.R.2 `ResultsList` stability tests**
+
+            Build `test-first` (one behavior at a time):
+            - Handles empty result set without error
 ```
 
 ### Emoji Usage
@@ -474,64 +479,85 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
 **Purpose:** Establish data models with test-first approach.
 
-- [ ] **1.1 Write tests for core functionality**
+- [ ] **1.1 `User` model (`models.py`)**
 
-    **Goal:** Establish test coverage before implementation.
+    **Goal:** Validated user model with email and username constraints.
 
-    - [ ] **1.1.a Create test for `User` model**
-        - Test: Email validation
-        - Test: Username uniqueness
-        - Expect tests to FAIL initially
-
-    - [ ] **1.1.b Create test for `Profile` model**
-        - Test: Foreign key to `User`
-        - Expect tests to FAIL initially
-
-- [ ] **1.2 Implement core functionality**
-
-    - [ ] **1.2.a Create `User` model in `models.py`**
+    - [ ] **1.1.a Field validation**
         - Fields: `username`, `email`, `password_hash`
         - Add `clean()` method for validation
 
-    - [ ] **1.2.b Run tests - should now PASS**
+        Build `test-first` (one behavior at a time):
+        - Email format validation
+        - Username uniqueness constraint
+
+    - [ ] **1.1.b Password hashing**
+
+        Build `test-first` (one behavior at a time):
+        - Password stored as hash, not plaintext
+        - Hash verification succeeds with correct password
+
+- [ ] **1.2 `Profile` model (`models.py`)**
+
+    Build `test-first` (one behavior at a time):
+    - Foreign key to `User`
+    - Cascade delete when `User` removed
 ```
 
 ---
 
 ## Test-First Task Structure
 
-**Critical principle:** Tests BEFORE implementation in each phase, not as separate final phase.
+**Applies when:** The [test-first method][arc-methods-tf] assessment says test-first for this work.
+If your team has overridden test-first to test-after, this section's patterns don't apply — structure
+tasks however suits your workflow.
+
+**Core principle:** Test-first is an execution discipline within a task, not a task-ordering
+convention. Group test and implementation together — by module or concern, not by activity.
 
 ### Standard Pattern
 
 ```markdown
 ### **Phase 1:** User Model
 
-- [ ] **1.1 Write tests for User model**
+- [ ] **1.1 `User` model (`models.py`)**
 
-    - [ ] **1.1.a Create test file `test_user_model.py`**
-        - Test: Email validation
-        - Test: Password hashing
-        - Expect tests to FAIL initially
-
-    - [ ] **1.1.b Run tests and verify failure messages**
-
-- [ ] **1.2 Implement User model**
-
-    - [ ] **1.2.a Create `User` model in `models.py`**
+    - [ ] **1.1.a Field validation**
         - Fields: `username`, `email`, `password_hash`
         - Add validation in `clean()` method
 
-    - [ ] **1.2.b Run tests - should now PASS**
+        Build `test-first` (one behavior at a time):
+        - Email format validation
+        - Username uniqueness constraint
 
-    - [ ] **1.2.c Run quality gates (linting, type checking)**
+    - [ ] **1.1.b Password hashing**
+
+        Build `test-first` (one behavior at a time):
+        - Password stored as hash, not plaintext
+        - Hash verification succeeds with correct password
+
+    - [ ] **1.1.c Run quality gates (linting, type checking)**
 ```
 
-**For multiple related components:** Apply the same test-first pattern to each component within the
-phase, then add a final quality gates task. For multi-layer projects (backend + frontend, API + CLI),
-use separate phases per layer with test-first ordering in each, plus a cross-layer validation phase.
+**Key elements:**
 
-### Anti-Pattern: Tests After Implementation
+- **Task named for the module**, not the activity — "`User` model", not "Write tests for User model"
+- **`Build \`test-first\` (one behavior at a time):`** is the execution marker — a leading line that signals
+  red-green-refactor discipline and introduces the behavior list beneath it (see
+  [process-task-loop][process-task-loop] for the execution loop). Its absence means test-after is acceptable.
+- **Behavior bullets are a discovery guide, not a batch spec** — each is a behavior to verify, not a test to
+  write upfront. The agent picks one, writes a failing test, makes it pass, then picks the next. The list
+  informs what to cover; the execution order emerges from each RED→GREEN cycle.
+- **Implementation detail bullets precede the marker** — context about what you're building (fields,
+  file locations, architectural notes) comes before the behavioral spec
+- **No separate "implement" task** — test and implementation are one vertical unit
+
+**For multiple related components:** One task per component within the phase, each with its own
+behavior list and `Build \`test-first\`:` marker. For multi-layer projects (backend + frontend,
+API + CLI), use separate phases per layer with the same grouped pattern in each, plus a
+cross-layer validation phase.
+
+### Anti-Patterns
 
 ❌ **Wrong — tests as separate final phase:**
 
@@ -545,8 +571,16 @@ use separate phases per layer with test-first ordering in each, plus a cross-lay
 - [ ] **2.2 Write API tests**
 ```
 
-Tests written after implementation are harder, less effective, and violate the
-[DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) § Test-first assessment.
+❌ **Wrong — separate test and implement tasks within a phase:**
+
+```markdown
+### **Phase 1:** User Model
+- [ ] **1.1 Write tests for User model**  # DON'T DO THIS
+- [ ] **1.2 Implement User model**        # Splits one concern into two tasks
+```
+
+Both patterns produce horizontal slicing — writing tests in bulk tests *imagined* behavior, not
+actual behavior. Group test + implementation together so each test cycle informs the next.
 
 ---
 
@@ -608,61 +642,45 @@ This example demonstrates all formatting elements in proper context:
         - Ensure no regressions
         - All tests should still PASS
 
-### **Phase 2:** Validation Tests
+### **Phase 2:** Validation and Error Reporting
 
-- [ ] **2.1 Write tests for field validation**
+- [ ] **2.1 Field validation (`src/config/loader.py`, `src/config/parser.py`)**
 
-    - [ ] **2.1.a Create test in `test_config_validation.py`**
-        - Test: Required fields report missing with field path
-        - Test: Type mismatches report expected vs actual type
-        - Test: Range violations report allowed bounds
-        - Expect tests to FAIL initially (validation not updated)
-
-    - [ ] **2.1.b Create test for edge cases**
-        - Test: Empty config (all fields missing)
-        - Test: Deeply nested invalid fields
-        - Test: Multiple simultaneous violations
-        - Expect tests to FAIL initially
-
-- [ ] **2.2 Write tests for error message formatting**
-
-    **Goal:** Ensure error messages are actionable and include fix suggestions.
-
-    - [ ] **2.2.a Create test for error output format**
-        - Test: Errors include field path (e.g., `plugins.auth.timeout`)
-        - Test: Errors include expected type or value range
-        - Test: Multiple errors collected and reported together
-        - Expect tests to FAIL initially
-
-    - [ ] **2.2.b Create test for suggestion generation**
-        - Test: Typos suggest closest valid field name
-        - Expect tests to FAIL initially
-
-### **Phase 3:** Implementation
-
-- [ ] **3.1 Update field validation logic**
-
-    - [ ] **3.1.a Add validation to `ConfigLoader` required field checks**
+    - [ ] **2.1.a Required field validation**
         - Collect all violations before reporting (don't fail on first)
         - Include field path in each error
-        - Preserve existing valid-config behavior
         - File location: `src/config/loader.py:89-120`
 
-    - [ ] **3.1.b Add type checking to `ConfigParser.parse_field()`**
-        - Report expected vs actual type
+        Build `test-first` (one behavior at a time):
+        - Required fields report missing with field path
+        - Empty config (all fields missing)
+
+    - [ ] **2.1.b Type checking**
         - Handle nested configs recursively
         - File location: `src/config/parser.py:45-78`
 
-    - [ ] **3.1.c Run field validation tests - should now PASS**
+        Build `test-first` (one behavior at a time):
+        - Type mismatches report expected vs actual type
+        - Range violations report allowed bounds
+        - Deeply nested invalid fields
+        - Multiple simultaneous violations
 
-- [ ] **3.2 Update error message formatting**
+- [ ] **2.2 Error message formatting (`src/config/errors.py`)**
 
-    - [ ] **3.2.a Implement `ValidationErrorFormatter`**
-        - Collect errors into structured report
-        - Sort by field path for readability
-        - File location: `src/config/errors.py` (new file)
+    **Goal:** Ensure error messages are actionable and include fix suggestions.
 
-    - [ ] **3.2.b Run error format tests - should now PASS**
+    - [ ] **2.2.a Error output format**
+        - Collect errors into structured report, sort by field path
+
+        Build `test-first` (one behavior at a time):
+        - Errors include field path (e.g., `plugins.auth.timeout`)
+        - Errors include expected type or value range
+        - Multiple errors collected and reported together
+
+    - [ ] **2.2.b Suggestion generation**
+
+        Build `test-first` (one behavior at a time):
+        - Typos suggest closest valid field name
 
 ### **Phase 4:** Quality Gates and Manual Verification
 
@@ -690,14 +708,6 @@ This example demonstrates all formatting elements in proper context:
 
 ---
 
-## Atomic Tasks — Config Validation Error Reporting
-
-<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
-<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
-
----
-
 ## Success Criteria
 
 - [ ] Required-field validation reports all missing fields with paths
@@ -716,7 +726,7 @@ Quick reference for frequent errors. Each element's detailed examples are in
 
 1. **Headers instead of parent tasks** — Use `- [ ] **X.Y Description**` (checkbox + bold), not
    `### X.Y` (heading)
-2. **Tests after implementation** — Test tasks come BEFORE implementation in each phase
+2. **Splitting test and implementation** — Group together by concern, not as separate tasks
 3. **Pre-checked tasks** — All tasks start as `- [ ]` (unchecked), never `- [x]`
 4. **Numbered detail bullets** — Implementation details use unnumbered bullets, not numbered subtasks
 5. **Goal/Note at wrong indent** — Indent 4 spaces from margin (same level as subtasks), not at margin
@@ -791,73 +801,100 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-- [ ] **N.1 Run Tier 3 quality gates**
+- [ ] **N.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
 - [ ] **N.2 Validate success criteria against PRD**
-- [ ] **N.3 Verify all atomic tasks resolved**
+- [ ] **N.3 Verify all atomic tasks resolved** (`atomic-{name}.md`)
 ```
 
 The `**Workflow:**` line and `[verify-work-unit]` link reference are part of the template —
 include them in every generated task list. The workflow contains the step-by-step procedure,
-three-state success criteria model, and atomic task verification checklist.
+three-state success criteria model, and atomic task verification protocol.
+
+The workflow reference also appears on **N.1** (the first verification subtask) as a gate
+reminder. Agents using graduated reads may jump directly to a subtask via WORK-STATUS,
+skipping the phase preamble — the inline reference ensures the workflow is loaded regardless
+of entry point.
 
 ---
 
-## Atomic Tasks Section
+## Atomic Companion File
 
-**Present in all task lists.** Placed after the verification phase and before Success Criteria.
-Empty by default — populated during execution as off-plan work is discovered.
+**Created alongside every task list.** A standalone file (`atomic-{name}.md`) in the same directory
+as `tasks-{name}.md`. Empty by default — populated during execution as off-plan work is discovered.
 
-**Purpose:** Captures small off-plan work **within this work unit's domain** — discoveries, fixes,
-and quality improvements that weren't anticipated during planning but belong to the same functional
-area. Items here archive with the task list, keeping all WU work in one place.
+**Purpose:** Tracks indivisible one-off tasks you elect to do in parallel to the planned work —
+discovered during execution, not required for the work unit's success criteria. Unlike the phased
+task list, these tasks have no position in the dependency sequence and are accessed at unpredictable
+times throughout execution, benefiting from a separate, quickly-accessible file.
 
-**Format:**
+**Why a standalone file, not an inline section:**
+
+- **Access pattern** — atomic tasks are captured and worked on at any point during execution, not
+  sequentially. In large task lists (500+ lines), finding an inline section means losing your place
+  in the phased work, in both directions.
+- **Staging hygiene** — committing an atomic task mid-phased-work doesn't require surgical staging
+  of the task list. The companion file is independent.
+- **Commit traceability** — `Context: atomic-{name}.md` is a clean file reference, no special
+  suffix needed.
+- **Parallel access** — human and agent can have the companion file open alongside the task list.
+
+**Companion file format:**
 
 ```markdown
+# Atomic Tasks — {Work Unit Name}
+
+**Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
+planned work — discovered during execution, not required for the work unit's success
+criteria. Flat checkbox list, no numbering hierarchy.
+
+> Multi-step work required for the WU belongs in the task list as a new phase.
+> For multi-step work outside the WU's concern, see `manage-incidental-work.md`.
+
 ---
-
-## Atomic Tasks — {Work Unit Name}
-
-<!-- Off-plan work within this WU's domain, discovered during execution. Flat checkbox list — -->
-<!-- no phase structure, no numbering hierarchy. Check off as completed; archives with this -->
-<!-- task list. For work too large or outside this WU's domain, see manage-incidental-work.md. -->
 
 - [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
 - [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
 - [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
+
+---
 ```
+
+**Naming convention:** `atomic-{name}.md` where `{name}` matches the task list's `tasks-{name}.md`.
+The `atomic-` prefix sorts before `tasks-` in directory listings, bookending the other work unit
+artifacts for easy visual identification.
 
 **Rules:**
 
-- Section header: `## Atomic Tasks — {Work Unit Name}` (em dash, matches task list title)
 - **Flat checkbox list** — no phase headers, no numbered tasks, no subtask hierarchy. Each item
   is a single checkbox with a brief description. This is deliberately simpler than the main task
-  structure.
+  structure. Bold headers and grouped sub-bullets are acceptable for larger items.
 - **Parenthetical context** — note where/when the item was discovered (e.g., "discovered during
   Task 3.2") to preserve traceability without formal numbering
 - **Scope guard — size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it
-  belongs in an [incidental task list][manage-incidental], not here
-- **Scope guard — domain** — items must belong to this work unit's functional area. Discoveries
-  outside the WU's domain don't go here — they go to your project's capture mechanism for
-  standalone work (varies by PM mode: `ATOMIC-TASKS.md` in arc-in-git, external tracker in
-  external mode, or a new task list / session note in core-only mode). The
-  [leave-it-cleaner method][arc-methods-lic] applies if the fix is trivial and in a file you're
-  already touching.
-- **Empty by default** — the section exists in every task list from creation but starts with only
-  the inline guidance comment. Don't remove the empty section — its presence signals that off-plan
-  work has a home.
-- Horizontal rule (`---`) separates Atomic Tasks from the verification phase above
-
-**Structural note:** This section is a Core artifact — it exists in all task lists regardless of
-Project Management mode. It replaces the need for a standalone `ATOMIC-TASKS.md` file during work
-unit execution. The standalone file (in arc-in-git mode) remains the home for work that lives
-between or alongside work units — not scoped to any single task list.
+  is multi-step. Multi-step work required for the WU goes in the task list as a new phase.
+  Multi-step work outside the WU's concern goes through [manage-incidental-work][manage-incidental].
+- **Scope guard — relationship to WU** — items belong here if they are **elective, not required
+  for the work unit's success criteria**. If something is required for the WU to succeed but
+  doesn't fit existing phases, add it to the task list (new phase or subtask) — not here.
+  The companion file is for parallel work you choose to do because you have context.
+- **Scope guard — timing** — items belong here if you intend to do them **during this work unit's
+  lifecycle**. "Will I do this during this WU?" → companion file. "Is this for later?" →
+  ATOMIC-INBOX (arc-in-git) or your PM mechanism. The [issue-triage method][arc-methods-it]
+  applies if the fix is trivial and in a file you're already touching.
+- **Empty by default** — the file is created alongside every task list from generation but starts
+  with only the guidance comment. Don't remove an empty companion file — its presence signals that
+  off-plan work has a home.
+- **All work unit types** — feature, technical, and incidental task lists all get companion files.
+- **Commit context** — `Context: atomic-{name}.md` (no task number, no special suffix). The commit
+  message body describes the work.
+- **Archival** — archives alongside the task list if it contains any items. Deleted (not archived)
+  if empty at integration time.
 
 ---
 
 ## Success Criteria Section
 
-**Required for all task lists.** Placed at the bottom after Atomic Tasks, serves as outcome
+**Required for all task lists.** Placed at the bottom of the task list, serves as outcome
 verification checklist.
 
 **Purpose:** Checkable operationalization of the PRD's success criteria. Each "Will Do" item
@@ -932,4 +969,5 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[arc-methods-lic]: ../../../system/workflows/arc-methods.md#leave-it-cleaner
+[arc-methods-it]: ../../../system/workflows/arc-methods.md#issue-triage
+[arc-methods-tf]: ../../../system/workflows/arc-methods.md#test-first

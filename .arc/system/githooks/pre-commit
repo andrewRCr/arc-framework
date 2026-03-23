@@ -7,37 +7,14 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Source shared library (config reader, colors)
+. "$(dirname "$0")/../scripts/arc-lib.sh"
 
-# ============================================================================
-# CONFIG: Read settings from arc-config.yml
-# ============================================================================
-# Reads a value from .arc/system/arc-config.yml using shell-native parsing.
-# Falls back to default if config file is missing or key is not found.
-# Usage: arc_config_get <key> <default>
-arc_config_get() {
-    local key="$1"
-    local default="$2"
-    local config_file=".arc/system/arc-config.yml"
-
-    if [ ! -f "$config_file" ]; then
-        echo "$default"
-        return
-    fi
-
-    local value
-    value=$(grep -E "^${key}:" "$config_file" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-
-    if [ -z "$value" ]; then
-        echo "$default"
-    else
-        echo "$value"
-    fi
-}
+# Convenience aliases for color variables
+RED="$ARC_RED"
+YELLOW="$ARC_YELLOW"
+GREEN="$ARC_GREEN"
+NC="$ARC_NC"
 
 hook_enabled=$(arc_config_get "hooks.pre_commit" "enabled")
 base_branch=$(arc_config_get "branch.base" "main")
@@ -81,8 +58,8 @@ fi
 # ============================================================================
 # CHECK 2: Large file check (prevent accidental commits)
 # ============================================================================
-large_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
-    size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+large_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
+    size=$(wc -c < "$file" 2>/dev/null || echo 0)
     if [ "$size" -gt 1048576 ]; then  # 1MB
         echo "$file ($(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "$size bytes"))"
     fi
@@ -119,7 +96,7 @@ done
 # ============================================================================
 # CHECK 4: Check for common merge conflict markers
 # ============================================================================
-conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
         echo "$file"
     fi
@@ -147,7 +124,7 @@ debug_patterns=(
 )
 
 for pattern in "${debug_patterns[@]}"; do
-    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while read file; do
+    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
         # Skip test files
         if echo "$file" | grep -qE "(test_|_test\.py|\.test\.ts|\.test\.tsx|spec\.)"; then
             continue
@@ -192,7 +169,7 @@ task_numbering_mode=$(arc_config_get "hooks.task_numbering" "error")
 if [ "$task_numbering_mode" != "off" ]; then
     task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
         grep -E '^\.arc/(active|backlog)/.*/tasks-.*\.md$' | \
-        while read file; do
+        while IFS= read -r file; do
             # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
             # Pattern: checkbox followed by optional bold, then three numeric segments
             violations=$(grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' "$file" 2>/dev/null || true)
@@ -233,7 +210,7 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^README\.md" | \
     grep -E "\.($code_extensions)$" | \
-    while read file; do
+    while IFS= read -r file; do
         # Check for "Task X.Y" or "Phase X" patterns (case insensitive)
         refs=$(grep -nE "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/" "$file" 2>/dev/null || true)
         if [ -n "$refs" ]; then
@@ -254,16 +231,22 @@ fi
 # ============================================================================
 # CHECK 9: WORK-STATUS.md co-staging with task lists
 # ============================================================================
-# If task lists are staged, WORK-STATUS.md should typically be staged too
-# (Current Task should advance to reflect the newly completed work)
+# If task lists are staged with checkbox completions, WORK-STATUS.md should
+# typically be staged too (Current Task should advance). Only warns when the
+# diff contains actual checkbox state changes — not for reference updates,
+# planning restructuring, or other non-completion edits.
 staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
 staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' || true)
 
 if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
-    echo -e "${YELLOW}Warning: Task list staged but WORK-STATUS.md is not${NC}"
-    echo "   Task list changes often mean the current task has advanced"
-    echo "   Remember to update and stage WORK-STATUS.md"
-    warnings=$((warnings + 1))
+    # Check if the diff actually contains checkbox completions (marked [x] or [~])
+    task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
+    if [ -n "$task_list_has_completions" ]; then
+        echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
+        echo "   Task list changes often mean the current task has advanced"
+        echo "   Remember to update and stage WORK-STATUS.md"
+        warnings=$((warnings + 1))
+    fi
 fi
 
 # ============================================================================
