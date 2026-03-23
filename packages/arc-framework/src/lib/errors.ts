@@ -107,7 +107,7 @@ export function formatError(err: Error): string {
 export function manifestMissingError(command: string): UserFacingError {
   return new UserFacingError({
     code: "MANIFEST_MISSING",
-    whatHappened: "No .arc-manifest.json found",
+    whatHappened: "No ARC manifest found",
     why: `The ${command} command requires an existing ARC installation with a manifest file.`,
     whatToDo: "Run 'arc init' first to install the ARC framework.",
   });

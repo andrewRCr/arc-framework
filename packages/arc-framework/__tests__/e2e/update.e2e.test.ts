@@ -60,7 +60,7 @@ describe("update", () => {
 
     // Pick a Framework file and modify it
     const filePath = join(tmpDir, ".arc", "README.md");
-    const pristinePath = join(tmpDir, ".arc", ".pristine", "README.md");
+    const pristineStorePath = join(tmpDir, ".arc", "system", ".internal", "pristine.json");
 
     // Read current content
     const original = await readFile(filePath, "utf-8");
@@ -70,9 +70,12 @@ describe("update", () => {
     lines[0] = "# My Customized ARC";
     await writeFile(filePath, lines.join("\n"), "utf-8");
 
-    // Modify the pristine (simulate old template version) so the three-way
+    // Modify the pristine store (simulate old template version) so the three-way
     // merge sees the current template as a "new" change at the same location
-    await writeFile(pristinePath, "# Old ARC Title\n" + lines.slice(1).join("\n"), "utf-8");
+    const storeRaw = await readFile(pristineStorePath, "utf-8");
+    const store = JSON.parse(storeRaw) as Record<string, string>;
+    store["README.md"] = "# Old ARC Title\n" + lines.slice(1).join("\n");
+    await writeFile(pristineStorePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
 
     // Now update: base (pristine) = "# Old ARC Title", current = "# My Customized ARC",
     // updated (template) = "# .arc — ARC Framework" — all three differ on line 1 → conflict.

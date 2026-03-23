@@ -29,18 +29,15 @@ import {
   getArcTemplatePath,
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
+  readManifestFile,
+  readPristineStore,
+  writePristineStore,
+  manifestPath,
+  pristineStorePath,
 } from "../helpers/integration.js";
 import { runUpdate } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
 import type { Recipe, Manifest } from "../../src/lib/types.js";
-
-// --- Update-specific helpers ---
-
-/** Read the manifest from a project directory. */
-async function readManifestFromDir(dir: string): Promise<Manifest> {
-  const raw = await readFile(join(dir, ".arc-manifest.json"), "utf-8");
-  return JSON.parse(raw) as Manifest;
-}
 
 // --- Minimal recipe for synthetic tests ---
 
@@ -104,7 +101,7 @@ describe("update integration — baseline (real recipe)", () => {
     expect(result.updated).toBe(0);
     expect(result.unchanged + result.skipped).toBeGreaterThan(0);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
   });
 });
@@ -178,13 +175,10 @@ describe("update integration — merge scenarios", () => {
     );
     expect(fwContent).toContain("Line A: updated in v2");
 
-    const pristineContent = await readFile(
-      join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE),
-      "utf-8",
-    );
-    expect(pristineContent).toBe(v2Content);
+    const store = await readPristineStore(tempDir);
+    expect(store[FRAMEWORK_FILE]).toBe(v2Content);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[FRAMEWORK_FILE]?.pristine_hash).toBe(
       sha256(v2Content),
     );
@@ -279,13 +273,10 @@ describe("update integration — merge scenarios", () => {
     expect(content).toContain("=======");
     expect(content).toContain(">>>>>>>");
 
-    const pristine = await readFile(
-      join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE),
-      "utf-8",
-    );
-    expect(pristine).toBe(V1_CONTENT);
+    const store = await readPristineStore(tempDir);
+    expect(store[FRAMEWORK_FILE]).toBe(V1_CONTENT);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[FRAMEWORK_FILE]?.pristine_hash).toBe(
       sha256(V1_CONTENT),
     );
@@ -375,13 +366,10 @@ describe("update integration — file add/remove", () => {
     );
     expect(content).toBe(NEW_FILE_CONTENT);
 
-    const pristine = await readFile(
-      join(tempDir, ".arc", ".pristine", NEW_FILE),
-      "utf-8",
-    );
-    expect(pristine).toBe(NEW_FILE_CONTENT);
+    const store = await readPristineStore(tempDir);
+    expect(store[NEW_FILE]).toBe(NEW_FILE_CONTENT);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[NEW_FILE]).toBeDefined();
     expect(manifest.files[NEW_FILE]?.classification).toBe("Framework");
     expect(manifest.files[NEW_FILE]?.pristine_hash).toBe(
@@ -389,7 +377,7 @@ describe("update integration — file add/remove", () => {
     );
   });
 
-  it("Framework file removed → deleted from .arc/ and .pristine/, removed from manifest", async () => {
+  it("Framework file removed → deleted from .arc/ and pristine store, removed from manifest", async () => {
     const EXTRA_FILE = "reference/adr/README.md";
 
     await setupInitialState(tempDir, {
@@ -418,11 +406,11 @@ describe("update integration — file add/remove", () => {
     expect(result.removed).toEqual([EXTRA_FILE]);
 
     expect(await fileExists(join(tempDir, ".arc", EXTRA_FILE))).toBe(false);
-    expect(
-      await fileExists(join(tempDir, ".arc", ".pristine", EXTRA_FILE)),
-    ).toBe(false);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const store = await readPristineStore(tempDir);
+    expect(store[EXTRA_FILE]).toBeUndefined();
+
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[EXTRA_FILE]).toBeUndefined();
     expect(manifest.files[FRAMEWORK_FILE]).toBeDefined();
   });
@@ -461,13 +449,10 @@ describe("update integration — file add/remove", () => {
     );
     expect(content).toBe(adopterCustomized);
 
-    expect(
-      await fileExists(
-        join(tempDir, ".arc", ".pristine", CONFIGURABLE_FILE),
-      ),
-    ).toBe(false);
+    const store = await readPristineStore(tempDir);
+    expect(store[CONFIGURABLE_FILE]).toBeUndefined();
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[CONFIGURABLE_FILE]).toBeUndefined();
   });
 });
@@ -495,9 +480,10 @@ describe("update integration — pristine repair", () => {
       [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
     });
 
-    // Delete the pristine copy to simulate corruption
-    const pristinePath = join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE);
-    await rm(pristinePath);
+    // Remove the framework file's entry from pristine store to simulate corruption
+    const store = await readPristineStore(tempDir);
+    delete store[FRAMEWORK_FILE];
+    await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
       [FRAMEWORK_FILE]: V2_CONTENT,
@@ -520,8 +506,8 @@ describe("update integration — pristine repair", () => {
     expect(current).toBe(CONTENT);
 
     // Pristine rebuilt from current (not from updated template)
-    const pristine = await readFile(pristinePath, "utf-8");
-    expect(pristine).toBe(CONTENT);
+    const repairedStore = await readPristineStore(tempDir);
+    expect(repairedStore[FRAMEWORK_FILE]).toBe(CONTENT);
   });
 
   it("after pristine repair, second update merges cleanly", async () => {
@@ -529,8 +515,10 @@ describe("update integration — pristine repair", () => {
       [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
     });
 
-    // Delete pristine
-    await rm(join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE));
+    // Remove from pristine store
+    const store = await readPristineStore(tempDir);
+    delete store[FRAMEWORK_FILE];
+    await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
       [FRAMEWORK_FILE]: V2_CONTENT,
@@ -597,8 +585,9 @@ describe("update integration — error cases", () => {
   });
 
   it("manifest invalid JSON → UserFacingError with MANIFEST_INVALID", async () => {
+    await ensureDir(dirname(manifestPath(tempDir)));
     await writeFile(
-      join(tempDir, ".arc-manifest.json"),
+      manifestPath(tempDir),
       "{ not valid json",
       "utf-8",
     );
@@ -621,8 +610,9 @@ describe("update integration — error cases", () => {
   });
 
   it("manifest invalid schema → UserFacingError with MANIFEST_INVALID", async () => {
+    await ensureDir(dirname(manifestPath(tempDir)));
     await writeFile(
-      join(tempDir, ".arc-manifest.json"),
+      manifestPath(tempDir),
       JSON.stringify({ framework_version: 123 }),
       "utf-8",
     );

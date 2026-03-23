@@ -24,7 +24,7 @@ import {
 import { getFrameworkVersion } from "../lib/version.js";
 import {
   ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
-  PM_MODE_ARC_IN_GIT,
+  PM_MODE_ARC_IN_GIT, INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
 } from "../lib/constants.js";
 import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
 import {
@@ -221,8 +221,8 @@ export async function runInit(
   const filesWritten: string[] = [];
   const fileContents: Record<string, string> = {};
   const templatePathMap: Record<string, string> = {};
+  const pristineStore: Record<string, string> = {};
   const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
-  const pristineDir = join(arcDir, ".pristine");
 
   for (const templateFile of templateFiles) {
     const srcPath = join(templateDir, templateFile);
@@ -251,15 +251,16 @@ export async function runInit(
     fileContents[outputRelPath] = renderedContent;
     templatePathMap[outputRelPath] = templateFile;
 
-    // Write pristine copy for Framework and Configurable files (not Scaffolded)
+    // Collect pristine content for Framework and Configurable files (not Scaffolded)
     if (classification !== "Scaffolded") {
-      const pristinePath = join(pristineDir, outputRelPath);
-      await ensureDir(dirname(pristinePath), io.mkdir);
-      await io.writeFile(pristinePath, renderedContent);
+      pristineStore[outputRelPath] = renderedContent;
     }
   }
 
-  // Build and write manifest
+  // Write manifest and pristine store to .arc/system/.internal/
+  const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+  await ensureDir(internalDir, io.mkdir);
+
   const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);
   const manifest: Manifest = {
     framework_version: getFrameworkVersion(),
@@ -273,14 +274,18 @@ export async function runInit(
     files: manifestFiles,
   };
   await io.writeFile(
-    join(cwd, ".arc-manifest.json"),
+    join(internalDir, MANIFEST_FILENAME),
     JSON.stringify(manifest, null, 2) + "\n",
+  );
+  await io.writeFile(
+    join(internalDir, PRISTINE_FILENAME),
+    JSON.stringify(pristineStore, null, 2) + "\n",
   );
 
   // Git integration setup
   const gitignorePath = join(cwd, ".gitignore");
   const gitattrsPath = join(cwd, ".gitattributes");
-  await appendToGitignore(gitignorePath, ".arc/.pristine/", io.readFile, io.writeFile);
+  await appendToGitignore(gitignorePath, ".arc/system/.internal/pristine.json", io.readFile, io.writeFile);
   await appendToGitignore(gitignorePath, ".arc/user/*/", io.readFile, io.writeFile);
   await appendToGitattributes(
     gitattrsPath, ".arc/active/WORK-STATUS.md merge=ours", io.readFile, io.writeFile,

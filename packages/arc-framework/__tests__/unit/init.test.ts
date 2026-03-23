@@ -590,7 +590,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const manifestWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc-manifest.json",
+      (c: [string, string]) => c[0] === "/project/.arc/system/.internal/manifest.json",
     );
     expect(manifestWrite).toBeDefined();
 
@@ -610,7 +610,7 @@ describe("runInit", () => {
     expect(files["system/arc-config.yml"]!.classification).toBe("Configurable");
   });
 
-  it("fresh mode: copies Framework and Configurable files to .pristine/", async () => {
+  it("fresh mode: writes pristine.json with Framework and Configurable content", async () => {
     const io = mockIO({
       "/templates/README.md": "# framework file",
       "/templates/system/arc-config.yml": "pm.mode: none",
@@ -634,23 +634,22 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
 
-    // Framework file gets pristine copy
-    const readmePristine = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/.pristine/README.md",
+    // pristine.json written to .internal/
+    const pristineWrite = writeCalls.find(
+      (c: [string, string]) => c[0] === "/project/.arc/system/.internal/pristine.json",
     );
-    expect(readmePristine).toBeDefined();
+    expect(pristineWrite).toBeDefined();
 
-    // Configurable file gets pristine copy
-    const configPristine = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/.pristine/system/arc-config.yml",
-    );
-    expect(configPristine).toBeDefined();
+    const pristineStore = JSON.parse(pristineWrite![1]) as Record<string, string>;
 
-    // Scaffolded file does NOT get pristine copy
-    const statusPristine = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/.pristine/active/WORK-STATUS.md",
-    );
-    expect(statusPristine).toBeUndefined();
+    // Framework file included in pristine store
+    expect(pristineStore["README.md"]).toBe("# framework file");
+
+    // Configurable file included in pristine store
+    expect(pristineStore["system/arc-config.yml"]).toBeDefined();
+
+    // Scaffolded file NOT in pristine store
+    expect(pristineStore["active/WORK-STATUS.md"]).toBeUndefined();
   });
 
   it("fresh mode: returns correct filesWritten and tools for message building", async () => {
@@ -717,12 +716,12 @@ describe("runInit", () => {
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
 
-    // .gitignore updated with .pristine/ and user/*/ entries
+    // .gitignore updated with pristine.json and user/*/ entries
     const gitignoreWrite = writeCalls.find(
       (c: [string, string]) => c[0] === "/project/.gitignore",
     );
     expect(gitignoreWrite).toBeDefined();
-    expect(gitignoreWrite![1]).toContain(".arc/.pristine/");
+    expect(gitignoreWrite![1]).toContain(".arc/system/.internal/pristine.json");
 
     // .gitattributes updated with WORK-STATUS.md merge=ours
     const gitattrsWrite = writeCalls.find(

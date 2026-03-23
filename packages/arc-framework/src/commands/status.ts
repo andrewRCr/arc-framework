@@ -12,6 +12,7 @@ import { join } from "node:path";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
+import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME } from "../lib/constants.js";
 import type { Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
@@ -42,7 +43,7 @@ export interface StatusResult {
 /** I/O dependencies for the status command. */
 export interface StatusIOContext extends ReadIO {
   readManifest: (path: string) => Promise<Manifest | null>;
-  /** List files under .arc/ (relative paths, no .pristine/). */
+  /** List files under .arc/ (relative paths, no system/.internal/). */
   readdir: (arcDir: string) => Promise<string[]>;
 }
 
@@ -69,7 +70,7 @@ export interface StatusOptions {
  */
 export async function runStatus(options: StatusOptions): Promise<StatusResult> {
   const { cwd, io, frameworkVersion } = options;
-  const manifestPath = join(cwd, ".arc-manifest.json");
+  const manifestPath = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME);
   const arcDir = join(cwd, ".arc");
 
   // Read manifest — hard fail if missing

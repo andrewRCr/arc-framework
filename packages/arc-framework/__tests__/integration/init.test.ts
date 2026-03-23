@@ -25,6 +25,9 @@ import {
   execFileAsync,
   getArcTemplatePath,
   getInternalTemplatePath,
+  readManifestFile,
+  readPristineStore,
+  manifestPath,
 } from "../helpers/integration.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
@@ -109,13 +112,13 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("leaves no init-time token residuals in rendered files", async () => {
-    const files = await listFiles(arcDir, { skipPristine: false });
+    const files = await listFiles(arcDir, { skipInternal: false });
     // Only check rendered files — non-template files may legitimately reference
     // token syntax in documentation examples (e.g., agent/README.md explains
     // `{{PROJECT_NAME}}`). Rendered files are those whose source had a .template
     // suffix, plus arc-config.yml (programmatic render path).
     const mdFiles = files.filter(
-      (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
+      (f) => f.endsWith(".md") && !f.startsWith("system/.internal/"),
     );
     // Identify which output files came from .template sources
     const templateOutputs = new Set(
@@ -138,9 +141,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("leaves no unresolved conditional markers in rendered files", async () => {
-    const files = await listFiles(arcDir, { skipPristine: false });
+    const files = await listFiles(arcDir, { skipInternal: false });
     const mdFiles = files.filter(
-      (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
+      (f) => f.endsWith(".md") && !f.startsWith("system/.internal/"),
     );
 
     const arcIfLine = /^\s*<!--\s*arc:if\b/m;
@@ -161,9 +164,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Git Integration ---
 
-  it("configures .gitignore with pristine and user entries", async () => {
+  it("configures .gitignore with internal storage and user entries", async () => {
     const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
-    expect(gitignore).toContain(".arc/.pristine/");
+    expect(gitignore).toContain(".arc/system/.internal/pristine.json");
     expect(gitignore).toContain(".arc/user/*/");
   });
 
@@ -222,9 +225,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Manifest ---
 
-  it("writes .arc-manifest.json with correct structure", async () => {
-    const raw = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
-    const manifest = JSON.parse(raw) as Manifest;
+  it("writes manifest with correct structure", async () => {
+    const manifest = await readManifestFile(tempDir);
 
     expect(manifest.framework_version).toBe("0.0.0");
     expect(manifest.install_config).toEqual({
@@ -237,19 +239,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("manifest file inventory matches files on disk", async () => {
-    const raw = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
-    const manifest = JSON.parse(raw) as Manifest;
+    const manifest = await readManifestFile(tempDir);
 
     const manifestPaths = Object.keys(manifest.files).sort();
     const diskFiles = await listFiles(arcDir);
-    // listFiles skips .pristine/ by default
 
     expect(diskFiles).toEqual(manifestPaths);
   });
 
   it("pristine hashes match rendered file content", async () => {
-    const raw = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
-    const manifest = JSON.parse(raw) as Manifest;
+    const manifest = await readManifestFile(tempDir);
 
     for (const [filePath, entry] of Object.entries(manifest.files)) {
       const content = await readFile(join(arcDir, filePath), "utf-8");
@@ -302,30 +301,23 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(verifyIntegrity.isFile()).toBe(true);
   });
 
-  // --- Pristine Copies ---
+  // --- Pristine Store ---
 
-  it("creates .pristine/ copies for Framework and Configurable files", async () => {
-    const pristineReadme = await stat(
-      join(arcDir, ".pristine/README.md"),
-    );
-    expect(pristineReadme.isFile()).toBe(true);
+  it("pristine store includes Framework and Configurable files", async () => {
+    const store = await readPristineStore(tempDir);
 
-    const pristineConfig = await stat(
-      join(arcDir, ".pristine/system/arc-config.yml"),
-    );
-    expect(pristineConfig.isFile()).toBe(true);
+    expect(store["README.md"]).toBeDefined();
+    expect(store["system/arc-config.yml"]).toBeDefined();
   });
 
-  it("does not create .pristine/ copies for Scaffolded files", async () => {
-    try {
-      await stat(join(arcDir, ".pristine/active/WORK-STATUS.md"));
-      expect.fail("Scaffolded file should not have a pristine copy");
-    } catch (err: unknown) {
-      expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
-    }
+  it("pristine store excludes Scaffolded files", async () => {
+    const store = await readPristineStore(tempDir);
+
+    expect(store["active/WORK-STATUS.md"]).toBeUndefined();
   });
 
-  it("pristine copies match .arc/ copies exactly", async () => {
+  it("pristine store content matches .arc/ files exactly", async () => {
+    const store = await readPristineStore(tempDir);
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
@@ -334,14 +326,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
     for (const filePath of checkPaths) {
       const arcContent = await readFile(join(arcDir, filePath), "utf-8");
-      const pristineContent = await readFile(
-        join(arcDir, ".pristine", filePath),
-        "utf-8",
-      );
       expect(
         arcContent,
         `pristine mismatch for ${filePath}`,
-      ).toBe(pristineContent);
+      ).toBe(store[filePath]);
     }
   });
 
@@ -566,7 +554,7 @@ describe("init integration (join mode)", () => {
     const io = makeIOContext(tempDir);
 
     // Record pre-join state
-    const manifestBefore = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
 
     const result = await runInit({
       cwd: tempDir,
@@ -584,7 +572,7 @@ describe("init integration (join mode)", () => {
     expect(result!.filesWritten).toEqual([]);
 
     // Manifest unchanged (join mode doesn't write manifest)
-    const manifestAfter = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
+    const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
     expect(manifestAfter).toBe(manifestBefore);
 
     // Second developer's user directory created

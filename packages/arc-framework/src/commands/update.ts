@@ -2,8 +2,8 @@
  * Update command — update ARC framework files to the latest version.
  *
  * Reads the existing manifest, resolves the new file list from the current
- * recipe, three-way merges changed files using pristine copies as the
- * common ancestor, and updates the manifest and pristine directory.
+ * recipe, three-way merges changed files using pristine baselines as the
+ * common ancestor, and updates the manifest and pristine store.
  *
  * @module
  */
@@ -30,6 +30,7 @@ import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
 import {
   ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
+  INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
 } from "../lib/constants.js";
 import {
   generateSkills,
@@ -155,9 +156,10 @@ export async function runUpdate(
   options: UpdateOptions,
 ): Promise<UpdateResult> {
   const { cwd, io, templateDir, recipe } = options;
-  const manifestPath = join(cwd, ".arc-manifest.json");
   const arcDir = join(cwd, ".arc");
-  const pristineDir = join(arcDir, ".pristine");
+  const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+  const manifestPath = join(internalDir, MANIFEST_FILENAME);
+  const pristineStorePath = join(internalDir, PRISTINE_FILENAME);
 
   // Read manifest — hard fail if missing or invalid
   let manifest: Manifest | null;
@@ -166,7 +168,7 @@ export async function runUpdate(
   } catch (err) {
     throw new UserFacingError({
       code: "MANIFEST_INVALID",
-      whatHappened: "The .arc-manifest.json file is invalid",
+      whatHappened: "The manifest file is invalid",
       why: (err as Error).message,
       whatToDo: "Run 'arc init' to recreate the manifest, or fix the JSON manually.",
     });
@@ -216,6 +218,15 @@ export async function runUpdate(
     pristine_hash: hashContent(content),
   });
 
+  // Load pristine store — JSON object keyed by output-relative path
+  let pristineStore: Record<string, string> = {};
+  try {
+    const raw = await io.readFile(pristineStorePath);
+    pristineStore = JSON.parse(raw) as Record<string, string>;
+  } catch {
+    // Missing or corrupt — will trigger pristine repair for affected files
+  }
+
   // Initialize result
   const result: UpdateResult = {
     updated: 0,
@@ -228,8 +239,9 @@ export async function runUpdate(
     skipped: 0,
   };
 
-  // Track new manifest entries
+  // Track new manifest entries and new pristine store
   const newManifestFiles: Record<string, FileEntry> = {};
+  const newPristineStore: Record<string, string> = {};
 
   // Process keep files (merge candidates)
   for (const outputPath of diff.keep) {
@@ -251,7 +263,6 @@ export async function runUpdate(
 
     // Read current (adopter's version) and pristine (common ancestor)
     const currentPath = join(arcDir, outputPath);
-    const pristinePath = join(pristineDir, outputPath);
 
     let current: string | undefined;
     try {
@@ -260,20 +271,14 @@ export async function runUpdate(
       // File missing from disk but tracked in manifest — reinstall
     }
 
-    let base: string | undefined;
-    try {
-      base = await io.readFile(pristinePath);
-    } catch {
-      // Pristine missing — integrity issue, can't three-way merge safely
-    }
+    const base: string | undefined = pristineStore[outputPath];
 
     // Handle missing files before attempting merge
     if (current === undefined) {
       // File deleted from .arc/ — reinstall the new version
       await ensureDir(dirname(currentPath), io.mkdir);
       await io.writeFile(currentPath, updated);
-      await ensureDir(dirname(pristinePath), io.mkdir);
-      await io.writeFile(pristinePath, updated);
+      newPristineStore[outputPath] = updated;
       newManifestFiles[outputPath] = buildEntry(templateFile, updated);
       result.updated++;
       continue;
@@ -282,8 +287,7 @@ export async function runUpdate(
     if (base === undefined) {
       // Can't three-way merge without a base — skip and rebuild pristine.
       // Adopter's file is left as-is; running update again will merge cleanly.
-      await ensureDir(dirname(pristinePath), io.mkdir);
-      await io.writeFile(pristinePath, current);
+      newPristineStore[outputPath] = current;
       newManifestFiles[outputPath] = buildEntry(templateFile, current);
       result.pristineRepaired.push(outputPath);
       continue;
@@ -298,11 +302,11 @@ export async function runUpdate(
 
     // Update pristine and manifest entry based on merge outcome
     if (merged.status !== "conflict") {
-      await ensureDir(dirname(pristinePath), io.mkdir);
-      await io.writeFile(pristinePath, updated);
+      newPristineStore[outputPath] = updated;
       newManifestFiles[outputPath] = buildEntry(templateFile, updated);
     } else {
       // Conflict — keep old pristine (adopter resolves, then next update merges cleanly)
+      newPristineStore[outputPath] = base;
       const existing = manifest.files[outputPath];
       newManifestFiles[outputPath] = existing ?? buildEntry(templateFile, base);
     }
@@ -330,11 +334,9 @@ export async function runUpdate(
     await ensureDir(dirname(destPath), io.mkdir);
     await io.writeFile(destPath, rendered);
 
-    // Write pristine for Framework and Configurable
+    // Track pristine for Framework and Configurable
     if (classifyFile(templateFile) !== "Scaffolded") {
-      const pristinePath = join(pristineDir, outputPath);
-      await ensureDir(dirname(pristinePath), io.mkdir);
-      await io.writeFile(pristinePath, rendered);
+      newPristineStore[outputPath] = rendered;
     }
 
     newManifestFiles[outputPath] = buildEntry(templateFile, rendered);
@@ -342,31 +344,29 @@ export async function runUpdate(
     result.added.push(outputPath);
   }
 
-  // Process removed files
+  // Process removed files — remove from .arc/ and pristine store (no individual file deletes)
   for (const outputPath of diff.removed) {
     const entry = manifest.files[outputPath];
     if (!entry) continue;
 
     const currentPath = join(arcDir, outputPath);
-    const pristinePath = join(pristineDir, outputPath);
 
     switch (entry.classification) {
       case "Framework":
-        // Auto-remove from .arc/ and .pristine/
+        // Auto-remove from .arc/ (pristine removed by not carrying forward)
         await safeUnlink(currentPath);
-        await safeUnlink(pristinePath);
         result.removed.push(outputPath);
         break;
       case "Configurable":
-        // Warn but don't delete — may have adopter content
-        await safeUnlink(pristinePath);
+        // Warn but don't delete .arc/ file — may have adopter content
+        // Pristine removed by not carrying forward to newPristineStore
         result.keptForReview.push(outputPath);
         break;
       case "Scaffolded":
         // Leave untouched — adopter-owned
         break;
     }
-    // Not added to newManifestFiles — removed from tracking
+    // Not added to newManifestFiles or newPristineStore — removed from tracking
   }
 
   // Regenerate skills — deterministic copies, always overwrite
@@ -386,7 +386,8 @@ export async function runUpdate(
     await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
   }
 
-  // Build and write updated manifest
+  // Write updated manifest and pristine store
+  await ensureDir(internalDir, io.mkdir);
   const newManifest: Manifest = {
     framework_version: getFrameworkVersion(),
     installed_at: manifest.installed_at,
@@ -396,6 +397,10 @@ export async function runUpdate(
   await io.writeFile(
     manifestPath,
     JSON.stringify(newManifest, null, 2) + "\n",
+  );
+  await io.writeFile(
+    pristineStorePath,
+    JSON.stringify(newPristineStore, null, 2) + "\n",
   );
 
   return result;

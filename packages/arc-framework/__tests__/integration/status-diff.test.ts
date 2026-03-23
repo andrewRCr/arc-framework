@@ -18,6 +18,8 @@ import {
   join,
   listFiles,
   execFileAsync,
+  readManifestFile,
+  manifestPath,
 } from "../helpers/integration.js";
 import { runStatus } from "../../src/commands/status.js";
 import type { StatusIOContext } from "../../src/commands/status.js";
@@ -94,7 +96,7 @@ describe("status and diff integration", () => {
     it("reports modified after changing a file", async () => {
       const arcDir = join(tempDir, ".arc");
       // Find a Configurable file from the manifest
-      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"), readFileFn);
+      const manifest = await readManifest(manifestPath(tempDir), readFileFn);
       expect(manifest).not.toBeNull();
       const configurableFile = Object.entries(manifest!.files).find(
         ([, entry]) => entry.classification === "Configurable",
@@ -160,7 +162,7 @@ describe("status and diff integration", () => {
 
     it("shows unified diff after modifying a file", async () => {
       const arcDir = join(tempDir, ".arc");
-      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"), readFileFn);
+      const manifest = await readManifest(manifestPath(tempDir), readFileFn);
       expect(manifest).not.toBeNull();
 
       // Find a Framework or Configurable file

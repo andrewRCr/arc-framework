@@ -94,7 +94,7 @@ async function appendLineIfMissing(
  * Appends an entry to a .gitignore file if not already present.
  *
  * @param filePath - Path to .gitignore
- * @param entry - Entry to add (e.g., ".pristine/")
+ * @param entry - Entry to add (e.g., ".arc/system/.internal/pristine.json")
  * @param readFile - Injectable read function
  * @param writeFile - Injectable write function
  */

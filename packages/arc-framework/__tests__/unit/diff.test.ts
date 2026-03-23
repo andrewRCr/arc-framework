@@ -92,11 +92,12 @@ describe("runDiff", () => {
 
     const fakeDiff = "--- a/pristine\n+++ b/current\n@@ -1 +1 @@\n-hello world\n+hello modified";
 
+    const pristineStore = { "system/arc-config.yml": FILE_CONTENT };
     const io = buildIO({
       manifest,
       files: {
         [`${CWD}/.arc/system/arc-config.yml`]: MODIFIED_CONTENT,
-        [`${CWD}/.arc/.pristine/system/arc-config.yml`]: FILE_CONTENT,
+        [`${CWD}/.arc/system/.internal/pristine.json`]: JSON.stringify(pristineStore),
       },
       diffOutput: fakeDiff,
     });

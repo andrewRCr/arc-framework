@@ -10,9 +10,12 @@
  */
 
 import { join } from "node:path";
+import { writeFile as fsWriteFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
+import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME } from "../lib/constants.js";
 import type { Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
@@ -69,14 +72,24 @@ export interface DiffOptions {
  */
 export async function runDiff(options: DiffOptions): Promise<DiffResult> {
   const { cwd, io } = options;
-  const manifestPath = join(cwd, ".arc-manifest.json");
   const arcDir = join(cwd, ".arc");
-  const pristineDir = join(arcDir, ".pristine");
+  const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+  const manifestPath = join(internalDir, MANIFEST_FILENAME);
+  const pristineStorePath = join(internalDir, PRISTINE_FILENAME);
 
   // Read manifest — hard fail if missing
   const manifest = await io.readManifest(manifestPath);
   if (!manifest) {
     throw manifestMissingError("diff");
+  }
+
+  // Load pristine store
+  let pristineStore: Record<string, string> = {};
+  try {
+    const raw = await io.readFile(pristineStorePath);
+    pristineStore = JSON.parse(raw) as Record<string, string>;
+  } catch {
+    // Missing or corrupt — will report errors for affected files
   }
 
   const result: DiffResult = {
@@ -94,7 +107,6 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     }
 
     const currentPath = join(arcDir, relativePath);
-    const pristinePath = join(pristineDir, relativePath);
 
     // Read current file
     let currentContent: string;
@@ -110,10 +122,9 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
       continue;
     }
 
-    // Read pristine — if missing, report error but don't fail the whole command
-    try {
-      await io.readFile(pristinePath);
-    } catch {
+    // Check pristine store for baseline
+    const pristineContent = pristineStore[relativePath];
+    if (pristineContent === undefined) {
       result.errors.push({
         path: relativePath,
         message: `No pristine baseline found — cannot diff. Run 'arc update' to rebuild pristine files.`,
@@ -121,16 +132,21 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
       continue;
     }
 
-    // Run git diff
+    // Write pristine to temp file for git diff
     let diffOutput: string;
+    const tempDir = await mkdtemp(join(tmpdir(), "arc-diff-"));
+    const tempPristinePath = join(tempDir, "pristine");
     try {
-      diffOutput = await io.gitDiff(pristinePath, currentPath);
+      await fsWriteFile(tempPristinePath, pristineContent, "utf-8");
+      diffOutput = await io.gitDiff(tempPristinePath, currentPath);
     } catch (err) {
       result.errors.push({
         path: relativePath,
         message: `Diff failed: ${err instanceof Error ? err.message : String(err)}`,
       });
       continue;
+    } finally {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
     }
 
     result.diffs.push({ path: relativePath, diff: diffOutput });

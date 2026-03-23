@@ -10,7 +10,7 @@ import { readdir, stat } from "node:fs/promises";
 /**
  * Recursively list files under a directory, returning paths relative to it.
  *
- * Skips the `.pristine/` directory (internal baseline, not user-facing) and
+ * Skips the `system/.internal/` directory (framework bookkeeping, not user-facing) and
  * per-identity `user/{identity}/` directories (gitignored personal workspace).
  *
  * @param dir - Root directory to list
@@ -28,8 +28,8 @@ export async function listArcFiles(dir: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = relative(dir, fullPath);
-      // Skip .pristine directory
-      if (relPath === ".pristine" || relPath.startsWith(".pristine/")) continue;
+      // Skip system/.internal directory (framework bookkeeping)
+      if (relPath === "system/.internal" || relPath.startsWith("system/.internal/")) continue;
       // Skip per-identity user directories (e.g., user/alice/) — these are
       // gitignored personal workspaces. Top-level user/ files like README.md
       // are included since they are tracked framework content.

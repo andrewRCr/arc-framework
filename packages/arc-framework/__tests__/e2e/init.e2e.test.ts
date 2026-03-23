@@ -41,7 +41,7 @@ function buildLintConfig(): string {
       MD036: false, MD040: false, MD041: false,
     },
     globs: [".arc/**/*.md"],
-    ignores: [".arc/.pristine/**", ".arc/user/**"],
+    ignores: [".arc/system/.internal/**", ".arc/user/**"],
   });
 }
 
@@ -81,7 +81,7 @@ describe("init", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("fresh init with defaults creates .arc/ directory, valid manifest, and pristine copies", async () => {
+  it("fresh init with defaults creates .arc/ directory, valid manifest, and pristine store", async () => {
     const result = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
 
     expect(result.exitCode).toBe(0);
@@ -90,7 +90,8 @@ describe("init", () => {
     expect(await pathExists(join(tmpDir, ".arc"))).toBe(true);
 
     // Manifest exists and is valid JSON
-    const manifestRaw = await readFile(join(tmpDir, ".arc-manifest.json"), "utf-8");
+    const internalDir = join(tmpDir, ".arc", "system", ".internal");
+    const manifestRaw = await readFile(join(internalDir, "manifest.json"), "utf-8");
     const manifest = JSON.parse(manifestRaw) as {
       framework_version: string;
       installed_at: string;
@@ -111,10 +112,10 @@ describe("init", () => {
     expect(manifest.install_config.team_mode).toBe(false);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
 
-    // .pristine/ contains copies
-    expect(await pathExists(join(tmpDir, ".arc", ".pristine"))).toBe(true);
-    const pristineFiles = await listFilesRecursive(join(tmpDir, ".arc", ".pristine"));
-    expect(pristineFiles.length).toBeGreaterThan(0);
+    // pristine.json exists and has entries
+    const pristineRaw = await readFile(join(internalDir, "pristine.json"), "utf-8");
+    const pristineStore = JSON.parse(pristineRaw) as Record<string, string>;
+    expect(Object.keys(pristineStore).length).toBeGreaterThan(0);
 
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);

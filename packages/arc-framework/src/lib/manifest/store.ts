@@ -1,5 +1,5 @@
 /**
- * Manifest I/O — schema validation, reading, and writing `.arc-manifest.json`.
+ * Manifest I/O — schema validation, reading, and writing manifest.json.
  *
  * The manifest tracks the installed framework version, adopter's init
  * configuration, and per-file metadata (classification, layer, pristine hash).

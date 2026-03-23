@@ -45,7 +45,7 @@ export interface InstallConfig {
   team_mode?: boolean;
 }
 
-/** Top-level manifest structure (`.arc-manifest.json`). */
+/** Top-level manifest structure (`.arc/system/.internal/manifest.json`). */
 export interface Manifest {
   framework_version: string;
   installed_at: string;
