@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `technical/cli-implementation`
-**Task List**: `.arc-internal/active/technical/tasks-cli-implementation.md`
-**Following Task List**: Yes
-**Next Task**: [none — all tasks complete, integration in progress]
-**Last Completed**: Task 8.5 — Validate success criteria against PRD (all 8 criteria met)
+**Branch**: `feature/plan-beta-readiness`
+**Task List**: [none]
+**Following Task List**: No
+**Next Task**: —
+**Last Completed**: CLI Implementation / WU3 (archived)
 **Blockers**: [none]
-**Next Action**: Integration Phase 2 — create PR against main
+**Next Action**: Begin WU4 planning — review plan-wu4-beta-readiness.md, create PRD
 
 ---
 
