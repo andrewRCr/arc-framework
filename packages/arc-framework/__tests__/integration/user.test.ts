@@ -141,6 +141,41 @@ describe("user save and load", () => {
     ).rejects.toThrow("Corrupt git note");
   });
 
+  it("throws on note with unsupported version", async () => {
+    const io = makeUserIO(tempDir);
+
+    // Write a note with version 99 directly
+    const ref = "refs/notes/arc/user/test-user";
+    const { stdout: head } = await execFileAsync(
+      "git", ["-C", tempDir, "rev-parse", "HEAD"],
+    );
+    const badManifest = JSON.stringify({ version: 99, files: {} });
+    await execFileAsync(
+      "git", ["-C", tempDir, "notes", "--ref", ref, "add", "-f", "-m", badManifest, head.trim()],
+    );
+
+    await expect(
+      runUserLoad({ cwd: tempDir, io, identity: "test-user" }),
+    ).rejects.toThrow("Unsupported note format");
+  });
+
+  it("throws on note with missing files field", async () => {
+    const io = makeUserIO(tempDir);
+
+    const ref = "refs/notes/arc/user/test-user";
+    const { stdout: head } = await execFileAsync(
+      "git", ["-C", tempDir, "rev-parse", "HEAD"],
+    );
+    const badManifest = JSON.stringify({ version: 1 });
+    await execFileAsync(
+      "git", ["-C", tempDir, "notes", "--ref", ref, "add", "-f", "-m", badManifest, head.trim()],
+    );
+
+    await expect(
+      runUserLoad({ cwd: tempDir, io, identity: "test-user" }),
+    ).rejects.toThrow("Unsupported note format");
+  });
+
   it("throws UserSaveError when user dir is empty", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "empty-user");

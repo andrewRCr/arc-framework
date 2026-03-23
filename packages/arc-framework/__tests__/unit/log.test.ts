@@ -162,6 +162,45 @@ describe("runLogAtomic", () => {
       "-n", "10",
     ]));
   });
+
+  it("applies default limit of 50 when no limit or all flag specified", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "-n", "50",
+    ]));
+  });
+
+  it("--all flag bypasses the default limit", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, all: true });
+
+    const args = (mockExec as ReturnType<typeof vi.fn>).mock.calls[0]![1] as string[];
+    expect(args).not.toContain("-n");
+  });
+
+  it("explicit --limit overrides the default", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, limit: 5 });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "-n", "5",
+    ]));
+  });
+
+  it("passes --basic-regexp flag to git", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "--basic-regexp",
+    ]));
+  });
 });
 
 describe("buildLogAtomicOutput", () => {

@@ -472,6 +472,96 @@ describe("update integration — file add/remove", () => {
   });
 });
 
+describe("update integration — pristine repair", () => {
+  let tempDir: string;
+  let templateDir: string;
+
+  const CONTENT = "# Project\n\nOriginal content\n";
+  const V2_CONTENT = "# Project\n\nUpdated content\n";
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-update-test-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+    if (templateDir) {
+      await rm(templateDir, { recursive: true, force: true });
+    }
+  });
+
+  it("missing pristine → file skipped, pristine rebuilt from current, reported in pristineRepaired", async () => {
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+    });
+
+    // Delete the pristine copy to simulate corruption
+    const pristinePath = join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE);
+    await rm(pristinePath);
+
+    templateDir = await createTemplateDir({
+      [FRAMEWORK_FILE]: V2_CONTENT,
+    });
+
+    const recipe = makeRecipe([FRAMEWORK_FILE]);
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe,
+    });
+
+    expect(result.pristineRepaired).toEqual([FRAMEWORK_FILE]);
+    expect(result.updated).toBe(0);
+    expect(result.conflicts).toEqual([]);
+
+    // Current file untouched (no merge possible without base)
+    const current = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
+    expect(current).toBe(CONTENT);
+
+    // Pristine rebuilt from current (not from updated template)
+    const pristine = await readFile(pristinePath, "utf-8");
+    expect(pristine).toBe(CONTENT);
+  });
+
+  it("after pristine repair, second update merges cleanly", async () => {
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+    });
+
+    // Delete pristine
+    await rm(join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE));
+
+    templateDir = await createTemplateDir({
+      [FRAMEWORK_FILE]: V2_CONTENT,
+    });
+
+    const recipe = makeRecipe([FRAMEWORK_FILE]);
+
+    // First update: repair
+    await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe,
+    });
+
+    // Second update: now pristine exists, merge should work
+    const result2 = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe,
+    });
+
+    expect(result2.pristineRepaired).toEqual([]);
+    expect(result2.updated).toBe(1);
+
+    const content = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
+    expect(content).toBe(V2_CONTENT);
+  });
+});
+
 describe("update integration — error cases", () => {
   let tempDir: string;
   let templateDir: string;

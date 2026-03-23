@@ -5,7 +5,7 @@
  * template files. Verifies the full pipeline: file rendering, pristine copies,
  * manifest integrity, git integration, and post-init messaging.
  *
- * Join-mode tests deferred to 7.1.d (orchestrator narrowing not yet implemented).
+ * Includes join-mode tests verifying user directory setup and config preservation.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";

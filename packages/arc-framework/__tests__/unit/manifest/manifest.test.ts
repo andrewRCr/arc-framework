@@ -66,6 +66,42 @@ describe("validateManifest", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("layer"))).toBe(true);
   });
+
+  it("rejects install_config with non-string project_name", () => {
+    const data = {
+      ...validManifest(),
+      install_config: { project_name: 123, pm_mode: "none", tools: [] },
+    };
+    const result = validateManifest(data);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("project_name"))).toBe(true);
+  });
+
+  it("rejects install_config with non-string pm_mode", () => {
+    const data = {
+      ...validManifest(),
+      install_config: { project_name: "App", pm_mode: null, tools: [] },
+    };
+    const result = validateManifest(data);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("pm_mode"))).toBe(true);
+  });
+
+  it("rejects install_config with non-array tools", () => {
+    const data = {
+      ...validManifest(),
+      install_config: { project_name: "App", pm_mode: "none", tools: "not-an-array" },
+    };
+    const result = validateManifest(data);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("tools"))).toBe(true);
+  });
+
+  it("accepts valid install_config with all required fields", () => {
+    const result = validateManifest(validManifest());
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
 });
 
 describe("readManifest", () => {

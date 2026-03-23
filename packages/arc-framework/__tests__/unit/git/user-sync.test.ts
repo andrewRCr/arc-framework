@@ -244,4 +244,46 @@ describe("deserialize", () => {
     await deserialize("/repo/.arc/user/andrew", manifest, writeFile);
     expect(Object.keys(written)).toHaveLength(0);
   });
+
+  it("skips filenames with path separators (path traversal prevention)", async () => {
+    const written: Record<string, string> = {};
+    const writeFile = async (path: string, content: string): Promise<void> => {
+      written[path] = content;
+    };
+
+    const manifest: SyncManifest = {
+      version: 1,
+      files: {
+        "../../.git/config": "malicious content",
+        "../etc/passwd": "another attack",
+        "subfolder/file.md": "nested path",
+        "valid.md": "safe content",
+      },
+    };
+
+    await deserialize("/repo/.arc/user/andrew", manifest, writeFile);
+    expect(Object.keys(written)).toHaveLength(1);
+    expect(written["/repo/.arc/user/andrew/valid.md"]).toBe("safe content");
+  });
+
+  it("skips dot-dot and dot filenames but allows double-dot in normal names", async () => {
+    const written: Record<string, string> = {};
+    const writeFile = async (path: string, content: string): Promise<void> => {
+      written[path] = content;
+    };
+
+    const manifest: SyncManifest = {
+      version: 1,
+      files: {
+        "..": "traversal",
+        ".": "current dir",
+        "backup..v2.md": "legitimate double-dot filename",
+        " leading-space.md": "leading whitespace",
+      },
+    };
+
+    await deserialize("/repo/.arc/user/andrew", manifest, writeFile);
+    expect(Object.keys(written)).toHaveLength(1);
+    expect(written["/repo/.arc/user/andrew/backup..v2.md"]).toBe("legitimate double-dot filename");
+  });
 });

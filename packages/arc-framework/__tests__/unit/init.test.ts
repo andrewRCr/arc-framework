@@ -13,7 +13,7 @@ import {
   buildPostInitMessage,
 } from "../../src/commands/init.js";
 import type { IOContext, InitResult } from "../../src/commands/init.js";
-import { buildConfigMap, buildTokenMap } from "../../src/lib/config.js";
+import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../../src/lib/config.js";
 import {
   resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
@@ -103,6 +103,28 @@ describe("buildConfigMap", () => {
   it("maps team_mode to team.mode config key", () => {
     const config = buildConfigMap({ ...basePrompt, team_mode: true });
     expect(config["team.mode"]).toBe("true");
+  });
+});
+
+// --- buildConfigKeyOverrides ---
+
+describe("buildConfigKeyOverrides", () => {
+  it("maps pm_mode, team_mode, and user.sync_push", () => {
+    const overrides = buildConfigKeyOverrides({ pm_mode: "arc-in-git", team_mode: true });
+    expect(overrides["pm.mode"]).toBe("arc-in-git");
+    expect(overrides["team.mode"]).toBe("true");
+    expect(overrides["user.sync_push"]).toBe("prompt");
+  });
+
+  it("defaults team_mode to false and sync_push to always", () => {
+    const overrides = buildConfigKeyOverrides({ pm_mode: "none" });
+    expect(overrides["team.mode"]).toBe("false");
+    expect(overrides["user.sync_push"]).toBe("always");
+  });
+
+  it("sets sync_push to always when team_mode is false", () => {
+    const overrides = buildConfigKeyOverrides({ pm_mode: "none", team_mode: false });
+    expect(overrides["user.sync_push"]).toBe("always");
   });
 });
 
