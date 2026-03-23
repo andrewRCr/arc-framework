@@ -213,7 +213,8 @@ program
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .option("--team", "Enable team mode (requires --yes)")
   .action(async (opts: { yes?: boolean; name?: string; pmMode?: string; tools?: string; team?: boolean }) => {
-    p.intro("arc init");
+    p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
+    p.log.message("Setting up ARC for your project...");
 
     const cwd = process.cwd();
     const io = createIOContext();

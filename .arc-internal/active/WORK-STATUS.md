@@ -12,7 +12,7 @@
 **Next Task**: Task 2.4 — Run `arc init` on the dev repo (line ~117)
 **Last Completed**: Task 2.3 — Relocate manifest/pristine to `.arc/system/.internal/`
 **Blockers**: [none]
-**Next Action**: Address `arc init` UX polish (atomic tasks), then run `arc init` on dev repo
+**Next Action**: Run `arc init` on the dev repo (Task 2.4)
 
 ---
 

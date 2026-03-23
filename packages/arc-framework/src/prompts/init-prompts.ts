@@ -1,10 +1,11 @@
 /**
  * Interactive prompts for `arc init`.
  *
- * Three-prompt sequence using @clack/prompts:
+ * Four-prompt sequence using @clack/prompts:
  * 1. project_name — text input, defaults to basename of cwd
- * 2. tools — grouped multiselect of AI development tools
- * 3. pm_mode — select for Project Management approach
+ * 2. tools — autocomplete multiselect of AI development tools
+ * 3. pm_mode — note preamble + select for Project Management approach
+ * 4. team_mode — confirm for multi-developer coordination
  *
  * Returns an {@link InitPromptResult} that the init command maps to
  * {@link InstallConfig}, token map, and condition config.
@@ -13,52 +14,34 @@
 import * as p from "@clack/prompts";
 import { basename } from "node:path";
 
-/** Sentinel thrown from onCancel to abort prompt group without process.exit. */
-const PROMPT_CANCELLED = Symbol("prompt-cancelled");
-
 /**
- * Tool options grouped by skill directory tier.
+ * Tool options sorted alphabetically.
  *
- * Universal tools share `.agents/skills/` — one copy serves all.
- * Standalone tools require their own directories (noted in hints).
+ * Most tools share `.agents/skills/` by default — if a tool-native directory
+ * already exists (e.g., `.codex/skills/`), ARC uses that instead.
+ * Standalone tools always use their own fixed directory (noted in hints).
  */
-const TOOL_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
-  "Universal (.agents/skills/)": [
-    { value: "amp", label: "Amp" },
-    { value: "cline", label: "Cline" },
-    { value: "codex", label: "Codex" },
-    { value: "cursor", label: "Cursor" },
-    { value: "gemini", label: "Gemini CLI" },
-    { value: "copilot", label: "GitHub Copilot" },
-    { value: "kimi", label: "Kimi Code CLI" },
-    { value: "opencode", label: "OpenCode" },
-    { value: "warp", label: "Warp" },
-    { value: "windsurf", label: "Windsurf" },
-  ],
-  "Standalone": [
-    { value: "antigravity", label: "Antigravity", hint: ".agent/skills/" },
-    { value: "augment", label: "Augment", hint: ".augment/skills/" },
-    { value: "claude", label: "Claude Code", hint: ".claude/skills/" },
-  ],
-};
+const TOOL_OPTIONS: { value: string; label: string; hint?: string }[] = [
+  { value: "amp", label: "Amp" },
+  { value: "antigravity", label: "Antigravity", hint: "uses .agent/skills/" },
+  { value: "augment", label: "Augment", hint: "uses .augment/skills/" },
+  { value: "claude", label: "Claude Code", hint: "uses .claude/skills/" },
+  { value: "cline", label: "Cline" },
+  { value: "codex", label: "Codex" },
+  { value: "cursor", label: "Cursor" },
+  { value: "gemini", label: "Gemini CLI" },
+  { value: "copilot", label: "GitHub Copilot" },
+  { value: "kimi", label: "Kimi Code CLI" },
+  { value: "opencode", label: "OpenCode" },
+  { value: "warp", label: "Warp" },
+  { value: "windsurf", label: "Windsurf" },
+];
 
-/** PM mode options with descriptive labels. */
-const PM_MODE_OPTIONS: { value: string; label: string; hint: string }[] = [
-  {
-    value: "none",
-    label: "ARC Core",
-    hint: "The structured ARC development methodology \u2014 session continuity across tools and machines, spec-driven task execution, codified standards, and commit traceability. No integrated planning layer (can be added later).",
-  },
-  {
-    value: "arc-in-git",
-    label: "ARC Core + Planning Module",
-    hint: "Adds ARC's planning infrastructure \u2014 roadmap, backlogs, task capture, and project status \u2014 all managed in git alongside your code.",
-  },
-  {
-    value: "external",
-    label: "ARC Core + External Tracker",
-    hint: "Everything in Core, plus guided setup for connecting ARC workflows to Jira, Linear, GitHub Issues, or similar.",
-  },
+/** PM mode options with short labels — descriptions shown in a note preamble. */
+const PM_MODE_OPTIONS: { value: string; label: string; hint?: string }[] = [
+  { value: "none", label: "ARC Core" },
+  { value: "arc-in-git", label: "ARC Core + Planning Module" },
+  { value: "external", label: "ARC Core + External Tracker" },
 ];
 
 /** Result from the interactive init prompt sequence. */
@@ -67,6 +50,54 @@ export interface InitPromptResult {
   tools: string[];
   pm_mode: string;
   team_mode: boolean;
+}
+
+/** Convert a slug like "my-cool-app" to title case "My Cool App". */
+function titleCase(slug: string): string {
+  return slug
+    .split(/[-_\s]+/)
+    .map((w) => (w ? w[0]!.toUpperCase() + w.slice(1) : ""))
+    .join(" ");
+}
+
+/** Cancel the prompt sequence and display a cancellation message. */
+function cancelAndThrow(sentinel: symbol): never {
+  p.cancel("Setup cancelled.");
+  throw sentinel;
+}
+
+/**
+ * Display the tools preamble note and run the tools prompt.
+ *
+ * Shared between fresh and join modes.
+ */
+async function promptTools(sentinel: symbol): Promise<string[]> {
+  p.note(
+    "ARC installs Skills as triggers for common workflows (commits,\n" +
+      "handoffs, etc.) into your tools' skill directories.\n" +
+      "\n" +
+      "Most tools share .agents/skills/, but existing tool-native\n" +
+      "directories are respected. Some tools require their own\n" +
+      "(shown in hints).",
+    "Skill installation",
+  );
+
+  const tools = await p.autocompleteMultiselect({
+    message: "Which AI tools will you use in this repo? (type to search)",
+    options: TOOL_OPTIONS,
+    maxItems: 8,
+  });
+  if (p.isCancel(tools)) cancelAndThrow(sentinel);
+  const selected = tools as string[];
+
+  if (selected.length > 0) {
+    const labels = selected.map(
+      (v) => TOOL_OPTIONS.find((o) => o.value === v)?.label ?? v,
+    );
+    p.log.message(`Selected: ${labels.join(", ")}`);
+  }
+
+  return selected;
 }
 
 /**
@@ -83,75 +114,76 @@ export async function runInitPrompts(
   cwd: string,
   mode: "fresh" | "join" = "fresh",
 ): Promise<InitPromptResult | null> {
-  const onCancel = (): never => {
-    p.cancel("Setup cancelled.");
-    throw PROMPT_CANCELLED;
-  };
+  const sentinel = Symbol("prompt-cancelled");
 
   try {
     if (mode === "join") {
-      // Join mode: only tools prompt — project config already established
-      const result = await p.group(
-        {
-          tools: () =>
-            p.groupMultiselect({
-              message: "Which AI development tools do you use?",
-              options: TOOL_OPTIONS,
-              required: false,
-            }),
-        },
-        { onCancel },
-      );
-
-      return {
-        project_name: "",
-        tools: result.tools as string[],
-        pm_mode: "",
-        team_mode: false,
-      };
+      const tools = await promptTools(sentinel);
+      return { project_name: "", tools, pm_mode: "", team_mode: false };
     }
 
-    // Fresh mode: full prompt sequence
-    const result = await p.group(
-      {
-        project_name: () =>
-          p.text({
-            message: "Project name?",
-            defaultValue: basename(cwd),
-            placeholder: basename(cwd),
-          }),
+    // --- Fresh mode: sequential prompts with notes between them ---
 
-        tools: () =>
-          p.groupMultiselect({
-            message: "Which AI development tools do you use?",
-            options: TOOL_OPTIONS,
-            required: false,
-          }),
+    // 1. Project name
+    const dirName = basename(cwd);
+    const defaultName = titleCase(dirName);
 
-        pm_mode: () =>
-          p.select({
-            message: "Project management approach?",
-            options: PM_MODE_OPTIONS,
-            initialValue: "none",
-          }),
-
-        team_mode: () =>
-          p.confirm({
-            message: "Will other developers work in this repository?",
-            initialValue: false,
-          }),
-      },
-      { onCancel },
+    p.note(
+      "Used in documentation headers and project references.\n" +
+        "Any casing is fine \u2014 this is a display name, not a slug.",
+      "Project name",
     );
 
+    const project_name = await p.text({
+      message: "Project name?",
+      defaultValue: defaultName,
+      placeholder: defaultName,
+    });
+    if (p.isCancel(project_name)) cancelAndThrow(sentinel);
+
+    // 2. Tools
+    const tools = await promptTools(sentinel);
+
+    // 3. PM mode — note preamble with descriptions, then clean select
+    p.note(
+      "ARC Core\n" +
+        "  Structured methodology: session continuity across tools and\n" +
+        "  machines, task execution workflows, configurable codified\n" +
+        "  standards, and commit traceability.\n" +
+        "\n" +
+        "ARC Core + Planning Module (arc-in-git)\n" +
+        "  Adds ARC's planning pipeline \u2014 roadmap, backlog, and work\n" +
+        "  intake \u2014 all managed in git alongside your code.\n" +
+        "\n" +
+        "ARC Core + External Tracker\n" +
+        "  Core methodology plus guided setup for connecting ARC\n" +
+        "  workflows to Jira, Linear, GitHub Issues, or similar.",
+      "Project Management options",
+    );
+
+    const pm_mode = await p.select({
+      message: "Project management approach?",
+      options: PM_MODE_OPTIONS,
+      initialValue: "none",
+    });
+    if (p.isCancel(pm_mode)) cancelAndThrow(sentinel);
+
+    // 4. Team mode
+    const team_mode = await p.confirm({
+      message:
+        "Enable multi-developer coordination? (ARC Team Mode: task ownership, team handoffs, team branching)",
+      initialValue: false,
+    });
+    if (p.isCancel(team_mode)) cancelAndThrow(sentinel);
+
     return {
-      project_name: result.project_name,
-      tools: result.tools as string[],
-      pm_mode: result.pm_mode as string,
-      team_mode: result.team_mode as boolean,
+      project_name: project_name as string,
+      tools,
+      pm_mode: pm_mode as string,
+      team_mode: team_mode as boolean,
     };
   } catch (err) {
-    if (err === PROMPT_CANCELLED) return null;
+    if (typeof err === "symbol") return null;
     throw err;
   }
 }
