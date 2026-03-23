@@ -154,6 +154,47 @@ async function resolveUserIdentity(): Promise<string> {
   return identity;
 }
 
+// --- Command Helpers ---
+
+/**
+ * Run an async operation with a clack spinner. Stops the spinner on success
+ * or failure and re-throws errors for the caller to handle.
+ */
+async function runWithSpinner<T>(
+  label: string,
+  fn: () => Promise<T>,
+  doneLabel: string,
+): Promise<T> {
+  const spinner = p.spinner();
+  spinner.start(label);
+  try {
+    const result = await fn();
+    spinner.stop(doneLabel);
+    return result;
+  } catch (err) {
+    spinner.stop("Failed.");
+    throw err;
+  }
+}
+
+/**
+ * Check if an error is a known user-facing type and display it.
+ * Returns true if the error was handled (caller should return),
+ * false if it's an unknown error (caller should re-throw).
+ */
+function isHandledError(err: unknown): boolean {
+  if (err instanceof UserFacingError) {
+    p.log.error(formatError(err));
+    process.exitCode = 1;
+    return true;
+  }
+  if (err instanceof UserSaveError) {
+    p.log.error(err.message);
+    return true;
+  }
+  return false;
+}
+
 // --- CLI Program ---
 
 const program = new Command();
@@ -283,18 +324,12 @@ program
     const recipeContent = await readFile(getRecipePath(), "utf-8");
     const recipe: Recipe = JSON.parse(recipeContent) as Recipe;
 
-    const spinner = p.spinner();
-    spinner.start("Updating ARC framework files...");
-
     try {
-      const result = await runUpdate({
-        cwd: process.cwd(),
-        io: createIOContext(),
-        templateDir,
-        recipe,
-      });
-
-      spinner.stop("Update complete.");
+      const result = await runWithSpinner(
+        "Updating ARC framework files...",
+        () => runUpdate({ cwd: process.cwd(), io: createIOContext(), templateDir, recipe }),
+        "Update complete.",
+      );
 
       p.note(buildUpdateSummary(result), "Update summary");
 
@@ -302,12 +337,7 @@ program
         p.log.warn("Resolve conflicts before committing.");
       }
     } catch (err) {
-      spinner.stop("Update failed.");
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        process.exitCode = 1;
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -341,11 +371,7 @@ program
         p.log.warn("Run 'arc update' to apply framework changes.");
       }
     } catch (err) {
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        process.exitCode = 1;
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -391,11 +417,7 @@ program
         p.log.success(output);
       }
     } catch (err) {
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        process.exitCode = 1;
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -439,25 +461,14 @@ userCmd
       // Config unreadable — use default
     }
 
-    const spinner = p.spinner();
-    spinner.start(`Creating user directory for ${identity}...`);
-
     try {
-      await runUserAdd({
-        cwd,
-        io,
-        identity,
-        internalTemplateDir: getInternalTemplatePath(),
-        pmMode,
-      });
-
-      spinner.stop(`User directory created for ${identity}.`);
+      await runWithSpinner(
+        `Creating user directory for ${identity}...`,
+        () => runUserAdd({ cwd, io, identity, internalTemplateDir: getInternalTemplatePath(), pmMode }),
+        `User directory created for ${identity}.`,
+      );
     } catch (err) {
-      spinner.stop("Failed.");
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -472,28 +483,20 @@ userCmd
 
     const identity = await resolveUserIdentity();
     const io = createUserIOContext();
-    const spinner = p.spinner();
-    spinner.start("Saving user directory...");
 
     try {
-      const result = await runUserSave({
-        cwd: process.cwd(),
-        io,
-        identity,
-      });
-
-      spinner.stop("Save complete.");
+      const result = await runWithSpinner(
+        "Saving user directory...",
+        () => runUserSave({ cwd: process.cwd(), io, identity }),
+        "Save complete.",
+      );
       p.note(buildSaveSummary(result), "Saved");
 
       if (result.warnings.length > 0) {
         p.log.warn("Some files were skipped (see details above).");
       }
     } catch (err) {
-      spinner.stop("Save failed.");
-      if (err instanceof UserSaveError) {
-        p.log.error(err.message);
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -547,18 +550,11 @@ userCmd
 
     const identity = await resolveUserIdentity();
     const io = createUserIOContext();
-    const spinner = p.spinner();
-    spinner.start("Pushing user notes...");
 
     try {
-      await runUserPush({ io, identity });
-      spinner.stop("Push complete.");
+      await runWithSpinner("Pushing user notes...", () => runUserPush({ io, identity }), "Push complete.");
     } catch (err) {
-      spinner.stop("Push failed.");
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -573,18 +569,11 @@ userCmd
 
     const identity = await resolveUserIdentity();
     const io = createUserIOContext();
-    const spinner = p.spinner();
-    spinner.start("Pulling user notes...");
 
     try {
-      await runUserPull({ io, identity });
-      spinner.stop("Pull complete.");
+      await runWithSpinner("Pulling user notes...", () => runUserPull({ io, identity }), "Pull complete.");
     } catch (err) {
-      spinner.stop("Pull failed.");
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -703,11 +692,7 @@ logCmd
       const output = buildLogAtomicOutput(result);
       p.log.message(output);
     } catch (err) {
-      if (err instanceof UserFacingError) {
-        p.log.error(formatError(err));
-        process.exitCode = 1;
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
   });

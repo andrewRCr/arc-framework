@@ -8,6 +8,28 @@
 
 import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "./constants.js";
 
+// --- Config Key Overrides ---
+
+/**
+ * Build the config key overrides for arc-config.yml rendering.
+ *
+ * Produces the map of dotted config keys that should be programmatically
+ * set in the rendered arc-config.yml (overriding template defaults).
+ * Used by both init and update to ensure consistent config rendering.
+ *
+ * @param source - Prompt results or stored install config
+ * @returns Config key override map for `renderConfigOverrides`
+ */
+export function buildConfigKeyOverrides(
+  source: { pm_mode: string; team_mode?: boolean },
+): Record<string, string> {
+  return {
+    [CONFIG_KEY_PM_MODE]: source.pm_mode,
+    [CONFIG_KEY_TEAM_MODE]: String(source.team_mode ?? false),
+    "user.sync_push": source.team_mode ? "prompt" : "always",
+  };
+}
+
 // --- Config Map Assembly ---
 
 /**

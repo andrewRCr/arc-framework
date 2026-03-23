@@ -24,9 +24,9 @@ import {
 import { getFrameworkVersion } from "../lib/version.js";
 import {
   ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
-  CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE, PM_MODE_ARC_IN_GIT,
+  PM_MODE_ARC_IN_GIT,
 } from "../lib/constants.js";
-import { buildConfigMap, buildTokenMap } from "../lib/config.js";
+import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
 import {
   resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
@@ -137,12 +137,6 @@ export interface InitResult {
   team_mode: boolean;
 }
 
-/** Config keys derived from prompt results for arc-config.yml. */
-const CONFIG_KEY_MAP: Record<string, (p: InitPromptResult) => string> = {
-  [CONFIG_KEY_PM_MODE]: (p) => p.pm_mode,
-  [CONFIG_KEY_TEAM_MODE]: (p) => String(p.team_mode),
-  "user.sync_push": (p) => p.team_mode ? "prompt" : "always",
-};
 
 /**
  * Run the init command orchestration.
@@ -213,10 +207,7 @@ export async function runInit(
   const templateFiles = resolveFileList(recipe, config);
 
   // Build config_key overrides for arc-config.yml
-  const configKeyOverrides: Record<string, string> = {};
-  for (const [key, getter] of Object.entries(CONFIG_KEY_MAP)) {
-    configKeyOverrides[key] = getter(prompts);
-  }
+  const configKeyOverrides = buildConfigKeyOverrides(prompts);
 
   // Determine arc-in-git files for layer classification
   const arcInGitFiles = new Set<string>();
