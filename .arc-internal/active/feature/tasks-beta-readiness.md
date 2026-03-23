@@ -1,10 +1,10 @@
 # Task List: Beta Readiness
 
-**PRD:** `.arc-internal/backlog/feature/prd-beta-readiness.md`
+**PRD:** `.arc-internal/active/feature/prd-beta-readiness.md`
 **Created:** 2026-03-23
 **Branch(es):** `feature/beta-readiness`
 **Base Branch:** `main`
-**Status:** Not Started
+**Status:** In Progress
 
 ## Overview
 

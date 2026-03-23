@@ -6,13 +6,13 @@
 
 ## Active Work
 
-**Branch**: `feature/plan-beta-readiness`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
+**Branch**: `feature/beta-readiness`
+**Task List**: `.arc-internal/active/feature/tasks-beta-readiness.md`
+**Following Task List**: Yes
+**Next Task**: Task 1.1 — Sync `.arc/` content into `packages/arc-framework/arc/` (line ~44)
 **Last Completed**: CLI Implementation / WU3 (archived)
 **Blockers**: [none]
-**Next Action**: Begin WU4 planning — review plan-wu4-beta-readiness.md, create PRD
+**Next Action**: Begin Phase 1 — sync content source, remove cpSync, verify CLI
 
 ---
 
