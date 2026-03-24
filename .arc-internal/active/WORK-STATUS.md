@@ -9,11 +9,11 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc-internal/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.4 — Run `arc init` on the dev repo (line ~117)
-**Last Completed**: Task 2.3 — Relocate manifest/pristine to `.arc/system/.internal/`
+**Next Task**: Task 2.5.b — Migrate active work and backlog (line ~165)
+**Last Completed**: Task 2.5.a — Migrate reference content (constitutional + session-loaded docs)
 **Blockers**: [none]
-**Next Action**: Run `arc init` on the dev repo (Task 2.4)
+**Next Action**: Continue migration — active work, backlog, agent content, strategies, ADRs, archive
 
 ---
 
-**Last Updated**: 2026-03-23
+**Last Updated**: 2026-03-24

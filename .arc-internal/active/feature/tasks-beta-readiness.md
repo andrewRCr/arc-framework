@@ -132,27 +132,36 @@ This is the highest-risk phase — take it step by step with verification betwee
         - Updated all 11 test files with path references
         - All 358 tests pass (327 unit/integration + 31 E2E)
 
-- [ ] **2.4 Run `arc init` on the dev repo**
+- [x] **2.4 Run `arc init` on the dev repo**
 
     **Goal:** Create a real `.arc/` installation from the authoritative `packages/arc-framework/arc/`
     source, using the new `.internal/` storage layout.
 
-    - Run `node packages/arc-framework/dist/cli.js init` with project settings
-    - Verify: `.arc/` created with rendered files, `.arc/system/.internal/manifest.json`,
-      `.arc/system/.internal/pristine.json`, hooks configured
-    - The init creates the skeleton — migration fills in project-specific content next
+    - Init run manually with project settings (`branch.protection: full`, `pm.mode: arc-in-git`)
+    - Verified: `.arc/` created with full structure, manifest + pristine in `.internal/`,
+      hooks configured via `core.hooksPath`
+    - `/arc-verify` run post-init — exposed three bugs, all fixed:
+        - Init didn't set executable permissions on hooks/scripts (`fs.writeFile` ignores source
+          perms). Added `chmod` to `IOContext`, init now sets 755 on `githooks/*` and `*.sh`
+        - `verify-integrity.sh` checked old `.arc-manifest.json` path instead of
+          `.arc/system/.internal/manifest.json` — updated authoritative + local copies
+        - Test scaffolding commits rejected by now-functional hooks — test helpers bypass via
+          `git -c core.hooksPath=/dev/null`
+    - New integration test verifies executable permissions on all 5 hook/script files
+    - All 359 tests pass (328 unit/integration + 31 E2E)
 
 - [ ] **2.5 Migrate `.arc-internal/` content into `.arc/`**
 
     **Goal:** Move all project-specific content from the internal directory to the real installation.
 
-    - [ ] **2.5.a Migrate reference content**
-        - `reference/constitution/DEV-RULES.PROJECT.md` → merge into `.arc/reference/constitution/`
-        - `reference/strategies/` → move project strategies to `.arc/reference/strategies/project/`
-        - `reference/adr/` → move to `.arc/reference/adr/`
-        - `reference/archive/` → move to `.arc/reference/archive/`
-        - `reference/QUICK-REFERENCE.md` → merge project-specific content into init-generated skeleton
-        - `reference/PROJECT-STATUS.md` → move to `.arc/reference/`
+    - [x] **2.5.a Migrate reference content (constitutional + session-loaded docs)**
+        - Ran `/arc-setup` → `02_define-project.md` workflow, adapting internal content into
+          canonical skeleton structure (skeleton wins, content adapts)
+        - All 7 project definition docs migrated: META-PRD, TECHNICAL-OVERVIEW,
+          AGENT-BRIEFING.PROJECT, QUICK-REFERENCE, DEV-RULES.PROJECT, ROADMAP, PROJECT-STATUS
+        - Template suffix sweep: 4 stale `.template` references removed from user-facing docs
+          (`02_define-project`, `README.md`, `DEV-RULES.PROJECT`, `agent/README.md`)
+        - Remaining reference content (strategies, ADRs, archive, research) still to migrate
 
     - [ ] **2.5.b Migrate active work and backlog**
         - `active/` → move to `.arc/active/`
