@@ -845,16 +845,18 @@ times throughout execution, benefiting from a separate, quickly-accessible file.
 
 **Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
 planned work — discovered during execution, not required for the work unit's success
-criteria. Flat checkbox list, no numbering hierarchy.
+criteria. Flat checkbox list, no numbering hierarchy. Incomplete tasks stay at the top;
+move completed tasks below them (completion order) to keep pending work visible.
 
 > Multi-step work required for the WU belongs in the task list as a new phase.
 > For multi-step work outside the WU's concern, see `manage-incidental-work.md`.
 
 ---
 
+- [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
+
 - [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
 - [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
-- [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
 
 ---
 ```
@@ -868,6 +870,10 @@ artifacts for easy visual identification.
 - **Flat checkbox list** — no phase headers, no numbered tasks, no subtask hierarchy. Each item
   is a single checkbox with a brief description. This is deliberately simpler than the main task
   structure. Bold headers and grouped sub-bullets are acceptable for larger items.
+- **Ordering** — incomplete tasks (`[ ]`) stay at the top; completed tasks (`[x]`) sink below
+  them in completion order (most recently completed last). This keeps pending work immediately
+  visible when the file is opened. A blank line between the two groups is optional but aids
+  scannability.
 - **Parenthetical context** — note where/when the item was discovered (e.g., "discovered during
   Task 3.2") to preserve traceability without formal numbering
 - **Scope guard — size** — if an item needs subtasks, phases, or more than ~30 minutes of work, it
