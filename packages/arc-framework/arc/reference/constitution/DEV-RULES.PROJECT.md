@@ -111,7 +111,6 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 - `.arc/` = ARC methodology files (reference/, system/, active/, backlog/)
 - Separate concerns: keep production code, tests, and configuration in distinct directories
-- Template files clearly marked as `.template.md` and copy-ready
 
 ## Capture Routing
 

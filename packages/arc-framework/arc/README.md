@@ -16,8 +16,6 @@ After setup, run `/arc-verify` to confirm everything installed correctly.
 
 ## Directory Structure
 
-Template files ship as `.template.md` — rename by removing `.template` during setup.
-
 ```text
 .arc/
 ├── active/                    # Current work in progress

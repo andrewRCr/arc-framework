@@ -17,10 +17,8 @@ are reference material consulted during planning and architecture decisions.
 
 ## Project Definition
 
-Work through these steps when setting up a new project. Each document has a template with
-inline guidance — the questions below help you think through what matters before filling it in.
-
-During setup, templates become project documents (dropping the `.template` suffix).
+Work through these steps when setting up a new project. Each document has inline guidance —
+the questions below help you think through what matters before filling it in.
 
 ### Step 1: Define META-PRD
 
