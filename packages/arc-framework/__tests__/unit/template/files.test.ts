@@ -3,6 +3,7 @@ import {
   ensureDir,
   copyWithRendering,
   appendToGitignore,
+  writeArcGitignoreBlock,
   appendToGitattributes,
 } from "../../../src/lib/template/index.js";
 
@@ -118,6 +119,105 @@ describe("appendToGitignore", () => {
     const mockWrite = vi.fn().mockResolvedValue(undefined);
     await appendToGitignore(".gitignore", ".pristine/", mockRead, mockWrite);
     expect(mockWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe("writeArcGitignoreBlock", () => {
+  it("creates file with managed block when file does not exist", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".arc/system/.internal/pristine.json"],
+      mockRead,
+      mockWrite,
+    );
+    expect(mockWrite).toHaveBeenCalledWith(
+      ".gitignore",
+      "# ARC Framework (managed by arc cli)\n"
+      + ".arc/system/.internal/pristine.json\n"
+      + ".arc/user/*/\n"
+      + "# end ARC\n",
+    );
+  });
+
+  it("appends block to existing gitignore", async () => {
+    const mockRead = vi.fn().mockResolvedValue("node_modules/\ndist/\n");
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain("node_modules/");
+    expect(written).toContain("# ARC Framework (managed by arc cli)");
+    expect(written).toContain(".arc/user/*/");
+    expect(written).toContain("# end ARC");
+  });
+
+  it("replaces existing block contents", async () => {
+    const existing = [
+      "node_modules/",
+      "# ARC Framework (managed by arc cli)",
+      ".arc/user/*/",
+      "# end ARC",
+      "",
+    ].join("\n");
+    const mockRead = vi.fn().mockResolvedValue(existing);
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".claude/skills/arc-*/"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain(".claude/skills/arc-*/");
+    expect(written).toContain(".arc/user/*/");
+    // Block markers present exactly once
+    expect(written.match(/# ARC Framework/g)?.length).toBe(1);
+    expect(written.match(/# end ARC/g)?.length).toBe(1);
+  });
+
+  it("deduplicates entries", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".arc/user/*/", ".claude/skills/arc-*/"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written.match(/\.arc\/user\/\*\//g)?.length).toBe(1);
+  });
+
+  it("migrates legacy scattered entries into the block", async () => {
+    const existing = "node_modules/\n.arc/user/*/\ndist/\n";
+    const mockRead = vi.fn().mockResolvedValue(existing);
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".claude/skills/arc-*/"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    // Entry should be in the block, not scattered outside
+    const blockStart = written.indexOf("# ARC Framework");
+    const blockEnd = written.indexOf("# end ARC");
+    const entryIdx = written.indexOf(".arc/user/*/");
+    expect(entryIdx).toBeGreaterThan(blockStart);
+    expect(entryIdx).toBeLessThan(blockEnd);
+    // Should not appear before the block
+    const beforeBlock = written.slice(0, blockStart);
+    expect(beforeBlock).not.toContain(".arc/user/*/");
   });
 });
 

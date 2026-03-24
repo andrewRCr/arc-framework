@@ -234,7 +234,7 @@ describe("user add", () => {
     expect(inbox).toContain("Atomic");
   });
 
-  it("adds gitignore entry for the new user directory", async () => {
+  it("relies on wildcard gitignore from init (no per-identity entry)", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -248,7 +248,9 @@ describe("user add", () => {
     const gitignore = await readFile(
       join(tempDir, ".gitignore"), "utf-8",
     );
-    expect(gitignore).toContain(".arc/user/new-dev/");
+    // Wildcard from init covers all user directories — no per-identity entry needed
+    expect(gitignore).toContain(".arc/user/*/");
+    expect(gitignore).not.toContain(".arc/user/new-dev/");
   });
 });
 

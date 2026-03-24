@@ -23,7 +23,7 @@ import {
 } from "../lib/manifest/index.js";
 import { gitMergeFile, type GitExec } from "../lib/git/index.js";
 import {
-  renderTokens, renderConditionals, renderConfigOverrides, ensureDir, appendToGitignore,
+  renderTokens, renderConditionals, renderConfigOverrides, ensureDir, writeArcGitignoreBlock,
 } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
@@ -380,11 +380,14 @@ export async function runUpdate(
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Ensure gitignore entries for skill directories
+  // Write managed gitignore block with all ARC entries
   const gitignorePath = join(cwd, ".gitignore");
-  for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
-    await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
-  }
+  const gitignoreEntries = [
+    ".arc/system/.internal/pristine.json",
+    ".arc/user/*/",
+    ...skillGitignoreEntries(skillResult.targetDirs),
+  ];
+  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
 
   // Write updated manifest and pristine store
   await ensureDir(internalDir, io.mkdir);

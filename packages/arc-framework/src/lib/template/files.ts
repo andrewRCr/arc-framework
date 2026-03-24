@@ -93,10 +93,8 @@ async function appendLineIfMissing(
 /**
  * Appends an entry to a .gitignore file if not already present.
  *
- * @param filePath - Path to .gitignore
- * @param entry - Entry to add (e.g., ".arc/system/.internal/pristine.json")
- * @param readFile - Injectable read function
- * @param writeFile - Injectable write function
+ * @deprecated Use {@link writeArcGitignoreBlock} for ARC-managed entries.
+ * Retained for non-ARC gitignore additions if needed.
  */
 export async function appendToGitignore(
   filePath: string,
@@ -105,6 +103,80 @@ export async function appendToGitignore(
   writeFile: WriteFileFn,
 ): Promise<void> {
   await appendLineIfMissing(filePath, entry, readFile, writeFile);
+}
+
+const ARC_BLOCK_START = "# ARC Framework (managed by arc cli)";
+const ARC_BLOCK_END = "# end ARC";
+
+/**
+ * Write a managed block of ARC entries in a .gitignore file.
+ *
+ * If a managed block already exists (delimited by start/end markers), its
+ * contents are replaced with the new entries (preserving any user entries
+ * outside the block). If no block exists, one is appended at the end of
+ * the file. If the file doesn't exist, it is created.
+ *
+ * Entries are deduplicated and sorted for stable output. Any ARC entries
+ * found outside the managed block (from older `appendToGitignore` calls)
+ * are migrated into the block and removed from their original location.
+ *
+ * @param filePath - Path to .gitignore
+ * @param entries - ARC-managed entries to write
+ * @param readFile - Injectable read function
+ * @param writeFile - Injectable write function
+ */
+export async function writeArcGitignoreBlock(
+  filePath: string,
+  entries: string[],
+  readFile: ReadFileFn,
+  writeFile: WriteFileFn,
+): Promise<void> {
+  const sorted = [...new Set(entries)].sort();
+
+  let content: string;
+  try {
+    content = await readFile(filePath);
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      const block = formatBlock(sorted);
+      await writeFile(filePath, block + "\n");
+      return;
+    }
+    throw err;
+  }
+
+  // Remove any legacy ARC entries scattered outside the block
+  const lines = content.split("\n");
+  const entrySet = new Set(sorted);
+  const cleaned = lines.filter((line) => !entrySet.has(line));
+
+  const startIdx = cleaned.indexOf(ARC_BLOCK_START);
+  const endIdx = cleaned.indexOf(ARC_BLOCK_END);
+
+  let result: string;
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    // Replace existing block contents
+    const before = cleaned.slice(0, startIdx);
+    const after = cleaned.slice(endIdx + 1);
+    result = [...before, ...formatBlock(sorted).split("\n"), ...after].join("\n");
+  } else {
+    // Append new block — ensure blank line separation
+    const base = cleaned.join("\n");
+    const separator = base.endsWith("\n\n") || base.endsWith("\n")
+      ? (base.endsWith("\n\n") ? "" : "\n")
+      : "\n\n";
+    result = base + separator + formatBlock(sorted) + "\n";
+  }
+
+  // Normalize trailing whitespace
+  result = result.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
+
+  await writeFile(filePath, result);
+}
+
+/** Format the managed block with markers. */
+function formatBlock(entries: string[]): string {
+  return [ARC_BLOCK_START, ...entries, ARC_BLOCK_END].join("\n");
 }
 
 /**

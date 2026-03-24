@@ -10,7 +10,7 @@
 
 import { join, dirname } from "node:path";
 import {
-  ensureDir, appendToGitignore, appendToGitattributes,
+  ensureDir, writeArcGitignoreBlock, appendToGitattributes,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
 import { configureNotesRefspec } from "../lib/git/index.js";
@@ -182,11 +182,14 @@ export async function runInit(
     );
     await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-    // Add gitignore entries for generated skill directories
+    // Write managed gitignore block with skill directories
     const gitignorePath = join(cwd, ".gitignore");
-    for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
-      await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
-    }
+    const gitignoreEntries = [
+      ".arc/system/.internal/pristine.json",
+      ".arc/user/*/",
+      ...skillGitignoreEntries(skillResult.targetDirs),
+    ];
+    await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
 
     // Identity, user directory, and notes refspec setup
     await runPostInitSetup({
@@ -297,8 +300,6 @@ export async function runInit(
   // Git integration setup
   const gitignorePath = join(cwd, ".gitignore");
   const gitattrsPath = join(cwd, ".gitattributes");
-  await appendToGitignore(gitignorePath, ".arc/system/.internal/pristine.json", io.readFile, io.writeFile);
-  await appendToGitignore(gitignorePath, ".arc/user/*/", io.readFile, io.writeFile);
   await appendToGitattributes(
     gitattrsPath, ".arc/active/WORK-STATUS.md merge=ours", io.readFile, io.writeFile,
   );
@@ -318,10 +319,13 @@ export async function runInit(
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Add gitignore entries for generated skill directories
-  for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
-    await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
-  }
+  // Write managed gitignore block with all ARC entries
+  const gitignoreEntries = [
+    ".arc/system/.internal/pristine.json",
+    ".arc/user/*/",
+    ...skillGitignoreEntries(skillResult.targetDirs),
+  ];
+  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
 
   // Identity, user directory, and notes refspec setup
   await runPostInitSetup({

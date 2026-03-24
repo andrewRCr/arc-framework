@@ -7,7 +7,7 @@
 
 import { join } from "node:path";
 import {
-  ensureDir, appendToGitignore,
+  ensureDir,
 } from "../lib/template/index.js";
 import {
   serialize, deserialize,
@@ -243,14 +243,8 @@ export async function runUserAdd(
     await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
   }
 
-  // Add gitignore entry for the new user directory
-  const gitignorePath = join(cwd, ".gitignore");
-  await appendToGitignore(
-    gitignorePath,
-    `.arc/user/${identity}/`,
-    io.readFile,
-    io.writeFile,
-  );
+  // Note: .arc/user/*/ is covered by the managed ARC gitignore block
+  // written during arc init. No per-identity entry needed.
 }
 
 // --- Push ---
