@@ -20,6 +20,7 @@ import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
+  detectExistingSkillDirs,
 } from "../lib/skills/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import {
@@ -305,10 +306,13 @@ export async function runInit(
   await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
 
   // Skill generation — copy canonical skills to per-tool directories
+  // Detect pre-existing skill dirs so universal tools (codex, cursor, etc.)
+  // resolve to their native directory instead of the fallback .agents/skills/
+  const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     prompts.tools,
     join(templateDir, "system", "skills"),
-    [],
+    existingSkillDirs,
     cwd,
     { readFile: io.readFile },
   );

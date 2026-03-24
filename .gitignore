@@ -25,7 +25,7 @@ Thumbs.db
 .warp/
 
 # explicitly temp-flagged internal docs
-.arc-internal/**/temp-*
+.arc/**/temp-*
 
 # User directory contents (personal workspace, gitignored)
 .arc-internal/user/*/
@@ -33,5 +33,5 @@ Thumbs.db
 node_modules/
 .arc/system/.internal/pristine.json
 .arc/user/*/
-.agents/skills/arc-*/
 .claude/skills/arc-*/
+.codex/skills/arc-*/

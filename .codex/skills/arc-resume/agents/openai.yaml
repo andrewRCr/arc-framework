@@ -1,0 +1,4 @@
+interface:
+  display_name: "ARC Resume"
+  short_description: "Initialize and resume the active working ARC session with required project context. Use when explicitly asked to initialize a session."
+  default_prompt: "Use /arc-resume — Initialize and resume the active working ARC session with required project context. Use when explicitly asked to initialize a session."

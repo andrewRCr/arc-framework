@@ -207,8 +207,8 @@ export function resolveSkillTargets(
  * Detect which skill directories already exist in the repo.
  *
  * Checks all known native and standalone directories plus the universal
- * default. Used by update to pass accurate `existingDirs` to
- * `resolveSkillTargets` (init passes `[]` since nothing exists yet).
+ * default. Used by both init and update to pass accurate `existingDirs` to
+ * `resolveSkillTargets`.
  *
  * @param cwd - Repository root
  * @param accessFn - Injectable access check (resolves if path exists)

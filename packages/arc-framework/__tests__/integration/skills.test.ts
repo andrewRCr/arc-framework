@@ -8,6 +8,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 
+import { mkdir } from "node:fs/promises";
 import {
   createTempRepo,
   cleanupTempDir,
@@ -78,7 +79,7 @@ describe("skill generation (integration)", () => {
     await assertSkillsExist(tempDir, ".claude/skills");
   });
 
-  it("init with codex populates .agents/skills/ with SKILL.md and openai.yaml per skill", async () => {
+  it("init with codex (no pre-existing dir) falls back to .agents/skills/", async () => {
     tempDir = await initWithTools(["codex"]);
     await assertSkillsExist(tempDir, ".agents/skills");
 
@@ -92,13 +93,46 @@ describe("skill generation (integration)", () => {
     }
   });
 
+  it("init with codex detects pre-existing .codex/skills/ and writes there", async () => {
+    tempDir = await createTempRepo("arc-skills-test-");
+    // Create pre-existing .codex/skills/ before init
+    await mkdir(join(tempDir, ".codex", "skills"), { recursive: true });
+
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+    await runInit({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir: getInternalTemplatePath(),
+      recipe,
+      prompts: { ...DEFAULT_PROMPTS, tools: ["codex"] },
+      identityResult: "test-user",
+    });
+
+    // Skills written to native .codex/skills/, not .agents/skills/
+    await assertSkillsExist(tempDir, ".codex/skills");
+
+    // Codex-yaml supplements present
+    for (const name of CANONICAL_SKILLS) {
+      const yamlPath = join(tempDir, ".codex/skills", name, "agents", "openai.yaml");
+      const content = await readFile(yamlPath, "utf-8");
+      expect(content).toContain("interface:");
+    }
+
+    // .agents/skills/ should NOT exist
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    expect(gitignore).toContain(".codex/skills/arc-*/");
+    expect(gitignore).not.toContain(".agents/skills/arc-*/");
+  });
+
   it("init with claude+cursor populates both standalone and universal directories", async () => {
     tempDir = await initWithTools(["claude", "cursor"]);
 
     // Standalone: .claude/skills/
     await assertSkillsExist(tempDir, ".claude/skills");
 
-    // Universal: .agents/skills/ (cursor resolves here)
+    // Universal: .agents/skills/ (cursor resolves here, no pre-existing .cursor/skills/)
     await assertSkillsExist(tempDir, ".agents/skills");
   });
 
