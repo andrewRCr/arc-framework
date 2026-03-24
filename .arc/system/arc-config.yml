@@ -77,6 +77,27 @@ hooks.commit_msg: enabled
 #   off     - Skip check entirely
 hooks.task_numbering: error
 
+# File extensions skipped during meta-project reference checking.
+# The pre-commit hook scans all staged files except those matching these
+# extensions (and binary files, which are skipped automatically).
+# Pipe-separated regex alternation.
+#   default: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile
+hooks.skip_extensions: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile
+
+# Test directory/file patterns excluded from meta-project reference checking.
+# Files matching these patterns are not production code and may legitimately
+# reference tasks, phases, or .arc/ paths. Pipe-separated regex alternation.
+#   default: __tests__/|\.test\.|\.spec\.|/test/|/tests/
+hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
+
+# Patterns scanned in production code for meta-project references.
+# The pre-commit hook flags files matching these patterns as errors.
+# Reduce to remove checks that cause false positives for your project
+# (e.g., tooling that legitimately operates on .arc/ paths).
+# Pipe-separated regex alternation.
+#   default: [Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/
+hooks.meta_ref_patterns: [Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+
+
 # --- Review ---
 
 # Pre-merge diff review before push.

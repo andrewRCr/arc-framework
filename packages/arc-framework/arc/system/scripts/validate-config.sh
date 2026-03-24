@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Validate arc-config.yml — enum checking, cross-field dependencies, unknown keys.
 # Location: .arc/system/scripts/validate-config.sh
 #
@@ -94,6 +94,7 @@ validate_enum "commit.context_footer" "required recommended custom disabled" "re
 validate_enum "hooks.pre_commit" "enabled disabled" "enabled"
 validate_enum "hooks.commit_msg" "enabled disabled" "enabled"
 validate_enum "hooks.task_numbering" "error warning off" "error"
+# hooks.code_extensions and hooks.test_patterns are free-form regex patterns — no enum validation
 
 # Review
 validate_enum "review.pre_merge" "enabled disabled" "enabled"
@@ -150,7 +151,7 @@ fi
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering review.pre_merge platform.type pm.mode team.mode user.sync_push"
+known_keys="branch.base branch.protection commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns review.pre_merge platform.type pm.mode team.mode user.sync_push"
 
 for key in $(arc_config_keys); do
     found=false

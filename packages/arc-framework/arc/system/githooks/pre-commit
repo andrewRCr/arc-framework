@@ -4,6 +4,8 @@
 #
 # Setup: git config core.hooksPath .arc/system/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
+#
+# shellcheck disable=SC2001 # sed 's/^/   /' for multiline indentation is clearer than parameter expansion
 
 set -e
 
@@ -204,15 +206,17 @@ fi
 # ============================================================================
 # Per DEV-RULES.ARC.md § Documentation Boundaries:
 # Never reference task IDs, phase numbers, or .arc/ documentation in production code
-# Adopter: adjust file extensions to match your project's production code languages.
-code_extensions="ts|tsx|py|js|jsx"
+skip_extensions=$(arc_config_get "hooks.skip_extensions" "md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile")
+test_patterns=$(arc_config_get "hooks.test_patterns" "__tests__/|\.test\.|\.spec\.|/test/|/tests/")
+meta_ref_patterns=$(arc_config_get "hooks.meta_ref_patterns" "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/")
 meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^README\.md" | \
-    grep -E "\.($code_extensions)$" | \
+    grep -vE "$test_patterns" | \
+    grep -vE "\.($skip_extensions)$" | \
     while IFS= read -r file; do
-        # Check for "Task X.Y" or "Phase X" patterns (case insensitive)
-        refs=$(grep -nE "[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/" "$file" 2>/dev/null || true)
+        # grep -I skips binary files (images, fonts, compiled artifacts)
+        refs=$(grep -InE "$meta_ref_patterns" "$file" 2>/dev/null || true)
         if [ -n "$refs" ]; then
             echo "$file:"
             echo "$refs" | sed 's/^/     /'
@@ -240,6 +244,7 @@ staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK
 
 if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
     # Check if the diff actually contains checkbox completions (marked [x] or [~])
+    # shellcheck disable=SC2086 # Intentional word splitting — variable holds multiple file paths
     task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
     if [ -n "$task_list_has_completions" ]; then
         echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
