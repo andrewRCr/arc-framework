@@ -277,20 +277,29 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 
 ### Save to Git Notes
 
-After writing SESSION-NOTES.md, save the user directory to git notes for portability:
+After writing SESSION-NOTES.md, save the user directory to git notes and push based on the
+`user.sync_push` setting. **Per-developer override:** `git config arc.sync_push` takes
+precedence over `arc-config.yml` when set — check this first.
 
-```bash
-npx arc user save    # serialize user/{identity}/ to git note on HEAD
-```
+- **`always`** (solo default): save and push in one step:
 
-Then push based on `user.sync_push` setting in `arc-config.yml`:
+    ```bash
+    npx arc sync
+    ```
 
-- `always` (solo default): run `npx arc user push` automatically (or use `npx arc sync` to
-  combine save + push in one step)
-- `prompt` (team default): ask the user whether to push
-- `manual`: skip — user pushes when ready
+- **`prompt`** (team default): save first, then ask the user whether to push:
 
-Per-developer override: `git config arc.sync_push`.
+    ```bash
+    npx arc user save
+    # then ask — if yes:
+    npx arc user push
+    ```
+
+- **`manual`**: save only — user pushes when ready:
+
+    ```bash
+    npx arc user save
+    ```
 
 ### Conditional WORK-STATUS.md Commit
 
