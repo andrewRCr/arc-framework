@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Shared shell library for ARC scripts and hooks.
 # Location: .arc/system/scripts/arc-lib.sh
 #
@@ -19,9 +19,13 @@ fi
 # Colors
 # ============================================================================
 
+# shellcheck disable=SC2034
 ARC_RED='\033[0;31m'
+# shellcheck disable=SC2034
 ARC_YELLOW='\033[1;33m'
+# shellcheck disable=SC2034
 ARC_GREEN='\033[0;32m'
+# shellcheck disable=SC2034
 ARC_NC='\033[0m'
 
 # ============================================================================

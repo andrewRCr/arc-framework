@@ -63,6 +63,7 @@ function titleCase(slug: string): string {
 /** Cancel the prompt sequence and display a cancellation message. */
 function cancelAndThrow(sentinel: symbol): never {
   p.cancel("Setup cancelled.");
+  // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
   throw sentinel;
 }
 
@@ -88,7 +89,7 @@ async function promptTools(sentinel: symbol): Promise<string[]> {
     maxItems: 8,
   });
   if (p.isCancel(tools)) cancelAndThrow(sentinel);
-  const selected = tools as string[];
+  const selected = tools;
 
   if (selected.length > 0) {
     const labels = selected.map(
@@ -177,10 +178,10 @@ export async function runInitPrompts(
     if (p.isCancel(team_mode)) cancelAndThrow(sentinel);
 
     return {
-      project_name: project_name as string,
+      project_name: project_name,
       tools,
-      pm_mode: pm_mode as string,
-      team_mode: team_mode as boolean,
+      pm_mode: pm_mode,
+      team_mode: team_mode,
     };
   } catch (err) {
     if (typeof err === "symbol") return null;

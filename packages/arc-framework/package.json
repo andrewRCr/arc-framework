@@ -13,7 +13,9 @@
     "test:integration": "vitest run __tests__/integration",
     "test:e2e": "vitest run -c vitest.e2e.config.ts",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:ts": "eslint src/",
+    "lint:sh": "shellcheck -x --source-path=SCRIPTDIR arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },
   "engines": {
     "node": ">=18"
@@ -23,9 +25,13 @@
     "commander": "^13.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.13.10",
+    "eslint": "^10.1.0",
+    "shellcheck": "^4.1.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.2",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^3.0.8"
   },
   "files": [

@@ -1,7 +1,7 @@
 # Development Rules (Project)
 
-Project-specific development standards. Quality gates, testing requirements, documentation style, file
-organization, and architecture rules.
+Project-specific development standards for the ARC framework. Quality gates, testing requirements,
+documentation style, file organization, and architecture rules.
 
 For ARC methodology rules (commit discipline, task execution, session management, verification), see
 [DEV-RULES.ARC][dev-rules-arc].
@@ -20,6 +20,7 @@ Use this when a domain's rules are substantial enough to warrant separation.
 - [Code Quality Principles](#code-quality-principles) — engineering standards
 - [Documentation Standards](#documentation-standards) — markdown quality, style conventions
 - [File Organization](#file-organization) — directory structure and boundaries
+- [Capture Routing](#capture-routing) — where deferred issues go
 - [Architecture Documentation](#architecture-documentation) — ADRs and design records
 
 ---
@@ -28,39 +29,60 @@ Use this when a domain's rules are substantial enough to warrant separation.
 
 **Zero Tolerance Policy:** All quality checks must pass before any commit. No exceptions.
 
-**Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1), integration
-checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and pre-PR (Tier 3). See
-[Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance, and task list integration.
+**Tiered Approach:** Quality gates follow a tiered system — fast incremental checks per-task (Tier 1),
+integration checkpoints at coherent unit boundaries (Tier 2), and full suite for phase completion and
+pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
+and task list integration.
 
-<!-- Customize: List your project's quality checks with their commands. Replace or extend these examples.
-     Common checks by project type:
-     - Web app: linting, type checking, unit tests, E2E tests, build
-     - CLI: build, unit tests, lint, type-check
-     - Library: tests, lint, docs generation
-     - Docs-only: markdown linting, link checking -->
+1. **Markdown Linting**: Zero violations
+   - Command: `npm run -s lint:md`
+   - Auto-fix: `npm run -s lint:md:fix`
+   - Config: `.markdownlint-cli2.jsonc`
 
-1. **Linting**: Zero violations
-   - Command: `npm run lint`
+2. **Code Linting**: Zero violations
+   - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
+     (typescript-eslint recommended-type-checked)
+   - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts
 
-2. **Type Checking**: Zero errors
+3. **TypeScript Type Checking**: Zero errors
    - Command: `npm run typecheck`
+   - Config: `packages/arc-framework/tsconfig.json` (strict mode)
 
-3. **Tests**: All passing
-   - Command: `npm test`
+4. **Tests**: All pass
+   - Command: `npm test` (full suite), `npm run test:unit` (unit only)
+   - Framework: Vitest
+   - Config: `packages/arc-framework/vitest.config.ts`
 
-4. **CI Validation**: All checks pass
-   - Runs automatically on push/PR
+5. **Build**: Succeeds
+   - Command: `npm run build`
+   - Tooling: tsup (ESM output, declarations, shebang injection)
+
+6. **CI Validation**: All checks pass
+   - GitHub Actions runs automatically on push/PR
+   - Markdown linting, code linting (zero violations policy)
+   - TypeScript type checking, test suite, build verification
+   - Template structure validation
+   - Internal link checking
 
 ## Testing Requirements
 
-<!-- Customize: Define your project's testing strategy. -->
+**Test framework:** Vitest with three test tiers matching the directory structure:
 
-- **Test-first assessment**: See [DEV-RULES.ARC][dev-rules-arc] for when to write tests before vs. after
-  implementation
-- **Integration focus**: Prefer flow-level coverage over isolated units when practical
-- **All tests must pass** before any commit (see Quality Gates above)
-- **Detailed guidance**: Create a project testing strategy as patterns emerge
-  (see [STRATEGY-INDEX][strategy-index] for guidance on project strategies)
+- **Unit** (`__tests__/unit/`): Pure function and module tests, no filesystem or process side effects.
+  Fast, isolated, run on every change.
+- **Integration** (`__tests__/integration/`): Module interaction tests. May touch the filesystem
+  via temp directories but no external services.
+- **E2E** (`__tests__/e2e/`): Full CLI invocation tests. Run `arc init`, `arc update`, etc. against
+  real (temporary) git repos to validate end-to-end behavior.
+
+**Coverage expectations:** Business logic and core libraries should have unit test coverage. Commands
+are validated through integration and E2E tests. No hard coverage percentage target — focus on
+meaningful assertions over line counting.
+
+**Testing methodology:** See [Testing Methodology Strategy][testing-methodology] for the full
+approach — TDD decision tree, mocking rules, vertical slice workflow, test naming conventions.
+
+**Markdown linting** remains the primary quality gate for `.arc/` documentation alongside code quality.
 
 ## Code Quality Principles
 
@@ -73,25 +95,29 @@ Apply standard software engineering principles:
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
-<!-- Customize: Add architecture-specific subsections for your project's non-negotiable patterns.
-     Examples: Layered Architecture, Component Styling, Import Standards, Command Structure,
-     Public API Conventions. State the rule, give a brief rationale, and reference the relevant
-     strategy doc if one exists. -->
+**TypeScript standards:**
+
+- Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
+- ESM throughout (`type: "module"`, Node16 module resolution)
+- Prefer explicit return types on exported functions
+- Use `unknown` over `any` for external data; validate and narrow before use
+- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
+  describing the module's purpose
 
 ## Documentation Standards
 
 ### Markdown quality
 
 - All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
+- Template-first documents with comprehensive inline guidance and framework defaults
+- READMEs required for each directory
+- Always run markdown linting after updating documentation files
 - **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely at
   80-90 characters. Linting catches overflow but not underfill; consistently short lines waste space, hurt readability
   in wide content (tables, task lists, rationale blocks), and compound over time as subsequent edits match the short
   pattern. Wrap at natural phrase boundaries near the target width.
-- Always run markdown linting after updating documentation files
 
 ### Documentation style
-
-<!-- These conventions ship as ARC defaults. Customize by editing this section directly. -->
 
 - **Collaborative voice**: Commits, task lists, and project docs should read naturally from an author or team
   perspective — not as a transcript of human-AI interaction. Write as the work's author would.
@@ -107,28 +133,27 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 ## File Organization
 
-<!-- Customize: Define your project's directory structure and boundaries. -->
-
-- `.arc/` = ARC methodology files (reference/, system/, active/, backlog/)
+- `.arc/` = the ARC methodology (reference/, system/, active/, backlog/)
+- `packages/arc-framework/` = CLI npm package (`@arc-framework/cli`)
 - Separate concerns: keep production code, tests, and configuration in distinct directories
 
 ## Capture Routing
 
-<!-- Customize: Define where deferred issues and discovered work items are routed.
-     ARC's "leave it cleaner" rule (DEV-RULES.ARC § Leave it cleaner) routes deferred items
-     based on PM mode. Teams using pm.mode: external or pm.mode: none should define their
-     capture surfaces here (e.g., GitHub Issues, Linear project, a specific file).
-     Teams using pm.mode: arc-in-git use ATOMIC-INBOX.md and backlog files by default. -->
+Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces:
 
-[Define your capture routing here — where do deferred issues go?]
+- **Atomic tasks for this work unit** → atomic companion file (`atomic-{name}.md`)
+- **Atomic tasks for later** → `user/{identity}/ATOMIC-INBOX.md`
+- **Multi-step work for later** → appropriate backlog file or existing plan document
+
+See [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner for the full routing table.
 
 ## Architecture Documentation
 
 ### Architecture Decision Records (ADRs)
 
-Document significant architectural decisions in ADRs (`.arc/reference/adr/`). ADRs capture the context, decision,
-and consequences of important design choices, serving as historical record and reference for understanding system
-constraints.
+Document significant architectural decisions in ADRs (`.arc/reference/adr/`). ADRs capture the context,
+decision, and consequences of important design choices, serving as historical record and reference for
+understanding system constraints.
 
 **Write an ADR when:**
 
@@ -153,5 +178,5 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 
 [dev-rules-arc]: DEV-RULES.ARC.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
-[strategy-index]: ../strategies/STRATEGY-INDEX.md
 [adr-methodology]: ../strategies/arc/strategy-adr-methodology.md
+[testing-methodology]: ../strategies/STRATEGY-INDEX.md

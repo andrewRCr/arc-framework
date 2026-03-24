@@ -274,7 +274,7 @@ esac
 # ============================================================================
 # RULE 5: Body Length Limits (warnings only)
 # ============================================================================
-body_lines=$(echo "$body" | grep -v '^$' | wc -l)
+body_lines=$(echo "$body" | grep -vc '^$')
 
 if [ "$body_lines" -gt 25 ]; then
     echo -e "${YELLOW}Warning: Commit body is ${body_lines} lines (maximum 25 recommended)${NC}"

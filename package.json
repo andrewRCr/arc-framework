@@ -16,7 +16,9 @@
     "test:unit": "npm run test:unit -w packages/arc-framework",
     "test:integration": "npm run test:integration -w packages/arc-framework",
     "test:e2e": "npm run test:e2e -w packages/arc-framework",
-    "typecheck": "npm run typecheck -w packages/arc-framework"
+    "typecheck": "npm run typecheck -w packages/arc-framework",
+    "lint:ts": "npm run lint:ts -w packages/arc-framework",
+    "lint:sh": "npm run lint:sh -w packages/arc-framework"
   },
   "devDependencies": {
     "markdownlint-cli2": "0.21.0"

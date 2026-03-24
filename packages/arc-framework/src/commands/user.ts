@@ -137,7 +137,7 @@ export async function runUserLoad(
   const ref = notesRef(identity);
 
   // Try HEAD first, then walk ancestors
-  let noteContent: string | null = null;
+  let noteContent: string | null;
   let foundCommit = "";
   let fromAncestor = false;
 
@@ -187,7 +187,7 @@ export async function runUserLoad(
 
   if (manifest.version !== 1 || typeof manifest.files !== "object" || manifest.files === null) {
     throw new Error(
-      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${String((manifest as unknown as Record<string, unknown>).version ?? "unknown")}). ` +
+      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${JSON.stringify((manifest as unknown as Record<string, unknown>).version ?? "unknown")}). ` +
       "This note may have been created by a newer version of ARC. " +
       "Update the CLI and try again, or `arc user save` to overwrite.",
     );

@@ -39,22 +39,27 @@ and task list integration.
    - Auto-fix: `npm run -s lint:md:fix`
    - Config: `.markdownlint-cli2.jsonc`
 
-2. **TypeScript Type Checking**: Zero errors
+2. **Code Linting**: Zero violations
+   - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
+     (typescript-eslint recommended-type-checked)
+   - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts
+
+3. **TypeScript Type Checking**: Zero errors
    - Command: `npm run typecheck`
    - Config: `packages/arc-framework/tsconfig.json` (strict mode)
 
-3. **Tests**: All pass
+4. **Tests**: All pass
    - Command: `npm test` (full suite), `npm run test:unit` (unit only)
    - Framework: Vitest
    - Config: `packages/arc-framework/vitest.config.ts`
 
-4. **Build**: Succeeds
+5. **Build**: Succeeds
    - Command: `npm run build`
    - Tooling: tsup (ESM output, declarations, shebang injection)
 
-5. **CI Validation**: All checks pass
+6. **CI Validation**: All checks pass
    - GitHub Actions runs automatically on push/PR
-   - Markdown linting (zero violations policy)
+   - Markdown linting, code linting (zero violations policy)
    - TypeScript type checking, test suite, build verification
    - Template structure validation
    - Internal link checking

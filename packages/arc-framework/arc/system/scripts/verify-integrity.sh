@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Verify ARC installation integrity — config, files, references, hooks, session state.
 # Location: .arc/system/scripts/verify-integrity.sh
 #
@@ -285,6 +285,7 @@ if [ -f "$work_status" ]; then
     # Check task list path if specified
     task_list_line=$(grep -E '^\*\*Task List\*\*' "$work_status" 2>/dev/null | head -1)
     if [ -n "$task_list_line" ]; then
+        # shellcheck disable=SC2016 # Single quotes intentional — matching literal backticks
         task_list_path=$(echo "$task_list_line" | sed -E 's/.*`([^`]+)`.*/\1/' | sed 's/^[[:space:]]*//')
 
         if echo "$task_list_path" | grep -q '\[none\]'; then
@@ -300,7 +301,7 @@ if [ -f "$work_status" ]; then
                     task_num=$(echo "$next_task_line" | grep -oE 'Task [0-9]+\.[0-9]+' | head -1)
                     if [ -n "$task_num" ]; then
                         # Extract just the number part for searching
-                        num_part=$(echo "$task_num" | sed 's/Task //')
+                        num_part="${task_num#Task }"
                         if grep -q "$num_part" "$task_list_path" 2>/dev/null; then
                             pass "Next task reference resolves: $task_num"
                         else
