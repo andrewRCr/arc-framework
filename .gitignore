@@ -31,3 +31,7 @@ Thumbs.db
 .arc-internal/user/*/
 # Local dependencies
 node_modules/
+.arc/system/.internal/pristine.json
+.arc/user/*/
+.agents/skills/arc-*/
+.claude/skills/arc-*/
