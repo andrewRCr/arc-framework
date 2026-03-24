@@ -62,4 +62,31 @@ Atomic Task Completion for the full protocol.
     new installs. No CLI command needed — workflow is agent-agnostic and accommodates future
     tools with unknown directory conventions.
 
+- [x] **Add `arc-task-audit` canonical skill** — Pre-implementation audit skill for surfacing
+    assumptions, masked design decisions, codebase drift, ordering risks, scope ambiguity,
+    interface contracts, test strategy gaps, and missing acceptance criteria before task
+    execution begins. Registered in `CANONICAL_SKILLS`, `init-recipe.json`, both skills
+    READMEs, file classification inventory. Backfilled `arc-setup` and `arc-verify` entries
+    missing from classification inventory. Fixed brittle test: hardcoded skill count →
+    `CANONICAL_SKILLS.length * 2`.
+
+- [x] **Add code linting (ESLint + shellcheck)** — Added ESLint with `typescript-eslint`
+    `recommendedTypeChecked` preset for CLI source (33 TS files) and shellcheck via npm
+    wrapper for githooks and system scripts. ESLint found 7 issues (useless assignment,
+    `no-base-to-string`, unnecessary type assertions, sentinel throw pattern). Shellcheck
+    found shebang correctness issue (`#!/bin/sh` on scripts using `local`), a `grep | wc -l`
+    that should be `grep -c`, and style preferences (suppressed where intentional). Added
+    `lint:ts` and `lint:sh` npm scripts, CI steps, and updated QUICK-REFERENCE and
+    DEV-RULES.PROJECT quality gate documentation across all tiers. No adopter impact — all
+    devDependencies, not in package `files` field.
+
+- [x] **Extract hook check parameters to arc-config.yml** — Pre-commit meta-project
+    reference check had hardcoded whitelist of code extensions (`ts|tsx|py|js|jsx`) with
+    inline "Adopter: adjust" comments — not viable for a language-agnostic framework, and
+    edits would be lost on `arc update` (Framework-classified files). Flipped to blacklist
+    approach (`hooks.skip_extensions`) listing non-code text extensions; binary files handled
+    automatically via `grep -I`. Added `hooks.test_patterns` for test directory exclusion.
+    Both settings in `arc-config.yml` with sensible defaults. Updated `validate-config.sh`
+    known keys. Removed misleading inline customization comments from hooks.
+
 ---
