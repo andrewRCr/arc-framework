@@ -9,6 +9,17 @@ criteria. Flat checkbox list, no numbering hierarchy.
 
 ---
 
+- [ ] **Design idiomatic CLI invocation pattern for adopters**
+    - Problem: `arc` CLI is a local devDependency, so bare `arc` commands fail — adopters
+      must use `npx arc` for session lifecycle commands (`arc user save`, `arc sync`).
+      These are frequent, session-boundary operations where `npx` friction compounds.
+    - Research needed: Survey how comparable cross-project dev tools handle this (husky,
+      commitlint, lint-staged, turbo, etc.). Evaluate global install recommendation,
+      npm script convenience wrappers, postinstall bin linking, or hybrid approaches.
+    - Approach: External research first, then decide on a recommendation and whether
+      `arc init` should automate any setup (e.g., suggest global install, add npm scripts).
+    - Files: docs (QUICK-REFERENCE, README), possibly `arc init` post-setup messaging
+
 - [ ] **Evaluate `.gitkeep` scaffolding in `active/` and `archive/` subdirectories**
     - Problem: `arc init` creates `active/{feature,incidental,technical}/` and matching
       `archive/` dirs with `.gitkeep` files. Post-init these are empty clutter — adopters
