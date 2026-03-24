@@ -13,17 +13,6 @@ Atomic Task Completion for the full protocol.
 
 ---
 
-- [ ] **Design post-init agent onboarding experience**
-    - Scenario: project initialized with Claude, developer later wants to add Gemini (or
-      vice versa). The new agent can generate its own skill files, but gitignore entries,
-      skill registration, and ARC-specific setup may be missed.
-    - Options to evaluate: dedicated `arc add-agent` command, lightweight workflow doc the
-      agent follows, extension to `arc join`, or just documentation. Consider: how does the
-      agent discover ARC is present? How does it know to look at `.arc/system/skills/` for
-      canonical definitions?
-    - Related: skill generation already supports multiple tools — the machinery exists in
-      `generateSkills()`, but there's no standalone entry point for adding a tool post-init.
-
 - [x] **`arc init` UX polish — full prompt overhaul** — Researched CLI scaffolder norms,
   evaluated clack vs Inquirer vs prompts (terkelg), discovered clack v1.1.0 added
   `autocompleteMultiselect` and `limitOptions` which solved most friction points without
@@ -63,5 +52,14 @@ Atomic Task Completion for the full protocol.
     install/shell aliases needed. Updated all executable CLI references in workflow docs,
     QUICK-REFERENCE, strategy docs, and READMEs (both `.arc/` and package counterparts).
     Standalone binary distribution (brew, curl) deferred to BACKLOG-TECHNICAL for post-beta.
+
+- [x] **Design post-init agent onboarding experience** — Created dual-audience supplemental
+    workflow `add-agent.md` for adding an agent that wasn't selected at init time. Covers:
+    orient via AGENT-BRIEFING.ARC.md, check/create agent-specific file, generate skill files
+    from canonical sources in `.arc/system/skills/`, handle tool-native vs universal skill
+    directories, restart harness, then `/arc-resume` for normal operation. Added one-line
+    reference from AGENT-BRIEFING.ARC.md footer. Added to init-recipe.json so it ships with
+    new installs. No CLI command needed — workflow is agent-agnostic and accommodates future
+    tools with unknown directory conventions.
 
 ---

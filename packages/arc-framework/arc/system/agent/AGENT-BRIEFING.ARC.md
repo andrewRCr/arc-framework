@@ -52,4 +52,5 @@ method.
 
 _This is the shared ARC framework entry point for all AI agents. Project-specific context
 lives in [AGENT-BRIEFING.PROJECT.md](AGENT-BRIEFING.PROJECT.md). Agent-specific guidance lives
-in dedicated files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._
+in dedicated files (e.g., CLAUDE.ARC.md, CODEX.ARC.md). Adding a new agent to an existing
+project? See [add-agent.md](../workflows/arc/supplemental/add-agent.md)._

@@ -65,6 +65,7 @@
     "system/workflows/arc/supplemental/maintain-project-docs.md",
     "system/workflows/arc/supplemental/manage-incidental-work.md",
     "system/workflows/arc/supplemental/prepare-commits.md",
+    "system/workflows/arc/supplemental/add-agent.md",
     "system/workflows/arc/supplemental/verify-arc-integrity.md",
     "system/workflows/arc/work-unit-lifecycle/activate-work-unit.md",
     "system/workflows/arc/work-unit-lifecycle/archive-work-unit.md",

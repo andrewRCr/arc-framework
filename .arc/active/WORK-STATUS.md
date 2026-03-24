@@ -19,7 +19,7 @@
 **Next Task**: Task 3.1 — Extract shared setup logic from `init.ts` (line ~251)
 **Last Completed**: Task 2.8 — Delete `.arc-internal/` and verify end-to-end (Phase 2 complete)
 **Blockers**: [none]
-**Next Action**: Address atomic companion tasks before starting Phase 3
+**Next Action**: Begin Phase 3 — Task 3.1 (extract shared setup logic from `init.ts`)
 
 ---
 
