@@ -304,12 +304,15 @@ to update classification — both axes apply independently.
 
 ### system/skills/
 
-| File                   | Classification | Layer | Notes                                                            |
-|------------------------|----------------|-------|------------------------------------------------------------------|
-| `README.md`            | Framework      | Core  | Skills directory guide.                                          |
-| `arc-resume/SKILL.md`  | Framework      | Core  | Session initialization trigger. Generated to tool-specific dirs. |
-| `arc-commit/SKILL.md`  | Framework      | Core  | Atomic commit trigger. Generated to tool-specific dirs.          |
-| `arc-handoff/SKILL.md` | Framework      | Core  | Session handoff trigger. Generated to tool-specific dirs.        |
+| File                      | Classification | Layer | Notes                                                            |
+|---------------------------|----------------|-------|------------------------------------------------------------------|
+| `README.md`               | Framework      | Core  | Skills directory guide.                                          |
+| `arc-resume/SKILL.md`     | Framework      | Core  | Session initialization trigger. Generated to tool-specific dirs. |
+| `arc-task-audit/SKILL.md` | Framework      | Core  | Pre-implementation task audit. Generated to tool-specific dirs.  |
+| `arc-commit/SKILL.md`     | Framework      | Core  | Atomic commit trigger. Generated to tool-specific dirs.          |
+| `arc-handoff/SKILL.md`    | Framework      | Core  | Session handoff trigger. Generated to tool-specific dirs.        |
+| `arc-setup/SKILL.md`      | Framework      | Core  | Post-install setup ceremony. Generated to tool-specific dirs.    |
+| `arc-verify/SKILL.md`     | Framework      | Core  | Installation health check. Generated to tool-specific dirs.      |
 
 ### system/githooks/
 

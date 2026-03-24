@@ -539,8 +539,8 @@ describe("runInit", () => {
       (c: [string, string]) =>
         c[0].includes("/skills/arc-") && c[0].endsWith("/SKILL.md"),
     );
-    // 5 skills × 2 directories (.claude/skills/ + .agents/skills/)
-    expect(skillWrites).toHaveLength(10);
+    // Each canonical skill × 2 directories (.claude/skills/ + .agents/skills/)
+    expect(skillWrites).toHaveLength(CANONICAL_SKILLS.length * 2);
 
     // Gitignore entries added for skill directories
     const gitignoreWrites = writeCalls
