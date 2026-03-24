@@ -219,6 +219,19 @@ on **lifecycle intent** — when you intend to handle it, not what domain it's i
     - `none` / `external`: per project convention (DEV-RULES.PROJECT) — default: ask user
     <!-- arc:endif -->
 
+### Atomic Task Completion
+
+When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow this protocol:
+
+1. **Mark `[x]`** and update the description — trim planning scaffolding (problem statement,
+   research steps, options to evaluate) to outcomes (what was done, key decisions, files changed).
+   Same principle as task list completion notes.
+2. **Reorder** — move the completed task below all incomplete tasks (`[ ]`). Among completed tasks,
+   maintain completion order: oldest completed first, most recently completed last. This keeps
+   pending work immediately visible when the file is opened.
+3. **Verify ordering** — incomplete tasks at the top, then a visual gap (blank line), then
+   completed tasks in chronological completion order.
+
 ### Complete Workflow
 
 **For full incidental work lifecycle** (creation, execution, archival), see:
