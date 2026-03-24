@@ -58,4 +58,15 @@ criteria. Flat checkbox list, no numbering hierarchy.
       team branching)" — accurate to actual behavioral changes, doesn't conflate OSS
       contribution with concurrent ARC co-development.
 
+- [ ] **Design post-init agent onboarding experience**
+    - Scenario: project initialized with Claude, developer later wants to add Gemini (or
+      vice versa). The new agent can generate its own skill files, but gitignore entries,
+      skill registration, and ARC-specific setup may be missed.
+    - Options to evaluate: dedicated `arc add-agent` command, lightweight workflow doc the
+      agent follows, extension to `arc join`, or just documentation. Consider: how does the
+      agent discover ARC is present? How does it know to look at `.arc/system/skills/` for
+      canonical definitions?
+    - Related: skill generation already supports multiple tools — the machinery exists in
+      `generateSkills()`, but there's no standalone entry point for adding a tool post-init.
+
 ---
