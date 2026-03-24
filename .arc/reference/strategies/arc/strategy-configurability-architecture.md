@@ -220,7 +220,7 @@ sets `hooks.commit_msg: disabled`. The agent still produces quality output; enfo
 changing any enforcement settings.
 
 **Changing PM mode:** Independent of enforcement and method changes. A `pm.mode: none` user who wants in-git project
-management switches to `pm.mode: arc-in-git` via `arc init --reconfigure`. A team moving to external tracking switches
+management switches to `pm.mode: arc-in-git` via `npx arc init --reconfigure`. A team moving to external tracking switches
 to `pm.mode: external` without affecting enforcement settings or method overrides. PM mode changes are structural choices
 made at init time; enforcement settings and method overrides can change at any time.
 

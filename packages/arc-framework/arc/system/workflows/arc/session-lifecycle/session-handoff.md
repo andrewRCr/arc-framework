@@ -280,12 +280,13 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 After writing SESSION-NOTES.md, save the user directory to git notes for portability:
 
 ```bash
-arc user save    # serialize user/{identity}/ to git note on HEAD
+npx arc user save    # serialize user/{identity}/ to git note on HEAD
 ```
 
 Then push based on `user.sync_push` setting in `arc-config.yml`:
 
-- `always` (solo default): run `arc user push` automatically
+- `always` (solo default): run `npx arc user push` automatically (or use `npx arc sync` to
+  combine save + push in one step)
 - `prompt` (team default): ask the user whether to push
 - `manual`: skip — user pushes when ready
 

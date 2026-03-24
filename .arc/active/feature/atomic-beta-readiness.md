@@ -2,24 +2,16 @@
 
 **Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
 planned work — discovered during execution, not required for the work unit's success
-criteria. Flat checkbox list, no numbering hierarchy. Incomplete tasks stay at the top;
-move completed tasks below them (completion order) to keep pending work visible.
+criteria. Flat checkbox list, no numbering hierarchy.
+
+**Ordering:** Incomplete tasks (`[ ]`) stay at the top. Completed tasks (`[x]`) sink
+below them in completion order (oldest completed first). See process-task-loop §
+Atomic Task Completion for the full protocol.
 
 > Multi-step work required for the WU belongs in the task list as a new phase.
 > For multi-step work outside the WU's concern, see `manage-incidental-work.md`.
 
 ---
-
-- [ ] **Design idiomatic CLI invocation pattern for adopters**
-    - Problem: `arc` CLI is a local devDependency, so bare `arc` commands fail — adopters
-      must use `npx arc` for session lifecycle commands (`arc user save`, `arc sync`).
-      These are frequent, session-boundary operations where `npx` friction compounds.
-    - Research needed: Survey how comparable cross-project dev tools handle this (husky,
-      commitlint, lint-staged, turbo, etc.). Evaluate global install recommendation,
-      npm script convenience wrappers, postinstall bin linking, or hybrid approaches.
-    - Approach: External research first, then decide on a recommendation and whether
-      `arc init` should automate any setup (e.g., suggest global install, add npm scripts).
-    - Files: docs (QUICK-REFERENCE, README), possibly `arc init` post-setup messaging
 
 - [ ] **Evaluate `.gitkeep` scaffolding in `active/` and `archive/` subdirectories**
     - Problem: `arc init` creates `active/{feature,incidental,technical}/` and matching
@@ -69,5 +61,15 @@ move completed tasks below them (completion order) to keep pending work visible.
       "Enable multi-developer coordination? (ARC Team Mode: task ownership, team handoffs,
       team branching)" — accurate to actual behavioral changes, doesn't conflate OSS
       contribution with concurrent ARC co-development.
+
+- [x] **Standardize `npx arc` as canonical CLI invocation pattern** — Researched npm ecosystem
+    patterns (husky, eslint, prettier, turbo, etc.) and cross-language distribution (lefthook,
+    mise, just, gh). Key insight: frequent session commands (`arc user save`, `arc sync`) are
+    agent-executed via workflows — agents don't care about `npx` prefix friction. Human-initiated
+    commands (`arc init`, `arc join`, `arc update`) are infrequent one-offs where `npx` is the
+    standard npm idiom. Decision: `npx arc` is the canonical invocation, no npm scripts/global
+    install/shell aliases needed. Updated all executable CLI references in workflow docs,
+    QUICK-REFERENCE, strategy docs, and READMEs (both `.arc/` and package counterparts).
+    Standalone binary distribution (brew, curl) deferred to BACKLOG-TECHNICAL for post-beta.
 
 ---

@@ -6,7 +6,7 @@ documents that work with any agent platform.
 
 ## Getting Started
 
-After running `arc init`, restart your AI agent to load the new configuration, then:
+After running `npx arc init`, restart your AI agent to load the new configuration, then:
 
 - Run `/arc-setup` to walk through verification and project definition with your agent
 - Or paste: *"Read `.arc/system/agent/AGENT-BRIEFING.ARC.md` for context, then follow

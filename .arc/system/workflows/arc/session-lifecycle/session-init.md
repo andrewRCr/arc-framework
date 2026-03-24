@@ -112,7 +112,7 @@ session-state, follow the override instead.
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
-   - **If file doesn't exist or is stale**: Try restoring from git notes — run `arc user load` (or
+   - **If file doesn't exist or is stale**: Try restoring from git notes — run `npx arc user load` (or
      check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
      exist either, skip — the session starts with tracked state only (WORK-STATUS.md).
    - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent,

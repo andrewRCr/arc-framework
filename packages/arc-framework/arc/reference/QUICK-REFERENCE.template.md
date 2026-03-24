@@ -156,17 +156,17 @@ git status
 
 ```bash
 # Save user directory to git notes (called automatically at session handoff)
-arc user save
+npx arc user save
 
 # Load user directory from git notes (called automatically at session init)
-arc user load
+npx arc user load
 
 # Push/pull user notes to/from remote
-arc user push
-arc user pull
+npx arc user push
+npx arc user pull
 
 # Save + push in one step
-arc sync
+npx arc sync
 ```
 
 Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
@@ -176,7 +176,7 @@ Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / 
 
 ```bash
 # Browse completed atomic work from commit history
-arc log --atomic
+npx arc log --atomic
 ```
 
 ---

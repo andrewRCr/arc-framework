@@ -24,7 +24,7 @@ user/
 
 **Solo projects** have one identity directory. **Team projects** have one per developer. The
 structure is identical — team scaling requires no migration. Add team members with
-`arc user add <identity>`.
+`npx arc user add <identity>`.
 
 ## What Lives Where
 
@@ -46,7 +46,8 @@ cross-machine or team handoff, ARC uses git notes to attach the entire `user/{id
 directory to commits without creating merge conflicts. See `arc-config.yml` for
 `user.sync_push` behavior (always / prompt / manual).
 
-CLI commands: `arc user save`, `arc user load`, `arc user push`, `arc user pull`, `arc sync`.
+CLI commands: `npx arc user save`, `npx arc user load`, `npx arc user push`, `npx arc user pull`,
+`npx arc sync`.
 
 ## Agent Lookup
 
@@ -60,6 +61,6 @@ Identity is resolved at session start via `git config arc.identity`. Session ini
 
 ## Adding Team Members
 
-Run `arc user add <identity>` to create a new `user/{identity}/` directory with the standard
+Run `npx arc user add <identity>` to create a new `user/{identity}/` directory with the standard
 workspace files. The CLI populates the directory from its internal templates — no manual file
 copying needed.

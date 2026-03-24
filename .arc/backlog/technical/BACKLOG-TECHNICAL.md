@@ -35,6 +35,23 @@ begin the standard workflow.
     - Approach: CI that creates and validates instantiated templates
     - Notes: May evolve into CLI integration tests during WU3
 
+### Standalone Binary Distribution (Non-npm Install Channels)
+
+- **Standalone binary for non-Node environments**
+    - Problem: ARC CLI requires Node.js via npm, which limits reach to environments without Node
+      installed. Not beta-blocking (npm was good enough for Claude Code's first years across all
+      project types), but worth addressing as adoption grows beyond JS/TS-primary shops.
+    - Research findings: Polyglot dev tools (lefthook, mise, just, gh) that succeed cross-ecosystem
+      ship standalone binaries. TypeScript CLIs can produce these via `bun compile` or `vercel/pkg`.
+      Distribution channels in order of reach: GitHub releases + curl install script, then Homebrew
+      formula, then system package managers (apt, winget, scoop).
+    - Approach: Investigate `bun compile` to produce single-file executables from the TypeScript CLI.
+      Ship via GitHub releases with an install script. Consider a `.arc-version` file convention
+      (like `.tool-versions` for mise/asdf) for team version pinning.
+    - Precedent: Claude Code followed this exact trajectory — npm-only initially, added brew/curl/
+      winget/irm later as adoption broadened.
+    - Effort estimate: M–L (build pipeline, cross-platform testing, install script, docs)
+
 ---
 
 ## Lower Priority / Ideas

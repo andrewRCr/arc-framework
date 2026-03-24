@@ -85,7 +85,7 @@ Context: refactor (atomic / no associated task list)
 Context: documentation (atomic / no associated task list)
 ```
 
-The commit message is the canonical completion record — no separate archive file. `arc log --atomic`
+The commit message is the canonical completion record — no separate archive file. `npx arc log --atomic`
 searches commit history by both the `atomic-` filename pattern and the
 `(atomic / no associated task list)` pattern.
 
