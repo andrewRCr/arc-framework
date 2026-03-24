@@ -78,9 +78,11 @@ for stacked PRs or team sub-branches — see
 
 > **Skip this step** if `pm.mode` is `none` or `external` — documents are already in `active/`.
 
-Use `git mv` to preserve history:
+Ensure the target directory exists (directories are created on demand, not scaffolded at init),
+then use `git mv` to preserve history:
 
 ```bash
+mkdir -p .arc/active/{category}/
 git mv .arc/backlog/{category}/prd-{name}.md .arc/active/{category}/
 git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
 git mv .arc/backlog/{category}/atomic-{name}.md .arc/active/{category}/

@@ -21,21 +21,6 @@
       "layer": "core",
       "pristine_hash": "5d9923a1d69ba5060839080728b024dd24caa66d64a338a032ec4ff2ab1331be"
     },
-    "active/feature/.gitkeep": {
-      "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    "active/incidental/.gitkeep": {
-      "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    "active/technical/.gitkeep": {
-      "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -65,21 +50,6 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "ff1add57b3cd2b41b5e5edaf7dc27c99271ac500ee6a727ab8bfc26e71dcaa3c"
-    },
-    "reference/archive/feature/.gitkeep": {
-      "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    "reference/archive/incidental/.gitkeep": {
-      "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    "reference/archive/technical/.gitkeep": {
-      "classification": "Scaffolded",
-      "layer": "core",
-      "pristine_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "reference/constitution/DEV-RULES.ARC.md": {
       "classification": "Framework",

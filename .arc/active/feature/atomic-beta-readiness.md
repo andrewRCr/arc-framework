@@ -13,23 +13,6 @@ Atomic Task Completion for the full protocol.
 
 ---
 
-- [ ] **Evaluate `.gitkeep` scaffolding in `active/` and `archive/` subdirectories**
-    - Problem: `arc init` creates `active/{feature,incidental,technical}/` and matching
-      `archive/` dirs with `.gitkeep` files. Post-init these are empty clutter — adopters
-      only ever have one active category at a time, and `.gitkeep` files linger after dirs
-      are populated.
-    - Evaluation: Audit work-unit-lifecycle workflows (`activate-work-unit.md`,
-      `archive-work-unit.md`) to confirm they create category subdirs on demand. If
-      workflows handle dir creation reliably, remove `.gitkeep` scaffolding from init —
-      dirs appear only when needed, disappear when empty. Cleaner workspace, same
-      structural correctness.
-    - Considerations: `.gitkeep` files currently communicate structure to new adopters.
-      Weigh that signal value against workspace noise. If removing, ensure `init-recipe.json`
-      and `classification.ts` are updated, and README or workflow docs communicate the
-      expected structure instead.
-    - Files: `packages/arc-framework/src/commands/init.ts`, `init-recipe.json`,
-      `classification.ts`, work-unit-lifecycle workflows
-
 - [ ] **Design post-init agent onboarding experience**
     - Scenario: project initialized with Claude, developer later wants to add Gemini (or
       vice versa). The new agent can generate its own skill files, but gitignore entries,
@@ -61,6 +44,15 @@ Atomic Task Completion for the full protocol.
       "Enable multi-developer coordination? (ARC Team Mode: task ownership, team handoffs,
       team branching)" — accurate to actual behavioral changes, doesn't conflate OSS
       contribution with concurrent ARC co-development.
+
+- [x] **Remove `.gitkeep` scaffolding, create directories on demand** — Audited all workflows that
+    create files in `active/{category}/` and `reference/archive/{category}/`. Archive workflow
+    already used `mkdir -p`; activation workflow relied on pre-existing dirs from `.gitkeep`.
+    Added `mkdir -p` to activate-work-unit.md (before `git mv`) and to PRD/task-generation
+    workflows (for `none`/`external` PM modes where files write directly to `active/`). Removed
+    6 `.gitkeep` files from init-recipe.json, classification.ts, manifest.json, template source,
+    and strategy-file-classification.md inventory. Research confirmed modern tooling (Next.js,
+    Vite, SvelteKit) favors on-demand creation over scaffolding. 365 tests pass.
 
 - [x] **Standardize `npx arc` as canonical CLI invocation pattern** — Researched npm ecosystem
     patterns (husky, eslint, prettier, turbo, etc.) and cross-language distribution (lefthook,

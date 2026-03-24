@@ -191,10 +191,9 @@ to update classification — both axes apply independently.
 
 ### active/
 
-| File                                      | Classification | Layer | Notes                                                                   |
-|-------------------------------------------|----------------|-------|-------------------------------------------------------------------------|
-| `WORK-STATUS.template.md`                 | Scaffolded     | Core  | Template structure replaced entirely by user. Project-owned after init. |
-| `{feature,technical,incidental}/.gitkeep` | Scaffolded     | Core  | Directory structure scaffolding.                                        |
+| File                      | Classification | Layer | Notes                                                                   |
+|---------------------------|----------------|-------|-------------------------------------------------------------------------|
+| `WORK-STATUS.template.md` | Scaffolded     | Core  | Template structure replaced entirely by user. Project-owned after init. |
 
 ### backlog/
 
@@ -237,10 +236,9 @@ to update classification — both axes apply independently.
 
 ### reference/archive/
 
-| File                                      | Classification       | Layer | Notes                                                |
-|-------------------------------------------|----------------------|-------|------------------------------------------------------|
-| `README.md`                               | Configurable (light) | Core  | Framework archive guidance + user-populated section. |
-| `{feature,technical,incidental}/.gitkeep` | Scaffolded           | Core  | Directory scaffolding.                               |
+| File        | Classification       | Layer | Notes                                                |
+|-------------|----------------------|-------|------------------------------------------------------|
+| `README.md` | Configurable (light) | Core  | Framework archive guidance + user-populated section. |
 
 ### reference/constitution/
 
@@ -358,14 +356,12 @@ to update classification — both axes apply independently.
 |----------------|-------|-------------------------------------------------------|
 | Framework      | 56    | Three-way merge. Conflicts rare.                      |
 | Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
-| Scaffolded     | 13    | Skip. Project-owned after init.                       |
+| Scaffolded     | 7     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 82.
+**Total template files:** 76.
 
-*Counts reflect actual files on disk. Wildcard rows (e.g., `{feature,technical,incidental}/.gitkeep`)
-are expanded. `DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not
-counted.*
+*`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
 
 ---
 

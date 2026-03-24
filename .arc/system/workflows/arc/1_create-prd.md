@@ -94,7 +94,7 @@ compound names.
 - **arc-in-git**: `.arc/backlog/{category}/prd-{{WORK_NAME}}.md` — PRDs start in backlog and
   graduate to `active/` during [activation][activate-work-unit]
 - **none / external**: `.arc/active/{category}/prd-{{WORK_NAME}}.md` — PRDs save directly to
-  active (no backlog directory)
+  active (no backlog directory). Create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`
 
 ### Step 5: Retire Plan Documents
 

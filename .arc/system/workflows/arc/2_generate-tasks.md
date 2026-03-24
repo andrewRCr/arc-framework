@@ -85,6 +85,7 @@ file (`notes-{name}.md`), not in the task list.
 
 - **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
 - **none / external** (no backlog): `.arc/active/{category}/tasks-{{WORK_NAME}}.md`
+  (create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`)
 
 Name should match the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
 

@@ -49,15 +49,9 @@ export function needsRendering(templatePath: string): boolean {
  */
 const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
   "active/WORK-STATUS.template.md",
-  "active/feature/.gitkeep",
-  "active/incidental/.gitkeep",
-  "active/technical/.gitkeep",
   "reference/META-PRD.template.md",
   "reference/TECHNICAL-OVERVIEW.template.md",
   "reference/PROJECT-STATUS.template.md",
-  "reference/archive/feature/.gitkeep",
-  "reference/archive/incidental/.gitkeep",
-  "reference/archive/technical/.gitkeep",
   "backlog/ROADMAP.template.md",
   "backlog/feature/BACKLOG-FEATURE.template.md",
   "backlog/technical/BACKLOG-TECHNICAL.template.md",
