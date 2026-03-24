@@ -12,6 +12,7 @@ import {
   writeFile,
   mkdir,
   access,
+  chmod,
   readdir,
   stat,
 } from "node:fs/promises";
@@ -45,6 +46,7 @@ export function makeIOContext(cwd: string): IOContext {
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
     access: (path) => access(path),
+    chmod: (path, mode) => chmod(path, mode),
     exec: makeGitExec(cwd),
   };
 }
@@ -357,9 +359,13 @@ export function makeUserIO(cwd: string): UserIOContext {
   };
 }
 
-/** Create a commit in a temp repo. Returns the commit hash. */
+/** Create a commit in a temp repo. Returns the commit hash.
+ *  Bypasses hooks — these are scaffolding commits for test setup, not hook tests. */
 export async function makeCommit(cwd: string, message: string): Promise<string> {
-  await execFileAsync("git", ["commit", "--allow-empty", "-m", message], { cwd });
+  await execFileAsync(
+    "git", ["-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", message],
+    { cwd },
+  );
   const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 }

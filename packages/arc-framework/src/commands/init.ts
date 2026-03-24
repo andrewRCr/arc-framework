@@ -36,9 +36,13 @@ import {
 /** Filesystem access check — resolves if path exists, rejects otherwise. */
 export type AccessFn = (path: string) => Promise<void>;
 
+/** Set file permissions (mode is octal, e.g. 0o755). */
+export type ChmodFn = (path: string, mode: number) => Promise<void>;
+
 /** Bundled I/O dependencies for testability. */
 export interface IOContext extends CoreIO {
   access: AccessFn;
+  chmod: ChmodFn;
 }
 
 /** Init mode: fresh install or joining existing project. */
@@ -281,6 +285,13 @@ export async function runInit(
     join(internalDir, PRISTINE_FILENAME),
     JSON.stringify(pristineStore, null, 2) + "\n",
   );
+
+  // Set executable permissions on hooks and shell scripts
+  for (const relPath of filesWritten) {
+    if (relPath.startsWith("system/githooks/") || relPath.endsWith(".sh")) {
+      await io.chmod(join(arcDir, relPath), 0o755);
+    }
+  }
 
   // Git integration setup
   const gitignorePath = join(cwd, ".gitignore");

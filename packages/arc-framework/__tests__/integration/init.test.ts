@@ -301,6 +301,21 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(verifyIntegrity.isFile()).toBe(true);
   });
 
+  it("sets executable permissions on hooks and scripts", async () => {
+    const executableFiles = [
+      "system/githooks/pre-commit",
+      "system/githooks/commit-msg",
+      "system/scripts/validate-config.sh",
+      "system/scripts/verify-integrity.sh",
+      "system/scripts/arc-lib.sh",
+    ];
+    for (const relPath of executableFiles) {
+      const s = await stat(join(arcDir, relPath));
+      // Check owner-execute bit (0o100)
+      expect(s.mode & 0o100, `${relPath} should be executable`).toBeTruthy();
+    }
+  });
+
   // --- Pristine Store ---
 
   it("pristine store includes Framework and Configurable files", async () => {

@@ -8,7 +8,7 @@
 
 import { Command } from "commander";
 import * as p from "@clack/prompts";
-import { readFile, writeFile, mkdir, access, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access, chmod, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -54,6 +54,7 @@ function createIOContext(): IOContext {
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
     access: (path) => access(path),
+    chmod: (path, mode) => chmod(path, mode),
     exec: gitExec,
   };
 }

@@ -348,6 +348,7 @@ function mockIO(
       if (path in allFiles) return;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
+    chmod: vi.fn(async () => undefined),
     exec: vi.fn(async (_cmd: string, args: string[]) => {
       // Default: git config --get returns not found
       if (args[0] === "config" && args[1] === "--get") {
