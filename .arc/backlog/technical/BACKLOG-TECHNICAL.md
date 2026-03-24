@@ -74,9 +74,9 @@ all are hardening for edge cases unlikely to surface in normal use.
 Items that have been implemented or superseded by active work units.
 
 - ~~General Refinement Pass~~ — Completed February 2026, merged via PR #3.
-  Archive: `.arc-internal/reference/archive/2026-q1/technical/01_content-refinement-pass/`
+  Archive: `.arc/reference/archive/2026-q1/technical/01_content-refinement-pass/`
 - ~~Structural Readiness Pass~~ — Completed February 2026, merged via PR #4.
-  Archive: `.arc-internal/reference/archive/2026-q1/technical/02_structural-readiness-pass/`
+  Archive: `.arc/reference/archive/2026-q1/technical/02_structural-readiness-pass/`
 - ~~Structural analysis pass~~ — WU2 Cluster M (`plan-wu2-methodology-completion.md`)
 - ~~README.md refresh~~ — WU5 (`plan-wu5-public-release.md`)
 - ~~Migration tools for template updates~~ — WU3 (`prd-cli-implementation.md`)

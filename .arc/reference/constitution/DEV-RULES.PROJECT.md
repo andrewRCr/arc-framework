@@ -130,9 +130,6 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 - `.arc/` = the ARC methodology (reference/, system/, active/, backlog/)
 - `packages/arc-framework/` = CLI npm package (`@arc-framework/cli`)
-- **No internal references in public docs**: Files in `.arc/` must never reference `.arc-internal/`
-  paths (ADRs, internal PRDs, internal workflows, etc.). Public docs are adoption-facing — adopters
-  won't have `.arc-internal/`.
 - Separate concerns: keep production code, tests, and configuration in distinct directories
 
 ## Capture Routing

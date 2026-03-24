@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.6 — Migrate hooks (line ~182)
-**Last Completed**: Task 2.5 — Migrate `.arc-internal/` content into `.arc/`
+**Next Task**: Task 3.1 — Extract shared setup logic from `init.ts` (line ~251)
+**Last Completed**: Task 2.8 — Delete `.arc-internal/` and verify end-to-end (Phase 2 complete)
 **Blockers**: [none]
-**Next Action**: Review framework-specific hook checks and install template hooks
+**Next Action**: Extract shared setup module for `init`/`join` commands
 
 ---
 

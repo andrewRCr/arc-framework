@@ -28,7 +28,6 @@ Thumbs.db
 .arc/**/temp-*
 
 # User directory contents (personal workspace, gitignored)
-.arc-internal/user/*/
 # Local dependencies
 node_modules/
 .arc/system/.internal/pristine.json

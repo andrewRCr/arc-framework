@@ -73,7 +73,7 @@ not "the only approach."
 
 ## Pre-Public Extraction Candidates
 
-Content in `.arc-internal/reference/research/` that has value as personal/developer reference but
+Content in `.arc/reference/research/` that has value as personal/developer reference but
 doesn't belong in the public repo. Extract to a private archive before the clean initial commit.
 
 **Fully absorbed into strategies/ADRs** (citation-level detail only — strategies are authoritative):

@@ -11,8 +11,8 @@ repo is the authoring environment where the framework methodology is developed, 
 
 ## Repository Structure
 
-- **`.arc/`** — The deployable template system (what ships to adopters)
-- **`.arc-internal/`** — Framework development workspace (internal use only)
+- **`.arc/`** — ARC methodology (self-hosted — framework development uses its own system)
+- **`packages/arc-framework/`** — CLI npm package (`@arc-framework/cli`)
 - **`README-ASPIRATIONAL.md`** — Draft public-facing README (updated periodically)
 
 ## Quick Start (Development)
