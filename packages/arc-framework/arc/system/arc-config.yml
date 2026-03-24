@@ -95,8 +95,8 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 # Reduce to remove checks that cause false positives for your project
 # (e.g., tooling that legitimately operates on .arc/ paths).
 # Pipe-separated regex alternation.
-#   default: [Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/
-hooks.meta_ref_patterns: [Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/
+#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
 
 # --- Review ---
 

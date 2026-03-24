@@ -55,6 +55,8 @@ arc_config_get() {
     if [ -z "$value" ]; then
         echo "$default"
     else
+        # Strip surrounding quotes (YAML values may be quoted to avoid parser ambiguity)
+        value=$(echo "$value" | sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/")
         echo "$value"
     fi
 }
