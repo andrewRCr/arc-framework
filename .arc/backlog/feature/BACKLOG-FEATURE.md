@@ -9,47 +9,37 @@ the standard workflow.
 
 ## High Priority
 
-### [Feature Category 1]
-
-- **[Feature Name]**
-    - Description: [What it does]
-    - Value: [Why users want it]
-    - Dependencies: [What must exist first]
-    - Effort estimate: [S/M/L/XL]
-
-### [Feature Category 2]
-
-- **[Feature Name]**
-    - Description: [What it does]
-    - Value: [Why users want it]
-    - Notes: [Additional context]
+*[No high-priority items — current work is captured in active work units.]*
 
 ---
 
 ## Medium Priority
 
-### [Feature Category]
-
-- **[Feature Name]**
-    - Description: [What it does]
-    - Value: [Why users want it]
-    - Blocked by: [What's preventing this]
+*[No medium-priority items.]*
 
 ---
 
 ## Lower Priority / Ideas
 
-- [Feature idea 1] - [brief note]
-- [Feature idea 2] - [brief note]
+### Post-1.0 Content Ideas
+
+- Integration examples for common tech stacks (React, Django, data pipelines, etc.)
+- Tutorial content and walkthrough materials beyond WU4 launch set
+- Example project showcasing ARC adoption from scratch
+
+These overlap with WU5 docs site scope but may exceed what ships at 1.0 launch.
 
 ---
 
 ## Completed (Reference)
 
-Items that have been implemented. Kept briefly for reference, then removed.
+Items superseded by active work units or already delivered.
 
-- ~~[Feature Name]~~ - Completed [DATE], see `reference/archive/[quarter]/feature/[name]/`
+- ~~Distribution & update system~~ — WU3 (`prd-cli-implementation.md`)
+- ~~Public release & adoption~~ — WU4 (`plan-wu4-beta-readiness.md`), WU5 (`plan-wu5-public-release.md`)
+- ~~Interactive init experience~~ — WU3 interactive init section
+- ~~Auto-compact recommendation~~ — WU5 onboarding content
 
 ---
 
-**Last reviewed:** [DATE]
+**Last reviewed:** 2026-02-22

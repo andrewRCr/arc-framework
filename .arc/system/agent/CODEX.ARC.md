@@ -11,23 +11,15 @@ Shared rules and project context live in:
 
 ## Codex-Specific Notes
 
-_[None — add Codex-specific guidance as you discover it]_
-
-<!-- Examples of what belongs here (delete these and replace with your own): -->
-<!-- - Prefer apply_patch for single-file edits, shell writes for multi-file -->
-<!-- - If a command fails under sandbox constraints, re-run with escalation request -->
-<!-- - Tends to [behavioral pattern] — address with [guidance] -->
+- **Edit style:** Prefer precise, minimal patches. Use `apply_patch` for focused single-file edits
+  and direct shell writes for larger multi-file text replacements.
+- **Sandbox escalation:** Some commands need unrestricted execution (e.g., `npm install`). If a
+  required command fails under sandbox constraints, re-run with escalation request.
 
 ## MCP Server Availability
 
-<!-- Document MCP servers configured for your project. This helps the agent understand -->
-<!-- what external tools are available without needing to discover them at runtime. -->
-
-_[None configured — add MCP servers as needed]_
+_[None configured]_
 
 ## Sub-Agent Availability
 
-<!-- Document sub-agents available in your setup. Sub-agents can handle specialized -->
-<!-- tasks autonomously, saving main conversation context. -->
-
-_[None configured — add sub-agent descriptions as needed]_
+_[None configured]_

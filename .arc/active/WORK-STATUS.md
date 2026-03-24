@@ -13,14 +13,14 @@
 
 ## Active Work
 
-**Branch**: `main`
-**Task List**: [none associated]
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: —
+**Branch**: `feature/beta-readiness`
+**Task List**: `.arc/active/feature/tasks-beta-readiness.md`
+**Following Task List**: Yes
+**Next Task**: Task 2.6 — Migrate hooks (line ~182)
+**Last Completed**: Task 2.5 — Migrate `.arc-internal/` content into `.arc/`
 **Blockers**: [none]
-**Next Action**: Complete post-install setup → `initial-setup/01_verify-and-configure.md`
+**Next Action**: Review framework-specific hook checks and install template hooks
 
 ---
 
-**Last Updated**: —
+**Last Updated**: 2026-03-24
