@@ -10,15 +10,7 @@ begin the standard workflow.
 
 ## High Priority
 
-### CI/TTY Auto-Detection for Non-Interactive Mode
-
-- **CI/TTY auto-detection**
-    - Problem: `arc init` requires `--yes` flag for non-interactive use; standard practice is to
-      auto-detect CI environments (`CI=true`) and non-TTY stdin
-    - Approach: Check `process.env.CI === 'true'` or `!process.stdin.isTTY` at command entry; imply
-      `--yes` behavior when detected
-    - Impact: Better CI/CD integration, standard CLI behavior
-    - Effort estimate: S
+*[No high-priority items — current work is captured in active work units.]*
 
 ---
 
@@ -51,17 +43,6 @@ begin the standard workflow.
     - Precedent: Claude Code followed this exact trajectory — npm-only initially, added brew/curl/
       winget/irm later as adoption broadened.
     - Effort estimate: M–L (build pipeline, cross-platform testing, install script, docs)
-
-### Beta Audit Deferral (WU5 Phase 5)
-
-Deferred from the beta readiness audit (`analysis-beta-readiness-audit.md`) Phase 6
-remediation — needs a design pass before implementation.
-
-- **[MW-M06] No changelog / what's-new mechanism** — `arc update` shows counts ("5 updated,
-    1 conflict") but no semantic explanation of what changed. Needs design: what format, where
-    does changelog content live, how is it generated (commit log? curated notes?).
-    - Trigger: every `arc update`
-    - Impact: adopter doesn't know what changed or why
 
 ---
 
@@ -111,7 +92,9 @@ Items that have been implemented or superseded by active work units.
 - ~~Profile system enhancements~~ — WU3 interactive init
 - ~~Documentation site~~ — WU5 docs site
 - ~~Community contribution pipeline~~ — WU4 contributor support (ADR-014), WU5 community infrastructure
+- ~~CI/TTY auto-detection~~ — WU4 Phase 6 (`tasks-beta-readiness.md`, Task 6.3.b)
+- ~~Changelog / what's-new mechanism (MW-M06)~~ — WU4 Phase 6 (`tasks-beta-readiness.md`, Task 6.12)
 
 ---
 
-**Last reviewed:** 2026-02-22
+**Last reviewed:** 2026-03-25

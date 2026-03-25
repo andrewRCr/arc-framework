@@ -501,6 +501,13 @@ primary path), `(@name)` markers advisory, full update documentation.
 **Findings reference:** `analysis-beta-readiness-audit.md` — IDs (CM-H01, MW-M09, TC-H04,
 etc.) trace each task to specific findings.
 
+**Pre-implementation audit notes (2026-03-25):** Task audit + external research informed
+several refinements below. Key decisions: (1) pristine store keeps JSON blob format with
+atomic writes — per-file split dropped after research showed the pattern has no ecosystem
+precedent and corruption risk is mitigated by atomic writes + existing recovery path;
+(2) changelog mechanism (MW-M06) promoted from backlog as Task 6.13; (3) CI/TTY
+auto-detection promoted from backlog into Task 6.3.b.
+
 - [ ] **6.1 Git hooks: critical bug fixes**
 
     **Goal:** Fix the highest-severity hook bugs — every adopter hits these on every commit.
@@ -515,6 +522,10 @@ etc.) trace each task to specific findings.
     - [ ] **6.1.b Refactor `pre-commit` to validate staged content, not working tree**
         - Replace `grep`/`wc` on `"$file"` with `git show ":$file"` for checks 2, 4, 5, 9
           (PC-H01)
+        - **Check 2 note:** Large file check currently uses `wc -c < "$file"` (disk size).
+          `git show ":$file" | wc -c` measures staged content length, which may differ due
+          to gitattributes filters or line ending conversion. Decide whether staged size or
+          disk size is the correct measure.
         - Debug statement check: scan only added lines via `git diff --cached` (PC-H03)
         - Meta-reference check: same staged-diff pattern (PC-H04)
 
@@ -529,7 +540,8 @@ etc.) trace each task to specific findings.
     - [ ] **6.2.a Template config and role enforcement**
         - Remove `\.arc/` from `hooks.meta_ref_patterns` in template `arc-config.yml` (XC-M05)
         - Add contributor skip messages to silent checks (XC-M02)
-        - Validate contributor uses `Context: contribution (...)` in `commit-msg` (MW-M14)
+        - Validate contributor uses `Context: contribution (...)` in `commit-msg` — enforce
+          as warning (soft), consistent with contributor protection elsewhere (MW-M14)
         - Soft warning when task list changes lack `(@name)` while `team.mode: true` (TC-M04)
         - Update `githooks/README.md` with contributor and team behavior docs (MW-M13)
 
@@ -539,9 +551,12 @@ etc.) trace each task to specific findings.
         - Explicit error for unknown `commit.context_footer` values (CM-M08)
         - Skip subject length check when `commit.format: any` (CM-L01)
         - Use configurable `hooks.test_patterns` for debug check exclusion (PC-L03)
-        - Address self-referential debug pattern false positive (PC-M01)
+        - Address self-referential debug pattern false positive (PC-M01). Investigate to
+          reproduce: `.md` files are in `skip_extensions`, so the trigger may be a
+          non-extension file under `packages/arc-framework/arc/` — verify before fixing.
         - Gate `numfmt` with macOS fallback (PC-M02)
-        - Detached HEAD branch protection behavior: document or fix (PC-M03)
+        - Detached HEAD: add specific warning when `git symbolic-ref` returns `detached` —
+          current behavior silently passes (PC-M03)
         - Conditional ANSI color output for CI/non-TTY (XC-L01)
         - Align README subject-length threshold with hook (XC-L02)
 
@@ -556,32 +571,47 @@ etc.) trace each task to specific findings.
     - [ ] **6.3.a Error handling overhaul**
         - Add git repo guard before init/join proceeds (I-H01)
         - Refactor `ALREADY_INSTALLED`/`NO_ARC_INSTALLATION` to `UserFacingError` (EH-H01/H02)
-        - Add global error boundary around `program.parse()` (EH-H03)
+          — requires extending `ArcErrorCode` union in `errors.ts` with these two codes, then
+          updating the catch blocks in `cli.ts` (lines ~288, ~385) which currently match on
+          `(err as Error & { code?: string }).code` — after refactor these become
+          `UserFacingError` instances caught by `isHandledError()` instead
+        - Add global error boundary around `program.parse()` (EH-H03) — do this after the
+          `UserFacingError` refactor so the boundary catches remaining unhandled errors only
         - Wrap recipe read/parse in try/catch (EH-M02)
         - Wrap `resolveUserIdentity()` calls in user command handlers (EH-M03)
 
         Build `test-first` (one behavior at a time):
-        - `UserFacingError` subclasses for `ALREADY_INSTALLED`, `NO_ARC_INSTALLATION`
+        - `UserFacingError` with `ALREADY_INSTALLED` / `NO_ARC_INSTALLATION` codes
         - Global error boundary catches unhandled errors with clean output
         - Missing template file produces user-friendly error (I-M03)
         - `--yes` with no identity and no `user.name` produces clear error (X-M01)
 
-    - [ ] **6.3.b Input validation**
+    - [ ] **6.3.b Input validation and CI auto-detection**
         - Validate `--tools` against known tool list (I-M01)
         - Reject empty `--name` in `--yes` mode (I-M02)
         - Pass `--contributor` flag through to interactive prompt (I-M05)
+        - Auto-detect CI/non-TTY and imply `--yes` behavior (promoted from technical backlog:
+          check `process.env.CI === 'true'` or `!process.stdin.isTTY` at command entry)
 
     - [ ] **6.3.c Config parser hardening**
+
+        **Note:** TypeScript-side fix only — the shell-side `arc_config_get` in `arc-lib.sh`
+        already strips quotes (line 59). Keep both parsers' behavior aligned.
 
         Build `test-first` (one behavior at a time):
         - Strip surrounding quotes from parsed values (CS-H01, I-L04)
         - Normalize CRLF to LF before parsing (CP-M02)
-        - Handle inline comments (strip content after space-hash)
+        - Handle inline comments (strip content after space-hash) — **caveat:** config
+          values like `hooks.meta_ref_patterns` contain regex with `#`. Only strip when
+          space-hash is outside quotes, or match shell-side behavior (which does NOT strip
+          inline comments). Decide: match shell behavior (skip) or add quote-aware
+          stripping.
         - Empty values parse as empty string, not undefined
 
     - [ ] **6.3.d Join-specific fixes**
         - Detect pre-existing skill directories in `arc join` (I-M04)
-        - Fix integration test `skipPristine` option key (I-L01)
+        - Fix integration test `skipPristine` option key — test-internal `listFiles` helper,
+          not production code (I-L01)
         - Add `pm.mode=external` test permutation (I-M07)
         - Add join idempotency test (I-M06)
 
@@ -614,50 +644,78 @@ etc.) trace each task to specific findings.
         - Replace `HEAD~N` linear traversal with `git log --all` or ref-aware walking (UL-M01)
         - Batch git invocations to reduce process spawns (UL-M02)
 
+        Build `test-first` (one behavior at a time):
+        - Finds note on HEAD (direct match, no walking needed)
+        - Finds note on linear ancestor (HEAD~3)
+        - Finds note on merge ancestor (commit reachable via merge, not linear)
+        - Returns null when no note exists on any ancestor
+        - Handles shallow clone (limited history)
+
     - [ ] **6.4.d Session workflow sync error guidance**
         - Add error-path guidance to `session-handoff.md` for push failures and divergence
         - Add load-failure guidance to `session-init.md` for missing/stale notes
         - Surface sync decisions to user (not silent — when push diverges, when pull would
           overwrite)
 
-- [ ] **6.5 Pristine store: per-file split, atomicity, and corruption resilience**
+- [ ] **6.5 Pristine store: atomic writes, corruption resilience, and recovery UX**
 
-    **Goal:** Eliminate the single-file pristine store as a single point of failure. Add
-    atomic writes to prevent partial-update corruption.
+    **Goal:** Prevent partial-write corruption via atomic writes and improve the developer
+    experience when pristine recovery triggers.
 
     Findings: X-H01, U-H01, U-H02, U-M03, D-M01, S-M01
 
-    - [ ] **6.5.a Split pristine store to per-file storage**
+    **Design decision (2026-03-25):** Per-file pristine split (X-H01) dropped. External
+    research found no ecosystem precedent for per-file mirrored pristine storage — tools
+    that do three-way merge (Cruft, Helm, kubectl) all store baseline content as single
+    artifacts. Real-world JSON state file corruption (Terraform, npm, Claude Code) is
+    caused by process interruption mid-write; atomic writes (temp+rename) fully prevent
+    this. The existing recovery path (skip merge, rebuild baseline from current content)
+    handles remaining edge cases. JSON blob with atomic writes is the right approach.
 
-        **Goal:** Replace `pristine.json` with individual files in
-        `.internal/pristine/{path}` mirroring the `.arc/` structure. Isolates corruption,
-        eliminates parse overhead, simplifies read/write.
+    **Dependency note:** Task 6.6 modifies the same files (`update.ts`, `status.ts`,
+    `diff.ts`). Complete 6.5 before starting 6.6.
+
+    - [ ] **6.5.a Atomic writes for manifest and pristine store**
 
         Build `test-first` (one behavior at a time):
-        - Read pristine content for a single file by path
-        - Write pristine content for a single file
-        - Init writes per-file pristine (not JSON blob)
-        - Update reads/writes per-file pristine
-        - Status reads per-file pristine for hash comparison (S-M01)
-        - Diff reads per-file pristine
-        - Migration: first update after change converts old `pristine.json` to per-file
+        - Write `manifest.json` via temp file + `fs.rename()` (U-H01)
+        - Write `pristine.json` via same atomic pattern
+        - Process kill between temp write and rename leaves original intact
+        - Temp file cleaned up on write failure (ENOSPC, permissions)
+        - Fix pristine repair to use rendered framework content as baseline, not
+          adopter's current content (U-H02)
 
-    - [ ] **6.5.b Atomic writes with rollback**
-        - Write manifest to temp file, rename on success (U-H01)
-        - Write pristine files before manifest (crash leaves old manifest valid)
-        - Fix pristine repair to use rendered framework content as baseline (U-H02)
-        - Log warning (not silent catch) when pristine is corrupted/missing (U-M03, D-M01)
+    - [ ] **6.5.b Recovery UX improvements**
+
+        Improve developer experience when pristine is missing or corrupt.
+
+        - Detect whole-store failure (JSON parse error) vs per-file miss and surface a
+          single top-level message instead of per-file noise (U-M03, D-M01)
+        - `arc update`: when entire pristine is missing, show
+          `"Pristine baseline was missing or corrupt — rebuilt from current files.
+          Run 'arc update' again to apply framework changes."` Use "rebuilt" not
+          "repaired" in output and `UpdateResult` field naming
+        - `arc diff`: when entire pristine is missing, show single message
+          `"Cannot show diffs — no pristine baseline. Run 'arc update' to rebuild."`
+          instead of N repeated per-file errors
+        - Log the cause when detectable: `"pristine.json not found"` vs
+          `"pristine.json contains invalid JSON"` (currently silent catch)
+        - `arc status`: unaffected (uses `pristine_hash` from manifest, not pristine
+          store) — no changes needed (S-M01 already covered by manifest hash)
 
 - [ ] **6.6 Update/status/diff: resilience and polish**
 
     **Goal:** Remaining update system improvements — downgrade guard, path normalization,
     classification handling, and CLI output improvements.
 
+    **Depends on:** Task 6.5 (atomic writes change the write paths in `update.ts`).
+
     Findings: U-M01, U-M02, U-M04, X-M02, S-M02, D-M02, CP-M01, CP-M03, X-M05, U-L02,
     U-L03, S-L01, D-L01
 
     - [ ] **6.6.a Resilience fixes**
-        - Add semver downgrade prevention in `arc update` (U-M01)
+        - Add semver downgrade prevention in `arc update` — hard block with
+          `UserFacingError`, not a warning (U-M01)
         - Handle files changing classification between versions (U-M02)
         - Surface skill regeneration warnings in update summary (U-M04)
         - Add `schema_version` field to manifest (X-M02)
@@ -816,13 +874,52 @@ etc.) trace each task to specific findings.
         - Add concurrent activity detection note to session-init freshness check (TC-M03)
         - Platform note: custom merge drivers don't run on server-side PR merges (TC-L07)
 
-- [ ] **6.12 Phase quality gates**
+- [ ] **6.12 Changelog mechanism for `arc update`**
+
+    **Goal:** Show adopters what changed when they run `arc update`, so they understand
+    framework changes without reading commit history. Promoted from technical backlog
+    (MW-M06).
+
+    **Design decision (2026-03-25):** Bundled JSON changelog in the npm package, displayed
+    inline during `arc update`. External research confirmed this matches the dominant
+    pattern — most tools (Angular, Next.js, Storybook) bundle changelogs with packages
+    rather than adding files to the user's project. JSON over Markdown for easy parsing
+    and version filtering. No files added to `.arc/` or the project repo.
+
+    - [ ] **6.12.a Changelog data and display**
+
+        - Add `changelog/versions.json` to `packages/arc-framework/src/` with structured
+          entries per version: `{ "0.x.y": { "date", "highlights[]",
+          "breaking[]", "migrationNotes?" } }`
+        - Add to `"files"` array in `package.json` so it ships with the npm package
+        - In `arc update`: after update completes, read changelog for versions between
+          old and new, display highlights and breaking changes inline
+        - Only display when version actually changed — silent when unchanged
+        - Add `--quiet` flag to suppress changelog output
+
+        Build `test-first` (one behavior at a time):
+        - Reads and parses changelog from package
+        - Filters entries to relevant version range (old → new)
+        - Displays highlights for minor/major version bumps
+        - Displays breaking changes with migration notes when present
+        - Silent when no version change or changelog missing (graceful degradation)
+
+    - [ ] **6.12.b Seed initial changelog content**
+        - Write entries for existing versions (0.1.x through current)
+        - Document changelog authoring in a comment block at top of `versions.json`
+        - Add `conventional-changelog-cli` as dev dependency for future automation
+          (manual authoring for now, automate in release pipeline later)
+
+- [ ] **6.13 Phase quality gates**
     - Tier 2: full markdown lint, TypeScript lint, shell lint, type check, full test suite,
       build verification
     - Verify hook behavior manually: single-line commit, contributor commit, team-mode task
       list commit, staged-vs-working-tree divergence
     - Verify template/dev config alignment for `hooks.meta_ref_patterns`
     - Verify `arc init` in temp directory produces correct team-mode and solo-mode docs
+    - Verify `arc update` changelog display with version change
+    - Verify atomic write recovery: corrupt `pristine.json`, run `arc update`, confirm
+      rebuild messaging and second update merges cleanly
 
 ### **Phase 7:** Docs Site
 
