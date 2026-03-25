@@ -248,18 +248,32 @@ role selection (maintainer vs. contributor).
 
 **Strategies:** `strategy-testing-methodology.md`
 
-- [ ] **3.1 Extract shared setup logic from `init.ts`**
+- [x] **3.1 Extract shared setup logic from `init.ts`**
 
-    **Goal:** Identity resolution, hook configuration, user directory creation, and skill generation
-    are needed by both `init` and `join` — extract into a shared module.
+    **Goal:** The git integration sequence and post-init user setup are needed by both `init`
+    and the new `join` command — extract into shared modules so `join.ts` can reuse them.
 
-    - [ ] **3.1.a Create `src/lib/setup.ts`**
-        - Extract `resolveIdentity()`, hook configuration, user directory setup, skill generation
-        - Ensure `init.ts` still works by importing from the shared module
-        - Run existing tests to confirm no regressions
+    **Note:** `resolveIdentity()` (in `lib/git/identity.ts`) and skill generation (in
+    `lib/skills/`) are already shared modules — no extraction needed for those.
 
-    - [ ] **3.1.b Run quality gates**
-        - `npm run typecheck`, `npm run test:unit`
+    - [x] **3.1.a Generalize `writeArcGitignoreBlock` → `writeArcManagedBlock`**
+        - Extracted generic `writeArcManagedBlock()` in `src/lib/template/files.ts`
+        - `writeArcGitignoreBlock` and `writeArcGitattributesBlock` delegate to it
+        - Deleted `appendToGitattributes`, `appendToGitignore`, `appendLineIfMissing`,
+          and pre-release legacy migration logic (no adopters to migrate)
+        - Updated exports in `src/lib/template/index.ts`
+        - 6 unit tests for `writeArcManagedBlock` + 1 delegation test for
+          `writeArcGitattributesBlock`; removed 4 obsolete tests for deleted functions
+
+    - [x] **3.1.b Extract git integration setup into `src/lib/setup.ts`**
+        - Created `src/lib/setup.ts` with `configureGitIntegration()` (gitattributes block,
+          merge driver, hooks path) and `runPostInitSetup()` (identity, user dir, refspec)
+        - Both fresh and join paths in `init.ts` now call shared functions
+        - Fixed latent bug: join mode was missing gitattributes + merge driver setup
+        - Removed unused `PM_MODE_ARC_IN_GIT` import from `init.ts`
+
+    - [x] **3.1.c Quality gates**
+        - typecheck: clean, lint:ts: clean, unit tests: 259 pass (19 suites)
 
 - [ ] **3.2 Create `arc join` command**
 
@@ -271,9 +285,11 @@ role selection (maintainer vs. contributor).
         - Prompts for tool selection (reuse existing tool prompt logic)
         - Sets `git config --local arc.role`
         - Sets `git config --local arc.identity`
-        - Configures hooks via shared setup
-        - Creates `user/{identity}/` directory with templates
+        - Configures git integration via shared `configureGitIntegration()` (gitattributes,
+          merge driver, hooks path)
+        - Creates `user/{identity}/` directory with templates via shared `runPostInitSetup()`
         - Generates per-tool skills
+        - Writes managed gitignore and gitattributes blocks via shared block-write functions
 
     - [ ] **3.2.b Register `join` in `cli.ts`**
         - Add `join` subcommand with `--contributor` and `--yes` flags
@@ -284,6 +300,10 @@ role selection (maintainer vs. contributor).
     Build `test-first` (one behavior at a time):
     - When `.arc/system/arc-config.yml` exists, suggests `arc join` instead of proceeding
     - `--force` flag bypasses the detection and re-initializes
+    - Remove the existing join mode path from `init.ts` (lines 170–206) — `arc join` is now
+      the user-facing surface for joining existing projects
+    - Update `buildPostInitMessage()` team mode text: "arc init" → "arc join"
+    - Verify existing integration tests still pass after the redirect
 
 - [ ] **3.4 Non-interactive `arc join` mode**
 

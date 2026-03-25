@@ -10,10 +10,10 @@
 
 import { join, dirname } from "node:path";
 import {
-  ensureDir, writeArcGitignoreBlock, appendToGitattributes,
+  ensureDir, writeArcGitignoreBlock,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
-import { configureNotesRefspec } from "../lib/git/index.js";
+import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Manifest, Recipe, CoreIO } from "../lib/types.js";
 import {
@@ -25,7 +25,7 @@ import {
 import { getFrameworkVersion } from "../lib/version.js";
 import {
   ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
-  PM_MODE_ARC_IN_GIT, INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
+  INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
 } from "../lib/constants.js";
 import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
 import {
@@ -72,48 +72,6 @@ export async function detectInitMode(
   } catch {
     return "fresh";
   }
-}
-
-// --- Post-Init Setup ---
-
-/** Options for post-init user setup. */
-interface PostInitSetupOptions {
-  arcDir: string;
-  internalTemplateDir: string;
-  io: IOContext;
-  pmMode: string;
-  identityResult: string | null;
-}
-
-/**
- * Run post-init user setup shared by both fresh and join modes.
- *
- * Stores identity in git config, creates the user directory with templates,
- * and configures git notes refspec for cross-machine portability.
- */
-async function runPostInitSetup(options: PostInitSetupOptions): Promise<void> {
-  const { arcDir, internalTemplateDir, io, pmMode, identityResult } = options;
-
-  if (identityResult) {
-    await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
-
-    const userDir = join(arcDir, "user", identityResult);
-    await ensureDir(userDir, io.mkdir);
-
-    const sessionNotes = await io.readFile(
-      join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-    );
-    await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
-
-    if (pmMode === PM_MODE_ARC_IN_GIT) {
-      const atomicInbox = await io.readFile(
-        join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
-      );
-      await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
-    }
-  }
-
-  await configureNotesRefspec(io.exec);
 }
 
 // --- Orchestrator ---
@@ -169,8 +127,10 @@ export async function runInit(
 
   // --- Join mode: personal setup only ---
   if (mode === "join") {
-    // Hook path configuration
-    await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
+    // Git integration (gitattributes, merge driver, hooks path)
+    await configureGitIntegration({
+      cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile,
+    });
 
     // Skill generation for selected tools
     const skillResult = await generateSkills(
@@ -297,14 +257,11 @@ export async function runInit(
     }
   }
 
-  // Git integration setup
+  // Git integration (gitattributes, merge driver, hooks path)
+  await configureGitIntegration({
+    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile,
+  });
   const gitignorePath = join(cwd, ".gitignore");
-  const gitattrsPath = join(cwd, ".gitattributes");
-  await appendToGitattributes(
-    gitattrsPath, ".arc/active/WORK-STATUS.md merge=ours", io.readFile, io.writeFile,
-  );
-  await io.exec("git", ["config", "merge.ours.driver", "true"]);
-  await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
 
   // Skill generation — copy canonical skills to per-tool directories
   // Detect pre-existing skill dirs so universal tools (codex, cursor, etc.)

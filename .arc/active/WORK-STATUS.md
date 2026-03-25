@@ -16,11 +16,11 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.1 — Extract shared setup logic from `init.ts` (line ~251)
-**Last Completed**: Task 2.8 — Delete `.arc-internal/` and verify end-to-end (Phase 2 complete)
+**Next Task**: Task 3.2 — Create `arc join` command (line ~281)
+**Last Completed**: Task 3.1 — Extract shared setup logic from `init.ts`
 **Blockers**: [none]
-**Next Action**: Begin Phase 3 — Task 3.1 (extract shared setup logic from `init.ts`)
+**Next Action**: Begin Task 3.2 (create `arc join` command)
 
 ---
 
-**Last Updated**: 2026-03-24
+**Last Updated**: 2026-03-25

@@ -17,9 +17,9 @@ export {
 export {
   ensureDir,
   copyWithRendering,
-  appendToGitignore,
+  writeArcManagedBlock,
   writeArcGitignoreBlock,
-  appendToGitattributes,
+  writeArcGitattributesBlock,
   type MkdirFn,
   type ReadFileFn,
   type WriteFileFn,
