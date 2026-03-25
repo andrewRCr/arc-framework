@@ -314,69 +314,79 @@ role selection (maintainer vs. contributor).
 **Purpose:** Implement role-aware behavior across hooks, session workflows, and framework
 documents so contributors get a streamlined experience.
 
-- [ ] **4.1 Role-aware hooks**
+**Audit notes (pre-implementation):**
 
-    - [ ] **4.1.a Update pre-commit hook**
-        - Add `arc_role=$(git config arc.role || echo "maintainer")` at top
-        - Skip task numbering check (CHECK for `hooks.task_numbering`) when role=contributor
-        - Add new check: protected file warning when contributor stages `active/` or `backlog/`
-          files — warn with explanation, allow proceed (not hard block)
-        - Test both paths: maintainer commit, contributor commit
+- Execution order: 4.1 → 4.3 → 4.2 → 4.4 (documents must exist before workflows reference them)
+- `Context: contribution (...)` is universally accepted (not role-gated in hook validation) —
+  contributors are expected to use it, but the hook doesn't reject it from maintainers
+- Dual-copy sync: edit package source (`packages/arc-framework/arc/`), sync to `.arc/` — same
+  pattern as Phase 3
+- If contributor role complexity grows (multiple roles, permission tiers), extract a strategy
+  document at that point
 
-    - [ ] **4.1.b Update commit-msg hook**
-        - Add `arc_role=$(git config arc.role || echo "maintainer")` at top
-        - Accept `Context: contribution (...)` format when role=contributor (alongside existing
-          task list and categorical patterns)
-        - Skip WORK-STATUS freshness check when role=contributor
-        - Test both paths: maintainer commit with task context, contributor commit with
-          contribution context
+- [x] **4.1 Role-aware hooks**
 
-- [ ] **4.2 Session workflow branching**
+    - [x] **4.1.a Update pre-commit hook**
+        - Added `arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")` at top
+        - Added `hooks.contributor_protected_paths` config key to `arc-config.yml` with default
+          `active/|backlog/`. Added to `validate-config.sh` known keys.
+        - When role=contributor: skip CHECK 7 (task list staging), CHECK 8 (task numbering),
+          CHECK 10 (WORK-STATUS co-staging). Added new CHECK 6: contributor protected file
+          warning using configurable `hooks.contributor_protected_paths`.
+        - Renumbered checks: 6→contributor protected files, 7→task list staging (maintainer),
+          8→task numbering (maintainer), 9→meta-project refs (universal), 10→WORK-STATUS
+          co-staging (maintainer)
 
-    - [ ] **4.2.a Update `session-init.template.md`**
-        - Add role check early in Step 2 (after identity resolution)
-        - When `arc.role = contributor`: skip items 8–11 (WORK-STATUS, SESSION-NOTES planning
-          sections, task list, task execution workflow)
-        - Load `AGENT-BRIEFING.CONTRIBUTOR.md` instead
-        - Check `user/{identity}/WORK-STATUS.md` for optional local planning state
-        - Skip next work unit discovery (Step 5)
-        - Update orientation output format for contributor sessions
+    - [x] **4.1.b Update commit-msg hook**
+        - Added `arc_role` read. Added `Context: contribution (.+)` as universally accepted
+          pattern in context footer cascade (freeform parenthetical). Added contribution
+          example to missing-context help text and invalid-format help text. Skipped RULE 7
+          (WORK-STATUS freshness) when role=contributor.
 
-    - [ ] **4.2.b Update `session-handoff.md`**
-        - When `arc.role = contributor`: skip project-level WORK-STATUS.md update
-        - Skip conditional commit sections that reference task completion
-        - SESSION-NOTES.md update remains (role-agnostic)
+    All changes in package source, synced to `.arc/`. Shellcheck clean.
 
-- [ ] **4.3 Create framework documents**
+- [x] **4.3 Create framework documents**
 
-    - [ ] **4.3.a Create `AGENT-BRIEFING.CONTRIBUTOR.md`**
-        - Framework-owned, lives in `packages/arc-framework/arc/system/agent/`
-        - Content: do not modify `active/` or `backlog/` files, use `Context: contribution (...)`
-          footer, local planning in `user/{identity}/` if desired, quality gates apply in full
-        - Reference-style links to DEV-RULES and QUICK-REFERENCE
-        - Add to `init-recipe.json` include list (always included, loaded conditionally at runtime)
+    - [x] **4.3.a Create `AGENT-BRIEFING.CONTRIBUTOR.md`**
+        - Framework-owned in `packages/arc-framework/arc/system/agent/`. Covers boundaries
+          (do not modify active/backlog), commit convention (`Context: contribution (...)`),
+          session workflow differences, optional local planning in `user/{identity}/`.
+        - Added to `init-recipe.json` unconditional includes and file classification inventory.
 
-    - [ ] **4.3.b Create `CONTRIBUTING.template.md`**
-        - Project-customizable template in `packages/arc-framework/arc/`
-        - Content: contributor setup via `arc join`, quality gate commands, maintainer-managed
-          file boundaries, PR conventions
-        - Add to `init-recipe.json` include list
-        - Scaffold into dev repo's `.arc/` as part of this phase
+    - [x] **4.3.b Create `template-contributing.md`**
+        - Copy-ready reference template in `reference/templates/` (Framework-classified,
+          `template-` prefix convention). Covers `arc join`, quality gates, commit convention,
+          maintainer-managed file boundaries, PR guidelines.
+        - Added to `init-recipe.json` and file classification inventory.
 
-- [ ] **4.4 Update methods and rules**
+- [x] **4.2 Session workflow branching**
 
-    - [ ] **4.4.a Update `arc-methods.md` → `commit-context-format`**
-        - Add `Context: contribution (...)` pattern in new "With contributor role" subsection
-        - Examples: `Context: contribution (fix typo in README)`,
-          `Context: contribution (implement feature per issue #42)`
+    - [x] **4.2.a Update `session-init.template.md`**
+        - Added "Resolve role" section after identity resolution. Contributor Session Path:
+          loads items 1–7 + AGENT-BRIEFING.CONTRIBUTOR.md + optional SESSION-NOTES.md,
+          checks optional local `user/{identity}/WORK-STATUS.md`, skips items 8–11 and Step 5.
+          Contributor orientation format with `· contributor ·` marker.
+        - Synced rendered copy to `.arc/system/workflows/arc/session-lifecycle/session-init.md`.
 
-    - [ ] **4.4.b Update `DEV-RULES.ARC.md` § Commit Discipline**
-        - Add note to "Work status accuracy" bullet: contributor role overrides this rule
-          (contributors do not update project-level WORK-STATUS.md, per
-          `AGENT-BRIEFING.CONTRIBUTOR.md`)
+    - [x] **4.2.b Update `session-handoff.md`**
+        - Added contributor role callout in Pre-Update Verification: skip task list verification,
+          project-level WORK-STATUS.md update, and conditional WORK-STATUS commit. SESSION-NOTES.md
+          and git notes save remain role-agnostic.
 
-    - [ ] **4.4.c Run quality gates**
-        - `npm run -s lint:md` (documentation changes), `npm run typecheck`, `npm test`
+- [x] **4.4 Update methods and rules**
+
+    - [x] **4.4.a Update `arc-methods.md` → `commit-context-format`**
+        - Added "With contributor role" subsection with three examples and explanation that
+          the format is accepted from any role but expected convention for contributors.
+
+    - [x] **4.4.b Update `DEV-RULES.ARC.md` § Commit Discipline**
+        - Added "Contributor override" note to work status accuracy bullet with link to
+          AGENT-BRIEFING.CONTRIBUTOR.md.
+
+    - [x] **4.4.c Run quality gates**
+        - Markdown linting: 0 errors (fixed MD060 table alignment in file classification)
+        - TypeScript linting: clean. Type checking: clean. Shellcheck: clean.
+        - Tests: 268 unit + 35 integration/E2E = 303 total, all passing
 
 ### **Phase 5:** Docs Site
 

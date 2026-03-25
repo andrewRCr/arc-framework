@@ -24,6 +24,7 @@ commit_format=$(arc_config_get "commit.format" "conventional")
 context_footer_mode=$(arc_config_get "commit.context_footer" "required")
 custom_pattern=$(arc_config_get "commit.custom_pattern" "")
 context_pattern=$(arc_config_get "commit.context_pattern" "")
+arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
 
 # Exit early if hook is disabled
 if [ "$hook_enabled" = "disabled" ]; then
@@ -151,6 +152,7 @@ case "$context_footer_mode" in
             echo "   Context: refactor (no associated task list)"
             echo "   Context: documentation (atomic / no associated task list)"
             echo "   Context: planning (no associated task list)"
+            echo "   Context: contribution (fix typo in README)"
         else
             # Extract Context line for further validation
             context_line=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
@@ -251,6 +253,11 @@ case "$context_footer_mode" in
             # Matches: Context: planning (no associated task list), Context: maintenance (atomic / no associated task list)
             elif echo "$context_line" | grep -qE '^Context: (planning|documentation|maintenance|refactor|content) \((atomic / )?no associated task list\)$'; then
                 :
+
+            # Matches: Context: contribution (freeform description)
+            # Used by contributors (arc.role=contributor) but accepted from any role.
+            elif echo "$context_line" | grep -qE '^Context: contribution \(.+\)$'; then
+                :
             else
                 context_issue "Invalid Context: format"
                 echo "   Expected formats:"
@@ -261,6 +268,7 @@ case "$context_footer_mode" in
                 echo "   - Context: atomic-[name].md"
                 echo "   - Context: [category] (no associated task list)"
                 echo "   - Context: [category] (atomic / no associated task list)"
+                echo "   - Context: contribution (description)"
                 echo ""
                 echo "   Categories: planning, documentation, maintenance, refactor, content"
                 echo "   Note: Parenthetical is REQUIRED for all commits"
@@ -303,14 +311,15 @@ if echo "$commit_msg" | grep -qE 'Related to:.*PRD'; then
 fi
 
 # ============================================================================
-# RULE 7: WORK-STATUS.md freshness (task not advanced)
+# RULE 7: WORK-STATUS.md freshness (task not advanced) (maintainer only)
 # ============================================================================
 # When committing a completed parent task (Context: "Task X.Y"), verify that
 # staged WORK-STATUS.md has been advanced past that task.
 # Only checks parent-level tasks (X.Y) — subtask commits (X.Y.z) don't
 # advance Current Task, so no warning needed.
 # Skipped when context footer is disabled or custom (no ARC context to parse).
-if [ "$context_footer_mode" != "disabled" ] && [ "$context_footer_mode" != "custom" ]; then
+# Skipped for contributors — they don't update project-level WORK-STATUS.md.
+if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] && [ "$context_footer_mode" != "custom" ]; then
     context_for_ws=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
     committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
 

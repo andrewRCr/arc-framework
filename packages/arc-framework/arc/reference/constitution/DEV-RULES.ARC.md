@@ -46,6 +46,8 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
   completion (advance Next Task, Last Completed, Next Action), but also to planning-phase commits
   (PRD creation, task generation, activation, archival) that change the branch, next action, or
   active work unit. Session handoff catches missed updates as a fallback, but commit-time is primary.
+  **Contributor override:** Contributors (`arc.role = contributor`) do not update project-level
+  WORK-STATUS.md — see [AGENT-BRIEFING.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
@@ -345,3 +347,4 @@ session initialization.
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
 [session-mgmt]: ../strategies/arc/strategy-session-management.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
+[contributor-briefing]: ../../system/agent/AGENT-BRIEFING.CONTRIBUTOR.md

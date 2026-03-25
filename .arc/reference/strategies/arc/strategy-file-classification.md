@@ -229,6 +229,7 @@ to update classification — both axes apply independently.
 | File                         | Classification | Layer | Notes                                      |
 |------------------------------|----------------|-------|--------------------------------------------|
 | `template-adr.md`            | Framework      | Core  | Copy-ready ADR template.                   |
+| `template-contributing.md`   | Framework      | Core  | Copy-ready contributing guide for ARC.     |
 | `template-prd.md`            | Framework      | Core  | Copy-ready PRD template.                   |
 | `template-plan.md`           | Framework      | Core  | Optional plan document starting structure. |
 | `template-agent.md`          | Framework      | Core  | Agent config file template for setup.      |
@@ -294,6 +295,7 @@ to update classification — both axes apply independently.
 | File                                 | Classification | Layer | Notes                                            |
 |--------------------------------------|----------------|-------|--------------------------------------------------|
 | `AGENT-BRIEFING.ARC.md`              | Framework      | Core  | ARC methodology orientation for agents.          |
+| `AGENT-BRIEFING.CONTRIBUTOR.md`      | Framework      | Core  | Contributor role orientation for agents.         |
 | `AGENT-BRIEFING.PROJECT.template.md` | Configurable   | Core  | Project-specific stack, layout, friction points. |
 | `CLAUDE.ARC.md`                      | Configurable   | Core  | Framework guidance + project-specific (MCP).     |
 | `CODEX.ARC.md`                       | Configurable   | Core  | Mostly framework guidance, light customization.  |

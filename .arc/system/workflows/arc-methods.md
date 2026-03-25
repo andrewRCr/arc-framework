@@ -131,6 +131,17 @@ incidental pattern: `tasks-[filename].md (incidental - discovered during <contex
 
 **Categories:** `planning`, `documentation`, `maintenance`, `refactor`.
 
+**With contributor role:**
+
+- `Context: contribution (fix typo in README)` — freeform description
+- `Context: contribution (implement feature per issue #42)` — issue reference
+- `Context: contribution (add dark mode support)` — feature description
+
+Contributors (`arc.role = contributor`) use the `contribution` context with a freeform
+parenthetical describing the change. The parenthetical is not structured — describe what
+the contribution addresses. This format is accepted from any role but is the expected
+convention for contributor commits.
+
 **Enforcement:** Git hooks validate context footer when `commit.context_footer` is `required` or `custom`
 in [`arc-config.yml`][arc-config].
 

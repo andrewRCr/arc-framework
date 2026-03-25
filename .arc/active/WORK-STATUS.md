@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.1 — Role-aware hooks (line ~317)
-**Last Completed**: Task 3.4 — Non-interactive `arc join` mode (Phase 3 complete)
+**Next Task**: Task 5.1 — Refresh `README-ASPIRATIONAL.md` (line ~397)
+**Last Completed**: Task 4.4 — Update methods and rules (Phase 4 complete)
 **Blockers**: [none]
-**Next Action**: Begin Phase 4 — Task 4.1 (role-aware hooks)
+**Next Action**: Begin Phase 5 — Task 5.1 (refresh aspirational README)
 
 ---
 

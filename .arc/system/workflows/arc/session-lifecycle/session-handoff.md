@@ -27,8 +27,15 @@ configured.
 1. `git status` — clean vs uncommitted changes
 2. `git log --oneline -10` — capture committed work
 3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
-4. Task list file — verify marked checkboxes reflect actual completion
+4. Task list file — verify marked checkboxes reflect actual completion (maintainer only — contributors
+   skip this)
 5. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
+
+> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
+> to git notes (same as maintainers), but skip project-level WORK-STATUS.md updates (items 4–5
+> above), the WORK-STATUS.md section below, and the Conditional WORK-STATUS.md Commit section.
+> Contributors don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md
+> update, git notes save, and confirmation.
 
 ### What to Update
 
@@ -301,7 +308,9 @@ precedence over `arc-config.yml` when set — check this first.
     npx arc user save
     ```
 
-### Conditional WORK-STATUS.md Commit
+### Conditional WORK-STATUS.md Commit (Maintainer Only)
+
+**Skip when `arc.role = contributor`** — contributors don't update project-level WORK-STATUS.md.
 
 If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
 commit it as part of the handoff. This resolves the "dangling WORK-STATUS.md" gap during

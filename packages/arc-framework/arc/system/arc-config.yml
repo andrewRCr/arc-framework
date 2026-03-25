@@ -98,6 +98,13 @@ hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
 #   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
 hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
 
+# Directories under .arc/ that trigger a warning when staged by contributors.
+# Contributors typically work on project code, not maintainer-managed ARC
+# artifacts. Soft warning only (does not block commit).
+# Pipe-separated regex alternation matching paths under .arc/.
+#   default: active/|backlog/
+hooks.contributor_protected_paths: active/|backlog/
+
 # --- Review ---
 
 # Pre-merge diff review before push.

@@ -21,6 +21,7 @@ NC="$ARC_NC"
 hook_enabled=$(arc_config_get "hooks.pre_commit" "enabled")
 base_branch=$(arc_config_get "branch.base" "main")
 branch_protection=$(arc_config_get "branch.protection" "partial")
+arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
 
 # Exit early if hook is disabled
 if [ "$hook_enabled" = "disabled" ]; then
@@ -147,28 +148,54 @@ for pattern in "${debug_patterns[@]}"; do
 done
 
 # ============================================================================
-# CHECK 6: Verify modified task lists are staged
+# CHECK 6: Contributor protected file warning
 # ============================================================================
-# If committing code changes, check if related task lists should also be staged
-modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
-staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+# When role=contributor, warn if staging files in maintainer-managed directories.
+# Soft warning (not a hard block) — contributors may have legitimate reasons.
+if [ "$arc_role" = "contributor" ]; then
+    contributor_protected_paths=$(arc_config_get "hooks.contributor_protected_paths" "active/|backlog/")
+    protected_files=$(git diff --cached --name-only --diff-filter=ACMR | \
+        grep -E "^\.arc/($contributor_protected_paths)" || true)
 
-if [ -n "$modified_task_lists" ] && [ -z "$staged_task_lists" ]; then
-    echo -e "${YELLOW}Warning: Modified task lists not staged:${NC}"
-    echo "$modified_task_lists" | sed 's/^/   /'
-    echo "   If completing tasks, remember to stage task list updates"
-    warnings=$((warnings + 1))
+    if [ -n "$protected_files" ]; then
+        echo -e "${YELLOW}Warning: Contributor staging maintainer-managed files:${NC}"
+        echo "$protected_files" | sed 's/^/   /'
+        echo ""
+        echo "   Files in .arc/active/ and .arc/backlog/ are typically managed by maintainers"
+        echo "   (task lists, work status, backlog items). Contributors usually work on"
+        echo "   project code and use 'Context: contribution (...)' commit footers."
+        echo "   Config: hooks.contributor_protected_paths in arc-config.yml"
+        warnings=$((warnings + 1))
+    fi
 fi
 
 # ============================================================================
-# CHECK 7: Task numbering format (numeric.numeric.alpha)
+# CHECK 7: Verify modified task lists are staged (maintainer only)
+# ============================================================================
+# If committing code changes, check if related task lists should also be staged.
+# Skipped for contributors — they don't manage task lists.
+if [ "$arc_role" != "contributor" ]; then
+    modified_task_lists=$(git diff --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+    staged_task_lists=$(git diff --cached --name-only --diff-filter=M | grep -E '\.arc/active/.*/tasks-.*\.md$' || true)
+
+    if [ -n "$modified_task_lists" ] && [ -z "$staged_task_lists" ]; then
+        echo -e "${YELLOW}Warning: Modified task lists not staged:${NC}"
+        echo "$modified_task_lists" | sed 's/^/   /'
+        echo "   If completing tasks, remember to stage task list updates"
+        warnings=$((warnings + 1))
+    fi
+fi
+
+# ============================================================================
+# CHECK 8: Task numbering format (numeric.numeric.alpha) (maintainer only)
 # ============================================================================
 # Per strategy-task-list-formatting.md: Third level uses letters (1.1.a not 1.1.1)
 # Format: X.Y (parent) -> X.Y.a (subtask) -> X.Y.a.1 (fourth level, rare)
 # Configurable: hooks.task_numbering = error (default) | warning | off
+# Skipped for contributors — they don't author task lists.
 task_numbering_mode=$(arc_config_get "hooks.task_numbering" "error")
 
-if [ "$task_numbering_mode" != "off" ]; then
+if [ "$arc_role" != "contributor" ] && [ "$task_numbering_mode" != "off" ]; then
     task_numbering_violations=$(git diff --cached --name-only --diff-filter=ACMR | \
         grep -E '^\.arc/(active|backlog)/.*/tasks-.*\.md$' | \
         while IFS= read -r file; do
@@ -202,7 +229,7 @@ if [ "$task_numbering_mode" != "off" ]; then
 fi
 
 # ============================================================================
-# CHECK 8: No meta-project references in production code
+# CHECK 9: No meta-project references in production code
 # ============================================================================
 # Per DEV-RULES.ARC.md § Documentation Boundaries:
 # Never reference task IDs, phase numbers, or .arc/ documentation in production code
@@ -234,24 +261,27 @@ if [ -n "$meta_project_refs" ]; then
 fi
 
 # ============================================================================
-# CHECK 9: WORK-STATUS.md co-staging with task lists
+# CHECK 10: WORK-STATUS.md co-staging with task lists (maintainer only)
 # ============================================================================
 # If task lists are staged with checkbox completions, WORK-STATUS.md should
 # typically be staged too (Current Task should advance). Only warns when the
 # diff contains actual checkbox state changes — not for reference updates,
 # planning restructuring, or other non-completion edits.
-staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
-staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' || true)
+# Skipped for contributors — they don't update project-level WORK-STATUS.md.
+if [ "$arc_role" != "contributor" ]; then
+    staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
+    staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' || true)
 
-if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
-    # Check if the diff actually contains checkbox completions (marked [x] or [~])
-    # shellcheck disable=SC2086 # Intentional word splitting — variable holds multiple file paths
-    task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
-    if [ -n "$task_list_has_completions" ]; then
-        echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
-        echo "   Task list changes often mean the current task has advanced"
-        echo "   Remember to update and stage WORK-STATUS.md"
-        warnings=$((warnings + 1))
+    if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
+        # Check if the diff actually contains checkbox completions (marked [x] or [~])
+        # shellcheck disable=SC2086 # Intentional word splitting — variable holds multiple file paths
+        task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
+        if [ -n "$task_list_has_completions" ]; then
+            echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
+            echo "   Task list changes often mean the current task has advanced"
+            echo "   Remember to update and stage WORK-STATUS.md"
+            warnings=$((warnings + 1))
+        fi
     fi
 fi
 
