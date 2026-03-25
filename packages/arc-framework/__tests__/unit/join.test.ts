@@ -218,4 +218,26 @@ describe("runJoin", () => {
     // but runJoin itself also guards on identityResult
     expect(identityCalls.length).toBe(0);
   });
+
+  it("works with pm.mode=external", async () => {
+    opts.pmMode = "external";
+    const result = await runJoin(opts);
+
+    expect(result.role).toBe("maintainer");
+    expect(result.tools).toEqual(["claude"]);
+  });
+
+  it("is idempotent — second run succeeds without error", async () => {
+    await runJoin(opts);
+
+    // Reset mock call counts but keep the same store (files from first run persist)
+    (io.exec as ReturnType<typeof vi.fn>).mockClear();
+    (io.writeFile as ReturnType<typeof vi.fn>).mockClear();
+    (io.mkdir as ReturnType<typeof vi.fn>).mockClear();
+
+    // Second run should succeed
+    const result = await runJoin(opts);
+    expect(result.role).toBe("maintainer");
+    expect(result.tools).toEqual(["claude"]);
+  });
 });

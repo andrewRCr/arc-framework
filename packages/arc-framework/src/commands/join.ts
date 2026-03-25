@@ -13,6 +13,7 @@ import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
+  detectExistingSkillDirs,
 } from "../lib/skills/index.js";
 import { ARC_CONFIG_SEGMENTS } from "../lib/constants.js";
 import type { CoreIO } from "../lib/types.js";
@@ -96,11 +97,12 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile,
   });
 
-  // Skill generation for selected tools
+  // Skill generation — detect pre-existing dirs so universal tools resolve to native dirs
+  const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     prompts.tools,
     join(templateDir, "system", "skills"),
-    [],
+    existingSkillDirs,
     cwd,
     { readFile: io.readFile },
   );

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.3.c — Config parser hardening (line ~593)
-**Last Completed**: Task 6.3.b — Input validation and CI auto-detection
+**Next Task**: Task 6.4.a — Load safety: backup, stale file detection, and subdirectory support (line ~623)
+**Last Completed**: Task 6.3 — Init/join hardening (all subtasks complete)
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.3.c (config parser hardening)
+**Next Action**: Continue Phase 6 — start Task 6.4.a (load safety)
 
 ---
 

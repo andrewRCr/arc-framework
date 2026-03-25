@@ -84,16 +84,25 @@ export function buildTokenMap(
  */
 export function parseArcConfig(content: string): Record<string, string> {
   const config: Record<string, string> = {};
-  for (const line of content.split("\n")) {
+  // Normalize CRLF to LF before parsing (cross-platform safety)
+  const normalized = content.replace(/\r\n/g, "\n");
+  for (const line of normalized.split("\n")) {
     const match = line.match(/^([\w.]+):\s*(.*)$/);
     if (match) {
       const [, key = "", rawValue = ""] = match;
-      const value = rawValue.trim();
+      let value = rawValue.trim();
       // Skip empty values — matches shell-side arc_config_get behavior
       // where empty values fall through to the default
-      if (value) {
-        config[key] = value;
+      if (!value) continue;
+      // Strip surrounding quotes (matches shell-side sed patterns)
+      // Shell: sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/"
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
       }
+      config[key] = value;
     }
   }
   return config;

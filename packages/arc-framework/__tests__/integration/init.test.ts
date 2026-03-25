@@ -389,7 +389,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("does not produce any completed-atomic files", async () => {
-    const allFiles = await listFiles(arcDir, { skipPristine: false });
+    const allFiles = await listFiles(arcDir, { skipInternal: false });
     const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));
     expect(completedAtomic).toEqual([]);
   });
@@ -492,7 +492,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       identityResult: "test-user",
     });
 
-    const allFiles = await listFiles(join(tempDir, ".arc"), { skipPristine: false });
+    const allFiles = await listFiles(join(tempDir, ".arc"), { skipInternal: false });
     const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));
     expect(completedAtomic).toEqual([]);
   });

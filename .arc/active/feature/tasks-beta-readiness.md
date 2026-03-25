@@ -564,7 +564,7 @@ auto-detection promoted from backlog into Task 6.3.b.
         - ANSI colors conditional on TTY + `NO_COLOR` + `TERM!=dumb` in `arc-lib.sh` (XC-L01)
         - README subject-length threshold corrected to 60 (was 50) (XC-L02)
 
-- [ ] **6.3 Init/join hardening**
+- [x] **6.3 Init/join hardening**
 
     **Goal:** Guard against bad input, improve error messages, harden the config parser.
     Note: `arc init` now sets `arc.role = maintainer` (implemented pre-phase, included in
@@ -593,27 +593,21 @@ auto-detection promoted from backlog into Task 6.3.b.
           or `!process.stdin.isTTY` at init/join command entry, implies `--yes` with log message
         - 9 new tests (5 validateTools, 4 non-interactive validation)
 
-    - [ ] **6.3.c Config parser hardening**
-
-        **Note:** TypeScript-side fix only — the shell-side `arc_config_get` in `arc-lib.sh`
-        already strips quotes (line 59). Keep both parsers' behavior aligned.
-
-        Build `test-first` (one behavior at a time):
-        - Strip surrounding quotes from parsed values (CS-H01, I-L04)
+    - [x] **6.3.c Config parser hardening**
+        - Strip surrounding quotes (double and single) matching shell-side `sed` patterns (CS-H01, I-L04)
         - Normalize CRLF to LF before parsing (CP-M02)
-        - Handle inline comments (strip content after space-hash) — **caveat:** config
-          values like `hooks.meta_ref_patterns` contain regex with `#`. Only strip when
-          space-hash is outside quotes, or match shell-side behavior (which does NOT strip
-          inline comments). Decide: match shell behavior (skip) or add quote-aware
-          stripping.
-        - Empty values parse as empty string, not undefined
+        - Inline comments: decided to skip — matches shell-side `arc_config_get` which does NOT strip
+          inline comments. Avoids regex breakage in values like `hooks.meta_ref_patterns` containing `#`.
+          If inline comments are needed later, add to both parsers simultaneously.
+        - Empty values: kept existing behavior (skip = absent, matches shell default-fallthrough)
+        - 13 new unit tests covering quotes, CRLF, mixed line endings, colons in values, edge cases
 
-    - [ ] **6.3.d Join-specific fixes**
-        - Detect pre-existing skill directories in `arc join` (I-M04)
-        - Fix integration test `skipPristine` option key — test-internal `listFiles` helper,
-          not production code (I-L01)
-        - Add `pm.mode=external` test permutation (I-M07)
-        - Add join idempotency test (I-M06)
+    - [x] **6.3.d Join-specific fixes**
+        - `arc join` now calls `detectExistingSkillDirs()` before `generateSkills()` — universal
+          tools resolve to native dirs when present, matching init and update behavior (I-M04)
+        - Fixed `skipPristine` → `skipInternal` typo in 2 integration test calls (I-L01)
+        - Added `pm.mode=external` test permutation for join (I-M07)
+        - Added join idempotency test — second run succeeds without error (I-M06)
 
 - [ ] **6.4 User portability: safety, reliability, and workflow integration**
 
