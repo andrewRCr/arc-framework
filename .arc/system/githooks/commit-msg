@@ -24,6 +24,8 @@ commit_format=$(arc_config_get "commit.format" "conventional")
 context_footer_mode=$(arc_config_get "commit.context_footer" "required")
 custom_pattern=$(arc_config_get "commit.custom_pattern" "")
 context_pattern=$(arc_config_get "commit.context_pattern" "")
+subject_max_length=$(arc_config_get "hooks.subject_max_length" "72")
+subject_warn_length=$(arc_config_get "hooks.subject_warn_length" "60")
 arc_role=$(git config arc.role 2>/dev/null || echo "maintainer")
 
 # Exit early if hook is disabled
@@ -52,6 +54,16 @@ context_issue() {
     fi
 }
 
+# Helper: check if a string is a valid extended regex for grep -E
+# Exit codes from grep: 0=match, 1=no match (valid regex), 2=invalid regex
+# Must be called in an if/|| context so set -e doesn't trigger on grep exit 1.
+is_valid_ere() {
+    local exit_code
+    echo "" | grep -E "$1" >/dev/null 2>&1
+    exit_code=$?
+    [ "$exit_code" -ne 2 ]
+}
+
 echo -e "${GREEN}Validating commit message...${NC}"
 
 # ============================================================================
@@ -78,6 +90,11 @@ case "$commit_format" in
             echo -e "${RED}Error: commit.format is 'custom' but commit.custom_pattern is empty${NC}"
             echo "   Set commit.custom_pattern in arc-config.yml"
             errors=$((errors + 1))
+        elif ! is_valid_ere "$custom_pattern"; then
+            echo -e "${RED}Error: commit.custom_pattern contains invalid regex${NC}"
+            echo "   Pattern: $custom_pattern"
+            echo "   Fix the regex in arc-config.yml"
+            errors=$((errors + 1))
         elif ! echo "$subject" | grep -qE "$custom_pattern"; then
             echo -e "${RED}Error: Subject does not match custom format pattern${NC}"
             echo "   Pattern: $custom_pattern"
@@ -91,19 +108,22 @@ case "$commit_format" in
 esac
 
 # ============================================================================
-# RULE 2: Subject Line Length (max 72, warn at 60)
-# Git's traditional 50-char guideline assumes plain subjects. Conventional
-# commit prefixes (type(scope): ) consume 8-15 chars, so we warn at 60.
+# RULE 2: Subject Line Length (configurable)
+# Defaults: max 72 (GitHub truncation point), warn at 60 (accounts for
+# conventional commit prefix overhead of 8-15 chars vs traditional 50).
+# Skipped when commit.format: any (no format opinion → no length opinion).
 # ============================================================================
-if [ "$subject_length" -lt 10 ]; then
-    echo -e "${RED}Error: Subject line too short (${subject_length} chars, minimum 10)${NC}"
-    errors=$((errors + 1))
-elif [ "$subject_length" -gt 72 ]; then
-    echo -e "${RED}Error: Subject line too long (${subject_length} chars, maximum 72)${NC}"
-    errors=$((errors + 1))
-elif [ "$subject_length" -gt 60 ]; then
-    echo -e "${YELLOW}Warning: Subject line is ${subject_length} chars (recommended max 60, hard limit 72)${NC}"
-    warnings=$((warnings + 1))
+if [ "$commit_format" != "any" ]; then
+    if [ "$subject_length" -lt 10 ]; then
+        echo -e "${RED}Error: Subject line too short (${subject_length} chars, minimum 10)${NC}"
+        errors=$((errors + 1))
+    elif [ "$subject_length" -gt "$subject_max_length" ]; then
+        echo -e "${RED}Error: Subject line too long (${subject_length} chars, maximum ${subject_max_length})${NC}"
+        errors=$((errors + 1))
+    elif [ "$subject_length" -gt "$subject_warn_length" ]; then
+        echo -e "${YELLOW}Warning: Subject line is ${subject_length} chars (recommended max ${subject_warn_length}, hard limit ${subject_max_length})${NC}"
+        warnings=$((warnings + 1))
+    fi
 fi
 
 # ============================================================================
@@ -123,13 +143,18 @@ case "$context_footer_mode" in
             echo -e "${RED}Error: commit.context_footer is 'custom' but commit.context_pattern is empty${NC}"
             echo "   Set commit.context_pattern in arc-config.yml"
             errors=$((errors + 1))
+        elif ! is_valid_ere "$context_pattern"; then
+            echo -e "${RED}Error: commit.context_pattern contains invalid regex${NC}"
+            echo "   Pattern: $context_pattern"
+            echo "   Fix the regex in arc-config.yml"
+            errors=$((errors + 1))
         elif ! echo "$commit_msg" | grep -qE "$context_pattern"; then
             echo -e "${RED}Error: No line matches custom context footer pattern${NC}"
             echo "   Pattern: $context_pattern"
             errors=$((errors + 1))
         fi
         ;;
-    required|recommended|*)
+    required|recommended)
         if ! echo "$commit_msg" | grep -qE '^Context: '; then
             context_issue "Missing 'Context:' footer"
             echo "   Every commit should include a Context: line"
@@ -162,16 +187,16 @@ case "$context_footer_mode" in
             # ================================================================
 
             # Check for task list reference
-            if echo "$context_line" | grep -qE '^Context: tasks-[a-z0-9-]+\.md'; then
+            if echo "$context_line" | grep -qE '^Context: tasks-[a-zA-Z0-9-]+\.md'; then
                 # Task list reference format
 
                 # Extract filename
-                task_file=$(echo "$context_line" | sed -E 's/Context: (tasks-[a-z0-9-]+\.md).*/\1/')
+                task_file=$(echo "$context_line" | sed -E 's/Context: (tasks-[a-zA-Z0-9-]+\.md).*/\1/')
 
-                # Check if task list file exists (search active directories)
+                # Check if task list file exists (search active subdirectories)
                 task_found=false
-                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental; do
-                    if [ -f "$dir/$task_file" ]; then
+                for dir in .arc/active/*/; do
+                    if [ -f "$dir$task_file" ]; then
                         task_found=true
                         break
                     fi
@@ -235,10 +260,10 @@ case "$context_footer_mode" in
                 # Atomic companion file reference — valid, no task number needed
                 atomic_file=$(echo "$context_line" | sed -E 's/Context: (atomic-[a-z0-9-]+\.md).*/\1/')
 
-                # Check if atomic companion file exists (search active directories)
+                # Check if atomic companion file exists (search active subdirectories)
                 atomic_found=false
-                for dir in .arc/active/feature .arc/active/technical .arc/active/incidental; do
-                    if [ -f "$dir/$atomic_file" ]; then
+                for dir in .arc/active/*/; do
+                    if [ -f "$dir$atomic_file" ]; then
                         atomic_found=true
                         break
                     fi
@@ -276,13 +301,31 @@ case "$context_footer_mode" in
                 echo "   Your Context line: $context_line"
             fi
         fi
+
+        # Contributor context footer advisory (MW-M14)
+        # When a contributor uses a valid but non-contribution context pattern,
+        # warn — the contribution pattern is the expected convention for contributors.
+        if [ "$arc_role" = "contributor" ]; then
+            context_line_check=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
+            if [ -n "$context_line_check" ] && ! echo "$context_line_check" | grep -qE '^Context: contribution \(.+\)$'; then
+                echo -e "${YELLOW}Warning: Contributors typically use 'Context: contribution (description)'${NC}"
+                echo "   See arc-methods.md § commit-context-format for the contributor pattern"
+                warnings=$((warnings + 1))
+            fi
+        fi
+        ;;
+    *)
+        echo -e "${RED}Error: Unknown commit.context_footer value: '${context_footer_mode}'${NC}"
+        echo "   Valid values: required, recommended, custom, disabled"
+        echo "   Config: .arc/system/arc-config.yml"
+        errors=$((errors + 1))
         ;;
 esac
 
 # ============================================================================
 # RULE 5: Body Length Limits (warnings only)
 # ============================================================================
-body_lines=$(echo "$body" | grep -vc '^$')
+body_lines=$(echo "$body" | grep -vc '^$' || true)
 
 if [ "$body_lines" -gt 25 ]; then
     echo -e "${YELLOW}Warning: Commit body is ${body_lines} lines (maximum 25 recommended)${NC}"

@@ -16,17 +16,21 @@ if [ "$(basename "$0")" = "arc-lib.sh" ]; then
 fi
 
 # ============================================================================
-# Colors
+# Colors — conditional on TTY and NO_COLOR convention (https://no-color.org/)
 # ============================================================================
 
 # shellcheck disable=SC2034
-ARC_RED='\033[0;31m'
-# shellcheck disable=SC2034
-ARC_YELLOW='\033[1;33m'
-# shellcheck disable=SC2034
-ARC_GREEN='\033[0;32m'
-# shellcheck disable=SC2034
-ARC_NC='\033[0m'
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != "dumb" ]; then
+    ARC_RED='\033[0;31m'
+    ARC_YELLOW='\033[1;33m'
+    ARC_GREEN='\033[0;32m'
+    ARC_NC='\033[0m'
+else
+    ARC_RED=''
+    ARC_YELLOW=''
+    ARC_GREEN=''
+    ARC_NC=''
+fi
 
 # ============================================================================
 # Configuration

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.1 — Git hooks: critical bug fixes (line ~504)
-**Last Completed**: Task 5.3 — Produce final analysis document (Phase 5 complete)
+**Next Task**: Task 6.3 — Init/join hardening (line ~564)
+**Last Completed**: Task 6.2 — Git hooks: template alignment, contributor enforcement, and polish
 **Blockers**: [none]
-**Next Action**: Begin Phase 6 (Audit Remediation) — start with Task 6.1
+**Next Action**: Continue Phase 6 — start Task 6.3 (init/join hardening)
 
 ---
 

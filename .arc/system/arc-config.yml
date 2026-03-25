@@ -103,6 +103,14 @@ hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+'
 # artifacts. Soft warning only (does not block commit).
 # Pipe-separated regex alternation matching paths under .arc/.
 #   default: active/|backlog/
+# Subject line length thresholds for commit-msg hook.
+# Defaults account for conventional commit prefix overhead (8-15 chars).
+# Max aligns with GitHub's truncation point (72 chars).
+# Skipped entirely when commit.format: any.
+#   default max: 72, default warn: 60
+hooks.subject_max_length: 72
+hooks.subject_warn_length: 60
+
 hooks.contributor_protected_paths: active/|backlog/
 
 # --- Review ---

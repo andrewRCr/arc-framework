@@ -30,6 +30,12 @@ fi
 
 echo -e "${GREEN}Running pre-commit checks...${NC}"
 
+# Contributor mode notice (XC-M02) — maintainer-only checks (task list staging,
+# task numbering, WORK-STATUS co-staging) are silently skipped for contributors.
+if [ "$arc_role" = "contributor" ]; then
+    echo "   (contributor mode — maintainer checks skipped)"
+fi
+
 errors=0
 warnings=0
 
@@ -41,7 +47,11 @@ warnings=0
 #   full    - error (all changes require branches and PR review)
 current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
 
-if [ "$current_branch" = "$base_branch" ]; then
+if [ "$current_branch" = "detached" ]; then
+    echo -e "${YELLOW}Warning: Committing in detached HEAD state${NC}"
+    echo "   You are not on a branch — commits may be lost after switching branches"
+    warnings=$((warnings + 1))
+elif [ "$current_branch" = "$base_branch" ]; then
     case "$branch_protection" in
         full)
             echo -e "${RED}Error: Direct commits to $base_branch blocked (branch_protection: full)${NC}"
@@ -62,9 +72,14 @@ fi
 # CHECK 2: Large file check (prevent accidental commits)
 # ============================================================================
 large_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
-    size=$(wc -c < "$file" 2>/dev/null || echo 0)
+    size=$(git show ":$file" 2>/dev/null | wc -c || echo 0)
     if [ "$size" -gt 1048576 ]; then  # 1MB
-        echo "$file ($(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "$size bytes"))"
+        if command -v numfmt >/dev/null 2>&1; then
+            human_size=$(numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "$size bytes")
+        else
+            human_size="$((size / 1024 / 1024))MiB"
+        fi
+        echo "$file ($human_size)"
     fi
 done)
 
@@ -100,7 +115,7 @@ done
 # CHECK 4: Check for common merge conflict markers
 # ============================================================================
 conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
-    if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
+    if git show ":$file" 2>/dev/null | grep -qE '^(<<<<<<<|=======|>>>>>>>)'; then
         echo "$file"
     fi
 done)
@@ -126,20 +141,22 @@ debug_patterns=(
     "breakpoint()"
 )
 
+debug_test_patterns=$(arc_config_get "hooks.test_patterns" "__tests__/|\.test\.|\.spec\.|/test/|/tests/")
+
 for pattern in "${debug_patterns[@]}"; do
-    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
-        # Skip test files
-        if echo "$file" | grep -qE "(test_|_test\.py|\.test\.ts|\.test\.tsx|spec\.)"; then
-            continue
-        fi
-        # Check for debug statements
-        if grep -qF "$pattern" "$file" 2>/dev/null; then
+    debug_files=$(git diff --cached --name-only --diff-filter=ACMR | \
+        grep -v "^\.arc/" | \
+        grep -v "^packages/.*/arc/" | \
+        grep -vE "$debug_test_patterns" | \
+        while IFS= read -r file; do
+        # Check only added lines for debug statements
+        if git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' | grep -qF "$pattern"; then
             echo "$file: $pattern"
         fi
     done)
 
     if [ -n "$debug_files" ]; then
-        echo -e "${YELLOW}Warning: Debug statements found:${NC}"
+        echo -e "${YELLOW}Warning: Debug statements found in added lines:${NC}"
         echo "$debug_files" | sed 's/^/   /'
         echo "   Consider removing before committing"
         warnings=$((warnings + 1))
@@ -243,8 +260,8 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -vE "$test_patterns" | \
     grep -vE "\.($skip_extensions)$" | \
     while IFS= read -r file; do
-        # grep -I skips binary files (images, fonts, compiled artifacts)
-        refs=$(grep -InE "$meta_ref_patterns" "$file" 2>/dev/null || true)
+        # Check only added lines for meta-project references
+        refs=$(git diff --cached -U0 -- "$file" 2>/dev/null | grep -E '^\+' | grep -nE "$meta_ref_patterns" || true)
         if [ -n "$refs" ]; then
             echo "$file:"
             echo "$refs" | sed 's/^/     /'
@@ -280,6 +297,28 @@ if [ "$arc_role" != "contributor" ]; then
             echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
             echo "   Task list changes often mean the current task has advanced"
             echo "   Remember to update and stage WORK-STATUS.md"
+            warnings=$((warnings + 1))
+        fi
+    fi
+fi
+
+# ============================================================================
+# CHECK 11: Team mode task ownership markers (team.mode: true only)
+# ============================================================================
+# When team mode is active, task list changes should include (@name) ownership
+# markers to prevent coordination conflicts. Soft warning only.
+team_mode=$(arc_config_get "team.mode" "false")
+
+if [ "$team_mode" = "true" ]; then
+    team_task_lists=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
+    if [ -n "$team_task_lists" ]; then
+        # Check if staged task list diff contains ownership markers
+        # shellcheck disable=SC2086 # Intentional word splitting
+        has_ownership=$(git diff --cached -- $team_task_lists | grep -E '^\+.*\(@[a-zA-Z]' || true)
+        if [ -z "$has_ownership" ]; then
+            echo -e "${YELLOW}Warning: Task list changes lack (@name) ownership markers${NC}"
+            echo "   Team mode is active — mark task ownership to prevent conflicts"
+            echo "   Example: - [x] **3.1 Implement auth** (@alice)"
             warnings=$((warnings + 1))
         fi
     fi

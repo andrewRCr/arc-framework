@@ -508,28 +508,29 @@ precedent and corruption risk is mitigated by atomic writes + existing recovery 
 (2) changelog mechanism (MW-M06) promoted from backlog as Task 6.13; (3) CI/TTY
 auto-detection promoted from backlog into Task 6.3.b.
 
-- [ ] **6.1 Git hooks: critical bug fixes**
+- [x] **6.1 Git hooks: critical bug fixes**
 
     **Goal:** Fix the highest-severity hook bugs — every adopter hits these on every commit.
 
     Findings: CM-H01, PC-H01, PC-H03, PC-H04, CM-M07, XC-M01
 
-    - [ ] **6.1.a Fix `commit-msg` `set -e` failures**
-        - Add `|| true` to `grep -vc '^$'` body-line count (CM-H01)
-        - Trap invalid custom regex in `commit.custom_pattern`/`commit.context_pattern` (CM-M07)
-        - Audit both hooks for remaining `set -e` hazards, add guards (XC-M01)
+    - [x] **6.1.a Fix `commit-msg` `set -e` failures**
+        - Added `|| true` to `grep -vc '^$'` body-line count (CM-H01)
+        - Added `is_valid_ere()` helper; traps invalid regex in `commit.custom_pattern`
+          and `commit.context_pattern` with clear error messages (CM-M07)
+        - Audited both hooks for remaining `set -e` hazards — all other greps are in `if`
+          contexts or already have `|| true` guards (XC-M01)
 
-    - [ ] **6.1.b Refactor `pre-commit` to validate staged content, not working tree**
-        - Replace `grep`/`wc` on `"$file"` with `git show ":$file"` for checks 2, 4, 5, 9
-          (PC-H01)
-        - **Check 2 note:** Large file check currently uses `wc -c < "$file"` (disk size).
-          `git show ":$file" | wc -c` measures staged content length, which may differ due
-          to gitattributes filters or line ending conversion. Decide whether staged size or
-          disk size is the correct measure.
-        - Debug statement check: scan only added lines via `git diff --cached` (PC-H03)
-        - Meta-reference check: same staged-diff pattern (PC-H04)
+    - [x] **6.1.b Refactor `pre-commit` to validate staged content, not working tree**
+        - Check 2 (large file): `git show ":$file" | wc -c` for staged size (PC-H01).
+          Decision: staged size is the correct measure — the hook guards what enters the
+          repo, not what's on disk (gitattributes filters may alter size).
+        - Check 4 (conflict markers): `git show ":$file" | grep` for staged content (PC-H01)
+        - Check 5 (debug statements): `git diff --cached -U0` added-lines-only scan —
+          pre-existing debug statements no longer trigger false positives (PC-H03)
+        - Check 9 (meta-references): same added-lines-only pattern (PC-H04)
 
-- [ ] **6.2 Git hooks: template alignment, contributor enforcement, and polish**
+- [x] **6.2 Git hooks: template alignment, contributor enforcement, and polish**
 
     **Goal:** Fix template/dev config drift, add contributor enforcement and team-mode
     awareness, address remaining medium/low hook findings.
@@ -537,28 +538,31 @@ auto-detection promoted from backlog into Task 6.3.b.
     Findings: XC-M05, XC-M02, MW-M13, MW-M14, TC-M04, CM-M04, CM-M05, CM-M08, CM-L01,
     PC-L03, PC-M01, PC-M03, XC-L01, XC-L02
 
-    - [ ] **6.2.a Template config and role enforcement**
-        - Remove `\.arc/` from `hooks.meta_ref_patterns` in template `arc-config.yml` (XC-M05)
-        - Add contributor skip messages to silent checks (XC-M02)
-        - Validate contributor uses `Context: contribution (...)` in `commit-msg` — enforce
-          as warning (soft), consistent with contributor protection elsewhere (MW-M14)
-        - Soft warning when task list changes lack `(@name)` while `team.mode: true` (TC-M04)
-        - Update `githooks/README.md` with contributor and team behavior docs (MW-M13)
+    - [x] **6.2.a Template config and role enforcement**
+        - Removed `\.arc/` from `hooks.meta_ref_patterns` in template config (XC-M05)
+        - Added contributor mode notice in pre-commit output (XC-M02)
+        - Contributor context footer warning (soft) in `required`/`recommended` modes only —
+          respects configurability architecture: `disabled`/`custom` modes are not
+          cross-validated (MW-M14)
+        - Team mode `(@name)` ownership marker warning in Check 11 (TC-M04)
+        - Rewrote `githooks/README.md` — added role-aware behavior, team mode, full config
+          table, environment section, and corrected all thresholds (MW-M13)
 
-    - [ ] **6.2.b Remaining hook fixes**
-        - Allow uppercase in task filename pattern (CM-M04)
-        - Search `active/` subdirectories dynamically (CM-M05)
-        - Explicit error for unknown `commit.context_footer` values (CM-M08)
-        - Skip subject length check when `commit.format: any` (CM-L01)
-        - Use configurable `hooks.test_patterns` for debug check exclusion (PC-L03)
-        - Address self-referential debug pattern false positive (PC-M01). Investigate to
-          reproduce: `.md` files are in `skip_extensions`, so the trigger may be a
-          non-extension file under `packages/arc-framework/arc/` — verify before fixing.
-        - Gate `numfmt` with macOS fallback (PC-M02)
-        - Detached HEAD: add specific warning when `git symbolic-ref` returns `detached` —
-          current behavior silently passes (PC-M03)
-        - Conditional ANSI color output for CI/non-TTY (XC-L01)
-        - Align README subject-length threshold with hook (XC-L02)
+    - [x] **6.2.b Remaining hook fixes**
+        - Allow uppercase in task filename pattern: `tasks-[a-zA-Z0-9-]+\.md` (CM-M04)
+        - Dynamic `active/*/` subdirectory search for task list and atomic file lookup (CM-M05)
+        - Explicit error for unknown `commit.context_footer` values — separated `*` catch-all
+          from `required|recommended` case (CM-M08)
+        - Subject length check skipped when `commit.format: any` (CM-L01)
+        - Added `hooks.subject_max_length` (72) and `hooks.subject_warn_length` (60) config
+          settings — aligns with GitHub truncation; prefix-aware defaults (new)
+        - Debug check (Check 5) now uses configurable `hooks.test_patterns` and excludes
+          `.arc/` and `packages/.*/arc/` — eliminates self-referential false positive from
+          extensionless hook files containing pattern definitions (PC-L03, PC-M01)
+        - `numfmt` gated with `command -v` — macOS fallback uses integer MiB (PC-M02)
+        - Detached HEAD state now emits explicit warning (PC-M03)
+        - ANSI colors conditional on TTY + `NO_COLOR` + `TERM!=dumb` in `arc-lib.sh` (XC-L01)
+        - README subject-length threshold corrected to 60 (was 50) (XC-L02)
 
 - [ ] **6.3 Init/join hardening**
 
