@@ -583,12 +583,15 @@ auto-detection promoted from backlog into Task 6.3.b.
         - Wrapped all `resolveUserIdentity()` calls in user commands with try/catch + isHandledError
         - Test-first: 4 behaviors (7 new unit tests, 3 updated, 1 new E2E test)
 
-    - [ ] **6.3.b Input validation and CI auto-detection**
-        - Validate `--tools` against known tool list (I-M01)
-        - Reject empty `--name` in `--yes` mode (I-M02)
-        - Pass `--contributor` flag through to interactive prompt (I-M05)
-        - Auto-detect CI/non-TTY and imply `--yes` behavior (promoted from technical backlog:
-          check `process.env.CI === 'true'` or `!process.stdin.isTTY` at command entry)
+    - [x] **6.3.b Input validation and CI auto-detection**
+        - `validateTools()` in resolution.ts — validates against `VALID_TOOL_IDS` set; wired into
+          `buildNonInteractivePrompts` and join `--yes` path (I-M01)
+        - Empty `--name` rejection in `buildNonInteractivePrompts` (I-M02)
+        - `--contributor` flag passthrough: `runJoinPrompts({ contributor })` skips role prompt
+          when flag is set, works in both interactive and `--yes` modes (I-M05)
+        - CI auto-detection: `isNonInteractiveEnvironment()` checks `process.env.CI === 'true'`
+          or `!process.stdin.isTTY` at init/join command entry, implies `--yes` with log message
+        - 9 new tests (5 validateTools, 4 non-interactive validation)
 
     - [ ] **6.3.c Config parser hardening**
 

@@ -18,25 +18,41 @@ const ROLE_OPTIONS: { value: string; label: string; hint?: string }[] = [
   { value: "contributor", label: "Contributor", hint: "streamlined workflow" },
 ];
 
+/** Options for the join prompt sequence. */
+export interface JoinPromptOptions {
+  /** When true, skip role prompt and use "contributor". */
+  contributor?: boolean;
+}
+
 /**
  * Run the interactive join prompt sequence.
  *
+ * @param options - Optional overrides (e.g., --contributor flag)
  * @returns Prompt results, or `null` if the user cancelled
  */
-export async function runJoinPrompts(): Promise<JoinPromptResult | null> {
+export async function runJoinPrompts(
+  options?: JoinPromptOptions,
+): Promise<JoinPromptResult | null> {
   const sentinel = Symbol("prompt-cancelled");
 
   try {
-    // 1. Role selection
-    const role = await p.select({
-      message: "What's your role in this project?",
-      options: ROLE_OPTIONS,
-      initialValue: "maintainer",
-    });
-    if (p.isCancel(role)) {
-      p.cancel("Setup cancelled.");
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
-      throw sentinel;
+    // 1. Role selection — skip if --contributor flag was passed
+    let role: string;
+    if (options?.contributor) {
+      role = "contributor";
+      p.log.info("Role: contributor (via --contributor flag)");
+    } else {
+      const selected = await p.select({
+        message: "What's your role in this project?",
+        options: ROLE_OPTIONS,
+        initialValue: "maintainer",
+      });
+      if (p.isCancel(selected)) {
+        p.cancel("Setup cancelled.");
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
+        throw sentinel;
+      }
+      role = selected;
     }
 
     // 2. Tools selection (shared prompt)

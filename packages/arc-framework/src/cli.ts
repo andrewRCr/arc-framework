@@ -34,6 +34,7 @@ import { runJoinPrompts } from "./prompts/join-prompts.js";
 import { runJoin } from "./commands/join.js";
 import type { JoinPromptResult } from "./commands/join.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
+import { validateTools } from "./lib/skills/index.js";
 import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
 import { formatError, formatUnexpectedError, UserFacingError } from "./lib/errors.js";
@@ -159,6 +160,16 @@ async function resolveUserIdentity(): Promise<string> {
   return identity;
 }
 
+// --- Environment Detection ---
+
+/**
+ * Detect non-interactive environment (CI or non-TTY stdin).
+ * Returns true if `--yes` behavior should be implied.
+ */
+function isNonInteractiveEnvironment(): boolean {
+  return process.env.CI === "true" || !process.stdin.isTTY;
+}
+
 // --- Command Helpers ---
 
 /**
@@ -218,6 +229,12 @@ program
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .option("--team", "Enable team mode (requires --yes)")
   .action(async (opts: { yes?: boolean; name?: string; pmMode?: string; tools?: string; team?: boolean }) => {
+    // Auto-detect CI/non-TTY and imply --yes
+    if (!opts.yes && isNonInteractiveEnvironment()) {
+      opts.yes = true;
+      p.log.info("Non-interactive environment detected (CI or non-TTY) — using defaults.");
+    }
+
     p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
 
     // Guard: must be inside a git repository
@@ -324,6 +341,12 @@ program
   .option("-y, --yes", "Skip prompts, use defaults")
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .action(async (opts: { contributor?: boolean; yes?: boolean; tools?: string }) => {
+    // Auto-detect CI/non-TTY and imply --yes
+    if (!opts.yes && isNonInteractiveEnvironment()) {
+      opts.yes = true;
+      p.log.info("Non-interactive environment detected (CI or non-TTY) — using defaults.");
+    }
+
     p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Join Project`);
 
     // Guard: must be inside a git repository
@@ -356,17 +379,21 @@ program
     // Build prompts from flags or interactive prompts
     let prompts: JoinPromptResult;
     if (opts.yes) {
+      const tools = opts.tools
+        ? opts.tools.split(",").map((t) => t.trim()).filter(Boolean)
+        : [];
+      if (tools.length > 0) {
+        validateTools(tools);
+      }
       prompts = {
         role: opts.contributor ? "contributor" : "maintainer",
-        tools: opts.tools
-          ? opts.tools.split(",").map((t) => t.trim()).filter(Boolean)
-          : [],
+        tools,
       };
       if (!opts.tools) {
         p.log.info("No agent tools selected (use --tools to specify).");
       }
     } else {
-      const result = await runJoinPrompts();
+      const result = await runJoinPrompts({ contributor: opts.contributor });
       if (!result) {
         return;
       }

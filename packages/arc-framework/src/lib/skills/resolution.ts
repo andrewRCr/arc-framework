@@ -128,6 +128,31 @@ export const STANDALONE_SKILL_DIRS: Readonly<Record<string, string>> = {
   claude: ".claude/skills",
 };
 
+/**
+ * All valid tool identifiers — union of universal and standalone tiers.
+ * Used for --tools flag validation in non-interactive mode.
+ */
+export const VALID_TOOL_IDS: ReadonlySet<string> = new Set([
+  ...UNIVERSAL_TOOLS,
+  ...Object.keys(STANDALONE_SKILL_DIRS),
+]);
+
+/**
+ * Validate that all tool identifiers are recognized.
+ *
+ * @param tools - Tool identifiers to validate
+ * @throws Error listing unrecognized tools and the valid set
+ */
+export function validateTools(tools: string[]): void {
+  const invalid = tools.filter((t) => !VALID_TOOL_IDS.has(t));
+  if (invalid.length > 0) {
+    const sorted = [...VALID_TOOL_IDS].sort();
+    throw new Error(
+      `Unknown tool${invalid.length > 1 ? "s" : ""}: ${invalid.join(", ")}. Valid tools: ${sorted.join(", ")}`,
+    );
+  }
+}
+
 // --- Directory Resolution ---
 
 /**

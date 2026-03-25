@@ -11,6 +11,8 @@ import {
   generateSkills,
   parseSkillFrontmatter,
   buildCodexYaml,
+  validateTools,
+  VALID_TOOL_IDS,
   CANONICAL_SKILLS,
   type SkillGenerationIO,
 } from "../../../src/lib/skills/index.js";
@@ -296,6 +298,32 @@ describe("parseSkillFrontmatter", () => {
   it("returns null when required fields are missing", () => {
     const content = "---\ntitle: something\n---\n";
     expect(parseSkillFrontmatter(content)).toBeNull();
+  });
+});
+
+describe("validateTools", () => {
+  it("accepts all known tool IDs", () => {
+    expect(() => validateTools([...VALID_TOOL_IDS])).not.toThrow();
+  });
+
+  it("accepts an empty array", () => {
+    expect(() => validateTools([])).not.toThrow();
+  });
+
+  it("throws on a single unknown tool", () => {
+    expect(() => validateTools(["claude", "unknown-tool"])).toThrow(
+      "Unknown tool: unknown-tool",
+    );
+  });
+
+  it("throws on multiple unknown tools", () => {
+    expect(() => validateTools(["foo", "bar"])).toThrow(
+      "Unknown tools: foo, bar",
+    );
+  });
+
+  it("includes valid tools list in the error message", () => {
+    expect(() => validateTools(["nope"])).toThrow("Valid tools:");
   });
 });
 

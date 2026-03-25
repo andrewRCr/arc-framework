@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.3.b — Input validation and CI auto-detection (line ~593)
-**Last Completed**: Task 6.3.a — Error handling overhaul
+**Next Task**: Task 6.3.c — Config parser hardening (line ~593)
+**Last Completed**: Task 6.3.b — Input validation and CI auto-detection
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.3.b (input validation and CI auto-detection)
+**Next Action**: Continue Phase 6 — start Task 6.3.c (config parser hardening)
 
 ---
 

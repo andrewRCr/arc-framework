@@ -7,6 +7,7 @@
 
 export {
     resolveSkillTargets, detectExistingSkillDirs,
+    validateTools, VALID_TOOL_IDS,
     CANONICAL_SKILLS, UNIVERSAL_SKILL_DIR, UNIVERSAL_TOOLS,
     NATIVE_SKILL_DIRS, STANDALONE_SKILL_DIRS,
     type ToolId, type CanonicalSkillName,
