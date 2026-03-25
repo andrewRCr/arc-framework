@@ -2,26 +2,29 @@
 
 **Work Unit:** `tasks-beta-readiness.md` (Phase 5)
 **Date:** 2026-03-25
-**Scope:** CLI codebase, git hooks, and ARC methodology documents.
+**Scope:** CLI codebase, git hooks, ARC methodology documents, and team coordination paths.
 
 ---
 
 ## Executive Summary
 
-Twelve parallel audit workstreams (6 CLI, 6 methodology scenarios) reviewed the entire CLI
-package (`packages/arc-framework/`), git hooks, shared libraries, and the full ARC workflow
-document set. The codebase is well-structured with good test coverage (~470 tests) and the
-methodology routing is sound end-to-end for the power user path. However, the audit surfaced
-significant issues concentrated in two areas: **git hooks** (first thing every adopter touches)
-and **default-config documentation** (the path every new adopter follows).
+Sixteen parallel audit workstreams (6 CLI, 6 methodology scenarios, 4 team coordination
+scenarios) reviewed the entire CLI package (`packages/arc-framework/`), git hooks, shared
+libraries, the full ARC workflow document set, and team-mode operational paths. The codebase
+is well-structured with good test coverage (~470 tests) and the methodology routing is sound
+end-to-end for the solo power user path. However, the audit surfaced significant issues
+concentrated in three areas: **git hooks** (first thing every adopter touches),
+**default-config documentation** (the path every new adopter follows), and **team coordination
+workflows** (strategy-level conventions not consumed by operational workflows).
 
 **Finding counts:**
 
-| Area         | High   | Medium | Low     | Total    |
-|--------------|--------|--------|---------|----------|
-| CLI / Hooks  | 14     | 42     | 25      | 81       |
-| Methodology  | 4      | 18     | 30+     | 52+      |
-| **Combined** | **18** | **60** | **55+** | **133+** |
+| Area              | High   | Medium | Low     | Total    |
+|-------------------|--------|--------|---------|----------|
+| CLI / Hooks       | 14     | 42     | 25      | 81       |
+| Methodology       | 4      | 18     | 30+     | 52+      |
+| Team Coordination | 6      | 12     | 7       | 25       |
+| **Combined**      | **24** | **72** | **62+** | **158+** |
 
 **Top 7 issues for beta (ordered by adopter impact):**
 
@@ -681,3 +684,334 @@ Several areas were notably well-designed:
 | MW-M14 | Contributor context footer enforcement  | Medium — design decision needed |
 | MW-M17 | No-identity → can't-handoff not flagged | Small                           |
 | MW-M18 | ATOMIC-INBOX triage cadence             | Small — add secondary trigger   |
+
+---
+
+## Part 3: Team Coordination Findings
+
+Four focused audit workstreams exercised team-mode scenarios that were underrepresented in the
+original audit: concurrent developers on the same task list, `team.mode: true` behavioral
+tracing, task ownership mechanics with person-to-person handoff, and team branching patterns
+with merge conflict handling.
+
+**Finding counts (team coordination):**
+
+| Severity | Count | Key themes                                                           |
+|----------|-------|----------------------------------------------------------------------|
+| High     | 6     | Strategy-workflow gap, WORK-STATUS concurrency, merge=ours data loss |
+| Medium   | 12    | Missing ownership filtering, no team branching workflow, CLI gaps    |
+| Low      | 7     | Documentation clarity, enforcement gaps, edge cases                  |
+
+**Central insight:** The team coordination strategy is well-designed as a reference document,
+but none of its conventions (`(@name)` ownership, person-to-person handoff, branching patterns)
+are consumed by the operational workflows that agents actually follow step-by-step. The result
+is a gap between what the strategy describes and what an agent will do.
+
+### 3.1 Strategy–Workflow Integration Gap
+
+This is the dominant finding — it cuts across all four workstreams.
+
+#### High
+
+**[TC-H01]** `session-init.md:91-98` · Session-init does not filter tasks by `(@name)` ownership
+
+Session-init reads WORK-STATUS.md "Next Task" as a scalar value. In team mode, two developers
+running session-init on the same branch both see the same "Next Task" and both agents begin
+working the same task. Session-init has zero references to `(@name)` markers, task ownership,
+or team-mode filtering. The `(@name)` convention exists in strategy-team-coordination.md but
+is never consulted by the operational workflow.
+
+Fix: Add a team-mode step after reading WORK-STATUS: scan the task list for `(@name)` markers
+matching the current identity, and resolve "my next task" rather than the global "Next Task."
+
+**[TC-H02]** `3_process-task-loop.md:20-23` · No mechanism for discovering which tasks are
+claimed by other developers
+
+The process-task-loop says "In team mode, this applies per developer-agent pair" but provides
+no step for determining which tasks are being worked by others. An agent finds the first
+unchecked task and starts it. If `(@name)` markers exist, the strategy describes their
+meaning — but the task-loop never instructs the agent to check them. If markers are absent,
+there is no mechanism to avoid duplicate work.
+
+Fix: Add a "task claim" step for team mode: before starting a task, verify it has your
+`(@name)` marker or is unowned. When claiming, update the marker.
+
+**[TC-H03]** `WORK-STATUS.md` · Single "Next Task" field cannot represent concurrent
+developer state
+
+WORK-STATUS.md has exactly one "Next Task" and one "Last Completed" field. When Alice
+completes Task 3.1 and Bob completes Task 3.2 concurrently, both attempt to update these
+fields with different values. The `merge=ours` strategy silently discards the incoming
+branch's changes, meaning one developer's state update is lost. The team coordination strategy
+calls this "transient" because "post-merge workflows update immediately" — but no such
+post-merge reconciliation step exists in any workflow.
+
+Fix: Either introduce per-developer state resolution from `(@name)` markers (so WORK-STATUS
+represents branch-level progress, not personal next-task), or document WORK-STATUS as
+single-writer and add a post-merge reconciliation step.
+
+#### Medium
+
+**[TC-M01]** `3_process-task-loop.md:159-162` · Concurrent task completion creates
+WORK-STATUS write conflicts
+
+The process-task-loop instructs: "update WORK-STATUS.md — advance Next Task, Last Completed."
+When two developers complete different tasks around the same time on a shared branch, the
+second committer gets a merge conflict. On sub-branches, `merge=ours` silently drops the
+state. No guidance for either case.
+
+Fix: For shared branches, add pull-before-commit guidance. For sub-branches, document that
+WORK-STATUS reflects sub-branch state and is reconciled post-merge.
+
+**[TC-M02]** `session-handoff.md:75-105` · Handoff writes WORK-STATUS without checking for
+concurrent updates
+
+The handoff format writes "Next Task" and "Last Completed" as scalar values without checking
+whether the file changed since session-init. If another developer updated WORK-STATUS
+mid-session, the handoff silently overwrites their state.
+
+Fix: Add a freshness check before writing WORK-STATUS during handoff: compare against what was
+loaded at session-init.
+
+**[TC-M03]** `session-init.md:238-258` · Freshness check does not detect concurrent developer
+activity
+
+The freshness check compares the SESSION-NOTES handoff hash against HEAD. This detects
+staleness from prior sessions but not mid-session concurrent commits by other developers.
+
+Fix: Add a "concurrent activity check" recommendation: before committing task completion,
+compare WORK-STATUS on disk against the version loaded at session-init.
+
+### 3.2 `team.mode` Config Behavioral Surface
+
+#### High
+
+**[TC-H04]** `init-recipe.json` / all `.template.md` files · No recipe conditions or template
+conditionals use `team.mode`
+
+The recipe conditions block has entries for `pm.mode` and `tools` but none for `team.mode`.
+Zero templates contain `<!-- arc:if team.mode == true -->` conditionals. The conditional
+rendering infrastructure exists and is tested, but no shipped template uses it. Enabling team
+mode produces byte-identical workflow documents as solo mode. An adopter enabling team mode
+gets no additional inline guidance about task ownership, `(@name)`, handoff, or branching —
+all of which the strategy describes as team-mode behaviors.
+
+Fix: Add `team.mode == true` conditions to the recipe or `<!-- arc:if -->` blocks in key
+workflow templates (session-init, process-task-loop, session-handoff) that surface team
+coordination instructions inline.
+
+#### Medium
+
+**[TC-M04]** `githooks/pre-commit`, `githooks/commit-msg` · Git hooks have no team mode
+awareness
+
+Neither hook reads `team.mode`. In team mode, hooks could warn when `(@name)` markers are
+absent from staged task list changes, or adjust validation for shared integration branches.
+Currently hooks behave identically regardless of team mode.
+
+Fix: Consider a soft warning in pre-commit when task list changes lack `(@name)` markers
+while `team.mode: true`.
+
+**[TC-M05]** `packages/arc-framework/src/lib/config.ts:29` · `user.sync_push` default set
+only at init time, not dynamically derived
+
+`buildConfigKeyOverrides` sets `user.sync_push` based on `team_mode` during `arc init`. If
+someone later toggles `team.mode` to `true` by editing `arc-config.yml`, `user.sync_push`
+is not automatically updated. An adopter could end up with `team.mode: true` and
+`user.sync_push: always` (the solo default).
+
+Fix: Document that changing `team.mode` after init requires also updating `user.sync_push`.
+
+**[TC-M06]** `session-handoff.md:288-303` · `user.sync_push` behavior is documented prose,
+not enforced
+
+The handoff workflow describes three `user.sync_push` modes but this is purely prose for AI
+agents. No shell script, hook, or CLI command reads `user.sync_push` at handoff time and
+enforces the behavior.
+
+Fix: Acceptable for beta if design intent is agent-interpreted prose. Document this as a
+known limitation.
+
+### 3.3 Task Ownership and Person-to-Person Handoff
+
+#### High
+
+**[TC-H05]** `activate-work-unit.md:117` · Wrong path `team/{name}/SESSION-NOTES.md`
+
+The team mode callout says developers establish context via `team/{name}/SESSION-NOTES.md`.
+The canonical path is `user/{identity}/SESSION-NOTES.md`. This is the only occurrence of
+`team/{name}/` in the codebase. An agent following this literally would create or look for
+files in a nonexistent directory.
+
+Fix: Change `team/{name}/SESSION-NOTES.md` to `user/{identity}/SESSION-NOTES.md` in both
+the installed copy and the package source template.
+
+#### Medium
+
+**[TC-M07]** `2_generate-tasks.md` · No guidance on adding `(@name)` markers during task
+generation
+
+The generate-tasks workflow makes no mention of task ownership. In a team context, this is
+the natural place to assign tasks, but there is no prompt or guidance. The strategy describes
+reassignment but not initial assignment.
+
+Fix: Add a team mode note in the task breakdown step.
+
+**[TC-M08]** `strategy-task-list-formatting.md` · No mention of `(@name)` in task list
+formatting strategy
+
+The formatting strategy is the authoritative reference for task list structure. It includes no
+mention of `(@name)` markers, no examples with ownership annotations, and no guidance on
+placement relative to checkbox syntax.
+
+Fix: Add a brief section describing `(@name)` placement, cross-referencing the team
+coordination strategy.
+
+**[TC-M09]** `packages/arc-framework/src/cli.ts:648-661` · `arc user pull` only fetches the
+current user's own notes
+
+The incoming bootstrap protocol in the strategy tells developers to use raw `git fetch`
+commands to get the outgoing developer's notes, bypassing the CLI. The CLI has no
+`--identity` option to fetch another developer's notes namespace.
+
+Fix: Add an `--identity <name>` option to `arc user pull`.
+
+### 3.4 Team Branching and Merge Conflicts
+
+#### High
+
+**[TC-H06]** `strategy-team-coordination.md:267` · `merge=ours` silently discards
+WORK-STATUS on sub-branch merges
+
+For the Personal Sub-Branches pattern: Alice merges into the integration branch (her
+WORK-STATUS updates it). Bob then merges — `merge=ours` keeps Alice's state, silently
+discarding Bob's WORK-STATUS entirely. The documentation says the content is "transient"
+but no post-merge reconciliation step exists.
+
+Fix: Document WORK-STATUS as single-writer per branch. For sub-branch patterns, note that
+the integration branch's WORK-STATUS should be owned by whoever drives integration. Add an
+explicit post-merge reconciliation step.
+
+#### Medium
+
+**[TC-M10]** `strategy-team-coordination.md:249-251` · "Trivially resolvable" task list
+merge conflict claim is overstated
+
+Git may produce conflicts when both developers' changes are close together, when completion
+notes are multi-line, or when surrounding content was reformatted. The claim is accurate for
+a human reviewer but may mislead agents or less experienced developers.
+
+Fix: Reframe to "expected and straightforward to resolve manually." Add a concrete resolution
+example. Add guidance to keep task list edits minimal (checkbox + completion note only).
+
+**[TC-M11]** `activate-work-unit.md:72-75` · No workflow guidance for team branch setup
+
+The workflow creates the primary branch but provides no step for establishing team branching
+structure — integration branch, sub-branches, WORK-STATUS initialization per sub-branch,
+or updating the `Branch(es)` header.
+
+Fix: Add a "Team Branching Setup" subsection or linked supplemental workflow.
+
+**[TC-M12]** `strategy-task-list-formatting.md:140-141` · `Branch(es)` field has no
+structure for sub-branch ownership
+
+The flat comma-separated list does not indicate which developer owns which sub-branch or
+which is the integration branch. An agent cannot determine branching topology.
+
+Fix: Define a lightweight syntax distinguishing integration branches from personal
+sub-branches, or document that the flat list is intentional.
+
+#### Low
+
+**[TC-L01]** `3_process-task-loop.md:22` · Team mode note is unconditional static prose
+
+The inline note "In team mode, this applies per developer-agent pair" is present regardless of
+whether team mode is enabled. In solo mode, this is misleading noise.
+
+Fix: Wrap in `<!-- arc:if team.mode == true -->` conditional in the template, or rephrase to
+be explicitly conditional.
+
+**[TC-L02]** `session-init.md:316-349` · Mismatch trust hierarchy doesn't mention concurrent
+developer as a cause
+
+The "If Context Seems Mismatched" examples cover single-developer causes only. In team mode,
+WORK-STATUS showing a task as "in progress" while the task list shows it `[x]` is equally
+likely to be caused by a teammate's commit.
+
+Fix: Add a team-mode example to Tier 1 auto-recover.
+
+**[TC-L03]** `strategy-team-coordination.md:92-167` · Person-to-person handoff assumes
+sequential, not concurrent, transitions
+
+The handoff protocol describes a clean outgoing/incoming sequence. No guidance exists for
+"Alice and Bob are both working right now" — only for "Alice is leaving and Bob takes over."
+
+Fix: Add a "concurrent team session" section covering the active-active scenario.
+
+**[TC-L04]** `strategy-team-coordination.md:132-136` · Incoming bootstrap git commands return
+raw JSON, not readable content
+
+The protocol tells developers to run `git notes show HEAD` to read outgoing context. The CLI
+stores notes as a JSON manifest, not human-readable SESSION-NOTES. Raw output is an opaque
+JSON blob.
+
+Fix: Reference the CLI's load mechanism rather than raw `git notes show`.
+
+**[TC-L05]** `DEV-RULES.ARC.md` · No cross-reference to team coordination strategy
+
+DEV-RULES.ARC covers task management but does not link to the team coordination strategy.
+The strategy is reachable only via STRATEGY-INDEX.md and three workflow documents.
+
+Fix: Add a brief note in the task management section pointing to the strategy.
+
+**[TC-L06]** `strategy-team-coordination.md:267-269` · "PR merges take the base branch
+version" is platform-dependent
+
+GitHub, GitLab, and Bitbucket do not execute custom merge drivers during server-side PR
+merges. If both branches modified WORK-STATUS.md, the platform reports a merge conflict. The
+"always take base" framing is only accurate when the base branch version is unchanged.
+
+Fix: Clarify the assumption and mention the edge case.
+
+**[TC-L07]** `pre-commit:44-58` · No branch naming convention enforcement
+
+The pre-commit hook checks base branch protection but does not enforce naming conventions for
+team sub-branches. Documented branching patterns rely entirely on team discipline.
+
+Fix: Acceptable for beta. Consider an optional `hooks.branch_naming` setting for a future
+release.
+
+---
+
+## Updated Recommended Actions — Team Coordination
+
+### Fix Before Beta — Team Coordination
+
+| ID       | Issue                                                       | Effort                                                   |
+|----------|-------------------------------------------------------------|----------------------------------------------------------|
+| TC-H05   | Wrong path `team/{name}/` in activate-work-unit             | Small — single line fix in two files                     |
+| TC-H04   | `team.mode` produces identical docs as solo mode            | Medium — add template conditionals to key workflows      |
+| TC-H01-2 | Workflows don't filter by `(@name)` or check ownership      | Medium — add team-mode steps to session-init + task loop |
+| TC-M07-8 | `(@name)` absent from task generation + formatting strategy | Small — add notes and examples                           |
+| TC-L04   | Incoming bootstrap commands return raw JSON                 | Small — fix documented commands                          |
+
+### Should Fix Before Beta — Team Coordination
+
+| ID         | Issue                                                  | Effort                                                  |
+|------------|--------------------------------------------------------|---------------------------------------------------------|
+| TC-H03,H06 | WORK-STATUS single-writer + merge=ours data loss       | Medium — document concurrency model, add reconciliation |
+| TC-M01-3   | Concurrent WORK-STATUS conflicts with no guidance      | Medium — add pull-before-commit + freshness checks      |
+| TC-M10     | "Trivially resolvable" merge conflict claim overstated | Small — reframe + add example                           |
+| TC-M11     | No workflow for team branch setup                      | Medium — add supplemental workflow or subsection        |
+| TC-L02     | Trust hierarchy missing concurrent-developer examples  | Small — add team-mode example                           |
+
+### Defer to Backlog — Team Coordination
+
+| ID           | Issue                                                  | Effort                                |
+|--------------|--------------------------------------------------------|---------------------------------------|
+| TC-M04       | Hooks have no team mode awareness                      | Medium — design decision needed       |
+| TC-M05       | `user.sync_push` not dynamically linked to `team.mode` | Small — document manual update needed |
+| TC-M06       | `user.sync_push` enforcement is prose-only             | Small — document as known limitation  |
+| TC-M09       | `arc user pull` can't fetch another developer's notes  | Medium — add `--identity` option      |
+| TC-M12       | `Branch(es)` field has no sub-branch structure         | Small — design decision needed        |
+| TC-L01,3,5-7 | Documentation clarity and edge case improvements       | Small each                            |
