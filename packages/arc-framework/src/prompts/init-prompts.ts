@@ -70,9 +70,9 @@ function cancelAndThrow(sentinel: symbol): never {
 /**
  * Display the tools preamble note and run the tools prompt.
  *
- * Shared between fresh and join modes.
+ * Shared between fresh, join, and arc join modes.
  */
-async function promptTools(sentinel: symbol): Promise<string[]> {
+export async function promptTools(sentinel: symbol): Promise<string[]> {
   p.note(
     "ARC installs Skills as triggers for common workflows (commits,\n" +
       "handoffs, etc.) into your tools' skill directories.\n" +
@@ -104,26 +104,17 @@ async function promptTools(sentinel: symbol): Promise<string[]> {
 /**
  * Run the interactive init prompt sequence.
  *
- * In fresh mode, prompts for all values. In join mode, only prompts for tools
- * (project-level config is read from the existing installation).
+ * Prompts for project name, tools, PM mode, and team mode.
  *
  * @param cwd - Working directory (used to derive default project name)
- * @param mode - Init mode: 'fresh' (default) or 'join'
  * @returns Prompt results, or `null` if the user cancelled
  */
 export async function runInitPrompts(
   cwd: string,
-  mode: "fresh" | "join" = "fresh",
 ): Promise<InitPromptResult | null> {
   const sentinel = Symbol("prompt-cancelled");
 
   try {
-    if (mode === "join") {
-      const tools = await promptTools(sentinel);
-      return { project_name: "", tools, pm_mode: "", team_mode: false };
-    }
-
-    // --- Fresh mode: sequential prompts with notes between them ---
 
     // 1. Project name
     const dirName = basename(cwd);

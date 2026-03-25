@@ -1,11 +1,9 @@
 /**
  * Init command — install ARC framework in a project.
  *
- * Supports two modes:
- * - **Fresh**: Full init sequence with prompts, template rendering, and file output
- * - **Join**: Lightweight setup for developers joining an existing ARC project
- *
- * Mode is detected automatically by checking for `.arc/system/arc-config.yml`.
+ * Fresh install only — scaffolds the full `.arc/` directory with templates,
+ * configuration, and git integration. If ARC is already installed, errors
+ * with guidance to use `arc join` or `arc update` instead.
  */
 
 import { join, dirname } from "node:path";
@@ -46,31 +44,26 @@ export interface IOContext extends CoreIO {
   chmod: ChmodFn;
 }
 
-/** Init mode: fresh install or joining existing project. */
-export type InitMode = "fresh" | "join";
-
-// --- Mode Detection ---
+// --- Installation Detection ---
 
 /**
- * Detect whether this is a fresh init or joining an existing ARC project.
+ * Check whether ARC is already installed in the given directory.
  *
- * Checks for `.arc/system/arc-config.yml` at the given root. If present,
- * ARC is already initialized (join mode). Detection is deterministic —
- * `.arc/` is always at repo root.
+ * Checks for `.arc/system/arc-config.yml` at the given root.
  *
  * @param cwd - Repository root directory
  * @param access - Injectable access check function
- * @returns 'fresh' or 'join'
+ * @returns true if ARC is installed
  */
-export async function detectInitMode(
+export async function isArcInstalled(
   cwd: string,
   access: AccessFn,
-): Promise<InitMode> {
+): Promise<boolean> {
   try {
     await access(join(cwd, ...ARC_CONFIG_SEGMENTS));
-    return "join";
+    return true;
   } catch {
-    return "fresh";
+    return false;
   }
 }
 
@@ -84,8 +77,6 @@ export interface InitOptions {
   /** CLI-internal templates directory (user templates, etc.). */
   internalTemplateDir: string;
   recipe: Recipe;
-  /** Pre-detected init mode. If omitted, detected automatically. */
-  mode?: InitMode;
   /** Prompt results, or null if user cancelled. */
   prompts: InitPromptResult | null;
   /** Resolved identity, or null if cancelled/unavailable. */
@@ -94,7 +85,6 @@ export interface InitOptions {
 
 /** Result from a successful init run. */
 export interface InitResult {
-  mode: InitMode;
   filesWritten: string[];
   tools: string[];
   team_mode: boolean;
@@ -104,12 +94,13 @@ export interface InitResult {
 /**
  * Run the init command orchestration.
  *
- * Coordinates mode detection, prompt handling, file rendering, config writing,
- * skill generation, and identity storage. All I/O goes through the IOContext
- * for testability.
+ * Coordinates file rendering, config writing, skill generation, and identity
+ * storage. Errors if ARC is already installed. All I/O goes through the
+ * IOContext for testability.
  *
  * @param options - Init options with all dependencies injected
  * @returns Init result, or null if user cancelled
+ * @throws Error with code 'ALREADY_INSTALLED' if ARC is already installed
  */
 export async function runInit(
   options: InitOptions,
@@ -121,51 +112,18 @@ export async function runInit(
     return null;
   }
 
-  // Detect mode (use pre-detected if provided)
-  const mode = options.mode ?? await detectInitMode(cwd, io.access);
-  const arcDir = join(cwd, ".arc");
-
-  // --- Join mode: personal setup only ---
-  if (mode === "join") {
-    // Git integration (gitattributes, merge driver, hooks path)
-    await configureGitIntegration({
-      cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile,
-    });
-
-    // Skill generation for selected tools
-    const skillResult = await generateSkills(
-      prompts.tools,
-      join(templateDir, "system", "skills"),
-      [],
-      cwd,
-      { readFile: io.readFile },
+  // Check for existing installation
+  if (await isArcInstalled(cwd, io.access)) {
+    const err = new Error(
+      "ARC is already installed in this project.\n"
+      + "  To join as a developer: arc join\n"
+      + "  To update framework files: arc update",
     );
-    await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
-
-    // Write managed gitignore block with skill directories
-    const gitignorePath = join(cwd, ".gitignore");
-    const gitignoreEntries = [
-      ".arc/system/.internal/pristine.json",
-      ".arc/user/*/",
-      ...skillGitignoreEntries(skillResult.targetDirs),
-    ];
-    await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
-
-    // Identity, user directory, and notes refspec setup
-    await runPostInitSetup({
-      arcDir, internalTemplateDir, io,
-      pmMode: prompts.pm_mode, identityResult,
-    });
-
-    return {
-      mode,
-      filesWritten: [],
-      tools: prompts.tools,
-      team_mode: prompts.team_mode,
-    };
+    (err as Error & { code: string }).code = "ALREADY_INSTALLED";
+    throw err;
   }
 
-  // --- Fresh mode: full installation ---
+  const arcDir = join(cwd, ".arc");
 
   // Build maps
   const config = buildConfigMap(prompts);
@@ -291,7 +249,6 @@ export async function runInit(
   });
 
   return {
-    mode,
     filesWritten,
     tools: prompts.tools,
     team_mode: prompts.team_mode,
@@ -338,7 +295,7 @@ export function buildPostInitMessage(result: InitResult): string {
 
   if (result.team_mode) {
     lines.push("");
-    lines.push("Team mode enabled. Other developers join by running 'arc init'");
+    lines.push("Team mode enabled. Other developers join by running 'arc join'");
     lines.push("in this repository after cloning.");
   }
 

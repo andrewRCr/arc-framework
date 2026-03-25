@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import {
-  detectInitMode,
+  isArcInstalled,
   runInit,
   buildPostInitMessage,
 } from "../../src/commands/init.js";
@@ -27,7 +27,6 @@ import { DEFAULT_PROMPTS } from "../helpers/integration.js";
 /** Default InitResult — override only what matters per test. */
 function makeInitResult(overrides: Partial<InitResult> = {}): InitResult {
   return {
-    mode: "fresh",
     filesWritten: ["README.md"],
     tools: ["claude"],
     team_mode: false,
@@ -53,20 +52,20 @@ function canonicalSkillFiles(templateDir: string): Record<string, string> {
   return files;
 }
 
-// --- detectInitMode ---
+// --- isArcInstalled ---
 
-describe("detectInitMode", () => {
-  it("returns 'fresh' when .arc/system/arc-config.yml does not exist", async () => {
+describe("isArcInstalled", () => {
+  it("returns false when .arc/system/arc-config.yml does not exist", async () => {
     const access = vi.fn().mockRejectedValue(new Error("ENOENT"));
-    const mode = await detectInitMode("/project", access);
-    expect(mode).toBe("fresh");
+    const result = await isArcInstalled("/project", access);
+    expect(result).toBe(false);
     expect(access).toHaveBeenCalledWith("/project/.arc/system/arc-config.yml");
   });
 
-  it("returns 'join' when .arc/system/arc-config.yml exists", async () => {
+  it("returns true when .arc/system/arc-config.yml exists", async () => {
     const access = vi.fn().mockResolvedValue(undefined);
-    const mode = await detectInitMode("/project", access);
-    expect(mode).toBe("join");
+    const result = await isArcInstalled("/project", access);
+    expect(result).toBe(true);
   });
 });
 
@@ -400,8 +399,6 @@ describe("runInit", () => {
       prompts: DEFAULT_PROMPTS,
       identityResult: "andrew",
     });
-
-    expect(result.mode).toBe("fresh");
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
 
@@ -794,7 +791,7 @@ describe("buildPostInitMessage", () => {
     const msg = buildPostInitMessage(makeInitResult({ team_mode: true }));
 
     expect(msg).toContain("Team mode enabled");
-    expect(msg).toContain("arc init");
+    expect(msg).toContain("arc join");
   });
 
   it("omits team guidance when team mode disabled", () => {

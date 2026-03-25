@@ -275,42 +275,39 @@ role selection (maintainer vs. contributor).
     - [x] **3.1.c Quality gates**
         - typecheck: clean, lint:ts: clean, unit tests: 259 pass (19 suites)
 
-- [ ] **3.2 Create `arc join` command**
+- [x] **3.2 Create `arc join` command**
 
-    - [ ] **3.2.a Create `src/commands/join.ts`**
+    - [x] **3.2.a Create `src/commands/join.ts`**
+        - `runJoin()` orchestrator with all planned behaviors: installation check with
+          `NO_ARC_INSTALLATION` error code, role + identity in git config, git integration
+          via shared `configureGitIntegration()`, skill generation, gitignore/gitattributes
+          blocks, user directory via shared `runPostInitSetup()`
+        - 9 unit tests covering all behaviors including null identity edge case
+        - Created `src/prompts/join-prompts.ts` with role selection + shared tool prompt
+          (exported `promptTools` from `init-prompts.ts` — no duplication)
 
-        Build `test-first` (one behavior at a time):
-        - Errors when `.arc/` doesn't exist (suggests `arc init`)
-        - Prompts for role selection (Team member → maintainer, Contributor → contributor)
-        - Prompts for tool selection (reuse existing tool prompt logic)
-        - Sets `git config --local arc.role`
-        - Sets `git config --local arc.identity`
-        - Configures git integration via shared `configureGitIntegration()` (gitattributes,
-          merge driver, hooks path)
-        - Creates `user/{identity}/` directory with templates via shared `runPostInitSetup()`
-        - Generates per-tool skills
-        - Writes managed gitignore and gitattributes blocks via shared block-write functions
+    - [x] **3.2.b Register `join` in `cli.ts`**
+        - `arc join` with `--contributor`, `--yes`, `--tools <csv>` flags
+        - Interactive: role prompt → tool prompt → identity prompt → run
+        - Non-interactive: flags build `JoinPromptResult` directly
+        - Error handling for `NO_ARC_INSTALLATION` with user-facing message
 
-    - [ ] **3.2.b Register `join` in `cli.ts`**
-        - Add `join` subcommand with `--contributor` and `--yes` flags
-        - Add `--tools` flag for non-interactive tool selection
+- [x] **3.3 Update `arc init` to detect existing installations**
+    - `runInit` throws `ALREADY_INSTALLED` error with guidance to `arc join` or `arc update`
+    - Renamed `detectInitMode` → `isArcInstalled` (returns boolean, no mode concept)
+    - Removed join mode path from `init.ts`, `InitMode` type, and `mode` from `InitOptions`/`InitResult`
+    - Removed join mode logic from `cli.ts` init action (config reading, mode branching)
+    - Removed join mode parameter from `runInitPrompts`
+    - Updated `buildPostInitMessage()` team mode text: "arc init" → "arc join"
+    - Updated unit tests (`isArcInstalled`, removed `result.mode` assertions, updated team text test)
+    - Updated integration test (join mode test → `ALREADY_INSTALLED` error test + `runJoin` test)
+    - Updated E2E test (second init now errors instead of joining)
 
-- [ ] **3.3 Update `arc init` to detect existing installations**
-
-    Build `test-first` (one behavior at a time):
-    - When `.arc/system/arc-config.yml` exists, suggests `arc join` instead of proceeding
-    - `--force` flag bypasses the detection and re-initializes
-    - Remove the existing join mode path from `init.ts` (lines 170–206) — `arc join` is now
-      the user-facing surface for joining existing projects
-    - Update `buildPostInitMessage()` team mode text: "arc init" → "arc join"
-    - Verify existing integration tests still pass after the redirect
-
-- [ ] **3.4 Non-interactive `arc join` mode**
-
-    Build `test-first` (one behavior at a time):
-    - `arc join --contributor --yes` sets role=contributor with defaults
-    - `arc join --yes --tools claude,cursor` sets role=maintainer with specified tools
-    - `arc join --contributor --yes --tools claude` combines role and tools
+- [x] **3.4 Non-interactive `arc join` mode**
+    - Already implemented in 3.2.b — `--contributor`, `--yes`, and `--tools` flags build
+      `JoinPromptResult` directly from CLI flags
+    - 4 E2E tests: `--contributor --yes`, `--yes --tools claude,cursor`,
+      `--contributor --yes --tools claude`, and error on missing installation
 
 ### **Phase 4:** Contributor Role Support
 

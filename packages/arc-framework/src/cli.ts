@@ -13,9 +13,9 @@ import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
-import { runInit, buildPostInitMessage, detectInitMode } from "./commands/init.js";
+import { runInit, buildPostInitMessage } from "./commands/init.js";
 import { parseArcConfig } from "./lib/config.js";
-import type { IOContext, InitMode } from "./commands/init.js";
+import type { IOContext } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runStatus, buildStatusSummary } from "./commands/status.js";
 import { runDiff, buildDiffOutput } from "./commands/diff.js";
@@ -29,12 +29,15 @@ import type { UserIOContext } from "./commands/user.js";
 import { resolveIdentity, slugifyIdentity, type GitExec, type DirEntry } from "./lib/git/index.js";
 import { readManifest } from "./lib/manifest/index.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
+import { runJoinPrompts } from "./prompts/join-prompts.js";
+import { runJoin } from "./commands/join.js";
+import type { JoinPromptResult } from "./commands/join.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
 import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
 import { formatError, UserFacingError } from "./lib/errors.js";
 import type { Recipe } from "./lib/types.js";
-import { ARC_CONFIG_SEGMENTS, CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "./lib/constants.js";
+import { ARC_CONFIG_SEGMENTS, CONFIG_KEY_PM_MODE } from "./lib/constants.js";
 import { listArcFiles } from "./lib/fs.js";
 
 // --- Real I/O Adapters ---
@@ -220,52 +223,23 @@ program
     const cwd = process.cwd();
     const io = createIOContext();
 
-    // Detect mode before prompts — join mode shows fewer prompts
-    const mode: InitMode = await detectInitMode(cwd, (path) => access(path));
-
-    // For join mode, read existing config to populate project-level values
-    let existingConfig: Record<string, string> = {};
-    if (mode === "join") {
-      try {
-        const configContent = await readFile(
-          join(cwd, ...ARC_CONFIG_SEGMENTS), "utf-8",
-        );
-        existingConfig = parseArcConfig(configContent);
-      } catch {
-        // Config unreadable — fall back to defaults
-      }
-      p.log.info("Existing ARC installation detected — running join mode.");
-    }
-
     // Build prompts from flags or interactive prompts
     let prompts;
     if (opts.yes) {
       prompts = buildNonInteractivePrompts({
         cwd,
         name: opts.name,
-        pmMode: mode === "join" ? (existingConfig[CONFIG_KEY_PM_MODE] ?? "none") : opts.pmMode,
+        pmMode: opts.pmMode,
         tools: opts.tools,
-        team: mode === "join" ? (existingConfig[CONFIG_KEY_TEAM_MODE] === "true") : opts.team,
+        team: opts.team,
       });
       if (!opts.tools) {
         p.log.info("No agent tools selected (use --tools to specify).");
       }
     } else {
-      if (mode === "join") {
-        // Join mode: only tools prompt — project config already established
-        prompts = await runInitPrompts(cwd, "join");
-        if (!prompts) {
-          return;
-        }
-        // Populate project-level values from existing config
-        prompts.pm_mode = existingConfig[CONFIG_KEY_PM_MODE] ?? "none";
-        prompts.team_mode = existingConfig[CONFIG_KEY_TEAM_MODE] === "true";
-        prompts.project_name = existingConfig["project.name"] ?? "";
-      } else {
-        prompts = await runInitPrompts(cwd);
-        if (!prompts) {
-          return; // User cancelled — runInitPrompts handles exit
-        }
+      prompts = await runInitPrompts(cwd);
+      if (!prompts) {
+        return;
       }
     }
 
@@ -289,28 +263,132 @@ program
 
     // Run init with progress feedback
     const spinner = p.spinner();
-    spinner.start(mode === "join" ? "Setting up developer workspace..." : "Installing ARC framework...");
+    spinner.start("Installing ARC framework...");
 
-    const result = await runInit({
-      cwd,
-      io,
-      templateDir,
-      internalTemplateDir: getInternalTemplatePath(),
-      recipe,
-      mode,
-      prompts,
-      identityResult,
-    });
+    try {
+      const result = await runInit({
+        cwd,
+        io,
+        templateDir,
+        internalTemplateDir: getInternalTemplatePath(),
+        recipe,
+        prompts,
+        identityResult,
+      });
 
-    if (!result) {
-      spinner.stop("Installation cancelled.");
-      return;
+      if (!result) {
+        spinner.stop("Installation cancelled.");
+        return;
+      }
+
+      spinner.stop("Installation complete.");
+      p.note(buildPostInitMessage(result), "What's next");
+    } catch (err) {
+      spinner.stop("Setup failed.");
+      if (err instanceof Error && (err as Error & { code?: string }).code === "ALREADY_INSTALLED") {
+        p.log.error(err.message);
+        process.exitCode = 1;
+        return;
+      }
+      throw err;
     }
 
-    spinner.stop(mode === "join" ? "Workspace setup complete." : "Installation complete.");
+    p.outro("Done.");
+  });
 
-    // Post-init message
-    p.note(buildPostInitMessage(result), "What's next");
+program
+  .command("join")
+  .description("Join an existing ARC project as a team member or contributor")
+  .option("--contributor", "Set role to contributor (default: maintainer)")
+  .option("-y, --yes", "Skip prompts, use defaults")
+  .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .action(async (opts: { contributor?: boolean; yes?: boolean; tools?: string }) => {
+    p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Join Project`);
+
+    const cwd = process.cwd();
+    const io = createIOContext();
+
+    // Read existing config for pm.mode
+    let pmMode = "none";
+    try {
+      const configContent = await readFile(
+        join(cwd, ...ARC_CONFIG_SEGMENTS), "utf-8",
+      );
+      const config = parseArcConfig(configContent);
+      pmMode = config[CONFIG_KEY_PM_MODE] ?? "none";
+    } catch {
+      // Config unreadable — will fail at runJoin's access check
+    }
+
+    // Build prompts from flags or interactive prompts
+    let prompts: JoinPromptResult;
+    if (opts.yes) {
+      prompts = {
+        role: opts.contributor ? "contributor" : "maintainer",
+        tools: opts.tools
+          ? opts.tools.split(",").map((t) => t.trim()).filter(Boolean)
+          : [],
+      };
+      if (!opts.tools) {
+        p.log.info("No agent tools selected (use --tools to specify).");
+      }
+    } else {
+      const result = await runJoinPrompts();
+      if (!result) {
+        return;
+      }
+      prompts = result;
+    }
+
+    // Identity resolution — interactive prompt only when not in --yes mode
+    const identityResult = await resolveIdentity({
+      exec: gitExec,
+      prompt: opts.yes ? undefined : async (message, defaultValue) => {
+        const result = await p.text({
+          message,
+          defaultValue,
+          placeholder: defaultValue,
+        });
+        return result;
+      },
+    });
+
+    const templateDir = getArcTemplatePath();
+
+    const spinner = p.spinner();
+    spinner.start("Setting up developer workspace...");
+
+    try {
+      const result = await runJoin({
+        cwd,
+        io,
+        templateDir,
+        internalTemplateDir: getInternalTemplatePath(),
+        prompts,
+        identityResult,
+        pmMode,
+      });
+
+      spinner.stop("Workspace setup complete.");
+
+      const lines: string[] = [];
+      lines.push(`Joined as ${result.role}.`);
+      if (result.tools.length > 0) {
+        lines.push("");
+        lines.push(
+          "Next: Restart your AI tool so the new /arc-resume skill is available, then run it.",
+        );
+      }
+      p.note(lines.join("\n"), "What's next");
+    } catch (err) {
+      spinner.stop("Setup failed.");
+      if (err instanceof Error && (err as Error & { code?: string }).code === "NO_ARC_INSTALLATION") {
+        p.log.error(err.message);
+        process.exitCode = 1;
+        return;
+      }
+      throw err;
+    }
 
     p.outro("Done.");
   });

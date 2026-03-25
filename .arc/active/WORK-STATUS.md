@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.2 — Create `arc join` command (line ~281)
-**Last Completed**: Task 3.1 — Extract shared setup logic from `init.ts`
+**Next Task**: Task 4.1 — Role-aware hooks (line ~317)
+**Last Completed**: Task 3.4 — Non-interactive `arc join` mode (Phase 3 complete)
 **Blockers**: [none]
-**Next Action**: Begin Task 3.2 (create `arc join` command)
+**Next Action**: Begin Phase 4 — Task 4.1 (role-aware hooks)
 
 ---
 

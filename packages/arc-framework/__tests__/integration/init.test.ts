@@ -5,7 +5,7 @@
  * template files. Verifies the full pipeline: file rendering, pristine copies,
  * manifest integrity, git integration, and post-init messaging.
  *
- * Includes join-mode tests verifying user directory setup and config preservation.
+ * Includes existing-installation detection and join integration tests.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -538,14 +538,14 @@ describe("init integration (fresh mode, team_mode=true)", () => {
   });
 });
 
-// --- join mode ---
+// --- existing installation detection ---
 
-describe("init integration (join mode)", () => {
+describe("init integration (existing installation)", () => {
   let tempDir: string;
 
   beforeEach(async () => {
     // Fresh init first to create .arc/ structure
-    tempDir = await createTempRepo("arc-init-join-");
+    tempDir = await createTempRepo("arc-init-existing-");
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -564,29 +564,77 @@ describe("init integration (join mode)", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("detects join mode and creates user directory without touching existing .arc/ files", async () => {
+  it("errors with ALREADY_INSTALLED when arc init is run on existing project", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
-    // Record pre-join state
-    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+    try {
+      await runInit({
+        cwd: tempDir,
+        io,
+        templateDir,
+        internalTemplateDir,
+        recipe,
+        prompts: { ...prompts, pm_mode: "arc-in-git" },
+        identityResult: "second-dev",
+      });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect((err as Error).message).toContain("already installed");
+      expect((err as Error).message).toContain("arc join");
+      expect((err as Error).message).toContain("arc update");
+      expect((err as Error & { code: string }).code).toBe("ALREADY_INSTALLED");
+    }
+  });
+});
 
-    const result = await runInit({
+// --- join integration ---
+
+describe("join integration", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    // Fresh init first to create .arc/ structure
+    tempDir = await createTempRepo("arc-join-test-");
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    await runInit({
       cwd: tempDir,
       io,
       templateDir,
       internalTemplateDir,
       recipe,
-      mode: "join",
-      prompts: { ...prompts, pm_mode: "arc-in-git", tools: ["cursor"] },
+      prompts: { ...prompts, pm_mode: "arc-in-git" },
+      identityResult: "first-dev",
+    });
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("creates user directory without touching existing .arc/ files", async () => {
+    const io = makeIOContext(tempDir);
+
+    // Record pre-join state
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+
+    const { runJoin } = await import("../../src/commands/join.js");
+    const result = await runJoin({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      prompts: { role: "maintainer", tools: ["cursor"] },
       identityResult: "second-dev",
+      pmMode: "arc-in-git",
     });
 
-    expect(result).not.toBeNull();
-    expect(result!.mode).toBe("join");
-    expect(result!.filesWritten).toEqual([]);
+    expect(result.role).toBe("maintainer");
+    expect(result.tools).toEqual(["cursor"]);
 
-    // Manifest unchanged (join mode doesn't write manifest)
+    // Manifest unchanged (join doesn't write manifest)
     const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
     expect(manifestAfter).toBe(manifestBefore);
 
@@ -613,10 +661,21 @@ describe("init integration (join mode)", () => {
     );
     expect(stdout.trim()).toBe("second-dev");
 
+    // Role stored
+    const { stdout: role } = await execFileAsync(
+      "git", ["config", "arc.role"], { cwd: tempDir },
+    );
+    expect(role.trim()).toBe("maintainer");
+
     // Hooks path configured
     const { stdout: hooksPath } = await execFileAsync(
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
     expect(hooksPath.trim()).toBe(".arc/system/githooks");
+
+    // Gitattributes configured
+    const gitattrs = await readFile(join(tempDir, ".gitattributes"), "utf-8");
+    expect(gitattrs).toContain("WORK-STATUS.md merge=ours");
+    expect(gitattrs).toContain("# ARC Framework (managed by arc cli)");
   });
 });
