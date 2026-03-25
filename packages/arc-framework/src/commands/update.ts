@@ -245,7 +245,8 @@ export async function runUpdate(
 
   // Process keep files (merge candidates)
   for (const outputPath of diff.keep) {
-    const templateFile = outputToTemplate[outputPath]!;
+    const templateFile = outputToTemplate[outputPath];
+    if (!templateFile) continue;
     const classification = classifyFile(templateFile);
 
     // Skip Scaffolded files — adopter-owned, no merge
@@ -326,7 +327,8 @@ export async function runUpdate(
 
   // Process added files
   for (const outputPath of diff.added) {
-    const templateFile = outputToTemplate[outputPath]!;
+    const templateFile = outputToTemplate[outputPath];
+    if (!templateFile) continue;
     const rendered = await render(templateFile);
 
     // Write to .arc/

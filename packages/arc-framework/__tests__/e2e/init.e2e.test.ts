@@ -284,3 +284,31 @@ describe("arc join", () => {
     }
   });
 });
+
+describe("arc init --yes identity error", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo("arc-init-no-identity-");
+    // Unset user.name so identity resolution has nothing to fall back on
+    await execFileAsync("git", ["config", "--unset", "user.name"], { cwd: tmpDir }).catch(() => {});
+    await execFileAsync("git", ["config", "--unset", "arc.identity"], { cwd: tmpDir }).catch(() => {});
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("errors with clear message when --yes cannot resolve identity", async () => {
+    // GIT_AUTHOR_NAME/GIT_COMMITTER_NAME could still provide user.name via
+    // global config — override the entire git env to ensure no identity
+    const result = await runArc(["init", "--yes"], tmpDir, {
+      env: { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" },
+    });
+    expect(result.exitCode).toBe(1);
+
+    const output = result.stdout + result.stderr;
+    expect(output).toContain("IDENTITY_MISSING");
+    expect(output).toContain("non-interactive");
+  });
+});

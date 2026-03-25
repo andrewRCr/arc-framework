@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
  */
 function findPackageRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
-  while (true) {
+  for (;;) {
     if (existsSync(resolve(dir, "package.json"))) {
       return dir;
     }

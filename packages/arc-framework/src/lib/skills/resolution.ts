@@ -180,7 +180,7 @@ export function resolveSkillTargets(
 
     // Add codex-yaml supplement when Codex resolves to a directory
     if (tool === "codex") {
-      const supplements = targetDirs.get(resolvedDir)!;
+      const supplements = targetDirs.get(resolvedDir) ?? [];
       if (!supplements.includes("codex-yaml")) {
         supplements.push("codex-yaml");
       }

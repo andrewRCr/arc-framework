@@ -11,6 +11,7 @@ export {
   evaluateCondition,
   getInitTokenNames,
   findResidualInitTokens,
+  loadRecipeFile,
   type RecipeValidationResult,
 } from "./recipe.js";
 

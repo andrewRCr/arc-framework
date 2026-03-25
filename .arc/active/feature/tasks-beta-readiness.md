@@ -572,23 +572,16 @@ auto-detection promoted from backlog into Task 6.3.b.
 
     Findings: I-H01, EH-H01-H03, I-M01-M07, X-M01, CS-H01, CP-M02, I-L01, I-L04
 
-    - [ ] **6.3.a Error handling overhaul**
-        - Add git repo guard before init/join proceeds (I-H01)
-        - Refactor `ALREADY_INSTALLED`/`NO_ARC_INSTALLATION` to `UserFacingError` (EH-H01/H02)
-          — requires extending `ArcErrorCode` union in `errors.ts` with these two codes, then
-          updating the catch blocks in `cli.ts` (lines ~288, ~385) which currently match on
-          `(err as Error & { code?: string }).code` — after refactor these become
-          `UserFacingError` instances caught by `isHandledError()` instead
-        - Add global error boundary around `program.parse()` (EH-H03) — do this after the
-          `UserFacingError` refactor so the boundary catches remaining unhandled errors only
-        - Wrap recipe read/parse in try/catch (EH-M02)
-        - Wrap `resolveUserIdentity()` calls in user command handlers (EH-M03)
-
-        Build `test-first` (one behavior at a time):
-        - `UserFacingError` with `ALREADY_INSTALLED` / `NO_ARC_INSTALLATION` codes
-        - Global error boundary catches unhandled errors with clean output
-        - Missing template file produces user-friendly error (I-M03)
-        - `--yes` with no identity and no `user.name` produces clear error (X-M01)
+    - [x] **6.3.a Error handling overhaul**
+        - Extended `ArcErrorCode` with `ALREADY_INSTALLED`, `NO_ARC_INSTALLATION`, `RECIPE_INVALID`
+        - Refactored init.ts and join.ts to throw `UserFacingError` with structured fields;
+          cli.ts catch blocks now use `isHandledError()` instead of ad-hoc code matching
+        - Global error boundary: `program.parseAsync().catch()` with `formatUnexpectedError()`
+        - Recipe loading: extracted `loadRecipeFile()` in recipe.ts with `RECIPE_INVALID` errors
+        - Git repo guard on init/join (early exit with `GIT_MISSING` UserFacingError)
+        - `--yes` mode identity check: early exit with `IDENTITY_MISSING` when no git config
+        - Wrapped all `resolveUserIdentity()` calls in user commands with try/catch + isHandledError
+        - Test-first: 4 behaviors (7 new unit tests, 3 updated, 1 new E2E test)
 
     - [ ] **6.3.b Input validation and CI auto-detection**
         - Validate `--tools` against known tool list (I-M01)

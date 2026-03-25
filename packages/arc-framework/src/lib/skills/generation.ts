@@ -61,7 +61,7 @@ export function parseSkillFrontmatter(
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return null;
 
-  const block = match[1]!;
+  const [, block = ""] = match;
   const name = block.match(/^name:\s*(.+)$/m)?.[1]?.trim();
   const description = block.match(/^description:\s*(.+)$/m)?.[1]?.trim();
 
@@ -148,7 +148,8 @@ export async function generateSkills(
 
   for (const target of targets) {
     for (const name of CANONICAL_SKILLS) {
-      const content = canonicalContents.get(name)!;
+      const content = canonicalContents.get(name);
+      if (!content) continue;
       const outputPath = `${target.skillDir}/${name}/SKILL.md`;
 
       // Modification detection — check existing file

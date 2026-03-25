@@ -16,6 +16,7 @@ import {
 } from "../lib/skills/index.js";
 import { ARC_CONFIG_SEGMENTS } from "../lib/constants.js";
 import type { CoreIO } from "../lib/types.js";
+import { UserFacingError } from "../lib/errors.js";
 
 // --- Types ---
 
@@ -63,7 +64,7 @@ export interface JoinResult {
  *
  * @param options - Join options with all dependencies injected
  * @returns Join result
- * @throws Error with code 'NO_ARC_INSTALLATION' if `.arc/` doesn't exist
+ * @throws UserFacingError with code 'NO_ARC_INSTALLATION' if `.arc/` doesn't exist
  */
 export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   const { cwd, io, templateDir, internalTemplateDir, prompts, identityResult, pmMode } = options;
@@ -72,11 +73,12 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   try {
     await io.access(join(cwd, ...ARC_CONFIG_SEGMENTS));
   } catch {
-    const err = new Error(
-      "No ARC installation found. Run 'arc init' to set up this project first.",
-    );
-    (err as Error & { code: string }).code = "NO_ARC_INSTALLATION";
-    throw err;
+    throw new UserFacingError({
+      code: "NO_ARC_INSTALLATION",
+      whatHappened: "No ARC installation found",
+      why: "The .arc/system/arc-config.yml file does not exist in this project.",
+      whatToDo: "Run 'arc init' to set up this project first.",
+    });
   }
 
   const arcDir = join(cwd, ".arc");

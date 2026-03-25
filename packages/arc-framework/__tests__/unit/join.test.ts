@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { runJoin } from "../../src/commands/join.js";
 import type { JoinIOContext, JoinOptions } from "../../src/commands/join.js";
+import { UserFacingError } from "../../src/lib/errors.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 
 // --- Test Helpers ---
@@ -95,14 +96,14 @@ describe("runJoin", () => {
     });
     opts = baseOptions(io);
 
-    await expect(runJoin(opts)).rejects.toThrow("No ARC installation found");
-    await expect(runJoin(opts)).rejects.toThrow("arc init");
-
-    // Verify error has the expected code
     try {
       await runJoin(opts);
+      expect.unreachable("should have thrown");
     } catch (err) {
-      expect((err as Error & { code: string }).code).toBe("NO_ARC_INSTALLATION");
+      expect(err).toBeInstanceOf(UserFacingError);
+      const ufErr = err as UserFacingError;
+      expect(ufErr.code).toBe("NO_ARC_INSTALLATION");
+      expect(ufErr.whatToDo).toContain("arc init");
     }
   });
 

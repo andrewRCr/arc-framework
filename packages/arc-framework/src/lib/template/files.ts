@@ -11,7 +11,7 @@ import { renderTokens, renderConditionals } from "./render.js";
 export type MkdirFn = (
   path: string,
   opts: { recursive: boolean },
-) => Promise<void | string | undefined>;
+) => Promise<string | undefined>;
 
 /** Read function signature matching fs.readFile (utf-8). */
 export type ReadFileFn = (path: string) => Promise<string>;

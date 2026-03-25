@@ -56,7 +56,7 @@ export interface InitPromptResult {
 function titleCase(slug: string): string {
   return slug
     .split(/[-_\s]+/)
-    .map((w) => (w ? w[0]!.toUpperCase() + w.slice(1) : ""))
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
     .join(" ");
 }
 

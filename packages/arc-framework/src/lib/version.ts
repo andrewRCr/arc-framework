@@ -37,7 +37,7 @@ export function getFrameworkVersion(): string {
  */
 export function findVersionFromDir(startDir: string): string {
   let dir = startDir;
-  while (true) {
+  for (;;) {
     const candidate = resolve(dir, "package.json");
     if (existsSync(candidate)) {
       try {
@@ -87,7 +87,7 @@ export async function checkLatestVersion(
   // Encode scoped package names: @scope/name → @scope%2Fname
   const parts = packageName.split("/");
   const encoded = parts.length === 2
-    ? `${parts[0]}%2F${encodeURIComponent(parts[1]!)}`
+    ? `${parts[0]}%2F${encodeURIComponent(parts[1] ?? "")}`
     : encodeURIComponent(packageName);
   const url = `${NPM_REGISTRY}/${encoded}/latest`;
 

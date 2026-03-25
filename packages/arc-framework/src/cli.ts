@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 
 import { runInit, buildPostInitMessage } from "./commands/init.js";
 import { parseArcConfig } from "./lib/config.js";
+import { loadRecipeFile } from "./lib/template/index.js";
 import type { IOContext } from "./commands/init.js";
 import { runUpdate, buildUpdateSummary } from "./commands/update.js";
 import { runStatus, buildStatusSummary } from "./commands/status.js";
@@ -26,7 +27,7 @@ import {
 } from "./commands/user.js";
 import { runLogAtomic, buildLogAtomicOutput } from "./commands/log.js";
 import type { UserIOContext } from "./commands/user.js";
-import { resolveIdentity, slugifyIdentity, type GitExec, type DirEntry } from "./lib/git/index.js";
+import { resolveIdentity, slugifyIdentity, isGitRepo, type GitExec, type DirEntry } from "./lib/git/index.js";
 import { readManifest } from "./lib/manifest/index.js";
 import { runInitPrompts } from "./prompts/init-prompts.js";
 import { runJoinPrompts } from "./prompts/join-prompts.js";
@@ -35,8 +36,8 @@ import type { JoinPromptResult } from "./commands/join.js";
 import { buildNonInteractivePrompts } from "./prompts/non-interactive.js";
 import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "./lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "./lib/version.js";
-import { formatError, UserFacingError } from "./lib/errors.js";
-import type { Recipe } from "./lib/types.js";
+import { formatError, formatUnexpectedError, UserFacingError } from "./lib/errors.js";
+
 import { ARC_CONFIG_SEGMENTS, CONFIG_KEY_PM_MODE } from "./lib/constants.js";
 import { listArcFiles } from "./lib/fs.js";
 
@@ -218,6 +219,19 @@ program
   .option("--team", "Enable team mode (requires --yes)")
   .action(async (opts: { yes?: boolean; name?: string; pmMode?: string; tools?: string; team?: boolean }) => {
     p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
+
+    // Guard: must be inside a git repository
+    if (!(await isGitRepo(gitExec))) {
+      p.log.error(formatError(new UserFacingError({
+        code: "GIT_MISSING",
+        whatHappened: "Not inside a git repository",
+        why: "ARC requires a git repository for version control and hooks.",
+        whatToDo: "Run 'git init' first, then try again.",
+      })));
+      process.exitCode = 1;
+      return;
+    }
+
     p.log.message("Setting up ARC for your project...");
 
     const cwd = process.cwd();
@@ -256,10 +270,21 @@ program
       },
     });
 
+    // In --yes mode, identity must be resolvable without prompts
+    if (opts.yes && !identityResult) {
+      p.log.error(formatError(new UserFacingError({
+        code: "IDENTITY_MISSING",
+        whatHappened: "Cannot resolve identity in non-interactive mode",
+        why: "Neither arc.identity nor user.name is set in git config.",
+        whatToDo: "Set git config user.name, or pass an identity via git config arc.identity.",
+      })));
+      process.exitCode = 1;
+      return;
+    }
+
     // Load recipe
     const templateDir = getArcTemplatePath();
-    const recipeContent = await readFile(getRecipePath(), "utf-8");
-    const recipe: Recipe = JSON.parse(recipeContent) as Recipe;
+    const recipe = await loadRecipeFile(getRecipePath(), (f) => readFile(f, "utf-8"));
 
     // Run init with progress feedback
     const spinner = p.spinner();
@@ -285,11 +310,7 @@ program
       p.note(buildPostInitMessage(result), "What's next");
     } catch (err) {
       spinner.stop("Setup failed.");
-      if (err instanceof Error && (err as Error & { code?: string }).code === "ALREADY_INSTALLED") {
-        p.log.error(err.message);
-        process.exitCode = 1;
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -304,6 +325,18 @@ program
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .action(async (opts: { contributor?: boolean; yes?: boolean; tools?: string }) => {
     p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Join Project`);
+
+    // Guard: must be inside a git repository
+    if (!(await isGitRepo(gitExec))) {
+      p.log.error(formatError(new UserFacingError({
+        code: "GIT_MISSING",
+        whatHappened: "Not inside a git repository",
+        why: "ARC requires a git repository for version control and hooks.",
+        whatToDo: "Run 'git init' first, then try again.",
+      })));
+      process.exitCode = 1;
+      return;
+    }
 
     const cwd = process.cwd();
     const io = createIOContext();
@@ -353,6 +386,18 @@ program
       },
     });
 
+    // In --yes mode, identity must be resolvable without prompts
+    if (opts.yes && !identityResult) {
+      p.log.error(formatError(new UserFacingError({
+        code: "IDENTITY_MISSING",
+        whatHappened: "Cannot resolve identity in non-interactive mode",
+        why: "Neither arc.identity nor user.name is set in git config.",
+        whatToDo: "Set git config user.name, or pass an identity via git config arc.identity.",
+      })));
+      process.exitCode = 1;
+      return;
+    }
+
     const templateDir = getArcTemplatePath();
 
     const spinner = p.spinner();
@@ -382,11 +427,7 @@ program
       p.note(lines.join("\n"), "What's next");
     } catch (err) {
       spinner.stop("Setup failed.");
-      if (err instanceof Error && (err as Error & { code?: string }).code === "NO_ARC_INSTALLATION") {
-        p.log.error(err.message);
-        process.exitCode = 1;
-        return;
-      }
+      if (isHandledError(err)) return;
       throw err;
     }
 
@@ -401,8 +442,7 @@ program
 
     // Load recipe
     const templateDir = getArcTemplatePath();
-    const recipeContent = await readFile(getRecipePath(), "utf-8");
-    const recipe: Recipe = JSON.parse(recipeContent) as Recipe;
+    const recipe = await loadRecipeFile(getRecipePath(), (f) => readFile(f, "utf-8"));
 
     try {
       const result = await runWithSpinner(
@@ -561,7 +601,13 @@ userCmd
   .action(async () => {
     p.intro("arc user save");
 
-    const identity = await resolveUserIdentity();
+    let identity: string;
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
     const io = createUserIOContext();
 
     try {
@@ -589,7 +635,13 @@ userCmd
   .action(async () => {
     p.intro("arc user load");
 
-    const identity = await resolveUserIdentity();
+    let identity: string;
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
     const io = createUserIOContext();
     const spinner = p.spinner();
     spinner.start("Loading user directory...");
@@ -628,7 +680,13 @@ userCmd
   .action(async () => {
     p.intro("arc user push");
 
-    const identity = await resolveUserIdentity();
+    let identity: string;
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
     const io = createUserIOContext();
 
     try {
@@ -647,7 +705,13 @@ userCmd
   .action(async () => {
     p.intro("arc user pull");
 
-    const identity = await resolveUserIdentity();
+    let identity: string;
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
     const io = createUserIOContext();
 
     try {
@@ -669,7 +733,13 @@ program
   .action(async (opts: { load?: boolean }) => {
     p.intro("arc sync");
 
-    const identity = await resolveUserIdentity();
+    let identity: string;
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
     const io = createUserIOContext();
     const cwd = process.cwd();
 
@@ -777,4 +847,7 @@ logCmd
     }
   });
 
-program.parse();
+program.parseAsync().catch((err: unknown) => {
+  console.error(formatUnexpectedError(err));
+  process.exitCode = 1;
+});

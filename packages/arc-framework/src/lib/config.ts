@@ -87,11 +87,12 @@ export function parseArcConfig(content: string): Record<string, string> {
   for (const line of content.split("\n")) {
     const match = line.match(/^([\w.]+):\s*(.*)$/);
     if (match) {
-      const value = match[2]!.trim();
+      const [, key = "", rawValue = ""] = match;
+      const value = rawValue.trim();
       // Skip empty values — matches shell-side arc_config_get behavior
       // where empty values fall through to the default
       if (value) {
-        config[match[1]!] = value;
+        config[key] = value;
       }
     }
   }

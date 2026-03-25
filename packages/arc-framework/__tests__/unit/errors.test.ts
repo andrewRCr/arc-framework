@@ -3,7 +3,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ArcError, UserFacingError, formatError, type ArcErrorCode } from "../../src/lib/errors.js";
+import {
+  ArcError, UserFacingError, formatError, formatUnexpectedError,
+  type ArcErrorCode,
+} from "../../src/lib/errors.js";
 
 describe("ArcError", () => {
   it("extends Error with a code property", () => {
@@ -131,9 +134,49 @@ describe("ArcErrorCode", () => {
           return "check path";
         case "REGISTRY_FETCH_FAILED":
           return "check network";
+        case "IDENTITY_MISSING":
+          return "set identity";
+        case "ALREADY_INSTALLED":
+          return "use join or update";
+        case "NO_ARC_INSTALLATION":
+          return "run init first";
+        case "RECIPE_INVALID":
+          return "reinstall cli";
       }
     };
 
     expect(handle(err.code)).toBe("install git");
+  });
+});
+
+describe("formatUnexpectedError", () => {
+  it("formats a UserFacingError using formatError", () => {
+    const err = new UserFacingError({
+      code: "MANIFEST_MISSING",
+      whatHappened: "No manifest",
+      why: "not initialized",
+      whatToDo: "Run arc init",
+    });
+    const output = formatUnexpectedError(err);
+    expect(output).toContain("MANIFEST_MISSING");
+    expect(output).toContain("No manifest");
+  });
+
+  it("formats an ArcError using formatError", () => {
+    const err = new ArcError("merge conflict", "MERGE_FAILED");
+    const output = formatUnexpectedError(err);
+    expect(output).toContain("MERGE_FAILED");
+  });
+
+  it("formats a plain Error without a stack trace", () => {
+    const err = new Error("something broke");
+    const output = formatUnexpectedError(err);
+    expect(output).toContain("something broke");
+    expect(output).not.toContain("at ");
+  });
+
+  it("formats a non-Error value", () => {
+    const output = formatUnexpectedError("string error");
+    expect(output).toContain("string error");
   });
 });

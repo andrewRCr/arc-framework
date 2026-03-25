@@ -7,8 +7,10 @@ import {
   evaluateCondition,
   getInitTokenNames,
   findResidualInitTokens,
+  loadRecipeFile,
 } from "../../../src/lib/template/index.js";
 import type { Recipe } from "../../../src/lib/types.js";
+import { UserFacingError } from "../../../src/lib/errors.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -335,6 +337,38 @@ describe("init-recipe.json", () => {
     // Every token prompt should be a text prompt (tokens come from user input, not selection)
     for (const p of tokenPrompts) {
       expect(p.type).toBe("text");
+    }
+  });
+});
+
+describe("loadRecipeFile", () => {
+  it("loads and parses a valid recipe file", async () => {
+    const recipePath = resolve(__dirname, "../../../init-recipe.json");
+    const readFileFn = async (p: string) => readFileSync(p, "utf-8");
+    const recipe = await loadRecipeFile(recipePath, readFileFn);
+    expect(recipe.prompts).toBeDefined();
+    expect(recipe.conditions).toBeDefined();
+  });
+
+  it("throws UserFacingError with RECIPE_INVALID when file is missing", async () => {
+    const readFileFn = async () => { throw new Error("ENOENT"); };
+    try {
+      await loadRecipeFile("/nonexistent/recipe.json", readFileFn);
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UserFacingError);
+      expect((err as UserFacingError).code).toBe("RECIPE_INVALID");
+    }
+  });
+
+  it("throws UserFacingError with RECIPE_INVALID when JSON is malformed", async () => {
+    const readFileFn = async () => "not valid json {{{";
+    try {
+      await loadRecipeFile("/some/recipe.json", readFileFn);
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UserFacingError);
+      expect((err as UserFacingError).code).toBe("RECIPE_INVALID");
     }
   });
 });

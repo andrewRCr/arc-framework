@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.3 — Init/join hardening (line ~564)
-**Last Completed**: Task 6.2 — Git hooks: template alignment, contributor enforcement, and polish
+**Next Task**: Task 6.3.b — Input validation and CI auto-detection (line ~593)
+**Last Completed**: Task 6.3.a — Error handling overhaul
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.3 (init/join hardening)
+**Next Action**: Continue Phase 6 — start Task 6.3.b (input validation and CI auto-detection)
 
 ---
 

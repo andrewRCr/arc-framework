@@ -33,6 +33,7 @@ import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
 import type { Manifest } from "../../src/lib/types.js";
+import { UserFacingError } from "../../src/lib/errors.js";
 
 // --- Test Setup ---
 
@@ -580,10 +581,11 @@ describe("init integration (existing installation)", () => {
       });
       expect.unreachable("should have thrown");
     } catch (err) {
-      expect((err as Error).message).toContain("already installed");
-      expect((err as Error).message).toContain("arc join");
-      expect((err as Error).message).toContain("arc update");
-      expect((err as Error & { code: string }).code).toBe("ALREADY_INSTALLED");
+      expect(err).toBeInstanceOf(UserFacingError);
+      const ufErr = err as UserFacingError;
+      expect(ufErr.code).toBe("ALREADY_INSTALLED");
+      expect(ufErr.whatToDo).toContain("arc join");
+      expect(ufErr.whatToDo).toContain("arc update");
     }
   });
 });

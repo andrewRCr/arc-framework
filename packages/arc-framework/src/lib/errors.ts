@@ -16,7 +16,10 @@ export type ArcErrorCode =
   | "MERGE_FAILED"
   | "FILE_NOT_FOUND"
   | "REGISTRY_FETCH_FAILED"
-  | "IDENTITY_MISSING";
+  | "IDENTITY_MISSING"
+  | "ALREADY_INSTALLED"
+  | "NO_ARC_INSTALLATION"
+  | "RECIPE_INVALID";
 
 /**
  * Base error class for all ARC CLI errors.
@@ -111,6 +114,23 @@ export function manifestMissingError(command: string): UserFacingError {
     why: `The ${command} command requires an existing ARC installation with a manifest file.`,
     whatToDo: "Run 'arc init' first to install the ARC framework.",
   });
+}
+
+/**
+ * Format an unexpected/unhandled error for clean terminal output.
+ *
+ * Used by the global error boundary to ensure no raw stack traces reach
+ * the user. Delegates to `formatError` for known error types; for unknown
+ * errors, returns a clean one-line message.
+ *
+ * @param err - The caught value (may not be an Error)
+ * @returns Formatted string suitable for terminal display
+ */
+export function formatUnexpectedError(err: unknown): string {
+  if (err instanceof Error) {
+    return formatError(err);
+  }
+  return `✖ ${String(err)}`;
 }
 
 /** Ensures a string ends with a sentence-terminal punctuation mark. */

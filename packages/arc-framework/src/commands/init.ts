@@ -29,6 +29,7 @@ import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/c
 import {
   resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
+import { UserFacingError } from "../lib/errors.js";
 
 // --- Types ---
 
@@ -100,7 +101,7 @@ export interface InitResult {
  *
  * @param options - Init options with all dependencies injected
  * @returns Init result, or null if user cancelled
- * @throws Error with code 'ALREADY_INSTALLED' if ARC is already installed
+ * @throws UserFacingError with code 'ALREADY_INSTALLED' if ARC is already installed
  */
 export async function runInit(
   options: InitOptions,
@@ -114,13 +115,12 @@ export async function runInit(
 
   // Check for existing installation
   if (await isArcInstalled(cwd, io.access)) {
-    const err = new Error(
-      "ARC is already installed in this project.\n"
-      + "  To join as a developer: arc join\n"
-      + "  To update framework files: arc update",
-    );
-    (err as Error & { code: string }).code = "ALREADY_INSTALLED";
-    throw err;
+    throw new UserFacingError({
+      code: "ALREADY_INSTALLED",
+      whatHappened: "ARC is already installed in this project",
+      why: "The .arc/system/arc-config.yml file already exists.",
+      whatToDo: "To join as a developer: arc join\nTo update framework files: arc update",
+    });
   }
 
   const arcDir = join(cwd, ".arc");

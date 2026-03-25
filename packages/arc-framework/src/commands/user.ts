@@ -173,10 +173,10 @@ export async function runUserLoad(
     return null;
   }
 
-  // Parse and deserialize
-  let manifest: SyncManifest;
+  // Parse and validate — noteContent is external data, so validate before narrowing
+  let parsed: unknown;
   try {
-    manifest = JSON.parse(noteContent) as SyncManifest;
+    parsed = JSON.parse(noteContent) as unknown;
   } catch {
     throw new Error(
       `Corrupt git note on ${foundCommit.slice(0, 7)} — JSON parse failed. ` +
@@ -185,13 +185,15 @@ export async function runUserLoad(
     );
   }
 
-  if (manifest.version !== 1 || typeof manifest.files !== "object" || manifest.files === null) {
+  const raw = parsed as Record<string, unknown>;
+  if (raw.version !== 1 || typeof raw.files !== "object" || raw.files === null) {
     throw new Error(
-      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${JSON.stringify((manifest as unknown as Record<string, unknown>).version ?? "unknown")}). ` +
+      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${JSON.stringify(raw.version ?? "unknown")}). ` +
       "This note may have been created by a newer version of ARC. " +
       "Update the CLI and try again, or `arc user save` to overwrite.",
     );
   }
+  const manifest = parsed as SyncManifest;
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, manifest, io.writeFile);
