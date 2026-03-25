@@ -242,6 +242,9 @@ export async function runInit(
   ];
   await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
 
+  // Set role — init is always the maintainer (contributors use arc join)
+  await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
+
   // Identity, user directory, and notes refspec setup
   await runPostInitSetup({
     arcDir, internalTemplateDir, io,

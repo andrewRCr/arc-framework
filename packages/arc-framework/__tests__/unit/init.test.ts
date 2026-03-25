@@ -507,6 +507,36 @@ describe("runInit", () => {
     expect(identitySet![1][3]).toBe("andrew");
   });
 
+  it("fresh mode: sets arc.role to maintainer via git config", async () => {
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+    });
+
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    await runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: "andrew",
+    });
+
+    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
+    const roleSet = execCalls.find(
+      (c: [string, string[]]) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.role",
+    );
+    expect(roleSet).toBeDefined();
+    expect(roleSet![1][3]).toBe("maintainer");
+  });
+
   it("fresh mode: calls skill generation with selected tools", async () => {
     const io = mockIO({
       "/templates/README.md": "# hi",
