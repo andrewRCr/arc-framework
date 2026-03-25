@@ -491,12 +491,348 @@ used as input for scoping any remediation work.
     (18 high, 60 medium, 55+ low) across CLI and methodology. Executive summary, categorized
     findings, and three-tier recommended action tables (fix before beta / should fix / defer).
 
-### **Phase 6:** Docs Site
+### **Phase 6:** Audit Remediation
+
+**Purpose:** Fix findings from the Phase 5 beta readiness audit (158+ findings across CLI,
+methodology, and team coordination). Design decisions resolved during scoping: template
+conditionals for team-mode workflows, WORK-STATUS unchanged structurally (one-dev-per-branch
+primary path), `(@name)` markers advisory, full update documentation.
+
+**Findings reference:** `analysis-beta-readiness-audit.md` — IDs (CM-H01, MW-M09, TC-H04,
+etc.) trace each task to specific findings.
+
+- [ ] **6.1 Git hooks: critical bug fixes**
+
+    **Goal:** Fix the highest-severity hook bugs — every adopter hits these on every commit.
+
+    Findings: CM-H01, PC-H01, PC-H03, PC-H04, CM-M07, XC-M01
+
+    - [ ] **6.1.a Fix `commit-msg` `set -e` failures**
+        - Add `|| true` to `grep -vc '^$'` body-line count (CM-H01)
+        - Trap invalid custom regex in `commit.custom_pattern`/`commit.context_pattern` (CM-M07)
+        - Audit both hooks for remaining `set -e` hazards, add guards (XC-M01)
+
+    - [ ] **6.1.b Refactor `pre-commit` to validate staged content, not working tree**
+        - Replace `grep`/`wc` on `"$file"` with `git show ":$file"` for checks 2, 4, 5, 9
+          (PC-H01)
+        - Debug statement check: scan only added lines via `git diff --cached` (PC-H03)
+        - Meta-reference check: same staged-diff pattern (PC-H04)
+
+- [ ] **6.2 Git hooks: template alignment, contributor enforcement, and polish**
+
+    **Goal:** Fix template/dev config drift, add contributor enforcement and team-mode
+    awareness, address remaining medium/low hook findings.
+
+    Findings: XC-M05, XC-M02, MW-M13, MW-M14, TC-M04, CM-M04, CM-M05, CM-M08, CM-L01,
+    PC-L03, PC-M01, PC-M03, XC-L01, XC-L02
+
+    - [ ] **6.2.a Template config and role enforcement**
+        - Remove `\.arc/` from `hooks.meta_ref_patterns` in template `arc-config.yml` (XC-M05)
+        - Add contributor skip messages to silent checks (XC-M02)
+        - Validate contributor uses `Context: contribution (...)` in `commit-msg` (MW-M14)
+        - Soft warning when task list changes lack `(@name)` while `team.mode: true` (TC-M04)
+        - Update `githooks/README.md` with contributor and team behavior docs (MW-M13)
+
+    - [ ] **6.2.b Remaining hook fixes**
+        - Allow uppercase in task filename pattern (CM-M04)
+        - Search `active/` subdirectories dynamically (CM-M05)
+        - Explicit error for unknown `commit.context_footer` values (CM-M08)
+        - Skip subject length check when `commit.format: any` (CM-L01)
+        - Use configurable `hooks.test_patterns` for debug check exclusion (PC-L03)
+        - Address self-referential debug pattern false positive (PC-M01)
+        - Gate `numfmt` with macOS fallback (PC-M02)
+        - Detached HEAD branch protection behavior: document or fix (PC-M03)
+        - Conditional ANSI color output for CI/non-TTY (XC-L01)
+        - Align README subject-length threshold with hook (XC-L02)
+
+- [ ] **6.3 Init/join hardening**
+
+    **Goal:** Guard against bad input, improve error messages, harden the config parser.
+    Note: `arc init` now sets `arc.role = maintainer` (implemented pre-phase, included in
+    first commit).
+
+    Findings: I-H01, EH-H01-H03, I-M01-M07, X-M01, CS-H01, CP-M02, I-L01, I-L04
+
+    - [ ] **6.3.a Error handling overhaul**
+        - Add git repo guard before init/join proceeds (I-H01)
+        - Refactor `ALREADY_INSTALLED`/`NO_ARC_INSTALLATION` to `UserFacingError` (EH-H01/H02)
+        - Add global error boundary around `program.parse()` (EH-H03)
+        - Wrap recipe read/parse in try/catch (EH-M02)
+        - Wrap `resolveUserIdentity()` calls in user command handlers (EH-M03)
+
+        Build `test-first` (one behavior at a time):
+        - `UserFacingError` subclasses for `ALREADY_INSTALLED`, `NO_ARC_INSTALLATION`
+        - Global error boundary catches unhandled errors with clean output
+        - Missing template file produces user-friendly error (I-M03)
+        - `--yes` with no identity and no `user.name` produces clear error (X-M01)
+
+    - [ ] **6.3.b Input validation**
+        - Validate `--tools` against known tool list (I-M01)
+        - Reject empty `--name` in `--yes` mode (I-M02)
+        - Pass `--contributor` flag through to interactive prompt (I-M05)
+
+    - [ ] **6.3.c Config parser hardening**
+
+        Build `test-first` (one behavior at a time):
+        - Strip surrounding quotes from parsed values (CS-H01, I-L04)
+        - Normalize CRLF to LF before parsing (CP-M02)
+        - Handle inline comments (strip content after space-hash)
+        - Empty values parse as empty string, not undefined
+
+    - [ ] **6.3.d Join-specific fixes**
+        - Detect pre-existing skill directories in `arc join` (I-M04)
+        - Fix integration test `skipPristine` option key (I-L01)
+        - Add `pm.mode=external` test permutation (I-M07)
+        - Add join idempotency test (I-M06)
+
+- [ ] **6.4 User portability: safety, reliability, and workflow integration**
+
+    **Goal:** Make session state sync safe (no silent data loss), reliable (ancestor walking,
+    conflict detection), and properly documented in session workflows.
+
+    Findings: UL-H01, UL-H02, CC-H01, UP-M01, UP-M02, UP-M03, UL-M01, UL-M02, SY-M01/M02,
+    CC-M03, TC-M09
+
+    - [ ] **6.4.a Load safety: backup, stale file detection, and subdirectory support**
+
+        Build `test-first` (one behavior at a time):
+        - Load creates backup of existing files before overwriting (UL-H01)
+        - Load warns about local files not present in saved manifest (UL-H02)
+        - Serialize/deserialize handles subdirectories recursively (CC-H01)
+        - `writeGitNote` handles stdin backpressure for large manifests (CC-M03)
+
+    - [ ] **6.4.b Push/pull conflict detection and `--identity` support**
+
+        Build `test-first` (one behavior at a time):
+        - Push detects diverged remote and offers force-push or pull-first (UP-M01)
+        - Pull detects local changes and warns before overwriting (UP-M02)
+        - Missing remote produces user-friendly error (UP-M03)
+        - `arc user pull --identity <name>` fetches another developer's notes (TC-M09)
+        - `arc sync` sets non-zero exit code on partial failure (SY-M01/M02)
+
+    - [ ] **6.4.c Ancestor walking: merged branch support**
+        - Replace `HEAD~N` linear traversal with `git log --all` or ref-aware walking (UL-M01)
+        - Batch git invocations to reduce process spawns (UL-M02)
+
+    - [ ] **6.4.d Session workflow sync error guidance**
+        - Add error-path guidance to `session-handoff.md` for push failures and divergence
+        - Add load-failure guidance to `session-init.md` for missing/stale notes
+        - Surface sync decisions to user (not silent — when push diverges, when pull would
+          overwrite)
+
+- [ ] **6.5 Pristine store: per-file split, atomicity, and corruption resilience**
+
+    **Goal:** Eliminate the single-file pristine store as a single point of failure. Add
+    atomic writes to prevent partial-update corruption.
+
+    Findings: X-H01, U-H01, U-H02, U-M03, D-M01, S-M01
+
+    - [ ] **6.5.a Split pristine store to per-file storage**
+
+        **Goal:** Replace `pristine.json` with individual files in
+        `.internal/pristine/{path}` mirroring the `.arc/` structure. Isolates corruption,
+        eliminates parse overhead, simplifies read/write.
+
+        Build `test-first` (one behavior at a time):
+        - Read pristine content for a single file by path
+        - Write pristine content for a single file
+        - Init writes per-file pristine (not JSON blob)
+        - Update reads/writes per-file pristine
+        - Status reads per-file pristine for hash comparison (S-M01)
+        - Diff reads per-file pristine
+        - Migration: first update after change converts old `pristine.json` to per-file
+
+    - [ ] **6.5.b Atomic writes with rollback**
+        - Write manifest to temp file, rename on success (U-H01)
+        - Write pristine files before manifest (crash leaves old manifest valid)
+        - Fix pristine repair to use rendered framework content as baseline (U-H02)
+        - Log warning (not silent catch) when pristine is corrupted/missing (U-M03, D-M01)
+
+- [ ] **6.6 Update/status/diff: resilience and polish**
+
+    **Goal:** Remaining update system improvements — downgrade guard, path normalization,
+    classification handling, and CLI output improvements.
+
+    Findings: U-M01, U-M02, U-M04, X-M02, S-M02, D-M02, CP-M01, CP-M03, X-M05, U-L02,
+    U-L03, S-L01, D-L01
+
+    - [ ] **6.6.a Resilience fixes**
+        - Add semver downgrade prevention in `arc update` (U-M01)
+        - Handle files changing classification between versions (U-M02)
+        - Surface skill regeneration warnings in update summary (U-M04)
+        - Add `schema_version` field to manifest (X-M02)
+        - Fix version comparison to use semver, not string equality (S-M02)
+        - Show missing files in `arc diff` consistent with `arc status` (D-M02)
+
+    - [ ] **6.6.b Path normalization for Windows**
+        - Normalize `path.relative()` output to forward slashes in manifest operations (X-M05)
+        - Fix `listArcFiles` regex patterns for Windows paths (CP-M03)
+        - Standardize path construction in skills and user-sync modules (CP-M01)
+
+    - [ ] **6.6.c CLI output improvements**
+        - Add file classification column to `arc status` output (MW-M04)
+        - Exclude `pristine_hash` from Scaffolded file manifest entries (U-L02)
+        - Show version change in update summary (U-L03)
+        - Add legend for status labels (`M`=modified, `!`=missing, `?`=new) (S-L01)
+        - Add summary count line to `arc diff` output (D-L01)
+
+- [ ] **6.7 Update documentation**
+
+    **Goal:** Document the update experience — currently zero adopter-facing documentation
+    exists for `arc update`. Add README section, update guide, and post-update guidance.
+
+    Findings: MW-H04, MW-M03, MW-M05, MW-M07, MW-M08
+
+    - [ ] **6.7.a Add "Updating ARC" section to `.arc/README.md`**
+        - What `arc update` does (three-way merge, file classifications)
+        - What's safe to edit (Configurable, Scaffolded) vs. auto-updated (Framework)
+        - What to expect (conflict markers, counts, post-update state)
+        - Warning: edits to Framework files will be overwritten (MW-M07)
+
+    - [ ] **6.7.b Create update guide workflow document**
+        - New file: `.arc/system/workflows/arc/supplemental/update-guide.md`
+        - Pre-update checklist (commit or stash local changes)
+        - Running `arc update` — what the output means
+        - Post-update checklist: resolve conflicts, run quality gates, commit (MW-M05)
+        - Skill regeneration behavior and customization warning (MW-M08)
+        - Reference from `AGENT-BRIEFING.ARC.md` and `.arc/README.md` (MW-H04)
+
+    - [ ] **6.7.c Add update guide to template and recipe**
+        - Add the workflow document to `packages/arc-framework/arc/`
+        - Add to `init-recipe.json` so new installations include it
+        - Update `.arc/README.md` template with the new section
+
+- [ ] **6.8 Log command fixes**
+
+    Findings: L-H02, L-M01-M05, L-L01, L-L02
+
+    Build `test-first` (one behavior at a time):
+    - Clamp `--limit 0` to minimum 1 (L-H02)
+    - Clamp `--limit NaN` (non-numeric) to default (L-M05)
+    - Validate `--since` format before passing to git (L-M01)
+    - Apply `--work-unit` filter before `--limit` truncation (L-M02/M03)
+    - Handle `--ARC-RECORD--` in commit message body (L-M04)
+    - Include context footer line in output (L-L01)
+    - Handle breaking change `!` marker in subject parsing (L-L02)
+
+- [ ] **6.9 Workflow documentation: `pm.mode:none`, companion files, and link fixes**
+
+    **Goal:** Fix the default-config dead ends, close the companion file lifecycle gap, and
+    fix broken links.
+
+    Findings: MW-H01-H03, MW-M01-M02, MW-M09-M10, MW-L01-L04, TC-H05, TC-L04
+
+    - [ ] **6.9.a `pm.mode:none` path fixes**
+        - `02_define-project.md` Step 6: add conditional — skip ROADMAP for `pm.mode: none`,
+          suggest alternative location or skip (MW-H01)
+        - `session-init.md` Step 5: add `pm.mode: none` path for next work unit discovery —
+          skip ROADMAP/backlog reads, fall back to user-driven next steps (MW-H02)
+        - `3_process-task-loop.md`: add `none`/`external` mode routing for deferred atomic
+          tasks (MW-H03)
+        - `01_verify-and-configure.md`: make `backlog/` conditional in directory verification
+          (MW-M01)
+        - `session-init.md` Step 5: make ATOMIC-INBOX check conditional on `arc-in-git`
+          (MW-M02)
+
+    - [ ] **6.9.b Companion file lifecycle**
+        - Add companion file creation to `2_generate-tasks.md` (MW-M09)
+        - Add companion file to `archive-work-unit.md` Step 4 `git mv` list (MW-M10)
+
+    - [ ] **6.9.c Link and path fixes**
+        - Fix inline link path in `integrate-planning-branch.md` (MW-L01)
+        - Remove or stub `03_configure-external-integration.md` dead link (MW-L02)
+        - Fix `.template.md` link in `AGENT-BRIEFING.CONTRIBUTOR.md` (MW-L03)
+        - Replace hardcoded repo path in `session-init.md` with placeholder (MW-L04)
+        - Fix `team/{name}/` → `user/{identity}/` in `activate-work-unit.md` (TC-H05)
+        - Fix incoming bootstrap commands to reference CLI load, not raw `git notes show`
+          (TC-L04)
+
+- [ ] **6.10 Team mode workflow integration**
+
+    **Goal:** Add template conditionals to operational workflows so team-mode adopters get
+    contextually correct guidance. Strategy docs get standardized prose markers instead.
+
+    Findings: TC-H01, TC-H02, TC-H04, TC-M07, TC-M08, TC-L01
+
+    - [ ] **6.10.a Add `team.mode` recipe condition and template conditionals**
+        - Add `team.mode == true` condition to `init-recipe.json` (TC-H04)
+        - `session-init.template.md`: team-mode block after WORK-STATUS read — scan task
+          list for `(@name)` markers to resolve personal next task (TC-H01)
+        - `3_process-task-loop.template.md`: team-mode block before task start — check
+          `(@name)` ownership, claim unowned tasks (TC-H02). Replace unconditional team note
+          with conditional block (TC-L01)
+        - `session-handoff.template.md`: team-mode note on WORK-STATUS representing
+          branch-level state
+        - `2_generate-tasks.template.md`: team-mode note on adding `(@name)` markers (TC-M07)
+
+    - [ ] **6.10.b Add `(@name)` to task list formatting strategy**
+        - Add section describing placement (end of checkbox line), format, and optional nature
+        - Cross-reference `strategy-team-coordination.md` (TC-M08)
+
+    - [ ] **6.10.c Sync template changes to installed docs**
+        - Render the new conditionals into `.arc/` installed copies for this repo
+          (`team.mode: false`, so team blocks are stripped)
+        - Verify `packages/arc-framework/arc/` source templates have the conditionals
+
+- [ ] **6.11 Team coordination and session documentation**
+
+    **Goal:** Reframe the team coordination strategy as advisory (not required infrastructure),
+    document the WORK-STATUS concurrency model honestly, and add cross-references from shared
+    docs.
+
+    Findings: TC-H03, TC-H06, TC-M01-M03, TC-M05-M06, TC-M10-M12, TC-L02-L03, TC-L05-L07,
+    MW-M11-M12, MW-M15-M18
+
+    - [ ] **6.11.a Reframe team coordination strategy**
+        - Light reframing pass — make advisory nature explicit throughout
+        - Clarify what's required (WORK-STATUS exists, user dirs are per-identity) vs. what's
+          available (`(@name)`, branching patterns, person-to-person handoff)
+        - WORK-STATUS: document as branch-level state, not per-developer state. In team mode,
+          developers resolve personal next task from `(@name)` markers (TC-H03)
+        - `merge=ours`: document honestly as designed for branch-to-base merges, add
+          sub-branch caveats and post-merge reconciliation guidance (TC-H06, TC-L06)
+        - Reframe "trivially resolvable" merge conflicts — "expected and straightforward,"
+          add concrete resolution example (TC-M10)
+        - Add concurrent-session section for active-active scenario (TC-L03)
+        - Document `Branch(es)` flat list as intentional, add naming convention note (TC-M12)
+        - Note `user.sync_push` must be manually updated when toggling `team.mode` (TC-M05)
+        - Note `user.sync_push` enforcement is agent-interpreted prose (TC-M06)
+
+    - [ ] **6.11.b Shared document contributor and team markers**
+        - `DEV-RULES.ARC.md`: add contributor note to Task Execution section — "applies to
+          maintainer-managed task lists" (MW-M11, MW-M12)
+        - `DEV-RULES.ARC.md`: add cross-reference to team coordination strategy (TC-L05)
+        - `session-init.md`: add team-mode example to trust hierarchy Tier 1 (TC-L02)
+        - `session-init.md`: add skip instruction for freshness check with no handoff hash
+          (MW-M16)
+        - `session-init.md`: flag that no-identity sessions can't hand off (MW-M17)
+        - `session-init.md`: suggest git log fallback when notes unavailable (MW-M15)
+        - `activate-work-unit.md`: add team branch setup guidance (TC-M11)
+        - Add secondary ATOMIC-INBOX triage trigger note (MW-M18)
+
+    - [ ] **6.11.c WORK-STATUS concurrent update guidance**
+        - Add pull-before-commit recommendation for shared branches (TC-M01)
+        - Add freshness check recommendation before handoff WORK-STATUS write (TC-M02)
+        - Add concurrent activity detection note to session-init freshness check (TC-M03)
+        - Platform note: custom merge drivers don't run on server-side PR merges (TC-L07)
+
+- [ ] **6.12 Phase quality gates**
+    - Tier 2: full markdown lint, TypeScript lint, shell lint, type check, full test suite,
+      build verification
+    - Verify hook behavior manually: single-line commit, contributor commit, team-mode task
+      list commit, staged-vs-working-tree divergence
+    - Verify template/dev config alignment for `hooks.meta_ref_patterns`
+    - Verify `arc init` in temp directory produces correct team-mode and solo-mode docs
+
+### **Phase 7:** Docs Site
+
+<!-- NOTE: Phase renumbered from 6 → 7 after Phase 6 (Audit Remediation) was inserted.
+     Task numbers updated accordingly (6.X → 7.X). -->
 
 **Purpose:** Ship a docs site with foundation content covering what ARC is and how to get started,
 plus stub infrastructure for WU5 expansion.
 
-- [ ] **6.1 Refresh `README-ASPIRATIONAL.md`**
+- [ ] **7.1 Refresh `README-ASPIRATIONAL.md`**
 
     **Goal:** Bring the aspirational README current before using it as source material.
 
@@ -506,101 +842,104 @@ plus stub infrastructure for WU5 expansion.
     - Tighten narrative based on what ARC actually is now
     - This is a content refresh, not a full rewrite — philosophy, tradeoffs, core loop are stable
 
-- [ ] **6.2 Set up MkDocs infrastructure**
+- [ ] **7.2 Set up MkDocs infrastructure**
 
-    - [ ] **6.2.a Create `mkdocs.yml`**
+    - [ ] **7.2.a Create `mkdocs.yml`**
         - Material theme, site name ("ARC Framework"), repo URL
         - Full nav tree covering foundation and stub pages
         - Search enabled, color scheme configuration
 
-    - [ ] **6.2.b Create `docs/` directory structure**
+    - [ ] **7.2.b Create `docs/` directory structure**
         - Subdirectories as needed for nav organization
         - All page files (foundation + stubs) created in this step
 
-    - [ ] **6.2.c Add `site/` to `.gitignore`**
+    - [ ] **7.2.c Add `site/` to `.gitignore`**
 
-- [ ] **6.3 Write foundation pages**
+- [ ] **7.3 Write foundation pages**
 
-    - [ ] **6.3.a Landing / Index page**
+    - [ ] **7.3.a Landing / Index page**
         - Adapted from refreshed `README-ASPIRATIONAL.md`
         - What ARC is, core development loop, design principles, honest tradeoffs
         - Light editing for docs-site voice (not a copy-paste)
 
-    - [ ] **6.3.b Philosophy page**
+    - [ ] **7.3.b Philosophy page**
         - Adapted from `strategy-core-philosophy.md`
         - P1–P11 with rationale, research citations, positioning
         - Restructure for docs-site readability (the strategy doc is reference-dense)
 
-    - [ ] **6.3.c Getting Started page**
+    - [ ] **7.3.c Getting Started page**
         - Install via `npx @arc-framework/cli init`
         - First session walkthrough (`arc-resume` → work → `arc-handoff`)
         - What happened: directory tour of `.arc/`
         - Depends on migration and CLI changes being complete
 
-    - [ ] **6.3.d Sessions page**
+    - [ ] **7.3.d Sessions page**
         - Adapted from `strategy-session-management.md`
         - Why focused sessions, context degradation evidence, how sessions work
         - Natural session boundaries
 
-    - [ ] **6.3.e Work Planning page**
+    - [ ] **7.3.e Work Planning page**
         - Adapted from `strategy-work-planning.md`
         - Planning pipeline (idea → plan → PRD → tasks)
         - How tasks work, quality gates concept
 
-- [ ] **6.4 Create stub pages**
+- [ ] **7.4 Create stub pages**
     - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,
       Comparison/Positioning, Tutorials
     - Each stub: brief description of what the page will cover, "detailed content coming in a
       future release" note
 
-- [ ] **6.5 Set up docs deployment**
+- [ ] **7.5 Set up docs deployment**
 
-    - [ ] **6.5.a Create GitHub Action for docs**
+    - [ ] **7.5.a Create GitHub Action for docs**
         - Trigger: push to main
         - Steps: setup Python, install mkdocs-material, `mkdocs build`, deploy to GitHub Pages
         - Separate workflow file or new job in existing `ci.yml`
 
-    - [ ] **6.5.b Verify deployment**
+    - [ ] **7.5.b Verify deployment**
         - Push to main triggers build
         - Site accessible at GitHub Pages URL
         - Navigation, search, and all pages render correctly
 
-- [ ] **6.6 Run quality gates**
+- [ ] **7.6 Run quality gates**
     - `npm run -s lint:md` (new markdown files in `docs/`)
     - Verify mkdocs builds without errors locally (`mkdocs build`)
 
-### **Phase 7:** Public Scaffolding + Hook Manager Integration
+### **Phase 8:** Public Scaffolding + Hook Manager Integration
+
+<!-- NOTE: Phase renumbered from 7 → 8 after Phase 6 (Audit Remediation) was inserted.
+     Task numbers updated accordingly (7.X → 8.X). -->
 
 **Purpose:** Establish public presence and implement hook manager detection (P1).
 
-- [ ] **7.1 Repo rename**
+- [ ] **8.1 Repo rename**
     - Rename `arc-agentic-dev-framework` → `arc-framework` on GitHub
     - Update all references: package.json repository field, GitHub Action URLs, any hardcoded
       repo name references
     - Verify: clone URL works, GitHub redirect from old name works, CI passes
 
-- [ ] **7.2 README update**
+- [ ] **8.2 README update**
     - Replace current development README with minimal public version
     - Content: what ARC is (one paragraph), current status (beta), install command, link to
       docs site, link to CONTRIBUTING.md
     - Not a full adoption-focused rewrite (WU5)
 
-- [ ] **7.3 npm beta publish**
+- [ ] **8.3 npm beta publish**
 
-    - [ ] **7.3.a Prepare package for publish**
+    - [ ] **8.3.a Prepare package for publish**
         - Update version to `0.1.0` (or appropriate beta version) in `package.json`
         - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
           `init-recipe.json`)
         - Verify `package.json` metadata (description, keywords, repository, license)
 
-    - [ ] **7.3.b Publish and verify**
+    - [ ] **8.3.b Publish and verify**
         - `npm publish` to registry
         - Verify `npx @arc-framework/cli init` works in a clean environment
         - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
 
-- [ ] **7.4 Hook manager detection and integration (P1)**
+- [ ] **8.4 Hook manager detection and integration (P1)**
 
-    - [ ] **7.4.a Create hook manager detection module**
+    - [ ] **8.4.a Create hook manager detection module**
 
         Build `test-first` (one behavior at a time):
         - Detects husky (`.husky/` directory)
@@ -608,7 +947,7 @@ plus stub infrastructure for WU5 expansion.
         - Detects pre-commit (`.pre-commit-config.yaml`)
         - Returns `null` when no manager found
 
-    - [ ] **7.4.b Integrate detection into `arc init` and `arc join`**
+    - [ ] **8.4.b Integrate detection into `arc init` and `arc join`**
 
         Build `test-first` (one behavior at a time):
         - When hook manager detected, adds ARC hook calls to manager config instead of
@@ -617,22 +956,25 @@ plus stub infrastructure for WU5 expansion.
         - Husky integration: adds to `.husky/pre-commit` and `.husky/commit-msg`
         - Lefthook integration: adds to `lefthook.yml`
 
-    - [ ] **7.4.c Adopt husky in dev repo (P1)**
+    - [ ] **8.4.c Adopt husky in dev repo (P1)**
         - Install husky as dev dependency
         - Configure `.husky/` hooks to call ARC hook scripts
         - Verify hooks fire correctly through husky
         - This validates the integration path for adopters
 
-- [ ] **7.5 Run quality gates**
+- [ ] **8.5 Run quality gates**
     - Full Tier 2: `npm run -s lint:md`, `npm run typecheck`, `npm test`
 
-### **Phase 8:** Verification
+### **Phase 9:** Verification
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-- [ ] **8.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
-- [ ] **8.2 Validate success criteria against PRD**
-- [ ] **8.3 Verify all atomic tasks resolved** (`atomic-beta-readiness.md`)
+<!-- NOTE: Phase renumbered from 8 → 9 after Phase 6 (Audit Remediation) was inserted.
+     Task numbers updated accordingly (8.X → 9.X). -->
+
+- [ ] **9.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
+- [ ] **9.2 Validate success criteria against PRD**
+- [ ] **9.3 Verify all atomic tasks resolved** (`atomic-beta-readiness.md`)
 
 ---
 
@@ -651,6 +993,17 @@ plus stub infrastructure for WU5 expansion.
 - [ ] Stub pages present with placeholder text and full nav structure
 - [ ] npm beta package installs cleanly and `arc init` / `arc join` work in clean environment
 - [ ] Repo renamed to `arc-framework`
+- [ ] Git hooks validate staged content, not working tree (no false positives from unstaged changes)
+- [ ] Single-line commits succeed (no silent `set -e` abort)
+- [ ] `arc init` and `arc join` guard against non-git-repo and produce `UserFacingError` on failure
+- [ ] `arc user load` backs up existing files before overwriting
+- [ ] `arc user push`/`pull` detect divergence and surface decisions to user
+- [ ] Pristine store uses per-file storage (no single-point-of-failure JSON blob)
+- [ ] `arc update` writes atomically (crash-safe) and prevents downgrades
+- [ ] Update documentation exists (README section + update guide)
+- [ ] `pm.mode: none` path has no dead ends in workflow documents
+- [ ] Team-mode workflows render team-specific guidance via template conditionals
+- [ ] Team coordination strategy reads as advisory, not required infrastructure
 - [ ] Ready for multi-week beta test on external project
 
 ---

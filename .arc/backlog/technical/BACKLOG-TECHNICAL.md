@@ -52,6 +52,17 @@ begin the standard workflow.
       winget/irm later as adoption broadened.
     - Effort estimate: M–L (build pipeline, cross-platform testing, install script, docs)
 
+### Beta Audit Deferral (WU5 Phase 5)
+
+Deferred from the beta readiness audit (`analysis-beta-readiness-audit.md`) Phase 6
+remediation — needs a design pass before implementation.
+
+- **[MW-M06] No changelog / what's-new mechanism** — `arc update` shows counts ("5 updated,
+    1 conflict") but no semantic explanation of what changed. Needs design: what format, where
+    does changelog content live, how is it generated (commit log? curated notes?).
+    - Trigger: every `arc update`
+    - Impact: adopter doesn't know what changed or why
+
 ---
 
 ## Lower Priority / Ideas

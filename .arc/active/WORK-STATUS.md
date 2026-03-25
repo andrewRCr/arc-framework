@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: [pending — scope remediation from audit results before proceeding]
+**Next Task**: Task 6.1 — Git hooks: critical bug fixes (line ~504)
 **Last Completed**: Task 5.3 — Produce final analysis document (Phase 5 complete)
 **Blockers**: [none]
-**Next Action**: Review `analysis-beta-readiness-audit.md`, scope and structure remediation tasks
+**Next Action**: Begin Phase 6 (Audit Remediation) — start with Task 6.1
 
 ---
 
