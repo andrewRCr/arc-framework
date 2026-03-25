@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 5.1 — Refresh `README-ASPIRATIONAL.md` (line ~397)
-**Last Completed**: Task 4.4 — Update methods and rules (Phase 4 complete)
+**Next Task**: [pending — scope remediation from audit results before proceeding]
+**Last Completed**: Task 5.3 — Produce final analysis document (Phase 5 complete)
 **Blockers**: [none]
-**Next Action**: Begin Phase 5 — Task 5.1 (refresh aspirational README)
+**Next Action**: Review `analysis-beta-readiness-audit.md`, scope and structure remediation tasks
 
 ---
 

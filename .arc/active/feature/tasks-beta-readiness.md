@@ -388,12 +388,115 @@ documents so contributors get a streamlined experience.
         - TypeScript linting: clean. Type checking: clean. Shellcheck: clean.
         - Tests: 268 unit + 35 integration/E2E = 303 total, all passing
 
-### **Phase 5:** Docs Site
+### **Phase 5:** Beta Readiness Audit
+
+**Purpose:** Systematic audit of the CLI implementation and ARC methodology documents before
+public-facing work begins. Phases 1–4 completed all planned methodology and CLI changes — this
+phase validates the result with fresh eyes before building docs and publishing.
+
+**Output:** `analysis-beta-readiness-audit.md` — dense findings document, categorized by severity,
+used as input for scoping any remediation work.
+
+- [x] **5.1 CLI & codebase audit**
+
+    **Goal:** Exercise all CLI commands across meaningful config permutations and review code
+    quality. Parallel subagent workstreams, findings collected into a single section of the
+    analysis doc.
+
+    Produced 81 findings (14 high, 42 medium, 25 low) across hooks, init/join, update/status,
+    user portability, log, error handling, cross-platform, and config parsing. Top issues: hook
+    `set -e` crash on single-line commits, hooks reading working tree instead of staging area,
+    no git repo guard in init/join, user load overwrites without backup.
+
+    - [x] **5.1.a Command path walkthroughs**
+
+        Subagent per workstream — each walks the command(s) through their config space, flags
+        friction, edge cases, error handling gaps, and incorrect/missing output:
+
+        - **Install & Join**: `arc init`, `arc join` — each `pm.mode` (none/arc-in-git/external),
+          team mode, contributor/maintainer role, `--yes` vs interactive, tool selection combos
+        - **Update & Status**: `arc update`, `arc status`, `arc diff` — clean install, customized
+          files, three-way merge conflicts, missing files, version mismatch scenarios
+        - **User Portability**: `arc user save/load/push/pull/add`, `arc sync` — round-trip
+          integrity, ancestor commit walking, multi-user team scenarios
+        - **Log**: `arc log atomic` — filters, edge cases (no matches, malformed commits)
+        - **Hooks**: pre-commit and commit-msg across `branch.protection` × `commit.format` ×
+          `commit.context_footer` × `arc.role` — focus on cross-product corners, not every cell
+
+    - [x] **5.1.b Code quality review**
+
+        Single subagent reviewing implementation code for:
+
+        - Error handling gaps (git unavailable, disk full, permissions, malformed input)
+        - Edge cases the test suite doesn't cover (classification, config, setup modules lack
+          dedicated unit tests)
+        - Robustness of the three-way merge / conflict resolution path
+        - Hardcoded assumptions that break cross-platform (path separators, shell commands)
+        - Any security concerns (path traversal, injection via user input)
+
+    - [x] **5.1.c Synthesize CLI findings**
+
+        Merge subagent results, deduplicate, categorize by severity (high/medium/low) and type
+        (bug, gap, friction, robustness). Write the CLI section of `analysis-beta-readiness-audit.md`.
+
+- [x] **5.2 Methodology walkthrough audit**
+
+    **Goal:** Walk through ARC workflows as an adopter/team and their agent(s) would experience
+    them, with fresh eyes. Flag dead ends, contradictions, stale references, assumed knowledge,
+    and friction points.
+
+    Based on the structural validation scenario approach (WU `06_structural-validation`) but
+    expanded to cover CLI paths, contributor role, and content quality — not just routing.
+
+    - [x] **5.2.a Define and execute scenario walkthroughs**
+
+        Subagent per scenario — each reads the relevant workflows/docs cold and walks the path
+        step-by-step, flagging issues:
+
+        - **Scenario 1 — New solo adopter, OOBE**: `pm.mode: none`, `branch.protection: partial`.
+          `arc init` → `01_verify-and-configure` → `02_define-project` → first PRD → task
+          generation → activate → execute → integrate → archive. The "what does someone see day
+          one?" path.
+        - **Scenario 2 — Arc-in-git power user**: `pm.mode: arc-in-git`,
+          `branch.protection: full`. Planning branch → PRD → tasks → integrate-planning → activate
+          → execute → verify → integrate → archive. Full ceremony path.
+        - **Scenario 3 — Contributor onboarding**: `arc join --contributor` → session-init
+          (reduced doc set) → work → commit (`Context: contribution (...)`) → handoff. Boundary
+          enforcement, what contributors see vs don't see.
+        - **Scenario 4 — Session lifecycle round-trip**: Init → work → handoff → *new session* →
+          resume. State recovery, freshness checks, SESSION-NOTES portability via git notes,
+          mismatch handling.
+        - **Scenario 5 — Incidental work discovery**: Mid-task issue discovery → triage (severity
+          assessment) → atomic vs task list routing → companion file / ATOMIC-INBOX. The reactive
+          path through `manage-incidental-work.md`.
+        - **Scenario 6 — Framework update experience**: Adopter has customized configurable files
+          → `arc update` → customizations preserved, conflicts surfaced clearly, post-update state
+          coherent. The "will I lose my work?" question.
+
+        Each subagent evaluates both **routing** (do links connect, are prerequisites met, does
+        the path complete?) and **content quality** (is guidance clear, would an agent following
+        it produce the right result, is assumed knowledge flagged?).
+
+    - [x] **5.2.b Synthesize methodology findings**
+
+        Produced 52+ findings (4 high, 18 medium, 30+ low) across 6 scenarios. Two systemic
+        issues: `pm.mode: none` (default config) has 3 dead ends in workflow docs, and the
+        update experience is entirely undocumented. Also found atomic companion file lifecycle
+        gap (no workflow creates it), contributor role under-documented in shared docs, and
+        SESSION-NOTES single-path dependency on git notes.
+
+- [x] **5.3 Produce final analysis document**
+
+    `analysis-beta-readiness-audit.md` in `.arc/active/feature/`. Combined 133+ findings
+    (18 high, 60 medium, 55+ low) across CLI and methodology. Executive summary, categorized
+    findings, and three-tier recommended action tables (fix before beta / should fix / defer).
+
+### **Phase 6:** Docs Site
 
 **Purpose:** Ship a docs site with foundation content covering what ARC is and how to get started,
 plus stub infrastructure for WU5 expansion.
 
-- [ ] **5.1 Refresh `README-ASPIRATIONAL.md`**
+- [ ] **6.1 Refresh `README-ASPIRATIONAL.md`**
 
     **Goal:** Bring the aspirational README current before using it as source material.
 
@@ -403,101 +506,101 @@ plus stub infrastructure for WU5 expansion.
     - Tighten narrative based on what ARC actually is now
     - This is a content refresh, not a full rewrite — philosophy, tradeoffs, core loop are stable
 
-- [ ] **5.2 Set up MkDocs infrastructure**
+- [ ] **6.2 Set up MkDocs infrastructure**
 
-    - [ ] **5.2.a Create `mkdocs.yml`**
+    - [ ] **6.2.a Create `mkdocs.yml`**
         - Material theme, site name ("ARC Framework"), repo URL
         - Full nav tree covering foundation and stub pages
         - Search enabled, color scheme configuration
 
-    - [ ] **5.2.b Create `docs/` directory structure**
+    - [ ] **6.2.b Create `docs/` directory structure**
         - Subdirectories as needed for nav organization
         - All page files (foundation + stubs) created in this step
 
-    - [ ] **5.2.c Add `site/` to `.gitignore`**
+    - [ ] **6.2.c Add `site/` to `.gitignore`**
 
-- [ ] **5.3 Write foundation pages**
+- [ ] **6.3 Write foundation pages**
 
-    - [ ] **5.3.a Landing / Index page**
+    - [ ] **6.3.a Landing / Index page**
         - Adapted from refreshed `README-ASPIRATIONAL.md`
         - What ARC is, core development loop, design principles, honest tradeoffs
         - Light editing for docs-site voice (not a copy-paste)
 
-    - [ ] **5.3.b Philosophy page**
+    - [ ] **6.3.b Philosophy page**
         - Adapted from `strategy-core-philosophy.md`
         - P1–P11 with rationale, research citations, positioning
         - Restructure for docs-site readability (the strategy doc is reference-dense)
 
-    - [ ] **5.3.c Getting Started page**
+    - [ ] **6.3.c Getting Started page**
         - Install via `npx @arc-framework/cli init`
         - First session walkthrough (`arc-resume` → work → `arc-handoff`)
         - What happened: directory tour of `.arc/`
         - Depends on migration and CLI changes being complete
 
-    - [ ] **5.3.d Sessions page**
+    - [ ] **6.3.d Sessions page**
         - Adapted from `strategy-session-management.md`
         - Why focused sessions, context degradation evidence, how sessions work
         - Natural session boundaries
 
-    - [ ] **5.3.e Work Planning page**
+    - [ ] **6.3.e Work Planning page**
         - Adapted from `strategy-work-planning.md`
         - Planning pipeline (idea → plan → PRD → tasks)
         - How tasks work, quality gates concept
 
-- [ ] **5.4 Create stub pages**
+- [ ] **6.4 Create stub pages**
     - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,
       Comparison/Positioning, Tutorials
     - Each stub: brief description of what the page will cover, "detailed content coming in a
       future release" note
 
-- [ ] **5.5 Set up docs deployment**
+- [ ] **6.5 Set up docs deployment**
 
-    - [ ] **5.5.a Create GitHub Action for docs**
+    - [ ] **6.5.a Create GitHub Action for docs**
         - Trigger: push to main
         - Steps: setup Python, install mkdocs-material, `mkdocs build`, deploy to GitHub Pages
         - Separate workflow file or new job in existing `ci.yml`
 
-    - [ ] **5.5.b Verify deployment**
+    - [ ] **6.5.b Verify deployment**
         - Push to main triggers build
         - Site accessible at GitHub Pages URL
         - Navigation, search, and all pages render correctly
 
-- [ ] **5.6 Run quality gates**
+- [ ] **6.6 Run quality gates**
     - `npm run -s lint:md` (new markdown files in `docs/`)
     - Verify mkdocs builds without errors locally (`mkdocs build`)
 
-### **Phase 6:** Public Scaffolding + Hook Manager Integration
+### **Phase 7:** Public Scaffolding + Hook Manager Integration
 
 **Purpose:** Establish public presence and implement hook manager detection (P1).
 
-- [ ] **6.1 Repo rename**
+- [ ] **7.1 Repo rename**
     - Rename `arc-agentic-dev-framework` → `arc-framework` on GitHub
     - Update all references: package.json repository field, GitHub Action URLs, any hardcoded
       repo name references
     - Verify: clone URL works, GitHub redirect from old name works, CI passes
 
-- [ ] **6.2 README update**
+- [ ] **7.2 README update**
     - Replace current development README with minimal public version
     - Content: what ARC is (one paragraph), current status (beta), install command, link to
       docs site, link to CONTRIBUTING.md
     - Not a full adoption-focused rewrite (WU5)
 
-- [ ] **6.3 npm beta publish**
+- [ ] **7.3 npm beta publish**
 
-    - [ ] **6.3.a Prepare package for publish**
+    - [ ] **7.3.a Prepare package for publish**
         - Update version to `0.1.0` (or appropriate beta version) in `package.json`
         - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
           `init-recipe.json`)
         - Verify `package.json` metadata (description, keywords, repository, license)
 
-    - [ ] **6.3.b Publish and verify**
+    - [ ] **7.3.b Publish and verify**
         - `npm publish` to registry
         - Verify `npx @arc-framework/cli init` works in a clean environment
         - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
 
-- [ ] **6.4 Hook manager detection and integration (P1)**
+- [ ] **7.4 Hook manager detection and integration (P1)**
 
-    - [ ] **6.4.a Create hook manager detection module**
+    - [ ] **7.4.a Create hook manager detection module**
 
         Build `test-first` (one behavior at a time):
         - Detects husky (`.husky/` directory)
@@ -505,7 +608,7 @@ plus stub infrastructure for WU5 expansion.
         - Detects pre-commit (`.pre-commit-config.yaml`)
         - Returns `null` when no manager found
 
-    - [ ] **6.4.b Integrate detection into `arc init` and `arc join`**
+    - [ ] **7.4.b Integrate detection into `arc init` and `arc join`**
 
         Build `test-first` (one behavior at a time):
         - When hook manager detected, adds ARC hook calls to manager config instead of
@@ -514,22 +617,22 @@ plus stub infrastructure for WU5 expansion.
         - Husky integration: adds to `.husky/pre-commit` and `.husky/commit-msg`
         - Lefthook integration: adds to `lefthook.yml`
 
-    - [ ] **6.4.c Adopt husky in dev repo (P1)**
+    - [ ] **7.4.c Adopt husky in dev repo (P1)**
         - Install husky as dev dependency
         - Configure `.husky/` hooks to call ARC hook scripts
         - Verify hooks fire correctly through husky
         - This validates the integration path for adopters
 
-- [ ] **6.5 Run quality gates**
+- [ ] **7.5 Run quality gates**
     - Full Tier 2: `npm run -s lint:md`, `npm run typecheck`, `npm test`
 
-### **Phase 7:** Verification
+### **Phase 8:** Verification
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-- [ ] **7.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
-- [ ] **7.2 Validate success criteria against PRD**
-- [ ] **7.3 Verify all atomic tasks resolved** (`atomic-beta-readiness.md`)
+- [ ] **8.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
+- [ ] **8.2 Validate success criteria against PRD**
+- [ ] **8.3 Verify all atomic tasks resolved** (`atomic-beta-readiness.md`)
 
 ---
 
