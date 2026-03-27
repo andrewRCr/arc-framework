@@ -18,8 +18,8 @@
 **Following Task List**: Yes
 **Next Task**: Task 6.10.a — Add `team.mode` recipe condition and template conditionals (line ~901)
 **Last Completed**: Task 6.9 — Workflow documentation fixes
-**Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.10 (team mode workflow integration)
+**Blockers**: `--reconfigure` gap — must scope and plan before resuming scheduled tasks (see SESSION-NOTES)
+**Next Action**: Scope `arc init --reconfigure` for pm.mode changes post-init, then resume Phase 6
 
 ---
 
