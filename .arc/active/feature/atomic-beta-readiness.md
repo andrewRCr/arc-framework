@@ -89,4 +89,13 @@ Atomic Task Completion for the full protocol.
     Both settings in `arc-config.yml` with sensible defaults. Updated `validate-config.sh`
     known keys. Removed misleading inline customization comments from hooks.
 
+- [x] **Refactor cli.ts into handler architecture** — Extracted the 1010-line monolithic CLI
+    entry point into a handler-per-command architecture. `cli.ts` reduced to 126 lines of
+    pure Commander wiring. `src/handlers/` (6 files) owns the CLI adapter layer per command
+    area, with `shared.ts` consolidating repeated patterns (`runWithSpinner`, `isHandledError`,
+    `resolveUserIdentity`, `requireGitRepo`, `readPmMode`, `isRemoteError`).
+    `src/lib/io-context.ts` extracts all I/O factory functions (`createIOContext`,
+    `createUserIOContext`, `gitExec`, `writeGitNote`, `readGitNote`, `readUserDir`). Pure
+    refactor — zero test changes, all 434 tests pass, lint/typecheck clean.
+
 ---
