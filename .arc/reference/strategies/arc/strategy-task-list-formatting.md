@@ -16,13 +16,14 @@ documentation throughout the project lifecycle.
 1. [Quick Format Checklist](#quick-format-checklist)
 2. [Task List Headers](#task-list-headers)
 3. [Format Elements Reference](#format-elements-reference)
-4. [Test-First Task Structure](#test-first-task-structure)
-5. [Complete Annotated Example](#complete-annotated-example)
-6. [Common Mistakes](#common-mistakes)
-7. [Decision Guidelines](#decision-guidelines)
-8. [Verification Phase](#verification-phase)
-9. [Atomic Companion File](#atomic-companion-file)
-10. [Success Criteria Section](#success-criteria-section)
+4. [Task Ownership Markers](#task-ownership-markers)
+5. [Test-First Task Structure](#test-first-task-structure)
+6. [Complete Annotated Example](#complete-annotated-example)
+7. [Common Mistakes](#common-mistakes)
+8. [Decision Guidelines](#decision-guidelines)
+9. [Verification Phase](#verification-phase)
+10. [Atomic Companion File](#atomic-companion-file)
+11. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -506,6 +507,42 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 
 ---
 
+## Task Ownership Markers
+
+**Applies when:** `team.mode: true` — multiple developers collaborate on the same task list.
+Optional in solo mode.
+
+### The `(@name)` Convention
+
+Mark task ownership by appending `(@name)` at the end of the checkbox line:
+
+```markdown
+- [ ] **1.1 Implement authentication flow** (@alice)
+- [ ] **1.2 Set up CI pipeline** (@bob)
+- [ ] **1.3 Write API documentation** (@alice)
+```
+
+Phase headers can carry area-level ownership:
+
+```markdown
+### **Phase 3:** Auth Layer (@alice)
+```
+
+**Placement:** Always at the end of the line, after the task description (and after any trailing
+parenthetical if present). Uses the developer's `arc.identity` value.
+
+**Rules:**
+
+- Markers are optional — unowned tasks can be claimed during execution
+- Reassignment is a text edit (change the marker, no ceremony)
+- `(@name)` appears in task lists only, not in commit messages or branch names
+- `(@name)` identifies the human developer, not the AI agent
+
+See [Team Coordination Strategy][team-coordination] § Task Ownership for the full convention,
+including reassignment and person-to-person handoff.
+
+---
+
 ## Test-First Task Structure
 
 **Applies when:** The [test-first method][arc-methods-tf] assessment says test-first for this work.
@@ -980,3 +1017,4 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-it]: ../../../system/workflows/arc-methods.md#issue-triage
 [arc-methods-tf]: ../../../system/workflows/arc-methods.md#test-first
+[team-coordination]: strategy-team-coordination.md

@@ -893,32 +893,56 @@ auto-detection promoted from backlog into Task 6.3.b.
         - `strategy-team-coordination.md`: replaced raw `git notes show` commands with CLI
           `npx arc user pull/load --identity {outgoing}` (TC-L04)
 
-- [ ] **6.10 Team mode workflow integration**
+- [x] **6.10 Team mode workflow integration**
 
     **Goal:** Add template conditionals to operational workflows so team-mode adopters get
     contextually correct guidance. Strategy docs get standardized prose markers instead.
 
     Findings: TC-H01, TC-H02, TC-H04, TC-M07, TC-M08, TC-L01
 
-    - [ ] **6.10.a Add `team.mode` recipe condition and template conditionals**
-        - Add `team.mode == true` condition to `init-recipe.json` (TC-H04)
-        - `session-init.template.md`: team-mode block after WORK-STATUS read — scan task
-          list for `(@name)` markers to resolve personal next task (TC-H01)
-        - `3_process-task-loop.template.md`: team-mode block before task start — check
-          `(@name)` ownership, claim unowned tasks (TC-H02). Replace unconditional team note
-          with conditional block (TC-L01)
-        - `session-handoff.template.md`: team-mode note on WORK-STATUS representing
-          branch-level state
-        - `2_generate-tasks.template.md`: team-mode note on adding `(@name)` markers (TC-M07)
+    **Audit notes (pre-impl):**
+    - `session-handoff.md` and `2_generate-tasks.md` are currently plain files (no
+      `.template.md` source). 6.10.a promotes both to templates — rename in package,
+      update `init-recipe.json` entry. No classification change (both are Framework).
+    - 6.11.b's `session-init.md` changes (MW-M15, MW-M16, MW-M17, TC-L02) must go
+      into the `.template.md` source, not the installed copy — 6.10.c rendering would
+      overwrite direct edits. Route those through the template during 6.10.a or 6.11.b,
+      whichever touches it last.
 
-    - [ ] **6.10.b Add `(@name)` to task list formatting strategy**
-        - Add section describing placement (end of checkbox line), format, and optional nature
-        - Cross-reference `strategy-team-coordination.md` (TC-M08)
+    - [x] **6.10.a Add `team.mode` recipe condition and template conditionals**
 
-    - [ ] **6.10.c Sync template changes to installed docs**
-        - Render the new conditionals into `.arc/` installed copies for this repo
-          (`team.mode: false`, so team blocks are stripped)
-        - Verify `packages/arc-framework/arc/` source templates have the conditionals
+        - Promoted `session-handoff.md` and `2_generate-tasks.md` to `.template.md` in
+          package — renamed files, updated `init-recipe.json` entries. Tests pass (rendering
+          produces identical output before conditionals added).
+        - Added `team.mode == true` condition to `init-recipe.json` (TC-H04) — empty
+          `include_files` (no team-only files yet; condition registers team.mode in recipe)
+        - `session-init.template.md`: team-mode block after item 8 (WORK-STATUS read) —
+          `(@name)` scan to resolve personal next task, overriding branch-level Next Task
+          (TC-H01)
+        - `3_process-task-loop.template.md`: conditional ownership check block before task
+          start — verify `(@name)` ownership or claim unowned tasks (TC-H02). Moved
+          unconditional "In team mode..." sentence into conditional block (TC-L01)
+        - `session-handoff.template.md`: team-mode blockquote before WORK-STATUS format —
+          explains branch-level semantics and last-committer-wins resolution
+        - `2_generate-tasks.template.md`: team-mode paragraph in Step 3 on adding `(@name)`
+          markers during task generation (TC-M07). Link reference also conditional.
+
+    - [x] **6.10.b Add `(@name)` to task list formatting strategy**
+
+        - Added "Task Ownership Markers" section (between Format Elements Reference and
+          Test-First) with `(@name)` placement, format, rules, and cross-reference to
+          `strategy-team-coordination.md` (TC-M08)
+        - Updated Table of Contents (renumbered items 4–11)
+        - Synced to package copy
+
+    - [x] **6.10.c Sync template changes to installed docs**
+
+        - `3_process-task-loop.md`: removed unconditional "In team mode..." sentence (now
+          inside conditional, stripped for `team.mode: false`)
+        - `session-init.md`, `session-handoff.md`, `2_generate-tasks.md`: no changes needed
+          — all new content is inside `team.mode == true` blocks, stripped for this repo
+        - Verified: 0 markdown lint errors, all 36 tests pass (including E2E linting of
+          rendered output)
 
 - [ ] **6.11 Team coordination and session documentation**
 
@@ -929,8 +953,23 @@ auto-detection promoted from backlog into Task 6.3.b.
     Findings: TC-H03, TC-H06, TC-M01-M03, TC-M05-M06, TC-M10-M12, TC-L02-L03, TC-L05-L07,
     MW-M11-M12, MW-M15-M18
 
+    **Audit notes (pre-impl):**
+    - 6.11.a reframing is a full read-through with surgical prose rewrites where the
+      current tone implies required infrastructure vs. available convention. Most lines
+      survive; rewrite where advisory framing is missing. Maintain firm mechanics for
+      conventions once adopted — don't soften to the point where 6.10.a's template
+      conditionals (which reference strategy conventions) feel orphaned.
+    - 6.11.b `session-init.md` changes (MW-M15, MW-M16, MW-M17, TC-L02) go into
+      `session-init.template.md` source, not the installed copy (see 6.10 audit note).
+      Non-conditional content uses no `arc:if` — it appears in all rendered outputs.
+    - MW-M18 (ATOMIC-INBOX secondary triage trigger): add to `session-init` freshness/
+      discovery section — "check ATOMIC-INBOX for pending items" as a lightweight
+      reminder at session start, complementing the integration-time triage.
+
     - [ ] **6.11.a Reframe team coordination strategy**
-        - Light reframing pass — make advisory nature explicit throughout
+        - Full read-through with prose rewrite where applicable — make advisory nature
+          explicit where current tone implies required infrastructure. Most prose survives;
+          rewrite sections that present optional conventions as requirements.
         - Clarify what's required (WORK-STATUS exists, user dirs are per-identity) vs. what's
           available (`(@name)`, branching patterns, person-to-person handoff)
         - WORK-STATUS: document as branch-level state, not per-developer state. In team mode,
@@ -948,13 +987,17 @@ auto-detection promoted from backlog into Task 6.3.b.
         - `DEV-RULES.ARC.md`: add contributor note to Task Execution section — "applies to
           maintainer-managed task lists" (MW-M11, MW-M12)
         - `DEV-RULES.ARC.md`: add cross-reference to team coordination strategy (TC-L05)
-        - `session-init.md`: add team-mode example to trust hierarchy Tier 1 (TC-L02)
-        - `session-init.md`: add skip instruction for freshness check with no handoff hash
-          (MW-M16)
-        - `session-init.md`: flag that no-identity sessions can't hand off (MW-M17)
-        - `session-init.md`: suggest git log fallback when notes unavailable (MW-M15)
+        - `session-init.template.md`: add team-mode example to trust hierarchy Tier 1
+          (TC-L02) — non-conditional content, goes in template source
+        - `session-init.template.md`: add skip instruction for freshness check with no
+          handoff hash (MW-M16)
+        - `session-init.template.md`: flag that no-identity sessions can't hand off (MW-M17)
+        - `session-init.template.md`: suggest git log fallback when notes unavailable
+          (MW-M15)
+        - `session-init.template.md`: add ATOMIC-INBOX check to discovery section as
+          secondary triage trigger (MW-M18) — non-conditional, complements integration-time
+          triage
         - `activate-work-unit.md`: add team branch setup guidance (TC-M11)
-        - Add secondary ATOMIC-INBOX triage trigger note (MW-M18)
 
     - [ ] **6.11.c WORK-STATUS concurrent update guidance**
         - Add pull-before-commit recommendation for shared branches (TC-M01)
@@ -1047,6 +1090,11 @@ get overwritten.
         - Render new files from templates (same pipeline as init)
         - Add entries to manifest and pristine store
         - Update `arc-config.yml` with new config values
+        - **Prerequisite recipe fix:** move `strategy-team-coordination.md` from
+          unconditional `include_files` to the `team.mode == true` condition block
+          (same pattern as `strategy-backlog-organization.md` under `pm.mode ==
+          arc-in-git`). This ensures toggling `team.mode` via `--reconfigure` correctly
+          adds/removes the strategy file.
 
     - [ ] **7.2.b File removals (two-stage UX)**
         - Stage 1: summary of affected files with classification labels ("your content" vs

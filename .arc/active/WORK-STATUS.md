@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.10.a — Add `team.mode` recipe condition and template conditionals (line ~901)
-**Last Completed**: Task 6.9 — Workflow documentation fixes
+**Next Task**: Task 6.11.a — Reframe team coordination strategy (line ~949)
+**Last Completed**: Task 6.10 — Team mode workflow integration
 **Blockers**: None
-**Next Action**: Resume Phase 6 at Task 6.10.a (team mode template conditionals)
+**Next Action**: Resume Phase 6 at Task 6.11.a (team coordination strategy reframing)
 
 ---
 

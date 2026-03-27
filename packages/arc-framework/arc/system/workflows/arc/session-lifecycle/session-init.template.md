@@ -97,6 +97,25 @@ session-state, follow the override instead.
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
+<!-- arc:if team.mode == true -->
+**Team mode — resolve personal next task** (after loading WORK-STATUS and task list):
+
+WORK-STATUS.md shows branch-level state (one "Next Task" for the branch). In team mode,
+your personal next task may differ. After loading the task list (item 10), scan it for
+`(@name)` markers matching your `{identity}`:
+
+1. Find incomplete tasks (`[ ]`) with your `(@identity)` marker
+2. If found, your next task is the first incomplete owned task — this overrides the
+   WORK-STATUS "Next Task" for your session orientation
+3. If no `(@name)` markers exist, fall back to WORK-STATUS "Next Task" (ownership not
+   yet assigned for this task list)
+4. If markers exist but none match your identity, note this in orientation — you may
+   need to claim a task or check with the team
+
+See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(@name)`
+convention.
+<!-- arc:endif -->
+
 **Resolve identity** (run in Batch 1):
 
 1. Run `git config arc.identity`

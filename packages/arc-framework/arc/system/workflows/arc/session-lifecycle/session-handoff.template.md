@@ -74,6 +74,13 @@ Update session state files before ending session:
 
 **Update `.arc/active/WORK-STATUS.md`** (tracked project state):
 
+<!-- arc:if team.mode == true -->
+> **Team mode:** WORK-STATUS.md represents branch-level state, not personal state. "Next Task"
+> should reflect the branch's overall next incomplete task, not your personal next task (which
+> is determined by `(@name)` markers at session-init). When multiple developers are active, the
+> last committer's update wins — this is expected and resolved at session-init via `(@name)` filtering.
+<!-- arc:endif -->
+
 ```markdown
 ## Active Work
 

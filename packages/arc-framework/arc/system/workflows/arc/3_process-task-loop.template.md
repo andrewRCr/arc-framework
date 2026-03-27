@@ -19,8 +19,19 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
-  for user approval. In team mode, this applies per developer-agent pair — concurrent pairs may work
-  different tasks.
+  for user approval.
+<!-- arc:if team.mode == true -->
+
+  In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
+
+  **Before starting a task**, check `(@name)` ownership markers in the task list:
+
+    - If the task has your `(@identity)` marker → proceed
+    - If the task is unowned (no `(@name)` marker) → claim it by adding your marker, then proceed
+    - If the task is owned by someone else → skip to your next owned or unowned task
+
+  See [Team Coordination Strategy][team-coordination] § Task Ownership for the full convention.
+<!-- arc:endif -->
 
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup

@@ -64,6 +64,15 @@ For each phase, define specific, actionable sub-tasks:
   executing agent know what to consult without re-scanning STRATEGY-INDEX. Lightweight
   convention — use when it adds value, skip when the connection is obvious.
 
+<!-- arc:if team.mode == true -->
+**Task ownership:** In team mode, add `(@name)` markers to task checkboxes to assign ownership.
+Place markers at the end of the checkbox line: `- [ ] **1.1 Task description** (@alice)`. Phase
+headers can carry area-level ownership: `### Phase 3: Auth Layer (@alice)`. Markers are optional
+during generation — tasks can be assigned later. See
+[strategy-task-list-formatting][task-list-formatting] § Task Ownership Markers and
+[Team Coordination Strategy][team-coordination] § Task Ownership for conventions.
+<!-- arc:endif -->
+
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API
 endpoints, business logic, complex algorithms), group test and implementation together in each
 task — named by module or concern, not by activity. Use the `Build \`test-first\` (one behavior at a time):`
@@ -156,3 +165,6 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
 [arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
+<!-- arc:if team.mode == true -->
+[team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
+<!-- arc:endif -->
