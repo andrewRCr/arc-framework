@@ -826,18 +826,24 @@ auto-detection promoted from backlog into Task 6.3.b.
 
         Copied updated `.arc/README.md` to `packages/arc-framework/arc/README.md`.
 
-- [ ] **6.8 Log command fixes**
+- [x] **6.8 Log command fixes**
 
     Findings: L-H02, L-M01-M05, L-L01, L-L02
 
-    Build `test-first` (one behavior at a time):
-    - Clamp `--limit 0` to minimum 1 (L-H02)
-    - Clamp `--limit NaN` (non-numeric) to default (L-M05)
-    - Validate `--since` format before passing to git (L-M01)
-    - Apply `--work-unit` filter before `--limit` truncation (L-M02/M03)
-    - Handle `--ARC-RECORD--` in commit message body (L-M04)
-    - Include context footer line in output (L-L01)
-    - Handle breaking change `!` marker in subject parsing (L-L02)
+    **Changes** (all test-first, 9 new unit tests):
+
+    - `Math.max(1, limit)` clamps zero/negative to 1 (L-H02); NaN detection
+      falls back to `DEFAULT_LOG_LIMIT` (L-M05)
+    - Basic `--since` heuristic: reject values with no digits before calling git;
+      relative dates like `"2 weeks ago"` pass through (L-M01)
+    - When `--work-unit` is set, skip git-level `-n` flag; filter client-side
+      then truncate to `effectiveLimit` (L-M02/M03)
+    - Replaced `--ARC-RECORD--` string separator with `%x00` null byte — cannot
+      appear in commit messages, removed `RECORD_SEP` constant (L-M04)
+    - `buildLogAtomicOutput` includes context footer line on indented second line
+      per entry (L-L01)
+    - `parseSubject` regex updated to `!?:` — handles `feat!:` and
+      `feat(scope)!:` breaking change markers (L-L02)
 
 - [ ] **6.9 Workflow documentation: `pm.mode:none`, companion files, and link fixes**
 

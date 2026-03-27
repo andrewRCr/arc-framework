@@ -42,15 +42,13 @@ export interface LogAtomicOptions {
 
 // --- Internal ---
 
-const RECORD_SEP = "--ARC-RECORD--";
-
 /** Parse a conventional commit subject into type, scope, description. */
 function parseSubject(subject: string): {
   type: string;
   scope: string;
   description: string;
 } {
-  const match = subject.match(/^(\w+)(?:\(([^)]*)\))?:\s*(.+)$/);
+  const match = subject.match(/^(\w+)(?:\(([^)]*)\))?!?:\s*(.+)$/);
   if (match) {
     return {
       type: match[1] ?? "",
@@ -73,7 +71,7 @@ function extractContextLine(body: string): string | undefined {
 /** Parse raw git log output into entries. */
 function parseGitLogOutput(raw: string): AtomicLogEntry[] {
   const entries: AtomicLogEntry[] = [];
-  const blocks = raw.split(`${RECORD_SEP}\n`).filter((b) => b.trim());
+  const blocks = raw.split("\0").filter((b) => b.trim());
 
   for (const block of blocks) {
     const lines = block.split("\n");
@@ -114,13 +112,22 @@ export async function runLogAtomic(
     "--basic-regexp",
     `--grep=Context: atomic-`,
     `--grep=(atomic / no associated task list)`,
-    `--format=${RECORD_SEP}%n%h%n%ai%n%s%n%b`,
+    `--format=%x00%h%n%ai%n%s%n%b`,
   ];
 
-  if (since) args.push(`--since=${since}`);
+  if (since) {
+    if (!/\d/.test(since)) {
+      throw new Error(`Invalid --since value: "${since}". Expected a date (e.g., 2026-03-01, "2 weeks ago").`);
+    }
+    args.push(`--since=${since}`);
+  }
   if (author) args.push(`--author=${author}`);
-  const effectiveLimit = all ? undefined : (limit ?? DEFAULT_LOG_LIMIT);
-  if (effectiveLimit) args.push(`-n`, String(effectiveLimit));
+  const safeLimit = (limit != null && !Number.isNaN(limit)) ? limit : DEFAULT_LOG_LIMIT;
+  const effectiveLimit = all ? undefined : Math.max(1, safeLimit);
+
+  // When filtering by work-unit, fetch all matches from git and apply limit
+  // after client-side filtering. Otherwise git's -n truncates before filtering.
+  if (effectiveLimit && !workUnit) args.push(`-n`, String(effectiveLimit));
 
   const { stdout } = await exec("git", args);
 
@@ -130,6 +137,7 @@ export async function runLogAtomic(
     entries = entries.filter((e) =>
       e.contextLine.includes(`atomic-${workUnit}`),
     );
+    if (effectiveLimit) entries = entries.slice(0, effectiveLimit);
   }
 
   return { entries };
@@ -148,7 +156,7 @@ export function buildLogAtomicOutput(result: LogAtomicResult): string {
 
   const lines = result.entries.map((e) => {
     const scopePart = e.scope ? `(${e.scope})` : "";
-    return `${e.shortHash}  ${e.date}  ${e.type}${scopePart}: ${e.description}`;
+    return `${e.shortHash}  ${e.date}  ${e.type}${scopePart}: ${e.description}\n  ${e.contextLine}`;
   });
 
   return lines.join("\n");

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.8 — Log command fixes (line ~830)
-**Last Completed**: Task 6.7 — Update documentation
+**Next Task**: Task 6.9.a — `pm.mode:none` path fixes (line ~843)
+**Last Completed**: Task 6.8 — Log command fixes
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.8 (log command fixes)
+**Next Action**: Continue Phase 6 — start Task 6.9 (workflow documentation fixes)
 
 ---
 
