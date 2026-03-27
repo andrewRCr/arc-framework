@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.12.a — Changelog data and display (line ~1027)
-**Last Completed**: Task 6.11 — Team coordination and session documentation
+**Next Task**: Task 6.13 — Phase quality gates (line ~1050)
+**Last Completed**: Task 6.12 — Changelog mechanism for `arc update`
 **Blockers**: None
-**Next Action**: Resume Phase 6 at Task 6.12.a (changelog mechanism for `arc update`)
+**Next Action**: Resume Phase 6 at Task 6.13 (phase quality gates)
 
 ---
 

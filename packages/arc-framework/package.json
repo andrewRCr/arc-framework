@@ -40,7 +40,8 @@
     "dist",
     "arc",
     "templates",
-    "init-recipe.json"
+    "init-recipe.json",
+    "changelog"
   ],
   "keywords": [
     "arc",

@@ -13,14 +13,15 @@ import { runDiff, buildDiffOutput } from "../commands/diff.js";
 import { loadRecipeFile } from "../lib/template/index.js";
 import { readManifest } from "../lib/manifest/index.js";
 import { listArcFiles } from "../lib/fs.js";
-import { getArcTemplatePath, getRecipePath } from "../lib/paths.js";
+import { getArcTemplatePath, getRecipePath, getChangelogPath } from "../lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "../lib/version.js";
 import { createIOContext, execFileAsync } from "../lib/io-context.js";
 import { runWithSpinner, isHandledError } from "./shared.js";
+import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
 
 // --- Update ---
 
-export async function handleUpdate(): Promise<void> {
+export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<void> {
   p.intro("arc update");
 
   const templateDir = getArcTemplatePath();
@@ -37,6 +38,20 @@ export async function handleUpdate(): Promise<void> {
 
     if (result.conflicts.length > 0) {
       p.log.warn("Resolve conflicts before committing.");
+    }
+
+    if (!options.quiet && result.previousVersion !== result.currentVersion) {
+      const changelog = await readChangelog(getChangelogPath());
+      if (changelog) {
+        const range = filterChangelogRange(changelog, result.previousVersion, result.currentVersion);
+        const display = buildChangelogDisplay(range);
+        if (display) {
+          p.note(display, "What's new");
+          if (range.hasBreaking) {
+            p.log.warn("This update includes breaking changes — review the details above.");
+          }
+        }
+      }
     }
   } catch (err) {
     if (isHandledError(err)) return;

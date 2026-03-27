@@ -1,0 +1,22 @@
+{
+  "$comment": [
+    "ARC Framework changelog — bundled with the npm package, displayed during `arc update`.",
+    "",
+    "Add an entry for each published version. Fields:",
+    "  date         — release date (YYYY-MM-DD)",
+    "  highlights[] — user-visible changes (1-5 bullet points, concise)",
+    "  breaking[]   — breaking changes requiring adopter action (empty array if none)",
+    "  migrationNotes? — optional one-liner with migration guidance",
+    "",
+    "Entries are filtered by semver range during update — only versions between the",
+    "adopter's installed version and the new version are shown. Keep entries short;",
+    "adopters see them in the terminal, not a web page."
+  ],
+  "0.0.0": {
+    "date": "2026-03-23",
+    "highlights": [
+      "Initial development version — not published to npm"
+    ],
+    "breaking": []
+  }
+}

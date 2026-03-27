@@ -61,3 +61,12 @@ export function getInternalTemplatePath(): string {
 export function getRecipePath(): string {
   return resolve(packageRoot, "init-recipe.json");
 }
+
+/**
+ * Returns the absolute path to the bundled changelog file.
+ *
+ * @returns Absolute path to `changelog/versions.json`
+ */
+export function getChangelogPath(): string {
+  return resolve(packageRoot, "changelog", "versions.json");
+}

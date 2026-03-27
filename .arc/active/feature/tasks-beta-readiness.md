@@ -1017,7 +1017,7 @@ auto-detection promoted from backlog into Task 6.3.b.
           — different-author WORK-STATUS updates may indicate active teammate (TC-M03)
         - TC-L07 (platform merge driver note): covered in 6.11.a strategy reframing
 
-- [ ] **6.12 Changelog mechanism for `arc update`**
+- [x] **6.12 Changelog mechanism for `arc update`**
 
     **Goal:** Show adopters what changed when they run `arc update`, so they understand
     framework changes without reading commit history. Promoted from technical backlog
@@ -1029,29 +1029,26 @@ auto-detection promoted from backlog into Task 6.3.b.
     rather than adding files to the user's project. JSON over Markdown for easy parsing
     and version filtering. No files added to `.arc/` or the project repo.
 
-    - [ ] **6.12.a Changelog data and display**
+    - [x] **6.12.a Changelog data and display**
+        - Added `changelog/versions.json` at package root (following `init-recipe.json` pattern),
+          `"changelog"` added to `package.json` `files` array
+        - Added `getChangelogPath()` in `paths.ts`
+        - Added `src/lib/changelog.ts` with pure functions: `readChangelog` (fs read with
+          graceful ENOENT/invalid-JSON handling), `filterChangelogRange` (semver range
+          filtering with ascending sort), `buildChangelogDisplay` (formatted string for
+          `p.note()`)
+        - Wired into `handleUpdate` in `handlers/lifecycle.ts`: displays `p.note(text, "What's new")`
+          after update summary when version changed; `p.log.warn()` for breaking changes
+        - Added `-q, --quiet` flag on update command (Commander → handler threading)
+        - 19 unit tests covering all behaviors (read/parse, range filtering, display
+          formatting, graceful degradation)
 
-        - Add `changelog/versions.json` to `packages/arc-framework/src/` with structured
-          entries per version: `{ "0.x.y": { "date", "highlights[]",
-          "breaking[]", "migrationNotes?" } }`
-        - Add to `"files"` array in `package.json` so it ships with the npm package
-        - In `arc update`: after update completes, read changelog for versions between
-          old and new, display highlights and breaking changes inline
-        - Only display when version actually changed — silent when unchanged
-        - Add `--quiet` flag to suppress changelog output
-
-        Build `test-first` (one behavior at a time):
-        - Reads and parses changelog from package
-        - Filters entries to relevant version range (old → new)
-        - Displays highlights for minor/major version bumps
-        - Displays breaking changes with migration notes when present
-        - Silent when no version change or changelog missing (graceful degradation)
-
-    - [ ] **6.12.b Seed initial changelog content**
-        - Write entries for existing versions (0.1.x through current)
-        - Document changelog authoring in a comment block at top of `versions.json`
-        - Add `conventional-changelog-cli` as dev dependency for future automation
-          (manual authoring for now, automate in release pipeline later)
+    - [x] **6.12.b Seed initial changelog content**
+        - No published versions exist yet (0.0.0 development, no npm releases) — seeded
+          with 0.0.0 placeholder entry
+        - Added `$comment` array at top of `versions.json` documenting the authoring
+          convention (fields, formatting guidance, how filtering works)
+        - `conventional-changelog-cli` dep dropped per audit — manual authoring preferred
 
 - [ ] **6.13 Phase quality gates**
     - Tier 2: full markdown lint, TypeScript lint, shell lint, type check, full test suite,

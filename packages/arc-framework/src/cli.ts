@@ -49,6 +49,7 @@ program
 program
   .command("update")
   .description("Update ARC framework files to the latest version")
+  .option("-q, --quiet", "Suppress changelog output")
   .action(handleUpdate);
 
 program
