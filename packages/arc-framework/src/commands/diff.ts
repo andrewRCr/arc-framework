@@ -205,7 +205,15 @@ export function buildDiffOutput(result: DiffResult): string {
     for (const err of result.errors) {
       lines.push(`  .arc/${err.path}: ${err.message}`);
     }
+    lines.push("");
   }
+
+  // Summary count
+  const summary: string[] = [];
+  if (result.totalChanged > 0) summary.push(`${result.totalChanged} file(s) with changes`);
+  if (result.errors.length > 0) summary.push(`${result.errors.length} error(s)`);
+  if (result.skipped > 0) summary.push(`${result.skipped} skipped`);
+  if (summary.length > 0) lines.push(summary.join(", "));
 
   return lines.join("\n");
 }

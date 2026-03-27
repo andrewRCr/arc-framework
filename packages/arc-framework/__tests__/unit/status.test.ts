@@ -219,6 +219,42 @@ describe("runStatus", () => {
 
     expect(result.latestVersion).toBeNull();
   });
+
+  it("includes classification in FileStatus for tracked files", async () => {
+    const manifest = buildManifest({
+      files: {
+        "system/arc-config.yml": {
+          classification: "Configurable",
+          layer: "core",
+          pristine_hash: FILE_HASH,
+        },
+      },
+    });
+
+    const io = buildIO({
+      manifest,
+      files: {
+        [`${CWD}/.arc/system/arc-config.yml`]: "modified content\n",
+      },
+      arcFiles: ["system/arc-config.yml"],
+    });
+
+    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    expect(result.fileStatuses[0]!.classification).toBe("Configurable");
+  });
+
+  it("sets classification to null for new (untracked) files", async () => {
+    const manifest = buildManifest({ files: {} });
+    const io = buildIO({
+      manifest,
+      files: {},
+      arcFiles: ["custom/my-file.md"],
+    });
+
+    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const newFile = result.fileStatuses.find((f) => f.path === "custom/my-file.md");
+    expect(newFile?.classification).toBeNull();
+  });
 });
 
 describe("buildStatusSummary", () => {
@@ -244,5 +280,62 @@ describe("buildStatusSummary", () => {
     });
 
     expect(summary).not.toContain("Latest:");
+  });
+
+  it("shows classification label for modified files", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [
+        { path: "system/arc-config.yml", state: "modified", classification: "Configurable" },
+      ],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: null,
+    });
+
+    expect(summary).toContain("M [Configurable]");
+  });
+
+  it("omits classification for new files", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [
+        { path: "custom/file.md", state: "new", classification: null },
+      ],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: null,
+    });
+
+    expect(summary).toContain("? .arc/custom/file.md");
+    expect(summary).not.toContain("[");
+  });
+
+  it("shows legend when non-unmodified files exist", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [
+        { path: "README.md", state: "modified", classification: "Framework" },
+      ],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: null,
+    });
+
+    expect(summary).toContain("Legend: M=modified  !=missing  ?=new");
+  });
+
+  it("omits legend when all files are unmodified", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [
+        { path: "README.md", state: "unmodified", classification: "Framework" },
+      ],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: null,
+    });
+
+    expect(summary).not.toContain("Legend");
   });
 });

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.6.b — Path normalization for Windows (line ~813)
-**Last Completed**: Task 6.6.a — Resilience fixes
+**Next Task**: Task 6.7.a — Add "Updating ARC" section to `.arc/README.md` (line ~771)
+**Last Completed**: Task 6.6 — Update/status/diff: resilience and polish
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.6.b (path normalization for Windows)
+**Next Action**: Continue Phase 6 — start Task 6.7 (update documentation)
 
 ---
 

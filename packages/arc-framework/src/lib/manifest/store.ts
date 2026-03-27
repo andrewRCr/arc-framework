@@ -93,8 +93,8 @@ export function validateManifest(data: unknown): ValidationResult {
           `File '${path}': invalid layer '${String(fe.layer)}' (expected ${VALID_LAYERS.join(", ")})`,
         );
       }
-      if (typeof fe.pristine_hash !== "string") {
-        errors.push(`File '${path}': missing or invalid 'pristine_hash'`);
+      if (fe.pristine_hash !== undefined && typeof fe.pristine_hash !== "string") {
+        errors.push(`File '${path}': invalid 'pristine_hash' (expected string or omitted)`);
       }
     }
   }

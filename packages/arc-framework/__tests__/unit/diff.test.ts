@@ -232,4 +232,23 @@ describe("buildDiffOutput", () => {
     const output = buildDiffOutput(emptyResult);
     expect(output).toContain("No changes detected");
   });
+
+  it("shows summary count line for results with changes", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      diffs: [{ path: "README.md", diff: "--- a\n+++ b\n" }],
+      totalChanged: 1,
+    };
+    const output = buildDiffOutput(result);
+    expect(output).toContain("1 file(s) with changes");
+  });
+
+  it("includes error count in summary line", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      errors: [{ path: "missing.md", message: "File missing from .arc/" }],
+    };
+    const output = buildDiffOutput(result);
+    expect(output).toContain("1 error(s)");
+  });
 });

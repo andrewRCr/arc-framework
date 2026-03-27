@@ -10,7 +10,7 @@ import { mkdtemp, readFile, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { existsSync } from "node:fs";
 
-import { atomicWriteJson } from "../../src/lib/fs.js";
+import { atomicWriteJson, toForwardSlash } from "../../src/lib/fs.js";
 
 describe("atomicWriteJson", () => {
   let tempDir: string;
@@ -102,7 +102,7 @@ describe("atomicWriteJson", () => {
     }
   });
 
-  it("creates parent directories if they exist", async () => {
+  it("creates parent directories if they exist (caller uses ensureDir)", async () => {
     // atomicWriteJson does NOT create parent dirs — callers use ensureDir
     // This test verifies it works when the directory exists
     const subDir = join(tempDir, "system", ".internal");
@@ -113,5 +113,23 @@ describe("atomicWriteJson", () => {
 
     const content = await readFile(target, "utf-8");
     expect(JSON.parse(content)).toEqual({ ok: true });
+  });
+});
+
+describe("toForwardSlash", () => {
+  it("replaces backslashes with forward slashes", () => {
+    expect(toForwardSlash("system\\.internal\\file.json")).toBe("system/.internal/file.json");
+  });
+
+  it("leaves forward slashes unchanged", () => {
+    expect(toForwardSlash("system/.internal/file.json")).toBe("system/.internal/file.json");
+  });
+
+  it("handles mixed separators", () => {
+    expect(toForwardSlash("user\\alice/SESSION-NOTES.md")).toBe("user/alice/SESSION-NOTES.md");
+  });
+
+  it("handles empty string", () => {
+    expect(toForwardSlash("")).toBe("");
   });
 });

@@ -730,7 +730,7 @@ auto-detection promoted from backlog into Task 6.3.b.
           `buildUpdateSummary` (rebuilt label, not-found cause, invalid-json cause,
           per-file partial, no-rebuild clean)
 
-- [ ] **6.6 Update/status/diff: resilience and polish**
+- [x] **6.6 Update/status/diff: resilience and polish**
 
     **Goal:** Remaining update system improvements — downgrade guard, path normalization,
     classification handling, and CLI output improvements.
@@ -767,60 +767,38 @@ auto-detection promoted from backlog into Task 6.3.b.
           `schema_version`; integration helper uses `0.0.0` as default framework version
           to avoid triggering downgrade guard.
 
-    - [ ] **6.6.b Path normalization for Windows**
+    - [x] **6.6.b Path normalization for Windows**
 
-        - Normalize `path.relative()` output to forward slashes in manifest
-          operations (X-M05)
-            - Add a `toForwardSlash(p: string)` helper (e.g., in `fs.ts`) that replaces
-              `\\` with `/`
-            - Apply in `listArcFiles()` (`fs.ts:59`) after `relative()` call
-            - Apply in `status.ts:104` `readdir()` result processing if it uses
-              `path.relative()` internally
-            - All manifest keys must use forward slashes regardless of platform
-        - Fix `listArcFiles` regex patterns for Windows paths (CP-M03)
-            - `fs.ts:61`: `.internal` check uses string `startsWith` — already
-              works if path is normalized to forward slashes (depends on X-M05 above)
-            - `fs.ts:65`: `user/` regex uses forward slashes — works after
-              normalization
-            - Verify both patterns work after X-M05 normalization is applied; adjust
-              only if normalization isn't sufficient
-        - Standardize path construction in skills and user-sync modules (CP-M01)
-            - **Audit finding:** user-sync already enforces forward slashes via
-              `isSafePath()` validation. Skills use hardcoded forward slashes in
-              template paths. File I/O uses `path.join()` (correct cross-platform).
-            - Verify during implementation — this may resolve to no changes needed.
-              If any serialized paths bypass `isSafePath()` or use `path.sep`, fix
-              those specific sites.
+        **Changes:**
 
-    - [ ] **6.6.c CLI output improvements**
+        - **X-M05**: Added `toForwardSlash()` helper in `fs.ts`, applied in
+          `listArcFiles()` after `relative()` call. Ensures manifest keys use
+          forward slashes on all platforms. 4 new tests.
+        - **CP-M03**: Verified — `startsWith` and regex patterns in `listArcFiles`
+          already use forward slashes, work correctly after X-M05 normalization.
+          No additional changes needed.
+        - **CP-M01**: Verified — user-sync enforces forward slashes via
+          `isSafePath()`, skills use hardcoded forward slashes in template paths,
+          file I/O uses `path.join()`. No changes needed.
 
-        - Add file classification column to `arc status` output (MW-M04)
-            - Add `classification` field to `FileStatus` interface in `status.ts`
-            - Populate from `manifest.files[relativePath].classification` during the
-              tracked-files loop; new files get no classification (or "untracked")
-            - Update `buildStatusSummary()` to show classification after the state
-              label, e.g., `M [Configurable] .arc/path/file.md`
-        - Exclude `pristine_hash` from Scaffolded file manifest entries (U-L02)
-            - Make `pristine_hash` optional on `FileEntry` in `types.ts`:
-              `pristine_hash?: string`
-            - Update `buildEntry()` in `update.ts:221-225`: omit `pristine_hash` when
-              `classification === "Scaffolded"`
-            - Update `status.ts:97-99` hash comparison: guard with
-              `if (entry.pristine_hash)` before comparing (missing hash → treat as
-              untracked/skip comparison)
-            - Update `readManifest()` validation if it asserts `pristine_hash` presence
-        - Show version change in update summary (U-L03)
-            - Add `previousVersion: string` and `currentVersion: string` fields to
-              `UpdateResult`
-            - Populate from `manifest.framework_version` and `getFrameworkVersion()`
-            - Add version line to `buildUpdateSummary()` header:
-              `"0.1.0 → 0.2.0"` (or `"0.2.0 (no change)"` if same)
-        - Add legend for status labels (S-L01)
-            - Append legend section to `buildStatusSummary()` after file listing:
-              `"\nLegend: M=modified  !=missing  ?=new"`
-        - Add summary count line to `arc diff` output (D-L01)
-            - Append to `buildDiffOutput()`: `"\nN file(s) with changes"` using
-              `result.totalChanged` (already computed in `DiffResult`)
+    - [x] **6.6.c CLI output improvements**
+
+        **Changes:**
+
+        - **MW-M04**: Added `classification` field to `FileStatus` interface,
+          populated from manifest for tracked files (null for new/untracked).
+          `buildStatusSummary()` shows `M [Configurable] .arc/path` format.
+          4 new tests.
+        - **U-L02**: Made `pristine_hash` optional on `FileEntry`. `buildEntry()`
+          omits it for Scaffolded files. `status.ts` guards hash comparison.
+          `validateManifest()` accepts missing `pristine_hash`.
+        - **U-L03**: Added `previousVersion`/`currentVersion` to `UpdateResult`.
+          `buildUpdateSummary()` shows version line: `v0.1.0 → v0.2.0` or
+          `v0.1.0 (no version change)`. 2 new tests.
+        - **S-L01**: Legend line (`M=modified  !=missing  ?=new`) appended to
+          status output when non-unmodified files exist. 2 new tests.
+        - **D-L01**: Summary count line appended to diff output with file count,
+          error count, and skipped count. 2 new tests.
 
 - [ ] **6.7 Update documentation**
 

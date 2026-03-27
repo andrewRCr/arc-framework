@@ -764,6 +764,8 @@ describe("buildUpdateSummary", () => {
     unchanged: 0,
     skipped: 0,
     reclassified: [],
+    previousVersion: "0.1.0",
+    currentVersion: "0.1.0",
     skillWarnings: [],
     pristineStoreError: null,
   };
@@ -845,5 +847,27 @@ describe("buildUpdateSummary", () => {
     };
     const output = buildUpdateSummary(result);
     expect(output).not.toContain("Skill warnings");
+  });
+
+  it("shows version change when versions differ", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      previousVersion: "0.1.0",
+      currentVersion: "0.2.0",
+      updated: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("v0.1.0 → v0.2.0");
+  });
+
+  it("shows no version change when versions match", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      previousVersion: "0.1.0",
+      currentVersion: "0.1.0",
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("v0.1.0 (no version change)");
   });
 });

@@ -14,7 +14,7 @@ import { neq } from "semver";
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
 import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME } from "../lib/constants.js";
-import type { Manifest, ReadIO } from "../lib/types.js";
+import type { Classification, Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
 
@@ -25,6 +25,8 @@ export type FileState = "unmodified" | "modified" | "missing" | "new";
 export interface FileStatus {
   path: string;
   state: FileState;
+  /** File classification from manifest (null for untracked/new files). */
+  classification: Classification | null;
 }
 
 /** Result from a successful status run. */
@@ -91,21 +93,21 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
     try {
       content = await io.readFile(filePath);
     } catch {
-      fileStatuses.push({ path: relativePath, state: "missing" });
+      fileStatuses.push({ path: relativePath, state: "missing", classification: entry.classification });
       continue;
     }
 
     const currentHash = hashContent(content);
     const state: FileState =
-      currentHash === entry.pristine_hash ? "unmodified" : "modified";
-    fileStatuses.push({ path: relativePath, state });
+      entry.pristine_hash && currentHash === entry.pristine_hash ? "unmodified" : "modified";
+    fileStatuses.push({ path: relativePath, state, classification: entry.classification });
   }
 
   // Detect new files (in .arc/ but not in manifest)
   const arcFiles = await io.readdir(arcDir);
   for (const relativePath of arcFiles) {
     if (!trackedPaths.has(relativePath)) {
-      fileStatuses.push({ path: relativePath, state: "new" });
+      fileStatuses.push({ path: relativePath, state: "new", classification: null });
     }
   }
 
@@ -180,8 +182,11 @@ export function buildStatusSummary(result: StatusResult): string {
           : f.state === "missing"
             ? "!"
             : "?";
-      lines.push(`  ${label} .arc/${f.path}`);
+      const cls = f.classification ? ` [${f.classification}]` : "";
+      lines.push(`  ${label}${cls} .arc/${f.path}`);
     }
+    lines.push("");
+    lines.push("Legend: M=modified  !=missing  ?=new");
   }
 
   return lines.join("\n");

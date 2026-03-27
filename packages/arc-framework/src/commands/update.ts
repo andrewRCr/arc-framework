@@ -75,6 +75,10 @@ export interface UpdateResult {
   skipped: number;
   /** Files whose classification changed between versions (path → "Old → New"). */
   reclassified: string[];
+  /** Framework version before update. */
+  previousVersion: string;
+  /** Framework version after update. */
+  currentVersion: string;
   /** Warnings from skill regeneration (e.g., modified skill files overwritten). */
   skillWarnings: string[];
   /** Cause of whole-store pristine failure, if any (for UX messaging). */
@@ -235,11 +239,17 @@ export async function runUpdate(
     renderTemplate(
       templateDir, templateFile, tokens, config, configKeyOverrides, io.readFile,
     );
-  const buildEntry = (templateFile: string, content: string): FileEntry => ({
-    classification: classifyFile(templateFile),
-    layer: fileLayer(templateFile, arcInGitFiles),
-    pristine_hash: hashContent(content),
-  });
+  const buildEntry = (templateFile: string, content: string): FileEntry => {
+    const classification = classifyFile(templateFile);
+    const entry: FileEntry = {
+      classification,
+      layer: fileLayer(templateFile, arcInGitFiles),
+    };
+    if (classification !== "Scaffolded") {
+      entry.pristine_hash = hashContent(content);
+    }
+    return entry;
+  };
 
   // Load pristine store — JSON object keyed by output-relative path.
   // Track whole-store failure for consolidated UX messaging.
@@ -271,6 +281,8 @@ export async function runUpdate(
     unchanged: 0,
     skipped: 0,
     reclassified: [],
+    previousVersion: manifest.framework_version,
+    currentVersion,
     skillWarnings: [],
     pristineStoreError,
   };
@@ -461,6 +473,13 @@ export async function runUpdate(
  */
 export function buildUpdateSummary(result: UpdateResult): string {
   const lines: string[] = [];
+
+  // Version line
+  if (result.previousVersion === result.currentVersion) {
+    lines.push(`v${result.currentVersion} (no version change)`);
+  } else {
+    lines.push(`v${result.previousVersion} → v${result.currentVersion}`);
+  }
 
   // Summary line
   const parts: string[] = [];

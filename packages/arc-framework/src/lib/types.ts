@@ -34,7 +34,8 @@ export type Layer = "core" | "arc-in-git";
 export interface FileEntry {
   classification: Classification;
   layer: Layer;
-  pristine_hash: string;
+  /** SHA-256 of pristine content. Omitted for Scaffolded files (adopter-owned, no baseline). */
+  pristine_hash?: string;
 }
 
 /** Adopter's init configuration, stored in the manifest for re-rendering during updates. */

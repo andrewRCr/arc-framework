@@ -37,6 +37,19 @@ export async function atomicWriteJson(targetPath: string, data: unknown): Promis
 }
 
 /**
+ * Normalize a path to use forward slashes regardless of platform.
+ *
+ * Used to ensure manifest keys and serialized paths are consistent across
+ * Windows (backslash) and POSIX (forward slash) environments.
+ *
+ * @param p - Path string to normalize
+ * @returns Path with all backslashes replaced by forward slashes
+ */
+export function toForwardSlash(p: string): string {
+  return p.replaceAll("\\", "/");
+}
+
+/**
  * Recursively list files under a directory, returning paths relative to it.
  *
  * Skips the `system/.internal/` directory (framework bookkeeping, not user-facing) and
@@ -56,7 +69,7 @@ export async function listArcFiles(dir: string): Promise<string[]> {
     }
     for (const entry of entries) {
       const fullPath = join(current, entry);
-      const relPath = relative(dir, fullPath);
+      const relPath = toForwardSlash(relative(dir, fullPath));
       // Skip system/.internal directory (framework bookkeeping)
       if (relPath === "system/.internal" || relPath.startsWith("system/.internal/")) continue;
       // Skip per-identity user directories (e.g., user/alice/) — these are
