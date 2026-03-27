@@ -215,8 +215,12 @@ on **lifecycle intent** — when you intend to handle it, not what domain it's i
     - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal, gitignored,
       branch-agnostic — persists across work unit boundaries)
     <!-- arc:endif -->
-    <!-- arc:if pm.mode != arc-in-git -->
-    - `none` / `external`: per project convention (DEV-RULES.PROJECT) — default: ask user
+    <!-- arc:if pm.mode == external -->
+    - `external`: route per **Capture Routing** in [DEV-RULES.PROJECT][dev-rules-project]
+      (typically: create an issue in the external tracker)
+    <!-- arc:endif -->
+    <!-- arc:if pm.mode == none -->
+    - `none`: ask the user where to capture it
     <!-- arc:endif -->
 
 ### Atomic Task Completion
@@ -255,6 +259,9 @@ permanent record committed to git — always update it before reporting completi
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
+<!-- arc:if pm.mode == external -->
+[dev-rules-project]: ../../../reference/constitution/DEV-RULES.PROJECT.md
+<!-- arc:endif -->
 [rotate-branch]: work-unit-lifecycle/rotate-branch.md
 [arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
 [arc-ext-task-completion]: ../arc-extensions.md#post-task-completion

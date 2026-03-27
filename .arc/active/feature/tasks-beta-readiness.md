@@ -845,37 +845,52 @@ auto-detection promoted from backlog into Task 6.3.b.
     - `parseSubject` regex updated to `!?:` — handles `feat!:` and
       `feat(scope)!:` breaking change markers (L-L02)
 
-- [ ] **6.9 Workflow documentation: `pm.mode:none`, companion files, and link fixes**
+- [x] **6.9 Workflow documentation: `pm.mode:none`, companion files, and link fixes**
 
     **Goal:** Fix the default-config dead ends, close the companion file lifecycle gap, and
     fix broken links.
 
     Findings: MW-H01-H03, MW-M01-M02, MW-M09-M10, MW-L01-L04, TC-H05, TC-L04
 
-    - [ ] **6.9.a `pm.mode:none` path fixes**
-        - `02_define-project.md` Step 6: add conditional — skip ROADMAP for `pm.mode: none`,
-          suggest alternative location or skip (MW-H01)
-        - `session-init.md` Step 5: add `pm.mode: none` path for next work unit discovery —
-          skip ROADMAP/backlog reads, fall back to user-driven next steps (MW-H02)
-        - `3_process-task-loop.md`: add `none`/`external` mode routing for deferred atomic
-          tasks (MW-H03)
-        - `01_verify-and-configure.md`: make `backlog/` conditional in directory verification
-          (MW-M01)
-        - `session-init.md` Step 5: make ATOMIC-INBOX check conditional on `arc-in-git`
-          (MW-M02)
+    **Cross-cutting:** Every edit applies to both `.arc/` installed copy and
+    `packages/arc-framework/arc/` package source. Three files are template-rendered
+    (package has `.template.md`): `session-init`, `3_process-task-loop`, `02_define-project`.
+    All others are Framework-classified (identical content in both locations).
 
-    - [ ] **6.9.b Companion file lifecycle**
-        - Add companion file creation to `2_generate-tasks.md` (MW-M09)
-        - Add companion file to `archive-work-unit.md` Step 4 `git mv` list (MW-M10)
+    - [x] **6.9.a `pm.mode:none` path fixes**
 
-    - [ ] **6.9.c Link and path fixes**
-        - Fix inline link path in `integrate-planning-branch.md` (MW-L01)
-        - Remove or stub `03_configure-external-integration.md` dead link (MW-L02)
-        - Fix `.template.md` link in `AGENT-BRIEFING.CONTRIBUTOR.md` (MW-L03)
-        - Replace hardcoded repo path in `session-init.md` with placeholder (MW-L04)
-        - Fix `team/{name}/` → `user/{identity}/` in `activate-work-unit.md` (TC-H05)
-        - Fix incoming bootstrap commands to reference CLI load, not raw `git notes show`
-          (TC-L04)
+        Template sources (`packages/arc-framework/arc/`) updated with `arc:if` conditionals;
+        installed `.arc/` copies match what the template renders for this repo's config
+        (`pm.mode: arc-in-git`).
+
+        - `02_define-project.template.md`: gated Steps 6-7, `configure-external` blockquote,
+          ROADMAP/PROJECT-STATUS in Maintaining section, and corresponding link definitions
+          with `arc:if` conditionals. Renamed 7 vestigial `-template` reference link names
+          in both template and installed copy (MW-H01, MW-L02)
+        - `session-init.template.md`: added `none`/`external` discovery path via `arc:if`;
+          installed copy shows arc-in-git path only. Replaced hardcoded repo path with
+          `<your-repo-root>` placeholder (MW-H02, MW-M02, MW-L04)
+        - `3_process-task-loop.template.md`: added `external`/`none` rows to deferred atomic
+          task routing via `arc:if`; installed copy shows arc-in-git path only. Gated
+          `[dev-rules-project]` link definition inside external conditional (MW-H03)
+        - `01_verify-and-configure.md` (Framework file, no template): annotated `backlog/` as
+          `arc-in-git` only — prose conditional appropriate here (MW-M01)
+
+    - [x] **6.9.b Companion file lifecycle**
+
+        - `2_generate-tasks.md` Step 4: added companion file creation instruction with header
+          template and link to process-task-loop (MW-M09)
+        - `archive-work-unit.md` Step 4: added `atomic-{name}.md` to `git mv` list (MW-M10)
+
+    - [x] **6.9.c Link and path fixes**
+
+        - `integrate-planning-branch.md`: fixed inline link `(activate-work-unit.md)` →
+          `(../activate-work-unit.md)` (MW-L01)
+        - `AGENT-BRIEFING.CONTRIBUTOR.md`: fixed link target `session-init.template.md` →
+          `session-init.md` (MW-L03)
+        - `activate-work-unit.md`: fixed `team/{name}/` → `user/{identity}/` (TC-H05)
+        - `strategy-team-coordination.md`: replaced raw `git notes show` commands with CLI
+          `npx arc user pull/load --identity {outgoing}` (TC-L04)
 
 - [ ] **6.10 Team mode workflow integration**
 

@@ -62,4 +62,4 @@ Maintainer sessions load the full document set instead. See
 
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [arc-config]: ../arc-config.yml
-[session-init]: ../workflows/arc/session-lifecycle/session-init.template.md
+[session-init]: ../workflows/arc/session-lifecycle/session-init.md

@@ -89,6 +89,15 @@ file (`notes-{name}.md`), not in the task list.
 
 Name should match the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
 
+**Create companion file** alongside the task list: `atomic-{name}.md` (same directory, same
+name stem). This is the capture surface for atomic tasks discovered during implementation —
+see [process-task-loop § Where to Capture Atomic Tasks](3_process-task-loop.md#where-to-capture-atomic-tasks).
+Create an empty file with a header:
+
+```markdown
+# Atomic Tasks: [Work Name]
+```
+
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 
 ---

@@ -26,7 +26,7 @@ Your project's vision, scope, and success criteria — the "why" and "what" that
 other decisions. This is the canonical source for project direction; subsequent documents
 distill from it.
 
-**Template**: [META-PRD.md][meta-prd-template] → goes in `reference/`
+**Template**: [META-PRD.md][meta-prd] → goes in `reference/`
 
 **Think through**:
 
@@ -43,7 +43,7 @@ TECHNICAL-OVERVIEW (next step).
 Your technology stack, architectural patterns, and technical constraints — the "how" behind
 the project.
 
-**Template**: [TECHNICAL-OVERVIEW.md][tech-overview-template] → goes in `reference/`
+**Template**: [TECHNICAL-OVERVIEW.md][tech-overview] → goes in `reference/`
 
 **Think through**:
 
@@ -59,7 +59,7 @@ META-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a co
 briefing: project type, primary goal, technology stack, repository layout, and common
 friction points.
 
-**Template**: [AGENT-BRIEFING.PROJECT.md][agents-project-template] → stays in `system/agent/`
+**Template**: [AGENT-BRIEFING.PROJECT.md][agents-project] → stays in `system/agent/`
 
 **Think through**:
 
@@ -75,7 +75,7 @@ META-PRD and TECHNICAL-OVERVIEW carry the detail.
 Command patterns and environment context for your project — loaded every session. This is
 where the agent finds correct commands for linting, testing, building, and quality gates.
 
-**Template**: [QUICK-REFERENCE.md][quick-ref-template] → goes in `reference/`
+**Template**: [QUICK-REFERENCE.md][quick-ref] → goes in `reference/`
 
 **Think through**:
 
@@ -91,7 +91,7 @@ are defined in DEV-RULES.PROJECT, quality gate *commands* are defined here.
 Your project's quality standards and development protocols — loaded every session. The rules
 specific to your codebase, tech stack, and team.
 
-**Template**: [DEV-RULES.PROJECT.md][dev-rules-template] → goes in `reference/constitution/`
+**Template**: [DEV-RULES.PROJECT.md][dev-rules] → goes in `reference/constitution/`
 
 **Note on scope:** ARC already provides framework-level development methodology — commit
 standards, session management, verification protocols, task execution rules — via
@@ -113,7 +113,7 @@ Your execution strategy — what gets built in what order, and why. The ROADMAP 
 sequencing decisions and dependency chains so you can plan work deliberately rather than
 reactively.
 
-**Template**: [ROADMAP.md][roadmap-template] → goes in `backlog/`
+**Template**: [ROADMAP.md][roadmap] → goes in `backlog/`
 
 **Think through**:
 
@@ -127,17 +127,13 @@ reactively.
 Progress tracking for initiatives and milestones — a snapshot of where the project stands
 against the roadmap.
 
-**Template**: [PROJECT-STATUS.md][project-status-template] → goes in `reference/`
+**Template**: [PROJECT-STATUS.md][project-status] → goes in `reference/`
 
 **Think through**:
 
 - How will progress toward project goals be tracked?
 - What milestones mark significant progress?
 - How often should status be reviewed and updated?
-
-> **With External Tracker** (`pm.mode: external`) — Proceed to
-> [03_configure-external-integration.md][configure-external] to connect ARC workflows to your
-> tracker.
 
 ---
 
@@ -170,12 +166,11 @@ decisions are made, not on a schedule.
 ---
 
 [init-arc]: 01_verify-and-configure.md
-[configure-external]: 03_configure-external-integration.md
-[meta-prd-template]: ../../../../reference/META-PRD.md
-[tech-overview-template]: ../../../../reference/TECHNICAL-OVERVIEW.md
-[agents-project-template]: ../../../agent/AGENT-BRIEFING.PROJECT.md
-[quick-ref-template]: ../../../../reference/QUICK-REFERENCE.md
-[dev-rules-template]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
+[meta-prd]: ../../../../reference/META-PRD.md
+[tech-overview]: ../../../../reference/TECHNICAL-OVERVIEW.md
+[agents-project]: ../../../agent/AGENT-BRIEFING.PROJECT.md
+[quick-ref]: ../../../../reference/QUICK-REFERENCE.md
+[dev-rules]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
-[roadmap-template]: ../../../../backlog/ROADMAP.md
-[project-status-template]: ../../../../reference/PROJECT-STATUS.md
+[roadmap]: ../../../../backlog/ROADMAP.md
+[project-status]: ../../../../reference/PROJECT-STATUS.md

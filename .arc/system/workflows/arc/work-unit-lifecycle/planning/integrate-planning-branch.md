@@ -107,7 +107,7 @@ git push origin --delete {planning-branch}  # if not auto-deleted by platform
 
 Planning artifacts are now on the base branch. When ready to begin implementation:
 
-**→ [activate-work-unit.md](activate-work-unit.md)** — creates the implementation branch, moves
+**→ [activate-work-unit.md](../activate-work-unit.md)** — creates the implementation branch, moves
 artifacts from backlog to active (arc-in-git), updates tracking state.
 
 Activation may happen immediately or in a later session. The artifacts are stable on the base branch.

@@ -131,6 +131,7 @@ mkdir -p .arc/reference/archive/{quarter}/{category}/{NN}_{name}
 # Move all files (adjust list based on what exists for this work)
 git mv .arc/active/{category}/prd-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 git mv .arc/active/{category}/tasks-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
+git mv .arc/active/{category}/atomic-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 git mv .arc/active/{category}/notes-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 ```

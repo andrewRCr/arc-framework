@@ -128,15 +128,14 @@ The incoming developer runs a standard session-init with these additions:
    fetch their namespace and load their context:
 
    ```bash
-   # Fetch outgoing developer's user directory via git notes
-   git fetch origin refs/notes/arc/user/{outgoing}:refs/notes/arc/user/{outgoing}
-
-   # Read their context (inspect, don't overwrite your own user dir)
-   git notes --ref=arc/user/{outgoing} show HEAD
+   # Fetch and load outgoing developer's user directory via CLI
+   npx arc user pull --identity {outgoing}
+   npx arc user load --identity {outgoing}
    ```
 
-   This supplements WORK-STATUS.md with qualitative context — decisions, gotchas, and approach
-   notes that aren't captured in tracked artifacts.
+   The CLI extracts the outgoing developer's SESSION-NOTES and workspace files into a
+   readable format. This supplements WORK-STATUS.md with qualitative context — decisions,
+   gotchas, and approach notes that aren't captured in tracked artifacts.
 
 2. **Apply the agent-switching filter.** If the outgoing developer used a different AI agent,
    extract factual content (file references, decisions, known risks) and disregard agent-specific

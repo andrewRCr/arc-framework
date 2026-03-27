@@ -24,7 +24,7 @@ for ongoing health checks, use `/arc-verify` instead.
 Confirm that `.arc/` was created at the repo root with the expected structure:
 
 - `active/` — Current work tracking (WORK-STATUS, task lists)
-- `backlog/` — Future work pipeline (ROADMAP, backlogs)
+- `backlog/` — Future work pipeline (ROADMAP, backlogs) · `arc-in-git` only
 - `reference/` — Constitutional documents, strategies, ADRs
 - `system/` — Agent configs, workflows, githooks, settings
 

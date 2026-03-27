@@ -114,7 +114,7 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 
 > **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
 > and the update applies to the whole branch. Other developers joining the work unit establish
-> their session context via `team/{name}/SESSION-NOTES.md` during their first
+> their session context via `user/{identity}/SESSION-NOTES.md` during their first
 > [session initialization][session-init]. See [Team Coordination Strategy][team-coordination]
 > § Workflow Adaptations.
 
