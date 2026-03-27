@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.6.a — Resilience fixes (line ~734)
-**Last Completed**: Task 6.5 — Pristine store: atomic writes, corruption resilience, and recovery UX
+**Next Task**: Task 6.6.b — Path normalization for Windows (line ~813)
+**Last Completed**: Task 6.6.a — Resilience fixes
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.6.a (resilience fixes)
+**Next Action**: Continue Phase 6 — start Task 6.6.b (path normalization for Windows)
 
 ---
 

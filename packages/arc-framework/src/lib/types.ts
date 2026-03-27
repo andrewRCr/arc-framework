@@ -47,6 +47,7 @@ export interface InstallConfig {
 
 /** Top-level manifest structure (`.arc/system/.internal/manifest.json`). */
 export interface Manifest {
+  schema_version: number;
   framework_version: string;
   installed_at: string;
   install_config: InstallConfig;

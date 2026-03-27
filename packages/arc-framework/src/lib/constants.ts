@@ -25,6 +25,9 @@ export const MANIFEST_FILENAME = "manifest.json";
 /** Filename for the pristine store inside .internal/. */
 export const PRISTINE_FILENAME = "pristine.json";
 
+/** Current manifest schema version. Increment when the manifest structure changes. */
+export const MANIFEST_SCHEMA_VERSION = 1;
+
 // --- Config Keys ---
 
 /** Config key for Project Management mode. */

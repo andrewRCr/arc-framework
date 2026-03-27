@@ -180,6 +180,23 @@ describe("runStatus", () => {
     expect(newFile!.state).toBe("new");
   });
 
+  it("uses semver comparison for version mismatch (not string equality)", async () => {
+    // String comparison: "0.9.0" > "0.10.0" (wrong). Semver: 0.10.0 > 0.9.0 (correct).
+    const manifest = buildManifest({ framework_version: "0.10.0" });
+    const io = buildIO({ manifest, arcFiles: [] });
+
+    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "0.10.0" });
+    expect(result.updateAvailable).toBe(false);
+  });
+
+  it("detects update available with semver pre-release versions", async () => {
+    const manifest = buildManifest({ framework_version: "0.2.0-beta.1" });
+    const io = buildIO({ manifest, arcFiles: [] });
+
+    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "0.2.0" });
+    expect(result.updateAvailable).toBe(true);
+  });
+
   it("passes latestVersion through to result", async () => {
     const manifest = buildManifest({ framework_version: "1.0.0" });
     const io = buildIO({ manifest, arcFiles: [] });

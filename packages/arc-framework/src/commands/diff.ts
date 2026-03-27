@@ -121,7 +121,11 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     try {
       currentContent = await io.readFile(currentPath);
     } catch {
-      // File missing from .arc/ — nothing to diff
+      // File missing from .arc/ — report as error (consistent with status command)
+      result.errors.push({
+        path: relativePath,
+        message: `File missing from .arc/ — tracked in manifest but not on disk.`,
+      });
       continue;
     }
 

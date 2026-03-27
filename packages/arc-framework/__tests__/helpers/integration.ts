@@ -28,6 +28,7 @@ import type { GitExec } from "../../src/lib/git/index.js";
 import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
+import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -242,7 +243,8 @@ export async function setupInitialState(
   }
 
   const manifest: Manifest = {
-    framework_version: "1.0.0",
+    schema_version: MANIFEST_SCHEMA_VERSION,
+    framework_version: "0.0.0",
     installed_at: "2026-01-01T00:00:00.000Z",
     install_config: installConfig ?? {
       project_name: "Test Project",

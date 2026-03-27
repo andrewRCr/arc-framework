@@ -27,11 +27,13 @@ import {
 } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
+import { lt as semverLt } from "semver";
 import { atomicWriteJson } from "../lib/fs.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
 import {
   ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
+  MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
 import {
   generateSkills,
@@ -71,6 +73,10 @@ export interface UpdateResult {
   unchanged: number;
   /** Scaffolded files skipped (adopter-owned). */
   skipped: number;
+  /** Files whose classification changed between versions (path → "Old → New"). */
+  reclassified: string[];
+  /** Warnings from skill regeneration (e.g., modified skill files overwritten). */
+  skillWarnings: string[];
   /** Cause of whole-store pristine failure, if any (for UX messaging). */
   pristineStoreError: PristineStoreError;
 }
@@ -183,6 +189,17 @@ export async function runUpdate(
     throw manifestMissingError("update");
   }
 
+  // Downgrade prevention — block if current CLI version is lower than installed
+  const currentVersion = getFrameworkVersion();
+  if (semverLt(currentVersion, manifest.framework_version)) {
+    throw new UserFacingError({
+      code: "MANIFEST_VERSION_UNSUPPORTED",
+      whatHappened: "Cannot downgrade the ARC framework",
+      why: `The installed version (${manifest.framework_version}) is newer than the current CLI version (${currentVersion}). Downgrading risks data loss in manifests and pristine stores.`,
+      whatToDo: `Use arc CLI version ${manifest.framework_version} or newer, or reinstall with 'arc init' if you intentionally want to start fresh.`,
+    });
+  }
+
   // Rebuild config/token maps from stored install_config
   const { install_config: ic } = manifest;
   const config = buildConfigMap(ic);
@@ -253,6 +270,8 @@ export async function runUpdate(
     keptForReview: [],
     unchanged: 0,
     skipped: 0,
+    reclassified: [],
+    skillWarnings: [],
     pristineStoreError,
   };
 
@@ -266,11 +285,16 @@ export async function runUpdate(
     if (!templateFile) continue;
     const classification = classifyFile(templateFile);
 
+    // Detect classification changes between versions
+    const existing = manifest.files[outputPath];
+    if (existing && existing.classification !== classification) {
+      result.reclassified.push(`${outputPath}: ${existing.classification} → ${classification}`);
+    }
+
     // Skip Scaffolded files — adopter-owned, no merge
     if (classification === "Scaffolded") {
-      const existing = manifest.files[outputPath];
       if (existing) {
-        newManifestFiles[outputPath] = existing;
+        newManifestFiles[outputPath] = { ...existing, classification };
       }
       result.skipped++;
       continue;
@@ -401,6 +425,7 @@ export async function runUpdate(
     { readFile: io.readFile },
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
+  result.skillWarnings = skillResult.warnings;
 
   // Write managed gitignore block with all ARC entries
   const gitignorePath = join(cwd, ".gitignore");
@@ -414,6 +439,7 @@ export async function runUpdate(
   // Write updated manifest and pristine store
   await ensureDir(internalDir, io.mkdir);
   const newManifest: Manifest = {
+    schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: getFrameworkVersion(),
     installed_at: manifest.installed_at,
     install_config: ic,
@@ -488,6 +514,24 @@ export function buildUpdateSummary(result: UpdateResult): string {
     }
     lines.push("");
     lines.push("Your customizations are preserved.");
+  }
+
+  // Skill regeneration warnings
+  if (result.skillWarnings.length > 0) {
+    lines.push("");
+    lines.push("Skill warnings:");
+    for (const warning of result.skillWarnings) {
+      lines.push(`  ${warning}`);
+    }
+  }
+
+  // Reclassified files
+  if (result.reclassified.length > 0) {
+    lines.push("");
+    lines.push("File classification changed:");
+    for (const entry of result.reclassified) {
+      lines.push(`  ${entry}`);
+    }
   }
 
   // Kept-for-review details

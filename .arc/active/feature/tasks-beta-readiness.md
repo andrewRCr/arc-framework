@@ -740,26 +740,87 @@ auto-detection promoted from backlog into Task 6.3.b.
     Findings: U-M01, U-M02, U-M04, X-M02, S-M02, D-M02, CP-M01, CP-M03, X-M05, U-L02,
     U-L03, S-L01, D-L01
 
-    - [ ] **6.6.a Resilience fixes**
-        - Add semver downgrade prevention in `arc update` — hard block with
-          `UserFacingError`, not a warning (U-M01)
-        - Handle files changing classification between versions (U-M02)
-        - Surface skill regeneration warnings in update summary (U-M04)
-        - Add `schema_version` field to manifest (X-M02)
-        - Fix version comparison to use semver, not string equality (S-M02)
-        - Show missing files in `arc diff` consistent with `arc status` (D-M02)
+    - [x] **6.6.a Resilience fixes**
+
+        **Changes:**
+
+        - **X-M02 — Manifest schema versioning:** Added `schema_version: number` to
+          `Manifest` interface, `MANIFEST_SCHEMA_VERSION = 1` constant, migration
+          infrastructure in `manifest/store.ts` (sequential registry with v0→v1 entry),
+          future version rejection with `MANIFEST_VERSION_UNSUPPORTED` UserFacingError.
+          Init and update both write `schema_version`. 4 new tests.
+        - **S-M02 — Semver version comparison:** Added `semver` dependency + `@types/semver`.
+          Replaced string equality in `status.ts` with `semver.neq()`. 2 new tests.
+        - **U-M01 — Downgrade prevention:** Early check in `runUpdate()` using `semver.lt()`.
+          Throws `UserFacingError` if CLI version < installed version. 2 new integration tests.
+        - **U-M02 — Classification change handling:** Detect reclassification in the "keep"
+          loop, update manifest entry's classification, report in `reclassified` array on
+          `UpdateResult` and in `buildUpdateSummary()`. Added constraint comment at
+          `SCAFFOLDED_FILES` definition. 1 new integration test.
+        - **U-M04 — Skill warnings:** Added `skillWarnings` field to `UpdateResult`,
+          captured from `skillResult.warnings`, rendered in `buildUpdateSummary()`. 2 new
+          summary tests.
+        - **D-M02 — Missing files in diff:** Changed silent `continue` to error push in
+          `diff.ts` catch block — missing files now appear in diff output errors,
+          consistent with status `!` reporting. 1 new test.
+        - Test helpers updated: `buildManifest` factory and `setupInitialState` include
+          `schema_version`; integration helper uses `0.0.0` as default framework version
+          to avoid triggering downgrade guard.
 
     - [ ] **6.6.b Path normalization for Windows**
-        - Normalize `path.relative()` output to forward slashes in manifest operations (X-M05)
+
+        - Normalize `path.relative()` output to forward slashes in manifest
+          operations (X-M05)
+            - Add a `toForwardSlash(p: string)` helper (e.g., in `fs.ts`) that replaces
+              `\\` with `/`
+            - Apply in `listArcFiles()` (`fs.ts:59`) after `relative()` call
+            - Apply in `status.ts:104` `readdir()` result processing if it uses
+              `path.relative()` internally
+            - All manifest keys must use forward slashes regardless of platform
         - Fix `listArcFiles` regex patterns for Windows paths (CP-M03)
+            - `fs.ts:61`: `.internal` check uses string `startsWith` — already
+              works if path is normalized to forward slashes (depends on X-M05 above)
+            - `fs.ts:65`: `user/` regex uses forward slashes — works after
+              normalization
+            - Verify both patterns work after X-M05 normalization is applied; adjust
+              only if normalization isn't sufficient
         - Standardize path construction in skills and user-sync modules (CP-M01)
+            - **Audit finding:** user-sync already enforces forward slashes via
+              `isSafePath()` validation. Skills use hardcoded forward slashes in
+              template paths. File I/O uses `path.join()` (correct cross-platform).
+            - Verify during implementation — this may resolve to no changes needed.
+              If any serialized paths bypass `isSafePath()` or use `path.sep`, fix
+              those specific sites.
 
     - [ ] **6.6.c CLI output improvements**
+
         - Add file classification column to `arc status` output (MW-M04)
+            - Add `classification` field to `FileStatus` interface in `status.ts`
+            - Populate from `manifest.files[relativePath].classification` during the
+              tracked-files loop; new files get no classification (or "untracked")
+            - Update `buildStatusSummary()` to show classification after the state
+              label, e.g., `M [Configurable] .arc/path/file.md`
         - Exclude `pristine_hash` from Scaffolded file manifest entries (U-L02)
+            - Make `pristine_hash` optional on `FileEntry` in `types.ts`:
+              `pristine_hash?: string`
+            - Update `buildEntry()` in `update.ts:221-225`: omit `pristine_hash` when
+              `classification === "Scaffolded"`
+            - Update `status.ts:97-99` hash comparison: guard with
+              `if (entry.pristine_hash)` before comparing (missing hash → treat as
+              untracked/skip comparison)
+            - Update `readManifest()` validation if it asserts `pristine_hash` presence
         - Show version change in update summary (U-L03)
-        - Add legend for status labels (`M`=modified, `!`=missing, `?`=new) (S-L01)
+            - Add `previousVersion: string` and `currentVersion: string` fields to
+              `UpdateResult`
+            - Populate from `manifest.framework_version` and `getFrameworkVersion()`
+            - Add version line to `buildUpdateSummary()` header:
+              `"0.1.0 → 0.2.0"` (or `"0.2.0 (no change)"` if same)
+        - Add legend for status labels (S-L01)
+            - Append legend section to `buildStatusSummary()` after file listing:
+              `"\nLegend: M=modified  !=missing  ?=new"`
         - Add summary count line to `arc diff` output (D-L01)
+            - Append to `buildDiffOutput()`: `"\nN file(s) with changes"` using
+              `result.totalChanged` (already computed in `DiffResult`)
 
 - [ ] **6.7 Update documentation**
 

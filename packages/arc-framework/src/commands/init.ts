@@ -24,6 +24,7 @@ import { getFrameworkVersion } from "../lib/version.js";
 import {
   ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
+  MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
 import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
 import {
@@ -190,6 +191,7 @@ export async function runInit(
 
   const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);
   const manifest: Manifest = {
+    schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: getFrameworkVersion(),
     installed_at: new Date().toISOString(),
     install_config: {

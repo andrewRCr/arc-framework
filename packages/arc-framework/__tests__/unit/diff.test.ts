@@ -141,6 +141,27 @@ describe("runDiff", () => {
     expect(result.skipped).toBe(1);
   });
 
+  it("reports missing file in errors instead of silently skipping", async () => {
+    const manifest = buildManifest({
+      files: {
+        "system/arc-config.yml": {
+          classification: "Configurable",
+          layer: "core",
+          pristine_hash: FILE_HASH,
+        },
+      },
+    });
+
+    // No files on disk at all
+    const io = buildIO({ manifest, files: {} });
+
+    const result = await runDiff({ cwd: CWD, io });
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.path).toBe("system/arc-config.yml");
+    expect(result.errors[0]!.message).toContain("missing");
+  });
+
   it("reports clear error for missing pristine (not fatal)", async () => {
     const manifest = buildManifest({
       files: {

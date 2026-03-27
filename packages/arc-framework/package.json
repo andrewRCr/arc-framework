@@ -22,11 +22,13 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "semver": "^7.7.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.13.10",
+    "@types/semver": "^7.7.1",
     "eslint": "^10.1.0",
     "shellcheck": "^4.1.0",
     "tsup": "^8.4.0",

@@ -38,6 +38,8 @@ import {
 import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
 import type { UpdateResult } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
+import { UserFacingError } from "../../src/lib/errors.js";
+import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
 import type { Recipe, Manifest } from "../../src/lib/types.js";
 
 // --- Minimal recipe for synthetic tests ---
@@ -104,6 +106,107 @@ describe("update integration — baseline (real recipe)", () => {
 
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+  });
+});
+
+describe("update integration — downgrade prevention", () => {
+  let tempDir: string;
+  let templateDir: string;
+
+  const baseRecipeFiles = [FRAMEWORK_FILE, CONFIGURABLE_FILE, SCAFFOLDED_FILE];
+  const baseRecipe = makeRecipe(baseRecipeFiles);
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-update-test-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+    if (templateDir) {
+      await rm(templateDir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks downgrade with UserFacingError", async () => {
+    const templateFiles = {
+      [FRAMEWORK_FILE]: "# Framework file\n",
+      [CONFIGURABLE_FILE]: "# Configurable\n",
+      [SCAFFOLDED_FILE]: "# Scaffolded\n",
+    };
+    templateDir = await createTemplateDir(templateFiles);
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Framework file\n", classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: "# Configurable\n", classification: "Configurable" },
+      [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
+    });
+
+    // Overwrite manifest with a future version
+    const manifest = await readManifestFile(tempDir);
+    manifest.framework_version = "99.0.0";
+    await writeFile(
+      manifestPath(tempDir),
+      JSON.stringify(manifest, null, 2) + "\n",
+      "utf-8",
+    );
+
+    await expect(
+      runUpdate({
+        cwd: tempDir,
+        io: makeIOContext(tempDir),
+        templateDir,
+        recipe: baseRecipe,
+      }),
+    ).rejects.toThrow(UserFacingError);
+  });
+
+  it("allows same-version update (no downgrade)", async () => {
+    const templateFiles = {
+      [FRAMEWORK_FILE]: "# Framework file\n",
+      [CONFIGURABLE_FILE]: "# Configurable\n",
+      [SCAFFOLDED_FILE]: "# Scaffolded\n",
+    };
+    templateDir = await createTemplateDir(templateFiles);
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Framework file\n", classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: "# Configurable\n", classification: "Configurable" },
+      [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
+    });
+
+    // Should not throw — same version is allowed
+    await expect(
+      runUpdate({
+        cwd: tempDir,
+        io: makeIOContext(tempDir),
+        templateDir,
+        recipe: baseRecipe,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it("detects classification change and reports in result", async () => {
+    const templateFiles = {
+      [FRAMEWORK_FILE]: "# Framework file\n",
+      [CONFIGURABLE_FILE]: "# Configurable\n",
+      [SCAFFOLDED_FILE]: "# Scaffolded\n",
+    };
+    templateDir = await createTemplateDir(templateFiles);
+    // Set up initial state with CONFIGURABLE_FILE classified as Framework (simulate change)
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Framework file\n", classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: "# Configurable\n", classification: "Framework" },
+      [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
+    });
+
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe: baseRecipe,
+    });
+
+    // CONFIGURABLE_FILE was Framework, now Configurable — should be in reclassified
+    expect(result.reclassified).toHaveLength(1);
+    expect(result.reclassified[0]).toContain("Framework → Configurable");
   });
 });
 
@@ -660,6 +763,8 @@ describe("buildUpdateSummary", () => {
     keptForReview: [],
     unchanged: 0,
     skipped: 0,
+    reclassified: [],
+    skillWarnings: [],
     pristineStoreError: null,
   };
 
@@ -720,5 +825,25 @@ describe("buildUpdateSummary", () => {
     const output = buildUpdateSummary(result);
     expect(output).not.toContain("rebuilt");
     expect(output).not.toContain("Pristine");
+  });
+
+  it("shows skill warnings when present", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      unchanged: 1,
+      skillWarnings: ["Modified skill overwritten: .agents/skills/arc-resume/SKILL.md"],
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("Skill warnings:");
+    expect(output).toContain("Modified skill overwritten");
+  });
+
+  it("omits skill warnings section when no warnings", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      updated: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).not.toContain("Skill warnings");
   });
 });

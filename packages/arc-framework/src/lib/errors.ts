@@ -19,7 +19,8 @@ export type ArcErrorCode =
   | "IDENTITY_MISSING"
   | "ALREADY_INSTALLED"
   | "NO_ARC_INSTALLATION"
-  | "RECIPE_INVALID";
+  | "RECIPE_INVALID"
+  | "MANIFEST_VERSION_UNSUPPORTED";
 
 /**
  * Base error class for all ARC CLI errors.

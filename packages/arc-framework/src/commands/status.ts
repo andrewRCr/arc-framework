@@ -9,6 +9,7 @@
  */
 
 import { join } from "node:path";
+import { neq } from "semver";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
@@ -113,7 +114,7 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
 
   // Version comparison
   const versionInstalled = manifest.framework_version;
-  const updateAvailable = versionInstalled !== frameworkVersion;
+  const updateAvailable = neq(versionInstalled, frameworkVersion);
 
   return {
     fileStatuses,

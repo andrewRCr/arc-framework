@@ -7,6 +7,8 @@ import {
   readManifest,
 } from "../../../src/lib/manifest/store.js";
 import { buildManifest, buildFileEntry } from "../../helpers/factories.js";
+import { MANIFEST_SCHEMA_VERSION } from "../../../src/lib/constants.js";
+import { UserFacingError } from "../../../src/lib/errors.js";
 import type { Manifest } from "../../../src/lib/types.js";
 
 const readFileFn = (path: string): Promise<string> => readFile(path, "utf-8");
@@ -132,5 +134,37 @@ describe("readManifest", () => {
     const filePath = join(tmpDir, "bad.json");
     await writeFile(filePath, "not json {{{", "utf-8");
     await expect(readManifest(filePath, readFileFn)).rejects.toThrow("Malformed JSON");
+  });
+
+  it("migrates manifest without schema_version to version 1", async () => {
+    const manifest = validManifest();
+    const { schema_version: _, ...withoutSchema } = manifest;
+    const filePath = join(tmpDir, "manifest.json");
+    await writeFile(filePath, JSON.stringify(withoutSchema, null, 2), "utf-8");
+    const loaded = await readManifest(filePath, readFileFn);
+    expect(loaded?.schema_version).toBe(1);
+  });
+
+  it("rejects manifest with schema_version higher than supported", async () => {
+    const manifest = { ...validManifest(), schema_version: MANIFEST_SCHEMA_VERSION + 1 };
+    const filePath = join(tmpDir, "manifest.json");
+    await writeFile(filePath, JSON.stringify(manifest, null, 2), "utf-8");
+    await expect(readManifest(filePath, readFileFn)).rejects.toThrow(UserFacingError);
+  });
+
+  it("accepts manifest with current schema_version", async () => {
+    const manifest = validManifest();
+    const filePath = join(tmpDir, "manifest.json");
+    await writeManifestHelper(filePath, manifest);
+    const loaded = await readManifest(filePath, readFileFn);
+    expect(loaded?.schema_version).toBe(MANIFEST_SCHEMA_VERSION);
+  });
+
+  it("round-trips schema_version through write and read", async () => {
+    const manifest = validManifest();
+    const filePath = join(tmpDir, "manifest.json");
+    await writeManifestHelper(filePath, manifest);
+    const loaded = await readManifest(filePath, readFileFn);
+    expect(loaded).toEqual(manifest);
   });
 });
