@@ -675,7 +675,7 @@ auto-detection promoted from backlog into Task 6.3.b.
           pull failure (identity verification via `ls-remote`), and stale file warnings
           (backup location and recovery)
 
-- [ ] **6.5 Pristine store: atomic writes, corruption resilience, and recovery UX**
+- [x] **6.5 Pristine store: atomic writes, corruption resilience, and recovery UX**
 
     **Goal:** Prevent partial-write corruption via atomic writes and improve the developer
     experience when pristine recovery triggers.
@@ -693,33 +693,42 @@ auto-detection promoted from backlog into Task 6.3.b.
     **Dependency note:** Task 6.6 modifies the same files (`update.ts`, `status.ts`,
     `diff.ts`). Complete 6.5 before starting 6.6.
 
-    - [ ] **6.5.a Atomic writes for manifest and pristine store**
+    - [x] **6.5.a Atomic writes for manifest and pristine store**
 
-        Build `test-first` (one behavior at a time):
-        - Write `manifest.json` via temp file + `fs.rename()` (U-H01)
-        - Write `pristine.json` via same atomic pattern
-        - Process kill between temp write and rename leaves original intact
-        - Temp file cleaned up on write failure (ENOSPC, permissions)
-        - Fix pristine repair to use rendered framework content as baseline, not
-          adopter's current content (U-H02)
+        **Changes:**
 
-    - [ ] **6.5.b Recovery UX improvements**
+        - `src/lib/fs.ts`: Added `atomicWriteJson()` — writes JSON via same-directory temp
+          file (`.{name}.tmp`) + `fs.rename()`. Avoids `EXDEV` by using the target's
+          directory, not `os.tmpdir()`. 6 new unit tests in `__tests__/unit/fs.test.ts`.
+        - `src/commands/init.ts`: Replaced 2 `io.writeFile` calls for manifest/pristine
+          with `atomicWriteJson`. Unit tests updated to assert via module mock.
+        - `src/commands/update.ts`: Replaced 2 `io.writeFile` calls for manifest/pristine
+          with `atomicWriteJson`. One-pass pristine repair: uses `updated` (rendered
+          framework content) as effective base instead of `current` (adopter content),
+          falls through to merge (base===updated → "unchanged", preserves adopter file).
+          Integration tests updated to reflect one-pass behavior.
+        - Design: standalone utility (not IOContext change) — targeted to state files,
+          explicit about what needs protection, directly unit-testable
 
-        Improve developer experience when pristine is missing or corrupt.
+    - [x] **6.5.b Recovery UX improvements**
 
-        - Detect whole-store failure (JSON parse error) vs per-file miss and surface a
-          single top-level message instead of per-file noise (U-M03, D-M01)
-        - `arc update`: when entire pristine is missing, show
-          `"Pristine baseline was missing or corrupt — rebuilt from current files.
-          Run 'arc update' again to apply framework changes."` Use "rebuilt" not
-          "repaired" in output and `UpdateResult` field naming
-        - `arc diff`: when entire pristine is missing, show single message
-          `"Cannot show diffs — no pristine baseline. Run 'arc update' to rebuild."`
-          instead of N repeated per-file errors
-        - Log the cause when detectable: `"pristine.json not found"` vs
-          `"pristine.json contains invalid JSON"` (currently silent catch)
-        - `arc status`: unaffected (uses `pristine_hash` from manifest, not pristine
-          store) — no changes needed (S-M01 already covered by manifest hash)
+        **Changes:**
+
+        - `src/commands/update.ts`: Renamed `pristineRepaired` → `pristineRebuilt` in
+          `UpdateResult` and all references. Added `PristineStoreError` type and
+          `pristineStoreError` field to `UpdateResult`. Pristine load block now detects
+          cause ("not-found" vs "invalid-json"). `buildUpdateSummary` shows consolidated
+          whole-store message (with cause) or per-file list depending on failure mode.
+          Summary text changed: "rebuilt" not "repaired", "Your customizations are
+          preserved" instead of "Run again to merge".
+        - `src/commands/diff.ts`: Added `pristineStoreMissing` to `DiffResult`.
+          `buildDiffOutput` shows single consolidated message ("Cannot show diffs — no
+          pristine baseline. Run 'arc update' to rebuild.") instead of N per-file errors
+          when entire store is missing.
+        - `arc status`: confirmed unaffected (uses manifest hash, not pristine store).
+        - 8 new tests: 3 `buildDiffOutput` (whole-store, partial, clean), 5
+          `buildUpdateSummary` (rebuilt label, not-found cause, invalid-json cause,
+          per-file partial, no-rebuild clean)
 
 - [ ] **6.6 Update/status/diff: resilience and polish**
 

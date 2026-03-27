@@ -7,9 +7,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { runDiff } from "../../src/commands/diff.js";
+import { runDiff, buildDiffOutput } from "../../src/commands/diff.js";
 
-import type { DiffIOContext } from "../../src/commands/diff.js";
+import type { DiffIOContext, DiffResult } from "../../src/commands/diff.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { hashContent } from "../../src/lib/manifest/index.js";
 import { buildManifest } from "../helpers/factories.js";
@@ -166,5 +166,49 @@ describe("runDiff", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]!.path).toBe("system/arc-config.yml");
     expect(result.errors[0]!.message).toContain("pristine");
+    expect(result.pristineStoreMissing).toBe(true);
+  });
+});
+
+describe("buildDiffOutput", () => {
+  const emptyResult: DiffResult = {
+    diffs: [],
+    errors: [],
+    totalChanged: 0,
+    skipped: 0,
+    pristineStoreMissing: false,
+  };
+
+  it("shows consolidated message when entire pristine store is missing", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      pristineStoreMissing: true,
+      errors: [{ path: "README.md", message: "No pristine baseline found" }],
+    };
+
+    const output = buildDiffOutput(result);
+
+    expect(output).toContain("Cannot show diffs");
+    expect(output).toContain("Run 'arc update' to rebuild");
+    // Should NOT list per-file errors
+    expect(output).not.toContain("README.md");
+  });
+
+  it("shows per-file errors when only some pristine entries are missing", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      pristineStoreMissing: false,
+      errors: [{ path: "README.md", message: "No pristine baseline found" }],
+    };
+
+    const output = buildDiffOutput(result);
+
+    expect(output).toContain("README.md");
+    expect(output).not.toContain("Cannot show diffs");
+  });
+
+  it("shows no changes for clean result", () => {
+    const output = buildDiffOutput(emptyResult);
+    expect(output).toContain("No changes detected");
   });
 });

@@ -7,6 +7,17 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+
+// Mock atomicWriteJson — unit tests use virtual IO; the real function
+// needs a real filesystem. Atomic write behavior is tested in fs.test.ts.
+const { atomicWriteJson } = vi.hoisted(() => ({
+  atomicWriteJson: vi.fn(async () => {}),
+}));
+vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/fs.js")>()),
+  atomicWriteJson,
+}));
+
 import {
   isArcInstalled,
   runInit,
@@ -606,6 +617,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
+    atomicWriteJson.mockClear();
     await runInit({
       cwd: "/project",
       io,
@@ -616,13 +628,13 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-    const manifestWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/system/.internal/manifest.json",
+    // Manifest written via atomicWriteJson (not io.writeFile)
+    const manifestCall = atomicWriteJson.mock.calls.find(
+      (c: [string, unknown]) => (c[0] as string).endsWith("manifest.json"),
     );
-    expect(manifestWrite).toBeDefined();
+    expect(manifestCall).toBeDefined();
 
-    const manifest = JSON.parse(manifestWrite![1]) as Record<string, unknown>;
+    const manifest = manifestCall![1] as Record<string, unknown>;
     expect(manifest.framework_version).toBe("0.0.0");
     expect(manifest.install_config).toEqual({
       project_name: "Test Project",
@@ -650,6 +662,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
+    atomicWriteJson.mockClear();
     await runInit({
       cwd: "/project",
       io,
@@ -660,15 +673,13 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-
-    // pristine.json written to .internal/
-    const pristineWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/system/.internal/pristine.json",
+    // Pristine written via atomicWriteJson (not io.writeFile)
+    const pristineCall = atomicWriteJson.mock.calls.find(
+      (c: [string, unknown]) => (c[0] as string).endsWith("pristine.json"),
     );
-    expect(pristineWrite).toBeDefined();
+    expect(pristineCall).toBeDefined();
 
-    const pristineStore = JSON.parse(pristineWrite![1]) as Record<string, string>;
+    const pristineStore = pristineCall![1] as Record<string, string>;
 
     // Framework file included in pristine store
     expect(pristineStore["README.md"]).toBe("# framework file");

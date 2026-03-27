@@ -30,6 +30,7 @@ import {
   resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
 import { UserFacingError } from "../lib/errors.js";
+import { atomicWriteJson } from "../lib/fs.js";
 
 // --- Types ---
 
@@ -199,14 +200,8 @@ export async function runInit(
     },
     files: manifestFiles,
   };
-  await io.writeFile(
-    join(internalDir, MANIFEST_FILENAME),
-    JSON.stringify(manifest, null, 2) + "\n",
-  );
-  await io.writeFile(
-    join(internalDir, PRISTINE_FILENAME),
-    JSON.stringify(pristineStore, null, 2) + "\n",
-  );
+  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
 
   // Set executable permissions on hooks and shell scripts
   for (const relPath of filesWritten) {

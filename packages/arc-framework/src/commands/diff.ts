@@ -42,6 +42,8 @@ export interface DiffResult {
   totalChanged: number;
   /** Number of Scaffolded files skipped. */
   skipped: number;
+  /** True when the entire pristine store failed to load (not just individual entries). */
+  pristineStoreMissing: boolean;
 }
 
 /** I/O dependencies for the diff command. */
@@ -83,13 +85,18 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     throw manifestMissingError("diff");
   }
 
-  // Load pristine store
+  // Load pristine store — track whole-store failure for consolidated messaging
   let pristineStore: Record<string, string> = {};
+  let pristineStoreMissing = false;
   try {
     const raw = await io.readFile(pristineStorePath);
-    pristineStore = JSON.parse(raw) as Record<string, string>;
+    try {
+      pristineStore = JSON.parse(raw) as Record<string, string>;
+    } catch {
+      pristineStoreMissing = true; // Invalid JSON
+    }
   } catch {
-    // Missing or corrupt — will report errors for affected files
+    pristineStoreMissing = true; // File not found or read error
   }
 
   const result: DiffResult = {
@@ -97,6 +104,7 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     errors: [],
     totalChanged: 0,
     skipped: 0,
+    pristineStoreMissing,
   };
 
   for (const [relativePath, entry] of Object.entries(manifest.files)) {
@@ -166,6 +174,13 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
  */
 export function buildDiffOutput(result: DiffResult): string {
   const lines: string[] = [];
+
+  // Whole-store missing — single consolidated message instead of per-file errors
+  if (result.pristineStoreMissing && result.diffs.length === 0) {
+    lines.push("Cannot show diffs — no pristine baseline.");
+    lines.push("Run 'arc update' to rebuild.");
+    return lines.join("\n");
+  }
 
   if (result.diffs.length === 0 && result.errors.length === 0) {
     lines.push("No changes detected.");

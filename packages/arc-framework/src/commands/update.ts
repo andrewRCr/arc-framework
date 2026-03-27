@@ -27,6 +27,7 @@ import {
 } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
+import { atomicWriteJson } from "../lib/fs.js";
 import type { Recipe, Manifest, FileEntry } from "../lib/types.js";
 import {
   ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
@@ -49,14 +50,17 @@ export interface UpdateOptions {
   recipe: Recipe;
 }
 
+/** Cause of pristine store load failure. */
+export type PristineStoreError = "not-found" | "invalid-json" | null;
+
 /** Result from a successful update run. */
 export interface UpdateResult {
   /** Files cleanly updated with new framework content. */
   updated: number;
   /** Conflicted file paths requiring manual resolution (have conflict markers). */
   conflicts: string[];
-  /** Files whose pristine baseline was missing — skipped, pristine rebuilt. */
-  pristineRepaired: string[];
+  /** Files whose pristine baseline was missing — rebuilt from framework content. */
+  pristineRebuilt: string[];
   /** Newly added file paths. */
   added: string[];
   /** Removed Framework file paths (auto-deleted). */
@@ -67,6 +71,8 @@ export interface UpdateResult {
   unchanged: number;
   /** Scaffolded files skipped (adopter-owned). */
   skipped: number;
+  /** Cause of whole-store pristine failure, if any (for UX messaging). */
+  pristineStoreError: PristineStoreError;
 }
 
 // --- Temp file merge wrapper ---
@@ -218,25 +224,36 @@ export async function runUpdate(
     pristine_hash: hashContent(content),
   });
 
-  // Load pristine store — JSON object keyed by output-relative path
+  // Load pristine store — JSON object keyed by output-relative path.
+  // Track whole-store failure for consolidated UX messaging.
   let pristineStore: Record<string, string> = {};
+  let pristineStoreError: "not-found" | "invalid-json" | null = null;
   try {
     const raw = await io.readFile(pristineStorePath);
-    pristineStore = JSON.parse(raw) as Record<string, string>;
-  } catch {
-    // Missing or corrupt — will trigger pristine repair for affected files
+    try {
+      pristineStore = JSON.parse(raw) as Record<string, string>;
+    } catch {
+      pristineStoreError = "invalid-json";
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      pristineStoreError = "not-found";
+    } else {
+      pristineStoreError = "not-found"; // Permission or other read error
+    }
   }
 
   // Initialize result
   const result: UpdateResult = {
     updated: 0,
     conflicts: [],
-    pristineRepaired: [],
+    pristineRebuilt: [],
     added: [],
     removed: [],
     keptForReview: [],
     unchanged: 0,
     skipped: 0,
+    pristineStoreError,
   };
 
   // Track new manifest entries and new pristine store
@@ -285,21 +302,24 @@ export async function runUpdate(
       continue;
     }
 
-    if (base === undefined) {
-      // Can't three-way merge without a base — skip and rebuild pristine.
-      // Adopter's file is left as-is; running update again will merge cleanly.
-      newPristineStore[outputPath] = current;
-      newManifestFiles[outputPath] = buildEntry(templateFile, current);
-      result.pristineRepaired.push(outputPath);
-      continue;
-    }
+    // Resolve effective base — use rendered framework content when pristine is
+    // missing (one-pass repair). This preserves adopter customizations: the merge
+    // sees base===updated and returns "unchanged", keeping the adopter's file
+    // intact while establishing the correct baseline for future updates.
+    const effectiveBase = base ?? updated;
+    const pristineRebuilt = base === undefined;
 
     // Three-way merge
-    const merged = await mergeFileContents(mergeFn, current, base, updated);
+    const merged = await mergeFileContents(mergeFn, current, effectiveBase, updated);
 
     // Write merged content to .arc/
     await ensureDir(dirname(currentPath), io.mkdir);
     await io.writeFile(currentPath, merged.content);
+
+    // Track rebuilt files for user reporting
+    if (pristineRebuilt) {
+      result.pristineRebuilt.push(outputPath);
+    }
 
     // Update pristine and manifest entry based on merge outcome
     if (merged.status !== "conflict") {
@@ -307,9 +327,9 @@ export async function runUpdate(
       newManifestFiles[outputPath] = buildEntry(templateFile, updated);
     } else {
       // Conflict — keep old pristine (adopter resolves, then next update merges cleanly)
-      newPristineStore[outputPath] = base;
+      newPristineStore[outputPath] = effectiveBase;
       const existing = manifest.files[outputPath];
-      newManifestFiles[outputPath] = existing ?? buildEntry(templateFile, base);
+      newManifestFiles[outputPath] = existing ?? buildEntry(templateFile, effectiveBase);
     }
 
     switch (merged.status) {
@@ -399,14 +419,8 @@ export async function runUpdate(
     install_config: ic,
     files: newManifestFiles,
   };
-  await io.writeFile(
-    manifestPath,
-    JSON.stringify(newManifest, null, 2) + "\n",
-  );
-  await io.writeFile(
-    pristineStorePath,
-    JSON.stringify(newPristineStore, null, 2) + "\n",
-  );
+  await atomicWriteJson(manifestPath, newManifest);
+  await atomicWriteJson(pristineStorePath, newPristineStore);
 
   return result;
 }
@@ -428,8 +442,8 @@ export function buildUpdateSummary(result: UpdateResult): string {
   if (result.conflicts.length > 0) {
     parts.push(`${result.conflicts.length} conflicts`);
   }
-  if (result.pristineRepaired.length > 0) {
-    parts.push(`${result.pristineRepaired.length} repaired`);
+  if (result.pristineRebuilt.length > 0) {
+    parts.push(`${result.pristineRebuilt.length} rebuilt`);
   }
   if (result.added.length > 0) parts.push(`${result.added.length} new`);
   if (result.removed.length > 0) parts.push(`${result.removed.length} removed`);
@@ -454,18 +468,26 @@ export function buildUpdateSummary(result: UpdateResult): string {
     );
   }
 
-  // Pristine repair details
-  if (result.pristineRepaired.length > 0) {
+  // Pristine rebuild details
+  if (result.pristineRebuilt.length > 0) {
     lines.push("");
-    lines.push("Pristine baseline was missing (rebuilt from your current file):");
-    for (const path of result.pristineRepaired) {
-      lines.push(`  .arc/${path}`);
+    if (result.pristineStoreError) {
+      // Whole-store failure — single consolidated message
+      const cause = result.pristineStoreError === "invalid-json"
+        ? "pristine.json contains invalid JSON"
+        : "pristine.json not found";
+      lines.push(
+        `Pristine baseline was missing or corrupt (${cause}) — rebuilt from current framework version.`,
+      );
+    } else {
+      // Per-file misses (partial store)
+      lines.push("Pristine baseline was missing for some files — rebuilt from current framework version:");
+      for (const path of result.pristineRebuilt) {
+        lines.push(`  .arc/${path}`);
+      }
     }
     lines.push("");
-    lines.push(
-      "Framework changes were not applied to these files this time.",
-    );
-    lines.push("Run 'arc update' again to merge them.");
+    lines.push("Your customizations are preserved.");
   }
 
   // Kept-for-review details

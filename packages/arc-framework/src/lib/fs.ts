@@ -1,11 +1,40 @@
 /**
  * Shared filesystem utilities for the ARC CLI.
  *
- * Directory traversal and file listing functions used across commands.
+ * Directory traversal, file listing, and atomic write operations used across
+ * commands.
+ *
+ * @module
  */
 
-import { join, relative } from "node:path";
-import { readdir, stat } from "node:fs/promises";
+import { join, dirname, basename, relative } from "node:path";
+import { readdir, stat, writeFile, rename, unlink } from "node:fs/promises";
+
+/**
+ * Write a JSON value to a file atomically using temp-file-then-rename.
+ *
+ * Creates a `.tmp` sibling in the same directory as the target, writes the
+ * serialized content there, then renames over the target. On POSIX systems
+ * `rename(2)` is atomic — the target is either the old content or the new
+ * content, never a partial write. Same-directory placement avoids `EXDEV`
+ * failures when `$TMPDIR` is on a different filesystem.
+ *
+ * @param targetPath - Absolute path to the JSON file
+ * @param data - Value to serialize (pretty-printed with 2-space indent + trailing newline)
+ */
+export async function atomicWriteJson(targetPath: string, data: unknown): Promise<void> {
+  const dir = dirname(targetPath);
+  const tmpPath = join(dir, `.${basename(targetPath)}.tmp`);
+
+  try {
+    await writeFile(tmpPath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+    await rename(tmpPath, targetPath);
+  } catch (err) {
+    // Clean up temp file if it was created before the failure
+    await unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+}
 
 /**
  * Recursively list files under a directory, returning paths relative to it.

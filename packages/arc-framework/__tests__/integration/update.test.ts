@@ -35,7 +35,8 @@ import {
   manifestPath,
   pristineStorePath,
 } from "../helpers/integration.js";
-import { runUpdate } from "../../src/commands/update.js";
+import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
+import type { UpdateResult } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
 import type { Recipe, Manifest } from "../../src/lib/types.js";
 
@@ -475,7 +476,7 @@ describe("update integration — pristine repair", () => {
     }
   });
 
-  it("missing pristine → file skipped, pristine rebuilt from current, reported in pristineRepaired", async () => {
+  it("missing pristine → one-pass repair: file preserved, pristine rebuilt from framework content", async () => {
     await setupInitialState(tempDir, {
       [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
     });
@@ -497,25 +498,30 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    expect(result.pristineRepaired).toEqual([FRAMEWORK_FILE]);
+    expect(result.pristineRebuilt).toEqual([FRAMEWORK_FILE]);
+    // One-pass: base===updated → "unchanged" (adopter's content preserved)
+    expect(result.unchanged).toBe(1);
     expect(result.updated).toBe(0);
     expect(result.conflicts).toEqual([]);
 
-    // Current file untouched (no merge possible without base)
+    // Current file untouched — adopter customizations preserved
     const current = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
     expect(current).toBe(CONTENT);
 
-    // Pristine rebuilt from current (not from updated template)
+    // Pristine rebuilt from rendered framework content (not adopter's current)
     const repairedStore = await readPristineStore(tempDir);
-    expect(repairedStore[FRAMEWORK_FILE]).toBe(CONTENT);
+    expect(repairedStore[FRAMEWORK_FILE]).toBe(V2_CONTENT);
   });
 
-  it("after pristine repair, second update merges cleanly", async () => {
+  it("after one-pass repair, next version update merges correctly", async () => {
+    const V3_CONTENT = "# Project\n\nVersion 3 content\n";
+
+    // File on disk matches what was installed (no adopter modifications)
     await setupInitialState(tempDir, {
-      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+      [FRAMEWORK_FILE]: { content: V2_CONTENT, classification: "Framework" },
     });
 
-    // Remove from pristine store
+    // Remove from pristine store to simulate corruption
     const store = await readPristineStore(tempDir);
     delete store[FRAMEWORK_FILE];
     await writePristineStore(tempDir, store);
@@ -526,7 +532,7 @@ describe("update integration — pristine repair", () => {
 
     const recipe = makeRecipe([FRAMEWORK_FILE]);
 
-    // First update: repair
+    // First update: one-pass repair — pristine set to V2_CONTENT, file unchanged
     await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -534,7 +540,14 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    // Second update: now pristine exists, merge should work
+    // Simulate a new framework version (V3) arriving
+    await rm(templateDir, { recursive: true, force: true });
+    templateDir = await createTemplateDir({
+      [FRAMEWORK_FILE]: V3_CONTENT,
+    });
+
+    // Second update: pristine=V2, current=V2 (no adopter changes), updated=V3
+    // base===current → takes V3 cleanly
     const result2 = await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -542,11 +555,11 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    expect(result2.pristineRepaired).toEqual([]);
+    expect(result2.pristineRebuilt).toEqual([]);
     expect(result2.updated).toBe(1);
 
     const content = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
-    expect(content).toBe(V2_CONTENT);
+    expect(content).toBe(V3_CONTENT);
   });
 });
 
@@ -632,5 +645,80 @@ describe("update integration — error cases", () => {
         name: "UserFacingError",
       }),
     );
+  });
+});
+
+// --- Update summary messaging ---
+
+describe("buildUpdateSummary", () => {
+  const baseResult: UpdateResult = {
+    updated: 0,
+    conflicts: [],
+    pristineRebuilt: [],
+    added: [],
+    removed: [],
+    keptForReview: [],
+    unchanged: 0,
+    skipped: 0,
+    pristineStoreError: null,
+  };
+
+  it("shows 'rebuilt' count in summary line", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md"],
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("1 rebuilt");
+    expect(output).not.toContain("repaired");
+  });
+
+  it("shows whole-store cause when pristineStoreError is not-found", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md", "system/arc-config.yml"],
+      pristineStoreError: "not-found",
+      unchanged: 2,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("pristine.json not found");
+    expect(output).toContain("rebuilt from current framework version");
+    expect(output).toContain("Your customizations are preserved");
+    // Should NOT list individual files for whole-store failure
+    expect(output).not.toContain(".arc/README.md");
+  });
+
+  it("shows whole-store cause when pristineStoreError is invalid-json", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md"],
+      pristineStoreError: "invalid-json",
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("invalid JSON");
+  });
+
+  it("lists individual files for partial pristine misses", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md"],
+      pristineStoreError: null,
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain(".arc/README.md");
+    expect(output).toContain("rebuilt from current framework version");
+  });
+
+  it("omits rebuild section when no files were rebuilt", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      updated: 3,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).not.toContain("rebuilt");
+    expect(output).not.toContain("Pristine");
   });
 });

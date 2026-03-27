@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.5.a — Atomic writes for manifest and pristine store (line ~672)
-**Last Completed**: Task 6.4 — User portability (all subtasks complete)
+**Next Task**: Task 6.6.a — Resilience fixes (line ~734)
+**Last Completed**: Task 6.5 — Pristine store: atomic writes, corruption resilience, and recovery UX
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.5.a (atomic writes)
+**Next Action**: Continue Phase 6 — start Task 6.6.a (resilience fixes)
 
 ---
 
