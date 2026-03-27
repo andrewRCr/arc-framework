@@ -23,6 +23,7 @@ framework for real-world beta testing.
 - Ship docs site with 5 foundation pages and stub infrastructure
 - Repo rename, README update, npm beta publish
 - Hook manager detection and integration (P1)
+- `--reconfigure` flag for `arc init` and `arc join` (post-init config changes)
 
 ### Won't Do
 
@@ -1008,17 +1009,137 @@ auto-detection promoted from backlog into Task 6.3.b.
     - Verify atomic write recovery: corrupt `pristine.json`, run `arc update`, confirm
       rebuild messaging and second update merges cleanly
 
-### **Phase 7:** Docs Site
+### **Phase 7:** `--reconfigure` Implementation
 
-<!-- NOTE: Phase renumbered from 6 → 7 after Phase 6 (Audit Remediation) was inserted.
-     Task numbers updated accordingly (6.X → 7.X). -->
+<!-- NOTE: Phase inserted after --reconfigure scoping session (2026-03-27).
+     Phases 7-9 renumbered to 8-10 to accommodate. -->
+
+**Purpose:** Add `--reconfigure` flag to `init` and `join`, enabling post-init changes to
+structural settings (`pm_mode`, `team_mode`, `project_name`). Resolves the gap where
+`arc update` uses frozen `install_config` from the manifest and post-init config edits
+get overwritten.
+
+**Design reference:** `notes-beta-readiness.md` § Phase 6B
+
+- [ ] **7.1 `init --reconfigure` core flow**
+
+    **Goal:** Enable re-entry into init for existing installations, gated by role.
+
+    - [ ] **7.1.a Add `--reconfigure` flag and entry path**
+        - Add `--reconfigure` CLI flag to init command
+        - When set: require existing installation (invert `ALREADY_INSTALLED` check), read
+          current `manifest.install_config`
+        - When not set: preserve current `ALREADY_INSTALLED` behavior
+        - Role gate: require `arc.role = maintainer` (or unset). Clear error for contributors
+
+    - [ ] **7.1.b Settings screen prompts**
+        - Present current `install_config` values as defaults (settings screen, not init replay)
+        - Prompt for `pm_mode`, `team_mode`, `project_name` — user changes what they want
+        - Team mode awareness: warn when `team.mode: true` that changes affect all developers
+        - Detect no-change case: if all values unchanged, report "nothing to change" and exit
+
+- [ ] **7.2 File delta resolution**
+
+    **Goal:** Handle the three file change types when `install_config` changes.
+
+    - [ ] **7.2.a File additions**
+        - Diff resolved file list (new config) against current manifest
+        - Render new files from templates (same pipeline as init)
+        - Add entries to manifest and pristine store
+        - Update `arc-config.yml` with new config values
+
+    - [ ] **7.2.b File removals (two-stage UX)**
+        - Stage 1: summary of affected files with classification labels ("your content" vs
+          "framework-managed"), bulk options (remove all / keep all / choose individually)
+        - Stage 2 (if individual): per-file prompts with classification-driven defaults
+          (Framework → default remove, Scaffolded → default keep)
+        - Kept files: remove from manifest (become untracked user files)
+        - Removed files: delete from disk, remove from manifest and pristine store
+
+    - [ ] **7.2.c Content re-rendering**
+        - For files with changed template conditionals or token substitutions
+        - Three-way merge: old pristine (old config render) vs new pristine (new config
+          render) vs user's current file — same logic as `arc update`
+        - Update pristine baseline to new render
+
+- [ ] **7.3 `--dry-run` mode**
+
+    **Goal:** Preview reconfigure impact without applying changes.
+
+    - Add `--dry-run` flag to `init --reconfigure`
+    - Resolve file delta (additions, removals, re-renders) and report without disk writes
+    - Reuses file delta resolution logic from 7.2
+
+    Build `test-first` (one behavior at a time):
+    - Reports files that would be added
+    - Reports files that would be removed (with classification labels)
+    - Reports files that would be re-rendered
+    - No disk writes occur (manifest, pristine, files all unchanged)
+    - No-change case reports "nothing would change"
+
+- [ ] **7.4 `join --reconfigure`**
+
+    **Goal:** Enable personal workspace reconfiguration for any developer.
+
+    - Add `--reconfigure` flag to join command
+    - Re-prompt for role and tools with current values as defaults
+    - Update `arc.role` in git config, regenerate skills for new tool selection
+    - No role gate (personal reconfiguration, any role can use)
+    - Idempotent on hooks and gitignore (already is for fresh join)
+
+    Build `test-first` (one behavior at a time):
+    - Role change updates git config
+    - Tool change regenerates skills
+    - Unchanged values produce no side effects
+    - Works for both maintainer and contributor roles
+
+- [ ] **7.5 Strategy doc realignment and discoverability**
+
+    **Goal:** Align documentation with the new command surface and ensure clear signposting
+    across all paths.
+
+    - [ ] **7.5.a Update `strategy-configurability-architecture.md`**
+        - Expand "pm.mode is structural" to document the full structural/runtime distinction
+        - Replace single `--reconfigure` mention with proper command documentation
+        - Document what reconfigure covers vs. what propagates automatically
+        - Clarify that `tools` changes go through add-agent workflow, not reconfigure
+        - Add command landscape reference (init / join / update / --reconfigure / add-agent)
+
+    - [ ] **7.5.b Discoverability audit**
+        - `--help` text on init, join, update pointing to related commands
+        - Error messages as navigation signposts (extend ALREADY_INSTALLED pattern)
+        - add-agent workflow: verify it doesn't reference reconfigure for tool changes
+        - QUICK-REFERENCE: add reconfigure to ARC CLI Commands section
+        - AGENT-BRIEFING files: ensure agent can guide users to the right command
+
+    - [ ] **7.5.c Sync documentation changes to package source**
+        - Updated strategy docs and workflow files reflected in
+          `packages/arc-framework/arc/` source
+
+- [ ] **7.6 Phase quality gates**
+
+    - Tier 2: full markdown lint, TypeScript lint, shell lint, type check, full test suite,
+      build verification
+    - E2E: `arc init` → change config → `arc init --reconfigure` → verify file state →
+      `arc update` → verify update uses new config
+    - E2E: `arc join --reconfigure` role and tool changes
+    - Verify `--dry-run` produces accurate preview matching actual reconfigure results
+    - Verify role gate: contributor gets clear error on `init --reconfigure`
+    - Verify idempotency: reconfigure with same values is a no-op
+    - Verify `--yes` mode: non-interactive policy applies correct defaults for removals
+    - Verify crash recovery: interrupt reconfigure before manifest write, re-run succeeds
+
+### **Phase 8:** Docs Site
+
+<!-- NOTE: Phase renumbered 6 → 7 → 8 after Phase 6 and Phase 7 insertions.
+     Task numbers updated accordingly. -->
 
 **Purpose:** Ship a docs site with foundation content covering what ARC is and how to get started,
 plus stub infrastructure for WU5 expansion.
 
-- [ ] **7.1 Pre-site content preparation**
+- [ ] **8.1 Pre-site content preparation**
 
-    - [ ] **7.1.a Refresh `README-ASPIRATIONAL.md`**
+    - [ ] **8.1.a Refresh `README-ASPIRATIONAL.md`**
 
         **Goal:** Bring the aspirational README current before using it as source material.
 
@@ -1030,7 +1151,7 @@ plus stub infrastructure for WU5 expansion.
         - This is a content refresh, not a full rewrite — philosophy, tradeoffs, core loop
           are stable
 
-    - [ ] **7.1.b Audit in-repo docs against docs-site boundary**
+    - [ ] **8.1.b Audit in-repo docs against docs-site boundary**
 
         **Goal:** Establish the principle for what ships in `.arc/` vs. what lives on the
         docs site, and identify extraction candidates.
@@ -1042,51 +1163,51 @@ plus stub infrastructure for WU5 expansion.
           changes) — in-repo pointers to docs-site content may be appropriate even for
           human-facing material
         - Output: list of extraction candidates with rationale, and any content that should
-          become foundation pages beyond the current 7.3 set
+          become foundation pages beyond the current 8.3 set
         - This audit informs Phase 7 page scope — defer final extraction decisions to results
 
-- [ ] **7.2 Set up MkDocs infrastructure**
+- [ ] **8.2 Set up MkDocs infrastructure**
 
-    - [ ] **7.2.a Create `mkdocs.yml`**
+    - [ ] **8.2.a Create `mkdocs.yml`**
         - Material theme, site name ("ARC Framework"), repo URL
         - Full nav tree covering foundation and stub pages
         - Search enabled, color scheme configuration
 
-    - [ ] **7.2.b Create `docs/` directory structure**
+    - [ ] **8.2.b Create `docs/` directory structure**
         - Subdirectories as needed for nav organization
         - All page files (foundation + stubs) created in this step
 
-    - [ ] **7.2.c Add `site/` to `.gitignore`**
+    - [ ] **8.2.c Add `site/` to `.gitignore`**
 
-- [ ] **7.3 Write foundation pages**
+- [ ] **8.3 Write foundation pages**
 
-    - [ ] **7.3.a Landing / Index page**
+    - [ ] **8.3.a Landing / Index page**
         - Adapted from refreshed `README-ASPIRATIONAL.md`
         - What ARC is, core development loop, design principles, honest tradeoffs
         - Light editing for docs-site voice (not a copy-paste)
 
-    - [ ] **7.3.b Philosophy page**
+    - [ ] **8.3.b Philosophy page**
         - Adapted from `strategy-core-philosophy.md`
         - P1–P11 with rationale, research citations, positioning
         - Restructure for docs-site readability (the strategy doc is reference-dense)
 
-    - [ ] **7.3.c Getting Started page**
+    - [ ] **8.3.c Getting Started page**
         - Install via `npx @arc-framework/cli init`
         - First session walkthrough (`arc-resume` → work → `arc-handoff`)
         - What happened: directory tour of `.arc/`
         - Depends on migration and CLI changes being complete
 
-    - [ ] **7.3.d Sessions page**
+    - [ ] **8.3.d Sessions page**
         - Adapted from `strategy-session-management.md`
         - Why focused sessions, context degradation evidence, how sessions work
         - Natural session boundaries
 
-    - [ ] **7.3.e Work Planning page**
+    - [ ] **8.3.e Work Planning page**
         - Adapted from `strategy-work-planning.md`
         - Planning pipeline (idea → plan → PRD → tasks)
         - How tasks work, quality gates concept
 
-    - [ ] **7.3.f Updating ARC page**
+    - [ ] **8.3.f Updating ARC page**
         - What `arc update` does (three-way merge, file classifications, what each means)
         - What's safe to edit (Configurable, Scaffolded) vs. auto-updated (Framework)
         - What to expect (output, conflict markers, counts, post-update state)
@@ -1095,63 +1216,63 @@ plus stub infrastructure for WU5 expansion.
         - Framework file edit warning (MW-M07)
         - Addresses MW-H04 via README pointer (6.7.a) + docs site deep-dive
 
-- [ ] **7.4 Create stub pages**
+- [ ] **8.4 Create stub pages**
     - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,
       Comparison/Positioning, Tutorials
     - Each stub: brief description of what the page will cover, "detailed content coming in a
       future release" note
 
-- [ ] **7.5 Set up docs deployment**
+- [ ] **8.5 Set up docs deployment**
 
-    - [ ] **7.5.a Create GitHub Action for docs**
+    - [ ] **8.5.a Create GitHub Action for docs**
         - Trigger: push to main
         - Steps: setup Python, install mkdocs-material, `mkdocs build`, deploy to GitHub Pages
         - Separate workflow file or new job in existing `ci.yml`
 
-    - [ ] **7.5.b Verify deployment**
+    - [ ] **8.5.b Verify deployment**
         - Push to main triggers build
         - Site accessible at GitHub Pages URL
         - Navigation, search, and all pages render correctly
 
-- [ ] **7.6 Run quality gates**
+- [ ] **8.6 Run quality gates**
     - `npm run -s lint:md` (new markdown files in `docs/`)
     - Verify mkdocs builds without errors locally (`mkdocs build`)
 
-### **Phase 8:** Public Scaffolding + Hook Manager Integration
+### **Phase 9:** Public Scaffolding + Hook Manager Integration
 
-<!-- NOTE: Phase renumbered from 7 → 8 after Phase 6 (Audit Remediation) was inserted.
-     Task numbers updated accordingly (7.X → 8.X). -->
+<!-- NOTE: Phase renumbered 7 → 8 → 9 after Phase 6 and Phase 7 insertions.
+     Task numbers updated accordingly. -->
 
 **Purpose:** Establish public presence and implement hook manager detection (P1).
 
-- [ ] **8.1 Repo rename**
+- [ ] **9.1 Repo rename**
     - Rename `arc-agentic-dev-framework` → `arc-framework` on GitHub
     - Update all references: package.json repository field, GitHub Action URLs, any hardcoded
       repo name references
     - Verify: clone URL works, GitHub redirect from old name works, CI passes
 
-- [ ] **8.2 README update**
+- [ ] **9.2 README update**
     - Replace current development README with minimal public version
     - Content: what ARC is (one paragraph), current status (beta), install command, link to
       docs site, link to CONTRIBUTING.md
     - Not a full adoption-focused rewrite (WU5)
 
-- [ ] **8.3 npm beta publish**
+- [ ] **9.3 npm beta publish**
 
-    - [ ] **8.3.a Prepare package for publish**
+    - [ ] **9.3.a Prepare package for publish**
         - Update version to `0.1.0` (or appropriate beta version) in `package.json`
         - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
           `init-recipe.json`)
         - Verify `package.json` metadata (description, keywords, repository, license)
 
-    - [ ] **8.3.b Publish and verify**
+    - [ ] **9.3.b Publish and verify**
         - `npm publish` to registry
         - Verify `npx @arc-framework/cli init` works in a clean environment
         - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
 
-- [ ] **8.4 Hook manager detection and integration (P1)**
+- [ ] **9.4 Hook manager detection and integration (P1)**
 
-    - [ ] **8.4.a Create hook manager detection module**
+    - [ ] **9.4.a Create hook manager detection module**
 
         Build `test-first` (one behavior at a time):
         - Detects husky (`.husky/` directory)
@@ -1159,7 +1280,7 @@ plus stub infrastructure for WU5 expansion.
         - Detects pre-commit (`.pre-commit-config.yaml`)
         - Returns `null` when no manager found
 
-    - [ ] **8.4.b Integrate detection into `arc init` and `arc join`**
+    - [ ] **9.4.b Integrate detection into `arc init` and `arc join`**
 
         Build `test-first` (one behavior at a time):
         - When hook manager detected, adds ARC hook calls to manager config instead of
@@ -1168,25 +1289,25 @@ plus stub infrastructure for WU5 expansion.
         - Husky integration: adds to `.husky/pre-commit` and `.husky/commit-msg`
         - Lefthook integration: adds to `lefthook.yml`
 
-    - [ ] **8.4.c Adopt husky in dev repo (P1)**
+    - [ ] **9.4.c Adopt husky in dev repo (P1)**
         - Install husky as dev dependency
         - Configure `.husky/` hooks to call ARC hook scripts
         - Verify hooks fire correctly through husky
         - This validates the integration path for adopters
 
-- [ ] **8.5 Run quality gates**
+- [ ] **9.5 Run quality gates**
     - Full Tier 2: `npm run -s lint:md`, `npm run typecheck`, `npm test`
 
-### **Phase 9:** Verification
+### **Phase 10:** Verification
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
 
-<!-- NOTE: Phase renumbered from 8 → 9 after Phase 6 (Audit Remediation) was inserted.
-     Task numbers updated accordingly (8.X → 9.X). -->
+<!-- NOTE: Phase renumbered 8 → 9 → 10 after Phase 6 and Phase 7 insertions.
+     Task numbers updated accordingly. -->
 
-- [ ] **9.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
-- [ ] **9.2 Validate success criteria against PRD**
-- [ ] **9.3 Verify all atomic tasks resolved** (`atomic-beta-readiness.md`)
+- [ ] **10.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
+- [ ] **10.2 Validate success criteria against PRD**
+- [ ] **10.3 Verify all atomic tasks resolved** (`atomic-beta-readiness.md`)
 
 ---
 
@@ -1216,6 +1337,11 @@ plus stub infrastructure for WU5 expansion.
 - [ ] `pm.mode: none` path has no dead ends in workflow documents
 - [ ] Team-mode workflows render team-specific guidance via template conditionals
 - [ ] Team coordination strategy reads as advisory, not required infrastructure
+- [ ] `arc init --reconfigure` changes `pm_mode`, updates manifest, adds/removes files correctly
+- [ ] `arc init --reconfigure --dry-run` previews changes without applying
+- [ ] `arc join --reconfigure` changes role and tools, updates personal workspace
+- [ ] Reconfigure role-gated to maintainers; contributors get clear error
+- [ ] Strategy doc documents full structural/runtime config distinction and command landscape
 - [ ] Ready for multi-week beta test on external project
 
 ---
