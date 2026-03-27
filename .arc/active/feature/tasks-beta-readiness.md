@@ -800,31 +800,31 @@ auto-detection promoted from backlog into Task 6.3.b.
         - **D-L01**: Summary count line appended to diff output with file count,
           error count, and skipped count. 2 new tests.
 
-- [ ] **6.7 Update documentation**
+- [x] **6.7 Update documentation**
 
-    **Goal:** Document the update experience — currently zero adopter-facing documentation
-    exists for `arc update`. Add README section, update guide, and post-update guidance.
+    **Goal:** Add adopter-facing orientation for `arc update` in the README, and route
+    deep-dive content to the docs site (Phase 7). Pre-implementation audit determined that
+    detailed update documentation is docs-site material, not an in-repo workflow — see
+    analysis of MW-H04, MW-M03, MW-M05, MW-M07, MW-M08.
 
     Findings: MW-H04, MW-M03, MW-M05, MW-M07, MW-M08
 
-    - [ ] **6.7.a Add "Updating ARC" section to `.arc/README.md`**
-        - What `arc update` does (three-way merge, file classifications)
-        - What's safe to edit (Configurable, Scaffolded) vs. auto-updated (Framework)
-        - What to expect (conflict markers, counts, post-update state)
-        - Warning: edits to Framework files will be overwritten (MW-M07)
+    - [x] **6.7.a Add "Updating ARC" section to `.arc/README.md`**
 
-    - [ ] **6.7.b Create update guide workflow document**
-        - New file: `.arc/system/workflows/arc/supplemental/update-guide.md`
-        - Pre-update checklist (commit or stash local changes)
-        - Running `arc update` — what the output means
-        - Post-update checklist: resolve conflicts, run quality gates, commit (MW-M05)
-        - Skill regeneration behavior and customization warning (MW-M08)
-        - Reference from `AGENT-BRIEFING.ARC.md` and `.arc/README.md` (MW-H04)
+        Added "Updating ARC" section with file classification table (Framework/Configurable/
+        Scaffolded), customization warning for Framework files (MW-M07), and post-update
+        guidance for conflicts and skill regeneration.
 
-    - [ ] **6.7.c Add update guide to template and recipe**
-        - Add the workflow document to `packages/arc-framework/arc/`
-        - Add to `init-recipe.json` so new installations include it
-        - Update `.arc/README.md` template with the new section
+    - [x] **6.7.b Route update deep-dive content to Phase 7 (docs site)**
+
+        Added Task 7.1.b (in-repo vs. docs-site boundary audit) and Task 7.3.f (Updating
+        ARC foundation page) to Phase 7. Updated PRD § Docs site: renumbered requirements,
+        added boundary audit (Req 25) and 6th foundation page (Req 26). Restructured 7.1
+        as parent task with 7.1.a (README refresh) and 7.1.b (boundary audit).
+
+    - [x] **6.7.c Sync README update to package template**
+
+        Copied updated `.arc/README.md` to `packages/arc-framework/arc/README.md`.
 
 - [ ] **6.8 Log command fixes**
 
@@ -995,15 +995,34 @@ auto-detection promoted from backlog into Task 6.3.b.
 **Purpose:** Ship a docs site with foundation content covering what ARC is and how to get started,
 plus stub infrastructure for WU5 expansion.
 
-- [ ] **7.1 Refresh `README-ASPIRATIONAL.md`**
+- [ ] **7.1 Pre-site content preparation**
 
-    **Goal:** Bring the aspirational README current before using it as source material.
+    - [ ] **7.1.a Refresh `README-ASPIRATIONAL.md`**
 
-    - Remove `[PLACEHOLDER]` markers
-    - Update CLI references to actual commands (`arc init`, `arc join`, `arc-resume`, `arc-handoff`)
-    - Verify directory tour matches post-migration structure (single `.arc/`)
-    - Tighten narrative based on what ARC actually is now
-    - This is a content refresh, not a full rewrite — philosophy, tradeoffs, core loop are stable
+        **Goal:** Bring the aspirational README current before using it as source material.
+
+        - Remove `[PLACEHOLDER]` markers
+        - Update CLI references to actual commands (`arc init`, `arc join`, `arc-resume`,
+          `arc-handoff`)
+        - Verify directory tour matches post-migration structure (single `.arc/`)
+        - Tighten narrative based on what ARC actually is now
+        - This is a content refresh, not a full rewrite — philosophy, tradeoffs, core loop
+          are stable
+
+    - [ ] **7.1.b Audit in-repo docs against docs-site boundary**
+
+        **Goal:** Establish the principle for what ships in `.arc/` vs. what lives on the
+        docs site, and identify extraction candidates.
+
+        - Apply "point-of-use" principle: content agents need at runtime stays in `.arc/`;
+          human-facing guides, conceptual deep-dives, and how-tos are docs-site candidates
+        - Review supplemental workflows, strategy docs, and README material for boundary fit
+        - Consider that agents commonly walk developers through processes (updates, config
+          changes) — in-repo pointers to docs-site content may be appropriate even for
+          human-facing material
+        - Output: list of extraction candidates with rationale, and any content that should
+          become foundation pages beyond the current 7.3 set
+        - This audit informs Phase 7 page scope — defer final extraction decisions to results
 
 - [ ] **7.2 Set up MkDocs infrastructure**
 
@@ -1045,6 +1064,15 @@ plus stub infrastructure for WU5 expansion.
         - Adapted from `strategy-work-planning.md`
         - Planning pipeline (idea → plan → PRD → tasks)
         - How tasks work, quality gates concept
+
+    - [ ] **7.3.f Updating ARC page**
+        - What `arc update` does (three-way merge, file classifications, what each means)
+        - What's safe to edit (Configurable, Scaffolded) vs. auto-updated (Framework)
+        - What to expect (output, conflict markers, counts, post-update state)
+        - Pre/post update checklist (MW-M05)
+        - Skill regeneration and customization warning (MW-M08)
+        - Framework file edit warning (MW-M07)
+        - Addresses MW-H04 via README pointer (6.7.a) + docs site deep-dive
 
 - [ ] **7.4 Create stub pages**
     - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,

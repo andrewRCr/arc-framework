@@ -137,17 +137,22 @@ during build — it's tracked directly and published via npm.
     update CLI references to actual commands, verify directory tour matches post-migration
     structure
 24. Create `mkdocs.yml` with Material theme, full nav tree, GitHub repo link, search
-25. Create `docs/` directory with 5 foundation pages:
+25. Audit in-repo documentation against the docs-site boundary — apply "point-of-use"
+    principle (agent-runtime content stays in `.arc/`; human-facing guides and deep-dives are
+    docs-site material). Identify extraction candidates; results inform foundation page scope.
+26. Create `docs/` directory with 6 foundation pages:
     - Landing/Index (adapted from refreshed README-ASPIRATIONAL)
     - Philosophy (adapted from `strategy-core-philosophy.md`, P1–P11)
     - Getting Started (install, first session, directory tour)
     - Sessions (adapted from `strategy-session-management.md`)
     - Work Planning (adapted from `strategy-work-planning.md`)
-26. Create stub pages for deferred content: Configuration Reference, Quality Gates, Team
+    - Updating ARC (classifications, three-way merge, pre/post checklist, skill regeneration,
+      conflict resolution — deep-dive content routed from Phase 6 audit remediation)
+27. Create stub pages for deferred content: Configuration Reference, Quality Gates, Team
     Coordination, Contributing to ARC, Comparison/Positioning, Tutorials
-27. GitHub Action for docs deployment: push to main → build with mkdocs-material → deploy to
+28. GitHub Action for docs deployment: push to main → build with mkdocs-material → deploy to
     GitHub Pages
-28. `.gitignore` addition for `site/` build output
+29. `.gitignore` addition for `site/` build output
 
 **Public scaffolding:**
 

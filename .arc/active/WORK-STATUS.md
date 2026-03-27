@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.7.a — Add "Updating ARC" section to `.arc/README.md` (line ~771)
-**Last Completed**: Task 6.6 — Update/status/diff: resilience and polish
+**Next Task**: Task 6.8 — Log command fixes (line ~830)
+**Last Completed**: Task 6.7 — Update documentation
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.7 (update documentation)
+**Next Action**: Continue Phase 6 — start Task 6.8 (log command fixes)
 
 ---
 
