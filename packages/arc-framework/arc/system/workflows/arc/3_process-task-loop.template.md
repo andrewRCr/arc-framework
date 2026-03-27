@@ -171,6 +171,14 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage
      it alongside the task list changes. This is the primary update mechanism; session handoff is
      only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
+<!-- arc:if team.mode == true -->
+
+     **Shared branch concurrency:** When multiple developers commit to the same branch, pull
+     before committing to reduce merge conflicts on WORK-STATUS.md and the task list. If a
+     conflict occurs, resolve WORK-STATUS.md by updating it to reflect the current combined
+     state (not either side's version). Task list conflicts are resolved by accepting both
+     sides' checkbox changes.
+<!-- arc:endif -->
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? Common
      splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task

@@ -125,6 +125,8 @@ convention.
    the wrong directory. Surface a warning in the orientation summary: `arc.identity` is
    configured during initial setup — if absent, the developer may be on a new machine or setup
    was incomplete. Proceed with tracked state only (WORK-STATUS.md + task list).
+   **Note:** Sessions without identity cannot perform handoff — SESSION-NOTES.md and git notes
+   both require identity for path resolution. Flag this in the orientation if work is underway.
 
 **Resolve role** (run in Batch 1, alongside identity):
 
@@ -170,7 +172,9 @@ convention.
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
    - **If file doesn't exist or is stale**: Try restoring from git notes — run `npx arc user load` (or
      check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
-     exist either, skip — the session starts with tracked state only (WORK-STATUS.md).
+     exist either, fall back to `git log --oneline -10` for recent commit context — commit
+     messages and context footers provide a lightweight record of recent work. The session
+     starts with tracked state (WORK-STATUS.md + task list) supplemented by git history.
    - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent,
      extract factual content (decisions, file references, blockers) and disregard agent-specific
      references (tool syntax, capability assumptions)
@@ -257,13 +261,15 @@ into the orientation summary in Step 6.
 
 **Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
 
-Otherwise, or if no handoff hash exists:
+Otherwise, or if no handoff hash exists (first session, crash, new clone without notes):
 
 ```bash
 # Get current HEAD hash
 git log -1 --format=%h
 
 # Count commits since SESSION-NOTES handoff (substitute the actual hash)
+# Skip this command if no handoff hash exists — there's no baseline to compare against.
+# Instead, rely on WORK-STATUS freshness check below.
 git log --oneline <handoff-hash>..HEAD
 
 # Check WORK-STATUS freshness
@@ -274,6 +280,22 @@ git log -1 --format=%h -- .arc/active/WORK-STATUS.md
 A freshness gap doesn't mean state is wrong — it means verify more carefully before trusting
 session documents. **Only mention gaps in the orientation if they exist.** A clean check
 produces no output.
+
+<!-- arc:if team.mode == true -->
+**Concurrent activity:** In team mode, freshness gaps may also indicate concurrent developer
+activity rather than stale session state. If WORK-STATUS.md was updated by a different author
+since your last session, note this in orientation — another developer may be actively working
+on the same branch.
+<!-- arc:endif -->
+
+<!-- arc:if pm.mode == arc-in-git -->
+#### ATOMIC-INBOX check
+
+If `user/{identity}/ATOMIC-INBOX.md` exists and has incomplete items, note the count in the
+orientation summary (e.g., "3 inbox items pending triage"). This is a lightweight reminder —
+the primary triage point is during [integration][integrate-work-unit], but surfacing the count
+at session start prevents items from accumulating unnoticed across many small work units.
+<!-- arc:endif -->
 
 #### Next work unit discovery
 
@@ -367,6 +389,8 @@ Examples:
   the work committed → proceed with committed state
 - WORK-STATUS says "Last Completed: Task 3.2" but task list shows 3.3 also marked `[x]` →
   proceed with 3.3 as last completed
+- (Team mode) WORK-STATUS shows "Next Task: 3.4" but task list shows 3.4 marked `[x]` by
+  a teammate's commit → another developer completed it; proceed with 3.5 as current
 
 **Tier 2 — Stop and ask:**
 
@@ -394,3 +418,6 @@ Examples:
 [arc-methods-session]: ../../arc-methods.md#session-state
 [arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
+<!-- arc:if pm.mode == arc-in-git -->
+[integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
+<!-- arc:endif -->

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.11.a — Reframe team coordination strategy (line ~949)
-**Last Completed**: Task 6.10 — Team mode workflow integration
+**Next Task**: Task 6.12.a — Changelog data and display (line ~1027)
+**Last Completed**: Task 6.11 — Team coordination and session documentation
 **Blockers**: None
-**Next Action**: Resume Phase 6 at Task 6.11.a (team coordination strategy reframing)
+**Next Action**: Resume Phase 6 at Task 6.12.a (changelog mechanism for `arc update`)
 
 ---
 

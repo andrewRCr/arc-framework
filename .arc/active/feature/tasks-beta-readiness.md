@@ -944,7 +944,7 @@ auto-detection promoted from backlog into Task 6.3.b.
         - Verified: 0 markdown lint errors, all 36 tests pass (including E2E linting of
           rendered output)
 
-- [ ] **6.11 Team coordination and session documentation**
+- [x] **6.11 Team coordination and session documentation**
 
     **Goal:** Reframe the team coordination strategy as advisory (not required infrastructure),
     document the WORK-STATUS concurrency model honestly, and add cross-references from shared
@@ -966,44 +966,56 @@ auto-detection promoted from backlog into Task 6.3.b.
       discovery section — "check ATOMIC-INBOX for pending items" as a lightweight
       reminder at session start, complementing the integration-time triage.
 
-    - [ ] **6.11.a Reframe team coordination strategy**
-        - Full read-through with prose rewrite where applicable — make advisory nature
-          explicit where current tone implies required infrastructure. Most prose survives;
-          rewrite sections that present optional conventions as requirements.
-        - Clarify what's required (WORK-STATUS exists, user dirs are per-identity) vs. what's
-          available (`(@name)`, branching patterns, person-to-person handoff)
-        - WORK-STATUS: document as branch-level state, not per-developer state. In team mode,
-          developers resolve personal next task from `(@name)` markers (TC-H03)
-        - `merge=ours`: document honestly as designed for branch-to-base merges, add
-          sub-branch caveats and post-merge reconciliation guidance (TC-H06, TC-L06)
-        - Reframe "trivially resolvable" merge conflicts — "expected and straightforward,"
-          add concrete resolution example (TC-M10)
-        - Add concurrent-session section for active-active scenario (TC-L03)
-        - Document `Branch(es)` flat list as intentional, add naming convention note (TC-M12)
-        - Note `user.sync_push` must be manually updated when toggling `team.mode` (TC-M05)
-        - Note `user.sync_push` enforcement is agent-interpreted prose (TC-M06)
+    - [x] **6.11.a Reframe team coordination strategy**
 
-    - [ ] **6.11.b Shared document contributor and team markers**
-        - `DEV-RULES.ARC.md`: add contributor note to Task Execution section — "applies to
-          maintainer-managed task lists" (MW-M11, MW-M12)
-        - `DEV-RULES.ARC.md`: add cross-reference to team coordination strategy (TC-L05)
-        - `session-init.template.md`: add team-mode example to trust hierarchy Tier 1
-          (TC-L02) — non-conditional content, goes in template source
-        - `session-init.template.md`: add skip instruction for freshness check with no
-          handoff hash (MW-M16)
-        - `session-init.template.md`: flag that no-identity sessions can't hand off (MW-M17)
-        - `session-init.template.md`: suggest git log fallback when notes unavailable
-          (MW-M15)
-        - `session-init.template.md`: add ATOMIC-INBOX check to discovery section as
-          secondary triage trigger (MW-M18) — non-conditional, complements integration-time
-          triage
-        - `activate-work-unit.md`: add team branch setup guidance (TC-M11)
+        Full read-through with surgical rewrites. Most prose survived; changes focused on
+        framing and gap-filling rather than rewriting existing mechanics.
 
-    - [ ] **6.11.c WORK-STATUS concurrent update guidance**
-        - Add pull-before-commit recommendation for shared branches (TC-M01)
-        - Add freshness check recommendation before handoff WORK-STATUS write (TC-M02)
-        - Add concurrent activity detection note to session-init freshness check (TC-M03)
-        - Platform note: custom merge drivers don't run on server-side PR merges (TC-L07)
+        - Purpose section: reframed as "available conventions" with explicit note on
+          structural foundations (always present) vs. coordination patterns (adopt as needed)
+        - WORK-STATUS: documented as branch-level state in Workflow Adaptations; personal
+          next task resolved via `(@name)` scan at session-init (TC-H03)
+        - Person-to-person handoff: reframed intro as "structured approach" with minimum
+          viable handoff note (markers + push); mechanics unchanged
+        - `merge=ours`: documented as designed for branch-to-base merges; added sub-branch
+          caveats (integration owner reconciles), platform note on server-side merge driver
+          limitations (TC-H06, TC-L06)
+        - "trivially resolvable" → "straightforward to resolve manually" with concrete
+          Alice/Bob resolution example and minimize-conflict guidance (TC-M10)
+        - Added Concurrent Sessions subsection for active-active scenario — task list,
+          WORK-STATUS, and SESSION-NOTES behavior documented (TC-L03)
+        - Added Configuration Notes subsection — `user.sync_push` manual update when
+          toggling team.mode (TC-M05), enforcement is agent-interpreted prose (TC-M06)
+        - `Branch(es)` flat list documented as intentional in Team Branching Patterns
+          intro (TC-M12)
+        - Synced to package copy
+
+    - [x] **6.11.b Shared document contributor and team markers**
+
+        All changes applied to both installed `.arc/` copies and package sources.
+
+        - `DEV-RULES.ARC.md`: added contributor note blockquote to Task Execution section
+          and cross-reference to team coordination strategy (MW-M11, MW-M12, TC-L05)
+        - `session-init.template.md` + installed copy: team-mode trust hierarchy Tier 1
+          example (TC-L02), freshness check skip instruction for missing handoff hash
+          (MW-M16), no-identity handoff impossibility flag (MW-M17), git log fallback
+          when notes unavailable (MW-M15), ATOMIC-INBOX check as secondary triage
+          trigger in `arc-in-git` conditional (MW-M18)
+        - `activate-work-unit.md`: expanded team mode note with branch setup guidance —
+          integration branch creation, sub-branch workflow, `Branch(es)` header, initial
+          `(@name)` assignment (TC-M11)
+
+    - [x] **6.11.c WORK-STATUS concurrent update guidance**
+
+        All changes in team-mode conditional blocks (stripped for `team.mode: false`).
+
+        - `3_process-task-loop.template.md`: pull-before-commit recommendation for shared
+          branches with conflict resolution guidance (TC-M01)
+        - `session-handoff.template.md`: freshness check recommendation before WORK-STATUS
+          write — diff check and incorporate concurrent changes (TC-M02)
+        - `session-init.template.md`: concurrent activity detection note in freshness check
+          — different-author WORK-STATUS updates may indicate active teammate (TC-M03)
+        - TC-L07 (platform merge driver note): covered in 6.11.a strategy reframing
 
 - [ ] **6.12 Changelog mechanism for `arc update`**
 

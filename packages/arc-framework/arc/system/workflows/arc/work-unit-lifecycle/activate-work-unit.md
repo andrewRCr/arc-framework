@@ -115,31 +115,28 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 > **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
 > and the update applies to the whole branch. Other developers joining the work unit establish
 > their session context via `user/{identity}/SESSION-NOTES.md` during their first
-> [session initialization][session-init]. See [Team Coordination Strategy][team-coordination]
-> § Workflow Adaptations.
+> [session initialization][session-init].
+>
+> **Team branch setup:** If the team will use personal sub-branches (rather than committing
+> directly to the shared branch), create the integration branch in Step 2, then have each
+> developer create their sub-branch from it. Update the task list's `**Branch(es):**` header
+> to list all branches. Assign initial task ownership via `(@name)` markers in the task list.
+> See [Team Coordination Strategy][team-coordination] § Team Branching Patterns for pattern
+> options.
 
-### Step 6: Update PM Artifacts · `arc-in-git` only
+### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 
-> **Skip this step** if `pm.mode` is `none` or `external`.
+If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now. This is the
+primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at activation time.
 
-Update project management documents to reflect the newly active work unit:
-
-**PROJECT-STATUS.md** (`.arc/reference/PROJECT-STATUS.md`):
-
-- Update **Currently Active** to the new work unit (name, category, description, task list path, branch)
-- Update **Next Priority** to the next queued item from ROADMAP.md (or remove if nothing is queued)
-
-**ROADMAP.md** (`.arc/backlog/ROADMAP.md`):
-
-- Update the work unit's status from its previous state (e.g., "Planning" → "In Progress")
-
-### Step 7: Post-Activation Extensions · `#post-work-unit-activate`
-
-If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now.
+> **`pm.mode` awareness:** Extension behavior depends on the project's PM mode
+> (`arc-config.yml` → `pm.mode`). With `arc-in-git`, extensions typically update
+> PROJECT-STATUS.md and ROADMAP.md. With `external`, extensions may update an external
+> tracker. With `none`, no PM extensions are expected — the workflow proceeds naturally.
 
 See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
-### Step 8: Commit Activation
+### Step 7: Commit Activation
 
 Stage the activation files and commit. The exact set depends on pm.mode:
 
@@ -163,11 +160,10 @@ git commit -m "docs(arc): activate {work-name} work unit
 Context: tasks-{name}.md (activation)"
 ```
 
-**Note:** Stage only the files actually modified. With `arc-in-git`, also stage PROJECT-STATUS.md and
-ROADMAP.md if updated in Step 6. If [post-work-unit-activate extensions][arc-ext-post-activate]
-produced additional changes, stage those as well.
+**Note:** Stage only the files actually modified. If [post-work-unit-activate extensions][arc-ext-post-activate]
+produced additional changes (e.g., PM layer artifacts), stage those as well.
 
-### Step 9: Push Feature Branch (Optional)
+### Step 8: Push Feature Branch (Optional)
 
 Set upstream for the feature branch:
 
@@ -187,7 +183,6 @@ Before proceeding to task execution, verify:
 - [ ] PRD, task list, and atomic companion file in `.arc/active/{category}/` (moved from backlog if arc-in-git)
 - [ ] Task list `Status` changed to `In Progress`
 - [ ] WORK-STATUS.md updated (branch, task list, current task)
-- [ ] PROJECT-STATUS.md and ROADMAP.md updated (arc-in-git only)
 - [ ] All changes committed on feature branch
 
 ---

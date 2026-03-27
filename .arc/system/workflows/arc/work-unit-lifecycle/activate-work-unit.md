@@ -115,8 +115,14 @@ Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active wor
 > **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
 > and the update applies to the whole branch. Other developers joining the work unit establish
 > their session context via `user/{identity}/SESSION-NOTES.md` during their first
-> [session initialization][session-init]. See [Team Coordination Strategy][team-coordination]
-> § Workflow Adaptations.
+> [session initialization][session-init].
+>
+> **Team branch setup:** If the team will use personal sub-branches (rather than committing
+> directly to the shared branch), create the integration branch in Step 2, then have each
+> developer create their sub-branch from it. Update the task list's `**Branch(es):**` header
+> to list all branches. Assign initial task ownership via `(@name)` markers in the task list.
+> See [Team Coordination Strategy][team-coordination] § Team Branching Patterns for pattern
+> options.
 
 ### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 

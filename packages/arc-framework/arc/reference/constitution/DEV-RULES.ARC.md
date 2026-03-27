@@ -80,7 +80,13 @@ changes by task; commit shared documentation (task list updates) last.
 Each checkbox in the task list is one review increment — a bounded chunk of autonomous execution
 between human review points (see [Core Philosophy][core-philosophy] § P2). The checkpoint is
 always at the checkbox level. In team mode, this applies per developer-agent pair — concurrent
-pairs may work on different tasks simultaneously.
+pairs may work on different tasks simultaneously. See [Team Coordination Strategy][team-coordination]
+for task ownership, branching patterns, and handoff conventions.
+
+> **Contributor note:** This section applies to maintainer-managed ARC task lists. Contributors
+> (`arc.role = contributor`) work on project code, not ARC planning artifacts — task execution
+> rules apply to contributor work through project-level conventions, not ARC task lists. See
+> [AGENT-BRIEFING.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
 
 - **Complete one review increment** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (quality checks pass)
@@ -348,3 +354,4 @@ session initialization.
 [session-mgmt]: ../strategies/arc/strategy-session-management.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
 [contributor-briefing]: ../../system/agent/AGENT-BRIEFING.CONTRIBUTOR.md
+[team-coordination]: ../strategies/arc/strategy-team-coordination.md

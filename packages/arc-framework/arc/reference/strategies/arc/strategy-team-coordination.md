@@ -2,8 +2,13 @@
 
 ## Purpose
 
-Lightweight conventions for multi-developer projects using ARC. Covers task ownership, team
+Available conventions for multi-developer projects using ARC. Covers task ownership, team
 branching patterns, merge conflict expectations, and integration with external project trackers.
+
+These conventions activate when `team.mode: true` is set in `arc-config.yml`. Some structural
+foundations are always present regardless of team mode — per-identity `user/{identity}/`
+directories, shared `WORK-STATUS.md` in `active/`. The conventions below add coordination
+patterns on top of that foundation; adopt the ones that fit your team's workflow.
 
 **Prerequisite:** Familiarity with [Work Organization Strategy][work-org] (branching model,
 work categories, protection modes). This strategy layers team-specific patterns on top of that
@@ -20,7 +25,7 @@ foundation.
 2. [Task Ownership](#task-ownership) — `(@name)` convention
 3. [Person-to-Person Task Handoff](#person-to-person-task-handoff) — transferring work between developers
 4. [Team Branching Patterns](#team-branching-patterns) — common multi-developer workflows
-5. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions
+5. [Merge Conflict Expectations](#merge-conflict-expectations) — shared file conventions, concurrent sessions
 6. [External Tracker Integration](#external-tracker-integration) — Jira, Linear, GitHub Issues
 
 ---
@@ -43,10 +48,13 @@ in subsequent sections and referenced documents.
 sections for off-plan work) are Core and always available.
 
 **Key distinction:** WORK-STATUS.md is shared in `active/` (one per branch, tracked in git).
-Personal files (SESSION-NOTES.md, ATOMIC-INBOX.md) live in `user/{identity}/` and are
-gitignored — no merge conflicts between developers. The `user/` directory structure is
-identical for solo and team; team scaling requires only adding identity directories. See
-`user/README.md` for the full directory structure.
+It represents **branch-level state** — "Next Task" is the branch's next incomplete task, not
+any individual developer's personal next task. In team mode, each developer resolves their
+personal next task by scanning `(@name)` markers in the task list (see
+[session-init][session-init] team-mode step). Personal files (SESSION-NOTES.md, ATOMIC-INBOX.md)
+live in `user/{identity}/` and are gitignored — no merge conflicts between developers. The
+`user/` directory structure is identical for solo and team; team scaling requires only adding
+identity directories. See `user/README.md` for the full directory structure.
 
 ---
 
@@ -91,13 +99,15 @@ update the external tool as the source of truth and optionally update the ARC ma
 
 ## Person-to-Person Task Handoff
 
-When one developer-agent pair transfers active work to another — vacation, rotation, workload
-rebalancing, or specialization change. Distinct from normal session handoff (same person, different
-session) in that the *reader changes*, not just the time boundary.
+A structured approach for transferring active work between developer-agent pairs — vacation,
+rotation, workload rebalancing, or specialization change. Distinct from normal session handoff
+(same person, different session) in that the *reader changes*, not just the time boundary.
 
-Person-to-person handoff composes the existing [session-handoff][session-handoff] and
+This protocol composes the existing [session-handoff][session-handoff] and
 [session-init][session-init] workflows with enhanced context for the different reader. No new
-ceremony — the standard workflows apply with the adjustments below.
+ceremony — the standard workflows apply with the adjustments below. Teams can follow this
+fully, partially, or rely on informal coordination — the minimum viable handoff is updating
+`(@name)` markers and pushing session notes.
 
 ### Outgoing Responsibilities
 
@@ -176,6 +186,12 @@ These patterns build on the [branching model in the work organization strategy][
 Choose the pattern that fits your team's review culture and the work at hand — patterns can
 coexist within a project.
 
+**`Branch(es):` header field:** Task lists record branches as a flat comma-separated list
+(e.g., `feature/user-auth, feature/user-auth/alice, feature/user-auth/bob`). This is
+intentionally flat — the list captures which branches exist, not their topology. Branch
+relationships (which is the integration branch, which are sub-branches) are documented in
+the branching pattern choice, not encoded in the field format.
+
 ### Shared Integration Branch
 
 The team works off a shared feature or technical branch. Each developer commits directly
@@ -246,15 +262,19 @@ In team mode, task lists (`active/{category}/tasks-*.md`) are communal — multi
 developers reference and update them. This means:
 
 - **Merge conflicts are expected** when team members mark different tasks complete on
-  different branches. These conflicts are trivially resolvable — they involve checkbox
-  state (`[ ]` → `[x]`) and completion notes on non-overlapping tasks.
+  different branches. These conflicts are straightforward to resolve manually — they
+  typically involve checkbox state (`[ ]` → `[x]`) and completion notes on non-overlapping
+  tasks. Git may produce larger conflict markers when changes are near each other or when
+  multi-line completion notes overlap with surrounding context.
 
-- **Resolution is mechanical:** Accept both sides' checkbox changes. If both modified
-  the same task (unlikely with ownership markers), coordinate verbally.
+- **Resolution example:** When Alice marks Task 3.1 `[x]` and Bob marks Task 3.2 `[x]`
+  on different branches, accept both checkbox changes. If both modified the same task
+  (unlikely with `(@name)` markers), coordinate verbally.
 
-- **Minimize conflict surface:** Avoid reformatting or restructuring task lists on
-  feature branches. Make structural changes (reordering, adding phases) on the
-  integration branch or base branch where all members can pull them.
+- **Minimize conflict surface:** Keep task list edits minimal — checkbox state plus
+  completion notes only. Avoid reformatting or restructuring task lists on feature
+  branches. Make structural changes (reordering, adding phases) on the integration branch
+  or base branch where all members can pull them.
 
 ### Session State Merge Behavior
 
@@ -262,11 +282,57 @@ Personal files in `user/{identity}/` (SESSION-NOTES.md and, with `pm.mode: arc-i
 ATOMIC-INBOX.md) are gitignored — no merge conflicts by design. Only one developer writes to
 each identity directory.
 
-`WORK-STATUS.md` in `active/` is shared (one per branch, tracked in git). Merge conflicts on
-WORK-STATUS.md are trivial: `.gitattributes` with `merge=ours` auto-resolves local merges by
-keeping the target branch version; PR merges take the base branch version. Post-merge workflows
-update WORK-STATUS.md immediately, so the auto-resolved content is transient. See
-[Work Organization Strategy][work-org] § Task Lists and Branches for the full merge convention.
+`WORK-STATUS.md` in `active/` is shared (one per branch, tracked in git) and represents
+branch-level progress. The `.gitattributes` `merge=ours` strategy auto-resolves local merges
+by keeping the target branch version. This is designed for **branch-to-base merges** (feature →
+main) where the base branch version is authoritative post-merge.
+
+**Sub-branch caveats:** When merging personal sub-branches into a shared integration branch,
+`merge=ours` keeps the integration branch's WORK-STATUS, silently discarding the sub-branch
+version. This is expected — the integration branch owner should update WORK-STATUS after
+merging to reflect the combined state. If multiple sub-branches merge in sequence, only the
+integration branch's WORK-STATUS survives; each merge should be followed by a reconciliation
+update.
+
+**Platform note:** Custom merge drivers (including `merge=ours`) do not run during server-side
+PR merges on GitHub, GitLab, or Bitbucket. If both branches modified WORK-STATUS.md, the
+platform reports a merge conflict. This is expected when the base branch version is unchanged
+(no conflict), but may require manual resolution when both sides have updates.
+
+See [Work Organization Strategy][work-org] § Task Lists and Branches for the full merge
+convention.
+
+### Concurrent Sessions
+
+The sections above describe sequential handoff (Alice finishes, Bob starts). When multiple
+developers are actively working simultaneously on the same branch:
+
+- **Task list:** Each developer works their `(@name)`-assigned tasks. Conflicts only arise
+  when both commit task list updates at the same time — pull before committing to reduce
+  conflict frequency. Remaining conflicts are resolved as described above.
+- **WORK-STATUS.md:** The last committer's update wins. This is acceptable because
+  WORK-STATUS represents branch-level state, and each developer resolves their personal
+  next task from `(@name)` markers at session-init — they don't depend on WORK-STATUS
+  for personal state.
+- **SESSION-NOTES.md:** No conflict possible — each developer writes to their own
+  `user/{identity}/` directory.
+
+Concurrent sessions are a normal team workflow, not an edge case. The design intentionally
+separates personal state (gitignored, per-identity) from shared state (tracked, branch-level)
+to minimize coordination overhead.
+
+### Configuration Notes
+
+**`user.sync_push` and team mode:** When `arc init` sets `team.mode: true`, it defaults
+`user.sync_push` to `prompt` (ask before pushing session notes). If you toggle `team.mode`
+after init by editing `arc-config.yml`, `user.sync_push` is not automatically updated — check
+and adjust it manually. Per-developer override: `git config arc.sync_push`.
+
+**Enforcement model:** `user.sync_push` behavior is agent-interpreted prose in the
+[session-handoff workflow][session-handoff]. No hook or CLI command enforces the push policy
+at handoff time — the agent reads the config value and follows the documented protocol. This
+is a known design choice, consistent with ARC's general approach of agent-interpreted guidance
+for workflow steps.
 
 ---
 
