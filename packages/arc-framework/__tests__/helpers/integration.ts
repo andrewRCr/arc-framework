@@ -328,21 +328,33 @@ export function makeGitNoteReader(cwd: string) {
 
 /**
  * Read directory entries with name and size (real filesystem).
+ * Recurses into subdirectories — entries use relative paths.
+ * Skips dot-directories (infrastructure, not user content).
  */
 export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  let names: string[];
-  try {
-    names = await readdir(dirPath);
-  } catch {
-    return [];
-  }
   const entries: DirEntry[] = [];
-  for (const name of names) {
-    const s = await stat(join(dirPath, name));
-    if (s.isFile()) {
-      entries.push({ name, size: s.size });
+
+  async function walk(currentPath: string, prefix: string): Promise<void> {
+    let names: string[];
+    try {
+      names = await readdir(currentPath);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const fullPath = join(currentPath, name);
+      const s = await stat(fullPath);
+      if (s.isDirectory()) {
+        if (name.startsWith(".")) continue;
+        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
+      } else if (s.isFile()) {
+        const relativeName = prefix ? `${prefix}/${name}` : name;
+        entries.push({ name: relativeName, size: s.size });
+      }
     }
   }
+
+  await walk(dirPath, "");
   return entries;
 }
 

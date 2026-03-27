@@ -24,6 +24,7 @@ import {
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserPull,
   buildSaveSummary, buildLoadSummary,
   UserSaveError,
+  hasLocalNotes,
 } from "./commands/user.js";
 import { runLogAtomic, buildLogAtomicOutput } from "./commands/log.js";
 import type { UserIOContext } from "./commands/user.js";
@@ -87,8 +88,13 @@ async function writeGitNote(
     proc.stdin.on("error", (err) => {
       reject(new Error(`git notes stdin write failed: ${err.message}`));
     });
-    proc.stdin.write(content);
-    proc.stdin.end();
+    // Handle backpressure for large manifests — wait for drain if buffer is full
+    const ok = proc.stdin.write(content);
+    if (!ok) {
+      proc.stdin.once("drain", () => proc.stdin.end());
+    } else {
+      proc.stdin.end();
+    }
   });
 }
 
@@ -112,21 +118,33 @@ async function readGitNote(
 
 /**
  * Read directory entries with name and size for user directory serialization.
+ * Recurses into subdirectories — entries use relative paths (e.g., `drafts/idea.md`).
+ * Skips dot-directories (infrastructure, not user content).
  */
 async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  let names: string[];
-  try {
-    names = await readdir(dirPath);
-  } catch {
-    return [];
-  }
   const entries: DirEntry[] = [];
-  for (const name of names) {
-    const s = await stat(join(dirPath, name));
-    if (s.isFile()) {
-      entries.push({ name, size: s.size });
+
+  async function walk(currentPath: string, prefix: string): Promise<void> {
+    let names: string[];
+    try {
+      names = await readdir(currentPath);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const fullPath = join(currentPath, name);
+      const s = await stat(fullPath);
+      if (s.isDirectory()) {
+        if (name.startsWith(".")) continue;
+        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
+      } else if (s.isFile()) {
+        const relativeName = prefix ? `${prefix}/${name}` : name;
+        entries.push({ name: relativeName, size: s.size });
+      }
     }
   }
+
+  await walk(dirPath, "");
   return entries;
 }
 
@@ -704,7 +722,8 @@ userCmd
 userCmd
   .command("push")
   .description("Push user notes to remote")
-  .action(async () => {
+  .option("--force", "Force-push even when remote has diverged")
+  .action(async (opts: { force?: boolean }) => {
     p.intro("arc user push");
 
     let identity: string;
@@ -717,8 +736,72 @@ userCmd
     const io = createUserIOContext();
 
     try {
-      await runWithSpinner("Pushing user notes...", () => runUserPush({ io, identity }), "Push complete.");
+      await runWithSpinner(
+        "Pushing user notes...",
+        () => runUserPush({ io, identity, force: opts.force }),
+        "Push complete.",
+      );
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+
+      // Detect missing remote
+      if (msg.includes("Could not read from remote") || msg.includes("No such remote")) {
+        p.log.error("No remote configured. Push requires a remote repository.");
+        p.log.info("Set up a remote with: git remote add origin <url>");
+        process.exitCode = 1;
+        return;
+      }
+
+      // Detect diverged remote (non-fast-forward rejection)
+      if (msg.includes("non-fast-forward") || msg.includes("[rejected]")) {
+        p.log.warn("Push rejected — remote has diverged from local notes.");
+        const action = await p.select({
+          message: "How would you like to resolve this?",
+          options: [
+            { value: "force", label: "Force push (overwrite remote with local)" },
+            { value: "pull", label: "Pull first (overwrite local with remote)" },
+            { value: "cancel", label: "Cancel" },
+          ],
+        });
+
+        if (p.isCancel(action) || action === "cancel") {
+          p.log.info("Push cancelled.");
+          return;
+        }
+
+        if (action === "force") {
+          try {
+            await runWithSpinner(
+              "Force-pushing user notes...",
+              () => runUserPush({ io, identity, force: true }),
+              "Force push complete.",
+            );
+          } catch (forceErr) {
+            if (isHandledError(forceErr)) return;
+            throw forceErr;
+          }
+        } else {
+          // Pull first (force — we know refs have diverged), then retry push
+          try {
+            await runWithSpinner(
+              "Pulling user notes...",
+              () => runUserPull({ io, identity, force: true }),
+              "Pull complete.",
+            );
+            await runWithSpinner(
+              "Pushing user notes...",
+              () => runUserPush({ io, identity }),
+              "Push complete.",
+            );
+          } catch (pullPushErr) {
+            if (isHandledError(pullPushErr)) return;
+            throw pullPushErr;
+          }
+        }
+        p.outro("Done.");
+        return;
+      }
+
       if (isHandledError(err)) return;
       throw err;
     }
@@ -729,21 +812,63 @@ userCmd
 userCmd
   .command("pull")
   .description("Fetch user notes from remote")
-  .action(async () => {
+  .option("--identity <name>", "Pull another developer's notes instead of your own")
+  .action(async (opts: { identity?: string }) => {
     p.intro("arc user pull");
 
     let identity: string;
-    try {
-      identity = await resolveUserIdentity();
-    } catch (err) {
-      if (isHandledError(err)) return;
-      throw err;
+    if (opts.identity) {
+      identity = opts.identity;
+      p.log.info(`Pulling notes for identity: ${identity}`);
+    } else {
+      try {
+        identity = await resolveUserIdentity();
+      } catch (err) {
+        if (isHandledError(err)) return;
+        throw err;
+      }
     }
     const io = createUserIOContext();
 
+    // Warn if local notes exist that would be overwritten
+    if (await hasLocalNotes(io, identity)) {
+      const proceed = await p.confirm({
+        message: "Local notes exist and will be overwritten by remote. Continue?",
+        initialValue: true,
+      });
+      if (p.isCancel(proceed) || !proceed) {
+        p.log.info("Pull cancelled.");
+        return;
+      }
+    }
+
+    // Force pull when user confirmed overwrite of diverged local notes
+    const hasLocal = await hasLocalNotes(io, identity);
     try {
-      await runWithSpinner("Pulling user notes...", () => runUserPull({ io, identity }), "Pull complete.");
+      await runWithSpinner(
+        "Pulling user notes...",
+        () => runUserPull({ io, identity, force: hasLocal }),
+        "Pull complete.",
+      );
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+
+      // Detect missing remote
+      if (msg.includes("Could not read from remote") || msg.includes("No such remote")) {
+        p.log.error("No remote configured. Pull requires a remote repository.");
+        p.log.info("Set up a remote with: git remote add origin <url>");
+        process.exitCode = 1;
+        return;
+      }
+
+      // Detect remote ref not found (no notes on remote for this identity)
+      if (msg.includes("couldn't find remote ref")) {
+        p.log.warn(`No notes found on remote for identity "${identity}".`);
+        p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
+        process.exitCode = 1;
+        return;
+      }
+
       if (isHandledError(err)) return;
       throw err;
     }
@@ -771,16 +896,17 @@ program
     const cwd = process.cwd();
 
     if (opts.load) {
-      // Pull + load
+      // Pull + load (force — sync explicitly replaces local with remote)
       const spinner = p.spinner();
       spinner.start("Pulling user notes...");
       try {
-        await runUserPull({ io, identity });
+        await runUserPull({ io, identity, force: true });
         spinner.stop("Pull complete.");
       } catch (err) {
         spinner.stop("Pull failed.");
         const msg = err instanceof Error ? err.message : String(err);
         p.log.error(`Failed to pull user notes: ${msg}`);
+        process.exitCode = 1;
         return;
       }
 
@@ -792,6 +918,7 @@ program
         if (!result) {
           loadSpinner.stop("No note found.");
           p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+          process.exitCode = 1;
           return;
         }
 
@@ -801,6 +928,7 @@ program
         loadSpinner.stop("Load failed.");
         const msg = err instanceof Error ? err.message : String(err);
         p.log.error(`Failed to load user directory: ${msg}`);
+        process.exitCode = 1;
         return;
       }
     } else {
@@ -819,6 +947,7 @@ program
         spinner.stop("Save failed.");
         if (err instanceof UserSaveError) {
           p.log.error(err.message);
+          process.exitCode = 1;
           return;
         }
         throw err;
@@ -834,6 +963,7 @@ program
         const msg = err instanceof Error ? err.message : String(err);
         p.log.error(`Failed to push user notes: ${msg}`);
         p.log.warn("User directory was saved locally — push manually with 'arc user push'.");
+        process.exitCode = 1;
         return;
       }
     }

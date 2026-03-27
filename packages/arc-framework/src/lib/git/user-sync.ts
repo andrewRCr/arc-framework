@@ -56,7 +56,7 @@ export interface SkipWarning {
 
 /** Serialized user directory manifest. */
 export interface SyncManifest {
-  version: 1;
+  version: 1 | 2;
   files: Record<string, string>;
 }
 
@@ -154,11 +154,19 @@ export async function serialize(
   const warnings: SkipWarning[] = [];
 
   for (const entry of entries) {
+    // Extract basename for filtering (entry.name may be a relative path for subdirs)
+    const basename = entry.name.includes("/")
+      ? entry.name.substring(entry.name.lastIndexOf("/") + 1)
+      : entry.name;
+
+    // Skip dotfiles (infrastructure, not user content)
+    if (basename.startsWith(".")) continue;
+
     // Skip framework-managed files
-    if (EXCLUDED_NAMES.has(entry.name)) continue;
+    if (EXCLUDED_NAMES.has(basename)) continue;
 
     // Check explicit exclusions first (specific warning)
-    if (isExcludedFile(entry.name)) {
+    if (isExcludedFile(basename)) {
       warnings.push({
         path: entry.name,
         reason: "excluded",
@@ -168,7 +176,7 @@ export async function serialize(
     }
 
     // Check allowlist
-    if (!isAllowedFile(entry.name)) {
+    if (!isAllowedFile(basename)) {
       warnings.push({
         path: entry.name,
         reason: "type",
@@ -192,37 +200,61 @@ export async function serialize(
   }
 
   return {
-    manifest: { version: 1, files },
+    manifest: { version: 2, files },
     warnings,
   };
 }
 
-/** Check whether a filename is safe for deserialization (no path traversal). */
-function isSafeFilename(name: string): boolean {
+/**
+ * Check whether a manifest key is safe for deserialization.
+ *
+ * Allows flat filenames and relative subdirectory paths (e.g., `drafts/idea.md`)
+ * while preventing path traversal (`../`, `./`, absolute paths, backslashes).
+ * Each segment is validated independently.
+ */
+function isSafePath(name: string): boolean {
   if (name !== name.trim()) return false;
   if (name.length === 0) return false;
-  if (name.includes("/") || name.includes("\\")) return false;
-  if (name === "." || name === "..") return false;
+  if (name.includes("\\")) return false;
+
+  const segments = name.split("/");
+  for (const seg of segments) {
+    if (seg.length === 0) return false;       // empty segment (leading/trailing/double /)
+    if (seg === "." || seg === "..") return false;
+    if (seg !== seg.trim()) return false;      // whitespace in segment
+  }
   return true;
 }
 
 /**
  * Deserialize a manifest back into files in the user directory.
  *
- * Validates each filename to prevent path traversal from untrusted git
- * note content. Files with suspicious names are silently skipped.
+ * Validates each path to prevent path traversal from untrusted git
+ * note content. Paths with suspicious segments are silently skipped.
+ * Subdirectory entries are supported — parent directories are created
+ * when a mkdir function is provided.
  *
  * @param userDir - Absolute path to the user directory
  * @param manifest - Previously serialized manifest
  * @param writeFile - Injectable file writer
+ * @param mkdirFn - Optional directory creator for subdirectory entries
  */
 export async function deserialize(
   userDir: string,
   manifest: SyncManifest,
   writeFile: WriteFileFn,
+  mkdirFn?: (path: string, opts: { recursive: boolean }) => Promise<string | undefined>,
 ): Promise<void> {
   for (const [name, content] of Object.entries(manifest.files)) {
-    if (!isSafeFilename(name)) continue;
-    await writeFile(`${userDir}/${name}`, content);
+    if (!isSafePath(name)) continue;
+    const fullPath = `${userDir}/${name}`;
+
+    // Create parent directories for subdirectory entries
+    if (name.includes("/") && mkdirFn) {
+      const parentDir = fullPath.substring(0, fullPath.lastIndexOf("/"));
+      await mkdirFn(parentDir, { recursive: true });
+    }
+
+    await writeFile(fullPath, content);
   }
 }

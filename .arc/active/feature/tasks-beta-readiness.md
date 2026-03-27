@@ -609,7 +609,7 @@ auto-detection promoted from backlog into Task 6.3.b.
         - Added `pm.mode=external` test permutation for join (I-M07)
         - Added join idempotency test — second run succeeds without error (I-M06)
 
-- [ ] **6.4 User portability: safety, reliability, and workflow integration**
+- [x] **6.4 User portability: safety, reliability, and workflow integration**
 
     **Goal:** Make session state sync safe (no silent data loss), reliable (ancestor walking,
     conflict detection), and properly documented in session workflows.
@@ -617,39 +617,63 @@ auto-detection promoted from backlog into Task 6.3.b.
     Findings: UL-H01, UL-H02, CC-H01, UP-M01, UP-M02, UP-M03, UL-M01, UL-M02, SY-M01/M02,
     CC-M03, TC-M09
 
-    - [ ] **6.4.a Load safety: backup, stale file detection, and subdirectory support**
+    - [x] **6.4.a Load safety: backup, stale file detection, and subdirectory support**
 
-        Build `test-first` (one behavior at a time):
-        - Load creates backup of existing files before overwriting (UL-H01)
-        - Load warns about local files not present in saved manifest (UL-H02)
-        - Serialize/deserialize handles subdirectories recursively (CC-H01)
-        - `writeGitNote` handles stdin backpressure for large manifests (CC-M03)
+        **Changes:**
 
-    - [ ] **6.4.b Push/pull conflict detection and `--identity` support**
+        - `serialize` (`user-sync.ts`): dotfile skip convention (basename check), version
+          bumped to 2, basename-based filtering for subdirectory entries
+        - `isSafeFilename` → `isSafePath`: per-segment validation allows `/` for subdirs,
+          blocks `..`, `.`, `\`, empty segments, whitespace
+        - `deserialize`: optional `mkdirFn` param for subdirectory creation
+        - `readUserDir` (`cli.ts`, `integration.ts` helper): recursive with dot-directory skip
+        - `runUserLoad` (`user.ts`): backup to `.pre-load-backup.json` before overwrite,
+          stale file detection (local files not in manifest), version validation accepts 1|2,
+          `UserLoadResult.warnings` field added
+        - `writeGitNote` (`cli.ts`): backpressure handling (drain wait on full buffer)
+        - 9 new unit tests, 5 new integration tests; existing tests updated for v2 and
+          dotfile convention (`.env` now skipped silently, `subfolder/file.md` now accepted)
 
-        Build `test-first` (one behavior at a time):
-        - Push detects diverged remote and offers force-push or pull-first (UP-M01)
-        - Pull detects local changes and warns before overwriting (UP-M02)
-        - Missing remote produces user-friendly error (UP-M03)
-        - `arc user pull --identity <name>` fetches another developer's notes (TC-M09)
-        - `arc sync` sets non-zero exit code on partial failure (SY-M01/M02)
+    - [x] **6.4.b Push/pull conflict detection and `--identity` support**
 
-    - [ ] **6.4.c Ancestor walking: merged branch support**
-        - Replace `HEAD~N` linear traversal with `git log --all` or ref-aware walking (UL-M01)
-        - Batch git invocations to reduce process spawns (UL-M02)
+        **Changes:**
 
-        Build `test-first` (one behavior at a time):
-        - Finds note on HEAD (direct match, no walking needed)
-        - Finds note on linear ancestor (HEAD~3)
-        - Finds note on merge ancestor (commit reachable via merge, not linear)
-        - Returns null when no note exists on any ancestor
-        - Handles shallow clone (limited history)
+        - `runUserPush` (`user.ts`): added `force?: boolean` option, passes `--force` to git
+        - `runUserPull` (`user.ts`): added `force?: boolean` option, uses `+` refspec prefix
+        - `hasLocalNotes`, `hasRemoteNotes` helpers exported for CLI-layer detection
+        - Push CLI handler: catches non-fast-forward errors, offers interactive select
+          (force push / pull first / cancel); catches missing remote with user-friendly error
+        - Pull CLI handler: `--identity <name>` option for cross-user pull; `p.confirm` when
+          local notes exist; missing remote and missing ref detection with friendly messages
+        - `arc sync`: `process.exitCode = 1` on all partial failure paths (pull, load, save, push)
+        - 5 new integration tests (force push, cross-identity pull, missing remote,
+          hasLocalNotes, hasRemoteNotes)
 
-    - [ ] **6.4.d Session workflow sync error guidance**
-        - Add error-path guidance to `session-handoff.md` for push failures and divergence
-        - Add load-failure guidance to `session-init.md` for missing/stale notes
-        - Surface sync decisions to user (not silent — when push diverges, when pull would
-          overwrite)
+    - [x] **6.4.c Ancestor walking: merged branch support**
+
+        **Changes:**
+
+        - `runUserLoad` (`user.ts`): replaced `HEAD~N` linear loop (up to 40 git calls) with
+          batched approach: `git notes list` (all noted commits) + `git rev-list HEAD`
+          (topological ancestor walk, follows merge paths) + intersection. Only 2-3 git calls
+          total regardless of history depth.
+        - `rev-list` handles merge commits natively (walks all parent paths) and stops
+          naturally at shallow clone boundaries.
+        - 3 new integration tests: merge ancestor (branch+merge, note found through merge
+          parent), shallow clone within boundary (depth 2, note 1 commit back — found),
+          shallow clone beyond boundary (depth 1, note 10 commits back — returns null)
+
+    - [x] **6.4.d Session workflow sync error guidance**
+
+        **Changes:**
+
+        - `session-handoff.md` § Save to Git Notes: added error handling block covering push
+          rejection (non-fast-forward with interactive recovery), missing remote (local save
+          still succeeded), pull warning (backup preserves prior state), and save failure
+        - `session-init.md` § item 9 (SESSION-NOTES loading): added load error handling
+          covering no note found (normal on first session), corrupt note (overwrite guidance),
+          pull failure (identity verification via `ls-remote`), and stale file warnings
+          (backup location and recovery)
 
 - [ ] **6.5 Pristine store: atomic writes, corruption resilience, and recovery UX**
 

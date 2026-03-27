@@ -16,11 +16,11 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.4.a — Load safety: backup, stale file detection, and subdirectory support (line ~623)
-**Last Completed**: Task 6.3 — Init/join hardening (all subtasks complete)
+**Next Task**: Task 6.5.a — Atomic writes for manifest and pristine store (line ~672)
+**Last Completed**: Task 6.4 — User portability (all subtasks complete)
 **Blockers**: [none]
-**Next Action**: Continue Phase 6 — start Task 6.4.a (load safety)
+**Next Action**: Continue Phase 6 — start Task 6.5.a (atomic writes)
 
 ---
 
-**Last Updated**: 2026-03-25
+**Last Updated**: 2026-03-27
