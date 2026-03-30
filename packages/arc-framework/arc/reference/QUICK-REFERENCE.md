@@ -204,6 +204,31 @@ git --no-pager diff --stat
 
 ## ARC CLI Commands
 
+### Setup and Configuration
+
+```bash
+# Initialize ARC in a new project
+npx arc init
+
+# Initialize with non-interactive defaults
+npx arc init --yes --name "My Project" --pm-mode arc-in-git --tools claude,cursor
+
+# Change structural settings on an existing installation (pm.mode, team.mode, project name)
+npx arc init --reconfigure
+
+# Preview reconfigure changes without applying
+npx arc init --reconfigure --dry-run
+
+# Join an existing ARC project (personal workspace: role, identity, skills)
+npx arc join
+
+# Change personal workspace settings (role, tools)
+npx arc join --reconfigure
+
+# Update framework files to the latest version
+npx arc update
+```
+
 ### Session State Portability
 
 ```bash

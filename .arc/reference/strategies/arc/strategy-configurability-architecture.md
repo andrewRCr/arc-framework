@@ -14,8 +14,8 @@ inventory. For ARC's principles, philosophical foundation, and positioning, see 
 ## Contents
 
 - [The Customization Model](#the-customization-model) — mechanisms, boundary tests, convention inventory
-- [Adoption Defaults](#adoption-defaults) — enforcement calibration, scaling
-- [Configuration](#configuration) — `arc-config.yml` design and settings
+- [Adoption Defaults](#adoption-defaults) — enforcement calibration, scaling, command landscape
+- [Configuration](#configuration) — `arc-config.yml` design, structural vs. runtime settings
 - [Extension Points](#extension-points) — adding behavior to workflows
 - [Method Overrides](#method-overrides) — replacing convention implementations
 - [Platform and Tool Compatibility](#platform-and-tool-compatibility) — platform commands, skills positioning
@@ -220,9 +220,33 @@ sets `hooks.commit_msg: disabled`. The agent still produces quality output; enfo
 changing any enforcement settings.
 
 **Changing PM mode:** Independent of enforcement and method changes. A `pm.mode: none` user who wants in-git project
-management switches to `pm.mode: arc-in-git` via `npx arc init --reconfigure`. A team moving to external tracking switches
-to `pm.mode: external` without affecting enforcement settings or method overrides. PM mode changes are structural choices
-made at init time; enforcement settings and method overrides can change at any time.
+management switches to `pm.mode: arc-in-git` via `arc init --reconfigure`. A team moving to external tracking switches to
+`pm.mode: external` without affecting enforcement settings or method overrides. PM mode changes are structural — they
+affect which files are installed. See [Structural vs. runtime settings](#structural-vs-runtime-settings).
+
+### Command landscape
+
+ARC's CLI commands map to distinct lifecycle stages. Each command has a clear scope — knowing which command to use for a
+given change avoids unnecessary ceremony.
+
+| Command                  | Scope           | What it does                                                            |
+|--------------------------|-----------------|-------------------------------------------------------------------------|
+| `arc init`               | Project setup   | Scaffold `.arc/` directory, manifest, hooks, config, templates          |
+| `arc init --reconfigure` | Project config  | Change structural settings (pm.mode, team.mode, project name)           |
+| `arc init --dry-run`     | Preview         | Show what `--reconfigure` would change without applying                 |
+| `arc join`               | Personal setup  | Set up developer workspace: role, identity, hooks, skills               |
+| `arc join --reconfigure` | Personal config | Change role and/or tool selection, regenerate skills                    |
+| `arc update`             | Framework sync  | Update framework files to the latest version (preserves customizations) |
+
+**Project-level vs. personal:** `init` and `init --reconfigure` operate on the shared project installation (manifest,
+framework files, `arc-config.yml`). `join` and `join --reconfigure` operate on the developer's personal workspace (role,
+identity, skills). Both are idempotent — re-running with the same inputs is a no-op.
+
+**What reconfigure covers vs. what propagates automatically:** Structural settings (pm.mode, team.mode, project name)
+affect which files are installed and how templates render — changing them requires `--reconfigure` to add, remove, or
+re-render files. Runtime settings (commit.format, hooks.pre_commit, merge.strategy, etc.) are read by hooks and the
+agent at runtime — changing them is just editing `arc-config.yml`, no command needed. See
+[Structural vs. runtime settings](#structural-vs-runtime-settings).
 
 ---
 
@@ -319,6 +343,33 @@ characteristics:
 
 ARC accommodates squash merging by shifting traceability mechanisms, not by blocking the choice. Teams choosing squash
 should ensure PR descriptions are thorough enough to serve as the traceability record.
+
+### Structural vs. runtime settings
+
+Config settings divide into two categories based on how changes take effect:
+
+**Structural settings** affect which files are installed and how templates render. Changing them requires
+`arc init --reconfigure` because the on-disk file set must be updated to match:
+
+- `pm.mode` — Adds or removes arc-in-git files (ROADMAP, backlogs, PROJECT-STATUS, strategies)
+- `team.mode` — Adds or removes team coordination content in rendered templates
+- `project_name` — Re-renders token substitutions (`{{PROJECT_NAME}}`) across templates
+
+`--reconfigure` computes the file delta (additions, removals, re-renders) and applies it through the same three-way
+merge pipeline used by `arc update`. Use `--dry-run` to preview changes before applying.
+
+**Runtime settings** are read by hooks and the agent at runtime. Changing them is a direct edit to `arc-config.yml` — no
+command needed, no file changes triggered:
+
+- `commit.format`, `commit.context_footer` — Hook validation rules
+- `hooks.pre_commit`, `hooks.commit_msg` — Hook enable/disable
+- `branch.base`, `branch.protection` — Branch model
+- `merge.strategy` — Integration strategy
+- `platform.type` — Agent platform awareness
+- `review.pre_merge` — Pre-merge review toggle
+
+**Personal settings** (role, tools) route through `git config` and are managed by `arc join` and
+`arc join --reconfigure`, not through `arc-config.yml`. See [Config scope](#config-scope-project-wide-by-design).
 
 ### Tier 3 in config
 

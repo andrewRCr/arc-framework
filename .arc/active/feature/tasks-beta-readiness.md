@@ -1171,62 +1171,55 @@ get overwritten.
         - Unchanged config → `mergeFileContents` fast path returns unchanged
         - 3 orchestrator-level tests confirm behavior end-to-end
 
-- [ ] **7.3 `--dry-run` mode**
+- [x] **7.3 `--dry-run` mode**
 
-    **Goal:** Preview reconfigure impact without applying changes.
+    - `DryRunResult` type with discriminant (`dryRun: true`) on `reconfigure.ts`
+    - `ReconfigureOptions.dryRun` — early return after `buildChangePlan`, before
+      `applyChangePlan`, skill regeneration, or manifest writes
+    - CLI: `--dry-run` flag on `init`, handler formats report with `+`/`-`/`~` prefixes
+      and classification labels on removals
+    - 5 unit tests: additions reported, removals with classification, re-renders
+      reported, no disk writes (writeFile/atomicWriteJson/mkdir all uncalled),
+      no-change case
 
-    - Add `--dry-run` flag to `init --reconfigure`
-    - Resolve file delta (additions, removals, re-renders) and report without disk writes
-    - Reuses file delta resolution logic from 7.2
+- [x] **7.4 `join --reconfigure`**
 
-    Build `test-first` (one behavior at a time):
-    - Reports files that would be added
-    - Reports files that would be removed (with classification labels)
-    - Reports files that would be re-rendered
-    - No disk writes occur (manifest, pristine, files all unchanged)
-    - No-change case reports "nothing would change"
+    - `runJoinReconfigure` orchestrator in `commands/join.ts` with injectable
+      `SkillRemovalIO` for testable file removal
+    - `removeArcSkills` in `lib/skills/generation.ts` — dynamically reads
+      `CANONICAL_SKILLS` to identify ARC-owned directories, verifies `SKILL.md`
+      exists before removal, never touches parent dirs or non-ARC content
+    - CLI: `--reconfigure` flag on `join`, handler reads current role/tools from
+      `git config`, re-prompts with current values as defaults, detects no-change
+    - Tool persistence: `git config --local arc.tools` set during both fresh join
+      and reconfigure (parallel to init's manifest-based persistence)
+    - `promptTools` extended with optional `initialValues` for reconfigure defaults
+    - `JoinPromptOptions` extended with `currentRole`/`currentTools`
+    - 6 unit tests: role change, skill regeneration, skill cleanup for deselected
+      tools, unchanged no-op, both roles, tool persistence in git config
 
-- [ ] **7.4 `join --reconfigure`**
+- [x] **7.5 Strategy doc realignment and discoverability**
 
-    **Goal:** Enable personal workspace reconfiguration for any developer.
-
-    - Add `--reconfigure` flag to join command (`cli.ts`, `handlers/join.ts`)
-    - Re-prompt for role and tools with current values as defaults
-    - Update `arc.role` in git config, regenerate skills for new tool selection
-    - Handle skill cleanup: `generateSkills` is additive — deselected tools leave orphan
-      skill files. Add removal of old skill files before regenerating.
-    - No role gate (personal reconfiguration, any role can use)
-    - Idempotent on hooks and gitignore (already is for fresh join)
-
-    Build `test-first` (one behavior at a time):
-    - Role change updates git config
-    - Tool change regenerates skills for new selection
-    - Tool change removes skill files for deselected tools
-    - Unchanged values produce no side effects
-    - Works for both maintainer and contributor roles
-
-- [ ] **7.5 Strategy doc realignment and discoverability**
-
-    **Goal:** Align documentation with the new command surface and ensure clear signposting
-    across all paths.
-
-    - [ ] **7.5.a Update `strategy-configurability-architecture.md`**
-        - Expand "pm.mode is structural" to document the full structural/runtime distinction
-        - Replace single `--reconfigure` mention with proper command documentation
-        - Document what reconfigure covers vs. what propagates automatically
-        - Clarify that `tools` changes go through add-agent workflow, not reconfigure
-        - Add command landscape reference (init / join / update / --reconfigure / add-agent)
-
-    - [ ] **7.5.b Discoverability audit**
-        - `--help` text on init, join, update pointing to related commands
-        - Error messages as navigation signposts (extend ALREADY_INSTALLED pattern)
-        - add-agent workflow: verify it doesn't reference reconfigure for tool changes
-        - QUICK-REFERENCE: add reconfigure to ARC CLI Commands section
-        - AGENT-BRIEFING files: ensure agent can guide users to the right command
-
-    - [ ] **7.5.c Sync documentation changes to package source**
-        - Updated strategy docs and workflow files reflected in
-          `packages/arc-framework/arc/` source
+    - [x] **7.5.a Update `strategy-configurability-architecture.md`**
+        - New "Command landscape" subsection: table of init/join/update/reconfigure/dry-run
+          with scope and description; project-level vs personal distinction; what reconfigure
+          covers vs what propagates automatically
+        - New "Structural vs. runtime settings" subsection: structural (pm.mode, team.mode,
+          project_name) require `--reconfigure`; runtime (commit.format, hooks, etc.) are
+          direct edits; personal settings route through `git config` and `arc join`
+        - Updated pm.mode paragraph to reference structural settings section
+        - Updated Contents entries
+    - [x] **7.5.b Discoverability audit**
+        - CLI help text already descriptive with cross-references (init --reconfigure,
+          join --reconfigure, dry-run descriptions)
+        - ALREADY_INSTALLED error already has navigation signposts to reconfigure/join/update
+        - add-agent workflow: confirmed no reconfigure references (clean separation)
+        - QUICK-REFERENCE: new "Setup and Configuration" subsection with init, join,
+          reconfigure, dry-run, and update commands
+        - AGENT-BRIEFING: correctly discovers commands through QUICK-REFERENCE, not briefings
+    - [x] **7.5.c Sync documentation changes to package source**
+        - `strategy-configurability-architecture.md` and `QUICK-REFERENCE.md` synced to
+          `packages/arc-framework/arc/`
 
 - [ ] **7.6 Phase quality gates**
 
