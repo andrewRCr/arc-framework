@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.6 — Phase quality gates (line ~1224)
-**Last Completed**: Task 7.5 — Strategy doc realignment and discoverability
+**Next Task**: Task 8.1 — Pre-site content preparation (line ~1252)
+**Last Completed**: Task 7.6 — Phase quality gates
 **Blockers**: None
-**Next Action**: Run Phase 7 quality gates
+**Next Action**: Begin Phase 8 (Docs Site)
 
 ---
 
