@@ -44,6 +44,7 @@ program
   .option("--contributor", "Set role to contributor (default: maintainer)")
   .option("-y, --yes", "Skip prompts, use defaults")
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
+  .option("--reconfigure", "Change personal workspace settings (role, tools)")
   .action(handleJoin);
 
 // --- Lifecycle ---

@@ -22,6 +22,10 @@ const ROLE_OPTIONS: { value: string; label: string; hint?: string }[] = [
 export interface JoinPromptOptions {
   /** When true, skip role prompt and use "contributor". */
   contributor?: boolean;
+  /** Current role (for reconfigure — used as default selection). */
+  currentRole?: "maintainer" | "contributor";
+  /** Current tools (for reconfigure — used as default selection). */
+  currentTools?: string[];
 }
 
 /**
@@ -45,7 +49,7 @@ export async function runJoinPrompts(
       const selected = await p.select({
         message: "What's your role in this project?",
         options: ROLE_OPTIONS,
-        initialValue: "maintainer",
+        initialValue: options?.currentRole ?? "maintainer",
       });
       if (p.isCancel(selected)) {
         p.cancel("Setup cancelled.");
@@ -55,8 +59,8 @@ export async function runJoinPrompts(
       role = selected;
     }
 
-    // 2. Tools selection (shared prompt)
-    const tools = await promptTools(sentinel);
+    // 2. Tools selection (shared prompt, with current values as defaults for reconfigure)
+    const tools = await promptTools(sentinel, options?.currentTools);
 
     return {
       role: role as "maintainer" | "contributor",

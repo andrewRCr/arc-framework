@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { runJoin } from "../../src/commands/join.js";
-import type { JoinIOContext, JoinOptions } from "../../src/commands/join.js";
+import { runJoin, runJoinReconfigure } from "../../src/commands/join.js";
+import type { JoinIOContext, JoinOptions, JoinReconfigureOptions } from "../../src/commands/join.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
+import type { SkillRemovalIO } from "../../src/lib/skills/index.js";
 
 // --- Test Helpers ---
 
@@ -239,5 +240,175 @@ describe("runJoin", () => {
     const result = await runJoin(opts);
     expect(result.role).toBe("maintainer");
     expect(result.tools).toEqual(["claude"]);
+  });
+
+  it("persists tools in git config arc.tools", async () => {
+    await runJoin(opts);
+
+    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
+    const toolsCall = execCalls.find(
+      (c) => c[1]?.includes("arc.tools"),
+    );
+    expect(toolsCall).toBeDefined();
+    expect(toolsCall![1]).toEqual(["config", "--local", "arc.tools", "claude"]);
+  });
+});
+
+// --- Join Reconfigure Tests ---
+
+describe("runJoinReconfigure", () => {
+  let io: JoinIOContext;
+  let removeIO: SkillRemovalIO;
+  const removedPaths: string[] = [];
+
+  function buildReconfigureOpts(overrides?: Partial<JoinReconfigureOptions>): JoinReconfigureOptions {
+    return {
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      prompts: { role: "maintainer", tools: ["cursor"] },
+      previousTools: ["claude"],
+      removeIO,
+      ...overrides,
+    };
+  }
+
+  /** Pre-populate skill files on disk for cleanup testing. */
+  function addSkillFiles(store: Map<string, string>, dir: string): void {
+    for (const name of CANONICAL_SKILLS) {
+      const path = `/project/${dir}/${name}/SKILL.md`;
+      store.set(path, `---\nname: ${name}\n---\n`);
+    }
+  }
+
+  beforeEach(() => {
+    removedPaths.length = 0;
+
+    const store = new Map<string, string>([
+      ["/project/.arc/system/arc-config.yml", "pm.mode: none\n"],
+      ["/project/.gitignore", "node_modules/\n"],
+      ["/project/.gitattributes", ""],
+      ...Object.entries(canonicalSkillFiles("/templates")),
+    ]);
+
+    // Add existing claude skill files (the old tools)
+    addSkillFiles(store, ".claude/skills");
+
+    io = {
+      readFile: vi.fn(async (path: string) => {
+        const content = store.get(path);
+        if (content === undefined) {
+          const err = new Error(`ENOENT: ${path}`);
+          (err as NodeJS.ErrnoException).code = "ENOENT";
+          throw err;
+        }
+        return content;
+      }),
+      writeFile: vi.fn(async (path: string, content: string) => {
+        store.set(path, content);
+      }),
+      mkdir: vi.fn(async () => undefined),
+      exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
+      access: vi.fn(async (path: string) => {
+        if (!store.has(path)) {
+          const err = new Error(`ENOENT: ${path}`);
+          (err as NodeJS.ErrnoException).code = "ENOENT";
+          throw err;
+        }
+      }),
+    };
+
+    removeIO = {
+      access: vi.fn(async (path: string) => {
+        if (!store.has(path)) {
+          const err = new Error(`ENOENT: ${path}`);
+          (err as NodeJS.ErrnoException).code = "ENOENT";
+          throw err;
+        }
+      }),
+      unlink: vi.fn(async (path: string) => {
+        if (store.has(path)) {
+          store.delete(path);
+          removedPaths.push(path);
+        } else {
+          const err = new Error(`ENOENT: ${path}`);
+          (err as NodeJS.ErrnoException).code = "ENOENT";
+          throw err;
+        }
+      }),
+      rmdir: vi.fn(async () => {
+        // Simulated rmdir — always succeeds (empty dir)
+      }),
+    };
+  });
+
+  it("role change updates git config", async () => {
+    const result = await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "contributor", tools: ["claude"] },
+      previousTools: ["claude"],
+    }));
+
+    expect(result.role).toBe("contributor");
+    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
+    const roleCall = execCalls.find((c) => c[1]?.includes("arc.role"));
+    expect(roleCall![1]).toEqual(["config", "--local", "arc.role", "contributor"]);
+  });
+
+  it("tool change regenerates skills for new selection", async () => {
+    const result = await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "maintainer", tools: ["cursor"] },
+      previousTools: ["claude"],
+    }));
+
+    expect(result.tools).toEqual(["cursor"]);
+
+    // Verify new skill files were written to the universal dir (cursor is universal)
+    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls as [string, string][];
+    const skillWrites = writeCalls.filter(
+      (c) => c[0].includes("/skills/arc-") && c[0].endsWith("SKILL.md"),
+    );
+    // Should have written skills for cursor (resolves to .agents/skills/)
+    expect(skillWrites.length).toBe(CANONICAL_SKILLS.length);
+  });
+
+  it("tool change removes skill files for deselected tools", async () => {
+    const result = await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "maintainer", tools: ["cursor"] },
+      previousTools: ["claude"],
+    }));
+
+    // Old claude skills should be removed
+    expect(result.removedSkills.length).toBeGreaterThan(0);
+    // Each removed path should be under .claude/skills/arc-*
+    for (const p of result.removedSkills) {
+      expect(p).toMatch(/^\.claude\/skills\/arc-/);
+    }
+  });
+
+  it("unchanged values produce no side effects", async () => {
+    const result = await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "maintainer", tools: ["claude"] },
+      previousTools: ["claude"],
+    }));
+
+    // No skills removed (same tool)
+    expect(result.removedSkills).toHaveLength(0);
+    expect(result.tools).toEqual(["claude"]);
+  });
+
+  it("works for both maintainer and contributor roles", async () => {
+    // Contributor
+    const contribResult = await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "contributor", tools: ["claude"] },
+      previousTools: ["claude"],
+    }));
+    expect(contribResult.role).toBe("contributor");
+
+    // Maintainer
+    const maintainerResult = await runJoinReconfigure(buildReconfigureOpts({
+      prompts: { role: "maintainer", tools: ["claude"] },
+      previousTools: ["claude"],
+    }));
+    expect(maintainerResult.role).toBe("maintainer");
   });
 });

@@ -72,7 +72,7 @@ function cancelAndThrow(sentinel: symbol): never {
  *
  * Shared between fresh, join, and arc join modes.
  */
-export async function promptTools(sentinel: symbol): Promise<string[]> {
+export async function promptTools(sentinel: symbol, initialValues?: string[]): Promise<string[]> {
   p.note(
     "ARC installs Skills as triggers for common workflows (commits,\n" +
       "handoffs, etc.) into your tools' skill directories.\n" +
@@ -87,6 +87,7 @@ export async function promptTools(sentinel: symbol): Promise<string[]> {
     message: "Which AI tools will you use in this repo? (type to search)",
     options: TOOL_OPTIONS,
     maxItems: 8,
+    ...(initialValues && initialValues.length > 0 ? { initialValues } : {}),
   });
   if (p.isCancel(tools)) cancelAndThrow(sentinel);
   const selected = tools;

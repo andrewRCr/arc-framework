@@ -16,7 +16,8 @@ export {
 
 export {
     generateSkills, writeSkillOutputs, skillGitignoreEntries,
+    removeArcSkills,
     parseSkillFrontmatter, buildCodexYaml,
-    type SkillOutput, type SkillGenerationIO,
+    type SkillOutput, type SkillGenerationIO, type SkillRemovalIO,
     type SkillGenerationResult, type SkillFrontmatter,
 } from "./generation.js";
