@@ -58,6 +58,27 @@ export interface ReconfigureOptions {
    * (Framework → delete, Configurable → keep for review, Scaffolded → untouched).
    */
   resolveRemovals?: (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => Promise<RemovalDecision[]>;
+  /** When true, compute the change plan and return it without applying any changes. */
+  dryRun?: boolean;
+}
+
+/** Result from a dry-run — the computed plan without disk writes. */
+export interface DryRunResult {
+  dryRun: true;
+  /** Files that would be added. */
+  wouldAdd: import("../lib/manifest/plan.js").PlannedAddition[];
+  /** Files that would be removed (with classification for display). */
+  wouldRemove: import("../lib/manifest/plan.js").PlannedRemoval[];
+  /** Files that would be re-rendered via three-way merge. */
+  wouldMerge: import("../lib/manifest/plan.js").PlannedMerge[];
+  /** Scaffolded files that would be skipped. */
+  wouldSkip: import("../lib/manifest/plan.js").PlannedSkip[];
+  /** Classification changes detected. */
+  reclassified: string[];
+  /** Previous install config. */
+  previousConfig: InstallConfig;
+  /** New install config. */
+  newConfig: InstallConfig;
 }
 
 /** Result from a successful reconfigure run. */
@@ -102,7 +123,7 @@ export interface ReconfigureResult {
  */
 export async function runReconfigure(
   options: ReconfigureOptions,
-): Promise<ReconfigureResult> {
+): Promise<ReconfigureResult | DryRunResult> {
   const { cwd, io, templateDir, recipe, newInstallConfig } = options;
   const arcDir = join(cwd, ".arc");
   const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
@@ -159,6 +180,20 @@ export async function runReconfigure(
 
   // Build change plan (pure computation — old manifest vs new file list)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
+
+  // Dry-run: return the plan without applying any changes
+  if (options.dryRun) {
+    return {
+      dryRun: true,
+      wouldAdd: plan.additions,
+      wouldRemove: plan.removals,
+      wouldMerge: plan.merges,
+      wouldSkip: plan.skipped,
+      reclassified: plan.reclassified,
+      previousConfig,
+      newConfig: newInstallConfig,
+    };
+  }
 
   // Resolve removals interactively if callback provided
   let keptByUser: string[] = [];

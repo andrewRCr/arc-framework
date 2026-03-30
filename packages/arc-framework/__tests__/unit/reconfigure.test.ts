@@ -18,6 +18,7 @@ vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
 }));
 
 import { runReconfigure } from "../../src/commands/reconfigure.js";
+import type { DryRunResult } from "../../src/commands/reconfigure.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { Recipe, Manifest } from "../../src/lib/types.js";
 import type { PlannedRemoval } from "../../src/lib/manifest/plan.js";
@@ -545,6 +546,196 @@ describe("runReconfigure", () => {
 
       expect(result.unchanged).toBeGreaterThanOrEqual(1);
       expect(result.updated).toBe(0);
+    });
+  });
+
+  describe("dry-run mode", () => {
+    it("reports files that would be added", async () => {
+      const manifest = makeManifest();
+      const templateFiles = {
+        "reference/README.md": "# Readme",
+        "system/arc-config.yml": "pm.mode: none",
+        "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
+        "reference/strategies/arc/strategy-backlog-organization.md": "# Backlog Org",
+      };
+      const pristineStore = {
+        "reference/README.md": "# Readme",
+        "system/arc-config.yml": "pm.mode: none",
+      };
+      const io = mockIO(manifest, pristineStore, templateFiles);
+
+      const recipeWithArcInGit: Recipe = {
+        include_files: ["reference/README.md", "system/arc-config.yml"],
+        computed_tokens: {},
+        prompts: [],
+        conditions: {
+          "pm.mode == arc-in-git": {
+            include_files: [
+              "backlog/ROADMAP.template.md",
+              "reference/strategies/arc/strategy-backlog-organization.md",
+            ],
+          },
+        },
+      };
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: recipeWithArcInGit,
+        newInstallConfig: {
+          project_name: "Test Project",
+          pm_mode: "arc-in-git",
+          tools: ["claude"],
+          team_mode: false,
+        },
+        dryRun: true,
+      });
+
+      expect("dryRun" in result && result.dryRun).toBe(true);
+      const dr = result as DryRunResult;
+      const addedPaths = dr.wouldAdd.map((a) => a.outputPath);
+      expect(addedPaths).toContain("backlog/ROADMAP.md");
+      expect(addedPaths).toContain(
+        "reference/strategies/arc/strategy-backlog-organization.md",
+      );
+    });
+
+    it("reports files that would be removed with classification labels", async () => {
+      const { manifest, templateFiles, pristineStore, recipe } = makeArcInGitSetup();
+      const io = mockIO(manifest, pristineStore, templateFiles);
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe,
+        newInstallConfig: {
+          project_name: "Test Project",
+          pm_mode: "none",
+          tools: ["claude"],
+          team_mode: false,
+        },
+        dryRun: true,
+      });
+
+      const dr = result as DryRunResult;
+      expect(dr.dryRun).toBe(true);
+      // Framework file should appear in removals with classification
+      const frameworkRemoval = dr.wouldRemove.find(
+        (r) => r.outputPath === "reference/strategies/arc/strategy-backlog-organization.md",
+      );
+      expect(frameworkRemoval).toBeDefined();
+      expect(frameworkRemoval!.classification).toBe("Framework");
+      // Scaffolded file should also appear (plan includes all removals before resolution)
+      const scaffoldedRemoval = dr.wouldRemove.find(
+        (r) => r.outputPath === "backlog/ROADMAP.md",
+      );
+      expect(scaffoldedRemoval).toBeDefined();
+      expect(scaffoldedRemoval!.classification).toBe("Scaffolded");
+    });
+
+    it("reports files that would be re-rendered", async () => {
+      const templateContent = "# {{PROJECT_NAME}} Reference\n\nWelcome.\n";
+      const oldRendered = "# Old Name Reference\n\nWelcome.\n";
+      const manifest = makeManifest({
+        files: {
+          "reference/QUICK-REFERENCE.md": {
+            classification: "Configurable", layer: "core", pristine_hash: "abc",
+          },
+        },
+      });
+
+      const io = mockIO(
+        manifest,
+        { "reference/QUICK-REFERENCE.md": oldRendered },
+        { "QUICK-REFERENCE.template.md": templateContent },
+        { "reference/QUICK-REFERENCE.md": oldRendered },
+      );
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: {
+          include_files: ["reference/QUICK-REFERENCE.template.md"],
+          computed_tokens: {},
+          prompts: [],
+          conditions: {},
+        },
+        newInstallConfig: {
+          project_name: "New Name",
+          pm_mode: "none",
+          tools: [],
+          team_mode: false,
+        },
+        dryRun: true,
+      });
+
+      const dr = result as DryRunResult;
+      expect(dr.dryRun).toBe(true);
+      const mergePaths = dr.wouldMerge.map((m) => m.outputPath);
+      expect(mergePaths).toContain("reference/QUICK-REFERENCE.md");
+    });
+
+    it("no disk writes occur", async () => {
+      const { manifest, templateFiles, pristineStore, recipe } = makeArcInGitSetup();
+      const io = mockIO(manifest, pristineStore, templateFiles);
+
+      await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe,
+        newInstallConfig: {
+          project_name: "New Name",
+          pm_mode: "none",
+          tools: ["claude"],
+          team_mode: false,
+        },
+        dryRun: true,
+      });
+
+      // No file writes
+      expect(io.writeFile).not.toHaveBeenCalled();
+      // No manifest/pristine writes
+      expect(atomicWriteJson).not.toHaveBeenCalled();
+      // No directory creation (beyond reads)
+      expect(io.mkdir).not.toHaveBeenCalled();
+    });
+
+    it("no-change case reports nothing would change", async () => {
+      const manifest = makeManifest();
+      const templateFiles = {
+        "reference/README.md": "# Readme",
+        "system/arc-config.yml": "pm.mode: none",
+      };
+      const pristineStore = {
+        "reference/README.md": "# Readme",
+        "system/arc-config.yml": "pm.mode: none",
+      };
+      const io = mockIO(manifest, pristineStore, templateFiles);
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: minimalRecipe,
+        newInstallConfig: {
+          project_name: "Test Project",
+          pm_mode: "none",
+          tools: ["claude"],
+          team_mode: false,
+        },
+        dryRun: true,
+      });
+
+      const dr = result as DryRunResult;
+      expect(dr.dryRun).toBe(true);
+      expect(dr.wouldAdd).toHaveLength(0);
+      expect(dr.wouldRemove).toHaveLength(0);
+      // Merges may exist (keep-set files) but they represent existing files, not changes
+      // The key indicator is: no additions and no removals
     });
   });
 });

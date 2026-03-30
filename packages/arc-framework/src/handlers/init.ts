@@ -8,7 +8,7 @@ import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
 
 import { runInit, buildPostInitMessage, isArcInstalled } from "../commands/init.js";
-import { runReconfigure } from "../commands/reconfigure.js";
+import { runReconfigure, type DryRunResult } from "../commands/reconfigure.js";
 import { buildNonInteractivePrompts } from "../prompts/non-interactive.js";
 import { runInitPrompts } from "../prompts/init-prompts.js";
 import { loadRecipeFile } from "../lib/template/index.js";
@@ -33,6 +33,7 @@ export interface InitOptions {
   tools?: string;
   team?: boolean;
   reconfigure?: boolean;
+  dryRun?: boolean;
 }
 
 export async function handleInit(opts: InitOptions): Promise<void> {
@@ -148,7 +149,7 @@ async function handleReconfigure(
   cwd: string,
   io: IOContext,
 ): Promise<void> {
-  p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure`);
+  p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
   if (!(await requireGitRepo())) return;
 
@@ -270,42 +271,48 @@ async function handleReconfigure(
       templateDir,
       recipe,
       newInstallConfig: newConfig,
-      resolveRemovals,
+      resolveRemovals: opts.dryRun ? undefined : resolveRemovals,
+      dryRun: opts.dryRun,
     });
 
-    spinner.stop("Reconfiguration complete.");
+    if ("dryRun" in result) {
+      spinner.stop("Dry run complete — no changes applied.");
+      formatDryRunReport(result);
+    } else {
+      spinner.stop("Reconfiguration complete.");
 
-    // Summary
-    const parts: string[] = [];
-    if (result.updated > 0) parts.push(`${result.updated} updated`);
-    if (result.added.length > 0) parts.push(`${result.added.length} added`);
-    if (result.removed.length > 0) parts.push(`${result.removed.length} removed`);
-    if (result.unchanged > 0) parts.push(`${result.unchanged} unchanged`);
-    if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
-    if (result.conflicts.length > 0) parts.push(`${result.conflicts.length} conflicts`);
+      // Summary
+      const parts: string[] = [];
+      if (result.updated > 0) parts.push(`${result.updated} updated`);
+      if (result.added.length > 0) parts.push(`${result.added.length} added`);
+      if (result.removed.length > 0) parts.push(`${result.removed.length} removed`);
+      if (result.unchanged > 0) parts.push(`${result.unchanged} unchanged`);
+      if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+      if (result.conflicts.length > 0) parts.push(`${result.conflicts.length} conflicts`);
 
-    if (parts.length > 0) {
-      p.log.info(parts.join(", "));
-    }
-
-    if (result.conflicts.length > 0) {
-      p.log.warn("Conflicts require manual resolution:");
-      for (const path of result.conflicts) {
-        p.log.warn(`  .arc/${path}`);
+      if (parts.length > 0) {
+        p.log.info(parts.join(", "));
       }
-    }
 
-    if (result.keptForReview.length > 0) {
-      p.log.info("Kept for review (may contain your changes):");
-      for (const path of result.keptForReview) {
-        p.log.info(`  .arc/${path}`);
+      if (result.conflicts.length > 0) {
+        p.log.warn("Conflicts require manual resolution:");
+        for (const path of result.conflicts) {
+          p.log.warn(`  .arc/${path}`);
+        }
       }
-    }
 
-    if (result.keptByUser.length > 0) {
-      p.log.info("Kept on disk (removed from ARC tracking):");
-      for (const path of result.keptByUser) {
-        p.log.info(`  .arc/${path}`);
+      if (result.keptForReview.length > 0) {
+        p.log.info("Kept for review (may contain your changes):");
+        for (const path of result.keptForReview) {
+          p.log.info(`  .arc/${path}`);
+        }
+      }
+
+      if (result.keptByUser.length > 0) {
+        p.log.info("Kept on disk (removed from ARC tracking):");
+        for (const path of result.keptByUser) {
+          p.log.info(`  .arc/${path}`);
+        }
       }
     }
   } catch (err) {
@@ -319,4 +326,39 @@ async function handleReconfigure(
   }
 
   p.outro("Done.");
+}
+
+// --- Dry-run report formatting ---
+
+function formatDryRunReport(result: DryRunResult): void {
+  const hasChanges =
+    result.wouldAdd.length > 0 ||
+    result.wouldRemove.length > 0 ||
+    result.wouldMerge.length > 0;
+
+  if (!hasChanges) {
+    p.log.info("Nothing would change.");
+    return;
+  }
+
+  if (result.wouldAdd.length > 0) {
+    p.log.info(`Would add ${result.wouldAdd.length} file(s):`);
+    for (const f of result.wouldAdd) {
+      p.log.info(`  + .arc/${f.outputPath}`);
+    }
+  }
+
+  if (result.wouldRemove.length > 0) {
+    p.log.info(`Would remove ${result.wouldRemove.length} file(s):`);
+    for (const f of result.wouldRemove) {
+      p.log.info(`  - .arc/${f.outputPath} (${f.classification})`);
+    }
+  }
+
+  if (result.wouldMerge.length > 0) {
+    p.log.info(`Would re-render ${result.wouldMerge.length} file(s):`);
+    for (const f of result.wouldMerge) {
+      p.log.info(`  ~ .arc/${f.outputPath}`);
+    }
+  }
 }

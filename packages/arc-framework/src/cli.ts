@@ -35,6 +35,7 @@ program
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .option("--team", "Enable team mode (requires --yes)")
   .option("--reconfigure", "Change structural settings on an existing installation")
+  .option("--dry-run", "Preview reconfigure changes without applying (requires --reconfigure)")
   .action(handleInit);
 
 program
