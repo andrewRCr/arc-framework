@@ -18,8 +18,8 @@
 **Following Task List**: Yes
 **Next Task**: Task 8.4 — Create stub pages (line ~1386)
 **Last Completed**: Task 8.3 — Write foundation pages
-**Blockers**: None
-**Next Action**: Write stub page content for Reference and Community sections
+**Blockers**: Docs site review items to address before proceeding (see SESSION-NOTES)
+**Next Action**: Address open review items from fresh-eyes walkthrough, then proceed to 8.4
 
 ---
 
