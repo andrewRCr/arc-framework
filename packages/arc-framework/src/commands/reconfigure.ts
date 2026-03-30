@@ -23,6 +23,8 @@ import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
 import type { Recipe, Manifest, InstallConfig } from "../lib/types.js";
+import type { RemovalDecision } from "../prompts/removal-prompts.js";
+import { applyRemovalDecisions } from "../prompts/removal-prompts.js";
 import {
   ARC_IN_GIT_CONDITION,
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
@@ -49,6 +51,13 @@ export interface ReconfigureOptions {
   recipe: Recipe;
   /** The new install config values (from settings screen prompts). */
   newInstallConfig: InstallConfig;
+  /**
+   * Optional callback to resolve file removal decisions interactively.
+   * When provided, called with the planned removals before applying.
+   * When absent, removals use default classification-based behavior
+   * (Framework → delete, Configurable → keep for review, Scaffolded → untouched).
+   */
+  resolveRemovals?: (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => Promise<RemovalDecision[]>;
 }
 
 /** Result from a successful reconfigure run. */
@@ -65,6 +74,8 @@ export interface ReconfigureResult {
   removed: string[];
   /** Removed Configurable file paths (kept on disk for review). */
   keptForReview: string[];
+  /** Files the user chose to keep on disk (removed from manifest only). */
+  keptByUser: string[];
   /** Files with no changes needed. */
   unchanged: number;
   /** Scaffolded files skipped. */
@@ -149,6 +160,16 @@ export async function runReconfigure(
   // Build change plan (pure computation — old manifest vs new file list)
   const plan = buildChangePlan(manifest, templateFiles, pristineStore, arcInGitFiles);
 
+  // Resolve removals interactively if callback provided
+  let keptByUser: string[] = [];
+  if (plan.removals.length > 0 && options.resolveRemovals) {
+    const decisions = await options.resolveRemovals(plan.removals);
+    const applied = applyRemovalDecisions(plan.removals, decisions);
+    // Replace plan removals with only the files to actually delete
+    plan.removals = applied.toRemove;
+    keptByUser = applied.toKeep.map((r) => r.outputPath);
+  }
+
   // Apply change plan (I/O)
   const mergeFn = createContentMergeFn(io.exec);
   const applyResult = await applyChangePlan(
@@ -199,6 +220,7 @@ export async function runReconfigure(
     added: applyResult.added,
     removed: applyResult.removed,
     keptForReview: applyResult.keptForReview,
+    keptByUser,
     unchanged: applyResult.unchanged,
     skipped: applyResult.skipped,
     reclassified: plan.reclassified,

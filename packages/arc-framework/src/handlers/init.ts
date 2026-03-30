@@ -138,6 +138,10 @@ import {
   buildNonInteractiveReconfigurePrompts,
   isNoChange,
 } from "../prompts/reconfigure-prompts.js";
+import {
+  resolveRemovalsInteractive,
+  resolveRemovalsNonInteractive,
+} from "../prompts/removal-prompts.js";
 
 async function handleReconfigure(
   opts: InitOptions,
@@ -241,13 +245,32 @@ async function handleReconfigure(
   const spinner = p.spinner();
   spinner.start("Reconfiguring ARC framework...");
 
+  // Cancellation sentinel for interactive removal prompts
+  const cancelledSymbol = Symbol("removal-cancelled");
+
   try {
+
+    const resolveRemovals = opts.yes
+      ? (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) =>
+          Promise.resolve(resolveRemovalsNonInteractive(removals))
+      : async (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => {
+          spinner.stop("File changes detected.");
+          const decisions = await resolveRemovalsInteractive(removals);
+          if (!decisions) {
+            // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
+            throw cancelledSymbol;
+          }
+          spinner.start("Applying changes...");
+          return decisions;
+        };
+
     const result = await runReconfigure({
       cwd,
       io,
       templateDir,
       recipe,
       newInstallConfig: newConfig,
+      resolveRemovals,
     });
 
     spinner.stop("Reconfiguration complete.");
@@ -278,7 +301,18 @@ async function handleReconfigure(
         p.log.info(`  .arc/${path}`);
       }
     }
+
+    if (result.keptByUser.length > 0) {
+      p.log.info("Kept on disk (removed from ARC tracking):");
+      for (const path of result.keptByUser) {
+        p.log.info(`  .arc/${path}`);
+      }
+    }
   } catch (err) {
+    if (err === cancelledSymbol) {
+      p.cancel("Reconfigure cancelled.");
+      return;
+    }
     spinner.stop("Reconfiguration failed.");
     if (isHandledError(err)) return;
     throw err;

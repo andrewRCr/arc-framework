@@ -6,7 +6,7 @@
  * filesystem behavior.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock atomicWriteJson — unit tests use virtual IO
 const { atomicWriteJson } = vi.hoisted(() => ({
@@ -20,6 +20,7 @@ vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
 import { runReconfigure } from "../../src/commands/reconfigure.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { Recipe, Manifest } from "../../src/lib/types.js";
+import type { PlannedRemoval } from "../../src/lib/manifest/plan.js";
 
 // --- Helpers ---
 
@@ -57,10 +58,20 @@ const minimalRecipe: Recipe = {
   conditions: {},
 };
 
+/**
+ * Build a mock IOContext for reconfigure tests.
+ *
+ * @param manifest - Manifest data (returned for manifest.json reads)
+ * @param pristineStore - Pristine store data (returned for pristine.json reads)
+ * @param templateFiles - Template file contents keyed by template-relative path
+ * @param currentFiles - Current .arc/ file contents keyed by output-relative path
+ *   (for tests that need to distinguish template reads from on-disk reads)
+ */
 function mockIO(
   manifest: Manifest,
   pristineStore: Record<string, string> = {},
   templateFiles: Record<string, string> = {},
+  currentFiles: Record<string, string> = {},
 ): IOContext {
   const manifestJson = JSON.stringify(manifest);
   const pristineJson = JSON.stringify(pristineStore);
@@ -74,7 +85,11 @@ function mockIO(
         err.code = "ENOENT";
         throw err;
       }
-      // Template reads and current file reads
+      // Current file reads (path includes .arc/ prefix from arcDir join)
+      for (const [key, val] of Object.entries(currentFiles)) {
+        if (path.endsWith(key)) return val;
+      }
+      // Template reads and fallback current file reads
       for (const [key, val] of Object.entries(templateFiles)) {
         if (path.endsWith(key)) return val;
       }
@@ -89,9 +104,61 @@ function mockIO(
   };
 }
 
+/** Shared fixture: manifest with arc-in-git files installed. */
+function makeArcInGitSetup() {
+  const manifest = makeManifest({
+    install_config: {
+      project_name: "Test Project",
+      pm_mode: "arc-in-git",
+      tools: ["claude"],
+      team_mode: false,
+    },
+    files: {
+      "reference/README.md": {
+        classification: "Framework", layer: "core", pristine_hash: "abc",
+      },
+      "system/arc-config.yml": {
+        classification: "Configurable", layer: "core", pristine_hash: "def",
+      },
+      "backlog/ROADMAP.md": {
+        classification: "Scaffolded", layer: "arc-in-git",
+      },
+      "reference/strategies/arc/strategy-backlog-organization.md": {
+        classification: "Framework", layer: "arc-in-git", pristine_hash: "ghi",
+      },
+    },
+  });
+  const templateFiles = {
+    "reference/README.md": "# Readme",
+    "system/arc-config.yml": "pm.mode: arc-in-git",
+  };
+  const pristineStore = {
+    "reference/README.md": "# Readme",
+    "system/arc-config.yml": "pm.mode: arc-in-git",
+    "reference/strategies/arc/strategy-backlog-organization.md": "# Backlog",
+  };
+  const recipe: Recipe = {
+    include_files: ["reference/README.md", "system/arc-config.yml"],
+    computed_tokens: {},
+    prompts: [],
+    conditions: {
+      "pm.mode == arc-in-git": {
+        include_files: [
+          "backlog/ROADMAP.template.md",
+          "reference/strategies/arc/strategy-backlog-organization.md",
+        ],
+      },
+    },
+  };
+  return { manifest, templateFiles, pristineStore, recipe };
+}
+
 // --- Tests ---
 
 describe("runReconfigure", () => {
+  beforeEach(() => {
+    atomicWriteJson.mockClear();
+  });
   it("throws MANIFEST_MISSING when manifest does not exist", async () => {
     const baseIO = mockIO(makeManifest());
     const io: IOContext = {
@@ -160,6 +227,163 @@ describe("runReconfigure", () => {
     expect(writtenManifest.install_config.project_name).toBe("New Name");
   });
 
+  it("produces correct file additions when switching to arc-in-git", async () => {
+    const manifest = makeManifest();
+    const templateFiles = {
+      "reference/README.md": "# Readme",
+      "system/arc-config.yml": "pm.mode: none",
+      "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
+      "backlog/feature/BACKLOG-FEATURE.template.md": "# Feature Backlog",
+      "backlog/technical/BACKLOG-TECHNICAL.template.md": "# Technical Backlog",
+      "reference/PROJECT-STATUS.template.md": "# Project Status",
+      "reference/strategies/arc/strategy-backlog-organization.md": "# Backlog Org",
+    };
+    const pristineStore = {
+      "reference/README.md": "# Readme",
+      "system/arc-config.yml": "pm.mode: none",
+    };
+    const io = mockIO(manifest, pristineStore, templateFiles);
+
+    const recipeWithArcInGit: Recipe = {
+      include_files: ["reference/README.md", "system/arc-config.yml"],
+      computed_tokens: {},
+      prompts: [],
+      conditions: {
+        "pm.mode == arc-in-git": {
+          include_files: [
+            "backlog/ROADMAP.template.md",
+            "backlog/feature/BACKLOG-FEATURE.template.md",
+            "backlog/technical/BACKLOG-TECHNICAL.template.md",
+            "reference/PROJECT-STATUS.template.md",
+            "reference/strategies/arc/strategy-backlog-organization.md",
+          ],
+        },
+      },
+    };
+
+    const result = await runReconfigure({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      recipe: recipeWithArcInGit,
+      newInstallConfig: {
+        project_name: "Test Project",
+        pm_mode: "arc-in-git",
+        tools: ["claude"],
+        team_mode: false,
+      },
+    });
+
+    // All arc-in-git files should appear as additions
+    expect(result.added).toContain("backlog/ROADMAP.md");
+    expect(result.added).toContain("backlog/feature/BACKLOG-FEATURE.md");
+    expect(result.added).toContain("backlog/technical/BACKLOG-TECHNICAL.md");
+    expect(result.added).toContain("reference/PROJECT-STATUS.md");
+    expect(result.added).toContain(
+      "reference/strategies/arc/strategy-backlog-organization.md",
+    );
+  });
+
+  it("produces correct file removals when switching from arc-in-git to none", async () => {
+    const { manifest, templateFiles, pristineStore, recipe } = makeArcInGitSetup();
+    const io = mockIO(manifest, pristineStore, templateFiles);
+
+    const result = await runReconfigure({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      recipe,
+      newInstallConfig: {
+        project_name: "Test Project",
+        pm_mode: "none",
+        tools: ["claude"],
+        team_mode: false,
+      },
+    });
+
+    // Framework arc-in-git file should be auto-removed
+    expect(result.removed).toContain(
+      "reference/strategies/arc/strategy-backlog-organization.md",
+    );
+    // Scaffolded file should not be auto-removed (left untouched)
+    expect(result.removed).not.toContain("backlog/ROADMAP.md");
+  });
+
+  it("resolveRemovals callback controls which files are kept vs removed", async () => {
+    const { manifest, templateFiles, pristineStore, recipe } = makeArcInGitSetup();
+    const io = mockIO(manifest, pristineStore, templateFiles);
+
+    // User chooses to keep the Framework file and remove the Scaffolded one
+    const resolveRemovals = vi.fn(async () => [
+      {
+        outputPath: "reference/strategies/arc/strategy-backlog-organization.md",
+        classification: "Framework" as const,
+        action: "keep" as const,
+      },
+      {
+        outputPath: "backlog/ROADMAP.md",
+        classification: "Scaffolded" as const,
+        action: "remove" as const,
+      },
+    ]);
+
+    const result = await runReconfigure({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      recipe,
+      newInstallConfig: {
+        project_name: "Test Project",
+        pm_mode: "none",
+        tools: ["claude"],
+        team_mode: false,
+      },
+      resolveRemovals,
+    });
+
+    expect(resolveRemovals).toHaveBeenCalledOnce();
+    expect(result.removed).not.toContain(
+      "reference/strategies/arc/strategy-backlog-organization.md",
+    );
+    expect(result.removed).toContain("backlog/ROADMAP.md");
+    expect(result.keptByUser).toContain(
+      "reference/strategies/arc/strategy-backlog-organization.md",
+    );
+  });
+
+  it("--yes mode applies classification-driven defaults via resolveRemovals", async () => {
+    const { manifest, templateFiles, pristineStore, recipe } = makeArcInGitSetup();
+    const io = mockIO(manifest, pristineStore, templateFiles);
+
+    const { resolveRemovalsNonInteractive } = await import(
+      "../../src/prompts/removal-prompts.js"
+    );
+    const resolveRemovals = vi.fn(
+      async (removals: PlannedRemoval[]) => resolveRemovalsNonInteractive(removals),
+    );
+
+    const result = await runReconfigure({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      recipe,
+      newInstallConfig: {
+        project_name: "Test Project",
+        pm_mode: "none",
+        tools: ["claude"],
+        team_mode: false,
+      },
+      resolveRemovals,
+    });
+
+    // Framework → remove, Scaffolded → keep
+    expect(result.removed).toContain(
+      "reference/strategies/arc/strategy-backlog-organization.md",
+    );
+    expect(result.removed).not.toContain("backlog/ROADMAP.md");
+    expect(result.keptByUser).toContain("backlog/ROADMAP.md");
+  });
+
   it("returns result with previous and new config", async () => {
     const manifest = makeManifest();
     const templateFiles = {
@@ -187,5 +411,140 @@ describe("runReconfigure", () => {
 
     expect(result.previousConfig.pm_mode).toBe("none");
     expect(result.newConfig.pm_mode).toBe("arc-in-git");
+  });
+
+  describe("content re-rendering", () => {
+    it("changed project_name produces correct three-way merge", async () => {
+      const templateContent = "# {{PROJECT_NAME}} Reference\n\nWelcome to the project.\n";
+      const oldRendered = "# Old Name Reference\n\nWelcome to the project.\n";
+      const manifest = makeManifest({
+        files: {
+          "reference/QUICK-REFERENCE.md": {
+            classification: "Configurable", layer: "core", pristine_hash: "abc",
+          },
+        },
+      });
+
+      // currentFiles distinguishes on-disk content from template content
+      const io = mockIO(
+        manifest,
+        { "reference/QUICK-REFERENCE.md": oldRendered },
+        { "QUICK-REFERENCE.template.md": templateContent },
+        { "reference/QUICK-REFERENCE.md": oldRendered },
+      );
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: {
+          include_files: ["reference/QUICK-REFERENCE.template.md"],
+          computed_tokens: {},
+          prompts: [],
+          conditions: {},
+        },
+        newInstallConfig: {
+          project_name: "New Name",
+          pm_mode: "none",
+          tools: [],
+          team_mode: false,
+        },
+      });
+
+      expect(result.updated).toBeGreaterThanOrEqual(1);
+      const pristineCall = atomicWriteJson.mock.calls.find(
+        (c: unknown[]) => (c[0] as string).endsWith("pristine.json"),
+      );
+      expect(pristineCall).toBeDefined();
+      const writtenPristine = pristineCall![1] as Record<string, string>;
+      expect(writtenPristine["reference/QUICK-REFERENCE.md"]).toContain("New Name");
+    });
+
+    it("changed team.mode re-renders conditional blocks", async () => {
+      const templateContent =
+        "# Guide\n\n<!-- arc:if team.mode == true -->\nTeam coordination enabled.\n<!-- arc:end -->\n\nDone.\n";
+      const oldRendered = "# Guide\n\nDone.\n";
+      const manifest = makeManifest({
+        files: {
+          "reference/README.md": {
+            classification: "Framework", layer: "core", pristine_hash: "abc",
+          },
+        },
+      });
+
+      const io = mockIO(
+        manifest,
+        { "reference/README.md": oldRendered },
+        { "README.template.md": templateContent },
+        { "reference/README.md": oldRendered },
+      );
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: {
+          include_files: ["reference/README.template.md"],
+          computed_tokens: {},
+          prompts: [],
+          conditions: {},
+        },
+        newInstallConfig: {
+          project_name: "Test Project",
+          pm_mode: "none",
+          tools: [],
+          team_mode: true,
+        },
+      });
+
+      expect(result.updated).toBeGreaterThanOrEqual(1);
+      const pristineCall = atomicWriteJson.mock.calls.find(
+        (c: unknown[]) => (c[0] as string).endsWith("pristine.json"),
+      );
+      expect(pristineCall).toBeDefined();
+      const writtenPristine = pristineCall![1] as Record<string, string>;
+      expect(writtenPristine["reference/README.md"]).toContain(
+        "Team coordination enabled.",
+      );
+    });
+
+    it("unchanged config values produce no file changes", async () => {
+      const renderedContent = "# Test Project Reference\n\nContent.\n";
+      const manifest = makeManifest({
+        files: {
+          "reference/README.md": {
+            classification: "Framework", layer: "core", pristine_hash: "abc",
+          },
+        },
+      });
+
+      // Same content for template and current file — no rendering needed
+      const io = mockIO(
+        manifest,
+        { "reference/README.md": renderedContent },
+        { "reference/README.md": renderedContent },
+      );
+
+      const result = await runReconfigure({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        recipe: {
+          include_files: ["reference/README.md"],
+          computed_tokens: {},
+          prompts: [],
+          conditions: {},
+        },
+        newInstallConfig: {
+          project_name: "Test Project",
+          pm_mode: "none",
+          tools: ["claude"],
+          team_mode: false,
+        },
+      });
+
+      expect(result.unchanged).toBeGreaterThanOrEqual(1);
+      expect(result.updated).toBe(0);
+    });
   });
 });

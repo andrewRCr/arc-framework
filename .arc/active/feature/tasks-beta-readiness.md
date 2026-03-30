@@ -1137,55 +1137,39 @@ get overwritten.
         - 13 unit tests covering defaults, flag overrides, missing `team_mode`, config
           merging, and no-change detection
 
-- [ ] **7.2 File delta resolution**
+- [x] **7.2 File delta resolution**
 
     **Goal:** Handle the three file change types when `install_config` changes. Uses the
     `buildChangePlan` / `applyChangePlan` pipeline extracted in 7.0 — reconfigure builds a
     plan from old config vs new config, then applies it.
 
-    - [ ] **7.2.a Recipe fix and file additions**
-        - **Recipe fix:** move `strategy-team-coordination.md` from unconditional
-          `include_files` to the `team.mode == true` condition block (same pattern as
-          `strategy-backlog-organization.md` under `pm.mode == arc-in-git`). This is
-          intentional beyond reconfigure — adopters should only receive docs relevant to
-          their selected config. Affects all new `arc init` and `arc update` for existing
-          solo-mode installations (Framework classification → auto-removed by update).
-        - Build change plan with new config → additions appear in plan
-        - Apply plan renders new files from templates, adds to manifest and pristine store
-        - Update `arc-config.yml` with new config values
+    - [x] **7.2.a Recipe fix and file additions**
+        - Moved `strategy-team-coordination.md` from unconditional `include_files` to the
+          `team.mode == true` condition block in `init-recipe.json`
+        - 2 actual-recipe tests verify solo-mode excludes / team-mode includes the file
+        - Reconfigure orchestrator test confirms adding `pm.mode: arc-in-git` produces
+          correct file additions via the existing `buildChangePlan`/`applyChangePlan` pipeline
 
-        Build `test-first` (one behavior at a time):
-        - Recipe fix: solo-mode `resolveFileList` excludes `strategy-team-coordination.md`
-        - Recipe fix: team-mode `resolveFileList` includes `strategy-team-coordination.md`
-        - Reconfigure adding `pm.mode: arc-in-git` produces correct file additions
+    - [x] **7.2.b File removals (two-stage UX)**
+        - New `prompts/removal-prompts.ts`: `RemovalDecision` type, `RemovalResolveFn`
+          callback, `resolveRemovalsInteractive` (two-stage: summary → bulk/individual),
+          `resolveRemovalsNonInteractive` (`--yes`: Framework→remove, others→keep),
+          `applyRemovalDecisions` (splits into toRemove/toKeep for the pipeline)
+        - `ReconfigureOptions.resolveRemovals` optional callback — when provided,
+          intercepts plan removals before `applyChangePlan`; files to keep are excluded
+          from the removal list (stay on disk, leave manifest)
+        - `ReconfigureResult.keptByUser` tracks user-kept files
+        - Handler wires interactive vs non-interactive resolve, handles cancellation
+          via sentinel symbol, displays kept-by-user files in summary
+        - 8 unit tests (4 non-interactive defaults, 4 decision application)
+        - 2 orchestrator tests (callback controls keep/remove, `--yes` defaults)
 
-    - [ ] **7.2.b File removals (two-stage UX)**
-        - Stage 1: summary of affected files with classification labels ("your content" vs
-          "framework-managed"), bulk options (remove all / keep all / choose individually)
-        - Stage 2 (if individual): per-file prompts with classification-driven defaults
-          (Framework → default remove, Scaffolded → default keep)
-        - Kept files: remove from manifest (become untracked user files)
-        - Removed files: delete from disk, remove from manifest and pristine store
-        - `--yes` mode: auto-remove Framework, auto-keep Scaffolded
-
-        Build `test-first` (one behavior at a time):
-        - Reconfigure removing `pm.mode: arc-in-git` produces correct file removals
-        - Two-stage removal UX: bulk remove-all, keep-all, and choose-individually paths
-        - Kept files removed from manifest but preserved on disk
-        - `--yes` mode applies classification-driven defaults without prompting
-
-    - [ ] **7.2.c Content re-rendering**
-        - For keep-set files where old and new config produce different rendered output
-        - Three-way merge via `applyChangePlan`: old pristine (old config render) vs new
-          pristine (new config render) vs user's current file
-        - Update pristine baseline to new render
-        - Note: files where old and new renders are identical naturally produce "unchanged"
-          through the merge fast path — no special handling needed
-
-        Build `test-first` (one behavior at a time):
-        - Content re-render: changed `project_name` produces correct three-way merge
-        - Content re-render: changed `team.mode` re-renders conditional blocks
-        - No-op merge: unchanged config values produce no file changes
+    - [x] **7.2.c Content re-rendering**
+        - Verified existing pipeline handles all three scenarios correctly:
+        - Changed `project_name` → token re-render, clean three-way merge, pristine advanced
+        - Changed `team.mode` → conditional block re-render, content updated
+        - Unchanged config → `mergeFileContents` fast path returns unchanged
+        - 3 orchestrator-level tests confirm behavior end-to-end
 
 - [ ] **7.3 `--dry-run` mode**
 

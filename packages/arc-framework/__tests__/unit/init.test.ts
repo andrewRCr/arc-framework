@@ -6,6 +6,9 @@
  * full init flow against real filesystems.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
 
 // Mock atomicWriteJson — unit tests use virtual IO; the real function
@@ -32,6 +35,11 @@ import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import { DEFAULT_PROMPTS } from "../helpers/integration.js";
+
+const __testdir = dirname(fileURLToPath(import.meta.url));
+const actualRecipe = JSON.parse(
+  readFileSync(resolve(__testdir, "../../init-recipe.json"), "utf-8"),
+) as Recipe;
 
 // --- Shared Fixtures ---
 
@@ -210,6 +218,26 @@ describe("resolveFileList", () => {
     const recipe: Recipe = { prompts: [], conditions: {} };
     const files = resolveFileList(recipe, { "pm.mode": "none", "tools": "" });
     expect(files).toEqual([]);
+  });
+});
+
+// --- resolveFileList (actual recipe: team-coordination conditionality) ---
+
+describe("resolveFileList — actual recipe", () => {
+  const TEAM_COORD = "reference/strategies/arc/strategy-team-coordination.md";
+
+  it("solo-mode excludes strategy-team-coordination.md", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "false",
+    });
+    expect(files).not.toContain(TEAM_COORD);
+  });
+
+  it("team-mode includes strategy-team-coordination.md", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "true",
+    });
+    expect(files).toContain(TEAM_COORD);
   });
 });
 

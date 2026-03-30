@@ -29,7 +29,6 @@
     "reference/strategies/arc/strategy-quality-gates.md",
     "reference/strategies/arc/strategy-session-management.md",
     "reference/strategies/arc/strategy-task-list-formatting.md",
-    "reference/strategies/arc/strategy-team-coordination.md",
     "reference/strategies/arc/strategy-work-organization.md",
     "reference/strategies/arc/strategy-work-planning.md",
     "reference/strategies/project/README.md",
@@ -167,7 +166,9 @@
       ]
     },
     "team.mode == true": {
-      "include_files": []
+      "include_files": [
+        "reference/strategies/arc/strategy-team-coordination.md"
+      ]
     }
   }
 }
