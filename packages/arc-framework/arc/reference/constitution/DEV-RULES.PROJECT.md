@@ -1,6 +1,11 @@
 # Development Rules (Project)
 
-Project-specific development standards for the ARC framework. Quality gates, testing requirements,
+<!-- Project-specific development standards — filled during project definition
+     (02_define-project § Step 5). Quality gates, testing, code quality, and architecture
+     rules for YOUR project. ARC methodology rules (commit discipline, task execution,
+     session management) live in DEV-RULES.ARC.md and apply universally. -->
+
+Project-specific development standards for [project name]. Quality gates, testing requirements,
 documentation style, file organization, and architecture rules.
 
 For ARC methodology rules (commit discipline, task execution, session management, verification), see
@@ -34,53 +39,39 @@ integration checkpoints at coherent unit boundaries (Tier 2), and full suite for
 pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definitions, escalation guidance,
 and task list integration.
 
-1. **Markdown Linting**: Zero violations
-   - Command: `npm run -s lint:md`
-   - Auto-fix: `npm run -s lint:md:fix`
-   - Config: `.markdownlint-cli2.jsonc`
+<!-- List your quality gate tools. Each gate needs: name, command, config location. -->
+<!-- Commands here should match QUICK-REFERENCE § Quality Gate Commands. -->
 
-2. **Code Linting**: Zero violations
-   - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
-     (typescript-eslint recommended-type-checked)
-   - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts
+1. **[Linter/Formatter]**: Zero violations
+   - Command: `[lint_command]`
+   - Config: `[config_path]`
 
-3. **TypeScript Type Checking**: Zero errors
-   - Command: `npm run typecheck`
-   - Config: `packages/arc-framework/tsconfig.json` (strict mode)
+2. **[Type Checker]**: Zero errors
+   - Command: `[typecheck_command]`
+   - Config: `[config_path]`
 
-4. **Tests**: All pass
-   - Command: `npm test` (full suite), `npm run test:unit` (unit only)
-   - Framework: Vitest
-   - Config: `packages/arc-framework/vitest.config.ts`
+3. **[Test Runner]**: All pass
+   - Command: `[test_command]`
 
-5. **Build**: Succeeds
-   - Command: `npm run build`
-   - Tooling: tsup (ESM output, declarations, shebang injection)
+4. **[Build Tool]**: Succeeds
+   - Command: `[build_command]`
 
-6. **CI Validation**: All checks pass
-   - GitHub Actions runs automatically on push/PR
-   - Markdown linting, code linting (zero violations policy)
-   - TypeScript type checking, test suite, build verification
-   - Template structure validation
-   - Internal link checking
+<!-- Add or remove gates to match your stack. Common additions: -->
+<!-- security scanning, license checking, bundle size limits, API schema validation -->
 
 ## Testing Requirements
 
-**Test framework:** Vitest with three test tiers matching the directory structure:
+<!-- Describe your test strategy: framework, directory structure, what each tier covers. -->
 
-- **Unit** (`__tests__/unit/`): Pure function and module tests, no filesystem or process side effects.
-  Fast, isolated, run on every change.
-- **Integration** (`__tests__/integration/`): Module interaction tests. May touch the filesystem
-  via temp directories but no external services.
-- **E2E** (`__tests__/e2e/`): Full CLI invocation tests. Run `arc init`, `arc update`, etc. against
-  real (temporary) git repos to validate end-to-end behavior.
+**Test framework:** [framework name]
 
-**Coverage expectations:** Business logic and core libraries should have unit test coverage. Commands
-are validated through integration and E2E tests. No hard coverage percentage target — focus on
-meaningful assertions over line counting.
+<!-- Example structure — adapt to your project: -->
+<!-- - **Unit**: Pure function tests, no side effects -->
+<!-- - **Integration**: Module interaction tests, may use test databases -->
+<!-- - **E2E**: Full application tests against running services -->
 
-**Testing methodology:** See [Testing Methodology Strategy][testing-methodology] for the full
-approach — TDD decision tree, mocking rules, vertical slice workflow, test naming conventions.
+**Coverage expectations:** [your coverage philosophy — percentage targets, meaningful assertions,
+or focus areas]
 
 **Markdown linting** remains the primary quality gate for `.arc/` documentation alongside code quality.
 
@@ -95,22 +86,16 @@ Apply standard software engineering principles:
 
 Separate concerns, prefer composition over duplication, favor readability when principles conflict.
 
-**TypeScript standards:**
-
-- Strict mode with `noUncheckedIndexedAccess` — no `any` types except at validated system boundaries
-- ESM throughout (`type: "module"`, Node16 module resolution)
-- Prefer explicit return types on exported functions
-- Use `unknown` over `any` for external data; validate and narrow before use
-- TSDoc on exported API surface: `@param`, `@returns` on exported functions; file-level doc comment
-  describing the module's purpose
+<!-- Add language-specific or framework-specific standards below. Examples: -->
+<!-- "Strict TypeScript with no `any` types except at validated system boundaries" -->
+<!-- "Python type hints on all public functions" -->
+<!-- "Go error handling: always check, never ignore" -->
 
 ## Documentation Standards
 
 ### Markdown quality
 
 - All `.md` files must be well-formed Markdown (zero tolerance for linting failures)
-- Template-first documents with comprehensive inline guidance and framework defaults
-- READMEs required for each directory
 - Always run markdown linting after updating documentation files
 - **Line length**: 120 characters (enforced by markdownlint). Use the full target width — don't wrap prematurely at
   80-90 characters. Linting catches overflow but not underfill; consistently short lines waste space, hurt readability
@@ -133,11 +118,18 @@ Separate concerns, prefer composition over duplication, favor readability when p
 
 ## File Organization
 
-- `.arc/` = the ARC methodology (reference/, system/, active/, backlog/)
-- `packages/arc-framework/` = CLI npm package (`@arc-framework/cli`)
-- Separate concerns: keep production code, tests, and configuration in distinct directories
+<!-- Describe your project's directory structure — what goes where and why. -->
+
+- `.arc/` - Development documentation (constitution, strategies, workflows, active tasks)
+- `[src_dir]/` - [description]
+- `[test_dir]/` - [description]
 
 ## Capture Routing
+
+<!-- How deferred issues are tracked depends on your PM mode. -->
+<!-- arc-in-git: use ARC's built-in capture surfaces (shown below). -->
+<!-- external: route to your tracker per project convention. -->
+<!-- none: define your convention or ask the user. -->
 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces:
 
@@ -179,4 +171,3 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 [dev-rules-arc]: DEV-RULES.ARC.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../strategies/arc/strategy-adr-methodology.md
-[testing-methodology]: ../strategies/STRATEGY-INDEX.md

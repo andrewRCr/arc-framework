@@ -150,7 +150,27 @@ git status
 
 ## ARC CLI Commands
 
-<!-- Include this section if your project uses the @arc-framework/cli package. -->
+### Setup and Configuration
+
+```bash
+# Initialize ARC in a new project
+npx arc init
+
+# Join an existing ARC project (personal workspace: role, identity, skills)
+npx arc join
+
+# Change structural project settings (pm.mode, team.mode, project name)
+npx arc init --reconfigure
+
+# Change personal workspace settings (role, tools)
+npx arc join --reconfigure
+
+# Preview reconfigure changes without applying
+npx arc init --reconfigure --dry-run
+
+# Update framework files to the latest version
+npx arc update
+```
 
 ### Session State Portability
 
