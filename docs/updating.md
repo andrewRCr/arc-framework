@@ -67,8 +67,9 @@ project-specific content. The framework never touches them again.
 
 ### Project-Owned
 
-Files you create during development — task lists, PRDs, ADRs, strategy documents, notes. Not part
-of the template system.
+Files you create during development — task lists, PRDs, ADRs, project strategies
+(`strategies/project/`), project workflows (`workflows/project/`), notes. Not part of the template
+system.
 
 **Update behavior:** Ignored completely. The CLI never reads or writes these files.
 
@@ -98,6 +99,9 @@ the framework changed the same lines does a conflict occur.
 The practical rule: if a file has project-specific sections or was created from a template for you
 to fill in, it's safe to edit. If it's pure ARC methodology content (workflows, strategies, hook
 scripts), customize through config, methods, or extensions instead.
+
+For the complete file inventory with classifications and naming conventions, see
+`strategy-file-classification.md` in `.arc/reference/strategies/arc/`.
 
 ## Skills and Hooks
 

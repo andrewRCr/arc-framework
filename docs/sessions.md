@@ -4,37 +4,6 @@ ARC treats sessions as bounded, intentional periods of work — not open-ended c
 until interrupted. Each session starts with structured initialization, proceeds through focused work,
 and ends with intentional state preservation.
 
-This isn't an artificial constraint. It's a response to concrete evidence about how both agent and
-human performance degrade over time, and a mechanism for keeping context recoverable across the
-inherent boundary of ephemeral agent conversations.
-
-## Why Bounded Sessions
-
-Three forces converge on the same design choice.
-
-**Agent context quality degrades measurably.** LLM output quality drops as context accumulates
-within a session. Studies report 13.9–85% degradation across models and task types, even when models
-can perfectly retrieve relevant information (Agarwal et al., EMNLP 2025). Effective capacity
-converges around 60–70% of the advertised context window (Hsieh et al., COLM 2024). Complex
-tasks — multi-hop reasoning, code generation, agentic workflows — degrade faster than simple
-retrieval, with agentic success rates dropping from 40–50% baseline to under 10% in long-context
-scenarios (Wang et al., 2025). Information in the middle of long contexts suffers 30%+ performance
-loss — the "lost in the middle" phenomenon (Liu et al., TACL 2024).
-
-This is not a temporary limitation. The evidence spans multiple model families, architectures, and
-context window sizes. Larger windows shift where degradation begins; they don't eliminate it.
-
-**Human attention follows the same pattern.** ARC's [co-development model](philosophy.md#core-commitments)
-requires sustained developer attention — the developer is a co-developer, not a passive observer.
-Task-switching costs up to 40% of productive time, and interruption recovery takes 10–15 minutes for
-software engineering work. Marathon sessions degrade human judgment the same way they degrade agent
-context, through a different mechanism.
-
-**Session boundaries enforce methodology discipline.** The establish-execute-capture rhythm is what
-makes context recoverable. Each session starts with deliberate context loading and ends with
-intentional state preservation. Without explicit boundaries, knowledge accumulates implicitly and is
-lost when the conversation ends.
-
 ## How Sessions Work
 
 ### Initialization
@@ -55,23 +24,23 @@ what's immediately relevant.
 
 ### Work execution
 
-During a session, the developer and agent work through tasks following the
+During a session, you and the agent work through tasks following the
 [task execution model](work-planning.md#how-tasks-execute). The session lifecycle provides the
 container; the planning and execution system provides the structure within it.
 
 ### Handoff
 
-When a session ends — at a natural boundary, when context is filling, or when the developer decides
-to stop — a structured handoff captures working state:
+When a session ends — at a natural boundary, when context is filling, or when you decide to
+stop — a structured handoff captures working state:
 
 - **WORK-STATUS.md** is updated with the current task pointer, blockers, and next action. This is
   tracked (committed to git) and visible to anyone on the branch.
 - **SESSION-NOTES.md** captures personal working context: what was completed, decisions made,
   things tried, known risks, and anything the next session needs to know. This is gitignored —
-  personal to the developer, not part of the project record.
+  personal to you, not part of the project record.
 
 The split is deliberate. WORK-STATUS tells any developer (or agent) where the project stands.
-SESSION-NOTES tells *this* developer what they were thinking.
+SESSION-NOTES tells *you* what you were thinking.
 
 Here's what each looks like after a handoff:
 
@@ -103,31 +72,7 @@ Here's what each looks like after a handoff:
   late? Decided yes for now — revisit if users request "skip overdue."
 ```
 
-## Session Duration
-
-These thresholds are informed by the degradation evidence and practitioner experience. They're
-guidelines, not hard rules.
-
-- **General development** (task execution, refactoring, features): monitor context from ~70%
-  utilization, plan handoff by ~75–80%.
-- **Complex reasoning** (architecture decisions, multi-file refactoring, cross-system debugging):
-  consider earlier handoffs at ~60–70%.
-- **Light tasks** (documentation, configuration, single-file edits): can tolerate up to ~85%.
-- **Large context windows** (500K+ tokens): the same proportional thresholds apply. A 1M token
-  window doesn't mean productive 1M token sessions.
-
-Regardless of utilization, end sessions at natural stopping points — task completion, phase
-boundaries, clean commit points. A focused session with headroom is better than one that fills the
-window for marginal additional work.
-
-## Context Monitoring
-
-Context monitoring is a shared responsibility. The developer is the primary monitor — they have
-better tools (platform-native status indicators), better judgment (current work state, commit
-readiness), and the authority to call handoff. The agent is a secondary safety net, flagging when
-thresholds are approached.
-
-## Session State Portability
+### Session state portability
 
 SESSION-NOTES.md and other personal workspace files are gitignored by design — personal context
 stays out of git history. ARC uses [git notes](https://git-scm.com/docs/git-notes) to make this
@@ -143,3 +88,68 @@ files are backed up in git notes).
 
 Push behavior is configurable: `always` (solo default — no friction), `prompt` (team default —
 conscious choice per handoff), or `manual` (full control).
+
+## Session Duration
+
+How long to run a session is your call. ARC doesn't enforce duration limits — but the research on
+context degradation gives practical guidance worth knowing:
+
+- **General development** (task execution, refactoring, features): context quality is reliable up to
+  ~70% utilization; plan handoff by ~75–80%.
+- **Complex reasoning** (architecture decisions, multi-file refactoring, cross-system debugging):
+  consider earlier handoffs at ~60–70% — these tasks are more sensitive to degradation.
+- **Light tasks** (documentation, configuration, single-file edits): can tolerate up to ~85%.
+- **Large context windows** (500K+ tokens): the same proportional thresholds apply. A 1M token
+  window doesn't mean productive 1M token sessions.
+
+Regardless of utilization, natural stopping points — task completion, phase boundaries, clean commit
+points — are good handoff moments. A focused session with headroom is better than one that fills the
+window for marginal additional work.
+
+## Why Bounded Sessions
+
+The bounded session model isn't an arbitrary constraint. Three forces converge on the same design.
+
+### Agent context quality degrades with length
+
+LLM output quality drops as context accumulates within a session. The key findings:
+
+- **Effective capacity is well below advertised limits.** Multiple studies converge on 60–70% of the
+  advertised context window as the performance-reliable range
+  ([Hsieh et al., COLM 2024][ruler]).
+- **Complex tasks degrade faster than simple retrieval.** Needle-in-a-haystack retrieval holds up at
+  long contexts, but multi-hop reasoning, code generation, and agentic workflows — the work that
+  dominates development sessions — degrade sharply. Agentic success rates drop from 40–50% to under
+  10% in long-context scenarios ([Wang et al., 2025][web-agents]).
+- **Position effects matter.** Information in the middle of long contexts suffers significant
+  performance loss — the "lost in the middle" phenomenon
+  ([Liu et al., TACL 2024][lost-middle]). As sessions accumulate history, earlier decisions
+  naturally drift toward weaker retrieval positions.
+
+This isn't a temporary limitation. The evidence spans multiple model families, architectures, and
+context window sizes. Larger windows shift where degradation begins; they don't eliminate it
+([Agarwal et al., EMNLP 2025][ctx-length-hurts]).
+
+### Human attention follows the same pattern
+
+ARC's [co-development model](philosophy.md#core-commitments) requires sustained human attention —
+you're a co-developer, not a passive observer. Task-switching costs up to 40% of productive time
+([Rubinstein, Meyer & Evans, 2001][task-switching]), and interruption recovery takes 10–15 minutes
+for software engineering work ([Lestan, Leventis & Ivanovic, 2024][interruption-recovery]). Marathon
+sessions degrade human judgment the same way they degrade agent context, through a different
+mechanism.
+
+### Session boundaries enforce methodology discipline
+
+The establish-execute-capture rhythm is what makes context recoverable. Each session starts with
+deliberate context loading and ends with intentional state preservation. Without explicit boundaries,
+knowledge accumulates implicitly and is lost when the conversation ends.
+
+---
+
+[ruler]: https://arxiv.org/abs/2404.06654
+[web-agents]: https://arxiv.org/abs/2512.04307
+[lost-middle]: https://arxiv.org/abs/2307.03172
+[ctx-length-hurts]: https://arxiv.org/abs/2510.05381
+[task-switching]: https://doi.org/10.1037/0096-3445.130.4.621
+[interruption-recovery]: https://doi.org/10.1145/3613904.3642861

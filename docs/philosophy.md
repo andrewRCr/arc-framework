@@ -21,10 +21,11 @@ Human attention for novel knowledge work is single-threaded. This is one of the 
 findings in cognitive psychology, supported by over 70 years of research from Broadbent's filter
 model (1958) through Pashler's dual-task interference work (1994) to contemporary studies.
 
-The numbers are concrete: task-switching costs up to 40% of productive time (Rubinstein, Meyer &
-Evans, 2001). Recovery from interruptions averages 23 minutes for knowledge workers (Mark, Gudith &
-Klocke, 2008) and 10–15 minutes for software engineering specifically (Lestan, Leventis & Ivanovic,
-2024).
+The numbers are concrete: task-switching costs up to 40% of productive time
+([Rubinstein, Meyer & Evans, 2001][task-switching]). Recovery from interruptions averages 23
+minutes for knowledge workers ([Mark, Gudith & Klocke, 2008][interruption-general]) and 10–15
+minutes for software engineering specifically
+([Lestan, Leventis & Ivanovic, 2024][interruption-recovery]).
 
 ARC's sequential execution model, bounded sessions, and single-task focus are environmental
 structure that works with the attention constraint rather than against it — the same way air traffic
@@ -169,3 +170,9 @@ ARC is designed for conversational agents where developer and agent share contex
 - **Cloud/async agents** (Jules, Codex cloud, Devin) — off-label. ARC can function at the
   boundaries (planning as specification, quality gates as verification), but the core
   co-development value is absent during execution.
+
+---
+
+[task-switching]: https://doi.org/10.1037/0096-3445.130.4.621
+[interruption-general]: https://doi.org/10.1145/985692.985715
+[interruption-recovery]: https://doi.org/10.1145/3613904.3642861
