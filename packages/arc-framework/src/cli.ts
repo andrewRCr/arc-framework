@@ -34,6 +34,7 @@ program
   .option("--pm-mode <mode>", "PM mode: none, arc-in-git, external (requires --yes)")
   .option("--tools <csv>", "Comma-separated tool list (requires --yes)")
   .option("--team", "Enable team mode (requires --yes)")
+  .option("--reconfigure", "Change structural settings on an existing installation")
   .action(handleInit);
 
 program

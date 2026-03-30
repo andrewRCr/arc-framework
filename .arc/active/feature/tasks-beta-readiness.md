@@ -1101,7 +1101,7 @@ get overwritten.
           carry-forward
         - Full existing test suite passes: 523 tests (487 unit/integration + 36 E2E)
 
-- [ ] **7.1 `init --reconfigure` core flow**
+- [x] **7.1 `init --reconfigure` core flow**
 
     **Goal:** Enable re-entry into init for existing installations, gated by role.
 
@@ -1110,32 +1110,32 @@ get overwritten.
     line ~119. `team_mode` is optional in `InstallConfig` — existing manifests from before
     team mode may have `undefined`; default to `false` when absent.
 
-    - [ ] **7.1.a Add `--reconfigure` flag and entry path**
-        - Add `--reconfigure` CLI flag to init command (`cli.ts`)
-        - Three-way branch in `commands/init.ts`: `--reconfigure` + not installed → error;
-          `--reconfigure` + installed → reconfigure flow; no flag + installed → existing
-          `ALREADY_INSTALLED` error
-        - Read current `manifest.install_config` as starting state for reconfigure
-        - Role gate: require `arc.role = maintainer` (or unset). Clear error for contributors
+    - [x] **7.1.a Add `--reconfigure` flag and entry path**
+        - `--reconfigure` flag added to init command in `cli.ts`
+        - Three-way branch in `handlers/init.ts`: `--reconfigure` dispatches to
+          `handleReconfigure` (checks installation, role gate, reads manifest, builds
+          new config, delegates to `runReconfigure`); fresh init path unchanged
+        - `commands/reconfigure.ts`: new `runReconfigure` orchestrator using the
+          `buildChangePlan` → `applyChangePlan` pipeline from 7.0
+        - `ALREADY_INSTALLED` error updated to mention `--reconfigure`
+        - `NOT_INSTALLED` and `ROLE_FORBIDDEN` error codes added to `ArcErrorCode`
+        - No-change detection in handler (compares all config fields)
+        - 3 unit tests for `runReconfigure` (manifest missing, config update, result
+          shape); entry path validation (role gate, not-installed) tested at handler
+          level in integration tests
 
-        Build `test-first` (one behavior at a time):
-        - `--reconfigure` on non-installed repo produces clear error
-        - `--reconfigure` on installed repo reads manifest and enters reconfigure flow
-        - Without `--reconfigure`, existing `ALREADY_INSTALLED` behavior unchanged
-        - Role gate: contributor gets clear error, maintainer (or unset) proceeds
-
-    - [ ] **7.1.b Settings screen prompts**
-        - Present current `install_config` values as defaults (settings screen, not init replay)
-        - Prompt for `pm_mode`, `team_mode`, `project_name` — user changes what they want
-        - Handle missing `team_mode` in old manifests (default `false`)
-        - Team mode awareness: warn when `team.mode: true` that changes affect all developers
-        - Detect no-change case: if all values unchanged, report "nothing to change" and exit
-
-        Build `test-first` (one behavior at a time):
-        - Settings screen presents current config values as defaults
-        - Missing `team_mode` in manifest defaults to `false`
-        - No-change case (all values identical) reports "nothing to change" and exits
-        - `--yes` mode uses current values (no-op) unless overridden by CLI flags
+    - [x] **7.1.b Settings screen prompts**
+        - `prompts/reconfigure-prompts.ts`: interactive `runReconfigurePrompts` (project
+          name, PM mode, team mode with current values as defaults), team mode warning on
+          enable, cancel handling
+        - `buildNonInteractiveReconfigurePrompts`: `--yes` mode with CLI flag overrides
+        - `buildReconfigureConfig`: merges prompt results with carried-forward tools
+        - `isNoChange`: compares prompt result against current config (handles missing
+          `team_mode` as `false`)
+        - Handler wired: interactive when no `--yes`, non-interactive with flag overrides
+          when `--yes`, no-change detection exits early
+        - 13 unit tests covering defaults, flag overrides, missing `team_mode`, config
+          merging, and no-change detection
 
 - [ ] **7.2 File delta resolution**
 

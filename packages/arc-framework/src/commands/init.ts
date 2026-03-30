@@ -121,7 +121,7 @@ export async function runInit(
       code: "ALREADY_INSTALLED",
       whatHappened: "ARC is already installed in this project",
       why: "The .arc/system/arc-config.yml file already exists.",
-      whatToDo: "To join as a developer: arc join\nTo update framework files: arc update",
+      whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
     });
   }
 
