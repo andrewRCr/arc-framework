@@ -1381,13 +1381,24 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Skills regeneration warning, git hooks config guidance
         - `--reconfigure` for structural settings, `--dry-run` for preview
 
-- [ ] **8.4 Create stub pages**
-    - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,
-      Comparison/Positioning, Tutorials
-    - Use section index pages where stubs group under a nav section — brief description of
-      what the section will cover, link to roadmap or discussions for context
-    - Individual stub pages: brief description of planned content, not just "coming soon" —
-      signal intentional planning without looking abandoned
+- [x] **8.4 Write reference pages and restructure nav**
+    - Removed `community/` section entirely (Tutorials dropped — no concrete tutorials
+      to write; Comparison absorbed by FAQ; Contributing moved to docs root)
+    - Restructured nav: root pages = reading path, Reference section = lookup
+      destinations, FAQ and Contributing as standalone top-level entries
+    - Two-audience content model: docs site pages at guide level for learners/evaluators;
+      in-repo strategy docs remain the canonical deep-dive for practitioners. Pages point
+      to strategy docs as "further reading," no duplication.
+    - **Reference section** (5 pages + index): Skills Reference (6 skills with core vs
+      supplemental framing, arc-task-audit positioned as supplemental/as-needed), Glossary
+      (19 ARC-specific terms), Configuration (three mechanisms, settings groups, enforcement
+      vs guidance), Quality Gates (3-tier system with escalation guidance), Team Coordination
+      (task ownership, branching patterns, external tracker integration)
+    - **Standalone pages**: FAQ (9 Q&As covering design choices, agent compatibility, and
+      common "why" questions), Contributing (ARC-specific setup, commit conventions, quality
+      standards — ready for root CONTRIBUTING.md pointer pattern)
+    - Updated `mkdocs.yml` nav, `docs/index.md` Documentation Guide table. No stale
+      cross-references found in foundation pages.
 
 - [ ] **8.5 Set up docs deployment**
 

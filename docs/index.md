@@ -96,11 +96,12 @@ lifecycle:
 ## Documentation Guide
 
 | Section                               | What You'll Find                                                                            |
-|---------------------------------------|---------------------------------------------------------------------------------------------|
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [Getting Started](getting-started.md) | Install ARC, run your first session, understand what happened                               |
 | [Philosophy](philosophy.md)           | The 11 principles, the cognitive science and AI research behind them, and where ARC fits    |
 | [Sessions](sessions.md)               | Why bounded sessions, the context degradation evidence, how initialization and handoff work |
 | [Work Planning](work-planning.md)     | The planning pipeline from idea to task list, how tasks execute, quality gates              |
 | [Updating ARC](updating.md)           | What `arc update` does, file classifications, what's safe to edit                           |
-| [Reference](reference/index.md)       | Configuration settings, quality gate tiers, team coordination                               |
-| [Community](community/index.md)       | Contributing guidelines, tutorials, comparisons                                             |
+| [Reference](reference/index.md)       | Skills, glossary, configuration, quality gate tiers, team coordination                      |
+| [FAQ](faq.md)                         | Common questions about ARC's design choices, agent compatibility, and usage                 |
+| [Contributing](contributing.md)       | How to contribute to ARC — setup, commit conventions, quality standards                     |

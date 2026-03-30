@@ -35,14 +35,13 @@ nav:
   - Updating ARC: updating.md
   - Reference:
     - reference/index.md
+    - Skills: reference/skills.md
+    - Glossary: reference/glossary.md
     - Configuration: reference/configuration.md
     - Quality Gates: reference/quality-gates.md
     - Team Coordination: reference/team-coordination.md
-  - Community:
-    - community/index.md
-    - Contributing: community/contributing.md
-    - Tutorials: community/tutorials.md
-    - Comparison: community/comparison.md
+  - FAQ: faq.md
+  - Contributing: contributing.md
 
 markdown_extensions:
   - admonition
