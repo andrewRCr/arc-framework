@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.1 — Pre-site content preparation (line ~1252)
-**Last Completed**: Task 7.6 — Phase quality gates
+**Next Task**: Task 8.2 — Set up MkDocs infrastructure (line ~1328)
+**Last Completed**: Task 8.1 — Content boundary and README decomposition
 **Blockers**: None
-**Next Action**: Begin Phase 8 (Docs Site)
+**Next Action**: Create mkdocs.yml and docs/ directory structure
 
 ---
 

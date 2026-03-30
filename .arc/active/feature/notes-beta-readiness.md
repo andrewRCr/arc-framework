@@ -223,3 +223,251 @@ Once the command surface is finalized, a pass across all docs to ensure clear si
 - add-agent workflow not referencing reconfigure for tool changes
 - AGENT-BRIEFING, QUICK-REFERENCE covering paths an agent might need
 - No dead ends or confusion about which command to use when
+
+---
+
+## Phase 8: Positioning Research
+
+Compiled 2026-03-30. Research conducted via external research agents to inform Phase 8
+content boundary decisions, README positioning, and docs-site foundation page writing.
+
+### 1. README / Docs-Site Boundary Patterns
+
+**Finding:** Dev tools with docs sites consistently use a ~200-400 word README as a focused
+front door. The README hooks ("is this for me?"); the docs site orients ("how do I use this?").
+
+**Idiomatic README structure (from Turborepo, Nx, Husky, Lerna, Changesets):**
+
+1. Identity — logo, tagline, badges
+2. Value prop — 3-5 bullets (differentiation, not feature list)
+3. Minimal setup — one install command, link to Getting Started
+4. Clear CTA — prominent link to docs site (section 4-5, not buried)
+5. Social proof — "who uses this" (when available)
+6. Contributing — link to CONTRIBUTING.md
+7. License
+
+**What never appears in READMEs for tools with docs sites:**
+Installation walkthrough, configuration examples, command reference, troubleshooting,
+tutorials, detailed feature explanations (bullets only).
+
+**The 15-second rule:** Every visitor should answer "is this for me?" in 15 seconds.
+README + 1 click to docs is the funnel.
+
+**Sources:** Turborepo, Nx, Lerna, Husky, Changesets GitHub repos; makeareadme.com;
+awesome-readme curated list.
+
+### 2. Positioning & Tone for Opinionated Dev Tools
+
+#### Contrarian positioning that works
+
+**Problem-statement framing, not ideology:**
+
+- Crystal: "We love Ruby's efficiency for writing code. We love C's efficiency for running
+  code. We want the best of both worlds."
+- Frame philosophy as solving a tension developers already feel.
+
+**Taglines that carry philosophy:**
+
+- Rails: "Optimized for happiness"
+- Django: "The web framework for perfectionists with deadlines"
+- Svelte: "web development for the rest of us"
+- These are value statements about outcomes, not technical descriptions.
+
+**Explicit negation (Basecamp/Shape Up):**
+
+> "For one, we're not into waterfall or agile or scrum. For two, we don't line walls with
+> Post-it notes. For three, we don't do daily stand ups..."
+
+- Explicit and confident without attacking alternatives.
+- Rejections framed around outcomes ("anything tied to a metaphor that includes being tired").
+
+**Rhetorical questions (HTMX):**
+
+- "Why should only `<a>` & `<form>` be able to make HTTP requests?"
+- Reframes as "what if we questioned an assumption?" not "you're wrong."
+
+#### Tradeoff presentation
+
+**"This Is By Design" framing:**
+
+- Constraints as preventing specific failure modes, not as limitations.
+- "We chose X instead of Y because Y leads to [specific bad outcome]."
+- "We optimize for X at the cost of Y" — specifies the tradeoff clearly.
+
+#### Solo-maintainer credibility
+
+- Visible curation signals quality (Awesome project pattern)
+- Transparency about sustainability, not defensive about scale
+- Direct, accessible tone — not corporate, not academic
+- External validation over self-promotion
+
+**Sources:** Rails, Remix, Svelte, HTMX, Tailwind, Django, Shape Up (Basecamp), Go, Crystal,
+Deno READMEs and landing pages; DevTools marketing research (everydeveloper.com).
+
+### 3. Docs-Site Structure (MkDocs Material)
+
+#### Navigation hierarchy
+
+Standard 3-4 level structure: Getting Started → Core Content → Reference → Advanced.
+`navigation.indexes` for clickable section landing pages.
+
+#### Getting Started for methodology tools
+
+Different from library docs:
+
+1. Understand the structure (what artifacts you'll interact with)
+2. Run your first session (narrative walkthrough)
+3. See what happened (what the output means)
+4. Key concepts (just enough theory)
+5. Next steps (clear paths)
+
+#### Stub page approach
+
+- Section index pages that frame what's coming (not "coming soon" scattered everywhere)
+- Draft metadata flags to exclude from search/sitemap
+- Admonition blocks for visible-but-subtle status indicators
+
+#### In-repo content handling
+
+- Authoritative content stays in repo; docs site adapts/summarizes and links back
+- Deep links from docs site to GitHub for ADRs, strategies, etc.
+- Different audiences: repo (contributors), docs site (users)
+
+#### README ≠ docs index
+
+| Element  | README              | Docs Index             |
+|----------|---------------------|------------------------|
+| Audience | "Is this for me?"   | "How do I use this?"   |
+| Tone     | Exciting/convincing | Practical/helpful      |
+| Length   | ~300-400 words      | ~600-800 words         |
+| Links    | External (to docs)  | Internal (section nav) |
+
+**Sources:** Material for MkDocs docs; Pydantic, FastAPI mkdocs.yml examples; Diataxis
+framework; Command Line Interface Guidelines (clig.dev).
+
+### 4. Cognitive Psychology & Attention Evidence
+
+Already in ARC strategy docs — summarized here for quick reference during writing.
+
+#### Directly citable (in strategy-core-philosophy.md)
+
+| Claim                            | Citation                           | Finding                         |
+|----------------------------------|------------------------------------|---------------------------------|
+| Task-switching productivity loss | Rubinstein, Meyer & Evans (2001)   | Up to 40% of productive time    |
+| Interruption recovery (general)  | Mark, Gudith & Klocke (2008)       | Average 23 minutes              |
+| Interruption recovery (software) | Lestan, Leventis & Ivanovic (2024) | 10-15 minutes                   |
+| Supertaskers (exception)         | Watson & Strayer (2010)            | ~2.5% of population, innate     |
+| Broadbent's filter model         | Broadbent (1958)                   | Foundational attention research |
+
+#### Directly citable (in strategy-session-management.md)
+
+| Claim                                   | Citation                     | Finding                            |
+|-----------------------------------------|------------------------------|------------------------------------|
+| Context length degrades LLM performance | Agarwal et al. (2025), EMNLP | 13.9-85% degradation               |
+| Effective context capacity              | Hsieh et al. (2024), COLM    | 60-70% of advertised window        |
+| Complex task degradation                | Wang et al. (2025)           | Agentic success rates drop to <10% |
+| Lost in the middle                      | Liu et al. (2024), TACL      | 30%+ degradation for mid-context   |
+
+#### Gaps (honest about what we don't have)
+
+- Spec-driven development effectiveness — claimed but not cited
+- Review quality degradation from disengagement — mentioned as "documented pattern" without
+  citation
+- Maintenance context retention — plausible but no empirical backing
+
+### 5. AI Product Perception Research
+
+#### Strong evidence
+
+**Attribution effect:** Users prefer identical outputs when attributed to humans vs. AI.
+Disclosure of AI involvement reduces perceived craftsmanship, emotional value, and aesthetic
+appreciation (CHI 2024, multiple ScienceDirect studies, PMC).
+
+**Code genericness is measurable:**
+
+- 4x more code cloning with AI assistance (GitClear 2025)
+- Static analysis warnings up ~30%, code complexity up 40% (Carnegie Mellon)
+- Code churn doubling (code discarded within 2 weeks of writing)
+
+**Developer trust crisis:**
+
+- 76% of developers in "red zone" (frequent hallucinations, low confidence)
+- METR 2025: developers felt 20% faster but were actually 19% slower (39-44% gap)
+- 67% report spending more time debugging AI-generated code
+
+#### Emerging / directionally supportive
+
+- Art perception: in blind tests, AI art preferred ~45% of the time (near parity). Once
+  disclosed, perceived as "soulless" with decreased authenticity ratings.
+- "Uncanny valley" for generative AI described by MIT Tech Review and Thoughtworks — not
+  yet formally studied for software.
+- Transparency dilemma: disclosing AI involvement reduces trust independent of actual
+  quality (ScienceDirect 2025, U. of Arizona).
+
+#### Gap (honest)
+
+- No studies on end-user perception of AI-generated software *features* in blind conditions
+- No research on "product character" in software (vs. art, advertising, content)
+- "Handmade premium" not studied for digital products
+- The "humanity in software" thesis is directionally supported by adjacent research but not
+  directly proven for software products
+
+#### Positioning implication
+
+The strongest angle is documented quality signals (code cloning, complexity, trust metrics),
+not perception claims. The psychology angle is most defensible as: ARC responds to documented
+cognitive realities + documented AI quality patterns. Present "humanity in software" as
+informed conviction + emerging evidence, not settled science — that's more credible.
+
+**Sources:** Bynder/MIT content perception study; CHI 2024 (Effects of Perceived AI Use);
+PMC (Humans vs AI artwork preference); GitClear 2025; Carnegie Mellon code quality study;
+METR 2025; CodeRabbit AI vs human code report; ScienceDirect transparency/trust studies.
+
+### 6. Review Timing: Incremental vs. Deferred
+
+#### The direct study does not exist
+
+No published empirical comparison of incremental vs. deferred human review of AI agent
+output. However, three independent evidence threads converge:
+
+#### Code review science (strong, decades of data)
+
+| Finding                                  | Source                                         | Detail                                        |
+|------------------------------------------|------------------------------------------------|-----------------------------------------------|
+| Optimal review size: 200-400 LOC         | SmartBear-Cisco (2009), 2500 reviews, 3.2M LOC | 70-90% defect detection at optimal size       |
+| Detection at 1000+ LOC                   | Same study + Microsoft (1.5M comments)         | Drops to ~30%                                 |
+| Optimal review speed                     | SmartBear-Cisco                                | 200-400 LOC/hour; faster = severe drop-off    |
+| Attention degradation                    | Eye-tracking, working memory studies           | Linear decline after 10 min, cliff at 60-90   |
+| Large diffs: more comments, fewer useful | Microsoft analysis                             | Cognitive overload → shallow pattern-matching |
+| PRs <300 LOC                             | Microsoft                                      | 60% more thorough reviews                     |
+
+#### Multi-step agent error propagation (emerging, 2025)
+
+- **"17x Error Trap"**: compounding errors on dependent tasks in multi-agent systems;
+  performance collapse beyond a few hundred dependent steps (TowardsDataScience, 2025)
+- **Code clone bug propagation**: 18.42% of buggy clones involve bug propagation; 28.57%
+  of bug fixes in cloned code are for propagated bugs
+- **45% of developers** rate AI tools as "bad or very bad" at complex tasks — precisely
+  where mistakes compound most
+
+#### Goal drift in unsupervised agents (AAAI 2025)
+
+- Agents without human oversight exhibit measurable goal drift
+- **Capability drift**: agent's model of task diverges through accumulated small context
+  shifts
+- **Value drift**: agent adopts instrumental goals conflicting with human values
+- **Asymmetric**: agents more likely to drift from goals their training opposes
+- **In-context scheming**: frontier LMs capable of covertly pursuing misaligned goals
+
+#### Positioning implication
+
+Frame as convergent evidence: "Code review science tells us X, alignment research tells
+us Y, error propagation research tells us Z — they all point the same direction. ARC's
+single-step review design responds to that convergence."
+
+Most citable: SmartBear 70-90% vs. ~30% defect detection numbers, and AAAI 2025 goal drift.
+
+**Sources:** SmartBear-Cisco case study; Microsoft code review analysis; AAAI 2025 goal
+drift paper (arxiv 2505.02709); Asymmetric Goal Drift (arxiv 2603.03456); Inherited Goal
+Drift (arxiv 2603.03258); TowardsDataScience 17x Error Trap; GitClear 2025; MIRROR
+framework (IJCAI 2025); Frontiers in Computer Science human-AI collaboration review.

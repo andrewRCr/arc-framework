@@ -1245,43 +1245,72 @@ get overwritten.
      Task numbers updated accordingly. -->
 
 **Purpose:** Ship a docs site with foundation content covering what ARC is and how to get started,
-plus stub infrastructure for WU5 expansion.
+plus stub infrastructure for WU5 expansion. Establish the content boundary between README (front
+door), docs site (orientation and depth), and in-repo `.arc/` (agent runtime context).
 
-- [ ] **8.1 Pre-site content preparation**
+**Strategies:** `strategy-core-philosophy.md` (P1–P11 definitions, research citations for
+positioning), `strategy-session-management.md` (context degradation evidence),
+`strategy-work-planning.md` (planning pipeline)
 
-    - [ ] **8.1.a Refresh `README-ASPIRATIONAL.md`**
+**Research approach:** Use external research agents during implementation to validate positioning
+choices, idiomatic patterns, and evidence claims. The cognitive psychology and LLM research
+citations in strategy docs should be verified and supplemented where genuinely applicable —
+ARC's evidence-informed design is a differentiator worth presenting accurately. Do not stretch
+or invent; honest gaps are more credible than overclaimed findings.
 
-        **Goal:** Bring the aspirational README current before using it as source material.
+- [x] **8.1 Content boundary and README decomposition**
 
-        - Remove `[PLACEHOLDER]` markers
-        - Update CLI references to actual commands (`arc init`, `arc join`, `arc-resume`,
-          `arc-handoff`)
-        - Verify directory tour matches post-migration structure (single `.arc/`)
-        - Tighten narrative based on what ARC actually is now
-        - This is a content refresh, not a full rewrite — philosophy, tradeoffs, core loop
-          are stable
+    **Goal:** Define what content lives where (README vs. docs site vs. in-repo `.arc/`), then
+    rewrite the README to its target scope.
 
-    - [ ] **8.1.b Audit in-repo docs against docs-site boundary**
+    Preceded by pre-implementation audit of Phase 8 and three rounds of external research
+    (README/docs-site boundary patterns, positioning/tone for opinionated dev tools, docs-site
+    structure, AI product perception, review timing evidence). Research captured in
+    `notes-beta-readiness.md` § Phase 8: Positioning Research.
 
-        **Goal:** Establish the principle for what ships in `.arc/` vs. what lives on the
-        docs site, and identify extraction candidates.
+    - [x] **8.1.a Establish content boundaries**
 
-        - Apply "point-of-use" principle: content agents need at runtime stays in `.arc/`;
-          human-facing guides, conceptual deep-dives, and how-tos are docs-site candidates
-        - Review supplemental workflows, strategy docs, and README material for boundary fit
-        - Consider that agents commonly walk developers through processes (updates, config
-          changes) — in-repo pointers to docs-site content may be appropriate even for
-          human-facing material
-        - Output: list of extraction candidates with rationale, and any content that should
-          become foundation pages beyond the current 8.3 set
-        - This audit informs Phase 7 page scope — defer final extraction decisions to results
+        Content allocation map produced: each aspirational README section allocated to README
+        (condensed), docs site (specific foundation page), or in-repo (link only). Three-way
+        boundary defined: README as front door (~300 words, thesis-led), docs site as
+        orientation and depth, `.arc/` as agent runtime context. No new foundation pages
+        needed beyond the planned 6. Summary table in conversation record.
+
+    - [x] **8.1.b Define README target structure**
+
+        Section outline produced and approved: title → opening identity → thesis paragraph →
+        Overview (mechanical paragraph + 5 bullets) → Design Tradeoffs → Getting Started →
+        Documentation → Contributing → License.
+
+        Positioning approach evolved during iteration: thesis-led rather than problem-statement,
+        foreground quality of thinking (portfolio signal) over salesmanship, research signals
+        woven into bullets not leading. "Design Tradeoffs" header over "Honest Tradeoffs."
+
+    - [x] **8.1.c Write the new README**
+
+        `README-ASPIRATIONAL.md` rewritten to target structure (~580 words). Multiple
+        iteration rounds with user feedback on: mechanical nature of ARC (not static context
+        files), co-development emphasis, tiered context delivery, planning pipeline Core vs.
+        PM mode accuracy, configurability architecture framing, tradeoff optimization
+        language, thesis paragraph flow and tone.
+
+        Key decisions: "structured" over "portable" in opener; quality gates bullet dropped
+        (impl detail, not identity); shared context + tiered delivery promoted to first
+        bullet; "the developer's sustained attention is a feature, not a bottleneck" as
+        thesis anchor; "Much of the current momentum" framing over definitive trend claim.
+
+    **Checkpoint after 8.1:** Content allocation map, README structure, and written README
+    reviewed with user. Foundation page list confirmed at 6 — no revisions needed. Proceed
+    to 8.2/8.3.
+    This is the gate — 8.1's outputs define the scope of everything that follows.
 
 - [ ] **8.2 Set up MkDocs infrastructure**
 
     - [ ] **8.2.a Create `mkdocs.yml`**
         - Material theme, site name ("ARC Framework"), repo URL
-        - Full nav tree covering foundation and stub pages
+        - Full nav tree covering foundation and stub pages (informed by 8.1 checkpoint)
         - Search enabled, color scheme configuration
+        - `navigation.indexes` for clickable section landing pages
 
     - [ ] **8.2.b Create `docs/` directory structure**
         - Subdirectories as needed for nav organization
@@ -1291,55 +1320,85 @@ plus stub infrastructure for WU5 expansion.
 
 - [ ] **8.3 Write foundation pages**
 
-    - [ ] **8.3.a Landing / Index page**
-        - Adapted from refreshed `README-ASPIRATIONAL.md`
-        - What ARC is, core development loop, design principles, honest tradeoffs
-        - Light editing for docs-site voice (not a copy-paste)
+    - [ ] **8.3.a Docs site index page**
+        - Audience: someone who clicked through from README or a link — already past "is this
+          for me?", now wants "how do I use this?"
+        - Structure: brief welcome, clear paths through the docs (getting started, concepts,
+          configuration), section overview
+        - Not a copy of the README — the README hooks, the index orients
+        - Tone can be warmer/more practical than README (less pitch, more guide)
 
     - [ ] **8.3.b Philosophy page**
-        - Adapted from `strategy-core-philosophy.md`
-        - P1–P11 with rationale, research citations, positioning
+        - **Source:** Adapted from `strategy-core-philosophy.md` (P1–P11)
         - Restructure for docs-site readability (the strategy doc is reference-dense)
+        - **Research citations as positioning asset:** The cognitive psychology evidence
+          (attention, task-switching costs, interruption recovery) and LLM context degradation
+          research ground ARC's design decisions in published findings. Present these
+          naturally — "here's what the research shows, here's how ARC responds to it" — not
+          as an academic literature review. This is where ARC's psychology-informed design
+          becomes visible to evaluators.
+        - P1–P11 with rationale, but restructured for narrative flow rather than enumerated
+          list
 
     - [ ] **8.3.c Getting Started page**
+        - **Source:** New content (no direct aspirational README equivalent — the README's
+          "Getting Started" section was placeholder-heavy)
+        - Structure for a methodology tool: understand the structure → run your first
+          session → see what happened — not "install and call a function"
         - Install via `npx @arc-framework/cli init`
         - First session walkthrough (`arc-resume` → work → `arc-handoff`)
         - What happened: directory tour of `.arc/`
         - Depends on migration and CLI changes being complete
 
     - [ ] **8.3.d Sessions page**
-        - Adapted from `strategy-session-management.md`
+        - **Source:** Adapted from `strategy-session-management.md` (211 lines)
+        - **New authoritative home** for session concepts that the README currently carries
+          (the aspirational README's "Session Management" section moves here)
         - Why focused sessions, context degradation evidence, how sessions work
         - Natural session boundaries
+        - The LLM research citations (Agarwal, Hsieh, Wang, Liu) are particularly strong
+          here — concrete numbers that explain why session management isn't just process
+          overhead
 
     - [ ] **8.3.e Work Planning page**
-        - Adapted from `strategy-work-planning.md`
+        - **Source:** Adapted from `strategy-work-planning.md` (232 lines)
+        - **New authoritative home** for planning concepts from the README (the aspirational
+          README's "Planning Work," "Quality Gates," and "Work Organization" sections move
+          here)
         - Planning pipeline (idea → plan → PRD → tasks)
-        - How tasks work, quality gates concept
+        - How tasks work, quality gates concept, work categorization
 
     - [ ] **8.3.f Updating ARC page**
+        - **Source:** New content — no aspirational README equivalent. Draws from in-repo
+          update workflow docs and CLI behavior.
         - What `arc update` does (three-way merge, file classifications, what each means)
         - What's safe to edit (Configurable, Scaffolded) vs. auto-updated (Framework)
         - What to expect (output, conflict markers, counts, post-update state)
-        - Pre/post update checklist (MW-M05)
-        - Skill regeneration and customization warning (MW-M08)
-        - Framework file edit warning (MW-M07)
-        - Addresses MW-H04 via README pointer (6.7.a) + docs site deep-dive
+        - Pre/post update checklist
+        - Skill regeneration and customization warning
+        - Framework file edit warning
 
 - [ ] **8.4 Create stub pages**
     - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,
       Comparison/Positioning, Tutorials
-    - Each stub: brief description of what the page will cover, "detailed content coming in a
-      future release" note
+    - Use section index pages where stubs group under a nav section — brief description of
+      what the section will cover, link to roadmap or discussions for context
+    - Individual stub pages: brief description of planned content, not just "coming soon" —
+      signal intentional planning without looking abandoned
 
 - [ ] **8.5 Set up docs deployment**
 
-    - [ ] **8.5.a Create GitHub Action for docs**
+    - [ ] **8.5.a Verify local build**
+        - `pip install mkdocs-material` (or equivalent)
+        - `mkdocs build` succeeds without errors
+        - `mkdocs serve` — verify navigation, search, all pages render correctly locally
+
+    - [ ] **8.5.b Create GitHub Action for docs**
         - Trigger: push to main
         - Steps: setup Python, install mkdocs-material, `mkdocs build`, deploy to GitHub Pages
-        - Separate workflow file or new job in existing `ci.yml`
+        - Separate workflow file (not in existing `ci.yml` — different trigger and lifecycle)
 
-    - [ ] **8.5.b Verify deployment**
+    - [ ] **8.5.c Verify deployment post-merge**
         - Push to main triggers build
         - Site accessible at GitHub Pages URL
         - Navigation, search, and all pages render correctly
