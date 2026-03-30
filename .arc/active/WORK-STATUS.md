@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.1 — `init --reconfigure` core flow (line ~1076)
-**Last Completed**: Task 6.13 — Phase quality gates (Phase 6 complete)
+**Next Task**: Task 7.1 — `init --reconfigure` core flow (line ~1119)
+**Last Completed**: Task 7.0 — Extract shared file-change pipeline
 **Blockers**: None
-**Next Action**: Begin Phase 7 (`--reconfigure` implementation) at Task 7.1
+**Next Action**: Implement Task 7.1 (`init --reconfigure` core flow)
 
 ---
 

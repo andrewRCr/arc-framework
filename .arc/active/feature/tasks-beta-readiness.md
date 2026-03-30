@@ -1077,44 +1077,29 @@ get overwritten.
 
 **Strategies:** `strategy-testing-methodology.md`
 
-- [ ] **7.0 Extract shared file-change pipeline**
+- [x] **7.0 Extract shared file-change pipeline**
 
     **Goal:** Factor rendering, merging, and manifest I/O out of `commands/update.ts` into a
-    shared pipeline that both `update` and `reconfigure` consume. This is a refactor-only task —
-    no new features, all existing tests must continue to pass.
+    shared pipeline that both `update` and `reconfigure` consume.
 
-    - [ ] **7.0.a Extract `FileChangePlan` type and `buildChangePlan` function**
-        - Define a `FileChangePlan` type representing the computed delta: additions (new files
-          to render and write), removals (files to delete or keep for review, with
-          classification-driven defaults), and merges (keep-set files to three-way merge)
-        - Extract plan-building logic from `runUpdate` into a pure `buildChangePlan` function
-          that takes old manifest, new file list, recipe, config maps, template dir, and
-          pristine store — returns a `FileChangePlan` with no side effects
-        - `runUpdate` calls `buildChangePlan` then applies the result (preserving current
-          behavior exactly)
+    - [x] **7.0.a Extract `FileChangePlan` type and `buildChangePlan` function**
+        - `lib/manifest/plan.ts`: `FileChangePlan` type with `PlannedAddition`,
+          `PlannedRemoval`, `PlannedMerge`, `PlannedSkip` entries
+        - Pure `buildChangePlan` function: takes manifest, template file list, pristine
+          store, arc-in-git set → returns plan with no side effects
+        - 10 unit tests covering additions, removals, merges, skips, reclassification
+          detection, purity, and output-to-template mapping
 
-        Build `test-first` (one behavior at a time):
-        - `buildChangePlan` produces correct additions when new config adds files
-        - `buildChangePlan` produces correct removals with classification labels
-        - `buildChangePlan` produces correct merges for keep-set files
-        - `buildChangePlan` is pure — no filesystem or git side effects
-
-    - [ ] **7.0.b Extract `applyChangePlan` and rendering helpers**
-        - Extract `renderTemplate`, `buildEntry`, pristine store I/O, and the apply loop
-          (additions/removals/merges → disk writes + new manifest + new pristine) into a
-          shared `applyChangePlan` function
-        - Move extracted code to `lib/manifest/` or `lib/template/` as appropriate —
-          co-locate with existing shared modules
-        - `runUpdate` uses `buildChangePlan` → `applyChangePlan` pipeline — verify identical
-          behavior via full test suite
-
-        Build `test-first` (one behavior at a time):
-        - `applyChangePlan` writes added files to disk and updates manifest/pristine
-        - `applyChangePlan` handles removal per classification (Framework → delete,
-          Configurable → keep for review, Scaffolded → untouched)
-        - `applyChangePlan` performs three-way merge for keep-set and advances pristine
-          on clean
-        - Round-trip: `runUpdate` refactored to use pipeline, full existing test suite passes
+    - [x] **7.0.b Extract `applyChangePlan` and rendering helpers**
+        - `lib/manifest/apply.ts`: `applyChangePlan` function with `ApplyIO`,
+          `RenderContext`, `ApplyResult` types
+        - Extracted `renderTemplate` and `safeUnlink` as shared exports
+        - `runUpdate` refactored to `buildChangePlan` → `applyChangePlan` pipeline
+        - 9 unit tests covering additions (with pristine skip for scaffolded), removals
+          (Framework delete, Configurable keep, Scaffolded untouched), merges (three-way
+          with pristine advance, pristine rebuild, missing file reinstall), and skip
+          carry-forward
+        - Full existing test suite passes: 523 tests (487 unit/integration + 36 E2E)
 
 - [ ] **7.1 `init --reconfigure` core flow**
 
