@@ -3,8 +3,8 @@
 _Disciplined collaboration over automation._
 
 ARC is a methodology for human-AI co-development, implemented as structured
-markdown documents and a CLI with no runtime dependencies beyond Git. It works with any
-AI coding agent and any tech stack.
+markdown documents that run on Git and a CLI distributed as an npm package. It works with
+any AI coding agent and any tech stack.
 
 Much of the current industry momentum trends toward greater agent autonomy and delegation,
 with less human involvement per unit of output. ARC makes a different bet: that deliberately

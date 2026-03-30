@@ -151,7 +151,7 @@ session-state, follow the override instead.
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
-   - **If file doesn't exist or is stale**: Try restoring from git notes — run `npx arc user load` (or
+   - **If file doesn't exist or is stale**: Try restoring from git notes — run `arc user load` (or
      check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
      exist either, fall back to `git log --oneline -10` for recent commit context — commit
      messages and context footers provide a lightweight record of recent work. The session
@@ -161,7 +161,7 @@ session-state, follow the override instead.
          pulling notes, or when the noted commit is beyond the shallow clone boundary. Proceed
          with tracked state only — WORK-STATUS.md and task list are sufficient.
        - **Corrupt note** (JSON parse error): The note was manually edited or partially written.
-         Run `npx arc user save` to overwrite with current local state, or try loading from a
+         Run `arc user save` to overwrite with current local state, or try loading from a
          different ancestor by inspecting `git notes --ref arc/user/{identity} list`.
        - **Pull failure** (remote ref not found): The identity may not have pushed notes, or the
          identity name may be incorrect. Verify with `git ls-remote origin 'refs/notes/arc/user/*'`

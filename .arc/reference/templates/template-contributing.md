@@ -16,7 +16,7 @@ the ARC-specific setup and conventions you need to know.
 2. **Join as a contributor:**
 
     ```bash
-    npx arc join --contributor
+    arc join --contributor
     ```
 
     This sets your role (`arc.role=contributor`) and identity, configures git hooks, and

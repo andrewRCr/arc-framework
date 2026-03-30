@@ -139,8 +139,8 @@ The incoming developer runs a standard session-init with these additions:
 
    ```bash
    # Fetch and load outgoing developer's user directory via CLI
-   npx arc user pull --identity {outgoing}
-   npx arc user load --identity {outgoing}
+   arc user pull --identity {outgoing}
+   arc user load --identity {outgoing}
    ```
 
    The CLI extracts the outgoing developer's SESSION-NOTES and workspace files into a
