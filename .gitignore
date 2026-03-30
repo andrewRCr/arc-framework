@@ -24,6 +24,9 @@ Thumbs.db
 # explicitly temp-flagged internal docs
 .arc/**/temp-*
 
+# MkDocs build output
+site/
+
 # Local dependencies
 node_modules/
 

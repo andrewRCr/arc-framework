@@ -1,0 +1,54 @@
+site_name: ARC Framework
+site_url: https://arc-framework.github.io/arc-framework/
+repo_url: https://github.com/arc-framework/arc-framework
+repo_name: arc-framework/arc-framework
+
+theme:
+  name: material
+  features:
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Philosophy: philosophy.md
+  - Sessions: sessions.md
+  - Work Planning: work-planning.md
+  - Updating ARC: updating.md
+  - Reference:
+    - reference/index.md
+    - Configuration: reference/configuration.md
+    - Quality Gates: reference/quality-gates.md
+    - Team Coordination: reference/team-coordination.md
+  - Community:
+    - community/index.md
+    - Contributing: community/contributing.md
+    - Tutorials: community/tutorials.md
+    - Comparison: community/comparison.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true

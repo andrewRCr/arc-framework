@@ -1306,27 +1306,32 @@ or invent; honest gaps are more credible than overclaimed findings.
 
 - [ ] **8.2 Set up MkDocs infrastructure**
 
-    - [ ] **8.2.a Create `mkdocs.yml`**
-        - Material theme, site name ("ARC Framework"), repo URL
-        - Full nav tree covering foundation and stub pages (informed by 8.1 checkpoint)
-        - Search enabled, color scheme configuration
-        - `navigation.indexes` for clickable section landing pages
+    - [x] **8.2.a Create `mkdocs.yml`**
+        - Material theme with light/dark toggle, site name "ARC Framework", repo URL
+        - Nav tree: 6 foundation pages as top-level items, stubs grouped under Reference
+          (configuration, quality gates, team coordination) and Community (contributing,
+          tutorials, comparison) sections with `navigation.indexes` for clickable section
+          landing pages
+        - Extensions: admonition, superfences, tabbed, TOC with permalinks
 
-    - [ ] **8.2.b Create `docs/` directory structure**
-        - Subdirectories as needed for nav organization
-        - All page files (foundation + stubs) created in this step
+    - [x] **8.2.b Create `docs/` directory structure**
+        - `docs/` with `reference/` and `community/` subdirectories
+        - 15 page files created: 7 foundation (index + 6 content pages as placeholders)
+          and 8 stubs (3 reference + 3 community + 2 section index pages)
 
-    - [ ] **8.2.c Add `site/` to `.gitignore`**
+    - [x] **8.2.c Add `site/` to `.gitignore`**
 
 - [ ] **8.3 Write foundation pages**
 
-    - [ ] **8.3.a Docs site index page**
-        - Audience: someone who clicked through from README or a link — already past "is this
-          for me?", now wants "how do I use this?"
-        - Structure: brief welcome, clear paths through the docs (getting started, concepts,
-          configuration), section overview
-        - Not a copy of the README — the README hooks, the index orients
-        - Tone can be warmer/more practical than README (less pitch, more guide)
+    - [x] **8.3.a Docs site index page**
+        - ~700 words covering how ARC actually works: session lifecycle (document loading
+          order, bounded sessions, state split between WORK-STATUS and SESSION-NOTES),
+          task execution (review increments, tiered quality gates, co-development model),
+          configurability (config/methods/extensions three-mechanism model with concrete
+          examples), and CLI commands
+        - Grounded in implementation details from strategy docs and actual workflow mechanics
+        - Documentation guide table linking all sections with descriptions
+        - Tone: practical and explanatory ("how it works") vs. README's philosophical pitch
 
     - [ ] **8.3.b Philosophy page**
         - **Source:** Adapted from `strategy-core-philosophy.md` (P1–P11)

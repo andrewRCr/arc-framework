@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.2 — Set up MkDocs infrastructure (line ~1328)
-**Last Completed**: Task 8.1 — Content boundary and README decomposition
+**Next Task**: Task 8.3.b — Philosophy page (line ~1331)
+**Last Completed**: Task 8.3.a — Docs site index page
 **Blockers**: None
-**Next Action**: Create mkdocs.yml and docs/ directory structure
+**Next Action**: Write foundation pages (8.3.b–8.3.f)
 
 ---
 
