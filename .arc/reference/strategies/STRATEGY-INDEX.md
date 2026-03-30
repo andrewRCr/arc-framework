@@ -48,11 +48,13 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 Create project-specific strategies in `project/` as your project's patterns emerge.
 See `project/README.md` for guidance on when to create one.
 
+- `project/strategy-testing-methodology.md` - TDD approach, test tiers, mocking rules, design-for-testability
+    - Consult when: writing tests, deciding test-first vs test-after, choosing mock boundaries
+
 **Example strategies adopters might create** (illustrations — these files don't exist until you
 create them):
 
 - `project/strategy-authentication.md` - Auth flow, session management
-- `project/strategy-testing-methodology.md` - Testing patterns, coverage expectations
 - `project/strategy-service-layer.md` - Business logic organization, DI patterns
 - `project/strategy-type-safety.md` - Type checking approach, policy decisions
 - `project/style/strategy-component-styling.md` - Component patterns, design system

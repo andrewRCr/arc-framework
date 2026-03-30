@@ -179,4 +179,4 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 [dev-rules-arc]: DEV-RULES.ARC.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../strategies/arc/strategy-adr-methodology.md
-[testing-methodology]: ../strategies/STRATEGY-INDEX.md
+[testing-methodology]: ../strategies/project/strategy-testing-methodology.md

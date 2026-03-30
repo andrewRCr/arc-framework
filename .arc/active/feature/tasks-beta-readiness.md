@@ -1075,37 +1075,104 @@ get overwritten.
 
 **Design reference:** `notes-beta-readiness.md` § Phase 6B
 
+**Strategies:** `strategy-testing-methodology.md`
+
+- [ ] **7.0 Extract shared file-change pipeline**
+
+    **Goal:** Factor rendering, merging, and manifest I/O out of `commands/update.ts` into a
+    shared pipeline that both `update` and `reconfigure` consume. This is a refactor-only task —
+    no new features, all existing tests must continue to pass.
+
+    - [ ] **7.0.a Extract `FileChangePlan` type and `buildChangePlan` function**
+        - Define a `FileChangePlan` type representing the computed delta: additions (new files
+          to render and write), removals (files to delete or keep for review, with
+          classification-driven defaults), and merges (keep-set files to three-way merge)
+        - Extract plan-building logic from `runUpdate` into a pure `buildChangePlan` function
+          that takes old manifest, new file list, recipe, config maps, template dir, and
+          pristine store — returns a `FileChangePlan` with no side effects
+        - `runUpdate` calls `buildChangePlan` then applies the result (preserving current
+          behavior exactly)
+
+        Build `test-first` (one behavior at a time):
+        - `buildChangePlan` produces correct additions when new config adds files
+        - `buildChangePlan` produces correct removals with classification labels
+        - `buildChangePlan` produces correct merges for keep-set files
+        - `buildChangePlan` is pure — no filesystem or git side effects
+
+    - [ ] **7.0.b Extract `applyChangePlan` and rendering helpers**
+        - Extract `renderTemplate`, `buildEntry`, pristine store I/O, and the apply loop
+          (additions/removals/merges → disk writes + new manifest + new pristine) into a
+          shared `applyChangePlan` function
+        - Move extracted code to `lib/manifest/` or `lib/template/` as appropriate —
+          co-locate with existing shared modules
+        - `runUpdate` uses `buildChangePlan` → `applyChangePlan` pipeline — verify identical
+          behavior via full test suite
+
+        Build `test-first` (one behavior at a time):
+        - `applyChangePlan` writes added files to disk and updates manifest/pristine
+        - `applyChangePlan` handles removal per classification (Framework → delete,
+          Configurable → keep for review, Scaffolded → untouched)
+        - `applyChangePlan` performs three-way merge for keep-set and advances pristine
+          on clean
+        - Round-trip: `runUpdate` refactored to use pipeline, full existing test suite passes
+
 - [ ] **7.1 `init --reconfigure` core flow**
 
     **Goal:** Enable re-entry into init for existing installations, gated by role.
 
+    **Codebase note:** `handleInit` is in `handlers/init.ts`, dispatching to `runInit` in
+    `commands/init.ts`. The `ALREADY_INSTALLED` check is a hard `throw` at `commands/init.ts`
+    line ~119. `team_mode` is optional in `InstallConfig` — existing manifests from before
+    team mode may have `undefined`; default to `false` when absent.
+
     - [ ] **7.1.a Add `--reconfigure` flag and entry path**
-        - Add `--reconfigure` CLI flag to init command
-        - When set: require existing installation (invert `ALREADY_INSTALLED` check), read
-          current `manifest.install_config`
-        - When not set: preserve current `ALREADY_INSTALLED` behavior
+        - Add `--reconfigure` CLI flag to init command (`cli.ts`)
+        - Three-way branch in `commands/init.ts`: `--reconfigure` + not installed → error;
+          `--reconfigure` + installed → reconfigure flow; no flag + installed → existing
+          `ALREADY_INSTALLED` error
+        - Read current `manifest.install_config` as starting state for reconfigure
         - Role gate: require `arc.role = maintainer` (or unset). Clear error for contributors
+
+        Build `test-first` (one behavior at a time):
+        - `--reconfigure` on non-installed repo produces clear error
+        - `--reconfigure` on installed repo reads manifest and enters reconfigure flow
+        - Without `--reconfigure`, existing `ALREADY_INSTALLED` behavior unchanged
+        - Role gate: contributor gets clear error, maintainer (or unset) proceeds
 
     - [ ] **7.1.b Settings screen prompts**
         - Present current `install_config` values as defaults (settings screen, not init replay)
         - Prompt for `pm_mode`, `team_mode`, `project_name` — user changes what they want
+        - Handle missing `team_mode` in old manifests (default `false`)
         - Team mode awareness: warn when `team.mode: true` that changes affect all developers
         - Detect no-change case: if all values unchanged, report "nothing to change" and exit
 
+        Build `test-first` (one behavior at a time):
+        - Settings screen presents current config values as defaults
+        - Missing `team_mode` in manifest defaults to `false`
+        - No-change case (all values identical) reports "nothing to change" and exits
+        - `--yes` mode uses current values (no-op) unless overridden by CLI flags
+
 - [ ] **7.2 File delta resolution**
 
-    **Goal:** Handle the three file change types when `install_config` changes.
+    **Goal:** Handle the three file change types when `install_config` changes. Uses the
+    `buildChangePlan` / `applyChangePlan` pipeline extracted in 7.0 — reconfigure builds a
+    plan from old config vs new config, then applies it.
 
-    - [ ] **7.2.a File additions**
-        - Diff resolved file list (new config) against current manifest
-        - Render new files from templates (same pipeline as init)
-        - Add entries to manifest and pristine store
+    - [ ] **7.2.a Recipe fix and file additions**
+        - **Recipe fix:** move `strategy-team-coordination.md` from unconditional
+          `include_files` to the `team.mode == true` condition block (same pattern as
+          `strategy-backlog-organization.md` under `pm.mode == arc-in-git`). This is
+          intentional beyond reconfigure — adopters should only receive docs relevant to
+          their selected config. Affects all new `arc init` and `arc update` for existing
+          solo-mode installations (Framework classification → auto-removed by update).
+        - Build change plan with new config → additions appear in plan
+        - Apply plan renders new files from templates, adds to manifest and pristine store
         - Update `arc-config.yml` with new config values
-        - **Prerequisite recipe fix:** move `strategy-team-coordination.md` from
-          unconditional `include_files` to the `team.mode == true` condition block
-          (same pattern as `strategy-backlog-organization.md` under `pm.mode ==
-          arc-in-git`). This ensures toggling `team.mode` via `--reconfigure` correctly
-          adds/removes the strategy file.
+
+        Build `test-first` (one behavior at a time):
+        - Recipe fix: solo-mode `resolveFileList` excludes `strategy-team-coordination.md`
+        - Recipe fix: team-mode `resolveFileList` includes `strategy-team-coordination.md`
+        - Reconfigure adding `pm.mode: arc-in-git` produces correct file additions
 
     - [ ] **7.2.b File removals (two-stage UX)**
         - Stage 1: summary of affected files with classification labels ("your content" vs
@@ -1114,12 +1181,26 @@ get overwritten.
           (Framework → default remove, Scaffolded → default keep)
         - Kept files: remove from manifest (become untracked user files)
         - Removed files: delete from disk, remove from manifest and pristine store
+        - `--yes` mode: auto-remove Framework, auto-keep Scaffolded
+
+        Build `test-first` (one behavior at a time):
+        - Reconfigure removing `pm.mode: arc-in-git` produces correct file removals
+        - Two-stage removal UX: bulk remove-all, keep-all, and choose-individually paths
+        - Kept files removed from manifest but preserved on disk
+        - `--yes` mode applies classification-driven defaults without prompting
 
     - [ ] **7.2.c Content re-rendering**
-        - For files with changed template conditionals or token substitutions
-        - Three-way merge: old pristine (old config render) vs new pristine (new config
-          render) vs user's current file — same logic as `arc update`
+        - For keep-set files where old and new config produce different rendered output
+        - Three-way merge via `applyChangePlan`: old pristine (old config render) vs new
+          pristine (new config render) vs user's current file
         - Update pristine baseline to new render
+        - Note: files where old and new renders are identical naturally produce "unchanged"
+          through the merge fast path — no special handling needed
+
+        Build `test-first` (one behavior at a time):
+        - Content re-render: changed `project_name` produces correct three-way merge
+        - Content re-render: changed `team.mode` re-renders conditional blocks
+        - No-op merge: unchanged config values produce no file changes
 
 - [ ] **7.3 `--dry-run` mode**
 
@@ -1140,15 +1221,18 @@ get overwritten.
 
     **Goal:** Enable personal workspace reconfiguration for any developer.
 
-    - Add `--reconfigure` flag to join command
+    - Add `--reconfigure` flag to join command (`cli.ts`, `handlers/join.ts`)
     - Re-prompt for role and tools with current values as defaults
     - Update `arc.role` in git config, regenerate skills for new tool selection
+    - Handle skill cleanup: `generateSkills` is additive — deselected tools leave orphan
+      skill files. Add removal of old skill files before regenerating.
     - No role gate (personal reconfiguration, any role can use)
     - Idempotent on hooks and gitignore (already is for fresh join)
 
     Build `test-first` (one behavior at a time):
     - Role change updates git config
-    - Tool change regenerates skills
+    - Tool change regenerates skills for new selection
+    - Tool change removes skill files for deselected tools
     - Unchanged values produce no side effects
     - Works for both maintainer and contributor roles
 
