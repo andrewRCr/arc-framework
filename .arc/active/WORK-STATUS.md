@@ -16,11 +16,11 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.13 — Phase quality gates (line ~1050)
-**Last Completed**: Task 6.12 — Changelog mechanism for `arc update`
+**Next Task**: Task 7.1 — `init --reconfigure` core flow (line ~1076)
+**Last Completed**: Task 6.13 — Phase quality gates (Phase 6 complete)
 **Blockers**: None
-**Next Action**: Resume Phase 6 at Task 6.13 (phase quality gates)
+**Next Action**: Begin Phase 7 (`--reconfigure` implementation) at Task 7.1
 
 ---
 
-**Last Updated**: 2026-03-27
+**Last Updated**: 2026-03-30

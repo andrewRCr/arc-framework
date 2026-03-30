@@ -1050,16 +1050,18 @@ auto-detection promoted from backlog into Task 6.3.b.
           convention (fields, formatting guidance, how filtering works)
         - `conventional-changelog-cli` dep dropped per audit — manual authoring preferred
 
-- [ ] **6.13 Phase quality gates**
-    - Tier 2: full markdown lint, TypeScript lint, shell lint, type check, full test suite,
-      build verification
-    - Verify hook behavior manually: single-line commit, contributor commit, team-mode task
-      list commit, staged-vs-working-tree divergence
-    - Verify template/dev config alignment for `hooks.meta_ref_patterns`
-    - Verify `arc init` in temp directory produces correct team-mode and solo-mode docs
-    - Verify `arc update` changelog display with version change
-    - Verify atomic write recovery: corrupt `pristine.json`, run `arc update`, confirm
-      rebuild messaging and second update merges cleanly
+- [x] **6.13 Phase quality gates**
+    - Tier 2 passed: 0 markdown lint errors, 0 TS/shell lint errors, 0 type errors,
+      504 tests (468 unit/integration + 36 E2E), build clean
+    - All 4 hook scenarios verified: single-line commit, contributor commit with protected
+      paths warning, team-mode task list `(@name)` check, staged-vs-working-tree divergence
+    - Template `hooks.meta_ref_patterns` was missing `|\.arc/` — fixed in package template;
+      dev config intentionally keeps the reduced pattern
+    - `arc init` verified in both solo (`team.mode: false`) and team (`team.mode: true`,
+      `sync_push: prompt`) modes — correct config, structure, and hooks
+    - `arc update` changelog: displays "What's new" on version change, suppressed by `--quiet`
+    - Atomic write recovery: corrupt pristine detected with clear messaging, rebuilt
+      transparently, second update merges cleanly with zero changes
 
 ### **Phase 7:** `--reconfigure` Implementation
 
