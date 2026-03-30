@@ -1321,7 +1321,7 @@ or invent; honest gaps are more credible than overclaimed findings.
 
     - [x] **8.2.c Add `site/` to `.gitignore`**
 
-- [ ] **8.3 Write foundation pages**
+- [x] **8.3 Write foundation pages**
 
     - [x] **8.3.a Docs site index page**
         - ~700 words covering how ARC actually works: session lifecycle (document loading
@@ -1333,55 +1333,53 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Documentation guide table linking all sections with descriptions
         - Tone: practical and explanatory ("how it works") vs. README's philosophical pitch
 
-    - [ ] **8.3.b Philosophy page**
-        - **Source:** Adapted from `strategy-core-philosophy.md` (P1–P11)
-        - Restructure for docs-site readability (the strategy doc is reference-dense)
-        - **Research citations as positioning asset:** The cognitive psychology evidence
-          (attention, task-switching costs, interruption recovery) and LLM context degradation
-          research ground ARC's design decisions in published findings. Present these
-          naturally — "here's what the research shows, here's how ARC responds to it" — not
-          as an academic literature review. This is where ARC's psychology-informed design
-          becomes visible to evaluators.
-        - P1–P11 with rationale, but restructured for narrative flow rather than enumerated
-          list
+    - [x] **8.3.b Philosophy page**
+        - Adapted from `strategy-core-philosophy.md`, restructured for narrative flow
+        - Three philosophical observations as sections (cognitive reality, software-for-humans,
+          collaboration frequency) with research citations woven in naturally — Rubinstein,
+          Mark, Lestan, code review size evidence
+        - P1–P11 grouped by category (core/operational/design) with rationale, not enumerated
+        - Three-tier flexibility model (principle/convention/escape hatch) with examples
+        - Positioning table and agent compatibility spectrum (CLI → IDE → cloud)
+        - Cross-links: sessions page for context degradation evidence, index for configurability
+          mechanics
 
-    - [ ] **8.3.c Getting Started page**
-        - **Source:** New content (no direct aspirational README equivalent — the README's
-          "Getting Started" section was placeholder-heavy)
-        - Structure for a methodology tool: understand the structure → run your first
-          session → see what happened — not "install and call a function"
-        - Install via `npx @arc-framework/cli init`
-        - First session walkthrough (`arc-resume` → work → `arc-handoff`)
-        - What happened: directory tour of `.arc/`
-        - Depends on migration and CLI changes being complete
+    - [x] **8.3.c Getting Started page**
+        - Methodology-first structure: prerequisites → install → first session → what you get
+        - Installation walkthrough with `arc init` interactive prompts and `arc join` for
+          existing projects
+        - First session narrative: session init skill → task work → handoff skill
+        - `.arc/` directory structure diagram with key file table
+        - Links to updating page, philosophy, sessions, work planning as next steps
 
-    - [ ] **8.3.d Sessions page**
-        - **Source:** Adapted from `strategy-session-management.md` (211 lines)
-        - **New authoritative home** for session concepts that the README currently carries
-          (the aspirational README's "Session Management" section moves here)
-        - Why focused sessions, context degradation evidence, how sessions work
-        - Natural session boundaries
-        - The LLM research citations (Agarwal, Hsieh, Wang, Liu) are particularly strong
-          here — concrete numbers that explain why session management isn't just process
-          overhead
+    - [x] **8.3.d Sessions page**
+        - Adapted from `strategy-session-management.md`, focused on docs-site readability
+        - Three forces driving bounded sessions: agent context degradation (Agarwal, Hsieh,
+          Wang, Liu citations with specific numbers), human attention quality, methodology
+          discipline
+        - How sessions work: initialization document loading order (6-step), work execution
+          pointer to task model, handoff with WORK-STATUS/SESSION-NOTES split explained
+        - Duration guidance by task type, context monitoring shared responsibility model
+        - Git notes portability mechanism with push policy options
 
-    - [ ] **8.3.e Work Planning page**
-        - **Source:** Adapted from `strategy-work-planning.md` (232 lines)
-        - **New authoritative home** for planning concepts from the README (the aspirational
-          README's "Planning Work," "Quality Gates," and "Work Organization" sections move
-          here)
-        - Planning pipeline (idea → plan → PRD → tasks)
-        - How tasks work, quality gates concept, work categorization
+    - [x] **8.3.e Work Planning page**
+        - Adapted from `strategy-work-planning.md`, covers full pipeline
+        - Planning pipeline visualization (idea → plan → PRD → task list) with fidelity
+          progression
+        - Task execution cycle (5-step with mandatory stop), deferred review, test-first
+        - Tiered quality gates (Tier 1/2/3 with when each runs)
+        - Work categories (feature/technical/incidental) and optional PM layer (arc-in-git)
+        - Atomic tasks and leave-it-cleaner principle
 
-    - [ ] **8.3.f Updating ARC page**
-        - **Source:** New content — no aspirational README equivalent. Draws from in-repo
-          update workflow docs and CLI behavior.
-        - What `arc update` does (three-way merge, file classifications, what each means)
-        - What's safe to edit (Configurable, Scaffolded) vs. auto-updated (Framework)
-        - What to expect (output, conflict markers, counts, post-update state)
-        - Pre/post update checklist
-        - Skill regeneration and customization warning
-        - Framework file edit warning
+    - [x] **8.3.f Updating ARC page**
+        - New content grounded in `strategy-file-classification.md` and CLI update.ts source
+        - `arc update` workflow with example output format
+        - Four file classifications (Framework/Configurable/Scaffolded/Project-Owned) with
+          update behavior and editing guidance for each
+        - Three-way merge explanation (base/current/other) with pristine store role
+        - What's-safe-to-edit summary table
+        - Skills regeneration warning, git hooks config guidance
+        - `--reconfigure` for structural settings, `--dry-run` for preview
 
 - [ ] **8.4 Create stub pages**
     - Configuration Reference, Quality Gates, Team Coordination, Contributing to ARC,

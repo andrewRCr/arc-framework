@@ -4,10 +4,9 @@ ARC is a development methodology for human-AI co-development. It structures how 
 agent work together through planning, execution, and context preservation — implemented as markdown
 documents and a CLI that manages them.
 
-If you're evaluating whether ARC fits your work, the
-[README](https://github.com/arc-framework/arc-framework) covers the design philosophy and tradeoffs.
-If you're ready to use it, [Getting Started](getting-started.md) walks through your first session.
-This page covers how the system actually works.
+If you're evaluating whether ARC fits your work, [Philosophy](philosophy.md) covers the principles,
+evidence, and tradeoffs. If you're ready to use it, [Getting Started](getting-started.md) walks
+through installation and your first session. This page covers how the system actually works.
 
 ## How ARC Works
 

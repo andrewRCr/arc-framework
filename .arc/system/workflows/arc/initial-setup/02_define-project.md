@@ -165,6 +165,21 @@ decisions are made, not on a schedule.
 
 ---
 
+## Next Step
+
+Project definition is complete. Three of these documents — AGENT-BRIEFING.PROJECT,
+QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
+session. The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are reference
+material for consulting during planning and architecture decisions.
+
+Clear your context and start a fresh session with `/arc-resume`. WORK-STATUS.md shows no
+active task list, so session initialization enters discovery mode: the agent checks your
+ROADMAP for the next queued item and helps you create a PRD and task list for your first
+work unit. From there, the normal session rhythm — `/arc-resume`, task execution,
+`/arc-commit`, `/arc-handoff` — takes over.
+
+---
+
 [init-arc]: 01_verify-and-configure.md
 [meta-prd]: ../../../../reference/META-PRD.md
 [tech-overview]: ../../../../reference/TECHNICAL-OVERVIEW.md

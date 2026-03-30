@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.3.b — Philosophy page (line ~1331)
-**Last Completed**: Task 8.3.a — Docs site index page
+**Next Task**: Task 8.4 — Create stub pages (line ~1386)
+**Last Completed**: Task 8.3 — Write foundation pages
 **Blockers**: None
-**Next Action**: Write foundation pages (8.3.b–8.3.f)
+**Next Action**: Write stub page content for Reference and Community sections
 
 ---
 
