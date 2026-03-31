@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.c.ii — Design demo scenarios for 6 placeholder locations (line ~1443)
-**Last Completed**: Task 8.5.c.i — Install toolchain and prototype visual language
+**Next Task**: Task 8.5.c.iii — Produce animated demo GIFs and place in docs (line ~1464)
+**Last Completed**: Task 8.5.c.ii — Design demo scenarios and draft scripts
 **Blockers**: None
-**Next Action**: Design user/agent exchange scripts for the 6 demo GIF placeholder locations
+**Next Action**: Create tape files for the 7 draft scripts, render GIFs, place in docs pages
 
 ---
 

@@ -1442,18 +1442,43 @@ or invent; honest gaps are more credible than overclaimed findings.
               bold white for headings), cursor behavior protocol
             - GIF output: 188KB, 1000×650, well within quality/size targets
 
-        - [ ] **8.5.c.ii Design demo scenarios for 6 placeholder locations**
-            - Script the user/agent exchanges for each demo — what gets typed, what output
-              appears, what the viewer should take away
-            - Locations: populated `.arc/` directory (getting-started), first-session init
-              (getting-started), session init orientation (how-arc-works), arc-commit output
-              (how-arc-works), handoff summary (how-arc-works), config structure (configuration)
-            - Keep tool-agnostic — generic agentic CLI patterns, not mimicking any specific tool
+        - [x] **8.5.c.ii Design demo scenarios and draft scripts**
+            - Extracted shared helpers into `common.sh` (color palette, type_text, tool_use,
+              invoke_skill, status_field, closing_prompt) — all scripts source it
+            - Established consistent fake project context: task management API adding recurrence
+              support, `feature/recurring-tasks` branch, `tasks-recurring-tasks.md` task list
+            - 5 animated demo draft scripts:
+                1. `first-session-init.sh` — new project, no active work, discovery mode checks
+                   roadmap and proposes PRD creation (getting-started)
+                2. `session-init.sh` — mid-project resume with two-batch context loading,
+                   session-notes influence visible in next action field (how-arc-works)
+                3. `arc-commit.sh` — atomic boundary analysis, conventional commit with Context
+                   footer, WORK-STATUS sync, commit executes directly (skill invocation is
+                   permission) (how-arc-works)
+                4. `arc-handoff.sh` — WORK-STATUS freshness check, SESSION-NOTES write,
+                   `arc user sync`, handoff confirmation matching real ARC format (how-arc-works)
+                5. `task-execution.sh` — test-first marker driving red-green-refactor, issue-triage
+                   method consultation for pre-existing issue, configured post-task-quality
+                   extension (Snyk scan), Tier 1 gates, completion report, mandatory stop, user
+                   feedback incorporated (how-arc-works)
+            - 2 README-optimized variants (shorter, self-explanatory):
+                - `session-init-readme.sh` — condensed context load + orientation
+                - `task-execution-readme.sh` — test-first + red-green + report + feedback loop
+            - Tool-agnostic throughout — generic agentic CLI patterns, `/skill` invocation
 
-        - [ ] **8.5.c.iii Produce demo GIFs and place in docs**
-            - Create tape + shell script pairs for each demo
+        - [ ] **8.5.c.iii Produce animated demo GIFs and place in docs**
+            - Finalize tape + shell script pairs from c.ii draft scripts
             - Generate GIFs, optimize file sizes
             - Replace HTML comment placeholders with GIF references in docs pages
+            - Place README variants in README-ASPIRATIONAL.md
+
+        - [ ] **8.5.c.iv Produce static screenshots for structural demos**
+            - Create a seeded fake repo with realistic-looking `.arc/` files
+            - Populated `.arc/` directory in file explorer view (getting-started placeholder)
+            - `arc-methods.md` method structure showing contract/override/default (configuration
+              placeholder)
+            - Also capture `arc-extensions.md` extension point structure (configuration placeholder)
+            - Replace HTML comment placeholders with screenshot references in docs pages
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
         - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and
