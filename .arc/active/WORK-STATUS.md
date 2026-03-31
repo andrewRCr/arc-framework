@@ -19,7 +19,7 @@
 **Next Task**: Task 8.5.c.iv — Produce static screenshots for structural demos (line ~1486)
 **Last Completed**: Task 8.5.c.iii — Create tape files and verify rendering
 **Blockers**: None
-**Next Action**: Create seeded fake repo for structural screenshots (getting-started directory, configuration method/extension structure)
+**Next Action**: Create seeded fake repo for structural screenshots (directory view, config structure)
 
 ---
 
