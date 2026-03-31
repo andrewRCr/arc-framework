@@ -1427,10 +1427,33 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Trimmed README double philosophy link ("evidence base" not "evidence and tradeoffs")
         - Simplified index.md CLI section (`arc user sync` not four subcommands)
 
-    - [ ] **8.5.c Create and place screenshots**
-        - Stage real screenshots for the 6 placeholder locations (session init, handoff, commit,
-          file explorer, arc-methods structure, arc-extensions structure)
-        - Replace HTML comment placeholders with actual image references
+    - [ ] **8.5.c Create and place demo GIFs**
+
+        - [x] **8.5.c.i Install toolchain and prototype visual language**
+            - Installed VHS 0.11.0, gum 0.17.0, ffmpeg via Homebrew; JetBrains Mono font
+            - Directory structure: `docs/demos/` (tapes + scripts), `docs/img/` (output)
+            - CI-forward conventions: `Require gum`, relative output paths, self-contained scripts
+            - POC tape + script: session-init demo with fake prompt, simulated `/arc-resume`
+              typing, tool use indicators, chunked orientation summary, cursor hide/show,
+              slash command color change on "enter"
+            - Visual language codified in `docs/demos/README.md`: Tokyo Night theme, floating
+              terminal chrome (`#0d1117` background, 40px margin, 10px border radius), color
+              roles (yellow for skill recognition, dim gray for tool use, cyan for agent text,
+              bold white for headings), cursor behavior protocol
+            - GIF output: 188KB, 1000×650, well within quality/size targets
+
+        - [ ] **8.5.c.ii Design demo scenarios for 6 placeholder locations**
+            - Script the user/agent exchanges for each demo — what gets typed, what output
+              appears, what the viewer should take away
+            - Locations: populated `.arc/` directory (getting-started), first-session init
+              (getting-started), session init orientation (how-arc-works), arc-commit output
+              (how-arc-works), handoff summary (how-arc-works), config structure (configuration)
+            - Keep tool-agnostic — generic agentic CLI patterns, not mimicking any specific tool
+
+        - [ ] **8.5.c.iii Produce demo GIFs and place in docs**
+            - Create tape + shell script pairs for each demo
+            - Generate GIFs, optimize file sizes
+            - Replace HTML comment placeholders with GIF references in docs pages
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
         - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and

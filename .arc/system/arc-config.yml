@@ -88,7 +88,7 @@ hooks.skip_extensions: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|licen
 # Files matching these patterns are not production code and may legitimately
 # reference tasks, phases, or .arc/ paths. Pipe-separated regex alternation.
 #   default: __tests__/|\.test\.|\.spec\.|/test/|/tests/
-hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/
+hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/|docs/demos/
 
 # Patterns scanned in production code for meta-project references.
 # The pre-commit hook flags files matching these patterns as errors.

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.c — Create and place screenshots (line ~1420)
-**Last Completed**: Task 8.5.b — Address audit findings
+**Next Task**: Task 8.5.c.ii — Design demo scenarios for 6 placeholder locations (line ~1443)
+**Last Completed**: Task 8.5.c.i — Install toolchain and prototype visual language
 **Blockers**: None
-**Next Action**: Proceed to 8.5.c (stage screenshots for 6 placeholder locations)
+**Next Action**: Design user/agent exchange scripts for the 6 demo GIF placeholder locations
 
 ---
 
