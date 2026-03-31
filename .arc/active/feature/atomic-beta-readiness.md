@@ -98,4 +98,13 @@ Atomic Task Completion for the full protocol.
     `createUserIOContext`, `gitExec`, `writeGitNote`, `readGitNote`, `readUserDir`). Pure
     refactor — zero test changes, all 434 tests pass, lint/typecheck clean.
 
+- [x] **Audit for docs orphaned during Phase 2 self-hosting migration** — Diffed `.arc-internal/`
+    tree from commit before deletion (`017ece8^`) against current `.arc/`. Found 59 files that
+    existed in `.arc-internal/` but were never copied to `.arc/` during migration: 14 ADRs
+    (adr-001 through adr-014), 2 analysis docs, 12 research files, and 31 archive files
+    (WU1–WU7 PRDs, task lists, completion docs, notes). Restored all to their correct `.arc/`
+    locations. 3 agent-specific files (COPILOT, GEMINI, WARP) correctly live only in
+    `packages/arc-framework/arc/` (template files for adopters). `strategy-testing-methodology.md`
+    was already restored in a prior session.
+
 ---
