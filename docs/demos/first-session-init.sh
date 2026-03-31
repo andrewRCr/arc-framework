@@ -24,7 +24,8 @@ printf " · ${CYAN}main${RESET} · ${GREEN}clean${RESET}\n"
 sleep 1.0
 
 printf "\n"
-heading "Active work state:\n"
+heading "Active work state:"
+printf "\n"
 sleep 0.6
 
 printf "\n"
@@ -34,7 +35,8 @@ sleep 0.6
 
 # --- Phase 4: Discovery mode ---
 printf "\n"
-heading "Discovery:\n"
+heading "Discovery:"
+printf "\n"
 sleep 0.4
 
 tool_use "Read .arc/backlog/ROADMAP.md"
@@ -54,7 +56,7 @@ printf " Create a PRD from the existing plan, then generate a task list\n"
 sleep 0.8
 
 printf "\n"
-agent_text "Awaiting direction — proceed to PRD creation?"
+agent_text "Awaiting direction — proceed to create-prd workflow?"
 sleep 0.5
 
 # --- Phase 5: Close ---

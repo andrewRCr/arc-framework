@@ -5,7 +5,13 @@
 # Drops: issue-triage, extensions (too much for README context)
 source "$(dirname "$0")/common.sh"
 
-printf "${HIDE_CURSOR}"
+# --- User gives direction ---
+printf "${SHOW_CURSOR}"
+prompt_char
+type_text "nice, lgtm. for 2.4 — hook into the existing webhook event path" 0.03
+sleep 0.3
+printf "${HIDE_CURSOR}\n"
+sleep 0.5
 
 # --- Agent reads task, sees test-first marker ---
 tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST} (lines 180-220)"
@@ -36,7 +42,8 @@ sleep 0.5
 
 # --- Quality + report ---
 printf "\n"
-heading "Task 2.4 complete\n"
+heading "Task 2.4 complete"
+printf "\n"
 sleep 0.4
 
 printf "\n"
@@ -67,10 +74,14 @@ sleep 0.3
 tool_use "Edit src/services/recurrence.service.ts"
 tool_use "npm run test:unit"
 printf "  ${GREEN}✓${RESET} ${DIM}16 tests passed${RESET}\n"
-sleep 0.4
+sleep 0.3
 
 printf "\n"
-printf "  ${GREEN}✓${RESET} Labels now copied. Ready to commit.\n"
+printf "  ${GREEN}✓${RESET} Labels now copied. Task list updated.\n"
+sleep 0.3
+
+printf "\n"
+agent_text "Any other feedback, or proceed to Task 2.5?"
 
 # --- Close ---
 closing_prompt 4

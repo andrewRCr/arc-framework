@@ -61,7 +61,7 @@ heading() {
 status_field() {
     local label="$1"
     local value="$2"
-    printf "  ${DIM}%s${RESET}  %s\n" "$label" "$value"
+    printf "  ${DIM}%s${RESET}  %b\n" "$label" "$value"
     sleep 0.5
 }
 

@@ -6,8 +6,19 @@
 # Placement: how-arc-works.md or work-planning.md
 source "$(dirname "$0")/common.sh"
 
-# --- Phase 1: Agent reads the task from the task list ---
-printf "${HIDE_CURSOR}"
+# --- Phase 1: User gives direction (picking up after 2.3 review) ---
+printf "${SHOW_CURSOR}"
+prompt_char
+type_text "nice, lgtm." 0.03
+sleep 0.3
+printf "\n"
+prompt_char
+type_text "ok, for 2.4 — completion endpoint already fires a webhook, hook into that" 0.03
+sleep 0.3
+printf "${HIDE_CURSOR}\n"
+sleep 0.6
+
+# --- Phase 2: Agent reads the task from the task list ---
 tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST} (lines 180-220)"
 sleep 0.4
 
@@ -18,16 +29,16 @@ sleep 0.6
 
 # Task has a test-first marker — agent responds to it
 agent_text "  Task has a test-first marker. Following red-green-refactor."
-sleep 0.8
+sleep 0.6
 
-# --- Phase 2: Agent reads relevant code ---
+# --- Phase 3: Agent reads relevant code, incorporates user direction ---
 printf "\n"
 tool_use "Read src/controllers/task.controller.ts"
 tool_use "Read src/services/recurrence.service.ts"
 sleep 0.3
 
-agent_text "  The completion endpoint fires a webhook after status change."
-agent_text "  I'll hook recurrence into the same event path."
+agent_text "  Agreed — the completion endpoint fires a webhook after status change."
+agent_text "  I'll hook recurrence into that same event path."
 sleep 0.6
 
 # --- Phase 3: Red-green cycle (compressed — one behavior shown) ---
@@ -96,7 +107,8 @@ sleep 0.3
 
 # --- Phase 8: Completion report ---
 printf "\n"
-heading "Task 2.4 complete\n"
+heading "Task 2.4 complete"
+printf "\n"
 sleep 0.5
 
 printf "\n"
@@ -138,9 +150,18 @@ tool_use "npm run test:unit"
 printf "  ${GREEN}✓${RESET} ${DIM}16 tests passed${RESET}\n"
 sleep 0.4
 
-printf "\n"
-printf "  ${GREEN}✓${RESET} Labels now copied to recurring task. Ready to commit.\n"
-sleep 0.5
+# --- Phase 12: Update task list with feedback-driven change ---
+tool_use "Edit .arc/active/feature/${PROJECT_TASK_LIST} — update 2.4 completion notes"
+sleep 0.3
 
-# --- Phase 12: Close ---
+printf "\n"
+printf "  ${GREEN}✓${RESET} Labels now copied to recurring task.\n"
+sleep 0.3
+agent_text "  Task list updated — completion notes include the label copying addition."
+sleep 0.6
+
+printf "\n"
+agent_text "Any other feedback, or proceed to Task 2.5?"
+
+# --- Phase 13: Close ---
 closing_prompt 5

@@ -15,7 +15,8 @@ tool_use "git log --oneline -5"
 sleep 0.8
 
 printf "\n"
-heading "Staged changes:\n"
+heading "Staged changes:"
+printf "\n"
 sleep 0.4
 
 printf "\n"
@@ -31,9 +32,15 @@ agent_text "  All changes serve one concern — recurrence rule validation."
 agent_text "  No split needed."
 sleep 0.8
 
-# --- Phase 3: Commit message ---
+# --- Phase 3: Commit message (references loaded format guidance) ---
 printf "\n"
-heading "Proposed commit:\n"
+tool_use "Read .arc/system/workflows/arc-methods.md § commit-format"
+tool_use "Read .arc/system/workflows/arc-methods.md § commit-context-format"
+sleep 0.3
+
+printf "\n"
+heading "Proposed commit:"
+printf "\n"
 sleep 0.4
 
 printf "\n"
@@ -59,7 +66,17 @@ sleep 0.6
 
 tool_use "git add src/services/recurrence.service.ts ..."
 tool_use "git commit"
-sleep 0.5
+sleep 0.3
+
+# --- Phase 4b: Hooks fire (deterministic enforcement) ---
+printf "  ${DIM}${GRAY}Running pre-commit checks...${RESET}\n"
+sleep 0.4
+printf "  ${DIM}${GRAY}Pre-commit checks ${GREEN}PASSED${RESET}\n"
+sleep 0.3
+printf "  ${DIM}${GRAY}Validating commit message...${RESET}\n"
+sleep 0.4
+printf "  ${DIM}${GRAY}Commit validation ${GREEN}PASSED${RESET}\n"
+sleep 0.4
 
 printf "\n"
 printf "  ${GREEN}✓${RESET} ${DIM}a91f4e2${RESET} feat(recurrence): add cron expression and interval validation\n"

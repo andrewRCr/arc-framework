@@ -34,7 +34,8 @@ printf " · ${CYAN}${PROJECT_BRANCH}${RESET} · ${GREEN}clean${RESET}\n"
 sleep 1.0
 
 printf "\n"
-heading "Session summary:\n"
+heading "Session summary:"
+printf "\n"
 sleep 0.4
 
 printf "\n"

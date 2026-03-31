@@ -31,7 +31,8 @@ printf " · ${CYAN}${PROJECT_BRANCH}${RESET} · ${GREEN}clean${RESET}\n"
 sleep 1.2
 
 printf "\n"
-heading "Active work state:\n"
+heading "Active work state:"
+printf "\n"
 sleep 0.6
 
 printf "\n"

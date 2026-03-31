@@ -1466,11 +1466,18 @@ or invent; honest gaps are more credible than overclaimed findings.
                 - `task-execution-readme.sh` — test-first + red-green + report + feedback loop
             - Tool-agnostic throughout — generic agentic CLI patterns, `/skill` invocation
 
-        - [ ] **8.5.c.iii Produce animated demo GIFs and place in docs**
-            - Finalize tape + shell script pairs from c.ii draft scripts
-            - Generate GIFs, optimize file sizes
-            - Replace HTML comment placeholders with GIF references in docs pages
-            - Place README variants in README-ASPIRATIONAL.md
+        - [x] **8.5.c.iii Create tape files and verify rendering**
+            - Created tape files for all 7 demos (5 docs + 2 README variants)
+            - README variants use landscape aspect ratio (1000x450) for less wrapping
+            - Multiple iteration rounds: fixed `\n` escape in heading(), fixed ANSI codes
+              rendering literally in status_field() (`%s` → `%b`), restored vertical spacing
+              in arc-commit, added create-prd workflow reference in first-session-init
+            - Added user opening to task-execution demos ("nice, lgtm. ok, for 2.4 —")
+              showing active co-development direction, not just gatekeeping
+            - Revised task-execution ending: agent updates task list with completion notes
+              (including feedback-driven label copying), reports, offers choice to proceed
+            - Added arc-methods loading and git hook output to arc-commit demo
+            - All 7 GIFs rendering correctly with proper visual language
 
         - [ ] **8.5.c.iv Produce static screenshots for structural demos**
             - Create a seeded fake repo with realistic-looking `.arc/` files
@@ -1479,6 +1486,13 @@ or invent; honest gaps are more credible than overclaimed findings.
               placeholder)
             - Also capture `arc-extensions.md` extension point structure (configuration placeholder)
             - Replace HTML comment placeholders with screenshot references in docs pages
+
+        - [ ] **8.5.c.v Polish demos and place in docs**
+            - Timing and pacing optimization across all demos (longer holds, readable chunking)
+            - Consider screen clearing between phases for longer demos (task-execution)
+            - GIF file size optimization (task-execution at 3MB needs reduction)
+            - Replace HTML comment placeholders with GIF references in docs pages
+            - Place README-optimized variants in README-ASPIRATIONAL.md
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
         - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and

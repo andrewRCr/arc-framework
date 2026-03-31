@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.c.iii — Produce animated demo GIFs and place in docs (line ~1464)
-**Last Completed**: Task 8.5.c.ii — Design demo scenarios and draft scripts
+**Next Task**: Task 8.5.c.iv — Produce static screenshots for structural demos (line ~1486)
+**Last Completed**: Task 8.5.c.iii — Create tape files and verify rendering
 **Blockers**: None
-**Next Action**: Create tape files for the 7 draft scripts, render GIFs, place in docs pages
+**Next Action**: Create seeded fake repo for structural screenshots (getting-started directory, configuration method/extension structure)
 
 ---
 
