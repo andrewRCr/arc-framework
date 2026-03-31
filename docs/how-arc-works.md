@@ -6,8 +6,8 @@ contracts at specific trigger points, extension points inject custom behavior at
 and git hooks enforce conventions deterministically at commit time.
 
 ARC packages its user-facing workflows as **[Skills](https://agentskills.io)** — an open standard
-format for giving agents new capabilities. Each ARC skill handles a workflow where the timing is
-yours. Three skills form the rhythm of every session:
+format for giving agents new capabilities. Each ARC skill is a user-invoked entry point for a key
+operational workflow. Three skills form the rhythm of every session:
 
 - **`arc-resume`** — start a session (load context, orient to current work)
 - **`arc-commit`** — commit changes (atomic boundaries, format guidance, state sync)
@@ -59,11 +59,13 @@ You review, contribute context, and approve before the next task begins. This is
 [co-development](philosophy.md#core-commitments) — you're present during execution, steering
 direction and catching issues while the work is happening.
 
-**Deferred review** is available when you explicitly specify a range of tasks for continuation
-(e.g., "work through tasks 5.2–5.4 while I'm away"). You state the scope in natural language; the
-agent continues through those tasks, running quality gates after each one but skipping the mandatory
-stop. The agent stops at the end of the specified range, or earlier if it hits a blocker, a quality
-gate failure it can't auto-fix, or a design decision that needs your input. The developer defines the
+Sometimes you need to step away briefly while bounded, well-understood work remains — a meeting, a
+break, a context switch. Rather than stopping the session or giving open-ended instructions,
+**deferred review** lets you specify an explicit range of tasks for continuation (e.g., "work through
+tasks 5.2–5.4 while I'm away"). This trades real-time steering for batched review: the agent
+continues through those tasks, running quality gates after each one but skipping the mandatory stop.
+The agent stops at the end of the specified range, or earlier if it hits a blocker, a quality gate
+failure it can't auto-fix, or a design decision that needs your input. The developer defines the
 scope — the agent never self-invokes deferred review.
 
 ### Committing changes
@@ -129,8 +131,9 @@ WORK-STATUS update and SESSION-NOTES content summary. -->
 ### Session state portability
 
 SESSION-NOTES.md and other personal workspace files are gitignored by design — personal context
-stays out of git history. ARC uses [git notes](https://git-scm.com/docs/git-notes) to make this
-state portable without polluting the commit log:
+stays out of git history. ARC uses [git notes](https://git-scm.com/docs/git-notes) — a built-in
+Git feature for attaching metadata to commits without modifying commit history — to make this state
+portable without polluting the commit log:
 
 - **Save** (`arc user save`) — serialize the user directory to a git note on HEAD
 - **Load** (`arc user load`) — restore from git note, walking ancestors if needed

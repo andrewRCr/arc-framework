@@ -4,9 +4,9 @@ ARC is a methodology, not a library — you won't call its functions or import i
 it creates a set of documents and workflows in your repository that structure how you and your AI
 agent work together. ARC packages its user-facing workflows as
 **[Skills](https://agentskills.io)** — an open standard format for giving agents new capabilities.
-Each ARC skill handles a workflow where the timing is yours: when to start a session, when to
-commit, when to hand off. The agent's other workflows — task execution, quality gates, planning —
-load automatically as part of the ARC instruction chain once a session is running.
+Each ARC skill is a user-invoked entry point for a key operational workflow: when to start a session,
+when to commit, when to hand off. The agent's other workflows — task execution, quality gates,
+planning — load automatically as part of the ARC instruction chain once a session is running.
 
 This guide walks through installation, initial setup, your first session, and what the resulting
 structure looks like.
@@ -14,8 +14,12 @@ structure looks like.
 ## Prerequisites
 
 - A git repository (ARC uses git for version control, hooks, and session state portability)
-- An AI coding agent — ARC works with any conversational agent (Claude Code, Codex CLI, Cursor,
-  Windsurf, etc.). See [agent compatibility](philosophy.md#agent-compatibility) for details.
+- An AI coding agent — ARC is built to work with any conversational agent. During beta, it's been
+  primarily developed and tested with Claude Code and Codex CLI, with additional validation against
+  Warp, Gemini CLI, and Copilot CLI. IDE-embedded agents (Cursor, Windsurf, Cline) are
+  architecturally supported but not yet validated — if you're using one, your feedback helps close
+  that gap ([file an issue](https://github.com/arc-framework/arc-framework/issues)). See
+  [agent compatibility](philosophy.md#agent-compatibility) for the full compatibility spectrum.
 
 ## Installation
 
@@ -96,7 +100,8 @@ use, with "no active work" state and discovery mode proposing next steps. -->
 
 Since this is your first session, the agent detects there's no active work and enters discovery
 mode — checking your roadmap for the next item and helping you create a PRD and task list for your
-first work unit. From there, the normal session rhythm takes over: working through tasks one at a
+first [work unit](reference/glossary.md#work-unit). From there, the normal session rhythm takes
+over: working through tasks one at a
 time, each as a bounded [review increment](reference/glossary.md#review-increment) with a mandatory
 stop for your review between tasks.
 

@@ -1,5 +1,19 @@
 # FAQ
 
+## Is ARC a lot of overhead?
+
+The structure is front-loaded. Once your project briefing, development rules, and quality gates
+are defined, each session starts with full context automatically — the agent knows your stack,
+your standards, and where work left off. Quality checks run without manual intervention. Commit
+format and traceability are enforced by hooks. The minute-to-minute experience is streamlined:
+you spend less time re-explaining context, less time catching preventable issues, and less time
+recovering from sessions that lost track of prior decisions.
+
+The ceremony isn't additive overhead — it replaces the ad-hoc effort you'd spend anyway, with
+consistent results. Any context engineering approach (even a well-maintained `CLAUDE.md`)
+achieves some of this; ARC systematizes it so you define standards and practices once and they're
+enforced and applied across every session.
+
 ## Why bounded sessions? Why not just let the agent keep working?
 
 Two converging forces. First, LLM output quality degrades as context accumulates — multiple
@@ -51,6 +65,22 @@ methodology.
 For a full treatment of agent compatibility, see
 [Philosophy § Agent Compatibility](philosophy.md#agent-compatibility).
 
+## Which agents does ARC support?
+
+ARC is built to work with any conversational AI coding agent — that's a core design commitment
+(P8). During beta, it's been primarily developed and tested with **Claude Code** and **Codex
+CLI**, with additional validation against **Warp**, **Gemini CLI**, and **Copilot CLI**.
+
+IDE-embedded agents (Cursor, Windsurf, Cline, etc.) are architecturally supported — ARC's
+methodology is expressed as markdown documents and Skills that work across platforms — but not
+yet validated through sustained use. Validation with IDE agents is an active priority as beta
+testing continues. If you're using an IDE agent with ARC, your experience is valuable:
+[file an issue](https://github.com/arc-framework/arc-framework/issues) to help us identify
+friction and improve support.
+
+For the full compatibility spectrum, see
+[Philosophy § Agent Compatibility](philosophy.md#agent-compatibility).
+
 ## Is ARC only for solo developers?
 
 No. ARC's core methodology works for teams — task ownership markers (`(@name)`), team branching
@@ -100,6 +130,15 @@ installation, and file classification system.
 The methodology itself — sessions, task execution, quality gates, commit discipline — is
 expressed as markdown documents that work with any agent. The CLI is the delivery and
 maintenance mechanism, not the methodology.
+
+## What are git notes? Do I need to understand them to use ARC?
+
+No. [Git notes](https://git-scm.com/docs/git-notes) are a built-in Git feature for attaching
+metadata to commits without modifying commit history. ARC uses them under the hood for session
+state portability — your personal session context (SESSION-NOTES.md, workspace files) is
+gitignored but can be saved to git notes and restored on another machine or by a teammate
+picking up your branch. The CLI handles everything: `arc user sync` saves and pushes, session
+initialization loads automatically. You'll never need to run `git notes` commands directly.
 
 ## What does "self-hosting" mean for ARC?
 

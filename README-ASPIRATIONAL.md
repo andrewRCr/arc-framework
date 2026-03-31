@@ -1,18 +1,19 @@
 # ARC Framework
 
-_Disciplined collaboration over automation._
+ARC is a structured methodology for spec-driven development with AI agents, emphasizing
+disciplined collaboration over automation. Implemented as portable markdown documents and a
+CLI, it's built on the premise that better outcomes come from deliberately coupling human
+judgment with agent capability, not separating them through delegation. Agentic task execution
+is intentionally single-threaded — work scoped into discrete review increments that are small
+enough to review meaningfully, with active developer involvement creating a tight feedback loop
+that leverages complementary strengths, favoring iterative co-development over raw throughput.
+The framework unifies planning, execution, and context preservation in a single system that
+works with any conversational AI coding agent and any tech stack.
 
-ARC is a methodology for human-AI co-development, implemented as structured
-markdown documents that run on Git and a CLI distributed as an npm package. It works with
-any AI coding agent and any tech stack.
-
-Much of the current industry momentum trends toward greater agent autonomy and delegation,
-with less human involvement per unit of output. ARC makes a different bet: that deliberately
-coupling human judgment with agent capability produces better outcomes, and that the
-developer's sustained attention is a feature, not a bottleneck. The cognitive science and
-emerging AI research support this, and ARC is a system built around that premise: structured
-workflows, shared context, and bounded execution designed to keep human judgment continuously
-in the loop.
+ARC is grounded in cognitive science research on sustained attention and emerging AI research on
+context quality degradation —
+[Philosophy](https://arc-framework.github.io/arc-framework/philosophy/) covers the evidence
+base.
 
 ## Overview
 

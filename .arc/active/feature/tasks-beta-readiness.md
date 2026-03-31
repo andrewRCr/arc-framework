@@ -1402,19 +1402,41 @@ or invent; honest gaps are more credible than overclaimed findings.
 
 - [ ] **8.5 Docs site polish and validation**
 
-    - [ ] **8.5.a Run subagent audit against restructured docs**
-        - Re-run the three-agent review (README-first, direct-to-docs, cross-reference) against
-          the restructured site to validate improvements and surface remaining issues
-        - Synthesize findings and triage: fix now vs. defer
+    - [x] **8.5.a Run subagent audit against restructured docs**
+        - Three parallel subagent reviews: README-first visitor, direct-to-docs visitor,
+          cross-reference accuracy. Synthesized findings into 18-item triage list.
+        - 2 broken links, 5 critical/important content gaps, 6 minor polish items identified
+        - All items triaged as fix-now (no deferrals)
 
-    - [ ] **8.5.b Address audit findings**
-        - Fix issues surfaced by 8.5.a
-        - Final copy polish pass
+    - [x] **8.5.b Address audit findings**
+        - Fixed glossary anchors (bold → h2 headings so `#term` links resolve)
+        - Fixed broken `#session-duration` → `#duration-guidance` anchor in philosophy.md
+        - Replaced index.md and README-ASPIRATIONAL.md openings with portfolio-derived copy:
+          spec-driven framing, "agentic task execution," empirical grounding sentence,
+          agent-agnostic positioning
+        - Tightened skill phrasing across 4 pages ("user-invoked entry point for a key
+          operational workflow")
+        - Added glossary links at first-use for co-development, review increment, work unit
+        - Strengthened deferred review framing (accommodation for brief absence, not regular
+          workflow pattern)
+        - Added "in practice" bridge after philosophy.md opening for quick evaluators
+        - Added beta agent compatibility to getting-started prereqs and new FAQ entry ("Which
+          agents does ARC support?") with honest testing status and contributor CTA
+        - Added overhead/ceremony FAQ ("Is ARC a lot of overhead?") — moved to first position
+        - Added git notes FAQ and inline explainer in how-arc-works.md
+        - Trimmed README double philosophy link ("evidence base" not "evidence and tradeoffs")
+        - Simplified index.md CLI section (`arc user sync` not four subcommands)
 
     - [ ] **8.5.c Create and place screenshots**
         - Stage real screenshots for the 6 placeholder locations (session init, handoff, commit,
           file explorer, arc-methods structure, arc-extensions structure)
         - Replace HTML comment placeholders with actual image references
+
+    - [ ] **8.5.d Anti-patterns and pitfalls audit**
+        - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and
+          "using ARC the wrong way" scenarios that a new adopter might encounter
+        - Synthesize findings into FAQ entries, troubleshooting content, or docs site additions
+          as appropriate
 
 - [ ] **8.6 Set up docs deployment**
 

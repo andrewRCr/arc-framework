@@ -1,10 +1,10 @@
 # Skills Reference
 
 ARC packages its user-facing workflows as [Skills](https://agentskills.io) — an open standard
-format for giving agents new capabilities and context. Each ARC skill handles a workflow where
-the timing is yours — when to start a session, when to commit, when to hand off. You invoke
-them when you're ready; the agent discovers and loads the skill's instructions, then executes
-the workflow. The invocation syntax varies by platform (slash commands in Claude Code, `$`
+format for giving agents new capabilities and context. Each ARC skill is a user-invoked entry
+point for a key operational workflow — when to start a session, when to commit, when to hand
+off. You invoke them when you're ready; the agent discovers and loads the skill's instructions,
+then executes the workflow. The invocation syntax varies by platform (slash commands in Claude Code, `$`
 prefix in Codex CLI, etc.).
 
 The agent's other workflows — task execution, quality gates, issue triage, planning — load

@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5 — Docs site polish and validation (line ~1403)
-**Last Completed**: Task 8.4 — Write reference pages and restructure nav
+**Next Task**: Task 8.5.c — Create and place screenshots (line ~1420)
+**Last Completed**: Task 8.5.b — Address audit findings
 **Blockers**: None
-**Next Action**: Proceed to 8.5.a (subagent audit of restructured docs)
+**Next Action**: Proceed to 8.5.c (stage screenshots for 6 placeholder locations)
 
 ---
 

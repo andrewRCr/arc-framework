@@ -14,6 +14,13 @@ This premise has real costs. ARC is slower than fully autonomous approaches, req
 developer engagement, and adds structure that pays off proportional to project complexity. These are
 deliberate design choices. This page covers the reasoning behind them.
 
+In practice: you and your agent work through tasks one at a time, each small enough to review
+meaningfully. You're present during execution — steering, correcting, contributing alongside the
+agent. Sessions are bounded and intentional, with structured handoffs that preserve context for the
+next session. Quality gates verify work at every level. The reasoning for each of these choices
+follows — if you'd rather start with the practical mechanics, see
+[How ARC Works](how-arc-works.md).
+
 ## Three Observations
 
 ARC's design responds to three observations. None are novel — they're well-established in cognitive
@@ -193,7 +200,7 @@ deliberate context loading and ends with intentional state preservation. Without
 knowledge accumulates implicitly and is lost when the conversation ends.
 
 For practical session duration guidance, see
-[How ARC Works § Session Duration](how-arc-works.md#session-duration).
+[How ARC Works § Duration Guidance](how-arc-works.md#duration-guidance).
 
 ## Where ARC Fits
 

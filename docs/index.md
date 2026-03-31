@@ -1,12 +1,20 @@
 # ARC Framework
 
-ARC is a development methodology for human-AI co-development. It structures how a developer and an AI
-agent work together through planning, execution, and context preservation — implemented as markdown
-documents and a CLI that manages them.
+ARC is a structured methodology for spec-driven development with AI agents, emphasizing disciplined
+collaboration over automation. Implemented as portable markdown documents and a CLI, it's built on
+the premise that better outcomes come from deliberately coupling human judgment with agent capability,
+not separating them through delegation. Agentic task execution is intentionally single-threaded —
+work scoped into discrete [review increments](reference/glossary.md#review-increment) that are small
+enough to review meaningfully, with active developer involvement creating a tight feedback loop that
+leverages complementary strengths, favoring iterative
+[co-development](reference/glossary.md#co-development) over raw throughput. The framework unifies
+planning, execution, and context preservation in a single system that works with any conversational
+AI coding agent and any tech stack.
 
-If you're evaluating whether ARC fits your work, [Philosophy](philosophy.md) covers the principles,
-evidence, and tradeoffs. If you're ready to use it, [Getting Started](getting-started.md) walks
-through installation and your first session. If you want to understand the operational model first,
+ARC is grounded in cognitive science research on sustained attention and emerging AI research on
+context quality degradation — [Philosophy](philosophy.md) covers the evidence base.
+If you're ready to use it, [Getting Started](getting-started.md) walks through installation and your
+first session. If you want to understand the operational model first,
 [How ARC Works](how-arc-works.md) covers the session lifecycle, skills, and task execution rhythm.
 
 ## How ARC Works
@@ -17,9 +25,9 @@ contracts at specific trigger points, extension points inject custom behavior at
 and git hooks enforce conventions deterministically at commit time.
 
 ARC packages its user-facing workflows as **[Skills](https://agentskills.io)** — an open standard
-format for giving agents new capabilities. Each ARC skill handles a workflow where the timing is
-yours: when to start a session, when to commit, when to hand off. Three skills form the operational
-rhythm: `arc-resume` (start), `arc-commit` (commit changes), and `arc-handoff` (end). The
+format for giving agents new capabilities. Each ARC skill is a user-invoked entry point for a key
+operational workflow: when to start a session, when to commit, when to hand off. Three skills form
+the operational rhythm: `arc-resume` (start), `arc-commit` (commit changes), and `arc-handoff` (end). The
 invocation syntax varies by platform (slash commands in Claude Code, `$` prefix in Codex CLI), but
 the concept is the same. The agent's other workflows — task execution, quality gates, planning —
 load automatically as part of the ARC instruction chain once a session is running.
@@ -98,7 +106,7 @@ lifecycle:
 - **`arc update`** — update framework files via three-way merge, preserving your customizations.
   File classifications (Framework, Configurable, Scaffolded) determine what gets updated, what gets
   merged, and what's left alone.
-- **`arc user save/load/push/pull`** — session state portability via git notes.
+- **`arc user sync`** — session state portability via git notes.
 
 [Learn more about updating ARC &rarr;](updating.md)
 
