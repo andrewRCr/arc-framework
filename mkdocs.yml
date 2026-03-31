@@ -29,17 +29,17 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - How ARC Works: how-arc-works.md
   - Philosophy: philosophy.md
-  - Sessions: sessions.md
   - Work Planning: work-planning.md
   - Updating ARC: updating.md
   - Reference:
     - reference/index.md
-    - Skills: reference/skills.md
-    - Glossary: reference/glossary.md
     - Configuration: reference/configuration.md
     - Quality Gates: reference/quality-gates.md
+    - Skills: reference/skills.md
     - Team Coordination: reference/team-coordination.md
+    - Glossary: reference/glossary.md
   - FAQ: faq.md
   - Contributing: contributing.md
 

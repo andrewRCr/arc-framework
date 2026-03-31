@@ -1,9 +1,15 @@
 # Skills Reference
 
-ARC uses your agent's skill system as its command interface. Skills are user-invoked triggers —
-you run them explicitly when a specific workflow is needed. The invocation syntax varies by
-platform (slash commands in Claude Code, `$` prefix in Codex CLI, etc.), but the concept is the
-same: you trigger the skill, the agent executes the workflow.
+ARC packages its user-facing workflows as [Skills](https://agentskills.io) — an open standard
+format for giving agents new capabilities and context. Each ARC skill handles a workflow where
+the timing is yours — when to start a session, when to commit, when to hand off. You invoke
+them when you're ready; the agent discovers and loads the skill's instructions, then executes
+the workflow. The invocation syntax varies by platform (slash commands in Claude Code, `$`
+prefix in Codex CLI, etc.).
+
+The agent's other workflows — task execution, quality gates, issue triage, planning — load
+automatically as part of the ARC instruction chain once a session is running. You don't need
+to trigger those; they're referenced by other workflows and the agent follows the chain.
 
 Skills are generated during `arc init` or `arc join` based on which AI tools you selected. They
 live in your agent's skill directory (e.g., `.claude/skills/` for Claude Code) and are not part
@@ -13,7 +19,7 @@ workflows.
 ## Core Skills
 
 These three skills form the operational rhythm of every ARC session. You'll use them regularly —
-they map directly to the [session lifecycle](../sessions.md).
+they map directly to the [session lifecycle](../how-arc-works.md#the-session-lifecycle).
 
 ### arc-resume
 

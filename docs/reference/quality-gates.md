@@ -77,7 +77,10 @@ non-standard setups (environment-specific commands, conditional logic).
 
 ## When to Escalate
 
-The tiers are guidelines, not rigid rules. Escalate when:
+Quality verification itself is mandatory — every task goes through at least Tier 1 before
+completion (P4). What's flexible is *when to run a higher tier* than the minimum required at
+that checkpoint. The tiers define when checks *automatically* run; escalation is about choosing
+to run more than the minimum when the situation warrants it:
 
 - **Tier 1 → Tier 2:** You've touched code that integration tests exercise, made changes across
   multiple components, or you're about to context-switch to a different area of the codebase.

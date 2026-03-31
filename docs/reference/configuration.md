@@ -4,9 +4,9 @@ ARC has 11 non-negotiable principles and a set of configurable conventions that 
 Configuration is how you adapt conventions to your team's workflow — the principles stay fixed,
 the implementation details flex.
 
-This page covers the mechanisms at guide level. For the exhaustive convention inventory,
-validation scenarios, and architectural rationale, see `strategy-configurability-architecture.md`
-in your `.arc/reference/strategies/` directory.
+This page covers the mechanisms and all available settings at guide level. For the exhaustive
+convention inventory, validation scenarios, and architectural rationale, see
+`strategy-configurability-architecture.md` in your `.arc/reference/strategies/` directory.
 
 ## Three Mechanisms
 
@@ -49,26 +49,40 @@ Replace *how* ARC does something while preserving *what* it accomplishes. Each m
 contract (the invariant) and a default implementation. Your team supplies an alternative that
 satisfies the same contract.
 
+<!-- SCREENSHOT PLACEHOLDER: arc-methods.md showing a method with contract, .override section
+(empty placeholder), and .default section — illustrating the structure a team would edit. Show
+commit-format as the example method. -->
+
+To override a method, replace `[No override configured]` in its `.override` section with your
+team's implementation. The agent checks `.override` first — if populated, it follows the override
+and skips `.default`. Here's what an override looks like for commit format:
+
 ```markdown
-## commit-format
-
-**Contract:** Commits follow a consistent, communicative format that
-enables automated tooling and readable history.
-
 ### commit-format.override
 
-[No override configured]
+Jira-prefixed format: `[PROJECT-123] type: description`
 
-### commit-format.default
+Subject line must start with a Jira ticket in brackets, followed by a
+type keyword and colon. Body follows the same conventions as the default.
 
-Conventional commit format: `type(scope): description`
+**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
 ```
 
-To override: replace `[No override configured]` with your team's implementation. The agent
-checks `.override` first — if populated, it follows the override and skips `.default`.
+The contract is preserved (commits follow a consistent, communicative format) while the
+implementation changes to match your team's tooling.
 
-Available methods: `commit-format`, `commit-context-format`, `issue-triage`, `test-first`,
-`session-state`, `pre-merge-review`, `review-triage`, `quality-gate-commands`.
+Available methods:
+
+| Method                  | What it controls                                                    |
+|-------------------------|---------------------------------------------------------------------|
+| `commit-format`         | Commit message structure (type, scope, body)                        |
+| `commit-context-format` | Context footer patterns linking commits to tasks                    |
+| `issue-triage`          | Severity thresholds for fix-vs-defer decisions on discovered issues |
+| `test-first`            | Decision tree for when to write tests before implementation         |
+| `session-state`         | How session state is read and written at boundaries                 |
+| `pre-merge-review`      | Aggregate diff review before pushing                                |
+| `review-triage`         | Classifying and acting on review findings                           |
+| `quality-gate-commands` | Project-specific quality gate command definitions                   |
 
 Method content loads on-demand when the agent reaches the relevant workflow step, not at session
 start. This keeps initialization fast and context focused.
@@ -80,20 +94,25 @@ start. This keeps initialization fast and context focused.
 Inject additional steps at specific locations in ARC workflows — without replacing existing
 steps. Extensions add behavior on top of ARC's defaults.
 
+<!-- SCREENSHOT PLACEHOLDER: arc-extensions.md showing an extension point with contract and
+populated .steps section — illustrating what a configured extension looks like. Show
+post-task-quality with an example security scan step. -->
+
+To extend, replace `[No extension configured]` in the `.steps` section with your steps. Here's
+an example that adds a security scan after each task's quality checks:
+
 ```markdown
-## post-task-quality
-
-**Fires:** After Tier 1 checks pass, before marking task complete
-
-**Contract:** Additional quality checks after every task. Must return
-a clear pass/fail signal.
-
 ### post-task-quality.steps
 
-[No extension configured]
+Run Snyk security scan on modified files:
+
+1. `npx snyk test --file=package.json` — check for known vulnerabilities
+2. If new vulnerabilities found, report in task completion summary
+3. Critical/high severity → fail the quality check (block task completion)
+4. Medium/low → note in completion summary, continue
 ```
 
-To extend: replace `[No extension configured]` with your steps. Available extension points:
+Available extension points:
 
 | Extension                 | When it fires                                     |
 |---------------------------|---------------------------------------------------|
@@ -139,21 +158,72 @@ This separation is intentional:
 This makes adoption smoother — you can start with relaxed enforcement while learning ARC, then
 tighten as the conventions prove their value. The agent's behavior is consistent throughout.
 
-## The Settings
+## All Settings
 
-`arc-config.yml` ships with all settings documented via inline comments. The groups:
+Every setting in `arc-config.yml`, with its options and default:
 
-| Group        | What it controls                                                         |
-|--------------|--------------------------------------------------------------------------|
-| `branch.*`   | Base branch, protection mode (partial/full)                              |
-| `commit.*`   | Message format, context footer requirement, custom patterns              |
-| `merge.*`    | Integration strategy (merge/rebase/squash)                               |
-| `hooks.*`    | Pre-commit and commit-msg hook toggles, validation settings              |
-| `review.*`   | Pre-merge diff review toggle                                             |
-| `platform.*` | Git hosting platform (informational — affects agent command suggestions) |
-| `pm.*`       | Project management mode (none/arc-in-git/external)                       |
-| `team.*`     | Team mode toggle                                                         |
-| `user.*`     | Session state sync behavior                                              |
+### Branch model
 
-For the complete setting reference with all values and defaults, see `arc-config.yml` itself —
-it's designed to be self-documenting.
+| Setting             | Options           | Default   | What it controls                                                                                                                                                       |
+|---------------------|-------------------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `branch.base`       | Any branch name   | `main`    | Primary integration branch                                                                                                                                             |
+| `branch.protection` | `partial`, `full` | `partial` | Whether all changes require branches and PR review. `partial`: planned work requires branches, atomic tasks may commit directly. `full`: all changes require branches. |
+
+### Commit discipline
+
+| Setting                  | Options                                         | Default        | What it controls                                    |
+|--------------------------|-------------------------------------------------|----------------|-----------------------------------------------------|
+| `commit.format`          | `conventional`, `custom`, `any`                 | `conventional` | Commit message format enforced by hook              |
+| `commit.context_footer`  | `required`, `recommended`, `custom`, `disabled` | `required`     | Context footer requirement                          |
+| `commit.custom_pattern`  | Regex string                                    | *(empty)*      | Custom format regex (when `format: custom`)         |
+| `commit.context_pattern` | Regex string                                    | *(empty)*      | Custom footer regex (when `context_footer: custom`) |
+
+### Merge strategy
+
+| Setting          | Options                     | Default | What it controls                        |
+|------------------|-----------------------------|---------|-----------------------------------------|
+| `merge.strategy` | `merge`, `rebase`, `squash` | `merge` | How branches integrate into base branch |
+
+### Hooks
+
+| Setting                             | Options                   | Default              | What it controls                                               |
+|-------------------------------------|---------------------------|----------------------|----------------------------------------------------------------|
+| `hooks.pre_commit`                  | `enabled`, `disabled`     | `enabled`            | Pre-commit check execution                                     |
+| `hooks.commit_msg`                  | `enabled`, `disabled`     | `enabled`            | Commit message format validation                               |
+| `hooks.task_numbering`              | `error`, `warning`, `off` | `error`              | Task numbering format check (1.1.a not 1.1.1)                  |
+| `hooks.subject_max_length`          | Integer                   | `72`                 | Maximum commit subject line length                             |
+| `hooks.subject_warn_length`         | Integer                   | `60`                 | Warning threshold for subject line length                      |
+| `hooks.skip_extensions`             | Pipe-separated patterns   | `md\|yml\|yaml\|...` | File extensions skipped during meta-project reference checking |
+| `hooks.test_patterns`               | Pipe-separated patterns   | `__tests__/\|...`    | Test paths excluded from meta-project reference checking       |
+| `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references in production code |
+| `hooks.contributor_protected_paths` | Pipe-separated patterns   | `active/\|backlog/`  | Directories that warn when staged by contributors              |
+
+### Review
+
+| Setting            | Options               | Default   | What it controls                                        |
+|--------------------|-----------------------|-----------|---------------------------------------------------------|
+| `review.pre_merge` | `enabled`, `disabled` | `enabled` | Whether the agent reviews aggregate diff before pushing |
+
+### Platform
+
+| Setting         | Options                                         | Default  | What it controls                                                         |
+|-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------------|
+| `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects agent command suggestions) |
+
+### Project management
+
+| Setting   | Options                          | Default | What it controls                                                                             |
+|-----------|----------------------------------|---------|----------------------------------------------------------------------------------------------|
+| `pm.mode` | `none`, `arc-in-git`, `external` | `none`  | Where project management lives. **Structural** — changing requires `arc init --reconfigure`. |
+
+### Team mode
+
+| Setting     | Options         | Default | What it controls                                                                                                                                      |
+|-------------|-----------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `team.mode` | `false`, `true` | `false` | Multi-developer coordination conventions. **Structural** — changing requires `arc init --reconfigure`. See [Team Coordination](team-coordination.md). |
+
+### User directory
+
+| Setting          | Options                      | Default  | What it controls                                                                                                    |
+|------------------|------------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push of session state via git notes after handoff. Per-developer override: `git config arc.sync_push <value>`. |

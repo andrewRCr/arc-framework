@@ -19,7 +19,7 @@ See [Philosophy § Core Commitments](../philosophy.md#core-commitments) (P2).
 **Context preservation** — The principle that work context must be recoverable across session
 boundaries. Implemented through WORK-STATUS.md (tracked project state) and SESSION-NOTES.md
 (personal working context), with git notes providing portability. See
-[Sessions § Handoff](../sessions.md#handoff) (P5).
+[Sessions § Handoff](../how-arc-works.md#ending-a-session) (P5).
 
 **Convention** — A configurable practice with a sensible default (tier 2 in ARC's flexibility
 model). Changing a convention keeps ARC intact. Examples: commit format, quality gate commands,
@@ -37,7 +37,7 @@ Example: running a security scan after each task's quality checks. See
 [Configuration § Extension Points](configuration.md#extension-points).
 
 **Handoff** — The structured end of a session. Captures WORK-STATUS.md and SESSION-NOTES.md so
-the next session can recover context. See [Sessions § Handoff](../sessions.md#handoff).
+the next session can recover context. See [Sessions § Handoff](../how-arc-works.md#ending-a-session).
 
 **Leave-it-cleaner** — The principle that when you encounter an issue in a file you're
 modifying, you take responsibility for it — fix it inline if small enough, or route it to a
@@ -65,20 +65,22 @@ development. ARC uses a three-tier system: per-task (Tier 1), coherent unit (Tie
 per-phase/pre-PR (Tier 3). Gate commands are project-defined; ARC provides the checkpoint
 structure. See [Quality Gates](quality-gates.md).
 
-**Review increment** — The unit of autonomous agent execution between human review points. Each
-task (checkbox) in a task list is one review increment. The agent completes a review increment,
-reports, and stops for the developer's review before proceeding. This is the mechanism that
-implements co-development at execution time. See
+**Review increment** — A single task (checkbox) in a task list — the unit of work between human
+review points. The agent implements one review increment, runs quality gates, reports the result,
+and stops for the developer's review before proceeding. This is the mechanism that implements
+co-development at execution time: small enough for meaningful review, large
+enough for productive autonomy. See
 [Work Planning § How Tasks Execute](../work-planning.md#how-tasks-execute).
 
 **Session** — A bounded, intentional period of work. Starts with structured initialization
 (context loading), proceeds through focused work, and ends with handoff (state preservation).
 Sessions are designed to be shorter and more focused than the context window allows — quality
-degrades with length. See [Sessions](../sessions.md).
+degrades with length. See [Sessions](../how-arc-works.md).
 
-**Skill** — A user-invoked command in your AI agent that triggers an ARC workflow. Skills are
-the interface between your agent platform and ARC's methodology. See
-[Skills Reference](skills.md).
+**Skill** — An [open standard format](https://agentskills.io) for giving agents new capabilities.
+ARC packages its user-facing workflows as Skills — each handles a workflow where the timing is
+the developer's (when to start a session, commit, hand off). The agent's other workflows load
+automatically as part of the ARC instruction chain. See [Skills Reference](skills.md).
 
 **Task list** — The execution layer of a work unit. Contains phased tasks, each representing
 one review increment. Task entries are updated with outcomes as work completes. See

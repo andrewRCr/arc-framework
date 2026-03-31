@@ -6,7 +6,8 @@ documents and a CLI that manages them.
 
 If you're evaluating whether ARC fits your work, [Philosophy](philosophy.md) covers the principles,
 evidence, and tradeoffs. If you're ready to use it, [Getting Started](getting-started.md) walks
-through installation and your first session. This page covers how the system actually works.
+through installation and your first session. If you want to understand the operational model first,
+[How ARC Works](how-arc-works.md) covers the session lifecycle, skills, and task execution rhythm.
 
 ## How ARC Works
 
@@ -14,6 +15,14 @@ ARC lives in an `.arc/` directory in your repository. The documents inside aren'
 material — they're mechanical. Workflows branch on configuration values, methods define overridable
 contracts at specific trigger points, extension points inject custom behavior at workflow boundaries,
 and git hooks enforce conventions deterministically at commit time.
+
+ARC packages its user-facing workflows as **[Skills](https://agentskills.io)** — an open standard
+format for giving agents new capabilities. Each ARC skill handles a workflow where the timing is
+yours: when to start a session, when to commit, when to hand off. Three skills form the operational
+rhythm: `arc-resume` (start), `arc-commit` (commit changes), and `arc-handoff` (end). The
+invocation syntax varies by platform (slash commands in Claude Code, `$` prefix in Codex CLI), but
+the concept is the same. The agent's other workflows — task execution, quality gates, planning —
+load automatically as part of the ARC instruction chain once a session is running.
 
 ### Sessions
 
@@ -34,7 +43,7 @@ measurably as context accumulates — and that human attention for sustained kno
 same pattern through different mechanisms. Focused sessions that reset at natural boundaries maintain
 higher quality than marathon ones that technically fit in the context window.
 
-[Learn more about sessions &rarr;](sessions.md)
+[Learn more about the session lifecycle &rarr;](how-arc-works.md)
 
 ### Task Execution
 
@@ -75,7 +84,7 @@ Beyond these mechanisms, teams create their own project strategies, domain-speci
 and project workflows that live alongside ARC's framework files and carry the same weight when the
 agent is working in that domain.
 
-[Learn more about ARC's philosophy and principles &rarr;](philosophy.md)
+[Learn more about configuration &rarr;](reference/configuration.md)
 
 ## The CLI
 
@@ -95,13 +104,13 @@ lifecycle:
 
 ## Documentation Guide
 
-| Section                               | What You'll Find                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [Getting Started](getting-started.md) | Install ARC, run your first session, understand what happened                               |
-| [Philosophy](philosophy.md)           | The 11 principles, the cognitive science and AI research behind them, and where ARC fits    |
-| [Sessions](sessions.md)               | Why bounded sessions, the context degradation evidence, how initialization and handoff work |
-| [Work Planning](work-planning.md)     | The planning pipeline from idea to task list, how tasks execute, quality gates              |
-| [Updating ARC](updating.md)           | What `arc update` does, file classifications, what's safe to edit                           |
-| [Reference](reference/index.md)       | Skills, glossary, configuration, quality gate tiers, team coordination                      |
-| [FAQ](faq.md)                         | Common questions about ARC's design choices, agent compatibility, and usage                 |
-| [Contributing](contributing.md)       | How to contribute to ARC — setup, commit conventions, quality standards                     |
+| Section                               | What You'll Find                                                               |
+|---------------------------------------|--------------------------------------------------------------------------------|
+| [Getting Started](getting-started.md) | Install ARC, run your first session, understand what happened                  |
+| [How ARC Works](how-arc-works.md)     | The session lifecycle, skills, task execution rhythm, and state management     |
+| [Philosophy](philosophy.md)           | The 11 principles, cognitive science and AI research, and where ARC fits       |
+| [Work Planning](work-planning.md)     | The planning pipeline from idea to task list, how tasks execute, quality gates |
+| [Updating ARC](updating.md)           | What `arc update` does, file classifications, what's safe to edit              |
+| [Reference](reference/index.md)       | Configuration, quality gate tiers, skills, team coordination, glossary         |
+| [FAQ](faq.md)                         | Common questions about ARC's design choices, agent compatibility, and usage    |
+| [Contributing](contributing.md)       | How to contribute to ARC — setup, commit conventions, quality standards        |

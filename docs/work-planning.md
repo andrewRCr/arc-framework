@@ -62,9 +62,10 @@ There's no way to automate recurring task creation.
 
 ### Task lists
 
-Task lists are the execution layer. Each task is a bounded *review increment* — a chunk of
-autonomous agent execution between human review points. Here's what task entries look like during
-and after execution:
+Task lists are the execution layer. Each task is a bounded *review increment* — a single chunk of
+work the agent executes autonomously before stopping for the developer's review. One task, one
+review — this is the mechanism that implements co-development at execution time. Here's what task
+entries look like during and after execution:
 
 ```markdown
 ### **Phase 1:** Data Model and API

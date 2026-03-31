@@ -1400,24 +1400,40 @@ or invent; honest gaps are more credible than overclaimed findings.
     - Updated `mkdocs.yml` nav, `docs/index.md` Documentation Guide table. No stale
       cross-references found in foundation pages.
 
-- [ ] **8.5 Set up docs deployment**
+- [ ] **8.5 Docs site polish and validation**
 
-    - [ ] **8.5.a Verify local build**
+    - [ ] **8.5.a Run subagent audit against restructured docs**
+        - Re-run the three-agent review (README-first, direct-to-docs, cross-reference) against
+          the restructured site to validate improvements and surface remaining issues
+        - Synthesize findings and triage: fix now vs. defer
+
+    - [ ] **8.5.b Address audit findings**
+        - Fix issues surfaced by 8.5.a
+        - Final copy polish pass
+
+    - [ ] **8.5.c Create and place screenshots**
+        - Stage real screenshots for the 6 placeholder locations (session init, handoff, commit,
+          file explorer, arc-methods structure, arc-extensions structure)
+        - Replace HTML comment placeholders with actual image references
+
+- [ ] **8.6 Set up docs deployment**
+
+    - [ ] **8.6.a Verify local build**
         - `pip install mkdocs-material` (or equivalent)
         - `mkdocs build` succeeds without errors
         - `mkdocs serve` — verify navigation, search, all pages render correctly locally
 
-    - [ ] **8.5.b Create GitHub Action for docs**
+    - [ ] **8.6.b Create GitHub Action for docs**
         - Trigger: push to main
         - Steps: setup Python, install mkdocs-material, `mkdocs build`, deploy to GitHub Pages
         - Separate workflow file (not in existing `ci.yml` — different trigger and lifecycle)
 
-    - [ ] **8.5.c Verify deployment post-merge**
+    - [ ] **8.6.c Verify deployment post-merge**
         - Push to main triggers build
         - Site accessible at GitHub Pages URL
         - Navigation, search, and all pages render correctly
 
-- [ ] **8.6 Run quality gates**
+- [ ] **8.7 Run quality gates**
     - `npm run -s lint:md` (new markdown files in `docs/`)
     - Verify mkdocs builds without errors locally (`mkdocs build`)
 

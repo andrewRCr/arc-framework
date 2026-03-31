@@ -11,7 +11,8 @@ work with both constraints rather than against them.
 
 The handoff cost is low by design — a few minutes to capture state. The value is in the fresh
 start: clean context, focused loading, and a natural checkpoint for the developer to reassess
-direction. See [Sessions](sessions.md) for the evidence and practical guidance.
+direction. See [Philosophy § Why Bounded Sessions](philosophy.md#why-bounded-sessions) for the
+evidence, and [How ARC Works](how-arc-works.md) for practical guidance.
 
 ## Why one task at a time? Why not let the agent work in parallel?
 
@@ -54,8 +55,12 @@ For a full treatment of agent compatibility, see
 
 No. ARC's core methodology works for teams — task ownership markers (`(@name)`), team branching
 patterns, merge conflict conventions, and integration with external trackers (Jira, Linear,
-GitHub Issues) are all supported. Set `team.mode: true` in `arc-config.yml` to activate team
-conventions. See [Team Coordination](reference/team-coordination.md).
+GitHub Issues) are all supported.
+
+To enable team mode: set `team.mode: true` in `arc-config.yml` (this is a structural setting,
+so run `arc init --reconfigure` to apply it). Each developer then runs `arc join` to set up
+their personal workspace — role, identity, and agent skills. See
+[Team Coordination](reference/team-coordination.md) for the full multi-developer setup.
 
 The "one task at a time" rule applies per developer-agent pair, not per team. Multiple pairs can
 work concurrently on different tasks.

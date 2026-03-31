@@ -39,7 +39,7 @@ uncommon since these files shouldn't be modified directly.
 
 **If you need to customize:** Don't edit Framework files — your changes will be overwritten. Use the
 appropriate customization mechanism instead: [config values, method overrides, or extension
-points](index.md#configurability).
+points](reference/configuration.md).
 
 ### Configurable
 

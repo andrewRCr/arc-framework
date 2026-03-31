@@ -1,8 +1,14 @@
 # Philosophy
 
+Every developer who's worked with an AI coding agent has experienced the gap between what's possible
+and what's reliable. Agents can generate impressive code, but the output quality varies — sometimes
+subtly, sometimes dramatically — based on how the work is structured. Left to run autonomously, they
+produce work that requires extensive review. Micromanaged with constant prompting, they lose the
+speed advantage that made them attractive.
+
 ARC is built on a specific premise: that focused, iterative collaboration between a human and an
-agent produces better work than either full delegation or ad-hoc prompting — for the kinds of work
-where quality, judgment, and maintainability matter.
+agent — what we call *co-development* — produces better work than either full delegation or ad-hoc
+prompting, for the kinds of work where quality, judgment, and maintainability matter.
 
 This premise has real costs. ARC is slower than fully autonomous approaches, requires active
 developer engagement, and adds structure that pays off proportional to project complexity. These are
@@ -98,7 +104,8 @@ reliable. The specific gates, tools, and strictness levels are conventions.
 
 **P5. Context preservation.** Work context must be recoverable across session boundaries through
 structured, human-controlled, and transparent mechanisms. Without this, each session starts from
-scratch and the collaboration loop breaks. See [Sessions](sessions.md) for the implementation.
+scratch and the collaboration loop breaks. See [How ARC Works](how-arc-works.md) for the
+implementation.
 
 **P6. Traceability through version control.** Changes link back to the intent that motivated them.
 Git serves as the canonical record. Commit format, context footers, and branch naming are
@@ -142,8 +149,51 @@ traceability). Quality gate enforcement is a principle (removing verification en
 ARC). Squash merging is an escape hatch (ARC accommodates it but sacrifices granular commit
 history).
 
-The [configuration mechanisms](index.md#configurability) — config values, method overrides, and
+The [configuration mechanisms](reference/configuration.md) — config values, method overrides, and
 extension points — operate on conventions, never principles.
+
+## Why Bounded Sessions
+
+ARC treats sessions as bounded, intentional periods of work — not open-ended conversations that run
+until interrupted. This isn't an arbitrary constraint. Three forces converge on the same design.
+
+### Agent context quality degrades with length
+
+LLM output quality drops as context accumulates within a session. The key findings:
+
+- **Effective capacity is well below advertised limits.** Multiple studies converge on 60–70% of the
+  advertised context window as the performance-reliable range
+  ([Hsieh et al., COLM 2024][ruler]).
+- **Complex tasks degrade faster than simple retrieval.** Needle-in-a-haystack retrieval holds up at
+  long contexts, but multi-hop reasoning, code generation, and agentic workflows — the work that
+  dominates development sessions — degrade sharply. Agentic success rates drop from 40–50% to under
+  10% in long-context scenarios ([Wang et al., 2025][web-agents]).
+- **Position effects matter.** Information in the middle of long contexts suffers significant
+  performance loss — the "lost in the middle" phenomenon
+  ([Liu et al., TACL 2024][lost-middle]). As sessions accumulate history, earlier decisions
+  naturally drift toward weaker retrieval positions.
+
+This isn't a temporary limitation. The evidence spans multiple model families, architectures, and
+context window sizes. Larger windows shift where degradation begins; they don't eliminate it
+([Agarwal et al., EMNLP 2025][ctx-length-hurts]).
+
+### Human attention follows the same pattern
+
+ARC's [co-development model](#core-commitments) requires sustained human attention — you're a
+co-developer, not a passive observer. Task-switching costs up to 40% of productive time
+([Rubinstein, Meyer & Evans, 2001][task-switching]), and interruption recovery takes 10–15 minutes
+for software engineering work ([Lestan, Leventis & Ivanovic, 2024][interruption-recovery]). Marathon
+sessions degrade human judgment the same way they degrade agent context, through a different
+mechanism.
+
+### Session boundaries enforce methodology discipline
+
+The establish-execute-capture rhythm is what makes context recoverable. Each session starts with
+deliberate context loading and ends with intentional state preservation. Without explicit boundaries,
+knowledge accumulates implicitly and is lost when the conversation ends.
+
+For practical session duration guidance, see
+[How ARC Works § Session Duration](how-arc-works.md#session-duration).
 
 ## Where ARC Fits
 
@@ -173,6 +223,10 @@ ARC is designed for conversational agents where developer and agent share contex
 
 ---
 
+[ruler]: https://arxiv.org/abs/2404.06654
+[web-agents]: https://arxiv.org/abs/2512.04307
+[lost-middle]: https://arxiv.org/abs/2307.03172
+[ctx-length-hurts]: https://arxiv.org/abs/2510.05381
 [task-switching]: https://doi.org/10.1037/0096-3445.130.4.621
 [interruption-general]: https://doi.org/10.1145/985692.985715
 [interruption-recovery]: https://doi.org/10.1145/3613904.3642861

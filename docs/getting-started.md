@@ -2,8 +2,14 @@
 
 ARC is a methodology, not a library — you won't call its functions or import its modules. Instead,
 it creates a set of documents and workflows in your repository that structure how you and your AI
-agent work together. This guide walks through installation, initial setup, your first session, and
-what the resulting structure looks like.
+agent work together. ARC packages its user-facing workflows as
+**[Skills](https://agentskills.io)** — an open standard format for giving agents new capabilities.
+Each ARC skill handles a workflow where the timing is yours: when to start a session, when to
+commit, when to hand off. The agent's other workflows — task execution, quality gates, planning —
+load automatically as part of the ARC instruction chain once a session is running.
+
+This guide walks through installation, initial setup, your first session, and what the resulting
+structure looks like.
 
 ## Prerequisites
 
@@ -29,8 +35,11 @@ The interactive setup asks for:
 
 - **Project name** — used in generated documents
 - **AI tools** — which agents you use (generates agent-specific skill files)
-- **Project management mode** — `none` (core methodology only), `arc-in-git` (in-repo planning
-  infrastructure), or `external` (external tracker integration)
+- **Project management mode** — we recommend `arc-in-git` for most projects: it adds in-repo
+  planning infrastructure (backlogs, roadmap, project status) that the agent can read and reason
+  about directly. Choose `external` if your team already uses Jira, Linear, or similar and wants
+  to keep planning there. `none` gives you the core methodology without any planning layer.
+  See [The Planning Module](work-planning.md#the-planning-module) for details on each option.
 
 This creates the `.arc/` directory, installs git hooks, generates agent skill files, and writes a
 manifest for future updates.
@@ -49,20 +58,23 @@ arc join
 ```
 
 This sets up your personal workspace — role, identity, and agent skills — without modifying the
-shared project structure.
+shared project structure. For teams, see
+[Team Coordination](reference/team-coordination.md) for the full multi-developer setup.
 
 ## Initial Setup
 
-After `arc init` completes, it prints guidance to run the `arc-setup` skill in your agent. This is
-one of ARC's *skills* — commands you invoke manually in your agent that trigger specific workflows.
-The invocation syntax varies by tool (slash commands in Claude Code, `$` prefix in Codex CLI, etc.)
-but the concept is the same: you trigger the skill, the agent executes the workflow.
+After `arc init` completes, it prints guidance to run the `arc-setup` skill in your agent.
+[Skills](https://agentskills.io) are an open standard format supported by most AI coding tools —
+they give agents capabilities and context they can load on demand. ARC generates skill files during
+init that your agent discovers automatically. The invocation syntax varies by platform (slash
+commands in Claude Code, `$` prefix in Codex CLI, etc.) — you invoke the skill, the agent loads its
+instructions and executes the workflow.
 
 `/arc-setup` walks you and the agent through two workflows:
 
 1. **Verify and configure** — confirms the installation succeeded, walks through ARC's
-   customization surfaces (config values, methods, extensions), and orients you to the directory
-   structure.
+   customization surfaces ([config values, methods, extensions](reference/configuration.md)), and
+   orients you to the directory structure.
 2. **Define project** — guides you through the documents that shape every session: your project
    briefing (technology stack, friction points), development rules (quality gates, testing
    requirements), and quick reference (commands, environment context).
@@ -72,63 +84,37 @@ briefing, development rules, and quick reference — are loaded by the agent at 
 session. The rest (META-PRD, technical overview, roadmap, project status) are reference material
 consulted during planning and architecture decisions.
 
-When setup is complete, start a fresh conversation in your agent and invoke the `arc-resume` skill.
-The agent detects there's no active work yet and enters discovery mode — checking your roadmap for
-the next item and helping you create a PRD and task list for your first work unit. From there, the
-normal session rhythm takes over.
-
-## Skills: ARC's Command Interface
-
-ARC uses your agent's skill system as a command interface — a near-universal, manually invocable
-mechanism across agent platforms. Skills are user-invoked triggers that you run explicitly when a
-specific workflow is needed. Three skills form the operational rhythm of every session:
-
-- **`arc-resume`** — start a session. Loads project context, active work state, and personal
-  notes from your last handoff.
-- **`arc-commit`** — commit changes. Analyzes pending work, enforces atomic boundaries, loads
-  commit format guidance, and stages WORK-STATUS.md alongside task list updates.
-- **`arc-handoff`** — end a session. Captures working state for the next session.
-
-Additional skills handle specific situations: `arc-setup` (initial configuration), `arc-verify`
-(installation health checks), `arc-task-audit` (pre-implementation review of task lists).
-
 ## Your First Session
 
-### Start a session
+When setup is complete, start a fresh conversation in your agent and invoke `arc-resume` — the skill
+that starts every ARC session. The agent loads a defined set of documents in order (project identity,
+development rules, active work state, personal notes), then reports an orientation summary: current
+branch, work state, blockers, and the suggested next action.
 
-Invoke `arc-resume` in your agent. The agent loads the project's context documents in a defined
-order: agent briefings, development rules, strategy index, quick reference, current work status,
-and any personal session notes from your last handoff.
+<!-- SCREENSHOT PLACEHOLDER: Session init orientation summary — show what arc-resume outputs on first
+use, with "no active work" state and discovery mode proposing next steps. -->
 
-When initialization completes, the agent reports an orientation summary: the current branch, whether
-the working tree is clean, active work state, any blockers, and the suggested next action. If
-there's an active task, the agent asks whether to proceed to it. If there's no active work, the
-agent surfaces the next roadmap item and proposes next steps. Either way, you respond and direct
-the session from there.
+Since this is your first session, the agent detects there's no active work and enters discovery
+mode — checking your roadmap for the next item and helping you create a PRD and task list for your
+first work unit. From there, the normal session rhythm takes over: working through tasks one at a
+time, each as a bounded [review increment](reference/glossary.md#review-increment) with a mandatory
+stop for your review between tasks.
 
-### Work through tasks
+For the full operational model — how sessions, skills, and task execution fit together — see
+[How ARC Works](how-arc-works.md).
 
-If a next task is defined in WORK-STATUS.md, the agent automatically loads the task execution
-workflow (the process-task-loop) during initialization — this is the bread and butter of most
-sessions. You and the agent work through tasks together at your direction, one review increment at
-a time: the agent implements a task, runs quality gates, reports the result, and stops for your
-review before proceeding. If you're starting fresh, the agent can help you create a PRD and
-generate a task list. If a session pivots to task execution after starting without one, the agent
-loads the workflow then.
-
-This is co-development, not delegation. You're present during execution — steering direction,
-contributing context, catching issues, and/or writing code alongside the agent.
-
-### Commit changes
+### Committing changes
 
 When work is ready to commit, invoke `arc-commit`. The skill handles atomic boundary analysis,
-commit format guidance (conventional commits with context footers linking each commit to its task),
-and stages WORK-STATUS.md alongside the task list changes so project state stays in sync.
+commit format guidance (conventional commits with `Context:` footers linking each commit to its
+task — the default format, [customizable](reference/configuration.md#commit-discipline) to match
+your team's conventions), and stages WORK-STATUS.md alongside the task list changes so project
+state stays in sync.
 
-### End a session
+### Ending a session
 
 ARC sessions are designed to be shorter and more frequent than you might expect. Agent output
-quality [degrades measurably](sessions.md#why-bounded-sessions) as context accumulates, and human
+quality [degrades measurably](philosophy.md#why-bounded-sessions) as context accumulates, and human
 attention follows the same pattern. Frequent handoffs at natural boundaries — task completion, phase
 transitions, mode changes — maintain higher quality work than marathon sessions that technically fit
 in the context window.
@@ -145,16 +131,20 @@ design — the value is in the reset.
 
 After initialization, your repository has an `.arc/` directory with this structure:
 
+<!-- SCREENSHOT PLACEHOLDER: Populated .arc/ directory in a file explorer view — show the actual
+directory tree with real files, not a text diagram. Use an explorer/sidebar view from VS Code or
+similar. -->
+
 ```text
 .arc/
 ├── active/             Work in progress (WORK-STATUS, task lists, PRDs)
 │   ├── feature/        Feature work units
 │   ├── technical/      Technical/infrastructure work units
 │   └── incidental/     Discovered work units
-├── archive/            Completed work (moved from active/ after merge)
 ├── backlog/            Future work pipeline (arc-in-git PM mode only)
 ├── reference/          Stable reference material
 │   ├── adr/            Architecture Decision Records
+│   ├── archive/        Completed work (moved from active/ after merge)
 │   ├── constitution/   Development rules (ARC methodology + project standards)
 │   ├── strategies/     Codified guidance (session management, planning, etc.)
 │   └── templates/      Copy-ready starting points for PRDs, plans, etc.
@@ -191,6 +181,6 @@ safe to edit.
 
 ## Next Steps
 
-- [Philosophy](philosophy.md) — understand the principles behind the methodology
-- [Sessions](sessions.md) — learn why bounded sessions matter and how they work
-- [Work Planning](work-planning.md) — understand the planning pipeline and task execution
+- [How ARC Works](how-arc-works.md) — understand the session lifecycle, skills, and task execution
+- [Philosophy](philosophy.md) — the 11 principles and the evidence behind them
+- [Work Planning](work-planning.md) — the planning pipeline and task execution details

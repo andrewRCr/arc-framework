@@ -16,11 +16,11 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5 — Set up docs deployment (line ~1401)
+**Next Task**: Task 8.5 — Docs site polish and validation (line ~1403)
 **Last Completed**: Task 8.4 — Write reference pages and restructure nav
 **Blockers**: None
-**Next Action**: Proceed to 8.5 (docs deployment). Consider fresh-eyes walkthrough before or after.
+**Next Action**: Proceed to 8.5.a (subagent audit of restructured docs)
 
 ---
 
-**Last Updated**: 2026-03-30
+**Last Updated**: 2026-03-31
