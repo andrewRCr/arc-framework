@@ -15,7 +15,14 @@ the standard workflow.
 
 ## Medium Priority
 
-*[No medium-priority items.]*
+### ARC Lite — Lightweight Project Mode
+
+Lightweight ARC variant for small, bounded projects (hours to days). Preserves execution discipline
+(task lists, commit standards, hooks, session management) while eliminating lifecycle ceremony
+(PRDs, work unit activation/archival, backlog pipeline). Core boundary: projects modeled as a single
+evolving task list rather than a stream of work units.
+
+Plan doc: [`plan-arc-lite.md`](plan-arc-lite.md)
 
 ---
 
