@@ -1479,7 +1479,7 @@ or invent; honest gaps are more credible than overclaimed findings.
             - Added arc-methods loading and git hook output to arc-commit demo
             - All 7 GIFs rendering correctly with proper visual language
 
-        - [ ] **8.5.c.iv Produce static screenshots for structural demos**
+        - [x] **8.5.c.iv Produce visual assets for docs site**
 
             - [x] **8.5.c.iv.1 Build screenshot post-processing script**
                 - `docs/scripts/frame-screenshot.sh` — ImageMagick-based, takes raw PNG →
@@ -1505,29 +1505,33 @@ or invent; honest gaps are more credible than overclaimed findings.
                   `branch.protection` leaked dev repo's `full` setting, pre-commit hook scanned
                   extensionless dotfiles (`.gitignore`, `.gitattributes`) as production code
 
-            - [ ] **8.5.c.iv.3 Capture and process screenshots**
-                - Raw VS Code screenshots (manual capture by maintainer):
-                    - `.arc/` directory in file explorer sidebar (getting-started.md)
-                    - `arc-methods.md` commit-format method showing contract/override/default
-                      structure (configuration.md)
-                    - `arc-extensions.md` post-task-quality with a populated example step
-                      (configuration.md)
-                - Process each through the post-processing script
-                - Output to `docs/img/` alongside GIF files
+            - [x] **8.5.c.iv.3 Capture hero screenshot**
+                - Scaffolded active work unit in bookstore repo (`../bookstore-app/`):
+                  `prd-search-filters.md`, `tasks-search-filters.md`,
+                  `atomic-search-filters.md` in `.arc/active/feature/`, WORK-STATUS
+                  updated to mid-task state — matching real template structure
+                - Captured Zed IDE screenshot showing `.arc/` sidebar with active work
+                  unit expanded + task list open in editor (mid-work state)
+                - Framed with custom ImageMagick pipeline (flush content below title bar,
+                  wide panoramic crop 1460x501) — consistent chrome with GIF demos
+                - Raw source preserved as `docs/img/arc-hero-raw.png`
 
-            - [ ] **8.5.c.iv.4 Replace screenshot placeholders in docs pages**
-                - Replace HTML comment placeholders with screenshot image references in:
-                  `getting-started.md` (directory view), `reference/configuration.md`
-                  (methods structure, extensions structure)
-                - 3 remaining placeholders in `how-arc-works.md` (session-init, arc-commit,
-                  handoff) are GIF placements — handled in c.v
+            - [x] **8.5.c.iv.4 Place visuals and resolve all placeholders**
+                - Hero screenshot placed on landing page (`index.md`) above "How ARC Works"
+                - GIF references placed (absorbing placement from c.v):
+                  `getting-started.md` (first-session-init.gif),
+                  `how-arc-works.md` (session-init.gif, arc-commit.gif, arc-handoff.gif)
+                - Removed 3 unnecessary screenshot placeholders: 2 from
+                  `reference/configuration.md` (code blocks sufficient), 1 from
+                  `getting-started.md` (text tree diagram sufficient)
+                - Verified zero orphaned placeholders across all docs/
 
-        - [ ] **8.5.c.v Polish demos and place in docs**
+        - [ ] **8.5.c.v Polish demos**
             - Timing and pacing optimization across all demos (longer holds, readable chunking)
             - Consider screen clearing between phases for longer demos (task-execution)
             - GIF file size optimization (task-execution at 3MB needs reduction)
-            - Replace HTML comment placeholders with GIF references in docs pages
             - Place README-optimized variants in README-ASPIRATIONAL.md
+            - GIF placement in docs pages moved to c.iv.4
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
         - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and

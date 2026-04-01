@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.c.iv.3 — Capture and process screenshots (line ~1508)
-**Last Completed**: Task 8.5.c.iv.2 — Scaffold bookstore seed repo
+**Next Task**: Task 8.5.c.v — Polish demos (line ~1537)
+**Last Completed**: Task 8.5.c.iv — Produce visual assets for docs site
 **Blockers**: None
-**Next Action**: Manually capture VS Code screenshots from bookstore-app, then process through frame-screenshot.sh
+**Next Action**: Timing/pacing optimization, GIF size reduction, README-optimized GIF placement
 
 ---
 

@@ -41,8 +41,7 @@ triggers them. This tiered delivery keeps the agent's context focused on what's 
 When initialization completes, the agent reports an orientation summary: the current branch, whether
 the working tree is clean, active work state, any blockers, and the suggested next action.
 
-<!-- SCREENSHOT PLACEHOLDER: Session init orientation summary — show what arc-resume outputs after
-loading context. Include branch name, active work state, and next action prompt. -->
+![Session initialization — agent loads context and reports orientation summary](img/session-init.gif)
 
 ### Working through tasks
 
@@ -77,8 +76,7 @@ When work is ready to commit, invoke `arc-commit`. The skill handles:
 - **Commit format** — conventional commits with a `Context:` footer linking each commit to its task
 - **State sync** — stages WORK-STATUS.md alongside task list changes so project state stays current
 
-<!-- SCREENSHOT PLACEHOLDER: arc-commit in action — show the skill analyzing changes, producing a
-commit message with type(scope): description format and Context: footer. -->
+![arc-commit analyzing changes and producing a commit with Context footer](img/arc-commit.gif)
 
 ### Ending a session
 
@@ -125,8 +123,7 @@ Here's what each looks like after a handoff:
   late? Decided yes for now — revisit if users request "skip overdue."
 ```
 
-<!-- SCREENSHOT PLACEHOLDER: Handoff summary — show what arc-handoff outputs, including the
-WORK-STATUS update and SESSION-NOTES content summary. -->
+![arc-handoff capturing WORK-STATUS and SESSION-NOTES](img/arc-handoff.gif)
 
 ### Session state portability
 

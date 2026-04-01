@@ -95,8 +95,7 @@ that starts every ARC session. The agent loads a defined set of documents in ord
 development rules, active work state, personal notes), then reports an orientation summary: current
 branch, work state, blockers, and the suggested next action.
 
-<!-- SCREENSHOT PLACEHOLDER: Session init orientation summary — show what arc-resume outputs on first
-use, with "no active work" state and discovery mode proposing next steps. -->
+![First session initialization — agent loads context and enters discovery mode](img/first-session-init.gif)
 
 Since this is your first session, the agent detects there's no active work and enters discovery
 mode — checking your roadmap for the next item and helping you create a PRD and task list for your
@@ -135,10 +134,6 @@ design — the value is in the reset.
 ## What You Get
 
 After initialization, your repository has an `.arc/` directory with this structure:
-
-<!-- SCREENSHOT PLACEHOLDER: Populated .arc/ directory in a file explorer view — show the actual
-directory tree with real files, not a text diagram. Use an explorer/sidebar view from VS Code or
-similar. -->
 
 ```text
 .arc/

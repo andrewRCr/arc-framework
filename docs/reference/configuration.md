@@ -49,10 +49,6 @@ Replace *how* ARC does something while preserving *what* it accomplishes. Each m
 contract (the invariant) and a default implementation. Your team supplies an alternative that
 satisfies the same contract.
 
-<!-- SCREENSHOT PLACEHOLDER: arc-methods.md showing a method with contract, .override section
-(empty placeholder), and .default section — illustrating the structure a team would edit. Show
-commit-format as the example method. -->
-
 To override a method, replace `[No override configured]` in its `.override` section with your
 team's implementation. The agent checks `.override` first — if populated, it follows the override
 and skips `.default`. Here's what an override looks like for commit format:
@@ -93,10 +89,6 @@ start. This keeps initialization fast and context focused.
 
 Inject additional steps at specific locations in ARC workflows — without replacing existing
 steps. Extensions add behavior on top of ARC's defaults.
-
-<!-- SCREENSHOT PLACEHOLDER: arc-extensions.md showing an extension point with contract and
-populated .steps section — illustrating what a configured extension looks like. Show
-post-task-quality with an example security scan step. -->
 
 To extend, replace `[No extension configured]` in the `.steps` section with your steps. Here's
 an example that adds a security scan after each task's quality checks:

@@ -17,6 +17,8 @@ If you're ready to use it, [Getting Started](getting-started.md) walks through i
 first session. If you want to understand the operational model first,
 [How ARC Works](how-arc-works.md) covers the session lifecycle, skills, and task execution rhythm.
 
+![ARC framework in a code editor — .arc/ directory with active work unit and task list](img/arc-hero.png)
+
 ## How ARC Works
 
 ARC lives in an `.arc/` directory in your repository. The documents inside aren't passive reference

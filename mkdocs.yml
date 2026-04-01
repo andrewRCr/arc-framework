@@ -1,10 +1,12 @@
 site_name: ARC Framework
-site_url: https://arc-framework.github.io/arc-framework/
-repo_url: https://github.com/arc-framework/arc-framework
-repo_name: arc-framework/arc-framework
+site_url: https://andrewrcr.github.io/arc-framework/
+repo_url: https://github.com/andrewRCr/arc-framework
+repo_name: andrewRCr/arc-framework
 
 theme:
   name: material
+  logo: img/arc-logo.svg
+  favicon: img/favicon.ico
   features:
     - navigation.indexes
     - navigation.sections
@@ -13,18 +15,18 @@ theme:
     - search.suggest
     - content.code.copy
   palette:
-    - scheme: default
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
     - scheme: slate
       primary: indigo
       accent: indigo
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
 
 nav:
   - Home: index.md
