@@ -1480,12 +1480,42 @@ or invent; honest gaps are more credible than overclaimed findings.
             - All 7 GIFs rendering correctly with proper visual language
 
         - [ ] **8.5.c.iv Produce static screenshots for structural demos**
-            - Create a seeded fake repo with realistic-looking `.arc/` files
-            - Populated `.arc/` directory in file explorer view (getting-started placeholder)
-            - `arc-methods.md` method structure showing contract/override/default (configuration
-              placeholder)
-            - Also capture `arc-extensions.md` extension point structure (configuration placeholder)
-            - Replace HTML comment placeholders with screenshot references in docs pages
+
+            - [x] **8.5.c.iv.1 Build screenshot post-processing script**
+                - `docs/scripts/frame-screenshot.sh` — ImageMagick-based, takes raw PNG →
+                  styled PNG matching VHS GIF aesthetic
+                - Chrome pixel-matched from VHS output: 6px dot radius, 20px spacing,
+                  40px uniform margin, #0d1117 background, #1a1b26 title bar
+                - Traffic lights drawn directly via ImageMagick (no separate SVG asset needed)
+                - `--width N` option scales input to target canvas width (default 1000)
+                - Shadow composited at exact window position to maintain uniform margins
+
+            - [ ] **8.5.c.iv.2 Scaffold bookstore seed repo**
+                - Create sibling repo (`../arc-demo-bookstore/` or similar) with basic
+                  bookstore API project structure (non-functional but realistic-looking:
+                  src/, tests, package.json, tsconfig, etc.)
+                - Install ARC via `arc init` and run initial setup workflows to populate
+                  `.arc/` with real framework docs
+                - Seed enough project content that AGENT-BRIEFING.PROJECT.md, DEV-RULES.PROJECT.md,
+                  and QUICK-REFERENCE.md read as a real bookstore API project
+                - This repo persists as a reusable asset for future screenshot needs
+
+            - [ ] **8.5.c.iv.3 Capture and process screenshots**
+                - Raw VS Code screenshots (manual capture by maintainer):
+                    - `.arc/` directory in file explorer sidebar (getting-started.md)
+                    - `arc-methods.md` commit-format method showing contract/override/default
+                      structure (configuration.md)
+                    - `arc-extensions.md` post-task-quality with a populated example step
+                      (configuration.md)
+                - Process each through the post-processing script
+                - Output to `docs/img/` alongside GIF files
+
+            - [ ] **8.5.c.iv.4 Replace screenshot placeholders in docs pages**
+                - Replace HTML comment placeholders with screenshot image references in:
+                  `getting-started.md` (directory view), `reference/configuration.md`
+                  (methods structure, extensions structure)
+                - 3 remaining placeholders in `how-arc-works.md` (session-init, arc-commit,
+                  handoff) are GIF placements — handled in c.v
 
         - [ ] **8.5.c.v Polish demos and place in docs**
             - Timing and pacing optimization across all demos (longer holds, readable chunking)
