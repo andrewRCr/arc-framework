@@ -19,8 +19,8 @@
 **Next Task**: Task 8.5.c.iv — Produce static screenshots for structural demos (line ~1486)
 **Last Completed**: Task 8.5.c.iii — Create tape files and verify rendering
 **Blockers**: None
-**Next Action**: Create seeded fake repo for structural screenshots (directory view, config structure)
+**Next Action**: Scaffold bookstore seed repo (Task 8.5.c.iv.2) — sibling repo with `arc init`, then capture screenshots
 
 ---
 
-**Last Updated**: 2026-03-31
+**Last Updated**: 2026-04-01
