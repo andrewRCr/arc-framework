@@ -36,15 +36,15 @@ printf "\n"
 sleep 0.6
 
 printf "\n"
-status_field "Last completed:" "Task 2.3 — Add recurrence rule validation ${DIM}(committed a91f4e2)${RESET}"
-status_field "Current task:"   "${BOLD}Task 2.4${RESET} — Wire recurrence into task completion endpoint ${DIM}(line ~195)${RESET}"
+status_field "Last completed:" "Task 2.3 — Add genre filter to catalog query ${DIM}(committed a91f4e2)${RESET}"
+status_field "Current task:"   "${BOLD}Task 2.4${RESET} — Add author search with full-text matching ${DIM}(line ~195)${RESET}"
 status_field "Blockers:"       "None"
 sleep 0.8
 
 printf "\n"
 heading "Next action:"
-printf " Check completion endpoint event path noted in session notes,\n"
-printf "  then implement recurrence hook for Task 2.4\n"
+printf " Check catalog query builder approach noted in session notes,\n"
+printf "  then implement author search filter for Task 2.4\n"
 sleep 1.0
 
 printf "\n"

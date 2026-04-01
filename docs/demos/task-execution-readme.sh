@@ -8,7 +8,7 @@ source "$(dirname "$0")/common.sh"
 # --- User gives direction ---
 printf "${SHOW_CURSOR}"
 prompt_char
-type_text "nice, lgtm. for 2.4 — hook into the existing webhook event path" 0.03
+type_text "nice, lgtm. for 2.4 — extend the catalog query builder" 0.03
 sleep 0.3
 printf "${HIDE_CURSOR}\n"
 sleep 0.5
@@ -18,7 +18,7 @@ tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST} (lines 180-220)"
 sleep 0.3
 
 heading "Task 2.4"
-printf " — Wire recurrence into task completion\n"
+printf " — Add author search with full-text matching\n"
 sleep 0.5
 
 agent_text "  Task has a test-first marker. Following red-green-refactor."
@@ -26,17 +26,17 @@ sleep 0.6
 
 # --- Compressed red-green cycle ---
 printf "\n"
-printf "  ${RED}RED${RESET}${DIM} — test for completion triggering recurrence:${RESET}\n"
+printf "  ${RED}RED${RESET}${DIM} — test for author search returning full-text matches:${RESET}\n"
 sleep 0.2
-tool_use "Write src/services/__tests__/task-completion-recurrence.test.ts"
+tool_use "Write src/services/__tests__/catalog-search.test.ts"
 printf "  ${RED}✗${RESET} ${DIM}1 failing${RESET}\n"
 sleep 0.4
 
 printf "\n"
 printf "  ${GREEN}GREEN${RESET}${DIM} — minimal implementation:${RESET}\n"
 sleep 0.2
-tool_use "Edit src/controllers/task.controller.ts"
-tool_use "Edit src/services/recurrence.service.ts"
+tool_use "Edit src/controllers/books.controller.ts"
+tool_use "Edit src/services/search.service.ts"
 printf "  ${GREEN}✓${RESET} ${DIM}14 tests passed${RESET}\n"
 sleep 0.5
 
@@ -47,8 +47,8 @@ printf "\n"
 sleep 0.4
 
 printf "\n"
-printf "  Added ${BOLD}${WHITE}onComplete${RESET} hook — calls RecurrenceService.createNext()\n"
-printf "  when a recurring task is completed.\n"
+printf "  Added ${BOLD}${WHITE}author${RESET} filter — calls SearchService.matchAuthor()\n"
+printf "  with composable query builder.\n"
 sleep 0.3
 printf "  ${DIM}Quality:${RESET}  ${GREEN}✓${RESET} Lint  ${GREEN}✓${RESET} Tests (14)\n"
 sleep 0.5
@@ -61,23 +61,23 @@ sleep 0.8
 printf "\n"
 printf "${SHOW_CURSOR}"
 prompt_char
-type_text "should createNext() also copy labels from the original?" 0.03
+type_text "should the author filter also match editors and translators?" 0.03
 sleep 0.3
 printf "${HIDE_CURSOR}\n"
 sleep 0.6
 
 # --- Agent incorporates ---
 printf "\n"
-agent_text "  Good catch — adding label copying now."
+agent_text "  Good catch — extending the author match to include those roles."
 sleep 0.3
 
-tool_use "Edit src/services/recurrence.service.ts"
+tool_use "Edit src/services/search.service.ts"
 tool_use "npm run test:unit"
 printf "  ${GREEN}✓${RESET} ${DIM}16 tests passed${RESET}\n"
 sleep 0.3
 
 printf "\n"
-printf "  ${GREEN}✓${RESET} Labels now copied. Task list updated.\n"
+printf "  ${GREEN}✓${RESET} Author filter now matches editors and translators.\n"
 sleep 0.3
 
 printf "\n"

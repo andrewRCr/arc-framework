@@ -39,18 +39,18 @@ printf "\n"
 sleep 0.4
 
 printf "\n"
-printf "  - Task 2.3: Recurrence rule validation ${DIM}(a91f4e2)${RESET}\n"
+printf "  - Task 2.3: Genre filter on catalog query ${DIM}(a91f4e2)${RESET}\n"
 sleep 0.3
-printf "  - Task 2.4: Wired recurrence into task completion ${DIM}(b03d7f1)${RESET}\n"
+printf "  - Task 2.4: Author full-text search ${DIM}(b03d7f1)${RESET}\n"
 sleep 0.3
-printf "    Added label copying per review feedback\n"
+printf "    Extended to include editors and translators per review feedback\n"
 sleep 0.5
 
 printf "\n"
 heading "Next session:"
-printf " Task 2.5 — Add recurrence skip/pause controls\n"
+printf " Task 2.5 — Add combined filter sorting and pagination\n"
 sleep 0.4
-printf "  Implement skip and pause mutations on RecurrenceRule\n"
+printf "  Implement multi-field sort and offset pagination on filtered results\n"
 sleep 0.8
 
 # --- Phase 5: Close ---

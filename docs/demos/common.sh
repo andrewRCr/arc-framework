@@ -21,12 +21,12 @@ SHOW_CURSOR='\033[?25h'
 
 # --- Shared fake project context ---
 # All demos use the same project for cross-demo coherence.
-#   Project: a task management API (generic, instantly recognizable)
-#   Branch: feature/recurring-tasks
-#   Task list: tasks-recurring-tasks.md
-#   Current area: adding recurrence support (create, complete-with-repeat, scheduling)
-PROJECT_BRANCH="feature/recurring-tasks"
-PROJECT_TASK_LIST="tasks-recurring-tasks.md"
+#   Project: a bookstore API (classic REST tutorial example, instantly recognizable)
+#   Branch: feature/search-filters
+#   Task list: tasks-search-filters.md
+#   Current area: adding search filters (genre, author, combined sorting/pagination)
+PROJECT_BRANCH="feature/search-filters"
+PROJECT_TASK_LIST="tasks-search-filters.md"
 
 # --- Helper functions ---
 

@@ -20,16 +20,16 @@ printf "\n"
 sleep 0.4
 
 printf "\n"
-printf "  ${GREEN}modified${RESET}  src/services/recurrence.service.ts\n"
+printf "  ${GREEN}modified${RESET}  src/services/search.service.ts\n"
 sleep 0.2
-printf "  ${GREEN}modified${RESET}  src/services/__tests__/recurrence.service.test.ts\n"
+printf "  ${GREEN}modified${RESET}  src/services/__tests__/search.service.test.ts\n"
 sleep 0.2
 printf "  ${GREEN}modified${RESET}  .arc/active/feature/${PROJECT_TASK_LIST}\n"
 sleep 0.5
 
 printf "\n"
-agent_text "  All changes serve one concern — recurrence rule validation."
-agent_text "  No split needed."
+agent_text "  All changes serve one concern — genre filter implementation."
+agent_text "  No split needed. Loading commit format guidance..."
 sleep 0.8
 
 # --- Phase 3: Commit message (references loaded format guidance) ---
@@ -44,14 +44,14 @@ printf "\n"
 sleep 0.4
 
 printf "\n"
-printf "  ${BOLD}${WHITE}feat(recurrence): add cron expression and interval validation${RESET}\n"
+printf "  ${BOLD}${WHITE}feat(catalog): add genre filter to book search endpoint${RESET}\n"
 sleep 0.3
 printf "\n"
-printf "  ${DIM}- Validates cron expressions via cron-parser before persisting${RESET}\n"
+printf "  ${DIM}- Validates genre param against known genres before querying${RESET}\n"
 sleep 0.2
-printf "  ${DIM}- Rejects intervals shorter than minimum threshold (1 hour)${RESET}\n"
+printf "  ${DIM}- Adds parameterized WHERE clause to catalog query builder${RESET}\n"
 sleep 0.2
-printf "  ${DIM}- Test coverage: valid expressions, edge cases, error messages${RESET}\n"
+printf "  ${DIM}- Test coverage: valid genres, empty results, case sensitivity${RESET}\n"
 sleep 0.5
 
 printf "\n"
@@ -64,7 +64,7 @@ agent_text "  WORK-STATUS.md updated — Next Task advanced to 2.4."
 agent_text "  Staged alongside task list changes."
 sleep 0.6
 
-tool_use "git add src/services/recurrence.service.ts ..."
+tool_use "git add src/services/search.service.ts ..."
 tool_use "git commit"
 sleep 0.3
 
@@ -79,7 +79,7 @@ printf "  ${DIM}${GRAY}Commit validation ${GREEN}PASSED${RESET}\n"
 sleep 0.4
 
 printf "\n"
-printf "  ${GREEN}✓${RESET} ${DIM}a91f4e2${RESET} feat(recurrence): add cron expression and interval validation\n"
+printf "  ${GREEN}✓${RESET} ${DIM}a91f4e2${RESET} feat(catalog): add genre filter to book search endpoint\n"
 sleep 0.5
 
 # --- Phase 5: Close ---

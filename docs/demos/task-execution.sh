@@ -13,7 +13,7 @@ type_text "nice, lgtm." 0.03
 sleep 0.3
 printf "\n"
 prompt_char
-type_text "ok, for 2.4 — completion endpoint already fires a webhook, hook into that" 0.03
+type_text "ok, for 2.4 — catalog already has a query builder, extend that" 0.03
 sleep 0.3
 printf "${HIDE_CURSOR}\n"
 sleep 0.6
@@ -24,7 +24,7 @@ sleep 0.4
 
 printf "\n"
 heading "Starting Task 2.4"
-printf " — Wire recurrence into task completion endpoint\n"
+printf " — Add author search with full-text matching\n"
 sleep 0.6
 
 # Task has a test-first marker — agent responds to it
@@ -33,19 +33,19 @@ sleep 0.6
 
 # --- Phase 3: Agent reads relevant code, incorporates user direction ---
 printf "\n"
-tool_use "Read src/controllers/task.controller.ts"
-tool_use "Read src/services/recurrence.service.ts"
+tool_use "Read src/controllers/books.controller.ts"
+tool_use "Read src/services/search.service.ts"
 sleep 0.3
 
-agent_text "  Agreed — the completion endpoint fires a webhook after status change."
-agent_text "  I'll hook recurrence into that same event path."
+agent_text "  Agreed — the catalog query builder composes WHERE clauses."
+agent_text "  I'll add author full-text matching as another composable filter."
 sleep 0.6
 
 # --- Phase 3: Red-green cycle (compressed — one behavior shown) ---
 printf "\n"
-printf "  ${RED}RED${RESET}${DIM} — test for completion triggering recurrence:${RESET}\n"
+printf "  ${RED}RED${RESET}${DIM} — test for author search returning full-text matches:${RESET}\n"
 sleep 0.3
-tool_use "Write src/services/__tests__/task-completion-recurrence.test.ts"
+tool_use "Write src/services/__tests__/catalog-search.test.ts"
 tool_use "npm run test:unit -- --bail"
 printf "  ${RED}✗${RESET} ${DIM}1 failing (expected)${RESET}\n"
 sleep 0.5
@@ -53,35 +53,35 @@ sleep 0.5
 printf "\n"
 printf "  ${GREEN}GREEN${RESET}${DIM} — minimal implementation:${RESET}\n"
 sleep 0.3
-tool_use "Edit src/controllers/task.controller.ts"
-tool_use "Edit src/services/recurrence.service.ts"
+tool_use "Edit src/controllers/books.controller.ts"
+tool_use "Edit src/services/search.service.ts"
 tool_use "npm run test:unit"
 printf "  ${GREEN}✓${RESET} ${DIM}12 tests passed${RESET}\n"
 sleep 0.5
 
-agent_text "  Clean — no refactoring needed. Next behaviors: skip non-recurring,"
-agent_text "  preserve recurrence rule on new task."
+agent_text "  Clean — no refactoring needed. Next behaviors: partial name matching,"
+agent_text "  accent-insensitive search."
 sleep 0.4
 
 # Remaining behaviors (compressed)
-tool_use "Edit src/services/__tests__/task-completion-recurrence.test.ts"
-tool_use "Edit src/services/recurrence.service.ts"
+tool_use "Edit src/services/__tests__/catalog-search.test.ts"
+tool_use "Edit src/services/search.service.ts"
 tool_use "npm run test:unit"
 printf "  ${GREEN}✓${RESET} ${DIM}14 tests passed${RESET}\n"
 sleep 0.5
 
 # --- Phase 4: Issue triage — agent finds pre-existing issue ---
 printf "\n"
-agent_text "  Found a pre-existing issue in task.controller.ts — the webhook"
-agent_text "  error handler swallows exceptions silently."
+agent_text "  Found a pre-existing issue in books.controller.ts — query params"
+agent_text "  aren't sanitized before passing to the search service."
 sleep 0.5
 
 tool_use "Read .arc/system/workflows/arc-methods.md § issue-triage"
 sleep 0.3
 
-agent_text "  Minor (< 5 min fix). Fixing inline — adding error logging."
+agent_text "  Minor (< 5 min fix). Fixing inline — adding input sanitization."
 sleep 0.4
-tool_use "Edit src/controllers/task.controller.ts"
+tool_use "Edit src/controllers/books.controller.ts"
 sleep 0.3
 
 # --- Phase 5: Tier 1 quality gates ---
@@ -112,15 +112,15 @@ printf "\n"
 sleep 0.5
 
 printf "\n"
-printf "  Added ${BOLD}${WHITE}onComplete${RESET} hook in TaskController — calls\n"
-printf "  RecurrenceService.createNext() when a recurring task is completed.\n"
+printf "  Added ${BOLD}${WHITE}author${RESET} filter to BooksController — calls\n"
+printf "  SearchService.matchAuthor() with composable query builder.\n"
 sleep 0.3
-printf "  Also fixed silent exception swallowing in webhook error handler.\n"
+printf "  Also fixed unsanitized query params in catalog controller.\n"
 sleep 0.4
 
 printf "\n"
 printf "  ${DIM}Quality:${RESET}  ${GREEN}✓${RESET} Lint  ${GREEN}✓${RESET} Tests (14)  ${GREEN}✓${RESET} Snyk\n"
-printf "  ${DIM}Next task:${RESET}  Task 2.5 — Add recurrence skip/pause controls\n"
+printf "  ${DIM}Next task:${RESET}  Task 2.5 — Add combined filter sorting and pagination\n"
 sleep 0.8
 
 # --- Phase 9: Mandatory stop ---
@@ -132,18 +132,18 @@ sleep 1.0
 printf "\n"
 printf "${SHOW_CURSOR}"
 prompt_char
-type_text "should createNext() also copy labels from the original?" 0.03
+type_text "should the author filter also match editors and translators?" 0.03
 sleep 0.3
 printf "${HIDE_CURSOR}\n"
 sleep 0.8
 
 # --- Phase 11: Agent incorporates feedback ---
 printf "\n"
-agent_text "  Good catch — adding label copying now."
+agent_text "  Good catch — extending the author match to include those roles."
 sleep 0.4
 
-tool_use "Edit src/services/recurrence.service.ts"
-tool_use "Edit src/services/__tests__/task-completion-recurrence.test.ts"
+tool_use "Edit src/services/search.service.ts"
+tool_use "Edit src/services/__tests__/catalog-search.test.ts"
 sleep 0.2
 
 tool_use "npm run test:unit"
@@ -155,9 +155,9 @@ tool_use "Edit .arc/active/feature/${PROJECT_TASK_LIST} — update 2.4 completio
 sleep 0.3
 
 printf "\n"
-printf "  ${GREEN}✓${RESET} Labels now copied to recurring task.\n"
+printf "  ${GREEN}✓${RESET} Author filter now matches editors and translators.\n"
 sleep 0.3
-agent_text "  Task list updated — completion notes include the label copying addition."
+agent_text "  Task list updated — completion notes include the expanded author matching."
 sleep 0.6
 
 printf "\n"

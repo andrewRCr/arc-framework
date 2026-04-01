@@ -45,9 +45,9 @@ sleep 0.3
 printf "\n"
 agent_text "  Checked roadmap — next queued item:"
 sleep 0.4
-printf "  ${BOLD}${WHITE}Recurring tasks${RESET} — add recurrence support to the task API\n"
+printf "  ${BOLD}${WHITE}Search filters${RESET} — add search and filter capabilities to the catalog API\n"
 sleep 0.4
-printf "  ${DIM}${GRAY}  Status: plan document exists (.arc/backlog/feature/plan-recurring-tasks.md)${RESET}\n"
+printf "  ${DIM}${GRAY}  Status: plan document exists (.arc/backlog/feature/plan-search-filters.md)${RESET}\n"
 sleep 0.6
 
 printf "\n"
