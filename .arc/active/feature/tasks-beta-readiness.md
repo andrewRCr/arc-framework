@@ -1490,20 +1490,20 @@ or invent; honest gaps are more credible than overclaimed findings.
                 - `--width N` option scales input to target canvas width (default 1000)
                 - Shadow composited at exact window position to maintain uniform margins
 
-            - [ ] **8.5.c.iv.2 Scaffold bookstore seed repo**
-                - Create sibling repo (`../bookstore-app/`) with mixed-language monorepo:
-                  FastAPI (Python) backend + React (TypeScript) frontend — chosen to visually
-                  signal ARC's language agnosticism (`.py`/`.tsx` mix in file explorer)
-                - ~15-20 code files, 15-30 lines each — non-functional but realistic-looking,
-                  free of IDE warnings (valid imports, type annotations, no unresolved refs)
-                - Install ARC via `arc init` and run initial setup workflows to populate
-                  `.arc/` with real framework docs
-                - Post-init customization: populate at least one `arc-extensions.md` extension
-                  point (post-task-quality with realistic example), and fill in project-specific
-                  docs (AGENT-BRIEFING.PROJECT.md, DEV-RULES.PROJECT.md, QUICK-REFERENCE.md)
-                  to read as a real bookstore API project
-                - Git-initialized with at least one commit
-                - This repo persists as a reusable asset for future screenshot needs
+            - [x] **8.5.c.iv.2 Scaffold bookstore seed repo**
+                - Created `../bookstore-app/` — FastAPI (Python) + React (TypeScript) monorepo,
+                  chosen to signal ARC's language agnosticism via `.py`/`.tsx` mix in explorer
+                - 19 code files (15-30 lines each), non-functional but realistic; Pylance and
+                  TS validation disabled via `.vscode/settings.json` to suppress IDE warnings
+                - Full ARC installation via `arc init` (arc-in-git PM, team mode, Claude + Codex)
+                - Completed both initial-setup workflows: all project docs filled in (META-PRD,
+                  TECHNICAL-OVERVIEW, AGENT-BRIEFING.PROJECT, DEV-RULES.PROJECT, QUICK-REFERENCE,
+                  ROADMAP, PROJECT-STATUS, WORK-STATUS)
+                - post-task-quality extension populated with pip-audit/npm-audit security scan
+                - Published as private repo (andrewRCr/bookstore-app); persists for future use
+                - Incidental: discovered and fixed two framework bugs during setup — template
+                  `branch.protection` leaked dev repo's `full` setting, pre-commit hook scanned
+                  extensionless dotfiles (`.gitignore`, `.gitattributes`) as production code
 
             - [ ] **8.5.c.iv.3 Capture and process screenshots**
                 - Raw VS Code screenshots (manual capture by maintainer):

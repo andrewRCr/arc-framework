@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.c.iv — Produce static screenshots for structural demos (line ~1486)
-**Last Completed**: Task 8.5.c.iii — Create tape files and verify rendering
+**Next Task**: Task 8.5.c.iv.3 — Capture and process screenshots (line ~1508)
+**Last Completed**: Task 8.5.c.iv.2 — Scaffold bookstore seed repo
 **Blockers**: None
-**Next Action**: Scaffold bookstore seed repo (Task 8.5.c.iv.2) — sibling repo with `arc init`, then capture screenshots
+**Next Action**: Manually capture VS Code screenshots from bookstore-app, then process through frame-screenshot.sh
 
 ---
 
