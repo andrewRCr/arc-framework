@@ -1,0 +1,5 @@
+/* Reference tables: keep setting names and short columns from wrapping awkwardly */
+.md-typeset table:not([class]) code {
+  word-break: keep-all;
+  white-space: nowrap;
+}

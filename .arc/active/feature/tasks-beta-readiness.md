@@ -1535,16 +1535,29 @@ or invent; honest gaps are more credible than overclaimed findings.
                 - GIF file size optimization (task-execution at 3MB needs reduction)
                 - Place README-optimized variants in README-ASPIRATIONAL.md
 
-            - [ ] **8.5.c.v.2 Copy and structure improvements**
-                - Full read-through of every docs page in rendered preview (mkdocs serve)
-                - Fix awkward phrasing, unclear explanations, redundant sections
-                - Check cross-page consistency: terminology, link targets, navigation flow
-                - Verify all internal links resolve (no dead refs)
-                - Evaluate page lengths and section ordering — rebalance if pages are
-                  front- or back-heavy
-                - Check rendering: tables, code blocks, admonitions, GIF sizing/placement
-                - Assess whether any content should move between pages (e.g., overlap
-                  between getting-started and how-arc-works)
+            - [x] **8.5.c.v.2 Copy and structure improvements**
+                - Restructured landing page (index.md): value-first pitch with directory tree
+                  as concrete centerpiece, "What ARC Gives You" framing (mechanical workflows,
+                  configurability architecture, maintained framework), renamed section to avoid
+                  "How ARC Works" naming collision with dedicated page
+                - Trimmed getting-started.md: removed redundant Skills explanations (3 occurrences),
+                  removed "What You Get" section (tree now on landing page), removed "Updating ARC"
+                  section (dedicated page exists), tightened opening and PM mode descriptions
+                - Restructured work-planning.md: removed duplicated "How Tasks Execute" and
+                  "Quality Gates" sections (consolidated in how-arc-works.md), expanded Work
+                  Organization with proper incidental work unit framing (distinguished from
+                  inline fixes/atomic tasks), added work unit lifecycle stages
+                - Expanded how-arc-works.md task execution: incorporated process-task-loop
+                  protocol (test-first, tiered quality gates, coherent unit escalation, deferred
+                  review stop conditions), added co-development alongside-the-agent framing,
+                  trimmed session duration deep-dive (detail to Philosophy, brief mention + link)
+                - Added process-task-loop glossary entry, fixed stale review-increment link
+                - Added custom CSS (docs/stylesheets/extra.css) for table code wrapping,
+                  trimmed configuration reference table descriptions, italicized glossary headings
+                - Added mkdocs-glightbox plugin for click-to-enlarge on images/GIFs
+                - Fixed broken #duration-guidance anchor link, excluded demos/README.md from nav
+                - Page weight rebalanced: index 126→86, getting-started 186→99,
+                  work-planning 192→163, how-arc-works 190→176
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
         - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and

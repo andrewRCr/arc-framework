@@ -45,27 +45,43 @@ the working tree is clean, active work state, any blockers, and the suggested ne
 
 ### Working through tasks
 
-With context loaded, you and the agent work through tasks together. Each task is a *review
-increment* — a bounded chunk of autonomous execution between human review points:
+With context loaded, you and the agent work through tasks together. The
+[task execution workflow](reference/glossary.md#process-task-loop) defines the protocol — not
+guidelines the agent interprets, but a structured loop with checkpoints, escalation paths, and
+mandatory stops.
 
-1. The agent implements the task
-2. Quality gates run on modified files (incremental, [Tier 1](reference/quality-gates.md))
-3. The task is marked complete in the task list with an updated description
-4. The agent reports what was done
-5. **Mandatory stop** — the agent waits for your review
+Each task is a *review increment* — a bounded chunk of autonomous execution between human review
+points. The completion protocol for each task:
 
-You review, contribute context, and approve before the next task begins. This is
-[co-development](philosophy.md#core-commitments) — you're present during execution, steering
-direction and catching issues while the work is happening.
+1. **Test-first assessment** — before implementing, the agent evaluates whether tests should be
+   written first. ARC ships a decision tree: test-first for new models, endpoints, business logic,
+   and complex transformations; test-after for simple CRUD, configuration, and trivial refactoring.
+   When test-first applies, execution follows vertical slices — write one test, make it pass, then
+   the next.
+2. The agent implements the task
+3. **Quality gates** run on modified files (incremental, [Tier 1](reference/quality-gates.md))
+4. The task is marked complete in the task list with an updated description reflecting what was
+   actually done
+5. The agent reports what was done
+6. **Mandatory stop** — the agent waits for your review
 
-Sometimes you need to step away briefly while bounded, well-understood work remains — a meeting, a
-break, a context switch. Rather than stopping the session or giving open-ended instructions,
-**deferred review** lets you specify an explicit range of tasks for continuation (e.g., "work through
-tasks 5.2–5.4 while I'm away"). This trades real-time steering for batched review: the agent
-continues through those tasks, running quality gates after each one but skipping the mandatory stop.
-The agent stops at the end of the specified range, or earlier if it hits a blocker, a quality gate
-failure it can't auto-fix, or a design decision that needs your input. The developer defines the
-scope — the agent never self-invokes deferred review.
+You review, contribute context, and approve before the next task begins. But co-development
+doesn't stop between tasks — you may also be working alongside the agent during execution:
+editing files, running commands, testing ideas, or making your own commits. The agent expects
+this; ARC's task execution protocol treats parallel developer activity as normal working context,
+not an interruption. The mandatory stop is a checkpoint, not the only point where
+[co-development](philosophy.md#core-commitments) happens.
+
+**Quality gates are tiered.** Tier 1 (per-task) runs incremental checks on modified files. When a
+task completes a coherent unit of work — the last subtask under a parent, or a standalone task
+touching cross-cutting code — Tier 2 runs full-project checks plus targeted integration tests.
+Tier 3 (full suite, build verification) runs at phase completion and before PRs.
+
+**Deferred review** is available when you explicitly specify a range of tasks for continuation
+(e.g., "work through tasks 5.2–5.4 while I'm away"). Quality gates still run after each task, but
+the agent continues without waiting. The agent stops at the end of the specified range, or earlier
+if it hits a blocker, quality gate failure, or a design decision that needs your input. The
+developer defines the scope — the agent never self-invokes deferred review.
 
 ### Committing changes
 
@@ -147,44 +163,23 @@ conscious choice per handoff), or `manual` (full control).
 
 Three signals tell you it's time to hand off. Any one is sufficient.
 
-**Approaching context limits.** Your platform signals when context is running low — through status
-bars, on-demand commands, or threshold warnings. When you see that signal, wrap up your current work
-item and invoke `arc-handoff`. Don't push to the limit; leave room for the handoff workflow itself.
-Context monitoring is primarily your responsibility — you have persistent visibility into usage
-through your platform's reporting. Agent self-monitoring is a secondary safety net, not the primary
-mechanism.
+**Approaching context limits.** Your platform signals when context is running low. When you see that
+signal, wrap up your current work item and hand off. Don't push to the limit — leave room for the
+handoff workflow itself.
 
-**Quality degradation.** Context quality degrades before context runs out. If you notice the agent
-producing lower-quality output, losing track of prior decisions, or requiring more correction than
-earlier in the session, end the session rather than pushing through. A fresh session with good
-context recovery outperforms a degraded session with more raw history.
+**Quality degradation.** If the agent is producing lower-quality output, losing track of prior
+decisions, or requiring more correction than earlier in the session — end the session. A fresh start
+with good context recovery outperforms pushing through a degraded session.
 
-**Natural stopping points.** Complete a task, finish a phase, reach a clean commit point with no
-immediate next step — these are natural session boundaries regardless of context state. Shorter,
-focused sessions with intentional handoffs produce better results than marathon sessions, even when
-context permits continuation.
+**Natural stopping points.** Task completion, phase boundaries, clean commit points with no immediate
+next step. Shorter, focused sessions with intentional handoffs produce better results than marathon
+sessions, even when context technically permits continuation.
 
-### Duration guidance
+For practical duration guidance and the evidence behind bounded sessions, see
+[Philosophy § Why Bounded Sessions](philosophy.md#why-bounded-sessions).
 
-ARC doesn't enforce duration limits — but the research on context degradation gives practical
-guidance worth knowing:
-
-- **General development** (task execution, refactoring, features): context quality is reliable up to
-  ~70% utilization; plan handoff by ~75–80%.
-- **Complex reasoning** (architecture decisions, multi-file refactoring, cross-system debugging):
-  consider earlier handoffs at ~60–70% — these tasks are more sensitive to degradation.
-- **Light tasks** (documentation, configuration, single-file edits): can tolerate up to ~85%.
-- **Large context windows** (500K+ tokens): the same proportional thresholds apply. A 1M token
-  window doesn't mean productive 1M token sessions.
-
-### Auto-compaction
-
-Some platforms automatically compact (summarize and compress) conversation history when context
-fills. Where your platform allows it, **disable auto-compaction.** Platform compaction is a
-black-box summarization optimized for conversation continuity, not project context — it has no
-knowledge of what matters for your project's recovery. It also removes your agency over what's
-preserved; the session-handoff workflow exists so that *you* control what context carries forward.
-
-With auto-compaction disabled, the context-limit warning becomes your handoff trigger: see the
-warning, finish current work, run handoff, clear, restart. When you can't disable it, consider
-more frequent commits and earlier handoffs to reduce the impact of silent context resets.
+!!! note "Auto-compaction"
+    Some platforms automatically summarize conversation history when context fills. Where possible,
+    disable this — platform compaction is a black-box summarization that doesn't understand your
+    project's context priorities. With it disabled, the context-limit warning becomes your handoff
+    trigger. When you can't disable it, consider more frequent commits and earlier handoffs.

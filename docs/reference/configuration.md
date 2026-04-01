@@ -156,10 +156,10 @@ Every setting in `arc-config.yml`, with its options and default:
 
 ### Branch model
 
-| Setting             | Options           | Default   | What it controls                                                                                                                                                       |
-|---------------------|-------------------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `branch.base`       | Any branch name   | `main`    | Primary integration branch                                                                                                                                             |
-| `branch.protection` | `partial`, `full` | `partial` | Whether all changes require branches and PR review. `partial`: planned work requires branches, atomic tasks may commit directly. `full`: all changes require branches. |
+| Setting             | Options           | Default   | What it controls                                                                                                         |
+|---------------------|-------------------|-----------|--------------------------------------------------------------------------------------------------------------------------|
+| `branch.base`       | Any branch name   | `main`    | Primary integration branch                                                                                               |
+| `branch.protection` | `partial`, `full` | `partial` | Branch and PR requirements for changes. `partial`: planned work requires branches. `full`: all changes require branches. |
 
 ### Commit discipline
 
@@ -178,17 +178,17 @@ Every setting in `arc-config.yml`, with its options and default:
 
 ### Hooks
 
-| Setting                             | Options                   | Default              | What it controls                                               |
-|-------------------------------------|---------------------------|----------------------|----------------------------------------------------------------|
-| `hooks.pre_commit`                  | `enabled`, `disabled`     | `enabled`            | Pre-commit check execution                                     |
-| `hooks.commit_msg`                  | `enabled`, `disabled`     | `enabled`            | Commit message format validation                               |
-| `hooks.task_numbering`              | `error`, `warning`, `off` | `error`              | Task numbering format check (1.1.a not 1.1.1)                  |
-| `hooks.subject_max_length`          | Integer                   | `72`                 | Maximum commit subject line length                             |
-| `hooks.subject_warn_length`         | Integer                   | `60`                 | Warning threshold for subject line length                      |
-| `hooks.skip_extensions`             | Pipe-separated patterns   | `md\|yml\|yaml\|...` | File extensions skipped during meta-project reference checking |
-| `hooks.test_patterns`               | Pipe-separated patterns   | `__tests__/\|...`    | Test paths excluded from meta-project reference checking       |
-| `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references in production code |
-| `hooks.contributor_protected_paths` | Pipe-separated patterns   | `active/\|backlog/`  | Directories that warn when staged by contributors              |
+| Setting                             | Options                   | Default              | What it controls                                  |
+|-------------------------------------|---------------------------|----------------------|---------------------------------------------------|
+| `hooks.pre_commit`                  | `enabled`, `disabled`     | `enabled`            | Pre-commit check execution                        |
+| `hooks.commit_msg`                  | `enabled`, `disabled`     | `enabled`            | Commit message format validation                  |
+| `hooks.task_numbering`              | `error`, `warning`, `off` | `error`              | Task numbering format check (1.1.a not 1.1.1)     |
+| `hooks.subject_max_length`          | Integer                   | `72`                 | Maximum commit subject line length                |
+| `hooks.subject_warn_length`         | Integer                   | `60`                 | Warning threshold for subject line length         |
+| `hooks.skip_extensions`             | Pipe-separated patterns   | `md\|yml\|yaml\|...` | File extensions skipped during meta-ref checking  |
+| `hooks.test_patterns`               | Pipe-separated patterns   | `__tests__/\|...`    | Test paths excluded from meta-ref checking        |
+| `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references       |
+| `hooks.contributor_protected_paths` | Pipe-separated patterns   | `active/\|backlog/`  | Directories that warn when staged by contributors |
 
 ### Review
 
@@ -198,24 +198,24 @@ Every setting in `arc-config.yml`, with its options and default:
 
 ### Platform
 
-| Setting         | Options                                         | Default  | What it controls                                                         |
-|-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------------|
-| `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects agent command suggestions) |
+| Setting         | Options                                         | Default  | What it controls                                                   |
+|-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------|
+| `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects command suggestions) |
 
 ### Project management
 
-| Setting   | Options                          | Default | What it controls                                                                             |
-|-----------|----------------------------------|---------|----------------------------------------------------------------------------------------------|
-| `pm.mode` | `none`, `arc-in-git`, `external` | `none`  | Where project management lives. **Structural** — changing requires `arc init --reconfigure`. |
+| Setting   | Options                          | Default | What it controls                                             |
+|-----------|----------------------------------|---------|--------------------------------------------------------------|
+| `pm.mode` | `none`, `arc-in-git`, `external` | `none`  | PM mode. **Structural** — requires `arc init --reconfigure`. |
 
 ### Team mode
 
-| Setting     | Options         | Default | What it controls                                                                                                                                      |
-|-------------|-----------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `team.mode` | `false`, `true` | `false` | Multi-developer coordination conventions. **Structural** — changing requires `arc init --reconfigure`. See [Team Coordination](team-coordination.md). |
+| Setting     | Options         | Default | What it controls                                                                                                         |
+|-------------|-----------------|---------|--------------------------------------------------------------------------------------------------------------------------|
+| `team.mode` | `false`, `true` | `false` | Multi-developer mode. **Structural** — requires `arc init --reconfigure`. See [Team Coordination](team-coordination.md). |
 
 ### User directory
 
-| Setting          | Options                      | Default  | What it controls                                                                                                    |
-|------------------|------------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push of session state via git notes after handoff. Per-developer override: `git config arc.sync_push <value>`. |
+| Setting          | Options                      | Default  | What it controls                                                                           |
+|------------------|------------------------------|----------|--------------------------------------------------------------------------------------------|
+| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push session state via git notes after handoff. Override: `git config arc.sync_push`. |

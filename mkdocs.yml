@@ -28,6 +28,9 @@ theme:
         icon: material/brightness-7
         name: Switch to dark mode
 
+not_in_nav: |
+  /demos/**
+
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
@@ -44,6 +47,17 @@ nav:
     - Glossary: reference/glossary.md
   - FAQ: faq.md
   - Contributing: contributing.md
+
+plugins:
+  - search
+  - glightbox:
+      auto_themed: true
+      auto_caption: true
+      touchNavigation: true
+      effect: zoom
+
+extra_css:
+  - stylesheets/extra.css
 
 markdown_extensions:
   - admonition

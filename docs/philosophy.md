@@ -200,7 +200,7 @@ deliberate context loading and ends with intentional state preservation. Without
 knowledge accumulates implicitly and is lost when the conversation ends.
 
 For practical session duration guidance, see
-[How ARC Works § Duration Guidance](how-arc-works.md#duration-guidance).
+[How ARC Works § When to End a Session](how-arc-works.md#when-to-end-a-session).
 
 ## Where ARC Fits
 

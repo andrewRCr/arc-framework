@@ -1,8 +1,8 @@
 # Work Planning
 
 ARC structures work through a pipeline that takes ideas from initial exploration through to
-structured execution. Each stage has a purpose and an appropriate level of formality — earlier stages
-are deliberately lighter than later ones.
+structured execution. Each stage has a purpose and an appropriate level of formality — earlier
+stages are deliberately lighter than later ones.
 
 ## The Planning Pipeline
 
@@ -65,8 +65,8 @@ There's no way to automate recurring task creation.
 Task lists are the execution layer. Each task is a bounded
 *[review increment](reference/glossary.md#review-increment)* — a single chunk of work the agent
 executes autonomously before stopping for the developer's review. One task, one review — this is the
-mechanism that implements [co-development](reference/glossary.md#co-development) at execution time. Here's what task
-entries look like during and after execution:
+mechanism that implements [co-development](reference/glossary.md#co-development) at execution time.
+Here's what task entries look like during and after execution:
 
 ```markdown
 ### **Phase 1:** Data Model and API
@@ -88,61 +88,53 @@ entries look like during and after execution:
 Completed tasks (`[x]`) are updated to reflect what was actually done — outcomes, not the original
 plan. Incomplete tasks (`[ ]`) retain their original specification.
 
-## How Tasks Execute
-
-ARC's task execution model implements [co-development](philosophy.md#core-commitments): the developer
-and agent collaborate through tight, iterative loops during work, not in a review-after-the-fact
-model.
-
-**The cycle for each task:**
-
-1. The agent implements the task
-2. Quality gates run on modified files (incremental, Tier 1)
-3. The task is marked complete in the task list with updated description
-4. The agent reports what was done
-5. **Mandatory stop** — the agent waits for the developer's review
-
-The developer reviews, contributes context, and approves before the next task begins. This isn't a
-formality — the developer is present during execution, steering direction and catching issues while
-the work is happening. When the developer approves, the agent proceeds to the next task.
-
-**Deferred review** is available when the developer explicitly specifies a range of tasks for
-continuation (e.g., "work through tasks 5.2–5.4 while I'm away"). Quality gates still run after
-each task, but the agent continues without waiting. The developer defines the scope — the agent never
-self-invokes deferred review.
-
-### Test-first assessment
-
-Before implementing any task, the agent assesses whether tests should be written first. ARC ships a
-decision tree: test-first for new models, endpoints, business logic, and complex transformations;
-test-after acceptable for simple CRUD, configuration changes, and trivial refactoring. When
-test-first applies, execution follows vertical slices — one test, make it pass, then the next.
-
-## Quality Gates
-
-Quality gates are automated verification that runs at defined checkpoints. The
-[principle](philosophy.md#operational-discipline) is that quality is verified, not assumed. The
-specific gates, tools, and strictness levels are project-defined conventions.
-
-**Tiered approach:**
-
-- **Tier 1 (per-task)** — incremental checks on modified files. Runs after every task completion.
-  Fast feedback on the work just done.
-- **Tier 2 (coherent unit)** — full-project Tier 1 plus targeted integration and build checks. Runs
-  when a logical group of tasks completes (e.g., all subtasks under a parent).
-- **Tier 3 (phase/pre-PR)** — all checks, all configurations, full test suite, build verification.
-  Runs at phase completion and before pull requests.
-
-Quality gate commands are defined per-project in your development rules. ARC provides the checkpoint
-structure; you provide the commands.
+For the full task execution model — how the agent works through tasks, quality gates, and review
+stops — see [How ARC Works](how-arc-works.md#working-through-tasks).
 
 ## Work Organization
 
-Work categorizes into three types, each with a branch:
+ARC categorizes work by **type and planning status**, not size — eliminating subjective sizing
+debates and applying the right workflow to each kind of work.
 
-- **Feature** (`feature/*`) — new capabilities or significant enhancements
-- **Technical** (`technical/*`) — refactoring, infrastructure, debt reduction
-- **Incidental** (`incidental/*`) — discovered work that doesn't fit the current task list
+**Planned work** gets the full pipeline (PRD, task list, dedicated branch):
+
+- **Feature** (`feature/*`) — user-visible capabilities from the product vision. New functionality,
+  significant enhancements, anything that changes what users can do.
+- **Technical** (`technical/*`) — infrastructure improvements. Refactoring, performance, testing
+  infrastructure, CI/CD, developer tooling — work that makes the codebase better without changing
+  user-facing behavior.
+
+**Incidental work units** (`incidental/*`) are the exception you hope you don't need. Sometimes,
+mid-implementation, you discover a multi-phase blocker that wasn't on the roadmap — a dependency you
+didn't know existed, a foundational issue that must be resolved before the current work can continue.
+When that happens, the current work unit parks, an incidental task list and stacked branch are
+created, and the incidental work goes through the same lifecycle (execution, verification,
+integration) before the original work resumes. Incidental work units get task lists but not PRDs —
+they're reactive, not planned from a product vision. Ideally they're rare; the workflow exists for
+when they're unavoidable.
+
+This is distinct from small discovered issues (a type error, a missing test, a documentation gap) —
+those are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units.
+
+Branch naming, directory structure, and archive paths all align:
+`feature/user-authentication` → `.arc/active/feature/` → `.arc/reference/archive/`.
+
+### Work unit lifecycle
+
+Each work unit moves through a managed lifecycle:
+
+1. **Planning** — explore the problem, write a PRD, generate a task list
+2. **Activation** — move artifacts from backlog to active, create the implementation branch
+3. **Execution** — work through tasks via the
+   [task execution model](how-arc-works.md#working-through-tasks)
+4. **Verification** — final quality gates, success criteria validation
+5. **Integration** — pre-merge review, PR, merge
+6. **Archival** — completed artifacts move to the archive for historical reference
+
+ARC provides workflows for each transition. The level of ceremony scales with your
+[branch protection mode](reference/configuration.md#branch-model): `partial` (default) keeps it
+lightweight for solo developers and small teams; `full` requires branches and PR review for all
+changes.
 
 ### The Planning Module
 
