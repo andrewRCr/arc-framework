@@ -1526,12 +1526,25 @@ or invent; honest gaps are more credible than overclaimed findings.
                   `getting-started.md` (text tree diagram sufficient)
                 - Verified zero orphaned placeholders across all docs/
 
-        - [ ] **8.5.c.v Polish demos**
-            - Timing and pacing optimization across all demos (longer holds, readable chunking)
-            - Consider screen clearing between phases for longer demos (task-execution)
-            - GIF file size optimization (task-execution at 3MB needs reduction)
-            - Place README-optimized variants in README-ASPIRATIONAL.md
-            - GIF placement in docs pages moved to c.iv.4
+        - [ ] **8.5.c.v Docs site polish pass**
+
+            - [ ] **8.5.c.v.1 Polish demos**
+                - Timing and pacing optimization across all demos (longer holds, readable
+                  chunking)
+                - Consider screen clearing between phases for longer demos (task-execution)
+                - GIF file size optimization (task-execution at 3MB needs reduction)
+                - Place README-optimized variants in README-ASPIRATIONAL.md
+
+            - [ ] **8.5.c.v.2 Copy and structure improvements**
+                - Full read-through of every docs page in rendered preview (mkdocs serve)
+                - Fix awkward phrasing, unclear explanations, redundant sections
+                - Check cross-page consistency: terminology, link targets, navigation flow
+                - Verify all internal links resolve (no dead refs)
+                - Evaluate page lengths and section ordering — rebalance if pages are
+                  front- or back-heavy
+                - Check rendering: tables, code blocks, admonitions, GIF sizing/placement
+                - Assess whether any content should move between pages (e.g., overlap
+                  between getting-started and how-arc-works)
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
         - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and
