@@ -257,6 +257,7 @@ meta_project_refs=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -v "^\.arc/" | \
     grep -v "^packages/.*/arc/" | \
     grep -v "^README\.md" | \
+    grep -vE "(^|/)(\.[a-z]*ignore|\.gitattributes)$" | \
     grep -vE "$test_patterns" | \
     grep -vE "\.($skip_extensions)$" | \
     while IFS= read -r file; do

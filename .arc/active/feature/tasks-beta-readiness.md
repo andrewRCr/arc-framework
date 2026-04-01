@@ -1491,13 +1491,18 @@ or invent; honest gaps are more credible than overclaimed findings.
                 - Shadow composited at exact window position to maintain uniform margins
 
             - [ ] **8.5.c.iv.2 Scaffold bookstore seed repo**
-                - Create sibling repo (`../arc-demo-bookstore/` or similar) with basic
-                  bookstore API project structure (non-functional but realistic-looking:
-                  src/, tests, package.json, tsconfig, etc.)
+                - Create sibling repo (`../bookstore-app/`) with mixed-language monorepo:
+                  FastAPI (Python) backend + React (TypeScript) frontend — chosen to visually
+                  signal ARC's language agnosticism (`.py`/`.tsx` mix in file explorer)
+                - ~15-20 code files, 15-30 lines each — non-functional but realistic-looking,
+                  free of IDE warnings (valid imports, type annotations, no unresolved refs)
                 - Install ARC via `arc init` and run initial setup workflows to populate
                   `.arc/` with real framework docs
-                - Seed enough project content that AGENT-BRIEFING.PROJECT.md, DEV-RULES.PROJECT.md,
-                  and QUICK-REFERENCE.md read as a real bookstore API project
+                - Post-init customization: populate at least one `arc-extensions.md` extension
+                  point (post-task-quality with realistic example), and fill in project-specific
+                  docs (AGENT-BRIEFING.PROJECT.md, DEV-RULES.PROJECT.md, QUICK-REFERENCE.md)
+                  to read as a real bookstore API project
+                - Git-initialized with at least one commit
                 - This repo persists as a reusable asset for future screenshot needs
 
             - [ ] **8.5.c.iv.3 Capture and process screenshots**
