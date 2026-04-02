@@ -108,7 +108,7 @@ IDE-embedded agents (Cursor, Windsurf, Cline, etc.) are architecturally supporte
 methodology is expressed as markdown documents and Skills that work across platforms — but not
 yet validated through sustained use. Validation with IDE agents is an active priority as beta
 testing continues. If you're using an IDE agent with ARC, your experience is valuable:
-[file an issue](https://github.com/arc-framework/arc-framework/issues) to help us identify
+[file an issue](https://github.com/andrewRCr/arc-framework/issues) to help us identify
 friction and improve support.
 
 For the full compatibility spectrum, see

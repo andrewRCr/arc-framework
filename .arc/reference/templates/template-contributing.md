@@ -83,4 +83,4 @@ Contributors work on project code while maintainers manage the development pipel
 
 ---
 
-[arc]: https://github.com/andrewRCr/arc-agentic-dev-framework
+[arc]: https://github.com/andrewRCr/arc-framework

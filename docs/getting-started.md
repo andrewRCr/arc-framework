@@ -11,7 +11,7 @@ initial setup, and your first session.
   developed and tested with Claude Code and Codex CLI, with additional validation against Warp,
   Gemini CLI, and Copilot CLI. IDE-embedded agents (Cursor, Windsurf, Cline) are architecturally
   supported but not yet validated — if you're using one, your feedback helps close that gap
-  ([file an issue](https://github.com/arc-framework/arc-framework/issues)). See
+  ([file an issue](https://github.com/andrewRCr/arc-framework/issues)). See
   [agent compatibility](philosophy.md#agent-compatibility) for the full compatibility spectrum.
 
 ## Installation
