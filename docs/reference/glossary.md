@@ -17,7 +17,7 @@ in `ATOMIC-INBOX.md` for items to address later (requires the Planning Module �
 ARC's collaboration model: the developer and agent work together through
 tight, iterative loops during implementation, not in a review-after-the-fact pattern. The
 developer directs, the agent executes within bounded scope, and both contribute throughout. This
-is ARC's most distinctive characteristic — the human directs, not merely reviews.
+is ARC's most distinctive characteristic: the human directs, not merely reviews.
 See [Philosophy § Core Commitments](../philosophy.md#core-commitments) (P2).
 
 ## *Context preservation*
@@ -56,7 +56,7 @@ the next session can recover context. See [Sessions § Handoff](../how-arc-works
 ## *Leave-it-cleaner*
 
 The principle that when you encounter an issue in a file you're
-modifying, you take responsibility for it — fix it inline if small enough, or route it to a
+modifying, you take responsibility for it. Fix it inline if small enough, or route it to a
 capture surface if it would derail the current task. Issues are never silently ignored.
 
 ## *Method override*
@@ -86,11 +86,11 @@ with *convention*. See [Philosophy § Principles](../philosophy.md#principles).
 
 ## *Process task loop*
 
-The workflow that governs task execution in ARC — the structured protocol
+The workflow that governs task execution in ARC. The structured protocol
 the agent follows when working through a task list. Defines the completion protocol (implement,
 quality gates, mark complete, report, mandatory stop), test-first assessment, quality gate tier
 escalation, deferred review, coherent unit completion, and incidental work routing. This is the
-mechanical core of ARC's [co-development](#co-development) model — not guidelines the agent
+mechanical core of ARC's [co-development](#co-development) model, not guidelines the agent
 interprets, but a loop with checkpoints, escalation paths, and enforced stops. See
 [How ARC Works § Working Through Tasks](../how-arc-works.md#working-through-tasks).
 
@@ -114,7 +114,7 @@ enough for productive autonomy. See
 
 A bounded, intentional period of work. Starts with structured initialization
 (context loading), proceeds through focused work, and ends with handoff (state preservation).
-Sessions are designed to be shorter and more focused than the context window allows — quality
+Sessions are designed to be shorter and more focused than the context window allows; quality
 degrades with length. See [Sessions](../how-arc-works.md).
 
 ## *Skill*

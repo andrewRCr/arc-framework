@@ -1,7 +1,7 @@
 # How ARC Works
 
 ARC lives in an `.arc/` directory in your repository. The documents inside aren't passive reference
-material — they're mechanical. Workflows branch on configuration values, methods define overridable
+material; they're mechanical. Workflows branch on configuration values, methods define overridable
 contracts at specific trigger points, extension points inject custom behavior at workflow boundaries,
 and git hooks enforce conventions deterministically at commit time.
 
@@ -51,12 +51,16 @@ guidelines the agent interprets, but a structured loop with checkpoints, escalat
 mandatory stops.
 
 Each task is a *review increment* — a bounded chunk of autonomous execution between human review
-points. The completion protocol for each task:
+points. ARC's planning workflows generate tasks at this granularity: typically a few files modified,
+a few minutes of agent execution. If you're coming from approaches where the agent works for
+20 minutes or longer between review points, this is a significant difference. You stay with the
+work as it happens rather than reviewing a batch after the fact. The completion protocol for each
+task:
 
 1. **Test-first assessment** — before implementing, the agent evaluates whether tests should be
    written first. ARC ships a decision tree: test-first for new models, endpoints, business logic,
    and complex transformations; test-after for simple CRUD, configuration, and trivial refactoring.
-   When test-first applies, execution follows vertical slices — write one test, make it pass, then
+   When test-first applies, execution follows vertical slices: write one test, make it pass, then
    the next.
 2. The agent implements the task
 3. **Quality gates** run on modified files (incremental, [Tier 1](reference/quality-gates.md))
@@ -68,22 +72,22 @@ points. The completion protocol for each task:
 ![Task execution — test-first cycle, quality gates, completion protocol, and user feedback](img/task-execution.gif)
 
 You review, contribute context, and approve before the next task begins. But co-development
-doesn't stop between tasks — you may also be working alongside the agent during execution:
+doesn't stop between tasks. You may also be working alongside the agent during execution:
 editing files, running commands, testing ideas, or making your own commits. The agent expects
 this; ARC's task execution protocol treats parallel developer activity as normal working context,
 not an interruption. The mandatory stop is a checkpoint, not the only point where
 [co-development](philosophy.md#core-commitments) happens.
 
 **Quality gates are tiered.** Tier 1 (per-task) runs incremental checks on modified files. When a
-task completes a coherent unit of work — the last subtask under a parent, or a standalone task
-touching cross-cutting code — Tier 2 runs full-project checks plus targeted integration tests.
+task completes a coherent unit of work (the last subtask under a parent, or a standalone task
+touching cross-cutting code), Tier 2 runs full-project checks plus targeted integration tests.
 Tier 3 (full suite, build verification) runs at phase completion and before PRs.
 
 **Deferred review** is available when you explicitly specify a range of tasks for continuation
 (e.g., "work through tasks 5.2–5.4 while I'm away"). Quality gates still run after each task, but
 the agent continues without waiting. The agent stops at the end of the specified range, or earlier
 if it hits a blocker, quality gate failure, or a design decision that needs your input. The
-developer defines the scope — the agent never self-invokes deferred review.
+developer defines the scope; the agent never self-invokes deferred review.
 
 ### Committing changes
 
@@ -91,7 +95,8 @@ When work is ready to commit, invoke `arc-commit`. The skill handles:
 
 - **Atomic boundary analysis** — confirms all changes serve one logical concern, suggests splits if
   they don't
-- **Commit format** — conventional commits with a `Context:` footer linking each commit to its task
+- **Commit format** — conventional commits with a `Context:` footer linking each commit to its
+  task
 - **State sync** — stages WORK-STATUS.md alongside task list changes so project state stays current
 
 ![arc-commit analyzing changes and producing a commit with Context footer](img/arc-commit.gif)
@@ -100,8 +105,8 @@ When work is ready to commit, invoke `arc-commit`. The skill handles:
 
 Sessions are designed to be shorter and more focused than you might expect. Agent output quality
 [degrades measurably](philosophy.md#why-bounded-sessions) as context accumulates, and human
-attention follows the same pattern. Focused sessions that reset at natural boundaries — task
-completion, phase transitions, mode changes — maintain higher quality than marathon sessions.
+attention follows the same pattern. Focused sessions that reset at natural boundaries (task
+completion, phase transitions, mode changes) maintain higher quality than marathon sessions.
 
 When a boundary arrives, invoke `arc-handoff`. This captures:
 
@@ -109,7 +114,7 @@ When a boundary arrives, invoke `arc-handoff`. This captures:
 - **SESSION-NOTES.md** — what you were thinking (personal, gitignored)
 
 The split is deliberate. WORK-STATUS tells any developer (or agent) where the project stands.
-SESSION-NOTES tells *you* what you were thinking — decisions made, things tried, known risks.
+SESSION-NOTES tells *you* what you were thinking: decisions made, things tried, known risks.
 
 Here's what each looks like after a handoff:
 
@@ -154,9 +159,9 @@ portable without polluting the commit log:
 - **Load** (`arc user load`) — restore from git note, walking ancestors if needed
 - **Push/pull** (`arc user push/pull`) — transport notes to/from remote
 
-This handles multi-machine development (session context follows the branch), team handoff (a
-teammate can load your session notes when picking up a branch), and disaster recovery (gitignored
-files are backed up in git notes).
+This handles multi-machine development (session context follows the branch), team handoff
+(a teammate can load your session notes when picking up a branch), and disaster recovery
+(gitignored files are backed up in git notes).
 
 Push behavior is configurable: `always` (solo default — no friction), `prompt` (team default —
 conscious choice per handoff), or `manual` (full control).
@@ -182,6 +187,6 @@ For practical duration guidance and the evidence behind bounded sessions, see
 
 !!! note "Auto-compaction"
     Some platforms automatically summarize conversation history when context fills. Where possible,
-    disable this — platform compaction is a black-box summarization that doesn't understand your
-    project's context priorities. With it disabled, the context-limit warning becomes your handoff
-    trigger. When you can't disable it, consider more frequent commits and earlier handoffs.
+    disable this. Platform compaction is a black-box summarization that doesn't understand your
+    project's context priorities. With compaction disabled, the context-limit warning becomes your
+    handoff trigger. When you can't disable it, consider more frequent commits and earlier handoffs.

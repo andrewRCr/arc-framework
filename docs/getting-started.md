@@ -7,10 +7,10 @@ initial setup, and your first session.
 ## Prerequisites
 
 - A git repository (ARC uses git for version control, hooks, and session state portability)
-- An AI coding agent — ARC works with any conversational agent. During beta, it's been primarily
+- An AI coding agent. ARC works with any conversational agent. During beta, it's been primarily
   developed and tested with Claude Code and Codex CLI, with additional validation against Warp,
   Gemini CLI, and Copilot CLI. IDE-embedded agents (Cursor, Windsurf, Cline) are architecturally
-  supported but not yet validated — if you're using one, your feedback helps close that gap
+  supported but not yet validated. If you're using one, your feedback helps close that gap
   ([file an issue](https://github.com/andrewRCr/arc-framework/issues)). See
   [agent compatibility](philosophy.md#agent-compatibility) for the full compatibility spectrum.
 
@@ -53,7 +53,7 @@ If someone else already initialized ARC in the repository:
 arc join
 ```
 
-This sets up your personal workspace — role, identity, and agent skills — without modifying the
+This sets up your personal workspace (role, identity, and agent skills) without modifying the
 shared project structure. For teams, see
 [Team Coordination](reference/team-coordination.md) for the full multi-developer setup.
 
@@ -69,12 +69,12 @@ walkthrough that:
    briefing (technology stack, friction points), development rules (quality gates, testing
    requirements), and quick reference (commands, environment context).
 
-Three of the documents you produce — your project briefing, development rules, and quick
-reference — are loaded by the agent at the start of every session.
+Three of the documents you produce (your project briefing, development rules, and quick
+reference) are loaded by the agent at the start of every session.
 
 ## Your First Session
 
-Start a fresh conversation and invoke `arc-resume` — the skill that starts every ARC session.
+Start a fresh conversation and invoke `arc-resume`, the skill that starts every ARC session.
 The agent loads a defined set of documents in order (project identity, development rules, active
 work state, personal notes), then reports an orientation summary: current branch, work state,
 blockers, and the suggested next action.
@@ -88,20 +88,20 @@ takes over: working through tasks one at a time, each as a bounded
 [review increment](reference/glossary.md#review-increment) with a mandatory stop for your
 review between tasks.
 
-For the full operational model — sessions, skills, task execution — see
+For the full operational model (sessions, skills, task execution), see
 [How ARC Works](how-arc-works.md).
 
 ### Committing changes
 
 When work is ready to commit, invoke `arc-commit`. The skill handles atomic boundary analysis,
 commit format guidance (conventional commits with `Context:` footers linking each commit to its
-task — [customizable](reference/configuration.md#commit-discipline)), and stages WORK-STATUS.md
+task, [customizable](reference/configuration.md#commit-discipline)), and stages WORK-STATUS.md
 alongside task list changes so project state stays in sync.
 
 ### Ending a session
 
-When you reach a natural boundary — task completion, phase transition, or when you sense context
-quality dropping — invoke `arc-handoff`. This captures:
+When you reach a natural boundary (task completion, phase transition, or when you sense context
+quality dropping), invoke `arc-handoff`. This captures:
 
 - **WORK-STATUS.md** — where the project stands (tracked, committed)
 - **SESSION-NOTES.md** — what you were thinking (personal, gitignored)

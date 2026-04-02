@@ -31,13 +31,12 @@ Every file in `.arc/` has a classification that determines how updates treat it.
 
 ### Framework
 
-ARC methodology files — workflows, strategies, READMEs, git hooks, templates. Rarely customized by
-adopters.
+ARC methodology files — workflows, strategies, READMEs, git hooks, templates. Rarely customized by adopters.
 
 **Update behavior:** Auto-merged via three-way merge. Conflicts are flagged for review but are
 uncommon since these files shouldn't be modified directly.
 
-**If you need to customize:** Don't edit Framework files — your changes will be overwritten. Use the
+**If you need to customize:** Don't edit Framework files. Your changes will be overwritten. Use the
 appropriate customization mechanism instead: [config values, method overrides, or extension
 points](reference/configuration.md).
 
@@ -116,7 +115,7 @@ scripts directly.
 
 ## Reconfiguring After Init
 
-Some settings are structural — they affect which files exist, not just how existing files behave.
+Some settings are structural: they affect which files exist, not just how existing files behave.
 Changing `pm.mode` from `none` to `arc-in-git`, for example, adds backlog files, a roadmap, and
 project status tracking.
 

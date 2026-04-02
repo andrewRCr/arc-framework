@@ -38,9 +38,9 @@ what you need to know to contribute.
 
 ARC is a hybrid project:
 
-- **`.arc/`** — the methodology documents (workflows, strategies, templates, configuration).
-  These are markdown files that structure how development happens.
-- **`packages/arc-framework/`** — the CLI package (`@arc-framework/cli`). TypeScript, built
+- **`.arc/`**: the methodology documents (workflows, strategies, templates, configuration).
+  Markdown files that structure how development happens.
+- **`packages/arc-framework/`**: the CLI package (`@arc-framework/cli`). TypeScript, built
   with tsup, tested with vitest.
 
 All commands run from the repository root — npm workspaces delegates to the CLI package
@@ -68,7 +68,7 @@ The format is `type(scope): description` (conventional commits). The `Context: c
 
 ## Quality Standards
 
-Quality gates are zero-tolerance — all checks must pass before any commit. The pre-commit hook
+Quality gates are zero-tolerance: all checks must pass before any commit. The pre-commit hook
 runs automatically, but you can run checks manually:
 
 | Check            | Command              | What it catches                   |
@@ -98,7 +98,7 @@ runs automatically, but you can run checks manually:
 
 ## Maintainer-Managed Files
 
-Files in `.arc/active/` and `.arc/backlog/` are managed by project maintainers — task lists,
+Files in `.arc/active/` and `.arc/backlog/` are managed by project maintainers: task lists,
 work status, and planning artifacts. The pre-commit hook warns (soft, non-blocking) if you
-stage changes in these directories. This is expected — contributors work on project code, not
+stage changes in these directories. This is expected; contributors work on project code, not
 the development pipeline.

@@ -7,7 +7,7 @@ produce work that requires extensive review. Micromanaged with constant promptin
 speed advantage that made them attractive.
 
 ARC is built on a specific premise: that focused, iterative collaboration between a human and an
-agent — what we call *co-development* — produces better work than either full delegation or ad-hoc
+agent (what we call *co-development*) produces better work than either full delegation or ad-hoc
 prompting, for the kinds of work where quality, judgment, and maintainability matter.
 
 This premise has real costs. ARC is slower than fully autonomous approaches, requires active
@@ -54,14 +54,14 @@ what feels right that an agent modeling human needs cannot replicate.
 Fully delegated development optimizes for an abstraction of human needs. Co-development keeps a
 human with lived experience of the problem domain actively shaping the implementation. The practical
 effect: developers who participate in building the implementation maintain familiarity with how it
-works. When maintenance needs arise, they have context because they were there — not because they
+works. When maintenance needs arise, they have context because they were there, not because they
 reviewed a PR.
 
 ### Collaboration improves with frequency
 
 Human and agent bring fundamentally different capabilities. Humans: perspective, institutional
 context, judgment, lived experience. Agents: breadth of knowledge, speed, tooling, pattern
-recognition. Neither is sufficient alone — the output is more robust than either achieves
+recognition. Neither is sufficient alone. The output is more robust than either achieves
 independently.
 
 That robustness scales with interaction frequency. Each exchange is an opportunity for both parties
@@ -74,9 +74,17 @@ The review surface area is too large, issues compound, and rework costs often ex
 by delegation. Code review research shows defect detection drops from 70–90% to roughly 30% as
 review size grows. ARC's task-level granularity is a direct response.
 
+There's a second, more practical dimension: developer attention. Short execution cycles keep the
+developer close enough to the work to review *in flight*. ARC's task generation sizes work to a few
+files and a few minutes of agent execution, so you're watching implementation unfold, catching issues
+as they emerge, contributing context while it's fresh. Lengthen the cycle and that proximity breaks
+down. You context-switch to something else, come back to a batch of completed work, and review
+becomes reconstruction rather than participation. The mandatory stop between tasks isn't overhead;
+it's the mechanism that keeps review from degrading into rubber-stamping.
+
 ## The Operating Premise
 
-The industry's default framing treats human single-threaded attention as a bottleneck — something to
+The industry's default framing treats human single-threaded attention as a bottleneck, something to
 minimize, parallelize around, or eliminate. ARC's position: human attention being single-threaded is
 a design constraint worth respecting. It forces focus, ensures quality input at every step, and
 produces work that reflects genuine judgment.
@@ -95,13 +103,13 @@ The specific document hierarchy (PRDs, task lists) and templates are conventions
 
 **P2. Human-agent co-development.** Humans and agents collaborate through tight, iterative feedback
 loops. Review happens during work, not after it. The human directs; the agent executes within bounded
-scope, reports back, and the cycle repeats. This is ARC's most distinctive characteristic — the human
+scope, reports back, and the cycle repeats. This is ARC's most distinctive characteristic: the human
 is a co-developer, not merely a reviewer.
 
 **P3. Focused, sequential execution.** Focused work produces better results for most application
 domains. One primary line of work at a time, with the sustained focus that makes co-development
 effective. Team-level parallelism (different branches) and supplementary agents (bounded research,
-exploration) are compatible — developer attention stays single-threaded.
+exploration) are compatible; developer attention stays single-threaded.
 
 ### Operational discipline
 
@@ -111,16 +119,15 @@ reliable. The specific gates, tools, and strictness levels are conventions.
 
 **P5. Context preservation.** Work context must be recoverable across session boundaries through
 structured, human-controlled, and transparent mechanisms. Without this, each session starts from
-scratch and the collaboration loop breaks. See [How ARC Works](how-arc-works.md) for the
-implementation.
+scratch and the collaboration loop breaks.
 
 **P6. Traceability through version control.** Changes link back to the intent that motivated them.
 Git serves as the canonical record. Commit format, context footers, and branch naming are
 conventions; traceability itself is not.
 
 **P7. Granular task tracking.** Work is decomposed into explicit, trackable increments before
-execution. Progress is visible and verifiable. The tracking mechanism (markdown checkboxes, external
-trackers) is convention; the decomposition requirement is not.
+execution. Progress is visible and verifiable. The tracking mechanism (markdown checkboxes,
+external trackers) is convention; the decomposition requirement is not.
 
 ### Design commitments
 
@@ -161,7 +168,7 @@ extension points — operate on conventions, never principles.
 
 ## Why Bounded Sessions
 
-ARC treats sessions as bounded, intentional periods of work — not open-ended conversations that run
+ARC treats sessions as bounded, intentional periods of work, not open-ended conversations that run
 until interrupted. This isn't an arbitrary constraint. Three forces converge on the same design.
 
 ### Agent context quality degrades with length
@@ -177,8 +184,8 @@ LLM output quality drops as context accumulates within a session. The key findin
   10% in long-context scenarios ([Wang et al., 2025][web-agents]).
 - **Position effects matter.** Information in the middle of long contexts suffers significant
   performance loss — the "lost in the middle" phenomenon
-  ([Liu et al., TACL 2024][lost-middle]). As sessions accumulate history, earlier decisions
-  naturally drift toward weaker retrieval positions.
+  ([Liu et al., TACL 2024][lost-middle]). As sessions accumulate history, earlier decisions drift
+  toward weaker retrieval positions.
 
 This isn't a temporary limitation. The evidence spans multiple model families, architectures, and
 context window sizes. Larger windows shift where degradation begins; they don't eliminate it
@@ -190,7 +197,7 @@ ARC's [co-development model](#core-commitments) requires sustained human attenti
 co-developer, not a passive observer. Task-switching costs up to 40% of productive time
 ([Rubinstein, Meyer & Evans, 2001][task-switching]), and interruption recovery takes 10–15 minutes
 for software engineering work ([Lestan, Leventis & Ivanovic, 2024][interruption-recovery]). Marathon
-sessions degrade human judgment the same way they degrade agent context, through a different
+sessions degrade human judgment the same way they degrade agent context, just through a different
 mechanism.
 
 ### Session boundaries enforce methodology discipline

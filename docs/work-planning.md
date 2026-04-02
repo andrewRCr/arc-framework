@@ -1,7 +1,7 @@
 # Work Planning
 
 ARC structures work through a pipeline that takes ideas from initial exploration through to
-structured execution. Each stage has a purpose and an appropriate level of formality — earlier
+structured execution. Each stage has a purpose and an appropriate level of formality. Earlier
 stages are deliberately lighter than later ones.
 
 ## The Planning Pipeline
@@ -20,7 +20,7 @@ crystallize.
 
 ### Plan documents
 
-Plan documents (`plan-*.md`) are freeform exploration artifacts — working documents where ideas,
+Plan documents (`plan-*.md`) are freeform exploration artifacts: working documents where ideas,
 research, alternatives, and evolving understanding are captured. They're temporal scratchpads, not
 permanent records. Expect messiness, dead ends, and revisions.
 
@@ -31,7 +31,7 @@ deleted after the PRD is written — they've served their purpose.
 ### PRDs
 
 Product Requirements Documents define *what* and *why*; task lists define *how*. One PRD maps to one
-work unit — a branch and task list. PRDs are living documents updated as understanding evolves during
+work unit (a branch and task list). PRDs are living documents, updated as understanding evolves during
 implementation, but changes are intentional, not scope creep.
 
 A PRD for a todo app feature might start like this:
@@ -93,28 +93,28 @@ stops — see [How ARC Works](how-arc-works.md#working-through-tasks).
 
 ## Work Organization
 
-ARC categorizes work by **type and planning status**, not size — eliminating subjective sizing
+ARC categorizes work by **type and planning status**, not size, eliminating subjective sizing
 debates and applying the right workflow to each kind of work.
 
 **Planned work** gets the full pipeline (PRD, task list, dedicated branch):
 
-- **Feature** (`feature/*`) — user-visible capabilities from the product vision. New functionality,
+- **Feature** (`feature/*`): user-visible capabilities from the product vision. New functionality,
   significant enhancements, anything that changes what users can do.
-- **Technical** (`technical/*`) — infrastructure improvements. Refactoring, performance, testing
-  infrastructure, CI/CD, developer tooling — work that makes the codebase better without changing
+- **Technical** (`technical/*`): infrastructure improvements. Refactoring, performance, testing
+  infrastructure, CI/CD, developer tooling. Work that makes the codebase better without changing
   user-facing behavior.
 
 **Incidental work units** (`incidental/*`) are the exception you hope you don't need. Sometimes,
-mid-implementation, you discover a multi-phase blocker that wasn't on the roadmap — a dependency you
+mid-implementation, you discover a multi-phase blocker that wasn't on the roadmap: a dependency you
 didn't know existed, a foundational issue that must be resolved before the current work can continue.
 When that happens, the current work unit parks, an incidental task list and stacked branch are
 created, and the incidental work goes through the same lifecycle (execution, verification,
-integration) before the original work resumes. Incidental work units get task lists but not PRDs —
+integration) before the original work resumes. Incidental work units get task lists but not PRDs;
 they're reactive, not planned from a product vision. Ideally they're rare; the workflow exists for
 when they're unavoidable.
 
-This is distinct from small discovered issues (a type error, a missing test, a documentation gap) —
-those are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units.
+This is distinct from small discovered issues (a type error, a missing test, a documentation
+gap), which are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units.
 
 Branch naming, directory structure, and archive paths all align:
 `feature/user-authentication` → `.arc/active/feature/` → `.arc/reference/archive/`.
@@ -132,33 +132,33 @@ Each work unit moves through a managed lifecycle:
 6. **Archival** — completed artifacts move to the archive for historical reference
 
 ARC provides workflows for each transition. The level of ceremony scales with your
-[branch protection mode](reference/configuration.md#branch-model): `partial` (default) keeps it
+[branch protection mode](reference/configuration.md#branch-model). `partial` (default) keeps it
 lightweight for solo developers and small teams; `full` requires branches and PR review for all
 changes.
 
 ### The Planning Module
 
-ARC's core methodology — PRDs, task lists, execution workflows, session management, commit
-discipline — works in any project regardless of how you manage planning. An optional Planning Module
+ARC's core methodology (PRDs, task lists, execution workflows, session management, commit
+discipline) works in any project regardless of how you manage planning. An optional Planning Module
 adds in-repo planning infrastructure:
 
-- **Backlogs** — bucket files (`BACKLOG-FEATURE.md`, `BACKLOG-TECHNICAL.md`) that capture and triage
+- **Backlogs**: bucket files (`BACKLOG-FEATURE.md`, `BACKLOG-TECHNICAL.md`) that capture and triage
   ideas before they enter the pipeline
-- **Roadmap** — high-level sequencing of planned work
-- **Project status** — current state summary
+- **Roadmap**: high-level sequencing of planned work
+- **Project status**: current state summary
 
 This is activated by selecting `ARC Core + Planning Module` during `arc init` (or switching later
 with `arc init --reconfigure`).
 
 **When to use it:** The Planning Module works well for solo developers and small teams — everything
-lives in git alongside your code, no external tooling to maintain, and the agent can read and reason
-about your backlog and roadmap directly. For larger teams, in-git backlog files become a concurrency
+lives in git alongside your code, no external tooling to maintain, and the agent can read and
+reason about your backlog and roadmap directly. For larger teams, in-git backlog files become a concurrency
 bottleneck (multiple developers editing the same markdown files), and you'll likely want an external
 tracker instead.
 
 **With external trackers:** Teams using Jira, Linear, GitHub Issues, or similar select
 `ARC Core + External Tracker` during init. ARC still expects local, in-repo task lists for
-execution — these are the review increments the developer-agent pair works through. The external
+execution; these are the review increments the developer-agent pair works through. The external
 tracker handles assignment, status, and sprint-level coordination; ARC task lists handle the
 execution-level decomposition. Extension points (`post-task-completion`, `post-work-unit-activate`,
 `post-work-unit-archive`) provide hooks for syncing status between the two.
@@ -169,16 +169,16 @@ there's no backlog, roadmap, or project status tracking in-repo.
 
 ## Atomic Tasks
 
-Not all work needs the full pipeline. Atomic tasks are indivisible, one-off items — a fix discovered
+Not all work needs the full pipeline. Atomic tasks are indivisible, one-off items: a fix discovered
 during other work, a small improvement, a documentation correction. They're captured rather than
 planned:
 
-- **Work-unit-scoped** — tracked in a companion file (`atomic-*.md`) alongside the task list, for
+- **Work-unit-scoped**: tracked in a companion file (`atomic-*.md`) alongside the task list, for
   items to address during the current work unit
-- **Personal inbox** — tracked in `ATOMIC-INBOX.md` in the developer's user directory, for items to
+- **Personal inbox**: tracked in `ATOMIC-INBOX.md` in the developer's user directory, for items to
   address later. Gitignored and branch-agnostic. Available with the Planning Module
   (`pm.mode: arc-in-git`).
 
-The key principle: when you discover something that needs fixing, capture it — don't ignore it and
+The key principle: when you discover something that needs fixing, capture it. Don't ignore it and
 don't let it derail the current task. Small enough to fix inline? Fix it. Too large or out of scope?
 Route it to the appropriate capture surface so it doesn't get lost.

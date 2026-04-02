@@ -3,7 +3,7 @@
 Quality gates are automated verification checkpoints that run at defined moments during
 development. The [principle](../philosophy.md#operational-discipline) is that quality is
 verified, not assumed (P4). The specific gates, tools, and strictness levels are project-defined
-conventions — ARC provides the checkpoint structure, you provide the commands.
+conventions. ARC provides the checkpoint structure; you provide the commands.
 
 This page covers the tiered system at guide level. For tier boundaries, escalation guidance, and
 task list integration patterns, see `strategy-quality-gates.md` in your
@@ -19,7 +19,7 @@ approach runs just enough validation at each stage to catch likely problems.
 
 **When:** After completing any task, before marking it complete.
 
-**What:** Incremental checks on modified files only — type checking, linting, format checking,
+**What:** Incremental checks on modified files only: type checking, linting, format checking,
 and related unit tests. Fast feedback on the work just done.
 
 **Time budget:** Seconds to ~1 minute.
@@ -30,12 +30,12 @@ are cheap.
 
 ### Tier 2: Coherent Unit
 
-**When:** After completing a logical group of related tasks — typically when all subtasks of a
+**When:** After completing a logical group of related tasks, typically when all subtasks of a
 parent task are done, or when a standalone task touches cross-cutting code (shared services,
 middleware, configuration).
 
 **What:** Everything in Tier 1 at full project scope, plus targeted integration or E2E tests
-for affected areas and build verification. Not the full test suite — targeted tests that cover
+for affected areas and build verification. Not the full test suite. Targeted tests that cover
 the area you modified.
 
 **Time budget:** 1–5 minutes.
@@ -59,7 +59,7 @@ execution should be rare — they catch cross-cutting issues that targeted check
 
 ## Defining Your Gates
 
-Quality gate commands are project-specific — defined in your `DEV-RULES.PROJECT.md` and
+Quality gate commands are project-specific, defined in your `DEV-RULES.PROJECT.md` and
 `QUICK-REFERENCE.md`. ARC doesn't know what "lint" or "test" means for your stack. During
 [initial setup](../getting-started.md#initial-setup), you define these commands as part of your
 project's development rules.
@@ -77,7 +77,7 @@ non-standard setups (environment-specific commands, conditional logic).
 
 ## When to Escalate
 
-Quality verification itself is mandatory — every task goes through at least Tier 1 before
+Quality verification itself is mandatory: every task goes through at least Tier 1 before
 completion (P4). What's flexible is *when to run a higher tier* than the minimum required at
 that checkpoint. The tiers define when checks *automatically* run; escalation is about choosing
 to run more than the minimum when the situation warrants it:
@@ -95,7 +95,7 @@ running more checks — a few extra minutes is cheaper than an hour of debugging
 
 Quality gate checkpoints integrate naturally into task lists:
 
-- **Tier 1** is implicit — every task includes it before completion. No need to list explicitly.
+- **Tier 1** is implicit; every task includes it before completion. No need to list explicitly.
 - **Tier 2** runs automatically when the agent completes a coherent unit (all subtasks of a
   parent done).
 - **Tier 3** is typically an explicit task in a final verification phase:

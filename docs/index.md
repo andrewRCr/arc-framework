@@ -1,16 +1,20 @@
 # ARC Framework
 
 ARC is a structured methodology for spec-driven development with AI agents. It's built on a
-specific premise: that focused, iterative collaboration between a developer and an agent —
-co-development — produces better work than either full delegation or ad-hoc prompting. The
+specific premise: that focused, iterative collaboration between a developer and an agent
+(co-development) produces better work than either full delegation or ad-hoc prompting. The
 framework unifies planning, execution, and context preservation in a single system that works
 with any conversational AI coding agent and any tech stack.
+
+Execution works in short, controlled bursts: each task scoped to a few minutes of agent work,
+reviewed in flight before the next begins. The developer stays with the work as it unfolds,
+directing rather than delegating.
 
 ![ARC framework in a code editor — .arc/ directory with active work unit and task list](img/arc-hero.png)
 
 ## What ARC Gives You
 
-ARC lives in an `.arc/` directory in your repository — portable markdown documents plus a CLI
+ARC lives in an `.arc/` directory in your repository: portable markdown documents plus a CLI
 that manages the lifecycle.
 
 ```text
@@ -31,7 +35,7 @@ that manages the lifecycle.
 └── user/{identity}/    Personal workspace (gitignored, portable via git notes)
 ```
 
-These aren't passive reference files — they form an operational system. Workflows with decision
+These aren't passive reference files. They form an operational system. Workflows with decision
 points and quality checkpoints, configurable methods that fire at defined trigger points,
 extension points for injecting custom behavior, and git hooks that enforce conventions
 deterministically at commit time. This is what separates ARC from a context file: the behavior
@@ -46,9 +50,9 @@ move through a managed lifecycle from planning through integration. The agent fo
 that branch on your project's configuration — not interpreting guidelines, executing protocols.
 
 **A real configurability architecture.** ARC's [11 principles](philosophy.md) are
-non-negotiable — everything else is a convention with a strong default your team replaces.
+non-negotiable; everything else is a convention with a strong default your team replaces.
 Config values (`arc-config.yml`) control runtime behavior like commit format and branch
-protection. Methods (`arc-methods.md`) are overridable contracts at workflow trigger points —
+protection. Methods (`arc-methods.md`) are overridable contracts at workflow trigger points:
 swap in your commit format, triage thresholds, test-first rules, or quality gate commands
 without touching the workflows that call them. Extension points (`arc-extensions.md`) inject
 custom steps at workflow boundaries. Git hooks enforce commit discipline regardless of which
@@ -60,7 +64,7 @@ live alongside framework files and carry the same weight when the agent is worki
 domains. ARC gives you the scaffolding; you populate it as your project's patterns emerge.
 
 **A maintained framework, not a template.** Every `.arc/` file has a
-[classification](updating.md) — framework, configurable, scaffolded — that determines how
+[classification](updating.md) (framework, configurable, scaffolded) that determines how
 `arc update` treats it. Framework files update cleanly, configurable files three-way merge
 preserving your changes, scaffolded files are never touched. Your methods, extensions, and
 project standards survive across framework versions.

@@ -1,12 +1,12 @@
 # Team Coordination
 
-ARC's core methodology — sessions, task execution, quality gates, commit discipline — is
+ARC's core methodology (sessions, task execution, quality gates, commit discipline) is
 designed around a single developer-agent pair. Team coordination adds conventions for multiple
 pairs working on the same project, activated by setting `team.mode: true` in `arc-config.yml`.
 
-This page covers the key patterns at guide level. For the complete coordination protocol —
-merge conflict conventions, concurrent session handling, configuration notes, and the full
-person-to-person handoff procedure — see `strategy-team-coordination.md` in your
+This page covers the key patterns at guide level. For the complete coordination protocol
+(merge conflict conventions, concurrent session handling, configuration notes, and the full
+person-to-person handoff procedure), see `strategy-team-coordination.md` in your
 `.arc/reference/strategies/` directory.
 
 ## What Changes in Team Mode
@@ -19,8 +19,8 @@ Everything else layers on top of the existing model:
 |----------------|-------------------------------|----------------------------------------------------|
 | Task execution | Single pair, sequential tasks | Per pair, concurrent pairs OK                      |
 | Task ownership | Implicit (only one developer) | `(@name)` markers in task lists                    |
-| Session state  | `user/{identity}/` directory  | Same structure — one directory per developer       |
-| Work status    | One WORK-STATUS.md per branch | Same — represents branch-level state, not personal |
+| Session state  | `user/{identity}/` directory  | Same structure, one directory per developer        |
+| Work status    | One WORK-STATUS.md per branch | Same; represents branch-level state, not personal  |
 | Branching      | One branch per work unit      | Multiple patterns available                        |
 
 The `user/{identity}/` directory structure is identical in solo and team mode. Team scaling
@@ -93,7 +93,7 @@ Best for larger tasks where each developer's work naturally decomposes into revi
 
 ## Person-to-Person Handoff
 
-When work transfers between developers — vacation, rotation, workload rebalancing — ARC's
+When work transfers between developers (vacation, rotation, workload rebalancing), ARC's
 standard session handoff extends with conventions for a different reader:
 
 - The **outgoing developer** reassigns `(@name)` markers in the task list, writes

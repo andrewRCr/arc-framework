@@ -1,13 +1,13 @@
 # Skills Reference
 
-ARC packages its user-facing workflows as [Skills](https://agentskills.io) — an open standard
+ARC packages its user-facing workflows as [Skills](https://agentskills.io), an open standard
 format for giving agents new capabilities and context. Each ARC skill is a user-invoked entry
-point for a key operational workflow — when to start a session, when to commit, when to hand
+point for a key operational workflow: when to start a session, when to commit, when to hand
 off. You invoke them when you're ready; the agent discovers and loads the skill's instructions,
 then executes the workflow. The invocation syntax varies by platform (slash commands in Claude Code, `$`
 prefix in Codex CLI, etc.).
 
-The agent's other workflows — task execution, quality gates, issue triage, planning — load
+The agent's other workflows (task execution, quality gates, issue triage, planning) load
 automatically as part of the ARC instruction chain once a session is running. You don't need
 to trigger those; they're referenced by other workflows and the agent follows the chain.
 
@@ -18,7 +18,7 @@ workflows.
 
 ## Core Skills
 
-These three skills form the operational rhythm of every ARC session. You'll use them regularly —
+These three skills form the operational rhythm of every ARC session. You'll use them regularly;
 they map directly to the [session lifecycle](../how-arc-works.md#the-session-lifecycle).
 
 ### arc-resume
@@ -41,7 +41,7 @@ with decisions, context, and anything the next session needs to know. Optionally
 git notes for portability across machines.
 
 **When to use:** When you're done working, at a natural boundary (task completion, phase
-transition, mode change), or when you sense context quality degrading. The handoff cost is low —
+transition, mode change), or when you sense context quality degrading. The handoff cost is low;
 the value is in the fresh start next session.
 
 ### arc-commit
@@ -72,7 +72,7 @@ session: project briefing, development rules, and quick reference.
 ### arc-verify
 
 **Installation health checks.** Validates configuration, file structure, reference integrity,
-hook status, and session state. Useful for diagnosing issues — if something isn't working as
+hook status, and session state. Useful for diagnosing issues. If something isn't working as
 expected, this skill checks the installation against ARC's requirements.
 
 **When to use:** When something seems wrong. Hooks not firing, unexpected behavior during
@@ -83,11 +83,11 @@ everything is consistent.
 
 **Pre-implementation review.** Analyzes task list entries before you start working on them —
 surfaces unexposed assumptions, masked design decisions, codebase drift since the task was
-written, scope ambiguity, and missing acceptance criteria. Read-only — it reports findings, you
+written, scope ambiguity, and missing acceptance criteria. Read-only: it reports findings, you
 decide what to act on.
 
 **When to use:** Before starting a task or group of tasks where you want extra confidence or
 suspect drift since the time of writing. This is not part of any workflow and isn't something
-you run routinely — it's a tool for when the cost of discovering problems mid-implementation is
+you run routinely; it's a tool for when the cost of discovering problems mid-implementation is
 high enough to justify an analysis pass. Particularly useful for tasks written in a prior
 session, tasks touching unfamiliar code, or tasks with complex dependencies.
