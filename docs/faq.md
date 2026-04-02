@@ -1,6 +1,43 @@
 # FAQ
 
-## Is ARC a lot of overhead?
+## I already have a CLAUDE.md / AGENTS.md — what does ARC add?
+
+A `CLAUDE.md`, `AGENTS.md`, or `.cursorrules` file is static context — the agent reads it at
+conversation start and interprets whatever guidelines it contains. ARC is an operational system.
+The documents inside `.arc/` aren't passive reference material; they're mechanical. The
+difference shows up in three areas.
+
+**Enforcement, not guidance.** A context file can say "use conventional commits" or "run tests
+before committing." The agent follows these *most of the time*. ARC's git hooks validate commit
+format, context footers, task numbering, and meta-project references at commit time — they
+block non-conforming commits regardless of which agent (or human) is committing. The task
+execution workflow requires tiered quality gates before a task can be marked complete, with
+mandatory stops for developer review between tasks. These aren't guidelines the agent
+interprets; they're checkpoints the agent cannot skip.
+
+**Session lifecycle and state preservation.** Context files don't survive across conversations —
+each session starts from whatever the file says, with no memory of where work left off. ARC
+splits session state between tracked project status (WORK-STATUS.md, committed to git) and
+personal working context (SESSION-NOTES.md, gitignored, portable via git notes). Session
+initialization loads these alongside project context in a defined order with freshness detection
+and mismatch recovery. Session handoff captures state for the next session. The agent picks up
+where you left off — current task, blockers, decisions made, things tried.
+
+**Configurability architecture.** A context file is a single surface you edit directly. ARC
+separates what you can change into three mechanisms: config values (`arc-config.yml`) control
+runtime behavior like commit format and branch protection; method overrides (`arc-methods.md`)
+replace *how* ARC does something (your commit format, triage thresholds, quality gate commands)
+while preserving the contract; extension points (`arc-extensions.md`) inject custom steps at
+workflow boundaries (post-task quality checks, external tracker sync, review ceremony). Beyond
+adapting ARC's defaults, the framework provides scaffolding for your own content — project
+strategies, domain-specific rules, project templates — that the agent consults during relevant
+work.
+
+Static context files are a good starting point. ARC is what you graduate to when you want the
+behavior to be mechanical, consistent across sessions and agents, and embedded in the structure
+of how work happens rather than written up in a file you hope the agent follows.
+
+## ARC seems like a lot of overhead
 
 The structure is front-loaded. Once your project briefing, development rules, and quality gates
 are defined, each session starts with full context automatically — the agent knows your stack,
@@ -9,10 +46,18 @@ format and traceability are enforced by hooks. The minute-to-minute experience i
 you spend less time re-explaining context, less time catching preventable issues, and less time
 recovering from sessions that lost track of prior decisions.
 
-The ceremony isn't additive overhead — it replaces the ad-hoc effort you'd spend anyway, with
-consistent results. Any context engineering approach (even a well-maintained `CLAUDE.md`)
-achieves some of this; ARC systematizes it so you define standards and practices once and they're
-enforced and applied across every session.
+ARC is also deliberate about what it loads and when. The documents read every session —
+agent briefings, development rules, strategy index, quick reference, work status — are kept
+intentionally lean with no overlap between them. Everything else loads on-demand: method
+implementations load when a workflow reaches their trigger point, strategy documents load when
+work enters their domain, procedural workflows load only when active task work exists. A
+planning-only session never loads the task execution protocol. A session that doesn't touch
+commits never loads the commit format method. This tiered delivery keeps the agent's context
+focused on what's immediately relevant rather than front-loading everything the framework knows.
+
+The ceremony replaces the ad-hoc effort you'd spend anyway, with consistent results. Any
+context engineering approach achieves some of this; ARC systematizes it so you define standards
+and practices once and they're enforced and applied across every session.
 
 ## Why bounded sessions? Why not just let the agent keep working?
 
@@ -40,18 +85,6 @@ This applies to the *developer's* attention, not the agent's capabilities. Team-
 parallelism (different developer-agent pairs on different branches) and supplementary agents
 (bounded research, exploration tasks) are both compatible with ARC — the developer's primary
 attention stays single-threaded.
-
-## How does ARC compare to Cursor rules, .cursorrules, or AGENTS.md?
-
-These are complementary, not competing. Files like `.cursorrules` or `AGENTS.md` provide
-behavioral guidance to a specific agent — coding style, project conventions, tool preferences.
-ARC is a development methodology — it structures how a developer and agent work *together*
-through planning, execution, and context preservation across sessions.
-
-You can use both. ARC provides the workflow structure (sessions, task execution, quality gates,
-commit discipline); agent-specific files provide the behavioral guidance within that structure.
-ARC even generates agent-specific skill files during `arc init` and accommodates platform-level
-features like agent hooks alongside its methodology layer.
 
 ## Does ARC work with cloud/async agents like Devin or Codex cloud?
 
@@ -139,10 +172,3 @@ state portability — your personal session context (SESSION-NOTES.md, workspace
 gitignored but can be saved to git notes and restored on another machine or by a teammate
 picking up your branch. The CLI handles everything: `arc user sync` saves and pushes, session
 initialization loads automatically. You'll never need to run `git notes` commands directly.
-
-## What does "self-hosting" mean for ARC?
-
-ARC's own development uses ARC. The framework's `.arc/` directory contains the same methodology
-files that ship to adopters — sessions, task lists, quality gates, and commit discipline
-structure how ARC itself is built. This provides continuous validation that the methodology
-works in practice and that framework changes are tested against real usage.
