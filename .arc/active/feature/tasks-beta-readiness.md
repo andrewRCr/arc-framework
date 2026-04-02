@@ -1573,10 +1573,53 @@ or invent; honest gaps are more credible than overclaimed findings.
                   work-planning 192→163, how-arc-works 190→176
 
     - [ ] **8.5.d Anti-patterns and pitfalls audit**
-        - Run dedicated subagent audit for common ARC misuse patterns, potential pitfalls, and
-          "using ARC the wrong way" scenarios that a new adopter might encounter
-        - Synthesize findings into FAQ entries, troubleshooting content, or docs site additions
-          as appropriate
+
+        Audit ARC's methodology for adopter-facing pitfalls — friction points, edge cases,
+        conceptual mismatches, and "using ARC the wrong way" scenarios that the designer
+        doesn't see because they designed it. Goal: surface candidates for troubleshooting
+        content, FAQ entries, or docs additions the docs should address but currently don't.
+        This is a methodology audit, not a docs clarity audit (see 8.5.e).
+
+        - [ ] **8.5.d.i Run multi-perspective subagent audit**
+            - Three parallel subagents, each auditing ARC's methodology for adopter pitfalls
+              from a different angle:
+            - **a) Methodology reader** — reads core `.arc/` methodology docs (agent briefings,
+              dev rules, workflows, methods, strategies). Perspective: "What's ambiguous,
+              contradictory, has sharp edges, or would produce surprising behavior in practice?"
+            - **b) First-week adopter** — README → install → first session → first real task.
+              Perspective: "Where do I get stuck, confused, or frustrated? What methodology
+              decisions would trip me up?"
+            - **c) Experienced dev skeptic** — reads the core philosophy strategy, dev rules,
+              and process-task-loop as someone who's shipped software for years. Perspective:
+              "What design choices would I push back on? Where would I try to work around ARC
+              rather than with it? What would feel like unnecessary friction vs. justified
+              structure?"
+            - Each produces a structured findings list with severity assessment
+
+        - [ ] **8.5.d.ii Synthesize and document findings**
+            - Merge, deduplicate, and triage findings from all three perspectives
+            - Document synthesized results in a dedicated section of `notes-beta-readiness.md`
+            - Categorize findings by disposition: FAQ candidate, troubleshooting candidate,
+              inline docs addition, or no action needed
+            - Results inform 8.5.e and 8.5.f but this task stops at documented findings —
+              no content authoring here
+
+    - [ ] **8.5.e Docs site QA pass**
+        - Audit docs site for clarity, completeness, and onboarding flow quality
+        - Distinct from 8.5.d (which audits the methodology, not the docs)
+        - Incorporate relevant findings from 8.5.d.ii where they surface docs gaps
+        - Address any content additions, inline admonitions, or new page candidates
+          identified during the audit
+
+    - [ ] **8.5.f FAQ restructure**
+        - Trim bloated FAQ entries to the 40-60 word sweet spot (CLAUDE.md comparison ~280
+          words, overhead ~190 words are primary targets)
+        - Extract detailed arguments to appropriate landing pages (Philosophy is the natural
+          home for most) with short FAQ answers linking out
+        - Tonal consistency pass across all entries
+        - Incorporate any FAQ candidates surfaced by 8.5.d.ii
+        - Flat list remains correct at current scale (~12 entries); reassess if adding 5+
+          new entries pushes toward the categorization threshold (20+)
 
 - [ ] **8.6 Set up docs deployment**
 
