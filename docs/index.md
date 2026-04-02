@@ -8,7 +8,9 @@ with any conversational AI coding agent and any tech stack.
 
 Execution works in short, controlled bursts: each task scoped to a few minutes of agent work,
 reviewed in flight before the next begins. The developer stays with the work as it unfolds,
-directing rather than delegating.
+directing rather than delegating. The architectural insights and design connections that surface
+during implementation only happen when you're present — co-development preserves the conditions
+for them.
 
 ![ARC framework in a code editor — .arc/ directory with active work unit and task list](img/arc-hero.png)
 

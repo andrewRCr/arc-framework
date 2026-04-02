@@ -170,6 +170,12 @@ Severity-based triage.
 - **Moderate** (5–15 minutes): Fix immediately, document in commit message
 - **Major** (> 15 minutes): Ask user for direction — fix now or defer
 
+**Context-switching cost:** Time thresholds assume in-context work — the issue is in code you're
+already reading. When an issue requires switching to a different domain or unfamiliar code, the
+effective cost is higher than the raw fix time. Assess severity based on total attention cost, not
+just fix duration. An issue in a completely different module is effectively major regardless of fix
+time — surface it to the user rather than context-switching away from the current task.
+
 **If fixing:** Note in commit message ("Also fixed X pre-existing issues").
 
 **If deferring:** Route per [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner — the routing table determines

@@ -162,6 +162,38 @@ trackers select `ARC Core + External Tracker` during `arc init` and use extensio
 sync status between the two. See
 [Team Coordination § External Tracker Integration](reference/team-coordination.md#external-tracker-integration).
 
+## Why can't I just let the agent work through tasks while I do something else?
+
+Because you'd lose more than oversight — you'd lose the insights that come from being present during
+implementation. The architectural connections, design improvements, and cross-cutting observations
+that naturally surface while building a feature only happen if you're there while it's being built.
+A post-hoc review can verify correctness; it can't replicate the thinking that happens in-flight.
+
+ARC's premise is that the developer and agent each bring capabilities the other lacks. Humans
+contribute perspective, judgment, and architectural intuition; agents contribute speed, breadth, and
+tireless execution. If you disengage during implementation, you're not leveraging what you bring —
+you're just delegating and reviewing, which is what every other agentic workflow already does.
+
+Mandatory stops between tasks aren't overhead — they're the mechanism that keeps you engaged in the
+problem space. If you need to step away (meeting, break), [deferred
+review](how-arc-works.md#working-through-tasks) lets you authorize a batch of tasks and review them
+when you return. That's a practical concession, not the intended operating mode.
+
+If your goal is to hand off work and check results later, ARC isn't the right fit — and that's by
+design, not by oversight.
+
+## Do I need to understand all of ARC before starting?
+
+No. Install ARC, run your first session, and the agent handles the mechanics — loading context,
+following workflows, running quality gates, managing session state. You learn the concepts (review
+increments, work units, session lifecycle) through doing them, not by studying them upfront.
+
+The first thing that happens after installation is the agent guiding you through making ARC yours:
+populating your project briefing, defining your quality gates and development rules, configuring
+conventions to match your stack and workflow. From there, the agent follows your configuration
+every session. Over time, you build intuition for how ARC structures work, but you don't need it
+on day one.
+
 ## Can I use ARC without the CLI?
 
 Yes, with caveats. The CLI (`arc init`, `arc update`, `arc join`) handles installation,

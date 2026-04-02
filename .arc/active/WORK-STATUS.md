@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.d.i — Run multi-perspective subagent audit (line ~1583)
-**Last Completed**: Task 8.5.c — Create and place demo GIFs (parent complete)
+**Next Task**: Task 8.5.e — Docs site QA pass (line ~1610)
+**Last Completed**: Task 8.5.d — Anti-patterns and pitfalls audit (parent complete)
 **Blockers**: None
-**Next Action**: Launch three parallel subagents for methodology pitfalls audit
+**Next Action**: Start docs site QA pass — audit for clarity, completeness, and onboarding flow
 
 ---
 

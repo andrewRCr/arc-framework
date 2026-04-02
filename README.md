@@ -52,7 +52,9 @@ are enforced where they matter.
   The human is in the work during execution: watching, steering, course-correcting, and
   writing code alongside the agent rather than reviewing a finished batch after the fact.
   Code review research shows defect detection drops from 70–90% to ~30% as review size
-  grows. ARC's granularity is a direct response.
+  grows. ARC's granularity is a direct response. And beyond quality: the architectural
+  insights and cross-cutting observations that naturally surface during implementation
+  require the developer to be present — not reconstructing after the fact.
 - **A planning pipeline.** PRDs, task generation, and structured execution workflows are
   part of the core methodology. An optional project management layer adds backlogs,
   roadmap, and status tracking in-repo alongside your code, or you can integrate with

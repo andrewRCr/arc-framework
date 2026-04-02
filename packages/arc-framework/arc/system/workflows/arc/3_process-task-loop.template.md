@@ -134,6 +134,9 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      - **Continue with note:** auto-fixable lint issues (fix and note), task taking longer
        than expected but progressing, minor deviation from plan that doesn't change outcomes
 
+     Stop conditions are not suspended by deferred review — a non-auto-fixable gate failure
+     ends the deferred scope early and surfaces the issue to the user.
+
   2. **Coherent unit completion:** If the task you just finished completes a coherent unit of work —
      the last subtask under a parent (all subtasks now `[x]`), or a standalone task that modifies
      cross-cutting code (shared services, middleware, configuration, API contracts) — follow this

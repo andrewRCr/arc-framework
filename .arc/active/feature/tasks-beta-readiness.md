@@ -1572,37 +1572,40 @@ or invent; honest gaps are more credible than overclaimed findings.
                 - Page weight rebalanced: index 126→86, getting-started 186→99,
                   work-planning 192→163, how-arc-works 190→176
 
-    - [ ] **8.5.d Anti-patterns and pitfalls audit**
+    - [x] **8.5.d Anti-patterns and pitfalls audit**
 
-        Audit ARC's methodology for adopter-facing pitfalls — friction points, edge cases,
-        conceptual mismatches, and "using ARC the wrong way" scenarios that the designer
-        doesn't see because they designed it. Goal: surface candidates for troubleshooting
-        content, FAQ entries, or docs additions the docs should address but currently don't.
-        This is a methodology audit, not a docs clarity audit (see 8.5.e).
+        Multi-perspective subagent audit of ARC methodology for adopter-facing pitfalls.
+        39 raw findings collapsed to ~15 distinct issues; collaborative triage dismissed most
+        as agent-audience concerns or factually incorrect. Implemented: deferred review stop
+        condition clarification, issue-triage context-switching factor, co-development
+        positioning (README, docs landing, philosophy, FAQ), 2 new FAQ entries.
 
-        - [ ] **8.5.d.i Run multi-perspective subagent audit**
-            - Three parallel subagents, each auditing ARC's methodology for adopter pitfalls
-              from a different angle:
-            - **a) Methodology reader** — reads core `.arc/` methodology docs (agent briefings,
-              dev rules, workflows, methods, strategies). Perspective: "What's ambiguous,
-              contradictory, has sharp edges, or would produce surprising behavior in practice?"
-            - **b) First-week adopter** — README → install → first session → first real task.
-              Perspective: "Where do I get stuck, confused, or frustrated? What methodology
-              decisions would trip me up?"
-            - **c) Experienced dev skeptic** — reads the core philosophy strategy, dev rules,
-              and process-task-loop as someone who's shipped software for years. Perspective:
-              "What design choices would I push back on? Where would I try to work around ARC
-              rather than with it? What would feel like unnecessary friction vs. justified
-              structure?"
-            - Each produces a structured findings list with severity assessment
+        - [x] **8.5.d.i Run multi-perspective subagent audit**
+            - Three parallel subagents auditing ARC's methodology for adopter pitfalls:
+              (a) methodology reader, (b) first-week adopter, (c) experienced dev skeptic
+            - Raw output: 39 findings + 6 strengths across perspectives
+            - After deduplication: ~15 distinct issues across 5 themes
+            - Collaborative triage with developer dismissed most findings as agent-audience
+              concerns or factually incorrect claims. Several findings conflated agent
+              experience (document loading cost, workflow complexity) with user experience
+            - Actionable items: 4 concrete changes (co-development positioning gap in
+              docs/philosophy, deferred review stop condition clarification, issue-triage
+              context-switching factor, 3 FAQ entries)
 
-        - [ ] **8.5.d.ii Synthesize and document findings**
-            - Merge, deduplicate, and triage findings from all three perspectives
-            - Document synthesized results in a dedicated section of `notes-beta-readiness.md`
-            - Categorize findings by disposition: FAQ candidate, troubleshooting candidate,
-              inline docs addition, or no action needed
-            - Results inform 8.5.e and 8.5.f but this task stops at documented findings —
-              no content authoring here
+        - [x] **8.5.d.ii Implement audit findings**
+            - Added deferred review stop condition clarification to process-task-loop
+              (one sentence: stop conditions not suspended by deferred scope)
+            - Added context-switching cost factor to issue-triage method in arc-methods
+              (domain-switching inflates effective severity beyond raw fix time)
+            - Added paragraph to philosophy.md § "Software is for humans" on the value of
+              staying engaged during implementation — insights and architectural observations
+              that only happen when the developer is present during execution
+            - Added 2 FAQ entries: "Why can't I just let the agent work through tasks while
+              I do something else?" (co-development positioning), "Do I need to understand
+              all of ARC before starting?" (agent guides initial config, learn by doing)
+            - Removed zero-tolerance FAQ (agent-audience question, not user-facing)
+            - Added co-development insight framing to README (co-development bullet) and
+              docs/index.md (opening section) — upfront positioning, not buried in philosophy
 
     - [ ] **8.5.e Docs site QA pass**
         - Audit docs site for clarity, completeness, and onboarding flow quality

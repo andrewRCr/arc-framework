@@ -57,6 +57,14 @@ effect: developers who participate in building the implementation maintain famil
 works. When maintenance needs arise, they have context because they were there, not because they
 reviewed a PR.
 
+There's a deeper dimension. The architectural insights, design improvements, and cross-cutting
+connections that naturally surface during implementation only happen when you're present while the
+work unfolds. A developer reviewing a completed batch of changes can verify correctness; a developer
+present during execution notices that this feature's data flow mirrors another module's pattern, or
+that the current approach would simplify a planned future change. These observations — the kind that
+improve the broader system, not just the current task — require engagement during implementation, not
+after it. Co-development preserves the conditions under which they occur.
+
 ### Collaboration improves with frequency
 
 Human and agent bring fundamentally different capabilities. Humans: perspective, institutional
