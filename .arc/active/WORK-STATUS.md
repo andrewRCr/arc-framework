@@ -19,8 +19,8 @@
 **Next Task**: Task 8.5.c.v.1 — Polish demos (line ~1531)
 **Last Completed**: Task 8.5.c.v.2 — Copy and structure improvements
 **Blockers**: None
-**Next Action**: Timing/pacing optimization, GIF size reduction, README-optimized GIF placement
+**Next Action**: Demo polish — timing/pacing optimization, GIF size reduction, README-optimized GIF placement
 
 ---
 
-**Last Updated**: 2026-04-01
+**Last Updated**: 2026-04-02
