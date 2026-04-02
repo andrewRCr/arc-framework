@@ -19,7 +19,7 @@
 **Next Task**: Task 8.5.d — Anti-patterns and pitfalls audit (line ~1575)
 **Last Completed**: Task 8.5.c — Create and place demo GIFs (parent complete)
 **Blockers**: None
-**Next Action**: Run subagent audit for common ARC misuse patterns and pitfalls
+**Next Action**: Run subagent audit for Task 8.5.d; fold FAQ structural pass into findings
 
 ---
 
