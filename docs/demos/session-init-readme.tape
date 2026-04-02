@@ -4,20 +4,20 @@
 
 Require gum
 
-Output ../img/session-init-readme.gif
+Output ../img/session-init-readme-2x.gif
 
-# --- Terminal settings (smaller for README embedding) ---
+# --- Terminal settings (2x render — downscale to 1000x450 after) ---
 Set Shell bash
-Set FontSize 15
+Set FontSize 30
 Set FontFamily "JetBrains Mono"
-Set Width 1000
-Set Height 450
-Set Padding 20
-Set Margin 30
+Set Width 2000
+Set Height 900
+Set Padding 40
+Set Margin 60
 Set MarginFill "#0d1117"
-Set BorderRadius 10
+Set BorderRadius 20
 Set WindowBar Colorful
-Set WindowBarSize 40
+Set WindowBarSize 80
 Set TypingSpeed 0
 Set Theme {
     "name": "ARC Demo",
@@ -49,4 +49,4 @@ Enter
 Sleep 100ms
 Show
 
-Sleep 14s
+Sleep 19s

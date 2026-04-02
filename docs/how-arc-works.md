@@ -65,6 +65,8 @@ points. The completion protocol for each task:
 5. The agent reports what was done
 6. **Mandatory stop** — the agent waits for your review
 
+![Task execution — test-first cycle, quality gates, completion protocol, and user feedback](img/task-execution.gif)
+
 You review, contribute context, and approve before the next task begins. But co-development
 doesn't stop between tasks — you may also be working alongside the agent during execution:
 editing files, running commands, testing ideas, or making your own commits. The agent expects

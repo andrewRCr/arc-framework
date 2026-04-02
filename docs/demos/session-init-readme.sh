@@ -1,26 +1,44 @@
 #!/usr/bin/env bash
-# README variant: Session initialization (condensed)
+# README variant: Session initialization
 # Thesis: "the agent knows where you left off"
-# Shorter, self-explanatory without surrounding docs context
+# Same content as docs version, adapted for wider/shorter README format
 source "$(dirname "$0")/common.sh"
 
 # --- Skill invocation ---
 invoke_skill "arc-resume"
 
-# --- Condensed context loading (fewer lines — just enough to show the idea) ---
+# --- Context loading (batch 1 — core documents) ---
+tool_use "Read .arc/system/agent/AGENT-BRIEFING.ARC.md"
 tool_use "Read .arc/system/agent/AGENT-BRIEFING.PROJECT.md"
+tool_use "Read .arc/reference/constitution/DEV-RULES.ARC.md"
 tool_use "Read .arc/reference/constitution/DEV-RULES.PROJECT.md"
+tool_use "Read .arc/reference/QUICK-REFERENCE.md"
 tool_use "Read .arc/active/WORK-STATUS.md"
+
+sleep 0.2
+
+# Batch 2 — session-specific context
 tool_use "Read .arc/user/andrew/SESSION-NOTES.md"
 tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST} (lines 180-230)"
+sleep 0.5
+
+# Conditional procedural load — active task work triggers this
+agent_text "  Active task work in WORK-STATUS — loading task execution workflow."
+sleep 0.4
+tool_use "Read .arc/system/workflows/arc/3_process-task-loop.md"
 
 sleep 0.8
 
-# --- Orientation — tight, no section headers ---
+# --- Orientation summary ---
 printf "\n"
 heading "ARC session initialized"
 printf " · ${CYAN}${PROJECT_BRANCH}${RESET} · ${GREEN}clean${RESET}\n"
 sleep 1.0
+
+printf "\n"
+heading "Active work state:"
+printf "\n"
+sleep 0.5
 
 printf "\n"
 status_field "Last completed:" "Task 2.3 — Add genre filter to catalog query ${DIM}(a91f4e2)${RESET}"

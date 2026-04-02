@@ -4,20 +4,20 @@
 
 Require gum
 
-Output ../img/task-execution.gif
+Output ../img/task-execution-2x.gif
 
-# --- Terminal settings ---
+# --- Terminal settings (2x render — downscale to 1000x650 after) ---
 Set Shell bash
-Set FontSize 16
+Set FontSize 32
 Set FontFamily "JetBrains Mono"
-Set Width 1000
-Set Height 650
-Set Padding 20
-Set Margin 40
+Set Width 2000
+Set Height 1300
+Set Padding 40
+Set Margin 80
 Set MarginFill "#0d1117"
-Set BorderRadius 10
+Set BorderRadius 20
 Set WindowBar Colorful
-Set WindowBarSize 40
+Set WindowBarSize 80
 Set TypingSpeed 0
 Set Theme {
     "name": "ARC Demo",
@@ -49,4 +49,4 @@ Enter
 Sleep 100ms
 Show
 
-Sleep 30s
+Sleep 42s

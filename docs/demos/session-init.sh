@@ -20,6 +20,12 @@ sleep 0.2
 # Batch 2 — session-specific context
 tool_use "Read .arc/user/andrew/SESSION-NOTES.md"
 tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST} (lines 180-230)"
+sleep 0.5
+
+# Conditional procedural load — active task work triggers this
+agent_text "  Active task work in WORK-STATUS — loading task execution workflow."
+sleep 0.4
+tool_use "Read .arc/system/workflows/arc/3_process-task-loop.md"
 
 # Pause — agent processing
 sleep 1.0
