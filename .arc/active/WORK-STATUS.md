@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.c.v.1 — Polish demos (line ~1531)
-**Last Completed**: Task 8.5.c.v.2 — Copy and structure improvements
+**Next Task**: Task 8.5.d — Anti-patterns and pitfalls audit (line ~1575)
+**Last Completed**: Task 8.5.c — Create and place demo GIFs (parent complete)
 **Blockers**: None
-**Next Action**: Demo polish — timing/pacing optimization, GIF size reduction, README-optimized GIF placement
+**Next Action**: Run subagent audit for common ARC misuse patterns and pitfalls
 
 ---
 

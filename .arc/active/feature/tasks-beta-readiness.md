@@ -1427,7 +1427,7 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Trimmed README double philosophy link ("evidence base" not "evidence and tradeoffs")
         - Simplified index.md CLI section (`arc user sync` not four subcommands)
 
-    - [ ] **8.5.c Create and place demo GIFs**
+    - [x] **8.5.c Create and place demo GIFs**
 
         - [x] **8.5.c.i Install toolchain and prototype visual language**
             - Installed VHS 0.11.0, gum 0.17.0, ffmpeg via Homebrew; JetBrains Mono font
@@ -1526,14 +1526,27 @@ or invent; honest gaps are more credible than overclaimed findings.
                   `getting-started.md` (text tree diagram sufficient)
                 - Verified zero orphaned placeholders across all docs/
 
-        - [ ] **8.5.c.v Docs site polish pass**
+        - [x] **8.5.c.v Docs site polish pass**
 
-            - [ ] **8.5.c.v.1 Polish demos**
-                - Timing and pacing optimization across all demos (longer holds, readable
-                  chunking)
-                - Consider screen clearing between phases for longer demos (task-execution)
-                - GIF file size optimization (task-execution at 3MB needs reduction)
-                - Place README-optimized variants in README-ASPIRATIONAL.md
+            - [x] **8.5.c.v.1 Polish demos**
+                - task-execution: pacing overhaul with 3-chapter screen clear structure,
+                  extended holds on key moments (RED/GREEN, completion report, mandatory stop),
+                  tightened feedback loop. Completion protocol made accurate: quality gates →
+                  mark [x] + update description → report → stop. Issue-triage method consultation
+                  made explicit with narrated agent reasoning. 3.4M → 1.3M (62% reduction)
+                - session-init: added conditional process-task-loop load with agent explanation
+                  ("Active task work in WORK-STATUS — loading task execution workflow")
+                - session-init-readme / task-execution-readme: restored full content from docs
+                  versions (were over-trimmed), adapted timing for README format
+                - All 8 demos: adopted 2x render + gifsicle downscale pipeline for crisper
+                  text and window chrome rendering. Every GIF got smaller AND sharper.
+                - Removed poc-session-init (superseded by session-init)
+                - task-execution placed on how-arc-works.md ("Working through tasks" section)
+                - README-optimized variants placed in README.md with centered logo (dark/light
+                  mode via `<picture>`), CI + license badges. Promoted README-ASPIRATIONAL.md
+                  to README.md, removed old dev README
+                - Normalized all GitHub URLs to andrewRCr/arc-framework (post-rename target)
+                - Added dark/light SVG logo variants (docs/img/arc-logo-dark.svg, arc-logo-light.svg)
 
             - [x] **8.5.c.v.2 Copy and structure improvements**
                 - Restructured landing page (index.md): value-first pitch with directory tree
