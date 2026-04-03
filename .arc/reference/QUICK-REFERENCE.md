@@ -4,7 +4,7 @@ Command patterns and environment context for the ARC framework.
 
 ## Environment & Path Context
 
-**Repository Root**: `/home/andrew/dev/arc-agentic-dev-framework/`
+**Repository Root**: `/home/andrew/dev/arc-framework/`
 **All commands in this document assume you are at repository root.**
 
 ### Critical Path Reference
