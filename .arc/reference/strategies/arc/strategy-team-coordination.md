@@ -147,16 +147,11 @@ The incoming developer runs a standard session-init with these additions:
    readable format. This supplements WORK-STATUS.md with qualitative context — decisions,
    gotchas, and approach notes that aren't captured in tracked artifacts.
 
-2. **Apply the agent-switching filter.** If the outgoing developer used a different AI agent,
-   extract factual content (file references, decisions, known risks) and disregard agent-specific
-   references (tool syntax, capability assumptions). Session-init's existing
-   [agent-switching guidance][session-init] applies here.
-
-3. **Verify task ownership.** Check the task list for `(@name)` markers confirming which tasks
+2. **Verify task ownership.** Check the task list for `(@name)` markers confirming which tasks
    are assigned to you. WORK-STATUS.md shows the branch-level current task; the markers show
    your personal scope.
 
-4. **Confirm understanding.** Report your understanding in the session-init orientation summary.
+3. **Confirm understanding.** Report your understanding in the session-init orientation summary.
    If the outgoing developer is available, confirm before starting work. If not, the documents
    should stand alone — see async conventions below.
 

@@ -27,6 +27,7 @@ that manages the lifecycle.
 │   └── incidental/     Discovered work units
 ├── backlog/            Future work pipeline (optional planning module)
 ├── reference/          Stable reference material
+│   ├── archive/        Completed work units (historical record)
 │   ├── constitution/   Development rules (methodology + project standards)
 │   ├── strategies/     Codified guidance (session management, testing, etc.)
 │   └── templates/      Starting points for PRDs, plans, task lists
@@ -37,15 +38,14 @@ that manages the lifecycle.
 └── user/{identity}/    Personal workspace (gitignored, portable via git notes)
 ```
 
-These aren't passive reference files. They form an operational system. Workflows with decision
-points and quality checkpoints, configurable methods that fire at defined trigger points,
-extension points for injecting custom behavior, and git hooks that enforce conventions
-deterministically at commit time. This is what separates ARC from a context file: the behavior
-is mechanical, consistent across sessions and agents, and maintained as a framework you update
-rather than a template you fork.
+The structure is operational, not informational. Workflows branch on your project's
+configuration values, methods define overridable contracts at specific trigger points, extension
+points inject custom steps at workflow boundaries, and git hooks enforce commit discipline
+regardless of which agent or human is committing. The behavior is consistent across sessions
+and agents, and maintained as a framework you update rather than a template you fork.
 
 **Structured workflows for the full development lifecycle.** Session initialization loads
-project context in a defined order with freshness detection and state recovery. Task execution
+project context in a defined order with state recovery. Task execution
 follows a completion protocol with quality gate checkpoints and mandatory review stops between
 tasks. Commit preparation analyzes atomic boundaries and keeps project state in sync. Work units
 move through a managed lifecycle from planning through integration. The agent follows workflows
@@ -78,7 +78,7 @@ project standards survive across framework versions.
 - **`arc init`** — initialize ARC in a project. `--reconfigure` to change settings later.
 - **`arc join`** — join an existing ARC project (role, identity, agent skills).
 - **`arc update`** — update framework files via three-way merge, preserving your customizations.
-- **`arc user sync`** — session state portability via git notes.
+- **`arc sync`** — save and push session state via git notes (or `--load` to pull and restore).
 
 ## Documentation
 

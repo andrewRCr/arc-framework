@@ -28,6 +28,16 @@ Plan doc: [`plan-arc-lite.md`](plan-arc-lite.md)
 
 ## Lower Priority / Ideas
 
+### Strategy Documents on Docs Site
+
+Consider hosting ARC strategy documents on the docs site as deep-dive wiki entries. Currently,
+docs reference pages point to in-repo `.arc/reference/strategies/` files that pre-installation
+readers can't access. Options: mirror selected strategies to the docs site with a sync workflow
+to prevent drift, rewrite some as standalone deep-dive pages with a different audience framing
+(strategies are currently written "to ourselves"), or update internal references to external
+links with the docs site as sole source of truth. Some strategies may need reframing if they
+shift from internal reference to public documentation. Closer to 1.0 than public beta scope.
+
 ### Post-1.0 Content Ideas
 
 - Integration examples for common tech stacks (React, Django, data pipelines, etc.)

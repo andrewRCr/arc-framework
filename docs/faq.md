@@ -19,8 +19,8 @@ interprets; they're checkpoints the agent cannot skip.
 Each session starts from whatever the file says, with no memory of where work left off. ARC
 splits session state between tracked project status (WORK-STATUS.md, committed to git) and
 personal working context (SESSION-NOTES.md, gitignored, portable via git notes). Session
-initialization loads these alongside project context in a defined order with freshness detection
-and mismatch recovery. Session handoff captures state for the next session. The agent picks up
+initialization loads these alongside project context in a defined order with mismatch
+recovery. Session handoff captures state for the next session. The agent picks up
 where you left off: current task, blockers, decisions made, things tried.
 
 **Configurability architecture.** A context file is a single surface you edit directly. ARC
@@ -212,5 +212,6 @@ No. [Git notes](https://git-scm.com/docs/git-notes) are a built-in Git feature f
 metadata to commits without modifying commit history. ARC uses them under the hood for session
 state portability. Your personal session context (SESSION-NOTES.md, workspace files) is
 gitignored but can be saved to git notes and restored on another machine or by a teammate
-picking up your branch. The CLI handles everything: `arc user sync` saves and pushes, session
-initialization loads automatically. You'll never need to run `git notes` commands directly.
+picking up your branch. The CLI handles everything: `arc sync` saves and pushes (or
+`arc sync --load` to pull and restore), and session initialization loads automatically. You'll
+never need to run `git notes` commands directly.

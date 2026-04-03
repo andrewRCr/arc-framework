@@ -216,6 +216,6 @@ Every setting in `arc-config.yml`, with its options and default:
 
 ### User directory
 
-| Setting          | Options                      | Default  | What it controls                                                                           |
-|------------------|------------------------------|----------|--------------------------------------------------------------------------------------------|
-| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push session state via git notes after handoff. Override: `git config arc.sync_push`. |
+| Setting          | Options                      | Default  | What it controls                                                                                                                                           |
+|------------------|------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push session state via git notes after handoff. Defaults to `prompt` when `team.mode: true` is set during init. Override: `git config arc.sync_push`. |

@@ -16,11 +16,11 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.e — Docs site QA pass (line ~1610)
-**Last Completed**: Task 8.5.d — Anti-patterns and pitfalls audit (parent complete)
+**Next Task**: Task 8.5.f — FAQ restructure (line ~1649)
+**Last Completed**: Task 8.5.e — Docs site QA pass (parent complete)
 **Blockers**: None
-**Next Action**: Start docs site QA pass — audit for clarity, completeness, and onboarding flow
+**Next Action**: Start FAQ restructure — trim bloated entries, extract to landing pages, tonal pass
 
 ---
 
-**Last Updated**: 2026-04-02
+**Last Updated**: 2026-04-03

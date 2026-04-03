@@ -32,10 +32,11 @@ The interactive setup asks for:
 
 - **Project name** — used in generated documents
 - **AI tools** — which agents you use (generates agent-specific skill files)
-- **Project management mode** — `arc-in-git` for most projects: in-repo planning infrastructure
-  the agent can read and reason about directly. `external` if your team already uses
-  Jira/Linear/etc. `none` for core methodology only. See
-  [The Planning Module](work-planning.md#the-planning-module) for guidance on choosing.
+- **Project management mode** — `arc-in-git` (ARC Core + Planning Module) for most projects:
+  in-repo planning infrastructure the agent can read and reason about directly. `external`
+  (ARC Core + External Tracker) if your team already uses Jira/Linear/etc. `none` (ARC Core)
+  for core methodology only. See [The Planning Module](work-planning.md#the-planning-module)
+  for guidance on choosing.
 
 This creates the `.arc/` directory, installs git hooks, generates agent skill files, and writes
 a manifest for future updates.
@@ -59,7 +60,9 @@ shared project structure. For teams, see
 
 ## Initial Setup
 
-After `arc init`, run the `arc-setup` skill in your agent. This is a one-time collaborative
+After `arc init`, run the `arc-setup` skill in your agent — skills are user-invoked entry
+points into ARC workflows (e.g., `/arc-setup` in Claude Code, `$arc-setup` in Codex CLI; see
+[Skills Reference](reference/skills.md) for details). This is a one-time collaborative
 walkthrough that:
 
 1. **Verifies and configures** — confirms the installation, walks through ARC's customization

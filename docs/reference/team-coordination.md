@@ -100,8 +100,7 @@ standard session handoff extends with conventions for a different reader:
   SESSION-NOTES.md for someone with no prior context (decisions, code landmarks, gotchas,
   dead ends), and pushes user state via git notes.
 - The **incoming developer** fetches the outgoing developer's context via
-  `arc user pull --identity {outgoing}`, applies the agent-switching filter if agents differ,
-  and verifies task ownership markers.
+  `arc user pull --identity {outgoing}` and verifies task ownership markers.
 
 The protocol is designed for async handoff — the outgoing developer may not be available when
 the incoming developer starts. WORK-STATUS.md + task list + git log provide minimum viable

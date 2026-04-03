@@ -155,13 +155,14 @@ stays out of git history. ARC uses [git notes](https://git-scm.com/docs/git-note
 Git feature for attaching metadata to commits without modifying commit history — to make this state
 portable without polluting the commit log:
 
-- **Save** (`arc user save`) — serialize the user directory to a git note on HEAD
-- **Load** (`arc user load`) — restore from git note, walking ancestors if needed
-- **Push/pull** (`arc user push/pull`) — transport notes to/from remote
+- **`arc sync`** — save the user directory to a git note and push to remote (the common case)
+- **`arc sync --load`** — pull from remote and restore locally
 
 This handles multi-machine development (session context follows the branch), team handoff
 (a teammate can load your session notes when picking up a branch), and disaster recovery
-(gitignored files are backed up in git notes).
+(gitignored files are backed up in git notes). Under the hood, `arc sync` wraps individual
+subcommands (`arc user save`, `arc user load`, `arc user push`, `arc user pull`) that you can
+use directly when you need finer control.
 
 Push behavior is configurable: `always` (solo default — no friction), `prompt` (team default —
 conscious choice per handoff), or `manual` (full control).

@@ -170,14 +170,11 @@ session-state, follow the override instead.
        - **Stale file warnings**: Load reports local files not present in the saved manifest. These
          files are preserved in `.pre-load-backup.json` — review and either re-create them or
          discard the backup.
-   - **Agent-switching note**: If SESSION-NOTES.md was written during a session with a different agent,
-     extract factual content (decisions, file references, blockers) and disregard agent-specific
-     references (tool syntax, capability assumptions)
 
 > **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their
-> git notes namespace (`refs/notes/arc/user/{their-identity}`) and apply the agent-switching
-> filter to their SESSION-NOTES.md content. See [Team Coordination Strategy][team-coordination]
-> § Person-to-Person Task Handoff for the full incoming bootstrap protocol.
+> git notes namespace (`refs/notes/arc/user/{their-identity}`). See
+> [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff for the full
+> incoming bootstrap protocol.
 
 10. **Active task list** - **STRATEGIC PARTIAL READ** (Batch 2 — often 500+ lines)
 

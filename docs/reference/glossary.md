@@ -57,7 +57,8 @@ the next session can recover context. See [Sessions § Handoff](../how-arc-works
 
 The principle that when you encounter an issue in a file you're
 modifying, you take responsibility for it. Fix it inline if small enough, or route it to a
-capture surface if it would derail the current task. Issues are never silently ignored.
+capture surface if it would derail the current task. Issues are never silently ignored. See
+[How ARC Works § Working Through Tasks](../how-arc-works.md#working-through-tasks) (P4).
 
 ## *Method override*
 
@@ -130,10 +131,18 @@ The execution layer of a work unit. Contains phased tasks, each representing
 one review increment. Task entries are updated with outcomes as work completes. See
 [Work Planning § Task Lists](../work-planning.md#task-lists).
 
+## *Stacked branch*
+
+A branch created on top of another feature branch rather than from the base branch. Used for
+incremental delivery within a work unit (each branch becomes a reviewable PR) or for incidental
+work units that must resolve before the parent work can continue. See
+[Work Planning § Work Organization](../work-planning.md#work-organization) and
+[Team Coordination § Branching Patterns](team-coordination.md#branching-patterns).
+
 ## *Work unit*
 
 A bounded piece of planned work: a branch, a PRD, and a task list. Work units
-categorize as feature, technical, or incidental. They move through a lifecycle: active →
-archive (with the Planning Module — `pm.mode: arc-in-git` — work units also have a backlog
-stage before activation). See
+categorize as feature, technical, or incidental. They move through a managed lifecycle —
+planning, activation, execution, verification, integration, and archival (with the Planning
+Module, work units also have a backlog stage before activation). See
 [Work Planning § Work Organization](../work-planning.md#work-organization).

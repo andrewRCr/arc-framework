@@ -1607,12 +1607,39 @@ or invent; honest gaps are more credible than overclaimed findings.
             - Added co-development insight framing to README (co-development bullet) and
               docs/index.md (opening section) — upfront positioning, not buried in philosophy
 
-    - [ ] **8.5.e Docs site QA pass**
-        - Audit docs site for clarity, completeness, and onboarding flow quality
-        - Distinct from 8.5.d (which audits the methodology, not the docs)
-        - Incorporate relevant findings from 8.5.d.ii where they surface docs gaps
-        - Address any content additions, inline admonitions, or new page candidates
-          identified during the audit
+    - [x] **8.5.e Docs site QA pass**
+
+        Two-path subagent audit of the docs site for clarity, completeness, and onboarding
+        flow quality. 32 raw findings across both paths deduplicated to 18 distinct issues
+        across 6 themes. Collaborative triage resolved all actionable items; no FAQ-specific
+        findings (FAQ praised by both paths — bloat already captured in 8.5.f).
+
+        - [x] **8.5.e.i Run two-path subagent audit**
+            - Two subagents with fresh-eyes personas: (a) README path — GitHub discovery,
+              reads README then follows into docs; (b) Docs-direct path — lands on docs
+              site cold via search or recommendation
+            - 32 raw findings deduplicated to 18 distinct issues across 6 themes: CLI surface
+              inconsistency, undefined terms, cross-page inconsistencies, README/docs overlap,
+              skill invocation gap, in-repo reference dead ends
+            - Collaborative triage: 14 actionable fixes, 2 deferred (README density intentional,
+              agentskills.io link sufficient), 1 routed to backlog (strategy docs on docs site),
+              1 dismissed (activation lifecycle finding was incorrect)
+
+        - [x] **8.5.e.ii Implement triaged findings**
+            - CLI surface: fixed `arc user sync` → `arc sync` across index, how-arc-works,
+              FAQ; framed individual subcommands as what sync wraps
+            - Undefined terms: added glossary entry for "stacked branch", removed "freshness
+              detection" (implementation detail), removed "agent-switching filter" from docs
+              and ARC source (session-init, strategy-team-coordination, package counterparts)
+            - Cross-page consistency: unified agent lists (removed Aider from philosophy),
+              bridged PM mode labels/config values, added `user.sync_push` team-mode note,
+              added archive dir to landing page tree, expanded glossary lifecycle, added
+              code review citation (SmartBear/Cohen 2013)
+            - Onboarding: added skills one-liner to getting-started, added "available after
+              `arc init`" note to reference index, added plan document location
+            - README/landing overlap: rephrased landing page "operational system" paragraph
+              to differentiate from README while preserving value prop
+            - Backlog: strategy docs on docs site added to BACKLOG-FEATURE.md
 
     - [ ] **8.5.f FAQ restructure**
         - Trim bloated FAQ entries to the 40-60 word sweet spot (CLAUDE.md comparison ~280

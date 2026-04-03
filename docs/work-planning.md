@@ -20,7 +20,8 @@ crystallize.
 
 ### Plan documents
 
-Plan documents (`plan-*.md`) are freeform exploration artifacts: working documents where ideas,
+Plan documents (`plan-*.md`, in `.arc/backlog/` with the Planning Module or `.arc/active/`
+otherwise) are freeform exploration artifacts: working documents where ideas,
 research, alternatives, and evolving understanding are captured. They're temporal scratchpads, not
 permanent records. Expect messiness, dead ends, and revisions.
 
@@ -147,8 +148,8 @@ adds in-repo planning infrastructure:
 - **Roadmap**: high-level sequencing of planned work
 - **Project status**: current state summary
 
-This is activated by selecting `ARC Core + Planning Module` during `arc init` (or switching later
-with `arc init --reconfigure`).
+This is activated by selecting `arc-in-git` (ARC Core + Planning Module) during `arc init` (or
+switching later with `arc init --reconfigure`).
 
 **When to use it:** The Planning Module works well for solo developers and small teams — everything
 lives in git alongside your code, no external tooling to maintain, and the agent can read and
@@ -157,13 +158,13 @@ bottleneck (multiple developers editing the same markdown files), and you'll lik
 tracker instead.
 
 **With external trackers:** Teams using Jira, Linear, GitHub Issues, or similar select
-`ARC Core + External Tracker` during init. ARC still expects local, in-repo task lists for
+`external` (ARC Core + External Tracker) during init. ARC still expects local, in-repo task lists for
 execution; these are the review increments the developer-agent pair works through. The external
 tracker handles assignment, status, and sprint-level coordination; ARC task lists handle the
 execution-level decomposition. Extension points (`post-task-completion`, `post-work-unit-activate`,
 `post-work-unit-archive`) provide hooks for syncing status between the two.
 
-**Without either:** `ARC Core` alone provides the complete methodology engine. You manage planning
+**Without either:** `none` (ARC Core) alone provides the complete methodology engine. You manage planning
 however you like — PRDs and task lists are still created as part of ARC's execution workflow, but
 there's no backlog, roadmap, or project status tracking in-repo.
 

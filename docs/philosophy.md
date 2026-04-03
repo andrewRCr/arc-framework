@@ -80,7 +80,8 @@ capabilities.
 The industry's emerging experience with "agent produces PR, human reviews" workflows bears this out.
 The review surface area is too large, issues compound, and rework costs often exceed the time saved
 by delegation. Code review research shows defect detection drops from 70–90% to roughly 30% as
-review size grows. ARC's task-level granularity is a direct response.
+review size grows ([Cohen, 2013][code-review-size]). ARC's task-level granularity is a direct
+response.
 
 There's a second, more practical dimension: developer attention. Short execution cycles keep the
 developer close enough to the work to review *in flight*. ARC's task generation sizes work to a few
@@ -235,7 +236,7 @@ pair work through this task effectively?" These are complementary, not competing
 
 ARC is designed for conversational agents where developer and agent share context in real time:
 
-- **CLI agents** (Claude Code, Codex CLI, Gemini CLI, Aider) — primary design target. ARC's session
+- **CLI agents** (Claude Code, Codex CLI, Gemini CLI) — primary design target. ARC's session
   model maps directly to the conversation lifecycle.
 - **IDE agents** (Cursor, Windsurf, GitHub Copilot agent mode, Cline) — compatible. IDE persistence
   may lighten session ceremonies, but the methodology applies.
@@ -251,4 +252,5 @@ ARC is designed for conversational agents where developer and agent share contex
 [ctx-length-hurts]: https://arxiv.org/abs/2510.05381
 [task-switching]: https://doi.org/10.1037/0096-3445.130.4.621
 [interruption-general]: https://doi.org/10.1145/985692.985715
+[code-review-size]: https://smartbear.com/resources/ebooks/best-kept-secrets-of-code-review/
 [interruption-recovery]: https://doi.org/10.1145/3613904.3642861
