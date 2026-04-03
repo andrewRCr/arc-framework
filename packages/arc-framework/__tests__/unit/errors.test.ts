@@ -142,6 +142,12 @@ describe("ArcErrorCode", () => {
           return "run init first";
         case "RECIPE_INVALID":
           return "reinstall cli";
+        case "NOT_INSTALLED":
+          return "run init";
+        case "MANIFEST_VERSION_UNSUPPORTED":
+          return "update cli";
+        case "ROLE_FORBIDDEN":
+          return "check permissions";
       }
     };
 

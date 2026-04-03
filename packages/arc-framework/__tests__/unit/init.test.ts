@@ -151,12 +151,12 @@ describe("buildConfigKeyOverrides", () => {
 
 describe("buildTokenMap", () => {
   it("maps PROJECT_NAME from prompt result", () => {
-    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none" }, "/home/user/repo");
+    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none", team_mode: false } as InitPromptResult, "/home/user/repo");
     expect(tokens["PROJECT_NAME"]).toBe("My App");
   });
 
   it("maps REPO_ROOT from cwd", () => {
-    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none" }, "/home/user/repo");
+    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none", team_mode: false } as InitPromptResult, "/home/user/repo");
     expect(tokens["REPO_ROOT"]).toBe("/home/user/repo");
   });
 });
@@ -444,21 +444,21 @@ describe("runInit", () => {
 
     // .template file rendered with token and suffix stripped
     const readmeWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/README.md",
+      (c) => c[0] === "/project/.arc/README.md",
     );
     expect(readmeWrite).toBeDefined();
     expect(readmeWrite![1]).toBe("# Test Project");
 
     // arc-config.yml written with programmatic overrides (not token rendering)
     const configWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/system/arc-config.yml",
+      (c) => c[0] === "/project/.arc/system/arc-config.yml",
     );
     expect(configWrite).toBeDefined();
     expect(configWrite![1]).toContain("pm.mode: none");
 
     // Conditional file included
     const claudeWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/system/agent/CLAUDE.ARC.md",
+      (c) => c[0] === "/project/.arc/system/agent/CLAUDE.ARC.md",
     );
     expect(claudeWrite).toBeDefined();
   });
@@ -483,7 +483,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const readmeWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/README.md",
+      (c) => c[0] === "/project/.arc/README.md",
     );
     expect(readmeWrite).toBeDefined();
     // Token left as-is — README.md has no .template suffix
@@ -512,7 +512,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const statusWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/active/WORK-STATUS.md",
+      (c) => c[0] === "/project/.arc/active/WORK-STATUS.md",
     );
     expect(statusWrite).toBeDefined();
   });
@@ -541,7 +541,7 @@ describe("runInit", () => {
 
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
     const identitySet = execCalls.find(
-      (c: [string, string[]]) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.identity",
+      (c) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.identity",
     );
     expect(identitySet).toBeDefined();
     expect(identitySet![1][3]).toBe("andrew");
@@ -571,7 +571,7 @@ describe("runInit", () => {
 
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
     const roleSet = execCalls.find(
-      (c: [string, string[]]) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.role",
+      (c) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.role",
     );
     expect(roleSet).toBeDefined();
     expect(roleSet![1][3]).toBe("maintainer");
@@ -598,12 +598,12 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    expect(result.tools).toEqual(["claude", "cursor"]);
+    expect(result!.tools).toEqual(["claude", "cursor"]);
 
     // Skill files written to disk for both resolved directories
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const skillWrites = writeCalls.filter(
-      (c: [string, string]) =>
+      (c) =>
         c[0].includes("/skills/arc-") && c[0].endsWith("/SKILL.md"),
     );
     // Each canonical skill × 2 directories (.claude/skills/ + .agents/skills/)
@@ -611,8 +611,8 @@ describe("runInit", () => {
 
     // Gitignore entries added for skill directories
     const gitignoreWrites = writeCalls
-      .filter((c: [string, string]) => c[0] === "/project/.gitignore")
-      .map((c: [string, string]) => c[1] as string);
+      .filter((c) => c[0] === "/project/.gitignore")
+      .map((c) => c[1] as string);
     const allGitignoreContent = gitignoreWrites.join("\n");
     expect(allGitignoreContent).toContain(".claude/skills/arc-*/");
     expect(allGitignoreContent).toContain(".agents/skills/arc-*/");
@@ -658,8 +658,9 @@ describe("runInit", () => {
     });
 
     // Manifest written via atomicWriteJson (not io.writeFile)
-    const manifestCall = atomicWriteJson.mock.calls.find(
-      (c: [string, unknown]) => (c[0] as string).endsWith("manifest.json"),
+    const calls = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+    const manifestCall = calls.find(
+      (c) => c[0].endsWith("manifest.json"),
     );
     expect(manifestCall).toBeDefined();
 
@@ -703,8 +704,9 @@ describe("runInit", () => {
     });
 
     // Pristine written via atomicWriteJson (not io.writeFile)
-    const pristineCall = atomicWriteJson.mock.calls.find(
-      (c: [string, unknown]) => (c[0] as string).endsWith("pristine.json"),
+    const pristineCalls = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+    const pristineCall = pristineCalls.find(
+      (c) => c[0].endsWith("pristine.json"),
     );
     expect(pristineCall).toBeDefined();
 
@@ -786,27 +788,27 @@ describe("runInit", () => {
 
     // .gitignore updated with pristine.json and user/*/ entries
     const gitignoreWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.gitignore",
+      (c) => c[0] === "/project/.gitignore",
     );
     expect(gitignoreWrite).toBeDefined();
     expect(gitignoreWrite![1]).toContain(".arc/system/.internal/pristine.json");
 
     // .gitattributes updated with WORK-STATUS.md merge=ours
     const gitattrsWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.gitattributes",
+      (c) => c[0] === "/project/.gitattributes",
     );
     expect(gitattrsWrite).toBeDefined();
     expect(gitattrsWrite![1]).toContain("WORK-STATUS.md merge=ours");
 
     // git config merge.ours.driver true
     const mergeDriver = execCalls.find(
-      (c: [string, string[]]) => c[1]?.includes("merge.ours.driver"),
+      (c) => c[1]?.includes("merge.ours.driver"),
     );
     expect(mergeDriver).toBeDefined();
 
     // git config core.hooksPath
     const hooksPath = execCalls.find(
-      (c: [string, string[]]) => c[1]?.includes("core.hooksPath"),
+      (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/githooks");

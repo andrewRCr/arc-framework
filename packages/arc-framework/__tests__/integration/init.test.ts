@@ -124,7 +124,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     );
     // Identify which output files came from .template sources
     const templateOutputs = new Set(
-      recipe.include_files
+      recipe.include_files!
         .filter((f: string) => /\.template\.[^/]+$/.test(f))
         .map((f: string) => f.replace(/\.template(\.[^/]+)$/, "$1")),
     );

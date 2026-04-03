@@ -18,7 +18,7 @@ vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
 }));
 
 import { runReconfigure } from "../../src/commands/reconfigure.js";
-import type { DryRunResult } from "../../src/commands/reconfigure.js";
+import type { DryRunResult, ReconfigureResult } from "../../src/commands/reconfigure.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { Recipe, Manifest } from "../../src/lib/types.js";
 import type { PlannedRemoval } from "../../src/lib/manifest/plan.js";
@@ -98,7 +98,7 @@ function mockIO(
       return "file content";
     }),
     writeFile: vi.fn(async () => {}),
-    mkdir: vi.fn(async () => {}),
+    mkdir: vi.fn(async () => undefined),
     exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
     access: vi.fn(async () => {}),
     chmod: vi.fn(async () => {}),
@@ -219,8 +219,9 @@ describe("runReconfigure", () => {
     });
 
     // atomicWriteJson should be called with updated manifest
-    const manifestCall = atomicWriteJson.mock.calls.find(
-      (c: unknown[]) => (c[0] as string).endsWith("manifest.json"),
+    const calls = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+    const manifestCall = calls.find(
+      (c) => c[0].endsWith("manifest.json"),
     );
     expect(manifestCall).toBeDefined();
     const writtenManifest = manifestCall![1] as Manifest;
@@ -273,7 +274,7 @@ describe("runReconfigure", () => {
         tools: ["claude"],
         team_mode: false,
       },
-    });
+    }) as ReconfigureResult;
 
     // All arc-in-git files should appear as additions
     expect(result.added).toContain("backlog/ROADMAP.md");
@@ -300,7 +301,7 @@ describe("runReconfigure", () => {
         tools: ["claude"],
         team_mode: false,
       },
-    });
+    }) as ReconfigureResult;
 
     // Framework arc-in-git file should be auto-removed
     expect(result.removed).toContain(
@@ -340,7 +341,7 @@ describe("runReconfigure", () => {
         team_mode: false,
       },
       resolveRemovals,
-    });
+    }) as ReconfigureResult;
 
     expect(resolveRemovals).toHaveBeenCalledOnce();
     expect(result.removed).not.toContain(
@@ -375,7 +376,7 @@ describe("runReconfigure", () => {
         team_mode: false,
       },
       resolveRemovals,
-    });
+    }) as ReconfigureResult;
 
     // Framework → remove, Scaffolded → keep
     expect(result.removed).toContain(
@@ -408,7 +409,7 @@ describe("runReconfigure", () => {
         tools: ["claude"],
         team_mode: false,
       },
-    });
+    }) as ReconfigureResult;
 
     expect(result.previousConfig.pm_mode).toBe("none");
     expect(result.newConfig.pm_mode).toBe("arc-in-git");
@@ -450,11 +451,12 @@ describe("runReconfigure", () => {
           tools: [],
           team_mode: false,
         },
-      });
+      }) as ReconfigureResult;
 
       expect(result.updated).toBeGreaterThanOrEqual(1);
-      const pristineCall = atomicWriteJson.mock.calls.find(
-        (c: unknown[]) => (c[0] as string).endsWith("pristine.json"),
+      const pristineCalls1 = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+      const pristineCall = pristineCalls1.find(
+        (c) => c[0].endsWith("pristine.json"),
       );
       expect(pristineCall).toBeDefined();
       const writtenPristine = pristineCall![1] as Record<string, string>;
@@ -496,11 +498,12 @@ describe("runReconfigure", () => {
           tools: [],
           team_mode: true,
         },
-      });
+      }) as ReconfigureResult;
 
       expect(result.updated).toBeGreaterThanOrEqual(1);
-      const pristineCall = atomicWriteJson.mock.calls.find(
-        (c: unknown[]) => (c[0] as string).endsWith("pristine.json"),
+      const pristineCalls2 = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+      const pristineCall = pristineCalls2.find(
+        (c) => c[0].endsWith("pristine.json"),
       );
       expect(pristineCall).toBeDefined();
       const writtenPristine = pristineCall![1] as Record<string, string>;
@@ -542,7 +545,7 @@ describe("runReconfigure", () => {
           tools: ["claude"],
           team_mode: false,
         },
-      });
+      }) as ReconfigureResult;
 
       expect(result.unchanged).toBeGreaterThanOrEqual(1);
       expect(result.updated).toBe(0);

@@ -14,6 +14,7 @@
     "test:e2e": "vitest run -c vitest.e2e.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
     "lint:ts": "eslint src/",
     "lint:sh": "shellcheck -x --source-path=SCRIPTDIR arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },

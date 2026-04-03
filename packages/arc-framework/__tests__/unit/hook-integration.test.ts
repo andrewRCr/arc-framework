@@ -14,8 +14,9 @@ function makeIO(files: Record<string, string> = {}) {
   const written: Record<string, string> = {};
   return {
     written,
-    readFile: async (path: string) => {
-      if (path in files) return files[path];
+    readFile: async (path: string): Promise<string> => {
+      const content = files[path];
+      if (content !== undefined) return content;
       throw new Error(`ENOENT: no such file or directory, open '${path}'`);
     },
     writeFile: async (path: string, content: string) => {

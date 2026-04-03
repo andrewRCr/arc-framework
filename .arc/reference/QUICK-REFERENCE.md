@@ -115,8 +115,11 @@ npm run lint:sh
 ### Type Checking
 
 ```bash
-# Full project (strict mode, no emit)
+# Source files (strict mode, no emit)
 npm run typecheck
+
+# Test files (strict mode, includes __tests__)
+npm run typecheck:test
 ```
 
 ### Testing
@@ -171,6 +174,7 @@ npm run -s lint:md
 npm run lint:ts
 npm run lint:sh
 npm run typecheck
+npm run typecheck:test
 npm test
 ```
 
@@ -186,6 +190,7 @@ npm run lint:sh
 
 # 3. TypeScript (zero errors required)
 npm run typecheck
+npm run typecheck:test
 
 # 4. Full test suite (all pass required)
 npm test

@@ -17,6 +17,7 @@
     "test:integration": "npm run test:integration -w packages/arc-framework",
     "test:e2e": "npm run test:e2e -w packages/arc-framework",
     "typecheck": "npm run typecheck -w packages/arc-framework",
+    "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
     "prepare": "husky"

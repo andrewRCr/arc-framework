@@ -169,7 +169,7 @@ describe("validateRecipe", () => {
 
   it("rejects non-array include_files", () => {
     const recipe = validRecipe();
-    (recipe as Record<string, unknown>).include_files = "not-array";
+    (recipe as unknown as Record<string, unknown>).include_files = "not-array";
     const result = validateRecipe(recipe);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("include_files"))).toBe(true);
@@ -177,7 +177,7 @@ describe("validateRecipe", () => {
 
   it("rejects non-object computed_tokens", () => {
     const recipe = validRecipe();
-    (recipe as Record<string, unknown>).computed_tokens = "not-object";
+    (recipe as unknown as Record<string, unknown>).computed_tokens = "not-object";
     const result = validateRecipe(recipe);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("computed_tokens"))).toBe(true);
@@ -265,7 +265,7 @@ describe("getInitTokenNames", () => {
   });
 
   it("returns empty set when no prompts have tokens", () => {
-    const prompts = [{ config_key: "pm.mode" }, {}];
+    const prompts: { token?: string }[] = [{ config_key: "pm.mode" } as { token?: string }, {}];
     expect(getInitTokenNames(prompts)).toEqual(new Set());
   });
 
@@ -277,7 +277,7 @@ describe("getInitTokenNames", () => {
   });
 
   it("works with computed tokens and no prompt tokens", () => {
-    const prompts = [{ config_key: "pm.mode" }];
+    const prompts: { token?: string }[] = [{ config_key: "pm.mode" } as { token?: string }];
     const computed = { REPO_ROOT: "description" };
     const tokens = getInitTokenNames(prompts, computed);
     expect(tokens).toEqual(new Set(["REPO_ROOT"]));

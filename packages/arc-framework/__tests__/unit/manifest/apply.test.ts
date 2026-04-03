@@ -47,7 +47,7 @@ function mockIO(fileSystem: Record<string, string> = {}): ApplyIO {
     writeFile: vi.fn(async (path: string, content: string) => {
       written[path] = content;
     }),
-    mkdir: vi.fn(async () => {}),
+    mkdir: vi.fn(async () => undefined),
   };
 }
 
