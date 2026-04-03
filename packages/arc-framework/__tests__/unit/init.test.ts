@@ -31,6 +31,7 @@ import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../../sr
 import {
   resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
+import { getFrameworkVersion } from "../../src/lib/version.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
@@ -663,7 +664,7 @@ describe("runInit", () => {
     expect(manifestCall).toBeDefined();
 
     const manifest = manifestCall![1] as Record<string, unknown>;
-    expect(manifest.framework_version).toBe("0.0.0");
+    expect(manifest.framework_version).toBe(getFrameworkVersion());
     expect(manifest.install_config).toEqual({
       project_name: "Test Project",
       pm_mode: "none",

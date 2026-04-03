@@ -34,6 +34,7 @@ import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { UserFacingError } from "../../src/lib/errors.js";
+import { getFrameworkVersion } from "../../src/lib/version.js";
 
 // --- Test Setup ---
 
@@ -229,7 +230,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   it("writes manifest with correct structure", async () => {
     const manifest = await readManifestFile(tempDir);
 
-    expect(manifest.framework_version).toBe("0.0.0");
+    expect(manifest.framework_version).toBe(getFrameworkVersion());
     expect(manifest.install_config).toEqual({
       project_name: "Integration Test Project",
       pm_mode: "none",
