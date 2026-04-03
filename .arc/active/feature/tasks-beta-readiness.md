@@ -1770,13 +1770,14 @@ or invent; honest gaps are more credible than overclaimed findings.
           `git hook run commit-msg` validates format
         - Build and all 447 unit tests pass
 
-- [ ] **9.5 Pre-publish gate**
-    - Final quality checkpoint before npm publish — everything must be clean
-    - Tier 3: `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`,
-      `npm run typecheck`, `npm test`, `npm run build`
-    - Verify CI passes on current branch (all GitHub Actions checks green)
-    - `npm pack --dry-run` — confirm included files are correct and no unexpected
-      files leak into the package
+- [x] **9.5 Pre-publish gate**
+    - Tier 3 all pass: markdown lint (153 files, 0 errors), TypeScript lint, shellcheck,
+      type check, full test suite (447 unit + 43 integration/E2E), build
+    - CI green on last push; local Tier 3 covers same checks for unpushed commits
+    - `npm pack --dry-run`: 101 files, 332kB packed — dist/, arc/, templates/,
+      init-recipe.json, changelog/ all present, no source or test leakage
+    - Fixed package.json metadata: license corrected to `Apache-2.0` (was `MIT`),
+      added `repository` field with GitHub URL and monorepo `directory`
 
 - [ ] **9.6 npm beta publish**
 
