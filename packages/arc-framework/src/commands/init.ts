@@ -214,7 +214,7 @@ export async function runInit(
 
   // Git integration (gitattributes, merge driver, hooks path)
   await configureGitIntegration({
-    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile,
+    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
   });
   const gitignorePath = join(cwd, ".gitignore");
 

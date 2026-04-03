@@ -97,7 +97,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
 
   // Git integration (gitattributes, merge driver, hooks path)
   await configureGitIntegration({
-    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile,
+    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
   });
 
   // Skill generation — detect pre-existing dirs so universal tools resolve to native dirs

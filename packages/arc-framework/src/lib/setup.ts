@@ -9,9 +9,12 @@
 import { join } from "node:path";
 import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
 import { configureNotesRefspec } from "./git/index.js";
+import { detectHookManager } from "./hook-manager.js";
+import { integrateHooks } from "./hook-integration.js";
 import type { CoreIO } from "./types.js";
 import { PM_MODE_ARC_IN_GIT } from "./constants.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
+import type { AccessFn } from "./hook-manager.js";
 
 /** Options for git integration setup. */
 export interface GitIntegrationOptions {
@@ -19,6 +22,7 @@ export interface GitIntegrationOptions {
   exec: CoreIO["exec"];
   readFile: ReadFileFn;
   writeFile: WriteFileFn;
+  access: AccessFn;
 }
 
 /**
@@ -32,7 +36,7 @@ export interface GitIntegrationOptions {
 export async function configureGitIntegration(
   options: GitIntegrationOptions,
 ): Promise<void> {
-  const { cwd, exec, readFile, writeFile } = options;
+  const { cwd, exec, readFile, writeFile, access } = options;
 
   const gitattrsPath = join(cwd, ".gitattributes");
   await writeArcGitattributesBlock(
@@ -42,7 +46,15 @@ export async function configureGitIntegration(
     writeFile,
   );
   await exec("git", ["config", "merge.ours.driver", "true"]);
-  await exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
+
+  // Hook setup: integrate into existing hook manager if detected,
+  // otherwise fall back to core.hooksPath (native git hooks).
+  const hookManager = await detectHookManager(cwd, access);
+  if (hookManager) {
+    await integrateHooks(hookManager, readFile, writeFile);
+  } else {
+    await exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
+  }
 }
 
 /** Options for post-init user setup. */

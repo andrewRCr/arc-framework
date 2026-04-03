@@ -18,9 +18,11 @@
     "test:e2e": "npm run test:e2e -w packages/arc-framework",
     "typecheck": "npm run typecheck -w packages/arc-framework",
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
-    "lint:sh": "npm run lint:sh -w packages/arc-framework"
+    "lint:sh": "npm run lint:sh -w packages/arc-framework",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "markdownlint-cli2": "0.21.0"
   }
 }
