@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.5.f — FAQ restructure (line ~1649)
-**Last Completed**: Task 8.5.e — Docs site QA pass (parent complete)
+**Next Task**: Task 8.6.a — Verify local docs build (line ~1656)
+**Last Completed**: Task 8.5.f — FAQ restructure
 **Blockers**: None
-**Next Action**: Start FAQ restructure — trim bloated entries, extract to landing pages, tonal pass
+**Next Action**: Start docs deployment — verify local mkdocs build
 
 ---
 

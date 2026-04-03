@@ -98,6 +98,23 @@ Atomic Task Completion for the full protocol.
     `createUserIOContext`, `gitExec`, `writeGitNote`, `readGitNote`, `readUserDir`). Pure
     refactor — zero test changes, all 434 tests pass, lint/typecheck clean.
 
+- [ ] **Create methodology update dependency checklist / guide**
+    - Problem: No defined guidance for what needs updating when methodology content changes.
+      Currently relies on session memory and carry-forward notes (e.g., package sync caution).
+      Risk of drift between canonical source (`packages/arc-framework/arc/`), local installation
+      (`.arc/`), strategy docs, subdir READMEs, indexes, CLI source, and docs site.
+    - Scope: Project-level guidance document (likely a strategy or reference doc) covering:
+        - **Canonical direction**: All methodology edits go to `packages/arc-framework/arc/`
+          first; sync flows TO `.arc/` (self-hosting), never the reverse
+        - **Template awareness**: `.template.md` files with `<!-- arc:if -->` conditionals
+          need template-aware edits, not blind copies
+        - **Dependency checklist**: When changing workflows/strategies, check for impacts on
+          related strategy docs, subdir READMEs, STRATEGY-INDEX, CLI source
+          (`packages/arc-framework/src/`), and docs site (`docs/`)
+        - **Guard mechanism**: Something internal (dev-only) that prevents accidental edits
+          to `.arc/` when the canonical source is `packages/`
+    - Files: New doc in `.arc/reference/` or `.arc/reference/strategies/project/`
+
 - [x] **Audit for docs orphaned during Phase 2 self-hosting migration** — Diffed `.arc-internal/`
     tree from commit before deletion (`017ece8^`) against current `.arc/`. Found 59 files that
     existed in `.arc-internal/` but were never copied to `.arc/` during migration: 14 ADRs

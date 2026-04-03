@@ -1400,7 +1400,7 @@ or invent; honest gaps are more credible than overclaimed findings.
     - Updated `mkdocs.yml` nav, `docs/index.md` Documentation Guide table. No stale
       cross-references found in foundation pages.
 
-- [ ] **8.5 Docs site polish and validation**
+- [x] **8.5 Docs site polish and validation**
 
     - [x] **8.5.a Run subagent audit against restructured docs**
         - Three parallel subagent reviews: README-first visitor, direct-to-docs visitor,
@@ -1641,15 +1641,18 @@ or invent; honest gaps are more credible than overclaimed findings.
               to differentiate from README while preserving value prop
             - Backlog: strategy docs on docs site added to BACKLOG-FEATURE.md
 
-    - [ ] **8.5.f FAQ restructure**
-        - Trim bloated FAQ entries to the 40-60 word sweet spot (CLAUDE.md comparison ~280
-          words, overhead ~190 words are primary targets)
-        - Extract detailed arguments to appropriate landing pages (Philosophy is the natural
-          home for most) with short FAQ answers linking out
-        - Tonal consistency pass across all entries
-        - Incorporate any FAQ candidates surfaced by 8.5.d.ii
-        - Flat list remains correct at current scale (~12 entries); reassess if adding 5+
-          new entries pushes toward the categorization threshold (20+)
+    - [x] **8.5.f FAQ restructure**
+        - Trimmed all 14 entries toward 40-70 word range; primary targets: CLAUDE.md
+          comparison (280→85), overhead (190→72), co-development positioning (150→60)
+        - Detailed arguments already covered by Philosophy — trimmed FAQ to short answers
+          with links out rather than extracting new sections
+        - Tonal consistency pass: removed pitch/sales framing (entry 1), defensive edge
+          (entry 11), apologetic opener (entry 2); consistent confident-explanatory tone
+        - No new FAQ candidates from 8.5.d.ii or 8.5.e (both audits confirmed FAQ was
+          already well-covered; 8.5.d.ii additions already incorporated)
+        - 14 entries, flat list confirmed correct (well under 20+ categorization threshold)
+        - Feedback mechanism: changed "file an issue" CTA to "start a discussion" linking
+          to GitHub Discussions (forward-compatible; enabling deferred to Task 9.1.a)
 
 - [ ] **8.6 Set up docs deployment**
 
@@ -1685,24 +1688,19 @@ or invent; honest gaps are more credible than overclaimed findings.
       repo name references
     - Verify: clone URL works, GitHub redirect from old name works, CI passes
 
-- [ ] **9.2 README update**
+- [ ] **9.2 Enable GitHub Discussions**
+    - Enable Discussions on the repo (Settings → Features)
+    - Set up categories: Ideas (feedback, feature requests), Q&A (usage questions),
+      Show and Tell (adopter experiences)
+    - Keep Issues for bug reports — Discussions for general feedback
+    - Verify: `https://github.com/andrewRCr/arc-framework/discussions` resolves
+      (FAQ already links here forward-compatibly)
+
+- [ ] **9.3 README update**
     - Replace current development README with minimal public version
     - Content: what ARC is (one paragraph), current status (beta), install command, link to
       docs site, link to CONTRIBUTING.md
     - Not a full adoption-focused rewrite (WU5)
-
-- [ ] **9.3 npm beta publish**
-
-    - [ ] **9.3.a Prepare package for publish**
-        - Update version to `0.1.0` (or appropriate beta version) in `package.json`
-        - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
-          `init-recipe.json`)
-        - Verify `package.json` metadata (description, keywords, repository, license)
-
-    - [ ] **9.3.b Publish and verify**
-        - `npm publish` to registry
-        - Verify `npx @arc-framework/cli init` works in a clean environment
-        - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
 
 - [ ] **9.4 Hook manager detection and integration (P1)**
 
@@ -1729,7 +1727,20 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Verify hooks fire correctly through husky
         - This validates the integration path for adopters
 
-- [ ] **9.5 Run quality gates**
+- [ ] **9.5 npm beta publish**
+
+    - [ ] **9.5.a Prepare package for publish**
+        - Update version to `0.1.0` (or appropriate beta version) in `package.json`
+        - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
+          `init-recipe.json`)
+        - Verify `package.json` metadata (description, keywords, repository, license)
+
+    - [ ] **9.5.b Publish and verify**
+        - `npm publish` to registry
+        - Verify `npx @arc-framework/cli init` works in a clean environment
+        - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
+
+- [ ] **9.6 Run quality gates**
     - Full Tier 2: `npm run -s lint:md`, `npm run typecheck`, `npm test`
 
 ### **Phase 10:** Verification
