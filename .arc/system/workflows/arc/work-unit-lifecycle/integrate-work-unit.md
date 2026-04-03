@@ -78,6 +78,26 @@ git diff --exit-code {{GENERATED_FILES_PATTERN}}
 
 **If diff shows changes:** Commit them before proceeding. CI may fail if generated files drift from source.
 
+### 1c) Evaluate Supplementary Files (If Any Exist)
+
+Check for standalone supplementary files in the work unit directory — `analysis-*`, `research-*`,
+`design-*`, or similar reference documents created during work.
+
+**If none exist:** Skip to Step 2.
+
+**If found, evaluate each for lasting reference value:**
+
+- **Keep** — Contains archival-worthy analysis, research synthesis, or design exploration with
+  future reference value beyond this work unit → include in Step 4 commit. During archival,
+  [archive-work-unit](archive-work-unit.md) Step 3 routes these to `.arc/reference/analysis/` or
+  `.arc/reference/research/` as appropriate.
+- **Delete** — Scratchpad content, superseded analysis, or content already absorbed into task
+  file, notes, ADRs, or strategy documents → delete before committing.
+
+**Rule of thumb:** Same as notes files — "Would I reference this 6 months from now, and is it not
+already captured elsewhere?" These files don't need cleaning (they're reference-ready by nature),
+just a keep/delete decision.
+
 ### 2) Clean Up Documentation (MANDATORY)
 
 **Run [clean-work-unit.md](clean-work-unit.md) workflow in Mode 2 (Archival Preparation).**
@@ -97,10 +117,12 @@ Commit all documentation updates to the child branch.
 
 ```bash
 git add .arc/active/{category}/tasks-{name}.md
-git add .arc/active/{category}/notes-{name}.md   # if exists
-git add .arc/active/{category}/atomic-{name}.md  # if populated (delete if empty — see below)
+git add .arc/active/{category}/notes-{name}.md      # if exists
+git add .arc/active/{category}/atomic-{name}.md     # if populated (delete if empty — see below)
 git add .arc/active/{category}/completion-{name}.md
-git add .arc/active/{category}/prd-{name}.md     # if planned work with PRD updates
+git add .arc/active/{category}/prd-{name}.md        # if planned work with PRD updates
+git add .arc/active/{category}/analysis-{name}*.md  # if kept in Step 1c
+git add .arc/active/{category}/research-{name}*.md  # if kept in Step 1c
 ```
 
 **Atomic companion file:** If `atomic-{name}.md` contains no checkbox items (no `- [` lines),
