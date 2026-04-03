@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: [none — all tasks complete, proceeding to integration]
+**Next Task**: [none — all tasks complete, integration in progress]
 **Last Completed**: Task 10.3 — Verify all atomic tasks resolved
 **Blockers**: None
-**Next Action**: Begin integration — load integrate-work-unit.md
+**Next Action**: integrate-work-unit Phase 2 Step 5 — pre-merge inbox review
 
 ---
 
