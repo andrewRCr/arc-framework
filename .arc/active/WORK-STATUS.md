@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 9.6 — npm beta publish (line ~1781)
-**Last Completed**: Task 9.5 — Pre-publish gate
+**Next Task**: Task 10.1 — Run Tier 3 quality gates (line ~1800)
+**Last Completed**: Task 9.6 — npm beta publish
 **Blockers**: None
-**Next Action**: Start Task 9.6 — prepare and publish npm beta
+**Next Action**: Start Phase 10 verification — load verify-work-unit.md
 
 ---
 

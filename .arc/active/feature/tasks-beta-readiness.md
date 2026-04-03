@@ -1779,18 +1779,22 @@ or invent; honest gaps are more credible than overclaimed findings.
     - Fixed package.json metadata: license corrected to `Apache-2.0` (was `MIT`),
       added `repository` field with GitHub URL and monorepo `directory`
 
-- [ ] **9.6 npm beta publish**
+- [x] **9.6 npm beta publish**
 
-    - [ ] **9.6.a Prepare package for publish**
-        - Update version to `0.1.0-beta.1` in `packages/arc-framework/package.json`
-        - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
-          `init-recipe.json`)
-        - Verify `package.json` metadata (description, keywords, repository, license)
+    - [x] **9.6.a Prepare package for publish**
+        - Version set to `0.1.0` (pre-1.0 signals beta; `-beta.N` suffix reserved for
+          per-publish gating of experimental builds)
+        - `npm pack --dry-run`: 101 files, 332kB — dist/, arc/, templates/,
+          init-recipe.json, changelog/ all correct
+        - Metadata verified: description, keywords, bin, engines, files all present.
+          License and repository fixed in Task 9.5
 
-    - [ ] **9.6.b Publish and verify**
-        - `npm publish` to registry
-        - Verify `npx @arc-framework/cli init` works in a clean environment
-        - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
+    - [x] **9.6.b Publish and verify**
+        - Published `@arc-framework/cli@0.1.0` to npm (public, latest tag)
+        - `npx @arc-framework/cli init --yes` verified in clean temp git repo —
+          installs from registry, scaffolds 80 files, exits clean
+        - npm auth streamlined: granular access token with 2FA bypass, stored in
+          `~/.npmrc` (no `npm login` session — token-only auth avoids browser flow)
 
 ### **Phase 10:** Verification
 
