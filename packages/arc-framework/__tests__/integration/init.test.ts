@@ -20,7 +20,6 @@ import {
   listFiles,
   sha256,
   readFile,
-  writeFile,
   join,
   execFileAsync,
   getArcTemplatePath,
@@ -32,7 +31,6 @@ import {
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
-import type { Manifest } from "../../src/lib/types.js";
 import { UserFacingError } from "../../src/lib/errors.js";
 import { getFrameworkVersion } from "../../src/lib/version.js";
 

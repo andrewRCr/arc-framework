@@ -430,7 +430,7 @@ describe("runInit", () => {
     };
     const io = mockIO(templateFiles);
 
-    const result = await runInit({
+    await runInit({
       cwd: "/project",
       io,
       templateDir: "/templates",

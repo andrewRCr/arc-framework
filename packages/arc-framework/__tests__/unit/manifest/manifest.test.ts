@@ -138,7 +138,9 @@ describe("readManifest", () => {
 
   it("migrates manifest without schema_version to version 1", async () => {
     const manifest = validManifest();
-    const { schema_version: _, ...withoutSchema } = manifest;
+    const withoutSchema = Object.fromEntries(
+      Object.entries(manifest).filter(([key]) => key !== "schema_version"),
+    );
     const filePath = join(tmpDir, "manifest.json");
     await writeFile(filePath, JSON.stringify(withoutSchema, null, 2), "utf-8");
     const loaded = await readManifest(filePath, readFileFn);

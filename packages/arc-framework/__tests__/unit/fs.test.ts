@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, readFile, writeFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { existsSync } from "node:fs";
 
 import { atomicWriteJson, toForwardSlash } from "../../src/lib/fs.js";
 

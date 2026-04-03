@@ -8,7 +8,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, readdir, access, writeFile } from "node:fs/promises";
+import { readFile, access, writeFile } from "node:fs/promises";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -53,21 +53,6 @@ async function pathExists(p: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/** Recursively list all files under a directory, returning relative paths. */
-async function listFilesRecursive(dir: string, base = dir): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...await listFilesRecursive(full, base));
-    } else {
-      files.push(full.slice(base.length + 1));
-    }
-  }
-  return files.sort();
 }
 
 describe("init", () => {

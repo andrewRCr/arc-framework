@@ -4,7 +4,6 @@ import {
   serialize,
   deserialize,
   MAX_FILE_SIZE,
-  type SerializeResult,
   type SyncManifest,
 } from "../../../src/lib/git/user-sync.js";
 import type { DirEntry } from "../../../src/lib/git/index.js";

@@ -18,7 +18,6 @@ import {
   join,
   listFiles,
   execFileAsync,
-  readManifestFile,
   manifestPath,
 } from "../helpers/integration.js";
 import { runStatus } from "../../src/commands/status.js";
@@ -32,7 +31,7 @@ const readFileFn = (path: string): Promise<string> => readFile(path, "utf-8");
 
 // --- Helpers ---
 
-function makeStatusIO(cwd: string): StatusIOContext {
+function makeStatusIO(): StatusIOContext {
   return {
     readFile: (path) => readFile(path, "utf-8"),
     readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
@@ -82,7 +81,7 @@ describe("status and diff integration", () => {
     it("reports all files unmodified on fresh init", async () => {
       const result = await runStatus({
         cwd: tempDir,
-        io: makeStatusIO(tempDir),
+        io: makeStatusIO(),
         frameworkVersion: "0.0.0",
       });
 
@@ -112,7 +111,7 @@ describe("status and diff integration", () => {
       try {
         const result = await runStatus({
           cwd: tempDir,
-          io: makeStatusIO(tempDir),
+          io: makeStatusIO(),
           frameworkVersion: "0.0.0",
         });
 
@@ -134,7 +133,7 @@ describe("status and diff integration", () => {
       try {
         const result = await runStatus({
           cwd: tempDir,
-          io: makeStatusIO(tempDir),
+          io: makeStatusIO(),
           frameworkVersion: "0.0.0",
         });
 
@@ -201,7 +200,7 @@ describe("status and diff integration", () => {
       await expect(
         runStatus({
           cwd: emptyDir,
-          io: makeStatusIO(emptyDir),
+          io: makeStatusIO(),
           frameworkVersion: "0.0.0",
         }),
       ).rejects.toThrow(UserFacingError);

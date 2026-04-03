@@ -33,14 +33,12 @@ import {
   readPristineStore,
   writePristineStore,
   manifestPath,
-  pristineStorePath,
 } from "../helpers/integration.js";
 import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
 import type { UpdateResult } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
 import { UserFacingError } from "../../src/lib/errors.js";
-import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
-import type { Recipe, Manifest } from "../../src/lib/types.js";
+import type { Recipe } from "../../src/lib/types.js";
 
 // --- Minimal recipe for synthetic tests ---
 
@@ -585,8 +583,10 @@ describe("update integration — pristine repair", () => {
     });
 
     // Remove the framework file's entry from pristine store to simulate corruption
-    const store = await readPristineStore(tempDir);
-    delete store[FRAMEWORK_FILE];
+    const fullStore = await readPristineStore(tempDir);
+    const store = Object.fromEntries(
+      Object.entries(fullStore).filter(([key]) => key !== FRAMEWORK_FILE),
+    );
     await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
@@ -625,8 +625,10 @@ describe("update integration — pristine repair", () => {
     });
 
     // Remove from pristine store to simulate corruption
-    const store = await readPristineStore(tempDir);
-    delete store[FRAMEWORK_FILE];
+    const fullStore2 = await readPristineStore(tempDir);
+    const store = Object.fromEntries(
+      Object.entries(fullStore2).filter(([key]) => key !== FRAMEWORK_FILE),
+    );
     await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({

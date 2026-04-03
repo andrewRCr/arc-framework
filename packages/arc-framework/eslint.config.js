@@ -7,7 +7,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: ["tsconfig.json", "tsconfig.test.json"],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -19,6 +19,14 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/", "__tests__/", "eslint.config.js"],
+    files: ["__tests__/**/*.ts"],
+    ...tseslint.configs.disableTypeChecked,
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      "@typescript-eslint/no-non-null-assertion": "off",
+    },
+  },
+  {
+    ignores: ["dist/", "eslint.config.js"],
   },
 );
