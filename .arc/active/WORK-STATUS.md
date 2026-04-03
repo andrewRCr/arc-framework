@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 9.1 — Repo rename (line ~1685)
-**Last Completed**: Task 8.7 — Run quality gates (Phase 8 complete)
+**Next Task**: Task 9.4 — Hook manager detection and integration (line ~1707)
+**Last Completed**: Task 9.3 — README validation
 **Blockers**: None
-**Next Action**: Begin Phase 9 — repo rename
+**Next Action**: Start Task 9.4 — hook manager detection module
 
 ---
 

@@ -1684,25 +1684,30 @@ or invent; honest gaps are more credible than overclaimed findings.
 
 **Purpose:** Establish public presence and implement hook manager detection (P1).
 
-- [ ] **9.1 Repo rename**
-    - Rename `arc-agentic-dev-framework` → `arc-framework` on GitHub
-    - Update all references: package.json repository field, GitHub Action URLs, any hardcoded
-      repo name references
-    - Verify: clone URL works, GitHub redirect from old name works, CI passes
+- [x] **9.1 Repo rename**
+    - Renamed `arc-agentic-dev-framework` → `arc-framework` on GitHub (manual)
+    - Updated git remote URL to new repo name
+    - Updated references: root `package.json` name, `package-lock.json` (regenerated),
+      `QUICK-REFERENCE.md` repository root path
+    - GitHub Action URLs, mkdocs.yml, README badges already used `arc-framework`
+    - Archive files left as-is (historical records)
 
-- [ ] **9.2 Enable GitHub Discussions**
-    - Enable Discussions on the repo (Settings → Features)
-    - Set up categories: Ideas (feedback, feature requests), Q&A (usage questions),
-      Show and Tell (adopter experiences)
-    - Keep Issues for bug reports — Discussions for general feedback
-    - Verify: `https://github.com/andrewRCr/arc-framework/discussions` resolves
-      (FAQ already links here forward-compatibly)
+- [x] **9.2 Enable GitHub Discussions**
+    - Enabled Discussions on the repo (Settings → Features)
+    - Kept default categories (Announcements, General, Ideas, Polls, Q&A, Show and Tell)
+    - Issues reserved for bug reports — Discussions for general feedback
+    - `https://github.com/andrewRCr/arc-framework/discussions` resolves
 
-- [ ] **9.3 README validation**
-    - README was rewritten as public-facing in `7aeb9c7` (Phase 8 docs work)
-    - Verify content is current: install command accurate, docs site link resolves,
-      CONTRIBUTING.md link works, status reflects beta
-    - Confirm no stale development-era content remains
+- [x] **9.3 README validation**
+    - Validated: install command (`npx @arc-framework/cli init`), docs site links, CI badge,
+      image assets, LICENSE — all correct
+    - Created root `CONTRIBUTING.md` — thin guide pointing to full docs site contributing page
+      (was missing; `docs/contributing.md` existed but root file did not)
+    - Added npm version badge (shields.io, linked to npmjs.com) — will show version after publish
+    - No stale development-era content found
+    - Updated Task 9.6.a to specify `0.1.0-beta.1` explicitly
+    - Noted: docs site logo uses single `arc-logo.svg` but theme-aware variants exist
+      (`arc-logo-dark.svg`, `arc-logo-light.svg`) — not yet wired into mkdocs palette config
 
 - [ ] **9.4 Hook manager detection and integration (P1)**
 
@@ -1740,7 +1745,7 @@ or invent; honest gaps are more credible than overclaimed findings.
 - [ ] **9.6 npm beta publish**
 
     - [ ] **9.6.a Prepare package for publish**
-        - Update version to `0.1.0` (or appropriate beta version) in `package.json`
+        - Update version to `0.1.0-beta.1` in `packages/arc-framework/package.json`
         - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
           `init-recipe.json`)
         - Verify `package.json` metadata (description, keywords, repository, license)
