@@ -1654,26 +1654,28 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Feedback mechanism: changed "file an issue" CTA to "start a discussion" linking
           to GitHub Discussions (forward-compatible; enabling deferred to Task 9.1.a)
 
-- [ ] **8.6 Set up docs deployment**
+- [x] **8.6 Set up docs deployment**
 
-    - [ ] **8.6.a Verify local build**
-        - `pip install mkdocs-material` (or equivalent)
-        - `mkdocs build` succeeds without errors
-        - `mkdocs serve` — verify navigation, search, all pages render correctly locally
+    - [x] **8.6.a Verify local build**
+        - mkdocs-material installed in `.venv/` (WSL environment)
+        - `mkdocs build` succeeds, `mkdocs serve` renders correctly
+        - MkDocs 2.0 breaking-change warning noted — informational only, no action needed
+          on current stable version
 
-    - [ ] **8.6.b Create GitHub Action for docs**
-        - Trigger: push to main
-        - Steps: setup Python, install mkdocs-material, `mkdocs build`, deploy to GitHub Pages
-        - Separate workflow file (not in existing `ci.yml` — different trigger and lifecycle)
+    - [x] **8.6.b Create GitHub Action for docs**
+        - `.github/workflows/docs.yml` — triggers on push to main (paths-filtered to
+          `docs/` and `mkdocs.yml`), plus `workflow_dispatch` for manual rebuilds
+        - Uses official GitHub Pages actions (`upload-pages-artifact` + `deploy-pages`)
+        - `mkdocs build --strict` catches broken links in CI
+        - Concurrency group prevents overlapping deployments
 
-    - [ ] **8.6.c Verify deployment post-merge**
-        - Push to main triggers build
-        - Site accessible at GitHub Pages URL
-        - Navigation, search, and all pages render correctly
+    - [~] **8.6.c Verify deployment post-merge**
+        - Deferred to post-integration — deployment can only be verified after merge to main
+          triggers the GitHub Action. Captured in ATOMIC-INBOX for the next work unit.
 
-- [ ] **8.7 Run quality gates**
-    - `npm run -s lint:md` (new markdown files in `docs/`)
-    - Verify mkdocs builds without errors locally (`mkdocs build`)
+- [x] **8.7 Run quality gates**
+    - `npm run -s lint:md` — zero errors across 152 files
+    - `mkdocs build --strict` — builds cleanly (0.42s)
 
 ### **Phase 9:** Public Scaffolding + Hook Manager Integration
 
@@ -1696,11 +1698,11 @@ or invent; honest gaps are more credible than overclaimed findings.
     - Verify: `https://github.com/andrewRCr/arc-framework/discussions` resolves
       (FAQ already links here forward-compatibly)
 
-- [ ] **9.3 README update**
-    - Replace current development README with minimal public version
-    - Content: what ARC is (one paragraph), current status (beta), install command, link to
-      docs site, link to CONTRIBUTING.md
-    - Not a full adoption-focused rewrite (WU5)
+- [ ] **9.3 README validation**
+    - README was rewritten as public-facing in `7aeb9c7` (Phase 8 docs work)
+    - Verify content is current: install command accurate, docs site link resolves,
+      CONTRIBUTING.md link works, status reflects beta
+    - Confirm no stale development-era content remains
 
 - [ ] **9.4 Hook manager detection and integration (P1)**
 
@@ -1727,21 +1729,26 @@ or invent; honest gaps are more credible than overclaimed findings.
         - Verify hooks fire correctly through husky
         - This validates the integration path for adopters
 
-- [ ] **9.5 npm beta publish**
+- [ ] **9.5 Pre-publish gate**
+    - Final quality checkpoint before npm publish — everything must be clean
+    - Tier 3: `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`,
+      `npm run typecheck`, `npm test`, `npm run build`
+    - Verify CI passes on current branch (all GitHub Actions checks green)
+    - `npm pack --dry-run` — confirm included files are correct and no unexpected
+      files leak into the package
 
-    - [ ] **9.5.a Prepare package for publish**
+- [ ] **9.6 npm beta publish**
+
+    - [ ] **9.6.a Prepare package for publish**
         - Update version to `0.1.0` (or appropriate beta version) in `package.json`
         - Verify `npm pack` includes correct files (`dist/`, `arc/`, `templates/`,
           `init-recipe.json`)
         - Verify `package.json` metadata (description, keywords, repository, license)
 
-    - [ ] **9.5.b Publish and verify**
+    - [ ] **9.6.b Publish and verify**
         - `npm publish` to registry
         - Verify `npx @arc-framework/cli init` works in a clean environment
         - Verify `npx @arc-framework/cli join` works in a project with `.arc/`
-
-- [ ] **9.6 Run quality gates**
-    - Full Tier 2: `npm run -s lint:md`, `npm run typecheck`, `npm test`
 
 ### **Phase 10:** Verification
 

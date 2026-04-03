@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.6.a — Verify local docs build (line ~1656)
-**Last Completed**: Task 8.5.f — FAQ restructure
+**Next Task**: Task 9.1 — Repo rename (line ~1685)
+**Last Completed**: Task 8.7 — Run quality gates (Phase 8 complete)
 **Blockers**: None
-**Next Action**: Start docs deployment — verify local mkdocs build
+**Next Action**: Begin Phase 9 — repo rename
 
 ---
 
