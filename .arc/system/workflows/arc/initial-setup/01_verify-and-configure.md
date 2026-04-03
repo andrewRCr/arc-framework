@@ -136,8 +136,10 @@ Confirm that `arc init` set up the local environment:
 - **Agent config file** — check whether `system/agent/{AGENT}.ARC.md` exists for
   the agent running this workflow. If not, create one from
   [template-agent.md][template-agent] (see Path 1 § Verify Agent Configuration).
-- **Git hooks** — symlinks installed from `.git/hooks/` to `.arc/system/githooks/`.
-  Verify with `ls -la .git/hooks/`.
+- **Git hooks** — if your project uses a hook manager (husky, lefthook, pre-commit),
+  ARC hooks are integrated into the manager's config. Otherwise, `core.hooksPath` is set
+  to `.arc/system/githooks/`. Verify with `git config core.hooksPath` or check your
+  hook manager's config for ARC entries.
 - **Identity** — `git config arc.identity` is set. This determines your personal
   workspace directory (`user/{identity}/`).
 - **User workspace** — `user/{identity}/` exists. Check `user.sync_push` in

@@ -1709,30 +1709,66 @@ or invent; honest gaps are more credible than overclaimed findings.
     - Noted: docs site logo uses single `arc-logo.svg` but theme-aware variants exist
       (`arc-logo-dark.svg`, `arc-logo-light.svg`) — not yet wired into mkdocs palette config
 
-- [ ] **9.4 Hook manager detection and integration (P1)**
+- [x] **9.4 Hook manager detection and integration (P1)**
 
-    - [ ] **9.4.a Create hook manager detection module**
+    **Design decisions (resolved during audit):**
 
-        Build `test-first` (one behavior at a time):
-        - Detects husky (`.husky/` directory)
-        - Detects lefthook (`lefthook.yml` or `lefthook.yaml`)
-        - Detects pre-commit (`.pre-commit-config.yaml`)
-        - Returns `null` when no manager found
+    - All three managers get first-class support: husky (file append), lefthook (YAML),
+      pre-commit (YAML)
+    - Add `js-yaml` as production dependency for safe YAML parse/serialize (lefthook,
+      pre-commit configs are whitespace-sensitive — string manipulation is a bug farm)
+    - When a manager is detected, **skip `core.hooksPath`** — the manager owns that key.
+      ARC integrates by adding entries to the manager's config, not competing for hooksPath
+    - `arc update` doesn't touch manager configs (entries are stable path references to
+      `.arc/system/githooks/`). `arc init --reconfigure` re-runs detection
+    - Idempotent insertion: grep guard for husky, YAML key existence checks for the others
+    - `.arc/system/githooks/` path is a stable interface — if it ever changes, that's a
+      breaking change requiring migration
 
-    - [ ] **9.4.b Integrate detection into `arc init` and `arc join`**
+    - [x] **9.4.a Create hook manager detection module**
 
-        Build `test-first` (one behavior at a time):
-        - When hook manager detected, adds ARC hook calls to manager config instead of
-          `core.hooksPath`
-        - When no manager detected, falls back to `core.hooksPath` (current behavior)
-        - Husky integration: adds to `.husky/pre-commit` and `.husky/commit-msg`
-        - Lefthook integration: adds to `lefthook.yml`
+        New module: `src/lib/hook-manager.ts` with 9 unit tests.
+        - `detectHookManager(cwd, access)` checks for markers in priority order
+          (husky > lefthook > pre-commit), returns `{ manager, configPath } | null`
+        - Injectable `AccessFn` for testability — no filesystem in unit tests
+        - Covers: each manager detected, null when none found, priority when multiple
+          exist, lefthook.yml preferred over lefthook.yaml
 
-    - [ ] **9.4.c Adopt husky in dev repo (P1)**
-        - Install husky as dev dependency
-        - Configure `.husky/` hooks to call ARC hook scripts
-        - Verify hooks fire correctly through husky
-        - This validates the integration path for adopters
+    - [x] **9.4.b Create hook manager integration module**
+
+        New module: `src/lib/hook-integration.ts` with 10 unit tests.
+        - `integrateHooks(detection, readFile, writeFile)` dispatches to per-manager strategy
+        - Husky: appends to/creates `.husky/pre-commit` and `.husky/commit-msg` with
+          shebang. Idempotent via string-includes guard
+        - Lefthook: adds `arc-pre-commit` and `arc-commit-msg` commands to `lefthook.yml`
+          via `js-yaml` parse/serialize. Creates hook sections if absent. Idempotent via
+          key existence check
+        - Pre-commit: adds `repo: local` entry with `arc-pre-commit` and `arc-commit-msg`
+          hooks. Appends to existing local repo if present. Idempotent via id check
+        - All strategies skip writes entirely when already integrated
+
+    - [x] **9.4.c Wire detection and integration into `arc init` and `arc join`**
+
+        Modified `configureGitIntegration()` in `src/lib/setup.ts`:
+        - Added `access` to `GitIntegrationOptions` for hook manager detection
+        - Runs `detectHookManager()` before hook setup
+        - When manager detected: calls `integrateHooks()`, skips `core.hooksPath`
+        - When no manager detected: sets `core.hooksPath` (existing behavior preserved)
+        - Updated both callers (`init.ts`, `join.ts`) to pass `io.access`
+        - All 447 unit tests + 43 integration/E2E tests pass (existing no-manager tests
+          are the regression case — they pass because mock IO has no hook manager markers)
+
+    - [x] **9.4.d Add `js-yaml` production dependency**
+        - Added `js-yaml` (production) and `@types/js-yaml` (dev) to CLI package
+        - Build passes, all 428 unit tests pass
+
+    - [x] **9.4.e Adopt husky in dev repo**
+        - Installed husky v9 as root dev dependency (`prepare` script added)
+        - Created `.husky/pre-commit` and `.husky/commit-msg` calling ARC hook scripts
+        - `core.hooksPath` now `.husky/_` (managed by husky, not ARC)
+        - Verified both hooks fire correctly: `git hook run pre-commit` runs ARC checks,
+          `git hook run commit-msg` validates format
+        - Build and all 447 unit tests pass
 
 - [ ] **9.5 Pre-publish gate**
     - Final quality checkpoint before npm publish — everything must be clean

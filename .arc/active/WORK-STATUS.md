@@ -16,10 +16,10 @@
 **Branch**: `feature/beta-readiness`
 **Task List**: `.arc/active/feature/tasks-beta-readiness.md`
 **Following Task List**: Yes
-**Next Task**: Task 9.4 — Hook manager detection and integration (line ~1707)
-**Last Completed**: Task 9.3 — README validation
+**Next Task**: Task 9.5 — Pre-publish gate (line ~1769)
+**Last Completed**: Task 9.4 — Hook manager detection and integration
 **Blockers**: None
-**Next Action**: Start Task 9.4 — hook manager detection module
+**Next Action**: Start Task 9.5 — pre-publish quality gate
 
 ---
 

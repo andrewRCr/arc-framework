@@ -119,3 +119,13 @@ metadata to commits without modifying commit history. ARC uses them under the ho
 portability — your gitignored session context can be saved to git notes and restored on another
 machine or by a teammate picking up your branch. The CLI handles everything: `arc sync` saves and
 pushes, `arc sync --load` pulls and restores. You'll never need to run `git notes` commands directly.
+
+## Does ARC work with husky / lefthook / pre-commit?
+
+Yes. During `arc init` or `arc join`, the CLI detects whether your project uses a hook manager
+(husky, lefthook, or pre-commit) and integrates ARC's hooks into the manager's configuration
+automatically. Your existing hooks continue to run alongside ARC's commit validation.
+
+If no hook manager is detected, ARC sets `core.hooksPath` directly — which means only ARC's hooks
+run. If you later adopt a hook manager, running `arc init --reconfigure` will re-detect and
+integrate.

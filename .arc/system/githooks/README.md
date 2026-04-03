@@ -5,9 +5,30 @@ invocation needed.
 
 ## Setup
 
+**Automatic:** `arc init` and `arc join` handle hook setup automatically, including
+detecting existing hook managers.
+
+**Hook manager integration:** If your project uses a hook manager (husky, lefthook, or
+pre-commit), ARC detects it during `arc init` / `arc join` and adds hook calls to the
+manager's configuration instead of setting `core.hooksPath`. This preserves your existing
+hook setup while adding ARC's validation:
+
+- **Husky** — adds calls to `.husky/pre-commit` and `.husky/commit-msg`
+- **Lefthook** — adds `arc-pre-commit` and `arc-commit-msg` commands to `lefthook.yml`
+- **pre-commit** — adds local hooks to `.pre-commit-config.yaml`
+
+**No hook manager:** When no manager is detected, ARC sets `core.hooksPath` directly to
+`.arc/system/githooks/`.
+
+**Manual setup** (if not using the CLI):
+
 ```bash
-# One-time configuration (from repository root)
+# Option A: Direct hook path (no hook manager)
 git config core.hooksPath .arc/system/githooks
+
+# Option B: Hook manager — add calls to your manager's config
+# Husky: echo '.arc/system/githooks/pre-commit' >> .husky/pre-commit
+# See the integration patterns below for each manager
 ```
 
 Hooks must be executable:
@@ -130,20 +151,31 @@ Edit the hook scripts directly to add project-specific checks. Common additions:
 - Project-specific sensitive file patterns (pre-commit, Check 3)
 - Additional debug statement patterns (pre-commit, Check 5)
 
-## Note: `core.hooksPath` Singularity
+## Hook Manager Compatibility
 
-Git supports only one `core.hooksPath`. Setting it to `.arc/system/githooks/` means hooks in
-`.git/hooks/` or other locations won't run. If your project needs additional hooks beyond ARC's,
-add them directly to this directory or implement chaining in the hook scripts (check for and
-execute a secondary hook path).
+ARC's CLI automatically detects and integrates with existing hook managers during `arc init` and
+`arc join`. If your project uses husky, lefthook, or pre-commit, ARC adds its hooks to the
+manager's configuration rather than setting `core.hooksPath`, so both ARC hooks and your existing
+hooks run through the same manager.
+
+If you're **not** using a hook manager, ARC sets `core.hooksPath` directly. Git supports only one
+`core.hooksPath`, so hooks in `.git/hooks/` or other locations won't run in this mode. If your
+project needs additional hooks beyond ARC's, either adopt a hook manager (recommended) or add
+custom checks directly to the hook scripts in this directory.
 
 ## Troubleshooting
 
 **Hooks not running:**
 
 ```bash
+# If using core.hooksPath (no hook manager):
 git config core.hooksPath
 # Should output: .arc/system/githooks
+
+# If using a hook manager, check the manager's config for ARC hook entries:
+# Husky: cat .husky/pre-commit (should contain .arc/system/githooks/pre-commit)
+# Lefthook: grep arc-pre-commit lefthook.yml
+# pre-commit: grep arc-pre-commit .pre-commit-config.yaml
 ```
 
 **Permission denied:**
