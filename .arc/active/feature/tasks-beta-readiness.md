@@ -2,9 +2,10 @@
 
 **PRD:** `.arc/active/feature/prd-beta-readiness.md`
 **Created:** 2026-03-23
+**Completed:** 2026-04-03
 **Branch(es):** `feature/beta-readiness`
 **Base Branch:** `main`
-**Status:** In Progress
+**Status:** Complete
 
 ## Overview
 
@@ -1065,9 +1066,6 @@ auto-detection promoted from backlog into Task 6.3.b.
 
 ### **Phase 7:** `--reconfigure` Implementation
 
-<!-- NOTE: Phase inserted after --reconfigure scoping session (2026-03-27).
-     Phases 7-9 renumbered to 8-10 to accommodate. -->
-
 **Purpose:** Add `--reconfigure` flag to `init` and `join`, enabling post-init changes to
 structural settings (`pm_mode`, `team_mode`, `project_name`). Resolves the gap where
 `arc update` uses frozen `install_config` from the manifest and post-init config edits
@@ -1241,9 +1239,6 @@ get overwritten.
 
 ### **Phase 8:** Docs Site
 
-<!-- NOTE: Phase renumbered 6 → 7 → 8 after Phase 6 and Phase 7 insertions.
-     Task numbers updated accordingly. -->
-
 **Purpose:** Ship a docs site with foundation content covering what ARC is and how to get started,
 plus stub infrastructure for WU5 expansion. Establish the content boundary between README (front
 door), docs site (orientation and depth), and in-repo `.arc/` (agent runtime context).
@@ -1300,11 +1295,9 @@ or invent; honest gaps are more credible than overclaimed findings.
         thesis anchor; "Much of the current momentum" framing over definitive trend claim.
 
     **Checkpoint after 8.1:** Content allocation map, README structure, and written README
-    reviewed with user. Foundation page list confirmed at 6 — no revisions needed. Proceed
-    to 8.2/8.3.
-    This is the gate — 8.1's outputs define the scope of everything that follows.
+    reviewed with user. Foundation page list confirmed at 6 — no revisions needed.
 
-- [ ] **8.2 Set up MkDocs infrastructure**
+- [x] **8.2 Set up MkDocs infrastructure**
 
     - [x] **8.2.a Create `mkdocs.yml`**
         - Material theme with light/dark toggle, site name "ARC Framework", repo URL
@@ -1679,9 +1672,6 @@ or invent; honest gaps are more credible than overclaimed findings.
 
 ### **Phase 9:** Public Scaffolding + Hook Manager Integration
 
-<!-- NOTE: Phase renumbered 7 → 8 → 9 after Phase 6 and Phase 7 insertions.
-     Task numbers updated accordingly. -->
-
 **Purpose:** Establish public presence and implement hook manager detection (P1).
 
 - [x] **9.1 Repo rename**
@@ -1799,9 +1789,6 @@ or invent; honest gaps are more credible than overclaimed findings.
 ### **Phase 10:** Verification
 
 **Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
-
-<!-- NOTE: Phase renumbered 8 → 9 → 10 after Phase 6 and Phase 7 insertions.
-     Task numbers updated accordingly. -->
 
 - [x] **10.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
     - Markdown lint (153 files), TS lint, shell lint, typecheck, build: all clean

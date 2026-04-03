@@ -1,12 +1,19 @@
 # Notes: Beta Readiness
 
-Task-adjacent reference material for `tasks-beta-readiness.md`.
+**Task List:** `tasks-beta-readiness.md`
+**Completed:** 2026-04-03
+**Status:** Complete
+
+## Contents
+
+- [Reconfigure Design Reference](#reconfigure-design-reference)
+- [Positioning Research](#positioning-research)
 
 ---
 
-## Phase 6B: `--reconfigure` Design Reference
+## Reconfigure Design Reference
 
-**Referenced by:** Task 6B.1–6B.6
+Design decisions and external research that informed the `--reconfigure` feature (Tasks 6B.1–6B.6).
 
 ### Problem Statement
 
@@ -226,9 +233,9 @@ Once the command surface is finalized, a pass across all docs to ensure clear si
 
 ---
 
-## Phase 8: Positioning Research
+## Positioning Research
 
-Compiled 2026-03-30. Research conducted via external research agents to inform Phase 8
+Research conducted via external research agents (2026-03-30) to inform
 content boundary decisions, README positioning, and docs-site foundation page writing.
 
 ### 1. README / Docs-Site Boundary Patterns

@@ -1,7 +1,8 @@
 # PRD: Beta Readiness
 
 **Type:** Feature
-**Updated:** 2026-03-23
+**Updated:** 2026-04-03
+**Status:** Complete
 
 ---
 
@@ -249,16 +250,16 @@ are triggered by push to main and deploy to GitHub Pages.
 
 ## Open Questions
 
-**Resolve during work:**
+**Resolved:**
 
-- **Hook CHECK 11 transformation**: Does framework-owned file protection become contributor-aware
-  file protection, or does it dissolve entirely? The protected file warning in the contributor
-  hook changes may subsume this. Resolve during hook migration (Req 7).
-- **`packages/arc-framework/` exclusion (CHECK 8)**: Post-migration, the package directory
-  contains framework source, not user content. Is the exclusion still relevant? Resolve during
-  hook migration (Req 7).
-- **`system/workflows/project/` disposition**: What from this directory is needed post-migration?
-  Evaluate during content migration (Req 4).
+- **Hook CHECK 11 transformation**: Dissolved — noise for framework authors. Contributor-aware
+  file protection implemented separately in Phase 4 (protected path warning for contributors
+  staging `active/` or `backlog/` files).
+- **`packages/arc-framework/` exclusion (CHECK 8)**: No action needed — template hooks already
+  exclude this path correctly. The dev repo's pre-commit retains a project-specific addition
+  for the exclusion since framework source legitimately contains `.arc/` references.
+- **`system/workflows/project/` disposition**: One file (`agent-pre-merge-review.md`, CodeRabbit
+  workflow) — copied as-is during migration. Project-specific workflow, not adopter content.
 
 ## Document History
 
