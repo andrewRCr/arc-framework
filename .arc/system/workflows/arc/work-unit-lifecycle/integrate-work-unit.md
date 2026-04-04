@@ -189,10 +189,10 @@ description — stale metadata in the PR undermines the review it's meant to sup
 ### 6c) Update WORK-STATUS.md
 
 Update WORK-STATUS.md so Next Action reflects the current integration step (e.g., "integrate-work-unit
-Step 7 — push and create PR"). Stage it with the Step 6b commit if one is being made, or include
-it in the Phase 1 Step 4 commit if no Phase 2 commits occurred. This ensures WORK-STATUS is
-committed before the PR is created — a standalone WORK-STATUS commit after push resets automated
-PR reviews.
+Step 7 — push and create PR"). Stage and commit with the `(integration)` context footer — bundle
+with the Step 6b commit if one is being made, or commit standalone if no other Phase 2 changes
+exist. This ensures WORK-STATUS is committed before the PR is created — a standalone WORK-STATUS
+commit after push resets automated PR reviews.
 
 ### 7) Push and Create PR
 

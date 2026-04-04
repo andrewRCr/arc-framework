@@ -124,11 +124,11 @@ session-state, follow the override instead.
 >
 > - **Load** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` — contributor role orientation
 >   (boundaries, commit convention, session workflow differences)
-> - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if it exists — personal context is
->   role-agnostic
-> - **Check** `.arc/user/{identity}/WORK-STATUS.md` — optional local planning state. If
->   present, note it in the orientation; if absent, that's normal (contributors often don't
->   maintain one)
+> - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and file exists —
+>   personal context is role-agnostic
+> - **Check** `.arc/user/{identity}/WORK-STATUS.md` if identity resolved — optional local
+>   planning state. If present, note it in the orientation; if absent, that's normal
+>   (contributors often don't maintain one)
 > - **Skip** items 8, 10–11 (project-level WORK-STATUS, task list, task execution workflow)
 > - **Skip** Step 5 (next work unit discovery — maintainer concern)
 > - **Proceed to** Step 3 (extensions), Step 4 (configuration), then Step 6 with contributor
@@ -275,7 +275,7 @@ produces no output.
 
 #### ATOMIC-INBOX check
 
-If `user/{identity}/ATOMIC-INBOX.md` exists and has incomplete items, note the count in the
+If identity resolved and `user/{identity}/ATOMIC-INBOX.md` exists and has incomplete items, note the count in the
 orientation summary (e.g., "3 inbox items pending triage"). This is a lightweight reminder —
 the primary triage point is during [integration][integrate-work-unit], but surfacing the count
 at session start prevents items from accumulating unnoticed across many small work units.
@@ -288,7 +288,7 @@ When WORK-STATUS.md shows `Task List: [none]`, assess readiness for the next wor
 
 1. Read ROADMAP.md — identify the next queued or suggested item
 2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
-3. Check `user/{identity}/ATOMIC-INBOX.md` — if it exists with items, note the count
+3. If identity resolved, check `user/{identity}/ATOMIC-INBOX.md` — if it exists with items, note the count
    (e.g., "3 inbox items pending triage")
 4. Report what exists and its readiness state in the orientation summary
 5. Propose next steps based on what was found — ask for confirmation before proceeding

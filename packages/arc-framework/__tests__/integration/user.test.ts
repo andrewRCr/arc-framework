@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readFile, writeFile, mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 
 import {
   cleanupTempDir,
@@ -233,7 +234,7 @@ describe("user save and load", () => {
 
     // Shallow clone — limited history but notes ref pulled separately
     const shallowDir = await mkdtemp(join(tmpdir(), "arc-shallow-"));
-    await execFileAsync("git", ["clone", "--depth", "2", `file://${remoteDir}`, shallowDir]);
+    await execFileAsync("git", ["clone", "--depth", "2", pathToFileURL(remoteDir).href, shallowDir]);
     await execFileAsync("git", ["config", "user.email", "s@t.com"], { cwd: shallowDir });
     await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
 
@@ -277,7 +278,7 @@ describe("user save and load", () => {
 
     // Shallow clone with depth 1 — only HEAD
     const shallowDir = await mkdtemp(join(tmpdir(), "arc-shallow-"));
-    await execFileAsync("git", ["clone", "--depth", "1", `file://${remoteDir}`, shallowDir]);
+    await execFileAsync("git", ["clone", "--depth", "1", pathToFileURL(remoteDir).href, shallowDir]);
     await execFileAsync("git", ["config", "user.email", "s@t.com"], { cwd: shallowDir });
     await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
 
@@ -660,15 +661,15 @@ describe("user push and pull", () => {
     await execFileAsync("git", ["-C", tempDir, "remote", "remove", "origin"]);
     const io = makeUserIO(tempDir);
 
-    // Push without remote should fail
+    // Push without remote should fail with clear diagnostic
     await expect(
       runUserPush({ io, identity: "test-user" }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/origin/);
 
-    // Pull without remote should fail
+    // Pull without remote should fail with clear diagnostic
     await expect(
       runUserPull({ io, identity: "test-user" }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/origin/);
   });
 
   it("hasLocalNotes returns true after save, false before", async () => {
