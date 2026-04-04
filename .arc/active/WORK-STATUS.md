@@ -13,7 +13,7 @@
 
 ## Active Work
 
-**Branch**: `main`
+**Branch**: `feature/plan-arc-lite`
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
