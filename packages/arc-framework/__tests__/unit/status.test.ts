@@ -180,6 +180,42 @@ describe("runStatus", () => {
     expect(newFile!.state).toBe("new");
   });
 
+  it("reports Scaffolded files as scaffolded instead of modified", async () => {
+    const manifest = buildManifest({
+      files: {
+        "active/WORK-STATUS.md": {
+          classification: "Scaffolded",
+          layer: "core",
+          // No pristine_hash — Scaffolded files are adopter-owned
+        },
+        "system/arc-config.yml": {
+          classification: "Configurable",
+          layer: "core",
+          pristine_hash: FILE_HASH,
+        },
+      },
+    });
+
+    const io = buildIO({
+      manifest,
+      files: {
+        [`${CWD}/.arc/active/WORK-STATUS.md`]: "custom content\n",
+        [`${CWD}/.arc/system/arc-config.yml`]: FILE_CONTENT,
+      },
+      arcFiles: ["active/WORK-STATUS.md", "system/arc-config.yml"],
+    });
+
+    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+
+    const scaffolded = result.fileStatuses.find((f) => f.path === "active/WORK-STATUS.md");
+    expect(scaffolded).toBeDefined();
+    expect(scaffolded!.state).toBe("scaffolded");
+    expect(scaffolded!.classification).toBe("Scaffolded");
+
+    const configurable = result.fileStatuses.find((f) => f.path === "system/arc-config.yml");
+    expect(configurable!.state).toBe("unmodified");
+  });
+
   it("uses semver comparison for version mismatch (not string equality)", async () => {
     // String comparison: "0.9.0" > "0.10.0" (wrong). Semver: 0.10.0 > 0.9.0 (correct).
     const manifest = buildManifest({ framework_version: "0.10.0" });
@@ -322,7 +358,23 @@ describe("buildStatusSummary", () => {
       latestVersion: null,
     });
 
-    expect(summary).toContain("Legend: M=modified  !=missing  ?=new");
+    expect(summary).toContain("Legend: M=modified  S=scaffolded  !=missing  ?=new");
+  });
+
+  it("shows scaffolded files with S label and count", () => {
+    const summary = buildStatusSummary({
+      fileStatuses: [
+        { path: "active/WORK-STATUS.md", state: "scaffolded", classification: "Scaffolded" },
+        { path: "system/arc-config.yml", state: "unmodified", classification: "Configurable" },
+      ],
+      versionInstalled: "1.0.0",
+      versionCurrent: "1.0.0",
+      updateAvailable: false,
+      latestVersion: null,
+    });
+
+    expect(summary).toContain("1 scaffolded");
+    expect(summary).toContain("S [Scaffolded] .arc/active/WORK-STATUS.md");
   });
 
   it("omits legend when all files are unmodified", () => {

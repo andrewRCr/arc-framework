@@ -184,6 +184,9 @@ interface PreCommitConfig {
   [key: string]: unknown;
 }
 
+// "unsupported_script" is the official modern language for repo-local scripts
+// in pre-commit v4.4.0+ (PR #3577). It runs the entry as-is without environment
+// provisioning. The older name "script" still works but is headed for deprecation.
 const ARC_PRE_COMMIT_HOOK: PreCommitHook = {
   id: "arc-pre-commit",
   name: "ARC Pre-Commit",

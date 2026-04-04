@@ -59,20 +59,13 @@ describe("atomicWriteJson", () => {
     expect(entries).toEqual(["pristine.json"]);
   });
 
-  it("preserves original file when write fails", async () => {
-    const target = join(tempDir, "manifest.json");
-    const original = { version: "1.0.0" };
-    await writeFile(target, JSON.stringify(original, null, 2) + "\n", "utf-8");
+  it("creates parent directories when they do not exist", async () => {
+    const target = join(tempDir, "nonexistent", "subdir", "manifest.json");
 
-    // Write to a non-existent subdirectory to trigger ENOENT on temp file creation
-    const badTarget = join(tempDir, "nonexistent", "subdir", "manifest.json");
+    await atomicWriteJson(target, { version: "2.0.0" });
 
-    await expect(atomicWriteJson(badTarget, { version: "2.0.0" }))
-      .rejects.toThrow();
-
-    // Original file unchanged
     const content = await readFile(target, "utf-8");
-    expect(JSON.parse(content)).toEqual(original);
+    expect(JSON.parse(content)).toEqual({ version: "2.0.0" });
   });
 
   it("cleans up temp file on write failure", async () => {
@@ -101,9 +94,7 @@ describe("atomicWriteJson", () => {
     }
   });
 
-  it("creates parent directories if they exist (caller uses ensureDir)", async () => {
-    // atomicWriteJson does NOT create parent dirs — callers use ensureDir
-    // This test verifies it works when the directory exists
+  it("works when parent directories already exist", async () => {
     const subDir = join(tempDir, "system", ".internal");
     await mkdir(subDir, { recursive: true });
     const target = join(subDir, "manifest.json");

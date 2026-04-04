@@ -8,7 +8,7 @@
  */
 
 import { join, dirname, basename, relative } from "node:path";
-import { readdir, stat, writeFile, rename, unlink } from "node:fs/promises";
+import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promises";
 
 /**
  * Write a JSON value to a file atomically using temp-file-then-rename.
@@ -24,6 +24,7 @@ import { readdir, stat, writeFile, rename, unlink } from "node:fs/promises";
  */
 export async function atomicWriteJson(targetPath: string, data: unknown): Promise<void> {
   const dir = dirname(targetPath);
+  await mkdir(dir, { recursive: true });
   const tmpPath = join(dir, `.${basename(targetPath)}.tmp`);
 
   try {

@@ -185,6 +185,9 @@ async function handleReconfigure(
     return;
   }
 
+  // Re-affirm role — ensures consistency even if arc.role was unset
+  await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
+
   // Read current manifest to get install_config
   const internalDir = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS);
   const manifestPath = join(internalDir, MANIFEST_FILENAME);

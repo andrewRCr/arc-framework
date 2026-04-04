@@ -244,8 +244,11 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   }
   const io = createUserIOContext();
 
+  // Check once — reused for the prompt and the force flag
+  const hasLocal = await hasLocalNotes(io, identity);
+
   // Warn if local notes exist that would be overwritten
-  if (await hasLocalNotes(io, identity)) {
+  if (hasLocal) {
     const proceed = await p.confirm({
       message: "Local notes exist and will be overwritten by remote. Continue?",
       initialValue: true,
@@ -255,9 +258,6 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       return;
     }
   }
-
-  // Force pull when user confirmed overwrite of diverged local notes
-  const hasLocal = await hasLocalNotes(io, identity);
   try {
     await runWithSpinner(
       "Pulling user notes...",

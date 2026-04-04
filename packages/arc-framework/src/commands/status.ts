@@ -19,7 +19,7 @@ import type { Classification, Manifest, ReadIO } from "../lib/types.js";
 // --- Types ---
 
 /** File state as detected by the status command. */
-export type FileState = "unmodified" | "modified" | "missing" | "new";
+export type FileState = "unmodified" | "modified" | "missing" | "new" | "scaffolded";
 
 /** Per-file status entry. */
 export interface FileStatus {
@@ -97,6 +97,12 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
       continue;
     }
 
+    // Scaffolded files are adopter-owned — no pristine baseline to compare against
+    if (entry.classification === "Scaffolded") {
+      fileStatuses.push({ path: relativePath, state: "scaffolded", classification: entry.classification });
+      continue;
+    }
+
     const currentHash = hashContent(content);
     const state: FileState =
       entry.pristine_hash && currentHash === entry.pristine_hash ? "unmodified" : "modified";
@@ -155,6 +161,7 @@ export function buildStatusSummary(result: StatusResult): string {
     modified: 0,
     missing: 0,
     new: 0,
+    scaffolded: 0,
   };
   for (const f of result.fileStatuses) {
     counts[f.state]++;
@@ -165,6 +172,7 @@ export function buildStatusSummary(result: StatusResult): string {
   const parts: string[] = [`${trackedCount} files tracked`];
   if (counts.unmodified > 0) parts.push(`${counts.unmodified} unmodified`);
   if (counts.modified > 0) parts.push(`${counts.modified} modified`);
+  if (counts.scaffolded > 0) parts.push(`${counts.scaffolded} scaffolded`);
   if (counts.missing > 0) parts.push(`${counts.missing} missing`);
   if (counts.new > 0) parts.push(`${counts.new} new`);
   lines.push(parts.join(", "));
@@ -179,14 +187,16 @@ export function buildStatusSummary(result: StatusResult): string {
       const label =
         f.state === "modified"
           ? "M"
-          : f.state === "missing"
-            ? "!"
-            : "?";
+          : f.state === "scaffolded"
+            ? "S"
+            : f.state === "missing"
+              ? "!"
+              : "?";
       const cls = f.classification ? ` [${f.classification}]` : "";
       lines.push(`  ${label}${cls} .arc/${f.path}`);
     }
     lines.push("");
-    lines.push("Legend: M=modified  !=missing  ?=new");
+    lines.push("Legend: M=modified  S=scaffolded  !=missing  ?=new");
   }
 
   return lines.join("\n");
