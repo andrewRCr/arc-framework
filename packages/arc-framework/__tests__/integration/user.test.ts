@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { readFile, writeFile, mkdir, mkdtemp } from "node:fs/promises";
+import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -348,7 +348,6 @@ describe("user load — backup and stale detection", () => {
     await runUserSave({ cwd: tempDir, io, identity: "new-user" });
 
     // Remove the dir to simulate first load on a fresh clone
-    const { rm } = await import("node:fs/promises");
     await rm(userDir, { recursive: true, force: true });
 
     // Load should succeed without backup (dir doesn't exist)
@@ -433,7 +432,6 @@ describe("user save/load — subdirectory support", () => {
     expect(saveResult.fileCount).toBe(2);
 
     // Delete everything and reload
-    const { rm } = await import("node:fs/promises");
     await rm(userDir, { recursive: true, force: true });
 
     const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
@@ -609,10 +607,10 @@ describe("user push and pull", () => {
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 3 local", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
-    // Regular push should fail
+    // Regular push should fail with divergence error
     await expect(
       runUserPush({ io, identity: "test-user" }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/rejected/);
 
     // Force push should succeed
     await runUserPush({ io, identity: "test-user", force: true });
