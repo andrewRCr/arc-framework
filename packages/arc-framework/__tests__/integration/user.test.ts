@@ -233,7 +233,7 @@ describe("user save and load", () => {
 
     // Shallow clone — limited history but notes ref pulled separately
     const shallowDir = await mkdtemp(join(tmpdir(), "arc-shallow-"));
-    await execFileAsync("git", ["clone", "--depth", "2", remoteDir, shallowDir]);
+    await execFileAsync("git", ["clone", "--depth", "2", `file://${remoteDir}`, shallowDir]);
     await execFileAsync("git", ["config", "user.email", "s@t.com"], { cwd: shallowDir });
     await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
 
@@ -277,7 +277,7 @@ describe("user save and load", () => {
 
     // Shallow clone with depth 1 — only HEAD
     const shallowDir = await mkdtemp(join(tmpdir(), "arc-shallow-"));
-    await execFileAsync("git", ["clone", "--depth", "1", remoteDir, shallowDir]);
+    await execFileAsync("git", ["clone", "--depth", "1", `file://${remoteDir}`, shallowDir]);
     await execFileAsync("git", ["config", "user.email", "s@t.com"], { cwd: shallowDir });
     await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
 

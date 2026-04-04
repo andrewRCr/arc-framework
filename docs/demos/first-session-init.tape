@@ -1,6 +1,6 @@
 # Demo: First session initialization — new project, no active work
 # Run: vhs first-session-init.tape
-# Output: ../img/first-session-init.gif
+# Output: ../img/first-session-init-2x.gif
 
 Require gum
 

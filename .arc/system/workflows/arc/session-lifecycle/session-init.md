@@ -113,7 +113,7 @@ session-state, follow the override instead.
 
 1. Run `git config arc.role`
 2. If the value is `contributor`: follow the **Contributor Session Path** below — skip items
-   8–11, Step 5, and the maintainer orientation format in Step 6.
+   8, 10–11, Step 5, and the maintainer orientation format in Step 6.
 3. If empty or `maintainer`: continue with the standard document set below.
 
 > **Contributor Session Path**
@@ -129,7 +129,7 @@ session-state, follow the override instead.
 > - **Check** `.arc/user/{identity}/WORK-STATUS.md` — optional local planning state. If
 >   present, note it in the orientation; if absent, that's normal (contributors often don't
 >   maintain one)
-> - **Skip** items 8–11 (project-level WORK-STATUS, task list, task execution workflow)
+> - **Skip** items 8, 10–11 (project-level WORK-STATUS, task list, task execution workflow)
 > - **Skip** Step 5 (next work unit discovery — maintainer concern)
 > - **Proceed to** Step 3 (extensions), Step 4 (configuration), then Step 6 with contributor
 >   orientation format:

@@ -1,6 +1,6 @@
 # Demo: arc-handoff — session end with state capture
 # Run: vhs arc-handoff.tape
-# Output: ../img/arc-handoff.gif
+# Output: ../img/arc-handoff-2x.gif
 
 Require gum
 

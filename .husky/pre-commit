@@ -1,1 +1,1 @@
-.arc/system/githooks/pre-commit
+bash .arc/system/githooks/pre-commit

@@ -5,7 +5,7 @@ repo_name: andrewRCr/arc-framework
 
 theme:
   name: material
-  logo: img/arc-logo.svg
+  custom_dir: docs/overrides
   favicon: img/favicon.ico
   features:
     - navigation.indexes
@@ -21,14 +21,12 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-      logo: img/arc-logo-light.svg
     - scheme: default
       primary: indigo
       accent: indigo
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-      logo: img/arc-logo-dark.svg
 
 not_in_nav: |
   /demos/**

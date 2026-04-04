@@ -1,6 +1,6 @@
 # Demo: Task execution loop — the co-development rhythm
 # Run: vhs task-execution.tape
-# Output: ../img/task-execution.gif
+# Output: ../img/task-execution-2x.gif
 
 Require gum
 

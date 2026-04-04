@@ -1,6 +1,6 @@
 # Demo: Session initialization — mid-project, active task
 # Run: vhs session-init.tape
-# Output: ../img/session-init.gif
+# Output: ../img/session-init-2x.gif
 
 Require gum
 

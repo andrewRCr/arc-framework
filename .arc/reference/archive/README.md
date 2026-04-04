@@ -70,7 +70,7 @@ _This section will be populated as work is completed and archived._
 
 - **Current Work**: [`.arc/active/`](../../active/) (feature/, technical/, incidental/)
 - **Backlog**: [`.arc/backlog/`](../../backlog/) (ROADMAP, feature/, technical/)
-- **Project Status**: [`constitution/{{PROJECT_STATUS_FILE}}`](../constitution/)
+- **Project Status**: [`PROJECT-STATUS.md`](../PROJECT-STATUS.md)
 - **Workflows**: [`workflows/`](../workflows/)
 
 ### Archive Workflow

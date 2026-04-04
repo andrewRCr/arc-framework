@@ -177,9 +177,9 @@ HEAD at handoff time.
 
 **How it works:**
 
-- **Save** (`npx arc user save`): Serialize `user/{identity}/` contents to a git note on HEAD
-- **Load** (`npx arc user load`): Restore user directory from git note (on HEAD, walking ancestors if needed)
-- **Push/pull** (`npx arc user push` / `npx arc user pull`): Transport notes refs to/from remote
+- **Save** (`arc user save`): Serialize `user/{identity}/` contents to a git note on HEAD
+- **Load** (`arc user load`): Restore user directory from git note (on HEAD, walking ancestors if needed)
+- **Push/pull** (`arc user push` / `arc user pull`): Transport notes refs to/from remote
 
 Session workflows integrate these automatically: session handoff triggers save + push; session init triggers
 pull + load when local files are missing or stale.

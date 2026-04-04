@@ -81,7 +81,7 @@ git diff --exit-code {{GENERATED_FILES_PATTERN}}
 ### 1c) Evaluate Supplementary Files (If Any Exist)
 
 Check for standalone supplementary files in the work unit directory — `analysis-*`, `research-*`,
-`design-*`, or similar reference documents created during work.
+or similar reference documents created during work.
 
 **If none exist:** Skip to Step 2.
 
@@ -113,21 +113,21 @@ based on work complexity. Complete the verification checklist (standard template
 
 ### 4) Commit Documentation Changes
 
-Commit all documentation updates to the child branch.
+Commit all documentation updates to the child branch. Stage the entire work unit directory —
+this captures all modified, added, and deleted files without requiring explicit enumeration.
 
 ```bash
-git add .arc/active/{category}/tasks-{name}.md
-git add .arc/active/{category}/notes-{name}.md      # if exists
-git add .arc/active/{category}/atomic-{name}.md     # if populated (delete if empty — see below)
-git add .arc/active/{category}/completion-{name}.md
-git add .arc/active/{category}/prd-{name}.md        # if planned work with PRD updates
-git add .arc/active/{category}/analysis-{name}*.md  # if kept in Step 1c
-git add .arc/active/{category}/research-{name}*.md  # if kept in Step 1c
+git add .arc/active/{category}/
 ```
 
+**What this stages:** Task list, notes, completion doc, PRD (if planned work), atomic companion
+file, and any supplementary files (analysis, research) kept in Step 1c. Unmodified files are
+no-ops.
+
 **Atomic companion file:** If `atomic-{name}.md` contains no checkbox items (no `- [` lines),
-delete it rather than archiving — an empty companion file has no archival value. If it contains
-completed or deferred items, include it in the commit for archival alongside the task list.
+delete it before staging — an empty companion file has no archival value. If it contains
+completed or deferred items, the directory-level add includes it for archival alongside the
+task list.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
@@ -185,6 +185,14 @@ delivered state:
 
 Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
 description — stale metadata in the PR undermines the review it's meant to support.
+
+### 6c) Update WORK-STATUS.md
+
+Update WORK-STATUS.md so Next Action reflects the current integration step (e.g., "integrate-work-unit
+Step 7 — push and create PR"). Stage it with the Step 6b commit if one is being made, or include
+it in the Phase 1 Step 4 commit if no Phase 2 commits occurred. This ensures WORK-STATUS is
+committed before the PR is created — a standalone WORK-STATUS commit after push resets automated
+PR reviews.
 
 ### 7) Push and Create PR
 

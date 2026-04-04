@@ -116,8 +116,8 @@ export async function runLogAtomic(
   ];
 
   if (since) {
-    if (!/\d/.test(since)) {
-      throw new Error(`Invalid --since value: "${since}". Expected a date (e.g., 2026-03-01, "2 weeks ago").`);
+    if (!since.trim()) {
+      throw new Error(`Invalid --since value: "${since}". Expected a date (e.g., 2026-03-01, "2 weeks ago", "yesterday").`);
     }
     args.push(`--since=${since}`);
   }

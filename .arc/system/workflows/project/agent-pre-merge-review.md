@@ -103,6 +103,9 @@ git push origin {branch-name}
 - Be concise — agents are AI, skip politeness padding
 - Be specific — reference line numbers, commit hashes, config values
 - Provide context — link to PRDs, documented deferrals, related issues
+- Each reply must be standalone — it will be posted as an individual GitHub comment. Don't
+  reference other replies by number; if two findings share reasoning, restate the key point
+  briefly or describe the other finding by topic
 
 ---
 
@@ -137,7 +140,8 @@ short-lived code. Current functionality works correctly.
   to avoid duplicates
 - **Temp file for replies**: Draft in `.arc/active/{category}/temp-agent-reply.md` (gitignored),
   copy to GitHub comment. Write as single continuous lines — GitHub wraps automatically, hard
-  breaks create awkward formatting.
+  breaks create awkward formatting. Number replies in the order findings are reviewed — this
+  preserves correspondence with PR comment order for efficient posting.
 
 ### GitHub Copilot Reviews
 

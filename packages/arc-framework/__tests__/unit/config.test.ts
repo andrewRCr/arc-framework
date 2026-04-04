@@ -66,6 +66,7 @@ describe("parseArcConfig", () => {
     // After quote stripping, the value includes everything after the quotes.
     // This test documents current shell-aligned behavior.
     expect(config["hooks.meta_ref_patterns"]).toContain("[Tt]ask");
+    expect(config["hooks.meta_ref_patterns"]).toContain("# regex");
   });
 
   it("skips empty values (matches shell default-fallthrough)", () => {

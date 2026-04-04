@@ -14,7 +14,7 @@ disable-model-invocation: false
 2. Follow the handoff workflow.
 
    - Apply `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` to
-     `.arc/active/WORK-STATUS.md` and `.arc/active/SESSION-NOTES.md`.
+     `.arc/active/WORK-STATUS.md` and `.arc/user/{identity}/SESSION-NOTES.md`.
 
 3. Don't leave WORK-STATUS.md dirty.
 

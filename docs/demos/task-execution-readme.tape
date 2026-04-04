@@ -1,6 +1,6 @@
 # README variant: Task execution (condensed)
 # Run: vhs task-execution-readme.tape
-# Output: ../img/task-execution-readme.gif
+# Output: ../img/task-execution-readme-2x.gif
 
 Require gum
 

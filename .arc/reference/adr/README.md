@@ -61,8 +61,8 @@ ADRs are numbered sequentially and filenames contain titles.
 Browse via filesystem - no separate index is maintained to avoid duplication overhead.
 
 ```bash
-ls .arc/reference/adr/adr-*.md     # List all ADRs
-grep -l "Superseded" adr-*.md      # Find superseded ADRs
+ls .arc/reference/adr/adr-*.md              # List all ADRs
+grep -l "Superseded" .arc/reference/adr/adr-*.md  # Find superseded ADRs
 ```
 
 ## Detailed Guidance

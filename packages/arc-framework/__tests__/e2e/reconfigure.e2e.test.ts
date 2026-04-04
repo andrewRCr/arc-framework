@@ -126,10 +126,6 @@ describe("arc init --reconfigure", () => {
   });
 
   it("reconfigure with same values is a no-op", async () => {
-    // Get current manifest for comparison
-    const manifestPath = join(tmpDir, ".arc", "system", ".internal", "manifest.json");
-    await readFile(manifestPath, "utf-8");
-
     // Reconfigure with identical values
     const result = await runArc(
       ["init", "--reconfigure", "--yes"],

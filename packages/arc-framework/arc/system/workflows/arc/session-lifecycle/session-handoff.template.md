@@ -301,21 +301,21 @@ precedence over `arc-config.yml` when set — check this first.
 - **`always`** (solo default): save and push in one step:
 
     ```bash
-    npx arc sync
+    arc sync
     ```
 
 - **`prompt`** (team default): save first, then ask the user whether to push:
 
     ```bash
-    npx arc user save
+    arc user save
     # then ask — if yes:
-    npx arc user push
+    arc user push
     ```
 
 - **`manual`**: save only — user pushes when ready:
 
     ```bash
-    npx arc user save
+    arc user save
     ```
 
 ### Conditional WORK-STATUS.md Commit (Maintainer Only)

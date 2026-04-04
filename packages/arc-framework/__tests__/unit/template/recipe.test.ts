@@ -352,23 +352,15 @@ describe("loadRecipeFile", () => {
 
   it("throws UserFacingError with RECIPE_INVALID when file is missing", async () => {
     const readFileFn = async () => { throw new Error("ENOENT"); };
-    try {
-      await loadRecipeFile("/nonexistent/recipe.json", readFileFn);
-      expect.unreachable("should have thrown");
-    } catch (err) {
-      expect(err).toBeInstanceOf(UserFacingError);
-      expect((err as UserFacingError).code).toBe("RECIPE_INVALID");
-    }
+    const promise = loadRecipeFile("/nonexistent/recipe.json", readFileFn);
+    await expect(promise).rejects.toBeInstanceOf(UserFacingError);
+    await expect(promise).rejects.toHaveProperty("code", "RECIPE_INVALID");
   });
 
   it("throws UserFacingError with RECIPE_INVALID when JSON is malformed", async () => {
     const readFileFn = async () => "not valid json {{{";
-    try {
-      await loadRecipeFile("/some/recipe.json", readFileFn);
-      expect.unreachable("should have thrown");
-    } catch (err) {
-      expect(err).toBeInstanceOf(UserFacingError);
-      expect((err as UserFacingError).code).toBe("RECIPE_INVALID");
-    }
+    const promise = loadRecipeFile("/some/recipe.json", readFileFn);
+    await expect(promise).rejects.toBeInstanceOf(UserFacingError);
+    await expect(promise).rejects.toHaveProperty("code", "RECIPE_INVALID");
   });
 });

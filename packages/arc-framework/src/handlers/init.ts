@@ -43,6 +43,12 @@ export async function handleInit(opts: InitOptions): Promise<void> {
     p.log.info("Non-interactive environment detected (CI or non-TTY) — using defaults.");
   }
 
+  if (opts.dryRun && !opts.reconfigure) {
+    p.log.error("--dry-run requires --reconfigure");
+    process.exitCode = 1;
+    return;
+  }
+
   const cwd = process.cwd();
   const io = createIOContext();
 

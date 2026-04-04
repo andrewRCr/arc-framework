@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtemp, readFile, writeFile, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import { atomicWriteJson, toForwardSlash } from "../../src/lib/fs.js";
@@ -78,19 +78,19 @@ describe("atomicWriteJson", () => {
     await writeFile(target, '{"v":1}\n', "utf-8");
 
     // Make directory read-only to prevent temp file creation
-    await (await import("node:fs/promises")).chmod(subDir, 0o444);
+    await chmod(subDir, 0o444);
 
     try {
       await expect(atomicWriteJson(target, { v: 2 })).rejects.toThrow();
 
       // No temp files left behind
-      await (await import("node:fs/promises")).chmod(subDir, 0o755);
-      const entries = (await (await import("node:fs/promises")).readdir(subDir))
+      await chmod(subDir, 0o755);
+      const entries = (await readdir(subDir))
         .filter((f: string) => f.endsWith(".tmp"));
       expect(entries).toEqual([]);
     } finally {
       // Restore permissions for cleanup
-      await (await import("node:fs/promises")).chmod(subDir, 0o755);
+      await chmod(subDir, 0o755);
     }
   });
 

@@ -218,7 +218,7 @@ if [ "$arc_role" != "contributor" ] && [ "$task_numbering_mode" != "off" ]; then
         while IFS= read -r file; do
             # Look for task lines with numeric third level (wrong: 1.1.1, correct: 1.1.a)
             # Pattern: checkbox followed by optional bold, then three numeric segments
-            violations=$(grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' "$file" 2>/dev/null || true)
+            violations=$(git show ":$file" 2>/dev/null | grep -nE '^\s*- \[[x ]\] \*?\*?[0-9]+\.[0-9]+\.[0-9]+' || true)
             if [ -n "$violations" ]; then
                 echo "$file:"
                 echo "$violations" | sed 's/^/     /'

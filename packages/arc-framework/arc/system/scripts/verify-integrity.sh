@@ -302,7 +302,7 @@ if [ -f "$work_status" ]; then
                     if [ -n "$task_num" ]; then
                         # Extract just the number part for searching
                         num_part="${task_num#Task }"
-                        if grep -q "$num_part" "$task_list_path" 2>/dev/null; then
+                        if grep -qF -- "$num_part" "$task_list_path" 2>/dev/null; then
                             pass "Next task reference resolves: $task_num"
                         else
                             warn "Next task reference may be stale: $task_num not found in task list"

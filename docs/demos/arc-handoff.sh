@@ -21,7 +21,7 @@ sleep 0.4
 tool_use "Write .arc/user/andrew/SESSION-NOTES.md"
 sleep 0.3
 
-tool_use "arc user sync"
+tool_use "arc sync"
 sleep 0.3
 
 printf "  ${GREEN}✓${RESET} ${DIM}Session state saved and pushed. Notes attached to b03d7f1.${RESET}\n"

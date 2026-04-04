@@ -222,14 +222,24 @@ describe("runLogAtomic", () => {
     ]));
   });
 
-  it("rejects --since with no digits", async () => {
+  it("rejects --since with empty/whitespace value", async () => {
     const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
 
     await expect(
-      runLogAtomic({ exec: mockExec, since: "foo" }),
+      runLogAtomic({ exec: mockExec, since: "  " }),
     ).rejects.toThrow(/invalid.*--since/i);
 
     expect(mockExec).not.toHaveBeenCalled();
+  });
+
+  it("accepts --since with relative date words", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, since: "yesterday" });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "--since=yesterday",
+    ]));
   });
 
   it("skips git-level limit when --work-unit is set", async () => {

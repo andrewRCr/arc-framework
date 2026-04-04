@@ -154,39 +154,39 @@ git status
 
 ```bash
 # Initialize ARC in a new project
-npx arc init
+arc init
 
 # Join an existing ARC project (personal workspace: role, identity, skills)
-npx arc join
+arc join
 
 # Change structural project settings (pm.mode, team.mode, project name)
-npx arc init --reconfigure
+arc init --reconfigure
 
 # Change personal workspace settings (role, tools)
-npx arc join --reconfigure
+arc join --reconfigure
 
 # Preview reconfigure changes without applying
-npx arc init --reconfigure --dry-run
+arc init --reconfigure --dry-run
 
 # Update framework files to the latest version
-npx arc update
+arc update
 ```
 
 ### Session State Portability
 
 ```bash
 # Save user directory to git notes (called automatically at session handoff)
-npx arc user save
+arc user save
 
 # Load user directory from git notes (called automatically at session init)
-npx arc user load
+arc user load
 
 # Push/pull user notes to/from remote
-npx arc user push
-npx arc user pull
+arc user push
+arc user pull
 
 # Save + push in one step
-npx arc sync
+arc sync
 ```
 
 Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
@@ -196,7 +196,7 @@ Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / 
 
 ```bash
 # Browse completed atomic work from commit history
-npx arc log --atomic
+arc log --atomic
 ```
 
 ---

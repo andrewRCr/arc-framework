@@ -1,6 +1,6 @@
 # Demo: arc-commit — structured commit with context footer
 # Run: vhs arc-commit.tape
-# Output: ../img/arc-commit.gif
+# Output: ../img/arc-commit-2x.gif
 
 Require gum
 

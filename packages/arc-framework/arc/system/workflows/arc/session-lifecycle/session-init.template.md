@@ -132,7 +132,7 @@ convention.
 
 1. Run `git config arc.role`
 2. If the value is `contributor`: follow the **Contributor Session Path** below — skip items
-   8–11, Step 5, and the maintainer orientation format in Step 6.
+   8, 10–11, Step 5, and the maintainer orientation format in Step 6.
 3. If empty or `maintainer`: continue with the standard document set below.
 
 > **Contributor Session Path**
@@ -148,7 +148,7 @@ convention.
 > - **Check** `.arc/user/{identity}/WORK-STATUS.md` — optional local planning state. If
 >   present, note it in the orientation; if absent, that's normal (contributors often don't
 >   maintain one)
-> - **Skip** items 8–11 (project-level WORK-STATUS, task list, task execution workflow)
+> - **Skip** items 8, 10–11 (project-level WORK-STATUS, task list, task execution workflow)
 > - **Skip** Step 5 (next work unit discovery — maintainer concern)
 > - **Proceed to** Step 3 (extensions), Step 4 (configuration), then Step 6 with contributor
 >   orientation format:
@@ -170,7 +170,7 @@ convention.
    - Personal working context from prior session: approach, decisions, things tried, known risks
    - **Persistent context**: The `## Persistent Context` section carries entries that survive across
      handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
-   - **If file doesn't exist or is stale**: Try restoring from git notes — run `npx arc user load` (or
+   - **If file doesn't exist or is stale**: Try restoring from git notes — run `arc user load` (or
      check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
      exist either, fall back to `git log --oneline -10` for recent commit context — commit
      messages and context footers provide a lightweight record of recent work. The session

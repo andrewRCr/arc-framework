@@ -18,6 +18,7 @@ RED='\033[31m'
 
 HIDE_CURSOR='\033[?25l'
 SHOW_CURSOR='\033[?25h'
+trap 'printf "%b" "$SHOW_CURSOR"' EXIT
 
 # --- Shared fake project context ---
 # All demos use the same project for cross-demo coherence.

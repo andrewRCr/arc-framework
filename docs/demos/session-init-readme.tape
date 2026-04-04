@@ -1,6 +1,6 @@
 # README variant: Session initialization (condensed)
 # Run: vhs session-init-readme.tape
-# Output: ../img/session-init-readme.gif
+# Output: ../img/session-init-readme-2x.gif
 
 Require gum
 

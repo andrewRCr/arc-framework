@@ -157,24 +157,24 @@ during build — it's tracked directly and published via npm.
 
 **Public scaffolding:**
 
-29. Repo rename: `arc-agentic-dev-framework` → `arc-framework`
-30. README update: what ARC is, current status (beta), install command, link to docs site,
+30. Repo rename: `arc-agentic-dev-framework` → `arc-framework`
+31. README update: what ARC is, current status (beta), install command, link to docs site,
     link to CONTRIBUTING.md
-31. npm beta publish (`0.1.0` or appropriate version) — verify `npx @arc-framework/cli init`
+32. npm beta publish (`0.1.0` or appropriate version) — verify `npx @arc-framework/cli init`
     and `npx @arc-framework/cli join` work in a clean environment
 
 ### P1 — Should-Have
 
-32. Hook manager detection and integration: detect husky (`.husky/` directory), lefthook
+33. Hook manager detection and integration: detect husky (`.husky/` directory), lefthook
     (`lefthook.yml`), pre-commit (`.pre-commit-config.yaml`). When detected, integrate ARC
     hooks into the manager's config instead of setting `core.hooksPath`. Fallback to
     `core.hooksPath` when no manager found.
-33. ARC dev repo adopts husky as reference implementation for hook manager integration
+34. ARC dev repo adopts husky as reference implementation for hook manager integration
 
 ### P2 — Nice-to-Have
 
-34. Docs site preview via `mkdocs serve` documented in CONTRIBUTING.md for local iteration
-35. Docs site color scheme and branding beyond Material defaults
+35. Docs site preview via `mkdocs serve` documented in CONTRIBUTING.md for local iteration
+36. Docs site color scheme and branding beyond Material defaults
 
 ## Non-Goals
 
