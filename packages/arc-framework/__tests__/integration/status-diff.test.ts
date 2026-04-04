@@ -18,6 +18,7 @@ import {
   join,
   listFiles,
   execFileAsync,
+  manifestPath,
 } from "../helpers/integration.js";
 import { runStatus } from "../../src/commands/status.js";
 import type { StatusIOContext } from "../../src/commands/status.js";
@@ -30,7 +31,7 @@ const readFileFn = (path: string): Promise<string> => readFile(path, "utf-8");
 
 // --- Helpers ---
 
-function makeStatusIO(cwd: string): StatusIOContext {
+function makeStatusIO(): StatusIOContext {
   return {
     readFile: (path) => readFile(path, "utf-8"),
     readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
@@ -80,21 +81,22 @@ describe("status and diff integration", () => {
     it("reports all files unmodified on fresh init", async () => {
       const result = await runStatus({
         cwd: tempDir,
-        io: makeStatusIO(tempDir),
+        io: makeStatusIO(),
         frameworkVersion: "0.0.0",
       });
 
       expect(result.fileStatuses.length).toBeGreaterThan(0);
-      const nonUnmodified = result.fileStatuses.filter(
-        (f) => f.state !== "unmodified",
+      // Scaffolded files are expected on fresh init — they have no pristine baseline
+      const unexpected = result.fileStatuses.filter(
+        (f) => f.state !== "unmodified" && f.state !== "scaffolded",
       );
-      expect(nonUnmodified).toEqual([]);
+      expect(unexpected).toEqual([]);
     });
 
     it("reports modified after changing a file", async () => {
       const arcDir = join(tempDir, ".arc");
       // Find a Configurable file from the manifest
-      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"), readFileFn);
+      const manifest = await readManifest(manifestPath(tempDir), readFileFn);
       expect(manifest).not.toBeNull();
       const configurableFile = Object.entries(manifest!.files).find(
         ([, entry]) => entry.classification === "Configurable",
@@ -110,7 +112,7 @@ describe("status and diff integration", () => {
       try {
         const result = await runStatus({
           cwd: tempDir,
-          io: makeStatusIO(tempDir),
+          io: makeStatusIO(),
           frameworkVersion: "0.0.0",
         });
 
@@ -132,7 +134,7 @@ describe("status and diff integration", () => {
       try {
         const result = await runStatus({
           cwd: tempDir,
-          io: makeStatusIO(tempDir),
+          io: makeStatusIO(),
           frameworkVersion: "0.0.0",
         });
 
@@ -160,7 +162,7 @@ describe("status and diff integration", () => {
 
     it("shows unified diff after modifying a file", async () => {
       const arcDir = join(tempDir, ".arc");
-      const manifest = await readManifest(join(tempDir, ".arc-manifest.json"), readFileFn);
+      const manifest = await readManifest(manifestPath(tempDir), readFileFn);
       expect(manifest).not.toBeNull();
 
       // Find a Framework or Configurable file
@@ -199,7 +201,7 @@ describe("status and diff integration", () => {
       await expect(
         runStatus({
           cwd: emptyDir,
-          io: makeStatusIO(emptyDir),
+          io: makeStatusIO(),
           frameworkVersion: "0.0.0",
         }),
       ).rejects.toThrow(UserFacingError);

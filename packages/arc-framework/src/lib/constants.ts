@@ -13,6 +13,21 @@ export const ARC_CONFIG_TEMPLATE_PATH = "system/arc-config.yml";
 /** Repo-relative path segments to arc-config.yml under .arc/. */
 export const ARC_CONFIG_SEGMENTS = [".arc", "system", "arc-config.yml"] as const;
 
+// --- Internal Storage Paths ---
+// Framework bookkeeping lives in .arc/system/.internal/ — invisible to daily workspace use.
+
+/** Path segments from .arc/ to the .internal directory. */
+export const INTERNAL_DIR_SEGMENTS = ["system", ".internal"] as const;
+
+/** Filename for the manifest inside .internal/. */
+export const MANIFEST_FILENAME = "manifest.json";
+
+/** Filename for the pristine store inside .internal/. */
+export const PRISTINE_FILENAME = "pristine.json";
+
+/** Current manifest schema version. Increment when the manifest structure changes. */
+export const MANIFEST_SCHEMA_VERSION = 1;
+
 // --- Config Keys ---
 
 /** Config key for Project Management mode. */

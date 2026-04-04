@@ -10,9 +10,12 @@
  */
 
 import { join } from "node:path";
+import { writeFile as fsWriteFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
+import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME } from "../lib/constants.js";
 import type { Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
@@ -39,6 +42,8 @@ export interface DiffResult {
   totalChanged: number;
   /** Number of Scaffolded files skipped. */
   skipped: number;
+  /** True when the entire pristine store failed to load (not just individual entries). */
+  pristineStoreMissing: boolean;
 }
 
 /** I/O dependencies for the diff command. */
@@ -69,9 +74,10 @@ export interface DiffOptions {
  */
 export async function runDiff(options: DiffOptions): Promise<DiffResult> {
   const { cwd, io } = options;
-  const manifestPath = join(cwd, ".arc-manifest.json");
   const arcDir = join(cwd, ".arc");
-  const pristineDir = join(arcDir, ".pristine");
+  const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+  const manifestPath = join(internalDir, MANIFEST_FILENAME);
+  const pristineStorePath = join(internalDir, PRISTINE_FILENAME);
 
   // Read manifest — hard fail if missing
   const manifest = await io.readManifest(manifestPath);
@@ -79,11 +85,26 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     throw manifestMissingError("diff");
   }
 
+  // Load pristine store — track whole-store failure for consolidated messaging
+  let pristineStore: Record<string, string> = {};
+  let pristineStoreMissing = false;
+  try {
+    const raw = await io.readFile(pristineStorePath);
+    try {
+      pristineStore = JSON.parse(raw) as Record<string, string>;
+    } catch {
+      pristineStoreMissing = true; // Invalid JSON
+    }
+  } catch {
+    pristineStoreMissing = true; // File not found or read error
+  }
+
   const result: DiffResult = {
     diffs: [],
     errors: [],
     totalChanged: 0,
     skipped: 0,
+    pristineStoreMissing,
   };
 
   for (const [relativePath, entry] of Object.entries(manifest.files)) {
@@ -94,14 +115,17 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
     }
 
     const currentPath = join(arcDir, relativePath);
-    const pristinePath = join(pristineDir, relativePath);
 
     // Read current file
     let currentContent: string;
     try {
       currentContent = await io.readFile(currentPath);
     } catch {
-      // File missing from .arc/ — nothing to diff
+      // File missing from .arc/ — report as error (consistent with status command)
+      result.errors.push({
+        path: relativePath,
+        message: `File missing from .arc/ — tracked in manifest but not on disk.`,
+      });
       continue;
     }
 
@@ -110,10 +134,9 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
       continue;
     }
 
-    // Read pristine — if missing, report error but don't fail the whole command
-    try {
-      await io.readFile(pristinePath);
-    } catch {
+    // Check pristine store for baseline
+    const pristineContent = pristineStore[relativePath];
+    if (pristineContent === undefined) {
       result.errors.push({
         path: relativePath,
         message: `No pristine baseline found — cannot diff. Run 'arc update' to rebuild pristine files.`,
@@ -121,16 +144,21 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
       continue;
     }
 
-    // Run git diff
+    // Write pristine to temp file for git diff
     let diffOutput: string;
+    const tempDir = await mkdtemp(join(tmpdir(), "arc-diff-"));
+    const tempPristinePath = join(tempDir, "pristine");
     try {
-      diffOutput = await io.gitDiff(pristinePath, currentPath);
+      await fsWriteFile(tempPristinePath, pristineContent, "utf-8");
+      diffOutput = await io.gitDiff(tempPristinePath, currentPath);
     } catch (err) {
       result.errors.push({
         path: relativePath,
         message: `Diff failed: ${err instanceof Error ? err.message : String(err)}`,
       });
       continue;
+    } finally {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
     }
 
     result.diffs.push({ path: relativePath, diff: diffOutput });
@@ -151,6 +179,13 @@ export async function runDiff(options: DiffOptions): Promise<DiffResult> {
 export function buildDiffOutput(result: DiffResult): string {
   const lines: string[] = [];
 
+  // Whole-store missing — single consolidated message instead of per-file errors
+  if (result.pristineStoreMissing && result.diffs.length === 0) {
+    lines.push("Cannot show diffs — no pristine baseline.");
+    lines.push("Run 'arc update' to rebuild.");
+    return lines.join("\n");
+  }
+
   if (result.diffs.length === 0 && result.errors.length === 0) {
     lines.push("No changes detected.");
     if (result.skipped > 0) {
@@ -170,7 +205,15 @@ export function buildDiffOutput(result: DiffResult): string {
     for (const err of result.errors) {
       lines.push(`  .arc/${err.path}: ${err.message}`);
     }
+    lines.push("");
   }
+
+  // Summary count
+  const summary: string[] = [];
+  if (result.totalChanged > 0) summary.push(`${result.totalChanged} file(s) with changes`);
+  if (result.errors.length > 0) summary.push(`${result.errors.length} error(s)`);
+  if (result.skipped > 0) summary.push(`${result.skipped} skipped`);
+  if (summary.length > 0) lines.push(summary.join(", "));
 
   return lines.join("\n");
 }

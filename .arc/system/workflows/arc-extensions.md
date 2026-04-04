@@ -115,7 +115,19 @@ any review source, use the [review-triage method][arc-methods-rt] for classifica
 
 ### pre-merge-review.steps
 
-[No extension configured]
+**CodeRabbit AI code review** — at least one pass, optionally more based on findings.
+
+1. Run CodeRabbit review on the aggregate diff against the parent branch
+2. Process findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
+3. If fixes were made, optionally run a second pass to verify — use judgment based on fix scope
+
+**Invocation options (choose one):**
+
+- **IDE extension** (preferred for smaller diffs): Run CodeRabbit review from VS Code extension
+- **Agent subagent** (preferred for larger diffs or headless): Launch the `coderabbit:code-reviewer`
+  subagent directly — do NOT use the CodeRabbit CLI plugin, which fails on WSL auth
+
+The agent should propose which invocation path based on diff size, but the user decides.
 
 ---
 

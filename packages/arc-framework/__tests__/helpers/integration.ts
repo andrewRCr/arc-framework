@@ -12,6 +12,7 @@ import {
   writeFile,
   mkdir,
   access,
+  chmod,
   readdir,
   stat,
 } from "node:fs/promises";
@@ -27,6 +28,7 @@ import type { GitExec } from "../../src/lib/git/index.js";
 import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
+import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,6 +47,7 @@ export function makeIOContext(cwd: string): IOContext {
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
     access: (path) => access(path),
+    chmod: (path, mode) => chmod(path, mode),
     exec: makeGitExec(cwd),
   };
 }
@@ -126,13 +129,13 @@ export async function initInTempRepo(
 
 /**
  * Recursively list files under a directory (relative paths).
- * Skips `.pristine/` by default.
+ * Skips `system/.internal/` by default.
  */
 export async function listFiles(
   dir: string,
-  opts: { skipPristine?: boolean } = {},
+  opts: { skipInternal?: boolean } = {},
 ): Promise<string[]> {
-  const { skipPristine = true } = opts;
+  const { skipInternal = true } = opts;
   const results: string[] = [];
   async function walk(current: string): Promise<void> {
     let entries: string[];
@@ -144,7 +147,7 @@ export async function listFiles(
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = relative(dir, fullPath);
-      if (skipPristine && (relPath === ".pristine" || relPath.startsWith(".pristine/"))) {
+      if (skipInternal && (relPath === "system/.internal" || relPath.startsWith("system/.internal/"))) {
         continue;
       }
       // Skip user/{identity}/ directories (gitignored personal workspace)
@@ -159,6 +162,35 @@ export async function listFiles(
   }
   await walk(dir);
   return results.sort();
+}
+
+// --- ARC Internal Path Helpers ---
+
+/** Path to the manifest inside an ARC installation. */
+export function manifestPath(cwd: string): string {
+  return join(cwd, ".arc", "system", ".internal", "manifest.json");
+}
+
+/** Path to the pristine store inside an ARC installation. */
+export function pristineStorePath(cwd: string): string {
+  return join(cwd, ".arc", "system", ".internal", "pristine.json");
+}
+
+/** Read and parse the manifest from an ARC installation. */
+export async function readManifestFile(cwd: string): Promise<Manifest> {
+  const raw = await readFile(manifestPath(cwd), "utf-8");
+  return JSON.parse(raw) as Manifest;
+}
+
+/** Read and parse the pristine store from an ARC installation. */
+export async function readPristineStore(cwd: string): Promise<Record<string, string>> {
+  const raw = await readFile(pristineStorePath(cwd), "utf-8");
+  return JSON.parse(raw) as Record<string, string>;
+}
+
+/** Write a modified pristine store back (for tests that manipulate pristine state). */
+export async function writePristineStore(cwd: string, store: Record<string, string>): Promise<void> {
+  await writeFile(pristineStorePath(cwd), JSON.stringify(store, null, 2) + "\n", "utf-8");
 }
 
 /** Check whether a file exists. */
@@ -182,7 +214,7 @@ export interface FileSpec {
 
 /**
  * Set up a minimal ARC installation in a temp dir.
- * Writes .arc/ files, .pristine/ copies (for non-Scaffolded), and .arc-manifest.json.
+ * Writes .arc/ files, pristine.json, and manifest.json to .arc/system/.internal/.
  */
 export async function setupInitialState(
   dir: string,
@@ -190,17 +222,17 @@ export async function setupInitialState(
   installConfig?: Manifest["install_config"],
 ): Promise<void> {
   const arcDir = join(dir, ".arc");
-  const pristineDir = join(arcDir, ".pristine");
+  const internalDir = join(arcDir, "system", ".internal");
 
   const manifestFiles: Record<string, FileEntry> = {};
+  const pristineStore: Record<string, string> = {};
 
   for (const [path, { content, classification, layer }] of Object.entries(files)) {
     await ensureDir(dirname(join(arcDir, path)));
     await writeFile(join(arcDir, path), content, "utf-8");
 
     if (classification !== "Scaffolded") {
-      await ensureDir(dirname(join(pristineDir, path)));
-      await writeFile(join(pristineDir, path), content, "utf-8");
+      pristineStore[path] = content;
     }
 
     manifestFiles[path] = {
@@ -211,7 +243,8 @@ export async function setupInitialState(
   }
 
   const manifest: Manifest = {
-    framework_version: "1.0.0",
+    schema_version: MANIFEST_SCHEMA_VERSION,
+    framework_version: "0.0.0",
     installed_at: "2026-01-01T00:00:00.000Z",
     install_config: installConfig ?? {
       project_name: "Test Project",
@@ -221,9 +254,15 @@ export async function setupInitialState(
     files: manifestFiles,
   };
 
+  await ensureDir(internalDir);
   await writeFile(
-    join(dir, ".arc-manifest.json"),
+    join(internalDir, "manifest.json"),
     JSON.stringify(manifest, null, 2) + "\n",
+    "utf-8",
+  );
+  await writeFile(
+    join(internalDir, "pristine.json"),
+    JSON.stringify(pristineStore, null, 2) + "\n",
     "utf-8",
   );
 }
@@ -291,21 +330,33 @@ export function makeGitNoteReader(cwd: string) {
 
 /**
  * Read directory entries with name and size (real filesystem).
+ * Recurses into subdirectories — entries use relative paths.
+ * Skips dot-directories (infrastructure, not user content).
  */
 export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
-  let names: string[];
-  try {
-    names = await readdir(dirPath);
-  } catch {
-    return [];
-  }
   const entries: DirEntry[] = [];
-  for (const name of names) {
-    const s = await stat(join(dirPath, name));
-    if (s.isFile()) {
-      entries.push({ name, size: s.size });
+
+  async function walk(currentPath: string, prefix: string): Promise<void> {
+    let names: string[];
+    try {
+      names = await readdir(currentPath);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const fullPath = join(currentPath, name);
+      const s = await stat(fullPath);
+      if (s.isDirectory()) {
+        if (name.startsWith(".")) continue;
+        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
+      } else if (s.isFile()) {
+        const relativeName = prefix ? `${prefix}/${name}` : name;
+        entries.push({ name: relativeName, size: s.size });
+      }
     }
   }
+
+  await walk(dirPath, "");
   return entries;
 }
 
@@ -322,9 +373,13 @@ export function makeUserIO(cwd: string): UserIOContext {
   };
 }
 
-/** Create a commit in a temp repo. Returns the commit hash. */
+/** Create a commit in a temp repo. Returns the commit hash.
+ *  Bypasses hooks — these are scaffolding commits for test setup, not hook tests. */
 export async function makeCommit(cwd: string, message: string): Promise<string> {
-  await execFileAsync("git", ["commit", "--allow-empty", "-m", message], { cwd });
+  await execFileAsync(
+    "git", ["-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", message],
+    { cwd },
+  );
   const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 }

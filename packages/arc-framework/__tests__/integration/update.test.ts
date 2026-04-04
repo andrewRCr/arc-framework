@@ -29,18 +29,16 @@ import {
   getArcTemplatePath,
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
+  readManifestFile,
+  readPristineStore,
+  writePristineStore,
+  manifestPath,
 } from "../helpers/integration.js";
-import { runUpdate } from "../../src/commands/update.js";
+import { runUpdate, buildUpdateSummary } from "../../src/commands/update.js";
+import type { UpdateResult } from "../../src/commands/update.js";
 import { runInit } from "../../src/commands/init.js";
-import type { Recipe, Manifest } from "../../src/lib/types.js";
-
-// --- Update-specific helpers ---
-
-/** Read the manifest from a project directory. */
-async function readManifestFromDir(dir: string): Promise<Manifest> {
-  const raw = await readFile(join(dir, ".arc-manifest.json"), "utf-8");
-  return JSON.parse(raw) as Manifest;
-}
+import { UserFacingError } from "../../src/lib/errors.js";
+import type { Recipe } from "../../src/lib/types.js";
 
 // --- Minimal recipe for synthetic tests ---
 
@@ -104,8 +102,109 @@ describe("update integration — baseline (real recipe)", () => {
     expect(result.updated).toBe(0);
     expect(result.unchanged + result.skipped).toBeGreaterThan(0);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+  });
+});
+
+describe("update integration — downgrade prevention", () => {
+  let tempDir: string;
+  let templateDir: string;
+
+  const baseRecipeFiles = [FRAMEWORK_FILE, CONFIGURABLE_FILE, SCAFFOLDED_FILE];
+  const baseRecipe = makeRecipe(baseRecipeFiles);
+
+  beforeEach(async () => {
+    tempDir = await createTempRepo("arc-update-test-");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+    if (templateDir) {
+      await rm(templateDir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks downgrade with UserFacingError", async () => {
+    const templateFiles = {
+      [FRAMEWORK_FILE]: "# Framework file\n",
+      [CONFIGURABLE_FILE]: "# Configurable\n",
+      [SCAFFOLDED_FILE]: "# Scaffolded\n",
+    };
+    templateDir = await createTemplateDir(templateFiles);
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Framework file\n", classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: "# Configurable\n", classification: "Configurable" },
+      [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
+    });
+
+    // Overwrite manifest with a future version
+    const manifest = await readManifestFile(tempDir);
+    manifest.framework_version = "99.0.0";
+    await writeFile(
+      manifestPath(tempDir),
+      JSON.stringify(manifest, null, 2) + "\n",
+      "utf-8",
+    );
+
+    await expect(
+      runUpdate({
+        cwd: tempDir,
+        io: makeIOContext(tempDir),
+        templateDir,
+        recipe: baseRecipe,
+      }),
+    ).rejects.toThrow(UserFacingError);
+  });
+
+  it("allows same-version update (no downgrade)", async () => {
+    const templateFiles = {
+      [FRAMEWORK_FILE]: "# Framework file\n",
+      [CONFIGURABLE_FILE]: "# Configurable\n",
+      [SCAFFOLDED_FILE]: "# Scaffolded\n",
+    };
+    templateDir = await createTemplateDir(templateFiles);
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Framework file\n", classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: "# Configurable\n", classification: "Configurable" },
+      [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
+    });
+
+    // Should not throw — same version is allowed
+    await expect(
+      runUpdate({
+        cwd: tempDir,
+        io: makeIOContext(tempDir),
+        templateDir,
+        recipe: baseRecipe,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it("detects classification change and reports in result", async () => {
+    const templateFiles = {
+      [FRAMEWORK_FILE]: "# Framework file\n",
+      [CONFIGURABLE_FILE]: "# Configurable\n",
+      [SCAFFOLDED_FILE]: "# Scaffolded\n",
+    };
+    templateDir = await createTemplateDir(templateFiles);
+    // Set up initial state with CONFIGURABLE_FILE classified as Framework (simulate change)
+    await setupInitialState(tempDir, {
+      [FRAMEWORK_FILE]: { content: "# Framework file\n", classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: "# Configurable\n", classification: "Framework" },
+      [SCAFFOLDED_OUTPUT]: { content: "# Scaffolded\n", classification: "Scaffolded" },
+    });
+
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir,
+      recipe: baseRecipe,
+    });
+
+    // CONFIGURABLE_FILE was Framework, now Configurable — should be in reclassified
+    expect(result.reclassified).toHaveLength(1);
+    expect(result.reclassified[0]).toContain("Framework → Configurable");
   });
 });
 
@@ -178,13 +277,10 @@ describe("update integration — merge scenarios", () => {
     );
     expect(fwContent).toContain("Line A: updated in v2");
 
-    const pristineContent = await readFile(
-      join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE),
-      "utf-8",
-    );
-    expect(pristineContent).toBe(v2Content);
+    const store = await readPristineStore(tempDir);
+    expect(store[FRAMEWORK_FILE]).toBe(v2Content);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[FRAMEWORK_FILE]?.pristine_hash).toBe(
       sha256(v2Content),
     );
@@ -279,13 +375,10 @@ describe("update integration — merge scenarios", () => {
     expect(content).toContain("=======");
     expect(content).toContain(">>>>>>>");
 
-    const pristine = await readFile(
-      join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE),
-      "utf-8",
-    );
-    expect(pristine).toBe(V1_CONTENT);
+    const store = await readPristineStore(tempDir);
+    expect(store[FRAMEWORK_FILE]).toBe(V1_CONTENT);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[FRAMEWORK_FILE]?.pristine_hash).toBe(
       sha256(V1_CONTENT),
     );
@@ -375,13 +468,10 @@ describe("update integration — file add/remove", () => {
     );
     expect(content).toBe(NEW_FILE_CONTENT);
 
-    const pristine = await readFile(
-      join(tempDir, ".arc", ".pristine", NEW_FILE),
-      "utf-8",
-    );
-    expect(pristine).toBe(NEW_FILE_CONTENT);
+    const store = await readPristineStore(tempDir);
+    expect(store[NEW_FILE]).toBe(NEW_FILE_CONTENT);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[NEW_FILE]).toBeDefined();
     expect(manifest.files[NEW_FILE]?.classification).toBe("Framework");
     expect(manifest.files[NEW_FILE]?.pristine_hash).toBe(
@@ -389,7 +479,7 @@ describe("update integration — file add/remove", () => {
     );
   });
 
-  it("Framework file removed → deleted from .arc/ and .pristine/, removed from manifest", async () => {
+  it("Framework file removed → deleted from .arc/ and pristine store, removed from manifest", async () => {
     const EXTRA_FILE = "reference/adr/README.md";
 
     await setupInitialState(tempDir, {
@@ -418,11 +508,11 @@ describe("update integration — file add/remove", () => {
     expect(result.removed).toEqual([EXTRA_FILE]);
 
     expect(await fileExists(join(tempDir, ".arc", EXTRA_FILE))).toBe(false);
-    expect(
-      await fileExists(join(tempDir, ".arc", ".pristine", EXTRA_FILE)),
-    ).toBe(false);
 
-    const manifest = await readManifestFromDir(tempDir);
+    const store = await readPristineStore(tempDir);
+    expect(store[EXTRA_FILE]).toBeUndefined();
+
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[EXTRA_FILE]).toBeUndefined();
     expect(manifest.files[FRAMEWORK_FILE]).toBeDefined();
   });
@@ -461,13 +551,10 @@ describe("update integration — file add/remove", () => {
     );
     expect(content).toBe(adopterCustomized);
 
-    expect(
-      await fileExists(
-        join(tempDir, ".arc", ".pristine", CONFIGURABLE_FILE),
-      ),
-    ).toBe(false);
+    const store = await readPristineStore(tempDir);
+    expect(store[CONFIGURABLE_FILE]).toBeUndefined();
 
-    const manifest = await readManifestFromDir(tempDir);
+    const manifest = await readManifestFile(tempDir);
     expect(manifest.files[CONFIGURABLE_FILE]).toBeUndefined();
   });
 });
@@ -490,14 +577,17 @@ describe("update integration — pristine repair", () => {
     }
   });
 
-  it("missing pristine → file skipped, pristine rebuilt from current, reported in pristineRepaired", async () => {
+  it("missing pristine → one-pass repair: file preserved, pristine rebuilt from framework content", async () => {
     await setupInitialState(tempDir, {
       [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
     });
 
-    // Delete the pristine copy to simulate corruption
-    const pristinePath = join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE);
-    await rm(pristinePath);
+    // Remove the framework file's entry from pristine store to simulate corruption
+    const fullStore = await readPristineStore(tempDir);
+    const store = Object.fromEntries(
+      Object.entries(fullStore).filter(([key]) => key !== FRAMEWORK_FILE),
+    );
+    await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
       [FRAMEWORK_FILE]: V2_CONTENT,
@@ -511,26 +601,35 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    expect(result.pristineRepaired).toEqual([FRAMEWORK_FILE]);
+    expect(result.pristineRebuilt).toEqual([FRAMEWORK_FILE]);
+    // One-pass: base===updated → "unchanged" (adopter's content preserved)
+    expect(result.unchanged).toBe(1);
     expect(result.updated).toBe(0);
     expect(result.conflicts).toEqual([]);
 
-    // Current file untouched (no merge possible without base)
+    // Current file untouched — adopter customizations preserved
     const current = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
     expect(current).toBe(CONTENT);
 
-    // Pristine rebuilt from current (not from updated template)
-    const pristine = await readFile(pristinePath, "utf-8");
-    expect(pristine).toBe(CONTENT);
+    // Pristine rebuilt from rendered framework content (not adopter's current)
+    const repairedStore = await readPristineStore(tempDir);
+    expect(repairedStore[FRAMEWORK_FILE]).toBe(V2_CONTENT);
   });
 
-  it("after pristine repair, second update merges cleanly", async () => {
+  it("after one-pass repair, next version update merges correctly", async () => {
+    const V3_CONTENT = "# Project\n\nVersion 3 content\n";
+
+    // File on disk matches what was installed (no adopter modifications)
     await setupInitialState(tempDir, {
-      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+      [FRAMEWORK_FILE]: { content: V2_CONTENT, classification: "Framework" },
     });
 
-    // Delete pristine
-    await rm(join(tempDir, ".arc", ".pristine", FRAMEWORK_FILE));
+    // Remove from pristine store to simulate corruption
+    const fullStore2 = await readPristineStore(tempDir);
+    const store = Object.fromEntries(
+      Object.entries(fullStore2).filter(([key]) => key !== FRAMEWORK_FILE),
+    );
+    await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
       [FRAMEWORK_FILE]: V2_CONTENT,
@@ -538,7 +637,7 @@ describe("update integration — pristine repair", () => {
 
     const recipe = makeRecipe([FRAMEWORK_FILE]);
 
-    // First update: repair
+    // First update: one-pass repair — pristine set to V2_CONTENT, file unchanged
     await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -546,7 +645,14 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    // Second update: now pristine exists, merge should work
+    // Simulate a new framework version (V3) arriving
+    await rm(templateDir, { recursive: true, force: true });
+    templateDir = await createTemplateDir({
+      [FRAMEWORK_FILE]: V3_CONTENT,
+    });
+
+    // Second update: pristine=V2, current=V2 (no adopter changes), updated=V3
+    // base===current → takes V3 cleanly
     const result2 = await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -554,11 +660,11 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    expect(result2.pristineRepaired).toEqual([]);
+    expect(result2.pristineRebuilt).toEqual([]);
     expect(result2.updated).toBe(1);
 
     const content = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
-    expect(content).toBe(V2_CONTENT);
+    expect(content).toBe(V3_CONTENT);
   });
 });
 
@@ -597,8 +703,9 @@ describe("update integration — error cases", () => {
   });
 
   it("manifest invalid JSON → UserFacingError with MANIFEST_INVALID", async () => {
+    await ensureDir(dirname(manifestPath(tempDir)));
     await writeFile(
-      join(tempDir, ".arc-manifest.json"),
+      manifestPath(tempDir),
       "{ not valid json",
       "utf-8",
     );
@@ -621,8 +728,9 @@ describe("update integration — error cases", () => {
   });
 
   it("manifest invalid schema → UserFacingError with MANIFEST_INVALID", async () => {
+    await ensureDir(dirname(manifestPath(tempDir)));
     await writeFile(
-      join(tempDir, ".arc-manifest.json"),
+      manifestPath(tempDir),
       JSON.stringify({ framework_version: 123 }),
       "utf-8",
     );
@@ -642,5 +750,126 @@ describe("update integration — error cases", () => {
         name: "UserFacingError",
       }),
     );
+  });
+});
+
+// --- Update summary messaging ---
+
+describe("buildUpdateSummary", () => {
+  const baseResult: UpdateResult = {
+    updated: 0,
+    conflicts: [],
+    pristineRebuilt: [],
+    added: [],
+    removed: [],
+    keptForReview: [],
+    unchanged: 0,
+    skipped: 0,
+    reclassified: [],
+    previousVersion: "0.1.0",
+    currentVersion: "0.1.0",
+    skillWarnings: [],
+    pristineStoreError: null,
+  };
+
+  it("shows 'rebuilt' count in summary line", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md"],
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("1 rebuilt");
+    expect(output).not.toContain("repaired");
+  });
+
+  it("shows whole-store cause when pristineStoreError is not-found", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md", "system/arc-config.yml"],
+      pristineStoreError: "not-found",
+      unchanged: 2,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("pristine.json not found");
+    expect(output).toContain("rebuilt from current framework version");
+    expect(output).toContain("Your customizations are preserved");
+    // Should NOT list individual files for whole-store failure
+    expect(output).not.toContain(".arc/README.md");
+  });
+
+  it("shows whole-store cause when pristineStoreError is invalid-json", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md"],
+      pristineStoreError: "invalid-json",
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("invalid JSON");
+  });
+
+  it("lists individual files for partial pristine misses", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      pristineRebuilt: ["README.md"],
+      pristineStoreError: null,
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain(".arc/README.md");
+    expect(output).toContain("rebuilt from current framework version");
+  });
+
+  it("omits rebuild section when no files were rebuilt", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      updated: 3,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).not.toContain("rebuilt");
+    expect(output).not.toContain("Pristine");
+  });
+
+  it("shows skill warnings when present", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      unchanged: 1,
+      skillWarnings: ["Modified skill overwritten: .agents/skills/arc-resume/SKILL.md"],
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("Skill warnings:");
+    expect(output).toContain("Modified skill overwritten");
+  });
+
+  it("omits skill warnings section when no warnings", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      updated: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).not.toContain("Skill warnings");
+  });
+
+  it("shows version change when versions differ", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      previousVersion: "0.1.0",
+      currentVersion: "0.2.0",
+      updated: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("v0.1.0 → v0.2.0");
+  });
+
+  it("shows no version change when versions match", () => {
+    const result: UpdateResult = {
+      ...baseResult,
+      previousVersion: "0.1.0",
+      currentVersion: "0.1.0",
+      unchanged: 1,
+    };
+    const output = buildUpdateSummary(result);
+    expect(output).toContain("v0.1.0 (no version change)");
   });
 });

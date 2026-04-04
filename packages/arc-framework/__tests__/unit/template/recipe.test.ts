@@ -7,8 +7,10 @@ import {
   evaluateCondition,
   getInitTokenNames,
   findResidualInitTokens,
+  loadRecipeFile,
 } from "../../../src/lib/template/index.js";
 import type { Recipe } from "../../../src/lib/types.js";
+import { UserFacingError } from "../../../src/lib/errors.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -167,7 +169,7 @@ describe("validateRecipe", () => {
 
   it("rejects non-array include_files", () => {
     const recipe = validRecipe();
-    (recipe as Record<string, unknown>).include_files = "not-array";
+    (recipe as unknown as Record<string, unknown>).include_files = "not-array";
     const result = validateRecipe(recipe);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("include_files"))).toBe(true);
@@ -175,7 +177,7 @@ describe("validateRecipe", () => {
 
   it("rejects non-object computed_tokens", () => {
     const recipe = validRecipe();
-    (recipe as Record<string, unknown>).computed_tokens = "not-object";
+    (recipe as unknown as Record<string, unknown>).computed_tokens = "not-object";
     const result = validateRecipe(recipe);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("computed_tokens"))).toBe(true);
@@ -263,7 +265,7 @@ describe("getInitTokenNames", () => {
   });
 
   it("returns empty set when no prompts have tokens", () => {
-    const prompts = [{ config_key: "pm.mode" }, {}];
+    const prompts: { token?: string }[] = [{ config_key: "pm.mode" } as { token?: string }, {}];
     expect(getInitTokenNames(prompts)).toEqual(new Set());
   });
 
@@ -275,7 +277,7 @@ describe("getInitTokenNames", () => {
   });
 
   it("works with computed tokens and no prompt tokens", () => {
-    const prompts = [{ config_key: "pm.mode" }];
+    const prompts: { token?: string }[] = [{ config_key: "pm.mode" } as { token?: string }];
     const computed = { REPO_ROOT: "description" };
     const tokens = getInitTokenNames(prompts, computed);
     expect(tokens).toEqual(new Set(["REPO_ROOT"]));
@@ -336,5 +338,29 @@ describe("init-recipe.json", () => {
     for (const p of tokenPrompts) {
       expect(p.type).toBe("text");
     }
+  });
+});
+
+describe("loadRecipeFile", () => {
+  it("loads and parses a valid recipe file", async () => {
+    const recipePath = resolve(__dirname, "../../../init-recipe.json");
+    const readFileFn = async (p: string) => readFileSync(p, "utf-8");
+    const recipe = await loadRecipeFile(recipePath, readFileFn);
+    expect(recipe.prompts).toBeDefined();
+    expect(recipe.conditions).toBeDefined();
+  });
+
+  it("throws UserFacingError with RECIPE_INVALID when file is missing", async () => {
+    const readFileFn = async () => { throw new Error("ENOENT"); };
+    const promise = loadRecipeFile("/nonexistent/recipe.json", readFileFn);
+    await expect(promise).rejects.toBeInstanceOf(UserFacingError);
+    await expect(promise).rejects.toHaveProperty("code", "RECIPE_INVALID");
+  });
+
+  it("throws UserFacingError with RECIPE_INVALID when JSON is malformed", async () => {
+    const readFileFn = async () => "not valid json {{{";
+    const promise = loadRecipeFile("/some/recipe.json", readFileFn);
+    await expect(promise).rejects.toBeInstanceOf(UserFacingError);
+    await expect(promise).rejects.toHaveProperty("code", "RECIPE_INVALID");
   });
 });

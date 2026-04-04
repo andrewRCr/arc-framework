@@ -22,9 +22,9 @@ function fakeCommit(opts: {
   return `${h}\n${d}\n${s}\n${b}`;
 }
 
-/** Joins multiple commit blocks with the record separator. */
+/** Joins multiple commit blocks with the null byte record separator. */
 function buildGitOutput(...commits: string[]): string {
-  return commits.map((c) => `--ARC-RECORD--\n${c}`).join("\n");
+  return commits.map((c) => `\0${c}`).join("\n");
 }
 
 describe("runLogAtomic", () => {
@@ -192,6 +192,164 @@ describe("runLogAtomic", () => {
     ]));
   });
 
+  it("clamps --limit 0 to minimum 1", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, limit: 0 });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "-n", "1",
+    ]));
+  });
+
+  it("clamps NaN --limit to default", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, limit: NaN });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "-n", "50",
+    ]));
+  });
+
+  it("clamps negative --limit to minimum 1", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, limit: -5 });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "-n", "1",
+    ]));
+  });
+
+  it("rejects --since with empty/whitespace value", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await expect(
+      runLogAtomic({ exec: mockExec, since: "  " }),
+    ).rejects.toThrow(/invalid.*--since/i);
+
+    expect(mockExec).not.toHaveBeenCalled();
+  });
+
+  it("accepts --since with relative date words", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, since: "yesterday" });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "--since=yesterday",
+    ]));
+  });
+
+  it("skips git-level limit when --work-unit is set", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, workUnit: "cli", limit: 10 });
+
+    const args = (mockExec as ReturnType<typeof vi.fn>).mock.calls[0]![1] as string[];
+    expect(args).not.toContain("-n");
+  });
+
+  it("applies limit after --work-unit client-side filter", async () => {
+    // 5 commits, 3 match work unit, limit is 2 — should return 2
+    const mockExec: GitExec = vi.fn().mockResolvedValue({
+      stdout: buildGitOutput(
+        fakeCommit({ hash: "a1", subject: "fix(a): one", body: "Context: atomic-cli.md" }),
+        fakeCommit({ hash: "b2", subject: "fix(b): two", body: "Context: atomic-other.md" }),
+        fakeCommit({ hash: "c3", subject: "fix(c): three", body: "Context: atomic-cli.md" }),
+        fakeCommit({ hash: "d4", subject: "fix(d): four", body: "Context: atomic-other.md" }),
+        fakeCommit({ hash: "e5", subject: "fix(e): five", body: "Context: atomic-cli.md" }),
+      ),
+    });
+
+    const result = await runLogAtomic({ exec: mockExec, workUnit: "cli", limit: 2 });
+
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries[0]?.shortHash).toBe("a1");
+    expect(result.entries[1]?.shortHash).toBe("c3");
+  });
+
+  it("handles commit body containing literal --ARC-RECORD-- text", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({
+      stdout: buildGitOutput(
+        fakeCommit({
+          hash: "a1b2c3d",
+          subject: "fix(log): update separator",
+          body: "Changed --ARC-RECORD-- to null byte\n\nContext: atomic-cli.md",
+        }),
+      ),
+    });
+
+    const result = await runLogAtomic({ exec: mockExec });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.shortHash).toBe("a1b2c3d");
+  });
+
+  it("uses null byte separator in git format string", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec });
+
+    const args = (mockExec as ReturnType<typeof vi.fn>).mock.calls[0]![1] as string[];
+    const formatArg = args.find((a) => a.startsWith("--format="));
+    expect(formatArg).toContain("%x00");
+    expect(formatArg).not.toContain("ARC-RECORD");
+  });
+
+  it("parses breaking change ! subject without scope", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({
+      stdout: buildGitOutput(
+        fakeCommit({
+          hash: "b1c2d3e",
+          subject: "feat!: drop legacy API",
+          body: "Context: atomic-breaking.md",
+        }),
+      ),
+    });
+
+    const result = await runLogAtomic({ exec: mockExec });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      type: "feat",
+      scope: "",
+      description: "drop legacy API",
+    });
+  });
+
+  it("parses breaking change ! subject with scope", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({
+      stdout: buildGitOutput(
+        fakeCommit({
+          hash: "c2d3e4f",
+          subject: "feat(api)!: remove v1 endpoints",
+          body: "Context: atomic-breaking.md",
+        }),
+      ),
+    });
+
+    const result = await runLogAtomic({ exec: mockExec });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      type: "feat",
+      scope: "api",
+      description: "remove v1 endpoints",
+    });
+  });
+
+  it("accepts --since with relative date containing digits", async () => {
+    const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
+
+    await runLogAtomic({ exec: mockExec, since: "2 weeks ago" });
+
+    expect(mockExec).toHaveBeenCalledWith("git", expect.arrayContaining([
+      "--since=2 weeks ago",
+    ]));
+  });
+
   it("passes --basic-regexp flag to git", async () => {
     const mockExec: GitExec = vi.fn().mockResolvedValue({ stdout: "" });
 
@@ -204,7 +362,7 @@ describe("runLogAtomic", () => {
 });
 
 describe("buildLogAtomicOutput", () => {
-  it("formats entries with scope", () => {
+  it("formats entries with scope and context line", () => {
     const output = buildLogAtomicOutput({
       entries: [
         {
@@ -221,6 +379,7 @@ describe("buildLogAtomicOutput", () => {
     expect(output).toContain("a1b2c3d");
     expect(output).toContain("2026-03-15");
     expect(output).toContain("fix(auth): patch token refresh");
+    expect(output).toContain("Context: atomic-cli-implementation.md");
   });
 
   it("formats entries without scope", () => {

@@ -1,14 +1,14 @@
 /**
- * Init command E2E tests.
+ * Init and join command E2E tests.
  *
- * Exercises `arc init` in fresh and join modes, verifying file output,
- * manifest integrity, pristine copies, PM mode conditionals, tool selection,
- * team mode, markdown linting, and error paths for commands that require
- * an existing installation.
+ * Exercises `arc init` (fresh install, existing installation detection) and
+ * `arc join` (role selection, tool selection, non-interactive mode), verifying
+ * file output, manifest integrity, pristine copies, PM mode conditionals,
+ * team mode, markdown linting, and error paths.
  */
 
 import { execFile } from "node:child_process";
-import { readFile, readdir, access, writeFile } from "node:fs/promises";
+import { readFile, access, writeFile } from "node:fs/promises";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -41,7 +41,7 @@ function buildLintConfig(): string {
       MD036: false, MD040: false, MD041: false,
     },
     globs: [".arc/**/*.md"],
-    ignores: [".arc/.pristine/**", ".arc/user/**"],
+    ignores: [".arc/system/.internal/**", ".arc/user/**"],
   });
 }
 
@@ -55,21 +55,6 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
-/** Recursively list all files under a directory, returning relative paths. */
-async function listFilesRecursive(dir: string, base = dir): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...await listFilesRecursive(full, base));
-    } else {
-      files.push(full.slice(base.length + 1));
-    }
-  }
-  return files.sort();
-}
-
 describe("init", () => {
   let tmpDir: string;
 
@@ -81,7 +66,7 @@ describe("init", () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("fresh init with defaults creates .arc/ directory, valid manifest, and pristine copies", async () => {
+  it("fresh init with defaults creates .arc/ directory, valid manifest, and pristine store", async () => {
     const result = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
 
     expect(result.exitCode).toBe(0);
@@ -90,7 +75,8 @@ describe("init", () => {
     expect(await pathExists(join(tmpDir, ".arc"))).toBe(true);
 
     // Manifest exists and is valid JSON
-    const manifestRaw = await readFile(join(tmpDir, ".arc-manifest.json"), "utf-8");
+    const internalDir = join(tmpDir, ".arc", "system", ".internal");
+    const manifestRaw = await readFile(join(internalDir, "manifest.json"), "utf-8");
     const manifest = JSON.parse(manifestRaw) as {
       framework_version: string;
       installed_at: string;
@@ -111,10 +97,10 @@ describe("init", () => {
     expect(manifest.install_config.team_mode).toBe(false);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
 
-    // .pristine/ contains copies
-    expect(await pathExists(join(tmpDir, ".arc", ".pristine"))).toBe(true);
-    const pristineFiles = await listFilesRecursive(join(tmpDir, ".arc", ".pristine"));
-    expect(pristineFiles.length).toBeGreaterThan(0);
+    // pristine.json exists and has entries
+    const pristineRaw = await readFile(join(internalDir, "pristine.json"), "utf-8");
+    const pristineStore = JSON.parse(pristineRaw) as Record<string, string>;
+    expect(Object.keys(pristineStore).length).toBeGreaterThan(0);
 
     // Key files exist
     expect(await pathExists(join(tmpDir, ".arc", "system", "arc-config.yml"))).toBe(true);
@@ -185,18 +171,20 @@ describe("init", () => {
     }
   });
 
-  it("join mode: second init in same directory activates join mode", async () => {
+  it("second init in same directory errors with guidance", async () => {
     // First init — fresh mode
     const first = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(first.exitCode).toBe(0);
 
-    // Second init — should detect existing .arc/ and run join mode
-    const second = await runArc(["init", "--yes", "--name", "test-project", "--tools", "claude"], tmpDir);
-    expect(second.exitCode).toBe(0);
+    // Second init — should detect existing installation and error
+    const second = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(second.exitCode).toBe(1);
 
-    // Join mode output mentions join/existing
+    // Error message suggests alternatives
     const output = second.stdout + second.stderr;
-    expect(output.toLowerCase()).toMatch(/join|existing/);
+    expect(output).toContain("already installed");
+    expect(output).toContain("arc join");
+    expect(output).toContain("arc update");
   });
 
   it("arc update before init exits non-zero with user-facing message", async () => {
@@ -213,5 +201,99 @@ describe("init", () => {
     expect(result.exitCode).not.toBe(0);
     const output = result.stdout + result.stderr;
     expect(output).toContain("arc init");
+  });
+});
+
+// --- arc join ---
+
+describe("arc join", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo("arc-join-e2e-");
+    // Fresh init first
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("arc join --contributor --yes sets role=contributor", async () => {
+    const result = await runArc(["join", "--contributor", "--yes"], tmpDir);
+    expect(result.exitCode).toBe(0);
+
+    const { stdout } = await execFileAsync("git", ["config", "arc.role"], { cwd: tmpDir });
+    expect(stdout.trim()).toBe("contributor");
+  });
+
+  it("arc join --yes --tools claude,cursor sets role=maintainer with tools", async () => {
+    const result = await runArc(["join", "--yes", "--tools", "claude,cursor"], tmpDir);
+    expect(result.exitCode).toBe(0);
+
+    const { stdout } = await execFileAsync("git", ["config", "arc.role"], { cwd: tmpDir });
+    expect(stdout.trim()).toBe("maintainer");
+
+    // Skills installed for both tools
+    const claudeSkillExists = await access(
+      join(tmpDir, ".claude/skills/arc-resume/SKILL.md"),
+    ).then(() => true).catch(() => false);
+    expect(claudeSkillExists).toBe(true);
+  });
+
+  it("arc join --contributor --yes --tools claude combines role and tools", async () => {
+    const result = await runArc(["join", "--contributor", "--yes", "--tools", "claude"], tmpDir);
+    expect(result.exitCode).toBe(0);
+
+    const { stdout: role } = await execFileAsync("git", ["config", "arc.role"], { cwd: tmpDir });
+    expect(role.trim()).toBe("contributor");
+
+    const claudeSkillExists = await access(
+      join(tmpDir, ".claude/skills/arc-resume/SKILL.md"),
+    ).then(() => true).catch(() => false);
+    expect(claudeSkillExists).toBe(true);
+  });
+
+  it("arc join without existing installation fails with guidance", async () => {
+    const emptyDir = await createTempRepo("arc-join-empty-");
+    try {
+      const result = await runArc(["join", "--yes"], emptyDir);
+      expect(result.exitCode).toBe(1);
+
+      const output = result.stdout + result.stderr;
+      expect(output).toContain("No ARC installation found");
+      expect(output).toContain("arc init");
+    } finally {
+      await cleanupTempDir(emptyDir);
+    }
+  });
+});
+
+describe("arc init --yes identity error", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo("arc-init-no-identity-");
+    // Unset user.name so identity resolution has nothing to fall back on
+    await execFileAsync("git", ["config", "--unset", "user.name"], { cwd: tmpDir }).catch(() => {});
+    await execFileAsync("git", ["config", "--unset", "arc.identity"], { cwd: tmpDir }).catch(() => {});
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("errors with clear message when --yes cannot resolve identity", async () => {
+    // GIT_AUTHOR_NAME/GIT_COMMITTER_NAME could still provide user.name via
+    // global config — override the entire git env to ensure no identity
+    const result = await runArc(["init", "--yes"], tmpDir, {
+      env: { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" },
+    });
+    expect(result.exitCode).toBe(1);
+
+    const output = result.stdout + result.stderr;
+    expect(output).toContain("IDENTITY_MISSING");
+    expect(output).toContain("non-interactive");
   });
 });

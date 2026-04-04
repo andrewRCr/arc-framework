@@ -1,114 +1,73 @@
 /**
  * Init command — install ARC framework in a project.
  *
- * Supports two modes:
- * - **Fresh**: Full init sequence with prompts, template rendering, and file output
- * - **Join**: Lightweight setup for developers joining an existing ARC project
- *
- * Mode is detected automatically by checking for `.arc/system/arc-config.yml`.
+ * Fresh install only — scaffolds the full `.arc/` directory with templates,
+ * configuration, and git integration. If ARC is already installed, errors
+ * with guidance to use `arc join` or `arc update` instead.
  */
 
 import { join, dirname } from "node:path";
 import {
-  ensureDir, appendToGitignore, appendToGitattributes,
+  ensureDir, writeArcGitignoreBlock,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
-import { configureNotesRefspec } from "../lib/git/index.js";
+import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Manifest, Recipe, CoreIO } from "../lib/types.js";
 import {
   generateSkills,
   writeSkillOutputs,
   skillGitignoreEntries,
+  detectExistingSkillDirs,
 } from "../lib/skills/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import {
   ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
-  PM_MODE_ARC_IN_GIT,
+  INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
+  MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
 import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
 import {
   resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";
+import { UserFacingError } from "../lib/errors.js";
+import { atomicWriteJson } from "../lib/fs.js";
 
 // --- Types ---
 
 /** Filesystem access check — resolves if path exists, rejects otherwise. */
 export type AccessFn = (path: string) => Promise<void>;
 
+/** Set file permissions (mode is octal, e.g. 0o755). */
+export type ChmodFn = (path: string, mode: number) => Promise<void>;
+
 /** Bundled I/O dependencies for testability. */
 export interface IOContext extends CoreIO {
   access: AccessFn;
+  chmod: ChmodFn;
 }
 
-/** Init mode: fresh install or joining existing project. */
-export type InitMode = "fresh" | "join";
-
-// --- Mode Detection ---
+// --- Installation Detection ---
 
 /**
- * Detect whether this is a fresh init or joining an existing ARC project.
+ * Check whether ARC is already installed in the given directory.
  *
- * Checks for `.arc/system/arc-config.yml` at the given root. If present,
- * ARC is already initialized (join mode). Detection is deterministic —
- * `.arc/` is always at repo root.
+ * Checks for `.arc/system/arc-config.yml` at the given root.
  *
  * @param cwd - Repository root directory
  * @param access - Injectable access check function
- * @returns 'fresh' or 'join'
+ * @returns true if ARC is installed
  */
-export async function detectInitMode(
+export async function isArcInstalled(
   cwd: string,
   access: AccessFn,
-): Promise<InitMode> {
+): Promise<boolean> {
   try {
     await access(join(cwd, ...ARC_CONFIG_SEGMENTS));
-    return "join";
+    return true;
   } catch {
-    return "fresh";
+    return false;
   }
-}
-
-// --- Post-Init Setup ---
-
-/** Options for post-init user setup. */
-interface PostInitSetupOptions {
-  arcDir: string;
-  internalTemplateDir: string;
-  io: IOContext;
-  pmMode: string;
-  identityResult: string | null;
-}
-
-/**
- * Run post-init user setup shared by both fresh and join modes.
- *
- * Stores identity in git config, creates the user directory with templates,
- * and configures git notes refspec for cross-machine portability.
- */
-async function runPostInitSetup(options: PostInitSetupOptions): Promise<void> {
-  const { arcDir, internalTemplateDir, io, pmMode, identityResult } = options;
-
-  if (identityResult) {
-    await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
-
-    const userDir = join(arcDir, "user", identityResult);
-    await ensureDir(userDir, io.mkdir);
-
-    const sessionNotes = await io.readFile(
-      join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-    );
-    await io.writeFile(join(userDir, "SESSION-NOTES.md"), sessionNotes);
-
-    if (pmMode === PM_MODE_ARC_IN_GIT) {
-      const atomicInbox = await io.readFile(
-        join(internalTemplateDir, "user", "ATOMIC-INBOX.md"),
-      );
-      await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
-    }
-  }
-
-  await configureNotesRefspec(io.exec);
 }
 
 // --- Orchestrator ---
@@ -121,8 +80,6 @@ export interface InitOptions {
   /** CLI-internal templates directory (user templates, etc.). */
   internalTemplateDir: string;
   recipe: Recipe;
-  /** Pre-detected init mode. If omitted, detected automatically. */
-  mode?: InitMode;
   /** Prompt results, or null if user cancelled. */
   prompts: InitPromptResult | null;
   /** Resolved identity, or null if cancelled/unavailable. */
@@ -131,7 +88,6 @@ export interface InitOptions {
 
 /** Result from a successful init run. */
 export interface InitResult {
-  mode: InitMode;
   filesWritten: string[];
   tools: string[];
   team_mode: boolean;
@@ -141,12 +97,13 @@ export interface InitResult {
 /**
  * Run the init command orchestration.
  *
- * Coordinates mode detection, prompt handling, file rendering, config writing,
- * skill generation, and identity storage. All I/O goes through the IOContext
- * for testability.
+ * Coordinates file rendering, config writing, skill generation, and identity
+ * storage. Errors if ARC is already installed. All I/O goes through the
+ * IOContext for testability.
  *
  * @param options - Init options with all dependencies injected
  * @returns Init result, or null if user cancelled
+ * @throws UserFacingError with code 'ALREADY_INSTALLED' if ARC is already installed
  */
 export async function runInit(
   options: InitOptions,
@@ -158,46 +115,17 @@ export async function runInit(
     return null;
   }
 
-  // Detect mode (use pre-detected if provided)
-  const mode = options.mode ?? await detectInitMode(cwd, io.access);
-  const arcDir = join(cwd, ".arc");
-
-  // --- Join mode: personal setup only ---
-  if (mode === "join") {
-    // Hook path configuration
-    await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
-
-    // Skill generation for selected tools
-    const skillResult = await generateSkills(
-      prompts.tools,
-      join(templateDir, "system", "skills"),
-      [],
-      cwd,
-      { readFile: io.readFile },
-    );
-    await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
-
-    // Add gitignore entries for generated skill directories
-    const gitignorePath = join(cwd, ".gitignore");
-    for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
-      await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
-    }
-
-    // Identity, user directory, and notes refspec setup
-    await runPostInitSetup({
-      arcDir, internalTemplateDir, io,
-      pmMode: prompts.pm_mode, identityResult,
+  // Check for existing installation
+  if (await isArcInstalled(cwd, io.access)) {
+    throw new UserFacingError({
+      code: "ALREADY_INSTALLED",
+      whatHappened: "ARC is already installed in this project",
+      why: "The .arc/system/arc-config.yml file already exists.",
+      whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
     });
-
-    return {
-      mode,
-      filesWritten: [],
-      tools: prompts.tools,
-      team_mode: prompts.team_mode,
-    };
   }
 
-  // --- Fresh mode: full installation ---
+  const arcDir = join(cwd, ".arc");
 
   // Build maps
   const config = buildConfigMap(prompts);
@@ -221,8 +149,8 @@ export async function runInit(
   const filesWritten: string[] = [];
   const fileContents: Record<string, string> = {};
   const templatePathMap: Record<string, string> = {};
+  const pristineStore: Record<string, string> = {};
   const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
-  const pristineDir = join(arcDir, ".pristine");
 
   for (const templateFile of templateFiles) {
     const srcPath = join(templateDir, templateFile);
@@ -251,17 +179,19 @@ export async function runInit(
     fileContents[outputRelPath] = renderedContent;
     templatePathMap[outputRelPath] = templateFile;
 
-    // Write pristine copy for Framework and Configurable files (not Scaffolded)
+    // Collect pristine content for Framework and Configurable files (not Scaffolded)
     if (classification !== "Scaffolded") {
-      const pristinePath = join(pristineDir, outputRelPath);
-      await ensureDir(dirname(pristinePath), io.mkdir);
-      await io.writeFile(pristinePath, renderedContent);
+      pristineStore[outputRelPath] = renderedContent;
     }
   }
 
-  // Build and write manifest
+  // Write manifest and pristine store to .arc/system/.internal/
+  const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+  await ensureDir(internalDir, io.mkdir);
+
   const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);
   const manifest: Manifest = {
+    schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: getFrameworkVersion(),
     installed_at: new Date().toISOString(),
     install_config: {
@@ -272,36 +202,45 @@ export async function runInit(
     },
     files: manifestFiles,
   };
-  await io.writeFile(
-    join(cwd, ".arc-manifest.json"),
-    JSON.stringify(manifest, null, 2) + "\n",
-  );
+  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
 
-  // Git integration setup
+  // Set executable permissions on hooks and shell scripts
+  for (const relPath of filesWritten) {
+    if (relPath.startsWith("system/githooks/") || relPath.endsWith(".sh")) {
+      await io.chmod(join(arcDir, relPath), 0o755);
+    }
+  }
+
+  // Git integration (gitattributes, merge driver, hooks path)
+  await configureGitIntegration({
+    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
+  });
   const gitignorePath = join(cwd, ".gitignore");
-  const gitattrsPath = join(cwd, ".gitattributes");
-  await appendToGitignore(gitignorePath, ".arc/.pristine/", io.readFile, io.writeFile);
-  await appendToGitignore(gitignorePath, ".arc/user/*/", io.readFile, io.writeFile);
-  await appendToGitattributes(
-    gitattrsPath, ".arc/active/WORK-STATUS.md merge=ours", io.readFile, io.writeFile,
-  );
-  await io.exec("git", ["config", "merge.ours.driver", "true"]);
-  await io.exec("git", ["config", "core.hooksPath", ".arc/system/githooks"]);
 
   // Skill generation — copy canonical skills to per-tool directories
+  // Detect pre-existing skill dirs so universal tools (codex, cursor, etc.)
+  // resolve to their native directory instead of the fallback .agents/skills/
+  const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
   const skillResult = await generateSkills(
     prompts.tools,
     join(templateDir, "system", "skills"),
-    [],
+    existingSkillDirs,
     cwd,
     { readFile: io.readFile },
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  // Add gitignore entries for generated skill directories
-  for (const entry of skillGitignoreEntries(skillResult.targetDirs)) {
-    await appendToGitignore(gitignorePath, entry, io.readFile, io.writeFile);
-  }
+  // Write managed gitignore block with all ARC entries
+  const gitignoreEntries = [
+    ".arc/system/.internal/pristine.json",
+    ".arc/user/*/",
+    ...skillGitignoreEntries(skillResult.targetDirs),
+  ];
+  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+
+  // Set role — init is always the maintainer (contributors use arc join)
+  await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
 
   // Identity, user directory, and notes refspec setup
   await runPostInitSetup({
@@ -310,7 +249,6 @@ export async function runInit(
   });
 
   return {
-    mode,
     filesWritten,
     tools: prompts.tools,
     team_mode: prompts.team_mode,
@@ -357,7 +295,7 @@ export function buildPostInitMessage(result: InitResult): string {
 
   if (result.team_mode) {
     lines.push("");
-    lines.push("Team mode enabled. Other developers join by running 'arc init'");
+    lines.push("Team mode enabled. Other developers join by running 'arc join'");
     lines.push("in this repository after cloning.");
   }
 

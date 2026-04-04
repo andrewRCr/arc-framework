@@ -27,8 +27,15 @@ configured.
 1. `git status` — clean vs uncommitted changes
 2. `git log --oneline -10` — capture committed work
 3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
-4. Task list file — verify marked checkboxes reflect actual completion
+4. Task list file — verify marked checkboxes reflect actual completion (maintainer only — contributors
+   skip this)
 5. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
+
+> **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
+> to git notes (same as maintainers), but skip project-level WORK-STATUS.md updates (items 4–5
+> above), the WORK-STATUS.md section below, and the Conditional WORK-STATUS.md Commit section.
+> Contributors don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md
+> update, git notes save, and confirmation.
 
 ### What to Update
 
@@ -277,21 +284,49 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 
 ### Save to Git Notes
 
-After writing SESSION-NOTES.md, save the user directory to git notes for portability:
+After writing SESSION-NOTES.md, save the user directory to git notes and push based on the
+`user.sync_push` setting. **Per-developer override:** `git config arc.sync_push` takes
+precedence over `arc-config.yml` when set — check this first.
 
-```bash
-arc user save    # serialize user/{identity}/ to git note on HEAD
-```
+- **`always`** (solo default): save and push in one step:
 
-Then push based on `user.sync_push` setting in `arc-config.yml`:
+    ```bash
+    arc sync
+    ```
 
-- `always` (solo default): run `arc user push` automatically
-- `prompt` (team default): ask the user whether to push
-- `manual`: skip — user pushes when ready
+- **`prompt`** (team default): save first, then ask the user whether to push:
 
-Per-developer override: `git config arc.sync_push`.
+    ```bash
+    arc user save
+    # then ask — if yes:
+    arc user push
+    ```
 
-### Conditional WORK-STATUS.md Commit
+- **`manual`**: save only — user pushes when ready:
+
+    ```bash
+    arc user save
+    ```
+
+**Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
+
+- **Push rejected (non-fast-forward):** Remote notes diverged from local. The CLI offers
+  force-push (overwrite remote) or pull-first (overwrite local). Choose based on which
+  version is authoritative. This commonly happens when the same developer works from two
+  machines without syncing, or in team mode when two developers share an identity by mistake.
+- **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
+  save` — push is a convenience for portability. The local save still happened; push later
+  when a remote is available.
+- **Pull warning (local changes):** When pulling would overwrite unsaved local notes, the CLI
+  confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
+  prior state if needed.
+
+If save itself fails (empty user directory, filesystem permissions), the session state is
+only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
+
+### Conditional WORK-STATUS.md Commit (Maintainer Only)
+
+**Skip when `arc.role = contributor`** — contributors don't update project-level WORK-STATUS.md.
 
 If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
 commit it as part of the handoff. This resolves the "dangling WORK-STATUS.md" gap during

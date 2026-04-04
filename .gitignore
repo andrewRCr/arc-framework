@@ -1,4 +1,4 @@
-# ARC Development System - .gitignore
+# ARC Framework dev repo - .gitignore
 
 # NPX cache (optional - can be cleaned with npx --clear-cache)
 .npm/
@@ -9,25 +9,31 @@ Thumbs.db
 *.swp
 *.swo
 *~
-.vscode/settings.json
 .idea/
+.vscode/
+.zed/
 
 # Temporary files
 *.tmp
 *.temp
 *.log
 
-# vscode settings
-.vscode/
-
 # AI tool settings (personal development environment preferences)
 .claude/settings.local.json
 .warp/
 
 # explicitly temp-flagged internal docs
-.arc-internal/**/temp-*
+.arc/**/temp-*
 
-# User directory contents (personal workspace, gitignored)
-.arc-internal/user/*/
+# MkDocs build output
+site/
+
 # Local dependencies
 node_modules/
+
+# ARC Framework (managed by arc cli)
+.arc/system/.internal/pristine.json
+.arc/user/*/
+.claude/skills/arc-*/
+.codex/skills/arc-*/
+# end ARC

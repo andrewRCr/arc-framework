@@ -22,7 +22,7 @@ import { existsSync } from "node:fs";
  */
 function findPackageRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
-  while (true) {
+  for (;;) {
     if (existsSync(resolve(dir, "package.json"))) {
       return dir;
     }
@@ -60,4 +60,13 @@ export function getInternalTemplatePath(): string {
  */
 export function getRecipePath(): string {
   return resolve(packageRoot, "init-recipe.json");
+}
+
+/**
+ * Returns the absolute path to the bundled changelog file.
+ *
+ * @returns Absolute path to `changelog/versions.json`
+ */
+export function getChangelogPath(): string {
+  return resolve(packageRoot, "changelog", "versions.json");
 }

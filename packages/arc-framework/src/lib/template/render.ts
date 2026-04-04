@@ -18,7 +18,7 @@ export function renderTokens(
   tokens: Record<string, string>,
 ): string {
   return content.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
-    return key in tokens ? tokens[key]! : match;
+    return key in tokens ? (tokens[key] ?? match) : match;
   });
 }
 
@@ -53,9 +53,7 @@ export function renderConditionals(
     if (ifMatch) {
       includeStack.push(including);
       if (including) {
-        const key = ifMatch[1]!;
-        const operator = ifMatch[2]!;
-        const value = ifMatch[3]!;
+        const [, key = "", operator = "", value = ""] = ifMatch;
         including = operator === "==" ? config[key] === value : config[key] !== value;
       }
       // If already excluding, nested blocks stay excluded
@@ -90,8 +88,9 @@ export function renderConfigOverrides(
     .split("\n")
     .map((line) => {
       const m = line.match(/^([\w.]+):\s*(.*)$/);
-      return m && m[1]! in overrides
-        ? `${m[1]}: ${overrides[m[1]!]}`
+      const configKey = m?.[1];
+      return configKey && configKey in overrides
+        ? `${configKey}: ${overrides[configKey]}`
         : line;
     })
     .join("\n");

@@ -85,8 +85,18 @@ file (`notes-{name}.md`), not in the task list.
 
 - **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
 - **none / external** (no backlog): `.arc/active/{category}/tasks-{{WORK_NAME}}.md`
+  (create the directory first if it doesn't exist: `mkdir -p .arc/active/{category}/`)
 
 Name should match the PRD (e.g., `prd-api-modernization.md` → `tasks-api-modernization.md`).
+
+**Create companion file** alongside the task list: `atomic-{name}.md` (same directory, same
+name stem). This is the capture surface for atomic tasks discovered during implementation —
+see [process-task-loop § Where to Capture Atomic Tasks](3_process-task-loop.md#where-to-capture-atomic-tasks).
+Create an empty file with a header:
+
+```markdown
+# Atomic Tasks: [Work Name]
+```
 
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 

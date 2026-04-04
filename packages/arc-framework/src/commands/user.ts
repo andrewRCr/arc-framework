@@ -7,7 +7,7 @@
 
 import { join } from "node:path";
 import {
-  ensureDir, appendToGitignore,
+  ensureDir,
 } from "../lib/template/index.js";
 import {
   serialize, deserialize,
@@ -100,6 +100,9 @@ export class UserSaveError extends Error {
 
 // --- Load ---
 
+/** Backup filename for pre-load snapshot of local state. */
+export const BACKUP_FILENAME = ".pre-load-backup.json";
+
 /** Result of a user load operation. */
 export interface UserLoadResult {
   identity: string;
@@ -107,6 +110,8 @@ export interface UserLoadResult {
   fileCount: number;
   /** Whether the note was found on an ancestor rather than HEAD. */
   fromAncestor: boolean;
+  /** Warnings about local files not present in the loaded manifest. */
+  warnings: string[];
 }
 
 /** Options for the load operation. */
@@ -136,7 +141,10 @@ export async function runUserLoad(
   const userDir = join(cwd, ".arc", "user", identity);
   const ref = notesRef(identity);
 
-  // Try HEAD first, then walk ancestors
+  // Find the nearest ancestor with a note using batched git calls:
+  // 1. List all commits with notes (single call)
+  // 2. Walk ancestors from HEAD in topological order (single call, follows merges)
+  // 3. First intersection = nearest noted ancestor
   let noteContent: string | null = null;
   let foundCommit = "";
   let fromAncestor = false;
@@ -145,38 +153,53 @@ export async function runUserLoad(
   const { stdout: head } = await io.exec("git", ["rev-parse", "HEAD"]);
   const headHash = head;
 
-  noteContent = await io.readNote(ref, headHash);
-  if (noteContent) {
-    foundCommit = headHash;
-  } else {
-    // Walk ancestors
-    for (let i = 1; i <= maxWalk; i++) {
-      try {
-        const { stdout: ancestor } = await io.exec("git", [
-          "rev-parse", `HEAD~${i}`,
-        ]);
-        const ancestorHash = ancestor;
-        noteContent = await io.readNote(ref, ancestorHash);
+  // 1. Get all commits that have notes for this identity
+  const notedCommits = new Set<string>();
+  try {
+    const { stdout: notesList } = await io.exec("git", [
+      "notes", "--ref", ref, "list",
+    ]);
+    for (const line of notesList.split("\n")) {
+      const commit = line.split(" ")[1];
+      if (commit) notedCommits.add(commit);
+    }
+  } catch {
+    // No notes ref exists — no notes at all
+  }
+
+  if (notedCommits.size === 0) {
+    return null;
+  }
+
+  // 2. Walk ancestors from HEAD (includes HEAD) in topological order
+  // rev-list follows all parent paths (handles merge commits) and
+  // stops naturally at shallow clone boundaries
+  try {
+    const { stdout: ancestorList } = await io.exec("git", [
+      "rev-list", "--max-count", String(maxWalk), "HEAD",
+    ]);
+    for (const commit of ancestorList.split("\n")) {
+      if (commit && notedCommits.has(commit)) {
+        noteContent = await io.readNote(ref, commit);
         if (noteContent) {
-          foundCommit = ancestorHash;
-          fromAncestor = true;
+          foundCommit = commit;
+          fromAncestor = commit !== headHash;
           break;
         }
-      } catch {
-        // No more ancestors (shallow clone or repo start)
-        break;
       }
     }
+  } catch {
+    // rev-list failure (shouldn't happen after successful rev-parse)
   }
 
   if (!noteContent) {
     return null;
   }
 
-  // Parse and deserialize
-  let manifest: SyncManifest;
+  // Parse and validate — noteContent is external data, so validate before narrowing
+  let parsed: unknown;
   try {
-    manifest = JSON.parse(noteContent) as SyncManifest;
+    parsed = JSON.parse(noteContent) as unknown;
   } catch {
     throw new Error(
       `Corrupt git note on ${foundCommit.slice(0, 7)} — JSON parse failed. ` +
@@ -185,22 +208,52 @@ export async function runUserLoad(
     );
   }
 
-  if (manifest.version !== 1 || typeof manifest.files !== "object" || manifest.files === null) {
+  const raw = parsed as Record<string, unknown>;
+  if (
+    (raw.version !== 1 && raw.version !== 2) ||
+    typeof raw.files !== "object" ||
+    raw.files === null
+  ) {
     throw new Error(
-      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${String((manifest as unknown as Record<string, unknown>).version ?? "unknown")}). ` +
+      `Unsupported note format on ${foundCommit.slice(0, 7)} (version ${JSON.stringify(raw.version ?? "unknown")}). ` +
       "This note may have been created by a newer version of ARC. " +
       "Update the CLI and try again, or `arc user save` to overwrite.",
     );
   }
+  const manifest = parsed as SyncManifest;
+
+  // Backup existing local files before overwriting
+  let staleWarnings: string[] = [];
+  try {
+    const localResult = await serialize(userDir, io.readDir, io.readFile);
+    const localFiles = localResult.manifest.files;
+
+    if (Object.keys(localFiles).length > 0) {
+      // Write backup as dotfile (excluded from serialization by dotfile convention)
+      await io.writeFile(
+        join(userDir, BACKUP_FILENAME),
+        JSON.stringify(localResult.manifest),
+      );
+
+      // Detect stale files: local files not present in the incoming manifest
+      const manifestNames = new Set(Object.keys(manifest.files));
+      staleWarnings = Object.keys(localFiles)
+        .filter((name) => !manifestNames.has(name))
+        .map((name) => `Local file "${name}" not in saved manifest — preserved in ${BACKUP_FILENAME}`);
+    }
+  } catch {
+    // User dir doesn't exist yet — nothing to back up, skip gracefully
+  }
 
   await ensureDir(userDir, io.mkdir);
-  await deserialize(userDir, manifest, io.writeFile);
+  await deserialize(userDir, manifest, io.writeFile, io.mkdir);
 
   return {
     identity,
     commit: foundCommit.slice(0, 7),
     fileCount: Object.keys(manifest.files).length,
     fromAncestor,
+    warnings: staleWarnings,
   };
 }
 
@@ -243,14 +296,8 @@ export async function runUserAdd(
     await io.writeFile(join(userDir, "ATOMIC-INBOX.md"), atomicInbox);
   }
 
-  // Add gitignore entry for the new user directory
-  const gitignorePath = join(cwd, ".gitignore");
-  await appendToGitignore(
-    gitignorePath,
-    `.arc/user/${identity}/`,
-    io.readFile,
-    io.writeFile,
-  );
+  // Note: .arc/user/*/ is covered by the managed ARC gitignore block
+  // written during arc init. No per-identity entry needed.
 }
 
 // --- Push ---
@@ -259,6 +306,8 @@ export async function runUserAdd(
 export interface UserPushOptions {
   io: UserIOContext;
   identity: string;
+  /** Force-push even when remote has diverged. */
+  force?: boolean;
 }
 
 /**
@@ -267,9 +316,43 @@ export interface UserPushOptions {
  * @param options - Push options
  */
 export async function runUserPush(options: UserPushOptions): Promise<void> {
-  const { io, identity } = options;
+  const { io, identity, force } = options;
   const ref = `refs/notes/${notesRef(identity)}`;
-  await io.exec("git", ["push", "origin", ref]);
+  const args = force ? ["push", "--force", "origin", ref] : ["push", "origin", ref];
+  await io.exec("git", args);
+}
+
+/**
+ * Check whether the remote has the notes ref for a given identity.
+ * Returns true if remote ref exists, false otherwise.
+ */
+export async function hasRemoteNotes(
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    const ref = `refs/notes/${notesRef(identity)}`;
+    const { stdout } = await io.exec("git", ["ls-remote", "origin", ref]);
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check whether local notes ref exists for a given identity.
+ * Returns true if the local ref has at least one note.
+ */
+export async function hasLocalNotes(
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    const { stdout } = await io.exec("git", ["notes", "--ref", notesRef(identity), "list"]);
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 // --- Pull ---
@@ -277,7 +360,10 @@ export async function runUserPush(options: UserPushOptions): Promise<void> {
 /** Options for the pull operation. */
 export interface UserPullOptions {
   io: UserIOContext;
+  /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;
+  /** Force-fetch even when local ref has diverged from remote. */
+  force?: boolean;
 }
 
 /**
@@ -286,9 +372,11 @@ export interface UserPullOptions {
  * @param options - Pull options
  */
 export async function runUserPull(options: UserPullOptions): Promise<void> {
-  const { io, identity } = options;
+  const { io, identity, force } = options;
   const ref = `refs/notes/${notesRef(identity)}`;
-  await io.exec("git", ["fetch", "origin", `${ref}:${ref}`]);
+  // '+' prefix forces local ref update even if not fast-forward
+  const refspec = force ? `+${ref}:${ref}` : `${ref}:${ref}`;
+  await io.exec("git", ["fetch", "origin", refspec]);
 }
 
 // --- Result Formatting ---
@@ -328,6 +416,14 @@ export function buildLoadSummary(result: UserLoadResult): string {
 
   if (result.fromAncestor) {
     lines.push("Note: loaded from an ancestor commit (no note on HEAD).");
+  }
+
+  if (result.warnings.length > 0) {
+    lines.push("");
+    lines.push("Warnings:");
+    for (const w of result.warnings) {
+      lines.push(`  - ${w}`);
+    }
   }
 
   return lines.join("\n");

@@ -1,0 +1,134 @@
+/**
+ * Real I/O adapters for CLI commands.
+ *
+ * Constructs type-safe I/O context bundles from Node.js APIs, injected into
+ * testable command orchestrators. Extracted from cli.ts for SRP — the CLI
+ * entry point handles Commander wiring, this module handles I/O binding.
+ *
+ * @module
+ */
+
+import { readFile, writeFile, mkdir, access, chmod, readdir, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
+
+import type { IOContext } from "../commands/init.js";
+import type { UserIOContext } from "../commands/user.js";
+import type { GitExec, DirEntry } from "../lib/git/index.js";
+
+export const execFileAsync = promisify(execFile);
+
+/** Real git executor wrapping child_process.execFile. */
+export const gitExec: GitExec = async (cmd, args) => {
+  const { stdout, stderr } = await execFileAsync(cmd, args);
+  return { stdout: stdout.trimEnd(), stderr };
+};
+
+/** Real IOContext using node:fs/promises. Used by init, join, update. */
+export function createIOContext(): IOContext {
+  return {
+    readFile: (path) => readFile(path, "utf-8"),
+    writeFile: (path, content) => writeFile(path, content, "utf-8"),
+    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
+    access: (path) => access(path),
+    chmod: (path, mode) => chmod(path, mode),
+    exec: gitExec,
+  };
+}
+
+/**
+ * Write content to a git note ref on a commit, piping via stdin.
+ * Uses `-F -` to read from stdin (avoids ARG_MAX limits for large manifests).
+ */
+async function writeGitNote(
+  ref: string,
+  content: string,
+  commit: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("git", [
+      "notes", "--ref", ref, "add", "-f", "-F", "-", commit,
+    ]);
+    let stderr = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`git notes add failed (code ${code}): ${stderr}`));
+    });
+    proc.on("error", reject);
+    proc.stdin.on("error", (err) => {
+      reject(new Error(`git notes stdin write failed: ${err.message}`));
+    });
+    // Handle backpressure for large manifests — wait for drain if buffer is full
+    const ok = proc.stdin.write(content);
+    if (!ok) {
+      proc.stdin.once("drain", () => proc.stdin.end());
+    } else {
+      proc.stdin.end();
+    }
+  });
+}
+
+/**
+ * Read content from a git note ref on a commit.
+ * Returns null if no note exists on the commit.
+ */
+async function readGitNote(
+  ref: string,
+  commit: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", [
+      "notes", "--ref", ref, "show", commit,
+    ]);
+    return stdout.trimEnd();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read directory entries with name and size for user directory serialization.
+ * Recurses into subdirectories — entries use relative paths (e.g., `drafts/idea.md`).
+ * Skips dot-directories (infrastructure, not user content).
+ */
+async function readUserDir(dirPath: string): Promise<DirEntry[]> {
+  const entries: DirEntry[] = [];
+
+  async function walk(currentPath: string, prefix: string): Promise<void> {
+    let names: string[];
+    try {
+      names = await readdir(currentPath);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const fullPath = join(currentPath, name);
+      const s = await stat(fullPath);
+      if (s.isDirectory()) {
+        if (name.startsWith(".")) continue;
+        await walk(fullPath, prefix ? `${prefix}/${name}` : name);
+      } else if (s.isFile()) {
+        const relativeName = prefix ? `${prefix}/${name}` : name;
+        entries.push({ name: relativeName, size: s.size });
+      }
+    }
+  }
+
+  await walk(dirPath, "");
+  return entries;
+}
+
+/** Real UserIOContext for user sync operations. */
+export function createUserIOContext(): UserIOContext {
+  return {
+    exec: gitExec,
+    readFile: (path) => readFile(path, "utf-8"),
+    writeFile: (path, content) => writeFile(path, content, "utf-8"),
+    mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
+    readDir: readUserDir,
+    writeNote: writeGitNote,
+    readNote: readGitNote,
+  };
+}

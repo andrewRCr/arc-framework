@@ -6,9 +6,23 @@
  * full init flow against real filesystems.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
+
+// Mock atomicWriteJson — unit tests use virtual IO; the real function
+// needs a real filesystem. Atomic write behavior is tested in fs.test.ts.
+const { atomicWriteJson } = vi.hoisted(() => ({
+  atomicWriteJson: vi.fn(async () => {}),
+}));
+vi.mock("../../src/lib/fs.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/fs.js")>()),
+  atomicWriteJson,
+}));
+
 import {
-  detectInitMode,
+  isArcInstalled,
   runInit,
   buildPostInitMessage,
 } from "../../src/commands/init.js";
@@ -17,17 +31,22 @@ import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../../sr
 import {
   resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";
+import { getFrameworkVersion } from "../../src/lib/version.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import type { Recipe } from "../../src/lib/types.js";
 import { CANONICAL_SKILLS } from "../../src/lib/skills/index.js";
 import { DEFAULT_PROMPTS } from "../helpers/integration.js";
+
+const __testdir = dirname(fileURLToPath(import.meta.url));
+const actualRecipe = JSON.parse(
+  readFileSync(resolve(__testdir, "../../init-recipe.json"), "utf-8"),
+) as Recipe;
 
 // --- Shared Fixtures ---
 
 /** Default InitResult — override only what matters per test. */
 function makeInitResult(overrides: Partial<InitResult> = {}): InitResult {
   return {
-    mode: "fresh",
     filesWritten: ["README.md"],
     tools: ["claude"],
     team_mode: false,
@@ -53,20 +72,20 @@ function canonicalSkillFiles(templateDir: string): Record<string, string> {
   return files;
 }
 
-// --- detectInitMode ---
+// --- isArcInstalled ---
 
-describe("detectInitMode", () => {
-  it("returns 'fresh' when .arc/system/arc-config.yml does not exist", async () => {
+describe("isArcInstalled", () => {
+  it("returns false when .arc/system/arc-config.yml does not exist", async () => {
     const access = vi.fn().mockRejectedValue(new Error("ENOENT"));
-    const mode = await detectInitMode("/project", access);
-    expect(mode).toBe("fresh");
+    const result = await isArcInstalled("/project", access);
+    expect(result).toBe(false);
     expect(access).toHaveBeenCalledWith("/project/.arc/system/arc-config.yml");
   });
 
-  it("returns 'join' when .arc/system/arc-config.yml exists", async () => {
+  it("returns true when .arc/system/arc-config.yml exists", async () => {
     const access = vi.fn().mockResolvedValue(undefined);
-    const mode = await detectInitMode("/project", access);
-    expect(mode).toBe("join");
+    const result = await isArcInstalled("/project", access);
+    expect(result).toBe(true);
   });
 });
 
@@ -132,12 +151,12 @@ describe("buildConfigKeyOverrides", () => {
 
 describe("buildTokenMap", () => {
   it("maps PROJECT_NAME from prompt result", () => {
-    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none" }, "/home/user/repo");
+    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none", team_mode: false } as InitPromptResult, "/home/user/repo");
     expect(tokens["PROJECT_NAME"]).toBe("My App");
   });
 
   it("maps REPO_ROOT from cwd", () => {
-    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none" }, "/home/user/repo");
+    const tokens = buildTokenMap({ project_name: "My App", tools: [], pm_mode: "none", team_mode: false } as InitPromptResult, "/home/user/repo");
     expect(tokens["REPO_ROOT"]).toBe("/home/user/repo");
   });
 });
@@ -200,6 +219,26 @@ describe("resolveFileList", () => {
     const recipe: Recipe = { prompts: [], conditions: {} };
     const files = resolveFileList(recipe, { "pm.mode": "none", "tools": "" });
     expect(files).toEqual([]);
+  });
+});
+
+// --- resolveFileList (actual recipe: team-coordination conditionality) ---
+
+describe("resolveFileList — actual recipe", () => {
+  const TEAM_COORD = "reference/strategies/arc/strategy-team-coordination.md";
+
+  it("solo-mode excludes strategy-team-coordination.md", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "false",
+    });
+    expect(files).not.toContain(TEAM_COORD);
+  });
+
+  it("team-mode includes strategy-team-coordination.md", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "true",
+    });
+    expect(files).toContain(TEAM_COORD);
   });
 });
 
@@ -348,6 +387,7 @@ function mockIO(
       if (path in allFiles) return;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
+    chmod: vi.fn(async () => undefined),
     exec: vi.fn(async (_cmd: string, args: string[]) => {
       // Default: git config --get returns not found
       if (args[0] === "config" && args[1] === "--get") {
@@ -390,7 +430,7 @@ describe("runInit", () => {
     };
     const io = mockIO(templateFiles);
 
-    const result = await runInit({
+    await runInit({
       cwd: "/project",
       io,
       templateDir: "/templates",
@@ -400,27 +440,25 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    expect(result.mode).toBe("fresh");
-
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
 
     // .template file rendered with token and suffix stripped
     const readmeWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/README.md",
+      (c) => c[0] === "/project/.arc/README.md",
     );
     expect(readmeWrite).toBeDefined();
     expect(readmeWrite![1]).toBe("# Test Project");
 
     // arc-config.yml written with programmatic overrides (not token rendering)
     const configWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/system/arc-config.yml",
+      (c) => c[0] === "/project/.arc/system/arc-config.yml",
     );
     expect(configWrite).toBeDefined();
     expect(configWrite![1]).toContain("pm.mode: none");
 
     // Conditional file included
     const claudeWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/system/agent/CLAUDE.ARC.md",
+      (c) => c[0] === "/project/.arc/system/agent/CLAUDE.ARC.md",
     );
     expect(claudeWrite).toBeDefined();
   });
@@ -445,7 +483,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const readmeWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/README.md",
+      (c) => c[0] === "/project/.arc/README.md",
     );
     expect(readmeWrite).toBeDefined();
     // Token left as-is — README.md has no .template suffix
@@ -474,7 +512,7 @@ describe("runInit", () => {
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const statusWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/active/WORK-STATUS.md",
+      (c) => c[0] === "/project/.arc/active/WORK-STATUS.md",
     );
     expect(statusWrite).toBeDefined();
   });
@@ -503,10 +541,40 @@ describe("runInit", () => {
 
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
     const identitySet = execCalls.find(
-      (c: [string, string[]]) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.identity",
+      (c) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.identity",
     );
     expect(identitySet).toBeDefined();
     expect(identitySet![1][3]).toBe("andrew");
+  });
+
+  it("fresh mode: sets arc.role to maintainer via git config", async () => {
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+    });
+
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    await runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: "andrew",
+    });
+
+    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
+    const roleSet = execCalls.find(
+      (c) => c[1]?.[0] === "config" && c[1]?.[1] === "--local" && c[1]?.[2] === "arc.role",
+    );
+    expect(roleSet).toBeDefined();
+    expect(roleSet![1][3]).toBe("maintainer");
   });
 
   it("fresh mode: calls skill generation with selected tools", async () => {
@@ -530,21 +598,21 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    expect(result.tools).toEqual(["claude", "cursor"]);
+    expect(result!.tools).toEqual(["claude", "cursor"]);
 
     // Skill files written to disk for both resolved directories
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const skillWrites = writeCalls.filter(
-      (c: [string, string]) =>
+      (c) =>
         c[0].includes("/skills/arc-") && c[0].endsWith("/SKILL.md"),
     );
-    // 5 skills × 2 directories (.claude/skills/ + .agents/skills/)
-    expect(skillWrites).toHaveLength(10);
+    // Each canonical skill × 2 directories (.claude/skills/ + .agents/skills/)
+    expect(skillWrites).toHaveLength(CANONICAL_SKILLS.length * 2);
 
     // Gitignore entries added for skill directories
     const gitignoreWrites = writeCalls
-      .filter((c: [string, string]) => c[0] === "/project/.gitignore")
-      .map((c: [string, string]) => c[1] as string);
+      .filter((c) => c[0] === "/project/.gitignore")
+      .map((c) => c[1] as string);
     const allGitignoreContent = gitignoreWrites.join("\n");
     expect(allGitignoreContent).toContain(".claude/skills/arc-*/");
     expect(allGitignoreContent).toContain(".agents/skills/arc-*/");
@@ -578,6 +646,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
+    atomicWriteJson.mockClear();
     await runInit({
       cwd: "/project",
       io,
@@ -588,14 +657,15 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-    const manifestWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc-manifest.json",
+    // Manifest written via atomicWriteJson (not io.writeFile)
+    const calls = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+    const manifestCall = calls.find(
+      (c) => c[0].endsWith("manifest.json"),
     );
-    expect(manifestWrite).toBeDefined();
+    expect(manifestCall).toBeDefined();
 
-    const manifest = JSON.parse(manifestWrite![1]) as Record<string, unknown>;
-    expect(manifest.framework_version).toBe("0.0.0");
+    const manifest = manifestCall![1] as Record<string, unknown>;
+    expect(manifest.framework_version).toBe(getFrameworkVersion());
     expect(manifest.install_config).toEqual({
       project_name: "Test Project",
       pm_mode: "none",
@@ -610,7 +680,7 @@ describe("runInit", () => {
     expect(files["system/arc-config.yml"]!.classification).toBe("Configurable");
   });
 
-  it("fresh mode: copies Framework and Configurable files to .pristine/", async () => {
+  it("fresh mode: writes pristine.json with Framework and Configurable content", async () => {
     const io = mockIO({
       "/templates/README.md": "# framework file",
       "/templates/system/arc-config.yml": "pm.mode: none",
@@ -622,6 +692,7 @@ describe("runInit", () => {
       conditions: {},
     };
 
+    atomicWriteJson.mockClear();
     await runInit({
       cwd: "/project",
       io,
@@ -632,25 +703,23 @@ describe("runInit", () => {
       identityResult: "andrew",
     });
 
-    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-
-    // Framework file gets pristine copy
-    const readmePristine = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/.pristine/README.md",
+    // Pristine written via atomicWriteJson (not io.writeFile)
+    const pristineCalls = (atomicWriteJson.mock.calls as unknown as [string, unknown][]);
+    const pristineCall = pristineCalls.find(
+      (c) => c[0].endsWith("pristine.json"),
     );
-    expect(readmePristine).toBeDefined();
+    expect(pristineCall).toBeDefined();
 
-    // Configurable file gets pristine copy
-    const configPristine = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/.pristine/system/arc-config.yml",
-    );
-    expect(configPristine).toBeDefined();
+    const pristineStore = pristineCall![1] as Record<string, string>;
 
-    // Scaffolded file does NOT get pristine copy
-    const statusPristine = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.arc/.pristine/active/WORK-STATUS.md",
-    );
-    expect(statusPristine).toBeUndefined();
+    // Framework file included in pristine store
+    expect(pristineStore["README.md"]).toBe("# framework file");
+
+    // Configurable file included in pristine store
+    expect(pristineStore["system/arc-config.yml"]).toBeDefined();
+
+    // Scaffolded file NOT in pristine store
+    expect(pristineStore["active/WORK-STATUS.md"]).toBeUndefined();
   });
 
   it("fresh mode: returns correct filesWritten and tools for message building", async () => {
@@ -717,29 +786,29 @@ describe("runInit", () => {
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
 
-    // .gitignore updated with .pristine/ and user/*/ entries
+    // .gitignore updated with pristine.json and user/*/ entries
     const gitignoreWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.gitignore",
+      (c) => c[0] === "/project/.gitignore",
     );
     expect(gitignoreWrite).toBeDefined();
-    expect(gitignoreWrite![1]).toContain(".arc/.pristine/");
+    expect(gitignoreWrite![1]).toContain(".arc/system/.internal/pristine.json");
 
     // .gitattributes updated with WORK-STATUS.md merge=ours
     const gitattrsWrite = writeCalls.find(
-      (c: [string, string]) => c[0] === "/project/.gitattributes",
+      (c) => c[0] === "/project/.gitattributes",
     );
     expect(gitattrsWrite).toBeDefined();
     expect(gitattrsWrite![1]).toContain("WORK-STATUS.md merge=ours");
 
     // git config merge.ours.driver true
     const mergeDriver = execCalls.find(
-      (c: [string, string[]]) => c[1]?.includes("merge.ours.driver"),
+      (c) => c[1]?.includes("merge.ours.driver"),
     );
     expect(mergeDriver).toBeDefined();
 
     // git config core.hooksPath
     const hooksPath = execCalls.find(
-      (c: [string, string[]]) => c[1]?.includes("core.hooksPath"),
+      (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/githooks");
@@ -794,7 +863,7 @@ describe("buildPostInitMessage", () => {
     const msg = buildPostInitMessage(makeInitResult({ team_mode: true }));
 
     expect(msg).toContain("Team mode enabled");
-    expect(msg).toContain("arc init");
+    expect(msg).toContain("arc join");
   });
 
   it("omits team guidance when team mode disabled", () => {

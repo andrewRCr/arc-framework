@@ -6,9 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { readFile, writeFile, mkdir, mkdtemp } from "node:fs/promises";
+import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 
 import {
   cleanupTempDir,
@@ -27,6 +28,9 @@ import {
   runUserPush,
   runUserPull,
   UserSaveError,
+  BACKUP_FILENAME,
+  hasLocalNotes,
+  hasRemoteNotes,
 } from "../../src/commands/user.js";
 
 // --- Tests ---
@@ -185,6 +189,259 @@ describe("user save and load", () => {
       runUserSave({ cwd: tempDir, io, identity: "empty-user" }),
     ).rejects.toThrow(UserSaveError);
   });
+
+  it("load finds note on merge ancestor (not just linear)", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Save a note on the initial commit
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Merge ancestor", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Create a branch, make a commit, switch back, make another commit, merge
+    await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "feature"]);
+    await makeCommit(tempDir, "feature commit");
+    await execFileAsync("git", ["-C", tempDir, "checkout", "-"]);
+    await makeCommit(tempDir, "main commit");
+    // Merge creates a merge commit — bypass hooks (test scaffolding, not hook testing)
+    await execFileAsync(
+      "git", ["-c", "core.hooksPath=/dev/null", "-C", tempDir, "merge", "feature", "--no-edit"],
+    );
+
+    // Load should find the note through the merge ancestry
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user",
+    });
+    expect(loadResult).not.toBeNull();
+    expect(loadResult!.fromAncestor).toBe(true);
+
+    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Merge ancestor");
+  });
+
+  it("load handles shallow clone gracefully", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Save a note on current commit
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Shallow test", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    const remoteDir = await addBareRemote(tempDir);
+    await runUserPush({ io, identity: "test-user" });
+    await makeCommit(tempDir, "post-save commit");
+    await execFileAsync("git", ["-C", tempDir, "push", "origin", "HEAD"]);
+
+    // Shallow clone — limited history but notes ref pulled separately
+    const shallowDir = await mkdtemp(join(tmpdir(), "arc-shallow-"));
+    await execFileAsync("git", ["clone", "--depth", "2", pathToFileURL(remoteDir).href, shallowDir]);
+    await execFileAsync("git", ["config", "user.email", "s@t.com"], { cwd: shallowDir });
+    await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
+
+    const shallowIO = makeUserIO(shallowDir);
+    await runUserPull({ io: shallowIO, identity: "test-user" });
+
+    const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
+    await mkdir(shallowUserDir, { recursive: true });
+    const loadResult = await runUserLoad({
+      cwd: shallowDir, io: shallowIO, identity: "test-user",
+    });
+
+    // The noted commit is within the shallow boundary (depth 2, note is 1 commit back)
+    // so load succeeds and finds it as an ancestor
+    expect(loadResult).not.toBeNull();
+    expect(loadResult!.fromAncestor).toBe(true);
+
+    const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Shallow test");
+
+    await cleanupTempDir(shallowDir);
+    await cleanupTempDir(remoteDir);
+  });
+
+  it("load returns null in shallow clone when note is beyond boundary", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Save a note
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Deep note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    const remoteDir = await addBareRemote(tempDir);
+    await runUserPush({ io, identity: "test-user" });
+
+    // Make many commits to push the noted commit beyond a shallow boundary
+    for (let i = 0; i < 10; i++) {
+      await makeCommit(tempDir, `commit ${i}`);
+    }
+    await execFileAsync("git", ["-C", tempDir, "push", "origin", "HEAD"]);
+
+    // Shallow clone with depth 1 — only HEAD
+    const shallowDir = await mkdtemp(join(tmpdir(), "arc-shallow-"));
+    await execFileAsync("git", ["clone", "--depth", "1", pathToFileURL(remoteDir).href, shallowDir]);
+    await execFileAsync("git", ["config", "user.email", "s@t.com"], { cwd: shallowDir });
+    await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
+
+    const shallowIO = makeUserIO(shallowDir);
+    await runUserPull({ io: shallowIO, identity: "test-user" });
+
+    const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
+    await mkdir(shallowUserDir, { recursive: true });
+
+    // Load with maxWalk=1 to ensure we don't search beyond shallow boundary
+    const loadResult = await runUserLoad({
+      cwd: shallowDir, io: shallowIO, identity: "test-user", maxAncestorWalk: 1,
+    });
+
+    // Note is beyond the shallow boundary — should return null
+    expect(loadResult).toBeNull();
+
+    await cleanupTempDir(shallowDir);
+    await cleanupTempDir(remoteDir);
+  });
+});
+
+describe("user load — backup and stale detection", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("creates backup before overwriting existing files", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Write content and save
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Modify local file
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+
+    // Load — should create backup of "Modified locally" state
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+
+    // Verify backup exists and contains the pre-load state
+    const backupRaw = await readFile(join(userDir, BACKUP_FILENAME), "utf-8");
+    const backup = JSON.parse(backupRaw) as { version: number; files: Record<string, string> };
+    expect(backup.files["SESSION-NOTES.md"]).toBe("# Modified locally");
+  });
+
+  it("skips backup gracefully when user dir does not exist", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "new-user");
+
+    // Save as test-user, then try loading as new-user (no dir yet)
+    const existingUserDir = join(tempDir, ".arc", "user", "test-user");
+    await writeFile(join(existingUserDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Create a note for new-user by saving manually
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# New user", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "new-user" });
+
+    // Remove the dir to simulate first load on a fresh clone
+    await rm(userDir, { recursive: true, force: true });
+
+    // Load should succeed without backup (dir doesn't exist)
+    const result = await runUserLoad({ cwd: tempDir, io, identity: "new-user" });
+    expect(result).not.toBeNull();
+    expect(result!.warnings).toEqual([]);
+
+    // Verify no backup file created
+    let backupExists = true;
+    try {
+      await readFile(join(userDir, BACKUP_FILENAME), "utf-8");
+    } catch {
+      backupExists = false;
+    }
+    expect(backupExists).toBe(false);
+  });
+
+  it("warns about local files not present in saved manifest", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Save with just SESSION-NOTES
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Add an extra local file that won't be in the manifest
+    await writeFile(join(userDir, "local-only.txt"), "local stuff", "utf-8");
+
+    // Load — should warn about local-only.txt
+    const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    expect(result).not.toBeNull();
+    expect(result!.warnings).toHaveLength(1);
+    expect(result!.warnings[0]).toContain("local-only.txt");
+    expect(result!.warnings[0]).toContain("not in saved manifest");
+  });
+
+  it("backup excludes dotfiles from serialization", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Save initial state
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# First", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Modify and create a dotfile
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Second", "utf-8");
+    await writeFile(join(userDir, ".some-dotfile"), "hidden", "utf-8");
+
+    // Load — backup should not include .some-dotfile
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+
+    const backupRaw = await readFile(join(userDir, BACKUP_FILENAME), "utf-8");
+    const backup = JSON.parse(backupRaw) as { files: Record<string, string> };
+    expect(backup.files[".some-dotfile"]).toBeUndefined();
+    expect(backup.files["SESSION-NOTES.md"]).toBe("# Second");
+  });
+});
+
+describe("user save/load — subdirectory support", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("round-trips files in subdirectories", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Create nested file structure
+    await mkdir(join(userDir, "drafts"), { recursive: true });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await writeFile(join(userDir, "drafts", "idea.md"), "# Draft idea", "utf-8");
+
+    // Save
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    expect(saveResult.fileCount).toBe(2);
+
+    // Delete everything and reload
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    expect(loadResult).not.toBeNull();
+    expect(loadResult!.fileCount).toBe(2);
+
+    // Verify nested file was restored
+    const restored = await readFile(join(userDir, "drafts", "idea.md"), "utf-8");
+    expect(restored).toBe("# Draft idea");
+  });
 });
 
 describe("user add", () => {
@@ -234,7 +491,7 @@ describe("user add", () => {
     expect(inbox).toContain("Atomic");
   });
 
-  it("adds gitignore entry for the new user directory", async () => {
+  it("relies on wildcard gitignore from init (no per-identity entry)", async () => {
     const io = makeUserIO(tempDir);
 
     await runUserAdd({
@@ -248,7 +505,9 @@ describe("user add", () => {
     const gitignore = await readFile(
       join(tempDir, ".gitignore"), "utf-8",
     );
-    expect(gitignore).toContain(".arc/user/new-dev/");
+    // Wildcard from init covers all user directories — no per-identity entry needed
+    expect(gitignore).toContain(".arc/user/*/");
+    expect(gitignore).not.toContain(".arc/user/new-dev/");
   });
 });
 
@@ -320,5 +579,124 @@ describe("user push and pull", () => {
       join(cloneUserDir, "SESSION-NOTES.md"), "utf-8",
     );
     expect(restored).toBe("# Portable notes");
+  });
+
+  it("force push overwrites diverged remote", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Save and push initial notes
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 1", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    // Clone, save different notes, and push from clone (creates divergence)
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Version 2 from clone", "utf-8");
+    await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    // Force-push from clone — notes refs diverge since clone doesn't inherit them
+    await runUserPush({ io: cloneIO, identity: "test-user", force: true });
+
+    // Now save different notes locally (diverged from remote)
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 3 local", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Regular push should fail with divergence error
+    await expect(
+      runUserPush({ io, identity: "test-user" }),
+    ).rejects.toThrow(/rejected/);
+
+    // Force push should succeed
+    await runUserPush({ io, identity: "test-user", force: true });
+
+    // Verify remote has our version (force pull — refs diverged)
+    await runUserPull({ io: cloneIO, identity: "test-user", force: true });
+    await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restoredInClone).toBe("# Version 3 local");
+  });
+
+  it("pull with --identity fetches another developer's notes", async () => {
+    const io = makeUserIO(tempDir);
+
+    // Save notes under a different identity
+    const otherDir = join(tempDir, ".arc", "user", "other-dev");
+    await mkdir(otherDir, { recursive: true });
+    await writeFile(join(otherDir, "SESSION-NOTES.md"), "# Other dev notes", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "other-dev" });
+    await runUserPush({ io, identity: "other-dev" });
+
+    // Clone and pull the other developer's notes
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+    const cloneIO = makeUserIO(cloneDir);
+
+    // Pull other-dev's notes (not our own identity)
+    await runUserPull({ io: cloneIO, identity: "other-dev" });
+
+    // Load under other-dev identity
+    const cloneOtherDir = join(cloneDir, ".arc", "user", "other-dev");
+    await mkdir(cloneOtherDir, { recursive: true });
+    const result = await runUserLoad({
+      cwd: cloneDir, io: cloneIO, identity: "other-dev",
+    });
+    expect(result).not.toBeNull();
+
+    const restored = await readFile(join(cloneOtherDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Other dev notes");
+  });
+
+  it("missing remote produces a clear error", async () => {
+    // Remove the remote
+    await execFileAsync("git", ["-C", tempDir, "remote", "remove", "origin"]);
+    const io = makeUserIO(tempDir);
+
+    // Push without remote should fail with clear diagnostic
+    await expect(
+      runUserPush({ io, identity: "test-user" }),
+    ).rejects.toThrow(/origin/);
+
+    // Pull without remote should fail with clear diagnostic
+    await expect(
+      runUserPull({ io, identity: "test-user" }),
+    ).rejects.toThrow(/origin/);
+  });
+
+  it("hasLocalNotes returns true after save, false before", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // No notes yet
+    expect(await hasLocalNotes(io, "test-user")).toBe(false);
+
+    // Save a note
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Now notes exist
+    expect(await hasLocalNotes(io, "test-user")).toBe(true);
+  });
+
+  it("hasRemoteNotes returns true after push", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // No remote notes yet
+    expect(await hasRemoteNotes(io, "test-user")).toBe(false);
+
+    // Save and push
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    expect(await hasRemoteNotes(io, "test-user")).toBe(true);
   });
 });

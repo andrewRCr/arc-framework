@@ -11,24 +11,29 @@ Shared rules and project context live in:
 
 ## Claude-Specific Notes
 
-_[None — add Claude-specific guidance as you discover it]_
-
-<!-- Examples of what belongs here (delete these and replace with your own): -->
-<!-- - Chained bash commands (&&, ||, pipes) may not match auto-approve patterns — -->
-<!--   run independent commands as parallel tool calls instead -->
-<!-- - Tends to over-explain — prefer terse responses for this project -->
-<!-- - Never degrade work quality or change approach due to context pressure -->
+- **Bash commands:** Keep shell commands simple and separate — chained commands (`&&`, `||`, pipes)
+  may not match auto-approve patterns even when the individual commands would be approved. Run
+  independent commands as parallel tool calls instead of chaining them.
+- **Never** degrade work quality or change approach due to context or token pressure
+- **Never** make "efficiency" tradeoffs based on context window size
 
 ## MCP Server Availability
 
-<!-- Document MCP servers configured for your project. This helps the agent understand -->
-<!-- what external tools are available without needing to discover them at runtime. -->
-
-_[None configured — add MCP servers as needed]_
+_[None configured]_
 
 ## Sub-Agent Availability
 
-<!-- Document sub-agents available in your setup. Sub-agents can handle specialized -->
-<!-- tasks autonomously, saving main conversation context. -->
+**External Research Analyst** — Available for web research and external documentation synthesis.
 
-_[None configured — add sub-agent descriptions as needed]_
+**When to use:**
+
+- Researching third-party libraries or best practices
+- Investigating security advisories or error messages from external sources
+- Any web research expected to require 3+ WebFetch calls
+- Tasks requiring synthesis across multiple external sources
+
+**When NOT to use:**
+
+- Simple 1-2 WebFetch queries with clear targets (use WebFetch directly)
+- Checking a single documentation page
+- Quick lookups of known information

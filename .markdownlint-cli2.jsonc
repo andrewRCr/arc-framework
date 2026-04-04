@@ -1,43 +1,39 @@
 {
-  // markdownlint-cli2 configuration
-  // Synced from CineXplorer 2025-10-24
+    // markdownlint-cli2 configuration
 
-  "config": {
-    "default": true,
-    "MD007": {
-      "indent": 4
+    "config": {
+        "default": true,
+        "MD007": {
+            "indent": 4,
+        },
+        "MD013": {
+            "line_length": 120,
+            "code_blocks": false,
+            "tables": false,
+        },
+        "MD024": {
+            "siblings_only": true,
+        },
+        "MD025": false,
+        "MD029": false,
+        "MD033": false,
+        "MD036": false,
+        "MD040": false,
+        "MD041": false,
     },
-    "MD013": {
-      "line_length": 120,
-      "code_blocks": false,
-      "tables": false
-    },
-    "MD024": {
-      "siblings_only": true
-    },
-    "MD025": false,
-    "MD029": false,
-    "MD033": false,
-    "MD036": false,
-    "MD040": false,
-    "MD041": false
-  },
 
-  "gitignore": false,
+    "gitignore": false,
 
-  "globs": [
-    "**/*.md"
-  ],
+    "globs": ["**/*.md"],
 
-  "ignores": [
-    "**/node_modules/**",
-    "**/.venv*/**",
-    "**/venv/**",
-    ".arc/reference/archive/**",
-    ".arc-internal/reference/archive/**",
-    "packages/arc-framework/arc/**",
-    "arc/**"
-  ],
+    "ignores": [
+        "**/node_modules/**",
+        "**/.venv*/**",
+        "**/venv/**",
+        ".arc/reference/archive/**",
+        "packages/arc-framework/arc/**",
+        "arc/**",
+    ],
 
-  "customRules": []
+    "customRules": [],
 }

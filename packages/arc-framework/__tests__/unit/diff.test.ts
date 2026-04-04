@@ -7,9 +7,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { runDiff } from "../../src/commands/diff.js";
+import { runDiff, buildDiffOutput } from "../../src/commands/diff.js";
 
-import type { DiffIOContext } from "../../src/commands/diff.js";
+import type { DiffIOContext, DiffResult } from "../../src/commands/diff.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { hashContent } from "../../src/lib/manifest/index.js";
 import { buildManifest } from "../helpers/factories.js";
@@ -92,11 +92,12 @@ describe("runDiff", () => {
 
     const fakeDiff = "--- a/pristine\n+++ b/current\n@@ -1 +1 @@\n-hello world\n+hello modified";
 
+    const pristineStore = { "system/arc-config.yml": FILE_CONTENT };
     const io = buildIO({
       manifest,
       files: {
         [`${CWD}/.arc/system/arc-config.yml`]: MODIFIED_CONTENT,
-        [`${CWD}/.arc/.pristine/system/arc-config.yml`]: FILE_CONTENT,
+        [`${CWD}/.arc/system/.internal/pristine.json`]: JSON.stringify(pristineStore),
       },
       diffOutput: fakeDiff,
     });
@@ -140,6 +141,27 @@ describe("runDiff", () => {
     expect(result.skipped).toBe(1);
   });
 
+  it("reports missing file in errors instead of silently skipping", async () => {
+    const manifest = buildManifest({
+      files: {
+        "system/arc-config.yml": {
+          classification: "Configurable",
+          layer: "core",
+          pristine_hash: FILE_HASH,
+        },
+      },
+    });
+
+    // No files on disk at all
+    const io = buildIO({ manifest, files: {} });
+
+    const result = await runDiff({ cwd: CWD, io });
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.path).toBe("system/arc-config.yml");
+    expect(result.errors[0]!.message).toContain("missing");
+  });
+
   it("reports clear error for missing pristine (not fatal)", async () => {
     const manifest = buildManifest({
       files: {
@@ -165,5 +187,68 @@ describe("runDiff", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]!.path).toBe("system/arc-config.yml");
     expect(result.errors[0]!.message).toContain("pristine");
+    expect(result.pristineStoreMissing).toBe(true);
+  });
+});
+
+describe("buildDiffOutput", () => {
+  const emptyResult: DiffResult = {
+    diffs: [],
+    errors: [],
+    totalChanged: 0,
+    skipped: 0,
+    pristineStoreMissing: false,
+  };
+
+  it("shows consolidated message when entire pristine store is missing", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      pristineStoreMissing: true,
+      errors: [{ path: "README.md", message: "No pristine baseline found" }],
+    };
+
+    const output = buildDiffOutput(result);
+
+    expect(output).toContain("Cannot show diffs");
+    expect(output).toContain("Run 'arc update' to rebuild");
+    // Should NOT list per-file errors
+    expect(output).not.toContain("README.md");
+  });
+
+  it("shows per-file errors when only some pristine entries are missing", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      pristineStoreMissing: false,
+      errors: [{ path: "README.md", message: "No pristine baseline found" }],
+    };
+
+    const output = buildDiffOutput(result);
+
+    expect(output).toContain("README.md");
+    expect(output).not.toContain("Cannot show diffs");
+  });
+
+  it("shows no changes for clean result", () => {
+    const output = buildDiffOutput(emptyResult);
+    expect(output).toContain("No changes detected");
+  });
+
+  it("shows summary count line for results with changes", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      diffs: [{ path: "README.md", diff: "--- a\n+++ b\n" }],
+      totalChanged: 1,
+    };
+    const output = buildDiffOutput(result);
+    expect(output).toContain("1 file(s) with changes");
+  });
+
+  it("includes error count in summary line", () => {
+    const result: DiffResult = {
+      ...emptyResult,
+      errors: [{ path: "missing.md", message: "File missing from .arc/" }],
+    };
+    const output = buildDiffOutput(result);
+    expect(output).toContain("1 error(s)");
   });
 });

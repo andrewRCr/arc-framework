@@ -31,12 +31,13 @@ async function git(args: string[], cwd: string): Promise<string> {
   return stdout.trim();
 }
 
-/** Init ARC and create an initial commit so git notes can attach. */
+/** Init ARC and create an initial commit so git notes can attach.
+ *  Bypasses hooks — these are scaffolding commits for test setup, not hook tests. */
 async function initAndCommit(tmpDir: string): Promise<void> {
   const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
   expect(init.exitCode).toBe(0);
   await git(["add", "."], tmpDir);
-  await git(["commit", "-m", "initial commit"], tmpDir);
+  await git(["-c", "core.hooksPath=/dev/null", "commit", "-m", "initial commit"], tmpDir);
 }
 
 describe("user add", () => {

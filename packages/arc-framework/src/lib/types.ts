@@ -34,7 +34,8 @@ export type Layer = "core" | "arc-in-git";
 export interface FileEntry {
   classification: Classification;
   layer: Layer;
-  pristine_hash: string;
+  /** SHA-256 of pristine content. Omitted for Scaffolded files (adopter-owned, no baseline). */
+  pristine_hash?: string;
 }
 
 /** Adopter's init configuration, stored in the manifest for re-rendering during updates. */
@@ -45,8 +46,9 @@ export interface InstallConfig {
   team_mode?: boolean;
 }
 
-/** Top-level manifest structure (`.arc-manifest.json`). */
+/** Top-level manifest structure (`.arc/system/.internal/manifest.json`). */
 export interface Manifest {
+  schema_version: number;
   framework_version: string;
   installed_at: string;
   install_config: InstallConfig;

@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ensureDir,
   copyWithRendering,
-  appendToGitignore,
-  appendToGitattributes,
+  writeArcManagedBlock,
+  writeArcGitignoreBlock,
+  writeArcGitattributesBlock,
 } from "../../../src/lib/template/index.js";
 
 describe("ensureDir", () => {
@@ -100,54 +101,204 @@ describe("copyWithRendering", () => {
   });
 });
 
-describe("appendToGitignore", () => {
-  it("adds entry when not already present", async () => {
-    const mockRead = vi.fn().mockResolvedValue("node_modules/\ndist/\n");
+describe("writeArcManagedBlock", () => {
+  it("creates file with managed block when file does not exist", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
     const mockWrite = vi.fn().mockResolvedValue(undefined);
-    await appendToGitignore(".gitignore", ".pristine/", mockRead, mockWrite);
+    await writeArcManagedBlock(
+      ".gitattributes",
+      [".arc/active/WORK-STATUS.md merge=ours"],
+      mockRead,
+      mockWrite,
+    );
     expect(mockWrite).toHaveBeenCalledWith(
-      ".gitignore",
-      "node_modules/\ndist/\n.pristine/\n",
+      ".gitattributes",
+      "# ARC Framework (managed by arc cli)\n"
+      + ".arc/active/WORK-STATUS.md merge=ours\n"
+      + "# end ARC\n",
     );
   });
 
-  it("skips duplicate when entry already exists", async () => {
-    const mockRead = vi
-      .fn()
-      .mockResolvedValue("node_modules/\n.pristine/\ndist/\n");
+  it("appends block to existing file content", async () => {
+    const mockRead = vi.fn().mockResolvedValue("*.png binary\n");
     const mockWrite = vi.fn().mockResolvedValue(undefined);
-    await appendToGitignore(".gitignore", ".pristine/", mockRead, mockWrite);
+    await writeArcManagedBlock(
+      ".gitattributes",
+      [".arc/active/WORK-STATUS.md merge=ours"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain("*.png binary");
+    expect(written).toContain("# ARC Framework (managed by arc cli)");
+    expect(written).toContain(".arc/active/WORK-STATUS.md merge=ours");
+    expect(written).toContain("# end ARC");
+  });
+
+  it("replaces existing block contents", async () => {
+    const existing = [
+      "*.png binary",
+      "",
+      "# ARC Framework (managed by arc cli)",
+      "old-entry merge=ours",
+      "# end ARC",
+      "",
+    ].join("\n");
+    const mockRead = vi.fn().mockResolvedValue(existing);
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcManagedBlock(
+      ".gitattributes",
+      [".arc/active/WORK-STATUS.md merge=ours"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain(".arc/active/WORK-STATUS.md merge=ours");
+    expect(written).not.toContain("old-entry");
+    expect(written.match(/# ARC Framework/g)?.length).toBe(1);
+    expect(written.match(/# end ARC/g)?.length).toBe(1);
+  });
+
+  it("deduplicates and sorts entries", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcManagedBlock(
+      "dotfile",
+      ["z-entry", "a-entry", "z-entry"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written.match(/z-entry/g)?.length).toBe(1);
+    expect(written.indexOf("a-entry")).toBeLessThan(written.indexOf("z-entry"));
+  });
+
+  it("is idempotent on re-run with same entries", async () => {
+    const blockContent = [
+      "# ARC Framework (managed by arc cli)",
+      ".arc/active/WORK-STATUS.md merge=ours",
+      "# end ARC",
+      "",
+    ].join("\n");
+    const mockRead = vi.fn().mockResolvedValue(blockContent);
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcManagedBlock(
+      ".gitattributes",
+      [".arc/active/WORK-STATUS.md merge=ours"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toBe(blockContent);
+  });
+
+  it("propagates non-ENOENT read errors", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("EACCES"), { code: "EACCES" }),
+    );
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      writeArcManagedBlock("dotfile", ["entry"], mockRead, mockWrite),
+    ).rejects.toThrow("EACCES");
     expect(mockWrite).not.toHaveBeenCalled();
   });
 });
 
-describe("appendToGitattributes", () => {
-  it("adds entry when not already present", async () => {
-    const mockRead = vi.fn().mockResolvedValue("*.md linguist-documentation\n");
+describe("writeArcGitignoreBlock", () => {
+  it("creates file with managed block when file does not exist", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
     const mockWrite = vi.fn().mockResolvedValue(undefined);
-    await appendToGitattributes(
-      ".gitattributes",
-      "WORK-STATUS.md merge=ours",
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".arc/system/.internal/pristine.json"],
       mockRead,
       mockWrite,
     );
     expect(mockWrite).toHaveBeenCalledWith(
-      ".gitattributes",
-      "*.md linguist-documentation\nWORK-STATUS.md merge=ours\n",
+      ".gitignore",
+      "# ARC Framework (managed by arc cli)\n"
+      + ".arc/system/.internal/pristine.json\n"
+      + ".arc/user/*/\n"
+      + "# end ARC\n",
     );
   });
 
-  it("skips duplicate when entry already exists", async () => {
-    const mockRead = vi
-      .fn()
-      .mockResolvedValue("WORK-STATUS.md merge=ours\n*.md linguist-documentation\n");
+  it("appends block to existing gitignore", async () => {
+    const mockRead = vi.fn().mockResolvedValue("node_modules/\ndist/\n");
     const mockWrite = vi.fn().mockResolvedValue(undefined);
-    await appendToGitattributes(
-      ".gitattributes",
-      "WORK-STATUS.md merge=ours",
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/"],
       mockRead,
       mockWrite,
     );
-    expect(mockWrite).not.toHaveBeenCalled();
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain("node_modules/");
+    expect(written).toContain("# ARC Framework (managed by arc cli)");
+    expect(written).toContain(".arc/user/*/");
+    expect(written).toContain("# end ARC");
+  });
+
+  it("replaces existing block contents", async () => {
+    const existing = [
+      "node_modules/",
+      "# ARC Framework (managed by arc cli)",
+      ".arc/user/*/",
+      "# end ARC",
+      "",
+    ].join("\n");
+    const mockRead = vi.fn().mockResolvedValue(existing);
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".claude/skills/arc-*/"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain(".claude/skills/arc-*/");
+    expect(written).toContain(".arc/user/*/");
+    // Block markers present exactly once
+    expect(written.match(/# ARC Framework/g)?.length).toBe(1);
+    expect(written.match(/# end ARC/g)?.length).toBe(1);
+  });
+
+  it("deduplicates entries", async () => {
+    const mockRead = vi.fn().mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitignoreBlock(
+      ".gitignore",
+      [".arc/user/*/", ".arc/user/*/", ".claude/skills/arc-*/"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written.match(/\.arc\/user\/\*\//g)?.length).toBe(1);
+  });
+
+});
+
+describe("writeArcGitattributesBlock", () => {
+  it("delegates to writeArcManagedBlock", async () => {
+    const mockRead = vi.fn().mockResolvedValue("*.png binary\n");
+    const mockWrite = vi.fn().mockResolvedValue(undefined);
+    await writeArcGitattributesBlock(
+      ".gitattributes",
+      [".arc/active/WORK-STATUS.md merge=ours"],
+      mockRead,
+      mockWrite,
+    );
+    const written = mockWrite.mock.calls[0]?.[1] as string;
+    expect(written).toContain("# ARC Framework (managed by arc cli)");
+    expect(written).toContain(".arc/active/WORK-STATUS.md merge=ours");
+    expect(written).toContain("# end ARC");
   });
 });

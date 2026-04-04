@@ -6,6 +6,7 @@
  */
 
 import type { Manifest, FileEntry } from "../../src/lib/types.js";
+import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
 
 /**
  * Build a valid Manifest with sensible defaults. Override any field.
@@ -14,6 +15,7 @@ export function buildManifest(
   overrides: Partial<Manifest> & { files?: Manifest["files"] } = {},
 ): Manifest {
   return {
+    schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: "1.0.0",
     installed_at: "2026-01-01T00:00:00.000Z",
     install_config: {

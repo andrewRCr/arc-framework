@@ -1,38 +1,50 @@
 {
   "name": "@arc-framework/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "CLI tool for installing, updating, and managing ARC framework files",
   "type": "module",
   "bin": {
     "arc": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup && node --input-type=module -e \"import{cpSync}from'node:fs';cpSync('../../.arc','arc',{recursive:true})\"",
+    "build": "tsup",
     "test": "vitest run && vitest run -c vitest.e2e.config.ts",
     "test:unit": "vitest run __tests__/unit",
     "test:integration": "vitest run __tests__/integration",
     "test:e2e": "vitest run -c vitest.e2e.config.ts",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
+    "lint:ts": "eslint src/ __tests__/",
+    "lint:sh": "shellcheck -x --source-path=SCRIPTDIR arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "@clack/prompts": "^0.10.0",
-    "commander": "^13.1.0"
+    "@clack/prompts": "^1.1.0",
+    "commander": "^13.1.0",
+    "js-yaml": "^4.1.1",
+    "semver": "^7.7.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.10",
+    "@types/semver": "^7.7.1",
+    "eslint": "^10.1.0",
+    "shellcheck": "^4.1.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.2",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^3.0.8"
   },
   "files": [
     "dist",
     "arc",
     "templates",
-    "init-recipe.json"
+    "init-recipe.json",
+    "changelog"
   ],
   "keywords": [
     "arc",
@@ -42,5 +54,10 @@
     "development",
     "methodology"
   ],
-  "license": "MIT"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrewRCr/arc-framework.git",
+    "directory": "packages/arc-framework"
+  }
 }

@@ -11,14 +11,16 @@ export {
   evaluateCondition,
   getInitTokenNames,
   findResidualInitTokens,
+  loadRecipeFile,
   type RecipeValidationResult,
 } from "./recipe.js";
 
 export {
   ensureDir,
   copyWithRendering,
-  appendToGitignore,
-  appendToGitattributes,
+  writeArcManagedBlock,
+  writeArcGitignoreBlock,
+  writeArcGitattributesBlock,
   type MkdirFn,
   type ReadFileFn,
   type WriteFileFn,

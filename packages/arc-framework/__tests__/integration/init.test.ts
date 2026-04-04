@@ -5,7 +5,7 @@
  * template files. Verifies the full pipeline: file rendering, pristine copies,
  * manifest integrity, git integration, and post-init messaging.
  *
- * Includes join-mode tests verifying user directory setup and config preservation.
+ * Includes existing-installation detection and join integration tests.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -20,16 +20,19 @@ import {
   listFiles,
   sha256,
   readFile,
-  writeFile,
   join,
   execFileAsync,
   getArcTemplatePath,
   getInternalTemplatePath,
+  readManifestFile,
+  readPristineStore,
+  manifestPath,
 } from "../helpers/integration.js";
 import { runInit, buildPostInitMessage } from "../../src/commands/init.js";
 import type { InitResult } from "../../src/commands/init.js";
 import type { Recipe } from "../../src/lib/types.js";
-import type { Manifest } from "../../src/lib/types.js";
+import { UserFacingError } from "../../src/lib/errors.js";
+import { getFrameworkVersion } from "../../src/lib/version.js";
 
 // --- Test Setup ---
 
@@ -109,17 +112,17 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("leaves no init-time token residuals in rendered files", async () => {
-    const files = await listFiles(arcDir, { skipPristine: false });
+    const files = await listFiles(arcDir, { skipInternal: false });
     // Only check rendered files — non-template files may legitimately reference
     // token syntax in documentation examples (e.g., agent/README.md explains
     // `{{PROJECT_NAME}}`). Rendered files are those whose source had a .template
     // suffix, plus arc-config.yml (programmatic render path).
     const mdFiles = files.filter(
-      (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
+      (f) => f.endsWith(".md") && !f.startsWith("system/.internal/"),
     );
     // Identify which output files came from .template sources
     const templateOutputs = new Set(
-      recipe.include_files
+      recipe.include_files!
         .filter((f: string) => /\.template\.[^/]+$/.test(f))
         .map((f: string) => f.replace(/\.template(\.[^/]+)$/, "$1")),
     );
@@ -138,9 +141,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("leaves no unresolved conditional markers in rendered files", async () => {
-    const files = await listFiles(arcDir, { skipPristine: false });
+    const files = await listFiles(arcDir, { skipInternal: false });
     const mdFiles = files.filter(
-      (f) => f.endsWith(".md") && !f.startsWith(".pristine/"),
+      (f) => f.endsWith(".md") && !f.startsWith("system/.internal/"),
     );
 
     const arcIfLine = /^\s*<!--\s*arc:if\b/m;
@@ -161,9 +164,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Git Integration ---
 
-  it("configures .gitignore with pristine and user entries", async () => {
+  it("configures .gitignore with internal storage and user entries", async () => {
     const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
-    expect(gitignore).toContain(".arc/.pristine/");
+    expect(gitignore).toContain(".arc/system/.internal/pristine.json");
     expect(gitignore).toContain(".arc/user/*/");
   });
 
@@ -222,11 +225,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Manifest ---
 
-  it("writes .arc-manifest.json with correct structure", async () => {
-    const raw = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
-    const manifest = JSON.parse(raw) as Manifest;
+  it("writes manifest with correct structure", async () => {
+    const manifest = await readManifestFile(tempDir);
 
-    expect(manifest.framework_version).toBe("0.0.0");
+    expect(manifest.framework_version).toBe(getFrameworkVersion());
     expect(manifest.install_config).toEqual({
       project_name: "Integration Test Project",
       pm_mode: "none",
@@ -237,19 +239,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("manifest file inventory matches files on disk", async () => {
-    const raw = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
-    const manifest = JSON.parse(raw) as Manifest;
+    const manifest = await readManifestFile(tempDir);
 
     const manifestPaths = Object.keys(manifest.files).sort();
     const diskFiles = await listFiles(arcDir);
-    // listFiles skips .pristine/ by default
 
     expect(diskFiles).toEqual(manifestPaths);
   });
 
   it("pristine hashes match rendered file content", async () => {
-    const raw = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
-    const manifest = JSON.parse(raw) as Manifest;
+    const manifest = await readManifestFile(tempDir);
 
     for (const [filePath, entry] of Object.entries(manifest.files)) {
       const content = await readFile(join(arcDir, filePath), "utf-8");
@@ -302,30 +301,38 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(verifyIntegrity.isFile()).toBe(true);
   });
 
-  // --- Pristine Copies ---
-
-  it("creates .pristine/ copies for Framework and Configurable files", async () => {
-    const pristineReadme = await stat(
-      join(arcDir, ".pristine/README.md"),
-    );
-    expect(pristineReadme.isFile()).toBe(true);
-
-    const pristineConfig = await stat(
-      join(arcDir, ".pristine/system/arc-config.yml"),
-    );
-    expect(pristineConfig.isFile()).toBe(true);
-  });
-
-  it("does not create .pristine/ copies for Scaffolded files", async () => {
-    try {
-      await stat(join(arcDir, ".pristine/active/WORK-STATUS.md"));
-      expect.fail("Scaffolded file should not have a pristine copy");
-    } catch (err: unknown) {
-      expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
+  it("sets executable permissions on hooks and scripts", async () => {
+    const executableFiles = [
+      "system/githooks/pre-commit",
+      "system/githooks/commit-msg",
+      "system/scripts/validate-config.sh",
+      "system/scripts/verify-integrity.sh",
+      "system/scripts/arc-lib.sh",
+    ];
+    for (const relPath of executableFiles) {
+      const s = await stat(join(arcDir, relPath));
+      // Check owner-execute bit (0o100)
+      expect(s.mode & 0o100, `${relPath} should be executable`).toBeTruthy();
     }
   });
 
-  it("pristine copies match .arc/ copies exactly", async () => {
+  // --- Pristine Store ---
+
+  it("pristine store includes Framework and Configurable files", async () => {
+    const store = await readPristineStore(tempDir);
+
+    expect(store["README.md"]).toBeDefined();
+    expect(store["system/arc-config.yml"]).toBeDefined();
+  });
+
+  it("pristine store excludes Scaffolded files", async () => {
+    const store = await readPristineStore(tempDir);
+
+    expect(store["active/WORK-STATUS.md"]).toBeUndefined();
+  });
+
+  it("pristine store content matches .arc/ files exactly", async () => {
+    const store = await readPristineStore(tempDir);
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
@@ -334,14 +341,10 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
     for (const filePath of checkPaths) {
       const arcContent = await readFile(join(arcDir, filePath), "utf-8");
-      const pristineContent = await readFile(
-        join(arcDir, ".pristine", filePath),
-        "utf-8",
-      );
       expect(
         arcContent,
         `pristine mismatch for ${filePath}`,
-      ).toBe(pristineContent);
+      ).toBe(store[filePath]);
     }
   });
 
@@ -385,7 +388,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   });
 
   it("does not produce any completed-atomic files", async () => {
-    const allFiles = await listFiles(arcDir, { skipPristine: false });
+    const allFiles = await listFiles(arcDir, { skipInternal: false });
     const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));
     expect(completedAtomic).toEqual([]);
   });
@@ -488,7 +491,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
       identityResult: "test-user",
     });
 
-    const allFiles = await listFiles(join(tempDir, ".arc"), { skipPristine: false });
+    const allFiles = await listFiles(join(tempDir, ".arc"), { skipInternal: false });
     const completedAtomic = allFiles.filter((f) => f.includes("completed-atomic"));
     expect(completedAtomic).toEqual([]);
   });
@@ -535,14 +538,14 @@ describe("init integration (fresh mode, team_mode=true)", () => {
   });
 });
 
-// --- join mode ---
+// --- existing installation detection ---
 
-describe("init integration (join mode)", () => {
+describe("init integration (existing installation)", () => {
   let tempDir: string;
 
   beforeEach(async () => {
     // Fresh init first to create .arc/ structure
-    tempDir = await createTempRepo("arc-init-join-");
+    tempDir = await createTempRepo("arc-init-existing-");
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -561,30 +564,79 @@ describe("init integration (join mode)", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("detects join mode and creates user directory without touching existing .arc/ files", async () => {
+  it("errors with ALREADY_INSTALLED when arc init is run on existing project", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
-    // Record pre-join state
-    const manifestBefore = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
+    try {
+      await runInit({
+        cwd: tempDir,
+        io,
+        templateDir,
+        internalTemplateDir,
+        recipe,
+        prompts: { ...prompts, pm_mode: "arc-in-git" },
+        identityResult: "second-dev",
+      });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UserFacingError);
+      const ufErr = err as UserFacingError;
+      expect(ufErr.code).toBe("ALREADY_INSTALLED");
+      expect(ufErr.whatToDo).toContain("arc join");
+      expect(ufErr.whatToDo).toContain("arc update");
+    }
+  });
+});
 
-    const result = await runInit({
+// --- join integration ---
+
+describe("join integration", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    // Fresh init first to create .arc/ structure
+    tempDir = await createTempRepo("arc-join-test-");
+    const recipe = await loadRecipe();
+    const io = makeIOContext(tempDir);
+
+    await runInit({
       cwd: tempDir,
       io,
       templateDir,
       internalTemplateDir,
       recipe,
-      mode: "join",
-      prompts: { ...prompts, pm_mode: "arc-in-git", tools: ["cursor"] },
+      prompts: { ...prompts, pm_mode: "arc-in-git" },
+      identityResult: "first-dev",
+    });
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("creates user directory without touching existing .arc/ files", async () => {
+    const io = makeIOContext(tempDir);
+
+    // Record pre-join state
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+
+    const { runJoin } = await import("../../src/commands/join.js");
+    const result = await runJoin({
+      cwd: tempDir,
+      io,
+      templateDir,
+      internalTemplateDir,
+      prompts: { role: "maintainer", tools: ["cursor"] },
       identityResult: "second-dev",
+      pmMode: "arc-in-git",
     });
 
-    expect(result).not.toBeNull();
-    expect(result!.mode).toBe("join");
-    expect(result!.filesWritten).toEqual([]);
+    expect(result.role).toBe("maintainer");
+    expect(result.tools).toEqual(["cursor"]);
 
-    // Manifest unchanged (join mode doesn't write manifest)
-    const manifestAfter = await readFile(join(tempDir, ".arc-manifest.json"), "utf-8");
+    // Manifest unchanged (join doesn't write manifest)
+    const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
     expect(manifestAfter).toBe(manifestBefore);
 
     // Second developer's user directory created
@@ -610,10 +662,21 @@ describe("init integration (join mode)", () => {
     );
     expect(stdout.trim()).toBe("second-dev");
 
+    // Role stored
+    const { stdout: role } = await execFileAsync(
+      "git", ["config", "arc.role"], { cwd: tempDir },
+    );
+    expect(role.trim()).toBe("maintainer");
+
     // Hooks path configured
     const { stdout: hooksPath } = await execFileAsync(
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
     expect(hooksPath.trim()).toBe(".arc/system/githooks");
+
+    // Gitattributes configured
+    const gitattrs = await readFile(join(tempDir, ".gitattributes"), "utf-8");
+    expect(gitattrs).toContain("WORK-STATUS.md merge=ours");
+    expect(gitattrs).toContain("# ARC Framework (managed by arc cli)");
   });
 });

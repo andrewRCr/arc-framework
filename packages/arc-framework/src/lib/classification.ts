@@ -46,6 +46,14 @@ export function needsRendering(templatePath: string): boolean {
 /**
  * Scaffolded files — user replaces all content. No pristine copy.
  * Uses template-relative paths (before .template stripping).
+ *
+ * CONSTRAINT: Removing entries (Scaffolded → Framework/Configurable) is safe — the
+ * file gains a pristine baseline on next update. Adding entries that were previously
+ * Framework or Configurable (managed → Scaffolded) is also safe — the file becomes
+ * adopter-owned and stops receiving updates. However, the reverse (adding a path here
+ * that was previously Scaffolded and is now being reclaimed as managed) would overwrite
+ * adopter content with no pristine baseline for merge. This requires a migration story
+ * and should never happen without deliberate planning.
  */
 const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
   "active/WORK-STATUS.template.md",

@@ -77,6 +77,42 @@ hooks.commit_msg: enabled
 #   off     - Skip check entirely
 hooks.task_numbering: error
 
+# File extensions skipped during meta-project reference checking.
+# The pre-commit hook scans all staged files except those matching these
+# extensions (and binary files, which are skipped automatically).
+# Pipe-separated regex alternation.
+#   default: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile
+hooks.skip_extensions: md|yml|yaml|json|toml|txt|csv|lock|conf|cfg|ini|env|license|makefile
+
+# Test directory/file patterns excluded from meta-project reference checking.
+# Files matching these patterns are not production code and may legitimately
+# reference tasks, phases, or .arc/ paths. Pipe-separated regex alternation.
+#   default: __tests__/|\.test\.|\.spec\.|/test/|/tests/
+hooks.test_patterns: __tests__/|\.test\.|\.spec\.|/test/|/tests/|docs/demos/
+
+# Patterns scanned in production code for meta-project references.
+# The pre-commit hook flags files matching these patterns as errors.
+# Reduce to remove checks that cause false positives for your project
+# (e.g., tooling that legitimately operates on .arc/ paths).
+# Pipe-separated regex alternation.
+#   default: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|\.arc/'
+hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+'
+
+# Subject line length thresholds for commit-msg hook.
+# Defaults account for conventional commit prefix overhead (8-15 chars).
+# Max aligns with GitHub's truncation point (72 chars).
+# Skipped entirely when commit.format: any.
+#   default max: 72, default warn: 60
+hooks.subject_max_length: 72
+hooks.subject_warn_length: 60
+
+# Directories under .arc/ that trigger a warning when staged by contributors.
+# Contributors typically work on project code, not maintainer-managed ARC
+# artifacts. Soft warning only (does not block commit).
+# Pipe-separated regex alternation matching paths under .arc/.
+#   default: active/|backlog/
+hooks.contributor_protected_paths: active/|backlog/
+
 # --- Review ---
 
 # Pre-merge diff review before push.
@@ -103,7 +139,7 @@ platform.type: github
 #   arc-in-git - ARC's built-in PM suite (backlogs, roadmap, PROJECT-STATUS, ATOMIC-TASKS)
 #   external   - External tool integration (Jira, Linear, GitHub Issues, etc.)
 # See strategy-configurability-architecture.md § Adoption flexibility model.
-pm.mode: none
+pm.mode: arc-in-git
 
 # --- Team Mode ---
 

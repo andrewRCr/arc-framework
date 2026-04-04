@@ -1,4 +1,0 @@
-interface:
-  display_name: "Atomic Commit"
-  short_description: "Create clean atomic git commits"
-  default_prompt: "Use $atomic-commit to assess pending changes and make one atomic commit."

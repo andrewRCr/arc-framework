@@ -6,7 +6,8 @@
  * structure and evaluates conditions against config values.
  */
 
-import type { PromptType } from "../types.js";
+import type { PromptType, Recipe } from "../types.js";
+import { UserFacingError } from "../errors.js";
 
 const VALID_PROMPT_TYPES: readonly PromptType[] = [
   "text",
@@ -14,6 +15,45 @@ const VALID_PROMPT_TYPES: readonly PromptType[] = [
   "multiselect",
   "confirm",
 ];
+
+/**
+ * Load and parse the init recipe JSON file.
+ *
+ * Wraps file read and JSON parse in error handling that produces
+ * user-friendly error messages instead of raw ENOENT or SyntaxError.
+ *
+ * @param recipePath - Absolute path to the recipe JSON file
+ * @param readFile - Injectable file reader for testability
+ * @returns Parsed recipe object
+ * @throws UserFacingError with code 'RECIPE_INVALID' if file is missing or malformed
+ */
+export async function loadRecipeFile(
+  recipePath: string,
+  readFile: (path: string) => Promise<string>,
+): Promise<Recipe> {
+  let content: string;
+  try {
+    content = await readFile(recipePath);
+  } catch {
+    throw new UserFacingError({
+      code: "RECIPE_INVALID",
+      whatHappened: "Could not read the init recipe file",
+      why: `The file at ${recipePath} is missing or unreadable.`,
+      whatToDo: "Reinstall @arc-framework/cli: npm install @arc-framework/cli",
+    });
+  }
+
+  try {
+    return JSON.parse(content) as Recipe;
+  } catch {
+    throw new UserFacingError({
+      code: "RECIPE_INVALID",
+      whatHappened: "Init recipe file is not valid JSON",
+      why: `The file at ${recipePath} could not be parsed.`,
+      whatToDo: "Reinstall @arc-framework/cli: npm install @arc-framework/cli",
+    });
+  }
+}
 
 /**
  * Matches `key == value` or `key includes value` condition formats.
@@ -103,7 +143,7 @@ export function validateRecipe(data: unknown): RecipeValidationResult {
         !Array.isArray(p.options)
       ) {
         errors.push(
-          `Prompt ${i} ('${String(p.id)}'): '${String(p.type)}' prompt requires 'options' array`,
+          `Prompt ${i} ('${String(p.id)}'): '${p.type}' prompt requires 'options' array`,
         );
       }
     }
@@ -153,9 +193,7 @@ export function evaluateCondition(
   if (!match) {
     return false;
   }
-  const key = match[1]!;
-  const operator = match[2]!;
-  const value = match[3]!;
+  const [, key = "", operator = "", value = ""] = match;
 
   const configValue = config[key];
   if (configValue === undefined) {
@@ -213,7 +251,7 @@ export function findResidualInitTokens(
   const pattern = /\{\{(\w+)\}\}/g;
   let match;
   while ((match = pattern.exec(content)) !== null) {
-    const tokenName = match[1]!;
+    const tokenName = match[1] ?? "";
     if (initTokens.has(tokenName)) {
       residual.push(tokenName);
     }

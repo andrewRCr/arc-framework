@@ -9,20 +9,24 @@
  */
 
 import { join } from "node:path";
+import { neq } from "semver";
 
 import { hashContent } from "../lib/manifest/index.js";
 import { manifestMissingError } from "../lib/errors.js";
-import type { Manifest, ReadIO } from "../lib/types.js";
+import { INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME } from "../lib/constants.js";
+import type { Classification, Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
 
 /** File state as detected by the status command. */
-export type FileState = "unmodified" | "modified" | "missing" | "new";
+export type FileState = "unmodified" | "modified" | "missing" | "new" | "scaffolded";
 
 /** Per-file status entry. */
 export interface FileStatus {
   path: string;
   state: FileState;
+  /** File classification from manifest (null for untracked/new files). */
+  classification: Classification | null;
 }
 
 /** Result from a successful status run. */
@@ -42,7 +46,7 @@ export interface StatusResult {
 /** I/O dependencies for the status command. */
 export interface StatusIOContext extends ReadIO {
   readManifest: (path: string) => Promise<Manifest | null>;
-  /** List files under .arc/ (relative paths, no .pristine/). */
+  /** List files under .arc/ (relative paths, no system/.internal/). */
   readdir: (arcDir: string) => Promise<string[]>;
 }
 
@@ -69,7 +73,7 @@ export interface StatusOptions {
  */
 export async function runStatus(options: StatusOptions): Promise<StatusResult> {
   const { cwd, io, frameworkVersion } = options;
-  const manifestPath = join(cwd, ".arc-manifest.json");
+  const manifestPath = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME);
   const arcDir = join(cwd, ".arc");
 
   // Read manifest — hard fail if missing
@@ -89,21 +93,27 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
     try {
       content = await io.readFile(filePath);
     } catch {
-      fileStatuses.push({ path: relativePath, state: "missing" });
+      fileStatuses.push({ path: relativePath, state: "missing", classification: entry.classification });
+      continue;
+    }
+
+    // Scaffolded files are adopter-owned — no pristine baseline to compare against
+    if (entry.classification === "Scaffolded") {
+      fileStatuses.push({ path: relativePath, state: "scaffolded", classification: entry.classification });
       continue;
     }
 
     const currentHash = hashContent(content);
     const state: FileState =
-      currentHash === entry.pristine_hash ? "unmodified" : "modified";
-    fileStatuses.push({ path: relativePath, state });
+      entry.pristine_hash && currentHash === entry.pristine_hash ? "unmodified" : "modified";
+    fileStatuses.push({ path: relativePath, state, classification: entry.classification });
   }
 
   // Detect new files (in .arc/ but not in manifest)
   const arcFiles = await io.readdir(arcDir);
   for (const relativePath of arcFiles) {
     if (!trackedPaths.has(relativePath)) {
-      fileStatuses.push({ path: relativePath, state: "new" });
+      fileStatuses.push({ path: relativePath, state: "new", classification: null });
     }
   }
 
@@ -112,7 +122,7 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
 
   // Version comparison
   const versionInstalled = manifest.framework_version;
-  const updateAvailable = versionInstalled !== frameworkVersion;
+  const updateAvailable = neq(versionInstalled, frameworkVersion);
 
   return {
     fileStatuses,
@@ -151,6 +161,7 @@ export function buildStatusSummary(result: StatusResult): string {
     modified: 0,
     missing: 0,
     new: 0,
+    scaffolded: 0,
   };
   for (const f of result.fileStatuses) {
     counts[f.state]++;
@@ -161,6 +172,7 @@ export function buildStatusSummary(result: StatusResult): string {
   const parts: string[] = [`${trackedCount} files tracked`];
   if (counts.unmodified > 0) parts.push(`${counts.unmodified} unmodified`);
   if (counts.modified > 0) parts.push(`${counts.modified} modified`);
+  if (counts.scaffolded > 0) parts.push(`${counts.scaffolded} scaffolded`);
   if (counts.missing > 0) parts.push(`${counts.missing} missing`);
   if (counts.new > 0) parts.push(`${counts.new} new`);
   lines.push(parts.join(", "));
@@ -175,11 +187,16 @@ export function buildStatusSummary(result: StatusResult): string {
       const label =
         f.state === "modified"
           ? "M"
-          : f.state === "missing"
-            ? "!"
-            : "?";
-      lines.push(`  ${label} .arc/${f.path}`);
+          : f.state === "scaffolded"
+            ? "S"
+            : f.state === "missing"
+              ? "!"
+              : "?";
+      const cls = f.classification ? ` [${f.classification}]` : "";
+      lines.push(`  ${label}${cls} .arc/${f.path}`);
     }
+    lines.push("");
+    lines.push("Legend: M=modified  S=scaffolded  !=missing  ?=new");
   }
 
   return lines.join("\n");

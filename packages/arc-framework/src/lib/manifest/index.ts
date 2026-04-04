@@ -23,3 +23,21 @@ export {
   type MergeStatus,
   type ContentMergeResult,
 } from "./merge.js";
+
+export {
+  buildChangePlan,
+  type FileChangePlan,
+  type PlannedAddition,
+  type PlannedRemoval,
+  type PlannedMerge,
+  type PlannedSkip,
+} from "./plan.js";
+
+export {
+  applyChangePlan,
+  renderTemplate,
+  safeUnlink,
+  type ApplyIO,
+  type RenderContext,
+  type ApplyResult,
+} from "./apply.js";

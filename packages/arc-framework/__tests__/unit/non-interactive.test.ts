@@ -69,6 +69,41 @@ describe("buildNonInteractivePrompts", () => {
     }
   });
 
+  it("throws on empty --name", () => {
+    expect(() =>
+      buildNonInteractivePrompts({
+        cwd: "/home/user/my-project",
+        name: "",
+      }),
+    ).toThrow("--name cannot be empty");
+  });
+
+  it("throws on whitespace-only --name", () => {
+    expect(() =>
+      buildNonInteractivePrompts({
+        cwd: "/home/user/my-project",
+        name: "  ",
+      }),
+    ).toThrow("--name cannot be empty");
+  });
+
+  it("throws on unknown --tools value", () => {
+    expect(() =>
+      buildNonInteractivePrompts({
+        cwd: "/home/user/my-project",
+        tools: "claude,unknown-tool",
+      }),
+    ).toThrow("Unknown tool: unknown-tool");
+  });
+
+  it("accepts valid --tools values", () => {
+    const result = buildNonInteractivePrompts({
+      cwd: "/home/user/my-project",
+      tools: "claude,cursor,codex",
+    });
+    expect(result.tools).toEqual(["claude", "cursor", "codex"]);
+  });
+
   it("handles all overrides together", () => {
     const result = buildNonInteractivePrompts({
       cwd: "/home/user/my-project",

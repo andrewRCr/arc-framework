@@ -61,7 +61,7 @@ export function parseSkillFrontmatter(
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return null;
 
-  const block = match[1]!;
+  const [, block = ""] = match;
   const name = block.match(/^name:\s*(.+)$/m)?.[1]?.trim();
   const description = block.match(/^description:\s*(.+)$/m)?.[1]?.trim();
 
@@ -148,7 +148,8 @@ export async function generateSkills(
 
   for (const target of targets) {
     for (const name of CANONICAL_SKILLS) {
-      const content = canonicalContents.get(name)!;
+      const content = canonicalContents.get(name);
+      if (!content) continue;
       const outputPath = `${target.skillDir}/${name}/SKILL.md`;
 
       // Modification detection — check existing file
@@ -222,4 +223,69 @@ export async function writeSkillOutputs(
  */
 export function skillGitignoreEntries(targetDirs: string[]): string[] {
   return targetDirs.map((dir) => `${dir}/arc-*/`);
+}
+
+// --- Cleanup Pipeline ---
+
+/** Injectable I/O for skill removal (testability). */
+export interface SkillRemovalIO {
+  access: (path: string) => Promise<void>;
+  unlink: (path: string) => Promise<void>;
+  rmdir: (path: string) => Promise<void>;
+}
+
+/**
+ * Remove ARC-generated skill files from the given target directories.
+ *
+ * Only removes directories whose names match entries in {@link CANONICAL_SKILLS},
+ * and only when a `SKILL.md` file exists inside (confirming ARC ownership).
+ * Never removes the parent skill directory itself or any non-ARC content.
+ *
+ * @param targetDirs - Skill directories to clean (relative to cwd)
+ * @param cwd - Repository root
+ * @param io - Injectable I/O (access, unlink, rmdir)
+ * @returns Paths of removed skill directories (relative to cwd)
+ */
+export async function removeArcSkills(
+  targetDirs: string[],
+  cwd: string,
+  io: SkillRemovalIO,
+): Promise<string[]> {
+  const removed: string[] = [];
+
+  for (const dir of targetDirs) {
+    for (const skillName of CANONICAL_SKILLS) {
+      const skillDir = join(cwd, dir, skillName);
+      const skillMdPath = join(skillDir, "SKILL.md");
+
+      // Only remove if SKILL.md exists — confirms this is an ARC skill
+      try {
+        await io.access(skillMdPath);
+      } catch {
+        continue; // Not an ARC skill directory, skip
+      }
+
+      // Remove known files (SKILL.md + optional codex supplement)
+      await safeRemove(io.unlink, skillMdPath);
+      await safeRemove(io.unlink, join(skillDir, "agents", "openai.yaml"));
+
+      // Remove empty subdirectories (agents/, then the skill dir itself)
+      await safeRemove(io.rmdir, join(skillDir, "agents"));
+      await safeRemove(io.rmdir, skillDir);
+
+      removed.push(join(dir, skillName));
+    }
+  }
+
+  return removed;
+}
+
+/** Remove a path, ignoring ENOENT and ENOTEMPTY. */
+async function safeRemove(fn: (path: string) => Promise<void>, path: string): Promise<void> {
+  try {
+    await fn(path);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTEMPTY") throw err;
+  }
 }

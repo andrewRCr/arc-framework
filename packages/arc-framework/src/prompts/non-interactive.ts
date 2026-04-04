@@ -9,6 +9,7 @@
 
 import { basename } from "node:path";
 import type { InitPromptResult } from "./init-prompts.js";
+import { validateTools } from "../lib/skills/index.js";
 
 /** Valid PM mode values. */
 export const VALID_PM_MODES = ["none", "arc-in-git", "external"] as const;
@@ -39,6 +40,11 @@ export interface NonInteractiveOptions {
 export function buildNonInteractivePrompts(
   options: NonInteractiveOptions,
 ): InitPromptResult {
+  // Validate --name is not empty when explicitly provided
+  if (options.name !== undefined && options.name.trim() === "") {
+    throw new Error("--name cannot be empty.");
+  }
+
   const pmMode = options.pmMode ?? "none";
   if (!VALID_PM_MODES.includes(pmMode as typeof VALID_PM_MODES[number])) {
     throw new Error(
@@ -46,11 +52,16 @@ export function buildNonInteractivePrompts(
     );
   }
 
+  const tools = options.tools
+    ? options.tools.split(",").map((t) => t.trim()).filter(Boolean)
+    : [];
+  if (tools.length > 0) {
+    validateTools(tools);
+  }
+
   return {
     project_name: options.name ?? basename(options.cwd),
-    tools: options.tools
-      ? options.tools.split(",").map((t) => t.trim()).filter(Boolean)
-      : [],
+    tools,
     pm_mode: pmMode,
     team_mode: options.team ?? false,
   };
