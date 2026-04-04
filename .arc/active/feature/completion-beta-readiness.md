@@ -53,7 +53,12 @@ for multi-week beta testing.
 ## Verification
 
 - **Quality gates**: Tier 3 all passed — markdown lint (153 files), TS lint, shell lint,
-  typecheck (source + tests), full test suite, build verification
+  typecheck (source + tests), full test suite (465 unit tests), build verification
+- **Pre-merge review**: Aggregate diff review + CodeRabbit AI review. 7 findings addressed:
+  redundant `hasLocalNotes` call fixed, `arc status` Scaffolded file state corrected (new
+  `"scaffolded"` state instead of false "modified"), `atomicWriteJson` directory creation
+  robustness added, `arc init --reconfigure` role re-affirmation, `unsupported_script`
+  documentation, handler-level test coverage for `arc sync` and `arc user push/pull` error paths
 - **Success criteria**: 30 of 30 met. 2 deviation notes: docs site deployment deferred to
   post-merge verification (GitHub Pages Action triggers on push to main); stub pages evolved
   into full reference pages during implementation.
@@ -74,6 +79,7 @@ No separate incidental task lists were created. Incidental work was tracked via
 
 - **Docs site deployment verification** (ATOMIC-INBOX): Verify GitHub Pages Action triggers on
   push to main, site accessible, navigation and search functional, all pages render correctly.
-- **Methodology update dependency checklist** (ATOMIC-INBOX): Process improvement for managing
-  cross-artifact dependencies when methodology content changes (canonical source, template
-  awareness, strategy docs, indexes, CLI source, docs site).
+- **Methodology update dependency checklist** (BACKLOG-TECHNICAL, medium priority): Process
+  improvement for managing cross-artifact dependencies when methodology content changes (canonical
+  source, template awareness, strategy docs, indexes, CLI source, docs site). Promoted from
+  ATOMIC-INBOX during integration triage.

@@ -16,6 +16,20 @@ begin the standard workflow.
 
 ## Medium Priority
 
+### Methodology Update Dependency Checklist / Guard
+
+- **Problem:** Project-specific content leaked into `packages/arc-framework/arc/` (WU4 Phase 7)
+  because there's no guard preventing `.arc/` → source sync. More broadly, methodology edits touch
+  multiple surfaces with no documented dependency checklist.
+- **Origin:** Discovered during WU4 beta-readiness integration. Deferred from
+  `atomic-beta-readiness.md`.
+- **Scope:** Strategy document codifying canonical edit direction (`packages/arc-framework/arc/`
+  first), template awareness (`.template.md` files), dependency checklist (strategy docs, indexes,
+  CLI source, docs site), and guard mechanism against accidental reverse sync
+- **Target:** New doc in `.arc/reference/strategies/project/` (e.g.,
+  `strategy-methodology-update-workflow.md`), possibly with a pre-commit hook enhancement
+- **Effort estimate:** S–M
+
 ### CI/CD Improvements
 
 - **Enhanced link validation**
