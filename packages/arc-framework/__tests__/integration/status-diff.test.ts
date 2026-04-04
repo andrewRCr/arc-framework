@@ -86,10 +86,11 @@ describe("status and diff integration", () => {
       });
 
       expect(result.fileStatuses.length).toBeGreaterThan(0);
-      const nonUnmodified = result.fileStatuses.filter(
-        (f) => f.state !== "unmodified",
+      // Scaffolded files are expected on fresh init — they have no pristine baseline
+      const unexpected = result.fileStatuses.filter(
+        (f) => f.state !== "unmodified" && f.state !== "scaffolded",
       );
-      expect(nonUnmodified).toEqual([]);
+      expect(unexpected).toEqual([]);
     });
 
     it("reports modified after changing a file", async () => {
