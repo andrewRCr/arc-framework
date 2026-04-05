@@ -19,7 +19,10 @@ Thumbs.db
 *.log
 
 # AI tool settings (personal development environment preferences)
-.claude/settings.local.json
+.claude/
+.codex/
+.cursor/
+.agents/
 .warp/
 
 # explicitly temp-flagged internal docs

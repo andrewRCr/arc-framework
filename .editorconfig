@@ -13,19 +13,7 @@ end_of_line = lf              # Matches .gitattributes - all files use Unix line
 insert_final_newline = true   # Files should end with newline (Git best practice)
 trim_trailing_whitespace = true
 
-# Python (PEP 8 standard)
-[*.py]
-indent_style = space
-indent_size = 4
-
-# React/JSX files (2 spaces - React ecosystem standard)
-# Deeply nested JSX benefits from smaller indent
-[*.{jsx,tsx}]
-indent_style = space
-indent_size = 2
-
-# Regular JavaScript/TypeScript (4 spaces - project preference)
-# Non-React JS/TS uses 4 spaces for consistency with backend
+# JavaScript/TypeScript (4 spaces - project preference)
 [*.{js,ts}]
 indent_style = space
 indent_size = 4
@@ -41,27 +29,8 @@ indent_style = space
 indent_size = 4
 trim_trailing_whitespace = false  # Markdown uses trailing spaces for line breaks
 
-# Configuration files (2 spaces - standard)
-[*.{toml,ini,cfg,conf}]
-indent_style = space
-indent_size = 2
-
 # Shell scripts (2 spaces - standard)
 [*.{sh,bash}]
-indent_style = space
-indent_size = 2
-
-# Makefiles (MUST use tabs - required by Make syntax)
-[Makefile]
-indent_style = tab
-
-# Docker files (2 spaces - standard)
-[{Dockerfile,Dockerfile.*,*.dockerfile}]
-indent_style = space
-indent_size = 2
-
-# HTML/CSS/SCSS (2 spaces - standard)
-[*.{html,css,scss}]
 indent_style = space
 indent_size = 2
 
