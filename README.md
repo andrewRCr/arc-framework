@@ -1,9 +1,7 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/readme-banner-minimal-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/img/readme-banner-minimal-light.svg">
-    <img src="docs/img/readme-banner-minimal-light.svg" alt="ARC Framework" width="400">
-  </picture>
+
+<img src="docs/img/readme-banner-minimal-light.svg#gh-light-mode-only" alt="ARC Framework" width="400" />
+<img src="docs/img/readme-banner-minimal-dark.svg#gh-dark-mode-only" alt="ARC Framework" width="400" />
 
 [![npm](https://img.shields.io/npm/v/@arc-framework/cli)](https://www.npmjs.com/package/@arc-framework/cli)
 [![CI](https://github.com/andrewRCr/arc-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewRCr/arc-framework/actions/workflows/ci.yml)
