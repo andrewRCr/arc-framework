@@ -181,9 +181,8 @@ wasted opportunity.
 transparent mechanisms. Knowledge gained during work — decisions, state, rationale — must not be lost when a session
 ends.
 
-This is the "Recursive" in ARC. Without context preservation, each session starts from scratch and the recursive
-feedback loop — the mechanism by which the framework improves itself and the project accumulates institutional knowledge
-— breaks entirely.
+Without context preservation, each session starts from scratch and the reciprocal feedback loop — the mechanism by
+which the framework improves itself and the project accumulates institutional knowledge — breaks entirely.
 
 The human controls what is preserved. The mechanism must be:
 
@@ -277,9 +276,8 @@ practice.
 **Statement:** The framework and the projects that use it improve through documented feedback loops. Patterns are
 codified from experience; decisions are captured; future work builds on prior context rather than starting fresh.
 
-This is the "Recursive" in ARC. Without knowledge evolution, ARC is a static project management template. The recursive
-feedback — decisions documented, patterns extracted, future work informed by prior cycles — is what makes it a living
-methodology.
+Without knowledge evolution, ARC is a static project management template. The reciprocal feedback — decisions
+documented, patterns extracted, future work informed by prior cycles — is what makes it a living methodology.
 
 **Conventions under this principle:** The specific evolution path (working notes → strategy documents → constitutional
 docs), archival processes, where patterns live.

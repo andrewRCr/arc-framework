@@ -58,6 +58,23 @@ begin the standard workflow.
       winget/irm later as adoption broadened.
     - Effort estimate: M–L (build pipeline, cross-platform testing, install script, docs)
 
+### Methodology Specification Layer (ARC vs. ARC Framework Distinction)
+
+- **Problem:** ARC's principles (P1-P11) are implementation-independent, but there's no clear
+  articulation of what the methodology requires operationally *apart from* the specific `.arc/`
+  file structure and CLI. The gap between "these are our principles" and "here's the file
+  structure" is underspecified — no documented "MVP ARC" that exists independent of framework
+  implementation details.
+- **Origin:** Branding/identity exploration (2026-04-05). Surfaces as an intellectual clarity
+  gap that weakens the framework's own rigor.
+- **Scope:** A section in the philosophy strategy (or short companion doc) that distinguishes
+  methodology commitments (principles + operational minimum to be "doing ARC") from framework
+  implementation (how ARC Framework operationalizes those commitments). Light-touch foundation
+  that leaves room for the distinction to mature over time.
+- **Non-goals:** Separate product, separate brand, maintaining two independent specifications.
+  This is about clearer conceptual boundaries within the existing project, not decoupling.
+- **Effort estimate:** S
+
 ---
 
 ## Lower Priority / Ideas

@@ -119,4 +119,4 @@ and [Archive Workflow](../../system/workflows/arc/work-unit-lifecycle/archive-wo
 
 ---
 
-_Archive maintained as part of the ARC (Agentic, Recursive, Coordination) development framework_
+_Archive maintained as part of the ARC development framework_

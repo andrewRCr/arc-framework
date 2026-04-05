@@ -30,8 +30,8 @@ context quality degradation.
 
 ## Overview
 
-ARC lives in your repository as a `.arc/` directory — a shared reference for both developers
-and agents. The documents aren't static context files. They're mechanical: workflows
+ARC lives in your repository as an `.arc/` directory, as shared operational context for both developers
+and agents. These documents aren't only static files — many are also mechanical: workflows
 branch on configuration values, methods define overridable contracts at trigger points,
 extension points inject custom behavior at workflow boundaries, and git hooks enforce
 conventions deterministically at commit time. A CLI manages the full lifecycle:
@@ -39,7 +39,7 @@ initialization, onboarding, framework updates via three-way merge, and session s
 portability through git notes. Guidance is embedded where it's needed, and conventions
 are enforced where they matter.
 
-[Full documentation →](https://andrewrcr.github.io/arc-framework/) — from first
+Supported by [full documentation](https://andrewrcr.github.io/arc-framework/), from first
 install through configuration and team coordination.
 
 ```text
@@ -70,7 +70,7 @@ complete structure and what each component does.
   Code review research shows defect detection drops from 70–90% to ~30% as review size
   grows; ARC's granularity is a direct response.
 - **Configurability architecture with a CLI.** ARC's principles are non-negotiable, but
-  most of how they're implemented is. Commit format, quality gate commands, triage
+  most of how they're implemented is. Commit format, quality gates, triage
   thresholds, review methods, session state mechanics — all configurable conventions
   with strong defaults your team replaces when they don't fit. The CLI handles
   initialization, onboarding, framework updates via three-way merge, and session state
