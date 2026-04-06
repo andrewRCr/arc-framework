@@ -13,14 +13,14 @@
 
 ## Active Work
 
-**Branch**: `feature/plan-arc-lite`
+**Branch**: `feature/plan-arc-modes`
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
 **Last Completed**: Beta Readiness (archived)
 **Blockers**: [none]
-**Next Action**: Refine plan-arc-lite.md into PRD, then generate tasks for arc-lite work unit
+**Next Action**: Refine plan-methodology-maturation.md into PRD, then generate tasks for WU-A
 
 ---
 
-**Last Updated**: 2026-04-05
+**Last Updated**: 2026-04-06
