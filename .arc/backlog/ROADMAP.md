@@ -87,25 +87,47 @@ Prepares the framework for multi-week beta testing on an external project.
 
 - Plan: `feature/plan-wu4-beta-readiness.md`
 - Upstream: WU3 (functional CLI for `arc init` / `arc join`)
+- Downstream: Methodology Maturation, Operating Modes, Dogfooding, WU5
+
+**Methodology Maturation** — Next
+
+Settle ARC's foundational clarity before expanding the framework. Package–project sync audit,
+methodology/implementation boundary definition, language and positioning cleanup (harness
+engineering framing), content placement decision (install vs docs site), conditional content
+architecture evaluation.
+
+- Plan: `technical/plan-methodology-maturation.md`
+- Upstream: WU4 (beta-ready repo, stable methodology surface to audit)
+- Downstream: Operating Modes
+
+**ARC Operating Modes** — After Methodology Maturation
+
+Establish ARC's mode architecture — a lightweight mode (ARC Lite) for small projects preserving
+execution discipline without lifecycle ceremony, and a local/untracked mode for constrained
+environments where ARC can't be committed to the repo.
+
+- Plan: `feature/plan-arc-modes.md`
+- Upstream: Methodology Maturation (settled boundary, content architecture, conditional patterns)
 - Downstream: Dogfooding, WU5
 
-**Dogfooding Phase** — Between WU4 and WU5
+**Dogfooding Phase** — After Operating Modes
 
 Install the beta CLI in a real project and battle-test the full workflow (init → work →
-update → contributor setup). Identify friction, bugs, and design issues through real usage.
-Iterate on the CLI (`0.x.y` releases) until stable enough for public release.
+update → contributor setup). Includes testing new operating modes. Identify friction, bugs,
+and design issues through real usage. Iterate on the CLI (`0.x.y` releases) until stable
+enough for public release.
 
-- Upstream: WU4 (migrated repo, contributor support, beta publish)
+- Upstream: WU4 (base CLI), Operating Modes (expanded mode support)
 - Downstream: WU5
 
 **WU5: Public Release (1.0)** — Future
 
 Docs site with content (MkDocs Material + GitHub Pages), full README rewrite, repo made
 public, community infrastructure, release automation, npm `1.0.0`. Content priorities
-informed by beta testing experience.
+informed by beta testing and dogfooding experience.
 
 - Plan: `feature/plan-wu5-public-release.md` (stub)
-- Upstream: WU4 (beta-ready repo), Dogfooding (real-world feedback)
+- Upstream: Dogfooding (real-world feedback)
 - Downstream: none
 
 ---
@@ -126,22 +148,27 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │
    │     │     │     ├──► WU3 (CLI Beta) ✅
    │     │     │     │     │
-   │     │     │     │     ├──► WU4 (Beta Readiness)
+   │     │     │     │     ├──► WU4 (Beta Readiness) ✅
    │     │     │     │     │     │
-   │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     ├──► Methodology Maturation
    │     │     │     │     │     │     │
-   │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
-   │     │     │     │     │     │           ▲
-   │     │     └─────┴───────────────────┘ (content creation can start after WU2)
-   │     │                                 ▲
-   │     └─────────────────────────────────┘ (philosophy informs docs site + README)
-   │                                       ▲
-   └───────────────────────────────────────┘
+   │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
+   │     │     │     │     │     │     │     │           ▲
+   │     │     └─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
+   │     │                                              ▲
+   │     └──────────────────────────────────────────────┘ (philosophy informs docs + README)
+   │                                                    ▲
+   └────────────────────────────────────────────────────┘
 ```
 
 **Parallelism:** WU5 docs site content and README drafts can begin after WU1+WU2 without
-waiting for WU3/WU4. Community infrastructure (issue templates, CoC, etc.) has no upstream
-dependencies.
+waiting for later work units. Community infrastructure (issue templates, CoC, etc.) has no
+upstream dependencies. Methodology Maturation content placement decisions may inform WU5 docs
+site structure.
 
 ---
 

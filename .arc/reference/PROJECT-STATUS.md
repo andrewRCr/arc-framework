@@ -17,12 +17,13 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- None — between work units (ARC Lite planning in progress)
+- None — between work units (planning in progress for Methodology Maturation + Operating Modes)
 
 **Next Priority:**
 
-- ARC Lite — Lightweight project mode preserving execution discipline without lifecycle ceremony
-- Dogfooding — Install beta CLI in a real project, battle-test full workflow
+- Methodology Maturation — Foundational clarity: methodology/implementation boundary, language
+  cleanup, content placement, harness engineering positioning
+- ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
 
 ## Completed Major Work
 

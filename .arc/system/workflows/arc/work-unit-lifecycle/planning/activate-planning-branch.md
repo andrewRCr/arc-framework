@@ -70,7 +70,9 @@ git checkout -b {category}/plan-{name}
 + **Standalone planning** follows the same pattern, or use `planning/{working-name}` when the
   final category or name isn't known yet
 + Name mismatch between planning branch and final work unit is normal — scope may shift
-  during planning review
+  during planning review. If the shift is significant (e.g., one work unit becomes two, or
+  the scope changes entirely), rename the branch to match: `git branch -m {old} {new}` and
+  update the remote. Planning branches are short-lived and pre-merge, so renaming is low-risk
 
 ### 4) Proceed to Next Step
 
