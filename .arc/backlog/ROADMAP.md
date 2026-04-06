@@ -91,12 +91,12 @@ Prepares the framework for multi-week beta testing on an external project.
 
 **Methodology Maturation** — Next
 
-Settle ARC's foundational clarity before expanding the framework. Package–project sync audit,
-methodology/implementation boundary definition, language and positioning cleanup (harness
-engineering framing), content placement decision (install vs docs site), conditional content
-architecture evaluation.
+Settle ARC's foundational clarity before expanding the framework. Package–project sync audit
+and dev safeguard, methodology/implementation boundary definition, human co-development
+posture, language and positioning cleanup (harness engineering framing), content placement
+and update behavior, conditional content architecture, ARC skill expansion.
 
-- Plan: `technical/plan-methodology-maturation.md`
+- PRD: `technical/prd-methodology-maturation.md`
 - Upstream: WU4 (beta-ready repo, stable methodology surface to audit)
 - Downstream: Operating Modes
 
