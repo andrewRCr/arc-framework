@@ -184,8 +184,7 @@ in `system/workflows/arc/supplemental/`.
 3. A reader can distinguish what ARC-the-methodology requires from what ARC Framework implements,
    using the methodology summary artifact and grey area resolutions
 4. Human co-development posture described in methodology docs — descriptive, not prescriptive
-5. `arc update` wholesale-replaces Framework files without merge conflicts on any of the 56
-   Framework-classified files
+5. `arc update` wholesale-replaces all Framework-classified files without merge conflicts
 6. Strategy docs cleanly separate operational reference from explanation — whether explanation
    relocates to docs site or is separated in-place
 7. Content placement decisions documented with rationale on all three axes

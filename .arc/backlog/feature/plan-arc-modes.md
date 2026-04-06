@@ -14,7 +14,7 @@ in the plan stage doing research, evaluation, and design decisions so the PRD ca
 deliverables rather than deferring design to implementation. The plan doc is the primary working artifact
 until design decisions are resolved.
 
-**Upstream dependency:** Methodology Maturation (`plan-methodology-maturation.md`) — settles the
+**Upstream dependency:** Methodology Maturation (`prd-methodology-maturation.md`) — settles the
 methodology/implementation boundary, language consistency, and content architecture that this work unit
 builds on. That work unit must complete before this one begins implementation.
 
@@ -61,7 +61,7 @@ repo-owned project) and provides no way to adapt to others.
 
 These are upstream of both modes — decisions here inform the PRD's deliverable specifications. The
 methodology/implementation boundary and content architecture are resolved in the upstream Methodology
-Maturation work unit (`plan-methodology-maturation.md`). The investigations below are specific to
+Maturation work unit (`prd-methodology-maturation.md`). The investigations below are specific to
 operating mode design.
 
 ### Configuration Identity

@@ -7,7 +7,7 @@ data, and design context that will be useful during task generation and executio
 
 ## Research Findings
 
-### Harness Engineering (Fowler, 2025)
+### Harness Engineering (Böckeler, 2026)
 
 **Source:** [martinfowler.com/articles/harness-engineering.html][harness-engineering]
 

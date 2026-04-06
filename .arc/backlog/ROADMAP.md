@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-04-06
 
 ---
 
@@ -214,6 +214,8 @@ site structure.
 
 ## Change Log
 
+- **2026-04-06**: Methodology Maturation PRD and task list complete, ARC Operating Modes plan added
+- **2026-04-01**: WU4 complete, planning branch created for next work units
 - **2026-03-24**: Migrated to `.arc/` — adapted to canonical ROADMAP structure
 - **2026-03-21**: WU4 planning complete, task list active
 - **2026-03-15**: WU3 complete, WU4 planning started
