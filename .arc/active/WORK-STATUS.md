@@ -13,13 +13,13 @@
 
 ## Active Work
 
-**Branch**: `feature/plan-arc-modes`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
+**Branch**: `technical/methodology-maturation`
+**Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
+**Following Task List**: Yes
+**Next Task**: Task 1.1 — Audit package-project content drift (line ~50)
 **Last Completed**: Beta Readiness (archived)
 **Blockers**: [none]
-**Next Action**: Integrate planning branch, then activate WU-A (Methodology Maturation)
+**Next Action**: Begin Task 1.1 — audit package-project content drift
 
 ---
 

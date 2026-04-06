@@ -89,7 +89,7 @@ Prepares the framework for multi-week beta testing on an external project.
 - Upstream: WU3 (functional CLI for `arc init` / `arc join`)
 - Downstream: Methodology Maturation, Operating Modes, Dogfooding, WU5
 
-**Methodology Maturation** — Next
+**Methodology Maturation** — In Progress (April 2026)
 
 Settle ARC's foundational clarity before expanding the framework. Package–project sync audit
 and dev safeguard, methodology/implementation boundary definition, human co-development

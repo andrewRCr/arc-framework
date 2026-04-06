@@ -1,10 +1,10 @@
 # Task List: Methodology Maturation
 
-**PRD:** `.arc/backlog/technical/prd-methodology-maturation.md`
+**PRD:** `.arc/active/technical/prd-methodology-maturation.md`
 **Created:** 2026-04-06
 **Branch(es):** `technical/methodology-maturation`
 **Base Branch:** `main`
-**Status:** Not Started
+**Status:** In Progress
 
 ## Overview
 

@@ -17,12 +17,13 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- None — between work units (planning in progress for Methodology Maturation + Operating Modes)
+- Methodology Maturation (technical) — Foundational clarity: methodology/implementation boundary,
+  package-project sync safeguards, content placement, human co-development posture, skill expansion
+    - Task list: `tasks-methodology-maturation.md`
+    - Branch: `technical/methodology-maturation`
 
 **Next Priority:**
 
-- Methodology Maturation — Foundational clarity: methodology/implementation boundary, language
-  cleanup, content placement, harness engineering positioning
 - ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
 
 ## Completed Major Work
