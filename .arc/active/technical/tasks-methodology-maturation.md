@@ -139,7 +139,12 @@ _Goal: Define what ARC-the-methodology requires, independent of any specific imp
         5. Context loading tiers (T1/T2/T3 loading model)
 
 - [ ] **2.3 Resolve grey areas (batch 2: 6-10)**
-    - For each, classify as methodology or implementation with documented rationale: 6. Trust hierarchy (git > task list > WORK-STATUS > SESSION-NOTES) 7. Strategy document pattern (codified domain guidance) 8. Deferred review scope (user-defined continuation ranges) 9. Verification phase (formal end-of-work-unit validation) 10. Context footer requirement (commit traceability linking)
+    - For each, classify as methodology or implementation with documented rationale:
+        6. Trust hierarchy (git > task list > WORK-STATUS > SESSION-NOTES)
+        7. Strategy document pattern (codified domain guidance)
+        8. Deferred review scope (user-defined continuation ranges)
+        9. Verification phase (formal end-of-work-unit validation)
+        10. Context footer requirement (commit traceability linking)
 
 - [ ] **2.4 Articulate human co-development posture**
     - Write methodology-level articulation of what effective co-development looks like during task
