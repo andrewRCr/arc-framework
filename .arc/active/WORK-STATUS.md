@@ -13,14 +13,14 @@
 
 ## Active Work
 
-**Branch**: `feature/beta-readiness`
-**Task List**: `.arc/active/feature/tasks-beta-readiness.md`
-**Following Task List**: Yes
-**Next Task**: [none — all tasks complete, integration in progress]
-**Last Completed**: Task 10.3 — Verify all atomic tasks resolved
-**Blockers**: None
-**Next Action**: integrate-work-unit Step 8 — address PR review findings (PR #13 open, CodeRabbit review pending)
+**Branch**: `feature/plan-arc-modes`
+**Task List**: [none]
+**Following Task List**: No
+**Next Task**: —
+**Last Completed**: Beta Readiness (archived)
+**Blockers**: [none]
+**Next Action**: Integrate planning branch, then activate WU-A (Methodology Maturation)
 
 ---
 
-**Last Updated**: 2026-04-04
+**Last Updated**: 2026-04-06

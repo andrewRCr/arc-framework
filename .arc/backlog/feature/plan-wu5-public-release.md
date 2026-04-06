@@ -20,7 +20,7 @@ adopters ask, where the CLI experience has friction.
 
 **What WU5 produces:**
 
-- Docs site with content (MkDocs Material + GitHub Pages, scaffolded in WU4)
+- Docs site methodology content (MkDocs Material + GitHub Pages operational content built in WU4)
 - Full README rewrite (adoption-focused)
 - Repo made public (clean initial commit from post-WU4 state — pre-public history stays private)
 - Community infrastructure (issue templates, code of conduct, PR template, GitHub Discussions evaluation)

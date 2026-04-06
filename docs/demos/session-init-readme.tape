@@ -14,7 +14,7 @@ Set Width 2000
 Set Height 900
 Set Padding 40
 Set Margin 60
-Set MarginFill "#0d1117"
+Set MarginFill "#0f1b2d"
 Set BorderRadius 20
 Set WindowBar Colorful
 Set WindowBarSize 80

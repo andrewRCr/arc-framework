@@ -174,14 +174,31 @@ after the incidental's merge — recover state from the task list and commit his
 4. **Last Completed**: The last `[x]` task before the unchecked one
 5. **Next Action**: `Resume {parent work unit name} — Task X.Y`
 
-### 6) Post-Archival Extensions · `#post-work-unit-archive`
+### 6) Update PM Artifacts · `arc-in-git` only
 
-If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now. This is the
-primary interface for PM layers to update project management artifacts (PROJECT-STATUS, ROADMAP) at archival time.
+> **Skip this step** if `pm.mode` is `none` or `external`.
+
+Update project management documents to reflect the completed and archived work unit:
+
+**PROJECT-STATUS.md** (`.arc/reference/PROJECT-STATUS.md`):
+
+- Move the work unit from **Currently Active** to **Last Completed** (name, category, archive path)
+- Add an entry to **Completed Major Work** with a summary of key deliverables (if the work
+  qualifies as "major" — see the template guidance in PROJECT-STATUS.md)
+- Update **Currently Active** to the next work unit if known, or clear it
+- Update **Next Priority** from ROADMAP.md
+
+**ROADMAP.md** (`.arc/backlog/ROADMAP.md`):
+
+- Update the work unit's status to complete (e.g., add "✅ Complete" marker with month/year)
+
+### 7) Post-Archival Extensions · `#post-work-unit-archive`
+
+If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now.
 
 See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
 
-### 7) Commit Archive Changes
+### 8) Commit Archive Changes
 
 ```bash
 git add .arc/reference/archive/{quarter}/{category}/{name}/
@@ -189,8 +206,9 @@ git add .arc/active/{category}/  # captures file deletions
 git add .arc/active/WORK-STATUS.md
 ```
 
-**Note:** If [post-work-unit-archive extensions][arc-ext-post-archive] produced additional changes
-(e.g., PM layer artifacts), stage those as well.
+**Note:** With `arc-in-git`, also stage PROJECT-STATUS.md and ROADMAP.md if updated in Step 6.
+If [post-work-unit-archive extensions][arc-ext-post-archive] produced additional changes, stage
+those as well.
 
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context footer
@@ -212,7 +230,7 @@ Archival of completed incidental work:
 Context: tasks-fix-auth-edge-cases.md (archival)"
 ```
 
-### 8) Next Step
+### 9) Next Step
 
 **Partial protection:** Archival is complete. **→ [1_create-prd.md][create-prd]** — Plan next
 work unit (or follow WORK-STATUS.md Next Action if different).

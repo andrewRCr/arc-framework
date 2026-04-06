@@ -141,7 +141,9 @@ short-lived code. Current functionality works correctly.
 - **Temp file for replies**: Draft in `.arc/active/{category}/temp-agent-reply.md` (gitignored),
   copy to GitHub comment. Write as single continuous lines — GitHub wraps automatically, hard
   breaks create awkward formatting. Number replies in the order findings are reviewed — this
-  preserves correspondence with PR comment order for efficient posting.
+  preserves correspondence with PR comment order for efficient posting. Always append new
+  replies to the end of the file. Place the `[commit-hash]` placeholder at the end of each
+  reply (e.g., "Updated X to Y. Fixed in [commit-hash].").
 
 ### GitHub Copilot Reviews
 

@@ -1,4 +1,0 @@
-interface:
-  display_name: "ARC Handoff"
-  short_description: "Update and finalize current ARC session documentation for cross-session continuity. Use when explicitly asked to produce a handoff."
-  default_prompt: "Use /arc-handoff — Update and finalize current ARC session documentation for cross-session continuity. Use when explicitly asked to produce a handoff."

@@ -136,10 +136,10 @@ The agent should propose which invocation path based on diff size, but the user 
 **Workflow:** [activate-work-unit.md][activate-work-unit] · **Fires:** After Core activation steps complete (branch
 created, task list moved to active, WORK-STATUS updated)
 
-**Contract:** Perform additional actions after a work unit is activated. This is the primary interface for PM layers
-to update project management artifacts (e.g., PROJECT-STATUS.md, ROADMAP.md) at activation time. Any project can
-use this extension point for work unit lifecycle actions — external tool notifications, custom ceremony steps, or
-environment setup. Without populated steps, the workflow proceeds naturally.
+**Contract:** Perform additional actions after a work unit is activated. Core PM artifact updates
+(PROJECT-STATUS, ROADMAP) are handled by the workflow's built-in arc-in-git step — this extension is for
+additional project-specific actions: external tool notifications, custom ceremony steps, or environment setup.
+Without populated steps, the workflow proceeds naturally.
 
 ### post-work-unit-activate.steps
 
@@ -152,10 +152,10 @@ environment setup. Without populated steps, the workflow proceeds naturally.
 **Workflow:** [archive-work-unit.md][archive-work-unit] · **Fires:** After Core archival steps complete (task list
 archived, branch cleaned up)
 
-**Contract:** Perform additional actions after a work unit is archived. This is the primary interface for PM layers
-to update project management artifacts at archival time. Any project can use this extension point for archival
-lifecycle actions — cleanup scripts, external tracker updates, or team notifications. Without populated steps, the
-workflow proceeds naturally.
+**Contract:** Perform additional actions after a work unit is archived. Core PM artifact updates
+(PROJECT-STATUS, ROADMAP) are handled by the workflow's built-in arc-in-git step — this extension is for
+additional project-specific actions: cleanup scripts, external tracker updates, or team notifications.
+Without populated steps, the workflow proceeds naturally.
 
 ### post-work-unit-archive.steps
 

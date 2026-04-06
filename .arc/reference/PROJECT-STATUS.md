@@ -11,23 +11,31 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- CLI Implementation Beta (technical) — Built `@arc-framework/cli` npm package with
-  interactive init, three-way merge update, agent tooling generation, manifest tracking
-    - Archive: `archive/` (pending integration merge)
+- Beta Readiness (feature) — Migrated dev repo to real ARC installation, contributor role
+  support (ADR-014), docs site skeleton, npm beta publish, public-facing scaffolding
+    - Archive: `archive/2026-q2/feature/01_beta-readiness/`
 
 **Currently Active:**
 
-- Beta Readiness (feature) — Migrate dev repo to real ARC installation, contributor support,
-  docs site skeleton, npm beta publish
-    - Task list: `.arc/active/feature/tasks-beta-readiness.md`
-    - Branch: `feature/beta-readiness`
+- None — between work units (planning in progress for Methodology Maturation + Operating Modes)
 
 **Next Priority:**
 
-- Dogfooding — Install beta CLI in a real project, battle-test full workflow, iterate on
-  `0.x.y` releases
+- Methodology Maturation — Foundational clarity: methodology/implementation boundary, language
+  cleanup, content placement, harness engineering positioning
+- ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
 
 ## Completed Major Work
+
+### Beta Readiness (April 2026)
+
+Prepared the framework for multi-week beta testing on an external project.
+
+- Migrated dev repo from ad-hoc `.arc/` to a real `arc init` installation
+- Contributor role support: ADR-014, AGENT-BRIEFING.CONTRIBUTOR, role-aware hooks and session-init
+- Docs site skeleton: MkDocs Material + GitHub Pages, navigation structure, CI deployment
+- npm beta publish: `@arc-framework/cli@0.1.0-beta`, granular token auth
+- Public-facing scaffolding: repo rename, README rewrite, license, branding (ARC tagline)
 
 ### CLI Implementation Beta (March 2026)
 
