@@ -67,8 +67,8 @@ domains. ARC gives you the scaffolding; you populate it as your project's patter
 
 **A maintained framework, not a template.** Every `.arc/` file has a
 [classification](updating.md) (framework, configurable, scaffolded) that determines how
-`arc update` treats it. Framework files update cleanly, configurable files three-way merge
-preserving your changes, scaffolded files are never touched. Your methods, extensions, and
+`arc update` treats it. Framework files are replaced with the latest version, configurable
+files merge preserving your changes, scaffolded files are never touched. Your methods, extensions, and
 project standards survive across framework versions.
 
 ## The CLI
@@ -77,7 +77,7 @@ project standards survive across framework versions.
 
 - **`arc init`** — initialize ARC in a project. `--reconfigure` to change settings later.
 - **`arc join`** — join an existing ARC project (role, identity, agent skills).
-- **`arc update`** — update framework files via three-way merge, preserving your customizations.
+- **`arc update`** — update framework files, preserving your customizations.
 - **`arc sync`** — save and push session state via git notes (or `--load` to pull and restore).
 
 ## Documentation

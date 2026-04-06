@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 3.1 — Implement wholesale replacement for Framework files (line ~178)
-**Last Completed**: Phase 2 — Methodology Boundary Definition (Tasks 2.1–2.4)
+**Next Task**: Task 4.1 — Evaluate Axis 1: Install vs docs site (line ~218)
+**Last Completed**: Phase 3 — CLI Update Behavior Fix (Tasks 3.1–3.3)
 **Blockers**: [none]
-**Next Action**: Begin Phase 3 — CLI update behavior fix
+**Next Action**: Begin Phase 4 — content placement and install structure
 
 ---
 

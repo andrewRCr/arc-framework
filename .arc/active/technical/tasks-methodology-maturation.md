@@ -180,30 +180,35 @@ _Goal: Framework-classified files wholesale replaced on `arc update` instead of 
 
 **Strategies:** `strategy-testing-methodology.md`
 
-- [ ] **3.1 Implement wholesale replacement for Framework files**
-    - Modify `applyChangePlan()` in `packages/arc-framework/src/lib/manifest/apply.ts`
-    - Check `classifyFile(entry.templateFile)` before merging
-    - Framework → write updated content directly (same path as "file missing from disk")
-    - Configurable → three-way merge as today (no change)
-    - Scaffolded → skip as today (no change)
+- [x] **3.1 Implement wholesale replacement for Framework files**
+    - Added classification branch in merge loop (`apply.ts`): Framework files skip three-way
+      merge, write rendered content directly. Configurable files continue through merge path.
+    - Apply-side approach chosen over plan-side reclassification — plan layer stays pure
+      ("what changed"), apply layer decides "how" (wholesale vs merge)
+    - Content comparison avoids unnecessary writes when Framework file is already current
+    - Updated existing "pristine rebuild" test to use Configurable classification (Framework
+      files no longer hit that path)
 
-- [ ] **3.2 Update tests for new update behavior**
+- [x] **3.2 Update tests for new update behavior**
+    - Restructured merges test section into "Framework wholesale replacement" (5 tests) and
+      "Configurable three-way merge" (3 tests) — clear behavioral separation
+    - New Framework tests: overwrites adopter modifications, skips write when current, reinstalls
+      missing from disk, replaces regardless of missing pristine baseline, never produces conflicts
+      (merge function not called)
+    - Configurable tests: three-way merge with pristine advance, pristine rebuild tracking,
+      reinstall missing from disk
+    - Scaffolded skip and Framework removal already covered by existing tests (unchanged)
+    - 471 total tests (5 net new), all passing
 
-    Build `test-first` (one behavior at a time):
-    - Framework file is wholesale replaced even when adopter has modified it
-    - Configurable file still goes through three-way merge when adopter has modified it
-    - Scaffolded file still skipped
-    - Framework file with no adopter changes: behavior unchanged (already clean via fast path)
-    - Conflict count in `ApplyResult` excludes Framework files (no conflicts possible)
-    - Removed Framework files still auto-deleted
-
-- [ ] **3.3 Update strategy-file-classification documentation**
-    - Update Framework update behavior description: "Auto-merge. Flag conflicts for review" →
-      "Wholesale replaced. Adopter modifications overwritten."
-    - Update the summary table: "Three-way merge. Conflicts rare." → "Wholesale replaced.
-      No conflicts."
-    - Ensure the guidance is clear: if adopters need to customize Framework content, use the
-      override mechanisms (methods, extensions, config)
+- [x] **3.3 Update strategy-file-classification documentation**
+    - Updated Framework taxonomy description, update behavior line, and summary table in both
+      `.arc/` and `packages/arc-framework/arc/` copies
+    - Updated all user-facing docs: `README.md`, `docs/index.md`, `docs/updating.md`,
+      `docs/faq.md`, `.arc/README.md` (+ package copy) — removed "three-way merge" language
+      where it described Framework files or the update system generically
+    - High-level docs (README, index CLI list, FAQ) now describe outcomes ("preserving your
+      customizations") rather than mechanisms; detailed docs (updating.md, strategy) are accurate
+      about the Framework/Configurable split
 
 ### **Phase 4:** Content Placement and Install Structure
 

@@ -105,8 +105,8 @@ conventions. You learn the concepts through doing them, not by studying upfront.
 ## Can I use ARC without the CLI?
 
 Yes, with caveats. The CLI (`arc init`, `arc update`, `arc join`) handles installation, updates, and
-developer onboarding — scaffolding files, setting up git hooks, managing the manifest, and performing
-three-way merges during updates. You could maintain the `.arc/` structure manually, but you'd lose
+developer onboarding — scaffolding files, setting up git hooks, managing the manifest, and handling
+file updates by classification. You could maintain the `.arc/` structure manually, but you'd lose
 the update mechanism, hook installation, and file classification system.
 
 The methodology itself is expressed as markdown documents that work with any agent. The CLI is the

@@ -178,6 +178,32 @@ export async function applyChangePlan(
     const updated = await render(entry.templateFile);
     const currentPath = join(arcDir, entry.outputPath);
 
+    // Framework files: wholesale replacement — skip merge, write directly.
+    // Adopter modifications are intentionally overwritten; customization
+    // uses methods, extensions, or config — not direct Framework edits.
+    if (entry.classification === "Framework") {
+      let current: string | undefined;
+      try {
+        current = await io.readFile(currentPath);
+      } catch {
+        // File missing from disk
+      }
+
+      if (current === updated) {
+        result.newPristineStore[entry.outputPath] = updated;
+        result.newManifestFiles[entry.outputPath] = buildEntry(entry.templateFile, updated, arcInGitFiles);
+        result.unchanged++;
+      } else {
+        await ensureDir(dirname(currentPath), io.mkdir);
+        await io.writeFile(currentPath, updated);
+        result.newPristineStore[entry.outputPath] = updated;
+        result.newManifestFiles[entry.outputPath] = buildEntry(entry.templateFile, updated, arcInGitFiles);
+        result.updated++;
+      }
+      continue;
+    }
+
+    // Configurable files: three-way merge preserving adopter customizations
     let current: string | undefined;
     try {
       current = await io.readFile(currentPath);

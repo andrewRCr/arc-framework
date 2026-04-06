@@ -33,8 +33,8 @@ Every file in `.arc/` has a classification that determines how updates treat it.
 
 ARC methodology files — workflows, strategies, READMEs, git hooks, templates. Rarely customized by adopters.
 
-**Update behavior:** Auto-merged via three-way merge. Conflicts are flagged for review but are
-uncommon since these files shouldn't be modified directly.
+**Update behavior:** Wholesale replaced with the latest framework version. Any local modifications
+are overwritten — these files shouldn't be modified directly.
 
 **If you need to customize:** Don't edit Framework files. Your changes will be overwritten. Use the
 appropriate customization mechanism instead: [config values, method overrides, or extension
@@ -72,14 +72,15 @@ system.
 
 **Update behavior:** Ignored completely. The CLI never reads or writes these files.
 
-## Three-Way Merge
+## How Configurable Files Merge
 
-The update system uses git's three-way merge algorithm, the same one that powers `git merge`. For
-each file being updated, three versions are compared:
+Framework files are wholesale replaced — no merge needed. Configurable files use git's three-way
+merge algorithm (the same one that powers `git merge`) to preserve your customizations. For each
+Configurable file being updated, three versions are compared:
 
 1. **Base** — the pristine framework content from when you last installed or updated (stored
    internally in `.arc/system/.internal/pristine.json`)
-2. **Current** — what's on disk now (your potentially customized version)
+2. **Current** — what's on disk now (your customized version)
 3. **Other** — the new framework version
 
 If you haven't modified the file (current matches base), the new version replaces it cleanly. If

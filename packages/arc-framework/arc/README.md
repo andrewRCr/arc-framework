@@ -72,15 +72,15 @@ it's what ensures consistent, well-informed agent behavior session after session
 
 ## Updating ARC
 
-Run `arc update` to bring your `.arc/` files to the latest framework version. The update
-uses three-way merge — your customizations are preserved while new framework content flows
-in.
+Run `arc update` to bring your `.arc/` files to the latest framework version. Framework
+files are replaced with the latest version; Configurable files merge preserving your
+customizations.
 
 **File classifications** determine what happens to each file during an update:
 
 | Classification   | Your edits  | During update                                  | Examples                                   |
 |------------------|-------------|------------------------------------------------|--------------------------------------------|
-| **Framework**    | Overwritten | Auto-updated; conflicts if both sides changed  | Workflows, strategies, hooks, scripts      |
+| **Framework**    | Overwritten | Wholesale replaced with latest version         | Workflows, strategies, hooks, scripts      |
 | **Configurable** | Preserved   | Three-way merged with your changes             | `arc-config.yml`, `DEV-RULES.PROJECT.md`   |
 | **Scaffolded**   | Preserved   | Skipped entirely — these are yours             | `WORK-STATUS.md`, `ROADMAP.md`, `META-PRD` |
 

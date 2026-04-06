@@ -9,8 +9,8 @@ documents that work with any agent platform.
 After running `arc init`, restart your AI agent to load the new configuration, then:
 
 - Run `/arc-setup` to walk through verification and project definition with your agent
-- Or paste: *"Read `.arc/system/agent/AGENT-BRIEFING.ARC.md` for context, then follow
-  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`"*
+- Or paste: _"Read `.arc/system/agent/AGENT-BRIEFING.ARC.md` for context, then follow
+  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`"_
 
 After setup, run `/arc-verify` to confirm everything installed correctly.
 
@@ -54,7 +54,7 @@ ARC documents serve different audiences — knowing this helps you understand wh
 and what to leave for your agent:
 
 | Audience           | Documents                                                  | Who reads them                                                |
-|--------------------|------------------------------------------------------------|---------------------------------------------------------------|
+| ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------- |
 | **Agent-executed** | Session init/handoff, process-task-loop, commit workflow   | Your agent follows these as procedures. Read when customizing |
 | **Collaborative**  | Setup workflows, create-prd, generate-tasks                | You and your agent work through these together                |
 | **Shared context** | Constitution, strategies, ADRs, task lists, project status | Both you and your agent — the common project baseline         |
@@ -72,17 +72,17 @@ it's what ensures consistent, well-informed agent behavior session after session
 
 ## Updating ARC
 
-Run `arc update` to bring your `.arc/` files to the latest framework version. The update
-uses three-way merge — your customizations are preserved while new framework content flows
-in.
+Run `arc update` to bring your `.arc/` files to the latest framework version. Framework
+files are replaced with the latest version; Configurable files merge preserving your
+customizations.
 
 **File classifications** determine what happens to each file during an update:
 
-| Classification   | Your edits  | During update                                  | Examples                                   |
-|------------------|-------------|------------------------------------------------|--------------------------------------------|
-| **Framework**    | Overwritten | Auto-updated; conflicts if both sides changed  | Workflows, strategies, hooks, scripts      |
-| **Configurable** | Preserved   | Three-way merged with your changes             | `arc-config.yml`, `DEV-RULES.PROJECT.md`   |
-| **Scaffolded**   | Preserved   | Skipped entirely — these are yours             | `WORK-STATUS.md`, `ROADMAP.md`, `META-PRD` |
+| Classification   | Your edits  | During update                          | Examples                                   |
+| ---------------- | ----------- | -------------------------------------- | ------------------------------------------ |
+| **Framework**    | Overwritten | Wholesale replaced with latest version | Workflows, strategies, hooks, scripts      |
+| **Configurable** | Preserved   | Three-way merged with your changes     | `arc-config.yml`, `DEV-RULES.PROJECT.md`   |
+| **Scaffolded**   | Preserved   | Skipped entirely — these are yours     | `WORK-STATUS.md`, `ROADMAP.md`, `META-PRD` |
 
 **Before you customize a file**, check whether it's Framework-classified — your changes
 will be overwritten on the next update. Files you're expected to customize (`arc-config.yml`,

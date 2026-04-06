@@ -14,15 +14,15 @@ complete file inventory. For directory structure and work organization, see
 
 ### Framework
 
-ARC methodology files. Rarely customized by adopters. Updated via three-way merge during
-`arc update` — conflicts are rare since users shouldn't modify these.
+ARC methodology files. Not customized by adopters — wholesale replaced during `arc update`.
+Adopter modifications are overwritten; customization uses the override surfaces below.
 
 **Examples:** Workflows, strategies, READMEs, githooks, ADR template.
 
-**Update behavior:** Auto-merge. Flag conflicts for review (indicates unexpected customization).
+**Update behavior:** Wholesale replaced. Adopter modifications overwritten. No conflicts possible.
 
-**If you need to customize:** Framework files shouldn't be edited directly — changes will be
-overwritten during updates. See [Configurability Architecture][config-arch] §
+**If you need to customize:** Framework files shouldn't be edited directly — changes are
+overwritten on every update. See [Configurability Architecture][config-arch] §
 [Which mechanism do I use?][config-arch-which] for the right customization surface (config
 settings, method overrides, extensions, or Configurable files).
 
@@ -359,7 +359,7 @@ to update classification — both axes apply independently.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 56    | Three-way merge. Conflicts rare.                      |
+| Framework      | 56    | Wholesale replaced. No conflicts.                     |
 | Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 7     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
