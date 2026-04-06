@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 1.1 — Audit package-project content drift (line ~50)
-**Last Completed**: Beta Readiness (archived)
+**Next Task**: Task 2.1 — Create methodology summary artifact (line ~126)
+**Last Completed**: Phase 1 — Package-Project Sync Audit and Dev Safeguard (Tasks 1.1–1.5)
 **Blockers**: [none]
-**Next Action**: Begin Task 1.1 — audit package-project content drift
+**Next Action**: Begin Task 2.1 — create methodology summary artifact
 
 ---
 

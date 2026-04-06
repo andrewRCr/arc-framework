@@ -48,6 +48,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 Create project-specific strategies in `project/` as your project's patterns emerge.
 See `project/README.md` for guidance on when to create one.
 
+- `project/strategy-package-project-sync.md` - Two-copy architecture, edit flow rules, dependency map, template handling
+    - Consult when: editing methodology content in `.arc/` or `packages/arc-framework/arc/`, syncing between copies
 - `project/strategy-testing-methodology.md` - TDD approach, test tiers, mocking rules, design-for-testability
     - Consult when: writing tests, deciding test-first vs test-after, choosing mock boundaries
 

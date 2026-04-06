@@ -240,7 +240,7 @@ Work context must be recoverable across work boundaries through structured, huma
 transparent mechanisms. Knowledge gained during work — decisions, state, rationale — must not be
 lost when a session ends.
 
-Without context preservation, each session starts from scratch and the recursive feedback loop
+Without context preservation, each session starts from scratch and the reciprocal feedback loop
 breaks entirely. The mechanism must be structured (consistent format),
 human-controlled (the human decides what's preserved and can edit it), transparent (visible and
 debuggable), and predictable (reliable recovery, not dependent on ambient tool features).

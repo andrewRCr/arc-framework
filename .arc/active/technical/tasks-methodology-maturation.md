@@ -45,61 +45,81 @@ downstream Operating Modes work unit.
 
 ### **Phase 1:** Package-Project Sync Audit and Dev Safeguard
 
-*Goal: Establish a clean baseline across both copies and prevent future desync.*
+_Goal: Establish a clean baseline across both copies and prevent future desync._
 
-- [ ] **1.1 Audit package-project content drift**
-    - Compare `.arc/` (project instance) against `packages/arc-framework/arc/` (distributable source)
-      for all Framework and Configurable files
-    - Identify content drift: files that diverged, regressions, stale path references
-    - Catalog `.template.md` counterparts that require careful handling
-    - Document all deviations found
+- [x] **1.1 Audit package-project content drift**
+    - Compared all 56 Framework + 13 Configurable files using file-classification inventory as checklist
+    - **Framework drift (2 files):**
+        - `strategy-core-philosophy.md` line 243: .arc/ has "reciprocal" (correct, d003463), package
+          has stale "recursive" — propagate .arc/ → package
+        - `system/agent/README.md` line 84: .arc/ has `.template.md` heading, package has `.md` —
+          package is correct (adopter-facing), .arc/ should match
+    - **Framework missing from .arc/ (1 file):**
+        - `system/workflows/arc/initial-setup/03_configure-external-integration.md` — added to
+          package after last sync cycle
+    - **Configurable drift (5 files):** DEV-RULES.PROJECT, STRATEGY-INDEX, arc-config.yml,
+      CLAUDE.ARC, CODEX.ARC, arc-extensions — all expected project customizations, no framework
+      section drift. arc-methods.md identical.
+    - **Template counterparts (14 files):** All rendered correctly. 6 contain `<!-- arc:if -->`
+      conditionals on team.mode and pm.mode. No unexpected drift in non-conditional content.
+    - **Legitimately asymmetric:** 5 agent files package-only (init-selected), project-owned files
+      .arc/-only (testing strategy, pre-merge-review workflow, analysis/research docs)
 
-- [ ] **1.2 Reconcile identified deviations**
+- [x] **1.2 Reconcile identified deviations**
+    - Only 2 Framework file drifts found (audit was clean); no stale paths or link issues
 
-    - [ ] **1.2.a Fix content drift in package source**
-        - Package source is authoritative — resolve all non-Configurable drift by updating `.arc/`
-          to match `packages/arc-framework/arc/`, or vice versa where `.arc/` has the correct
-          content and package source regressed
+    - [x] **1.2.a Fix content drift in package source**
+        - `strategy-core-philosophy.md`: propagated "reciprocal" from .arc/ → package (d003463
+          terminology fix not previously synced)
+        - `system/agent/README.md`: propagated `.md` heading from package → .arc/ (corrected
+          erroneous `.template.md` reference)
 
-    - [ ] **1.2.b Resolve stale path references and template placeholders**
-        - Fix across both copies: stale paths, incorrect references, placeholder strings in
-          workflow docs
+    - [x] **1.2.b Resolve stale path references and template placeholders**
+        - No stale paths or placeholder strings found in either copy during audit
 
-    - [ ] **1.2.c Verify cross-file link consistency**
-        - All reference-style links resolve, internal cross-references match between copies
-        - Output: both copies agree on all non-Configurable content, documented deviations
-          limited to project-specific customizations (e.g., CodeRabbit extension)
+    - [x] **1.2.c Verify cross-file link consistency**
+        - Both copies now agree on all non-Configurable content; verified via diff
+        - Remaining deviations are project-specific Configurable customizations (5 files) and
+          legitimately asymmetric files (init-selected agents, project-owned content)
 
-- [ ] **1.3 Build dependency map**
-    - Full inventory of which files exist in both copies
-    - Document edit flow direction per file (package → project for Framework/Configurable, project-only
-      for Project-Owned)
-    - Flag files with `.template.md` counterparts and `<!-- arc:if -->` conditionals
-    - Output: structured reference usable by the dev safeguard strategy
+- [x] **1.3 Build dependency map**
+    - Folded into 1.4 as a section in the strategy doc (not a standalone deliverable)
 
-- [ ] **1.4 Write dev safeguard strategy**
-    - Create `strategies/project/strategy-package-project-sync.md` (project-level, not shipped)
-    - Document: two-copy architecture, edit flow rules, dependency map, template handling guidance
-    - Add reference from DEV-RULES.PROJECT pointing to this strategy for methodology edits
-    - Scope: `reference/` and `system/` content (shipped to adopters). Does not apply to `active/`,
-      `backlog/`, or `reference/archive/`
+- [x] **1.4 Write dev safeguard strategy**
+    - Created `strategies/project/strategy-package-project-sync.md` with:
+        - Two-copy architecture explanation and edit flow rules by classification
+        - Template counterpart catalog (14 files, 6 with `arc:if` conditionals)
+        - Safeguards section: pre-commit hook, DEV-RULES.PROJECT guard, husky separation pattern
+        - Full dependency map: Framework (34 files), Configurable (7), package-only (6),
+          template counterparts (14)
+    - Added Package-Project Sync section to DEV-RULES.PROJECT (session-loaded lightweight guard)
+    - Added entry to STRATEGY-INDEX
 
-- [ ] **1.5 Evaluate and implement hook enforcement**
+- [x] **1.5 Evaluate and implement hook enforcement**
+    - Viable and implemented. Executed before 1.3/1.4 (reordered — hook design informed strategy scope)
 
-    - [ ] **1.5.a Assess viability of pre-commit check**
-        - Can a check catch edits to `.arc/` copies of distributed files?
-        - Design: flag staged changes to `.arc/reference/` or `.arc/system/` files that have a
-          corresponding `packages/arc-framework/arc/` counterpart
-        - Identify edge cases and false positive risks
+    - [x] **1.5.a Assess viability of pre-commit check**
+        - Viable using manifest.json classification — distinguishes Framework (warn) from
+          Configurable/Scaffolded (expected edits, no warning)
+        - Edge case: one-time drift fixes edit .arc/ to match package — hook still warns, but
+          correctly (a Framework file was edited in .arc/). Acceptable false positive for rare
+          sync operations.
+        - Configurable files produce no false positives — manifest classification excludes them
 
-    - [ ] **1.5.b Implement or document decision**
-        - If warranted and clean: implement the hook check
-        - If edge cases make it not worth complexity: document the decision and rationale in the
-          strategy doc
+    - [x] **1.5.b Implement or document decision**
+        - Implemented as project-specific script (`scripts/check-package-sync.sh`) called from
+          `.husky/pre-commit` after the ARC hook — NOT in the ARC hook itself (Framework files
+          ship to adopters; this check is dev-only for this repo)
+        - Prior art: `.arc-internal/` dual-hook approach from WU2 solved same problem; superseded
+          by current two-copy architecture but the separation concern was never re-addressed
+        - Warns when `.arc/reference/` or `.arc/system/` Framework files are staged without their
+          `packages/arc-framework/arc/` counterpart also staged
+        - Suppresses when both copies staged (deliberate sync)
+        - Shellcheck clean, tested full husky chain (ARC hook → project check)
 
 ### **Phase 2:** Methodology Boundary Definition
 
-*Goal: Define what ARC-the-methodology requires, independent of any specific implementation.*
+_Goal: Define what ARC-the-methodology requires, independent of any specific implementation._
 
 **Strategies:** `strategy-core-philosophy.md`
 
@@ -119,12 +139,7 @@ downstream Operating Modes work unit.
         5. Context loading tiers (T1/T2/T3 loading model)
 
 - [ ] **2.3 Resolve grey areas (batch 2: 6-10)**
-    - For each, classify as methodology or implementation with documented rationale:
-        6. Trust hierarchy (git > task list > WORK-STATUS > SESSION-NOTES)
-        7. Strategy document pattern (codified domain guidance)
-        8. Deferred review scope (user-defined continuation ranges)
-        9. Verification phase (formal end-of-work-unit validation)
-        10. Context footer requirement (commit traceability linking)
+    - For each, classify as methodology or implementation with documented rationale: 6. Trust hierarchy (git > task list > WORK-STATUS > SESSION-NOTES) 7. Strategy document pattern (codified domain guidance) 8. Deferred review scope (user-defined continuation ranges) 9. Verification phase (formal end-of-work-unit validation) 10. Context footer requirement (commit traceability linking)
 
 - [ ] **2.4 Articulate human co-development posture**
     - Write methodology-level articulation of what effective co-development looks like during task
@@ -138,7 +153,7 @@ downstream Operating Modes work unit.
 
 ### **Phase 3:** CLI Update Behavior Fix
 
-*Goal: Framework-classified files wholesale replaced on `arc update` instead of three-way merged.*
+_Goal: Framework-classified files wholesale replaced on `arc update` instead of three-way merged._
 
 **Strategies:** `strategy-testing-methodology.md`
 
@@ -152,7 +167,6 @@ downstream Operating Modes work unit.
 - [ ] **3.2 Update tests for new update behavior**
 
     Build `test-first` (one behavior at a time):
-
     - Framework file is wholesale replaced even when adopter has modified it
     - Configurable file still goes through three-way merge when adopter has modified it
     - Scaffolded file still skipped
@@ -170,8 +184,8 @@ downstream Operating Modes work unit.
 
 ### **Phase 4:** Content Placement and Install Structure
 
-*Goal: Evaluate and implement content placement decisions across three axes, plus install root
-streamlining.*
+_Goal: Evaluate and implement content placement decisions across three axes, plus install root
+streamlining._
 
 - [ ] **4.1 Evaluate Axis 1: Install vs docs site**
     - For each strategy doc (using the dependency mapping from notes file), assess:
@@ -188,7 +202,6 @@ streamlining.*
     - Document decisions with rationale
 
 - [ ] **4.3 Implement content extraction and placement**
-
     - [ ] **4.3.a Extract explanatory content to docs site**
         - Move Explanation-type content from strategy docs to docs site pages (per Axis 1 decisions)
         - Rewrite extracted content to work as standalone docs-site pages
@@ -209,7 +222,6 @@ streamlining.*
         - Verify no broken links in either location
 
 - [ ] **4.4 Update docs site structure**
-
     - [ ] **4.4.a Add methodology/philosophy pages**
         - Create new docs-site pages for any extracted content
         - Write or adapt content for the docs-site audience and format
@@ -220,7 +232,6 @@ streamlining.*
         - Docs site must remain fully functional after changes
 
 - [ ] **4.5 Remove `.arc/README.md` from installs**
-
     - [ ] **4.5.a Extract Document Audiences content to docs site**
         - Four-audience taxonomy (agent-executed, collaborative, shared context, human-facing)
           plus explanation of audience headers in workflows
@@ -241,8 +252,8 @@ streamlining.*
 
 ### **Phase 5:** Language and Positioning Cleanup
 
-*Goal: Docs consistently distinguish methodology from framework implementation. Harness engineering
-framing integrated.*
+_Goal: Docs consistently distinguish methodology from framework implementation. Harness engineering
+framing integrated._
 
 - [ ] **5.1 Language cleanup: docs site**
     - Review `docs/` pages for methodology/implementation conflation
@@ -277,10 +288,9 @@ framing integrated.*
 
 ### **Phase 6:** Conditional Content Architecture
 
-*Goal: Document current conditional mechanisms and assess scaling for proposed modes.*
+_Goal: Document current conditional mechanisms and assess scaling for proposed modes._
 
 - [ ] **6.1 Inventory all current conditionals**
-
     - [ ] **6.1.a Scan workflow and doc conditionals**
         - All workflow documents: conditional-in-prose patterns (e.g., "skip this step if
           `pm.mode` is `none`")
@@ -302,8 +312,8 @@ framing integrated.*
 
 ### **Phase 7:** Skill Exploration and Development
 
-*Goal: Evaluate the ARC workflow surface for skill opportunities, then design and implement skills
-that pass the bar.*
+_Goal: Evaluate the ARC workflow surface for skill opportunities, then design and implement skills
+that pass the bar._
 
 - [ ] **7.1 Systematic skill evaluation**
     - Walk the full pipeline (planning → PRD → task generation → execution → integration → archival)
@@ -313,7 +323,6 @@ that pass the bar.*
     - Document the evaluation: which candidates pass, which don't, rationale for each
 
 - [ ] **7.2 Design and implement arc-review**
-
     - [ ] **7.2.a Design skill scope and workflow**
         - Define what the skill surfaces: spec deviations, unexpected file changes, ambiguity
           points where agent chose an interpretation, judgment calls
@@ -344,7 +353,6 @@ that pass the bar.*
     - Skip if evaluation (7.1) determines it doesn't add sufficient value
 
 - [ ] **7.5 Update file classification and package source**
-
     - [ ] **7.5.a Add skills to package source and generate local variants**
         - Canonical skill files already in `system/skills/` — ensure mirrored to
           `packages/arc-framework/arc/system/skills/` for distribution
@@ -358,7 +366,7 @@ that pass the bar.*
 
 ### **Phase 8:** Verification
 
-*Goal: Confirm all deliverables meet PRD success criteria.*
+_Goal: Confirm all deliverables meet PRD success criteria._
 
 - [ ] **8.1 Tier 3 quality gates**
     - Run full quality gate suite per [verify-work-unit.md][verify-work-unit]:
