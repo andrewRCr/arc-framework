@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 2.1 — Create methodology summary artifact (line ~126)
-**Last Completed**: Phase 1 — Package-Project Sync Audit and Dev Safeguard (Tasks 1.1–1.5)
+**Next Task**: Task 3.1 — Implement wholesale replacement for Framework files (line ~178)
+**Last Completed**: Phase 2 — Methodology Boundary Definition (Tasks 2.1–2.4)
 **Blockers**: [none]
-**Next Action**: Begin Task 2.1 — create methodology summary artifact
+**Next Action**: Begin Phase 3 — CLI update behavior fix
 
 ---
 

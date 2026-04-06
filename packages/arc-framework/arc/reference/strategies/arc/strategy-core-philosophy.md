@@ -230,9 +230,12 @@ automated verification, the agent can declare "done" with no check, and errors c
 review increments. The principle is about the existence of automated verification — not the
 specific gates, tools, or strictness level.
 
-*Conventions:* Zero-tolerance policy, specific tier definitions (Tier 1/2/3), specific tools, and
-when each tier runs. The "leave it cleaner" rule (issues found in files being modified must be
-addressed) and capture discipline (identified work routed to actionable locations) are conventions.
+*Conventions:* Zero-tolerance policy, specific tier definitions (Tier 1/2/3), specific tools, when
+each tier runs, and the verification phase structure (formal end-of-work-unit validation checkpoint).
+The "leave it cleaner" rule (issues found in files being modified must be addressed) is convention;
+the requirement to capture discovered work rather than ignore it is closer to methodology, but the
+routing mechanism (companion files, inbox, backlog) and severity triage thresholds are convention.
+Issue triage (fix-vs-defer decision tree) is a configurable method.
 
 #### P5. Context preservation
 
@@ -256,8 +259,12 @@ methodology discipline through the establish-execute-capture rhythm, and create 
 commit points.
 
 *Conventions:* WORK-STATUS.md + SESSION-NOTES.md, session initialization and handoff ceremonies, specific context
-quality thresholds, and what triggers session end. Alternative mechanisms that satisfy the
-structured/human-controlled/transparent/predictable criteria are valid.
+quality thresholds, what triggers session end, the context loading tier model (T1/T2/T3 delivery
+strategy for managing agent context constraints), and the trust hierarchy for conflict resolution
+(git > task list > WORK-STATUS > SESSION-NOTES). Note: sources of truth having a defined priority
+ordering is methodology (without it, conflicting state is unresolvable and context preservation
+breaks down); the specific ordering and artifact set are convention. Alternative mechanisms that
+satisfy the structured/human-controlled/transparent/predictable criteria are valid.
 
 #### P6. Traceability through version control
 
@@ -287,8 +294,9 @@ right granularity. Tracking granularity should roughly match review increment gr
 connection ensures the methodology's components reinforce each other.
 
 *Conventions:* Markdown checkboxes in task list files, task list naming and formatting, specific
-granularity guidelines. Teams using external trackers (Jira, Linear, GitHub Issues) can satisfy the
-principle through those tools.
+granularity guidelines, and work categories (feature/technical/incidental as an organizational
+taxonomy). Teams using external trackers (Jira, Linear, GitHub Issues) or different categorization
+schemes can satisfy the principle through those tools.
 
 ### Design commitments
 
@@ -325,13 +333,13 @@ throughout the framework.
 *Conventions:* Specific formatting rules, template layouts, collaborative voice in documentation,
 reference-style links.
 
-#### P10. Recursive improvement
+#### P10. Codified improvement
 
 The framework and the projects that use it improve through documented feedback loops. Patterns are
 codified from experience; decisions are captured; future work builds on prior context rather than
 starting fresh.
 
-Without knowledge evolution, ARC is a static project management template. The recursive feedback —
+Without knowledge evolution, ARC is a static project management template. The feedback loop —
 decisions documented, patterns extracted, future work informed by prior cycles — is what makes it a
 living methodology. This applies at two levels: projects accumulate institutional knowledge across
 sessions, and the framework itself improves through the same mechanism (ARC is developed using

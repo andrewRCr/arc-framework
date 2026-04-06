@@ -214,7 +214,7 @@ synonymous with version control in current practice. Non-git VCS is escape-hatch
 still applies but ARC's specific tooling guidance won't cover it.
 
 The deeper principle is traceability: you can follow the thread from any change back to the decision that motivated it.
-This is what makes the recursive improvement loop auditable and what gives commits, branches, and PRs their role as the
+This is what makes the improvement loop auditable and what gives commits, branches, and PRs their role as the
 canonical interface for work artifacts.
 
 **Conventions under this principle:** Conventional commit format, context footer format, atomic commit granularity,
@@ -271,7 +271,7 @@ organization throughout the framework.
 **Conventions under this principle:** Specific formatting rules, template layouts, what "agent-friendly" means in
 practice.
 
-#### P10. Recursive Improvement
+#### P10. Codified Improvement
 
 **Statement:** The framework and the projects that use it improve through documented feedback loops. Patterns are
 codified from experience; decisions are captured; future work builds on prior context rather than starting fresh.

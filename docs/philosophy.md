@@ -147,7 +147,7 @@ Core workflows use agent-neutral terms, with agent-specific guidance isolated to
 comprehension and AI agent consumption. Documentation that only works for one audience misses the
 purpose of a human-AI collaboration framework.
 
-**P10. Recursive improvement.** The framework and the projects that use it improve through documented
+**P10. Codified improvement.** The framework and the projects that use it improve through documented
 feedback loops. Patterns are codified from experience; decisions are captured; future work builds on
 prior context rather than starting fresh.
 

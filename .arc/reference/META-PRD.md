@@ -43,7 +43,7 @@ The full philosophical argument, with research grounding, is in the
 - 11 principles (P1-P11) defining ARC's identity — spec-driven development, human-agent
   co-development, focused sequential execution, quality gate enforcement, context preservation,
   traceability, granular task tracking, agent-agnostic design, dual-audience documentation,
-  recursive improvement, shared-context co-development
+  codified improvement, shared-context co-development
 - Three-tier flexibility model: principles (non-negotiable), conventions (configurable with
   defaults), escape hatches (acknowledged without active design investment)
 - Sharp principle/convention boundary — the test: "if an adopter changed this, would they still

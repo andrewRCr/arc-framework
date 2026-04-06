@@ -123,38 +123,56 @@ _Goal: Define what ARC-the-methodology requires, independent of any specific imp
 
 **Strategies:** `strategy-core-philosophy.md`
 
-- [ ] **2.1 Create methodology summary artifact**
-    - Write a focused section (in the philosophy strategy doc, or as a lightweight companion) that
-      states "this is ARC without any implementation"
-    - Targeted at someone who says "I like the ideas but I'm not going to use your framework"
-    - Should be readable in five minutes
-    - Leave the reader knowing what ARC-the-methodology asks of them
+- [x] **2.1 Create methodology summary artifact**
+    - Created `docs/methodology.md` as standalone docs site page (not in philosophy strategy)
+    - Structured as practices (core practice, what it asks of the developer, where methodology
+      ends), not as P1-P11 list; principles woven in without numbering
+    - Deliberately avoids "spec-driven development" terminology (see Task 5.5)
+    - Added to mkdocs.yml navigation between Home/Getting Started and Philosophy
+    - Cross-references philosophy page evidence base for the single-threaded attention claim
+    - External research validated positioning: co-development as primary mode with bounded review
+      increments is novel relative to published methodologies (Harness Engineering, SDD)
 
-- [ ] **2.2 Resolve grey areas (batch 1: 1-5)**
-    - For each, classify as methodology or implementation with documented rationale:
-        1. Review increment granularity (per-task boundary)
-        2. Tiered quality gates (Tier 1/2/3 system)
-        3. Work categories (feature/technical/incidental)
-        4. Issue triage routing (fix-vs-defer decision tree)
-        5. Context loading tiers (T1/T2/T3 loading model)
+- [x] **2.2 Resolve grey areas (batch 1: 1-5)**
+    - Classifications with rationale (all 5 resolved as convention):
+        1. Review increment granularity → convention under P2 (already listed in P2 conventions;
+           methodology requires bounded increments, specific per-task granularity is configurable)
+        2. Tiered quality gates → convention under P4 (P4 requires verification, not the specific
+           tier structure; sharpened P4 conventions text to note tier system and verification phase)
+        3. Work categories → convention under P7 (organizational taxonomy; teams using different
+           categories or external trackers satisfy P7; added to P7 conventions text)
+        4. Issue triage routing → convention under P4 (configurable method in arc-methods.md;
+           capture requirement has methodology weight, routing mechanism is convention)
+        5. Context loading tiers → implementation under P5 (T1/T2/T3 is how the framework manages
+           agent context constraints; added to P5 conventions text)
+    - Updated philosophy strategy conventions lines for P4, P5, P7 (both copies synced)
 
-- [ ] **2.3 Resolve grey areas (batch 2: 6-10)**
-    - For each, classify as methodology or implementation with documented rationale:
-        6. Trust hierarchy (git > task list > WORK-STATUS > SESSION-NOTES)
-        7. Strategy document pattern (codified domain guidance)
-        8. Deferred review scope (user-defined continuation ranges)
-        9. Verification phase (formal end-of-work-unit validation)
-        10. Context footer requirement (commit traceability linking)
+- [x] **2.3 Resolve grey areas (batch 2: 6-10)**
+    - Classifications with rationale (all 5 resolved as convention, two with methodology kernels):
+        6. Trust hierarchy → convention with methodology kernel under P5 (having a defined priority
+           ordering is methodology — without it, conflicting state is unresolvable; the specific
+           four-level ordering is convention; added to P5 conventions text with methodology note)
+        7. Strategy document pattern → convention under P10 (codified improvement is methodology;
+           the specific mechanism — strategy docs, directory structure, consult protocol — is
+           convention; no text update needed, P10 conventions already general enough)
+        8. Deferred review scope → convention under P2 (already listed in P2 conventions;
+           configurable relaxation of default review cadence)
+        9. Verification phase → convention under P4 (methodology requires thorough pre-merge
+           verification; the formal phase structure is convention; added to P4 conventions text)
+        10. Context footer requirement → convention under P6 (already listed in P6 conventions;
+            traceability is methodology, specific footer format is convention)
+    - Two methodology kernels identified: trust priority ordering (P5), work capture requirement (P4)
 
-- [ ] **2.4 Articulate human co-development posture**
-    - Write methodology-level articulation of what effective co-development looks like during task
-      execution
-    - Framing: descriptive ("this is what doing ARC looks like"), not prescriptive or
-      self-monitoring ("check yourself against this list")
-    - Placement: P2 section of the philosophy strategy, or the methodology summary artifact
-    - Not in the process-task-loop (agent-facing)
-    - Design constraint: treat the reader as a responsible engineer who wants to understand the
-      practice
+- [x] **2.4 Articulate human co-development posture**
+    - Substantially addressed by the methodology summary (Task 2.1, `docs/methodology.md`)
+    - "Co-development, not delegation" section: what the human contributes (lived experience,
+      judgment, cross-cutting connections, "this feels wrong" moments), practical cost of
+      delegation (maintenance knowledge), counter-position to industry delegation trend
+    - "Interaction frequency matters" section: review increment practice, developer proximity,
+      reviewer disengagement pattern
+    - Descriptive framing throughout, treating reader as a responsible engineer
+    - Moment-by-moment review checkpoint guidance deferred to arc-review skill (Phase 7) as
+      operational tooling rather than methodology articulation
 
 ### **Phase 3:** CLI Update Behavior Fix
 
@@ -284,7 +302,19 @@ framing integrated._
     - Reference Fowler article in philosophy strategy and docs site "What is ARC" content
     - Frame as "ARC's approach maps to the harness engineering model" — not derivative
 
-- [ ] **5.5 Connect skills to methodology docs**
+- [ ] **5.5 Rename P1 away from "spec-driven development"**
+    - "Spec-driven development" has been claimed in 2025-2026 AI discourse (ThoughtWorks, Fowler/SDD
+      tools, GitHub spec-kit) to mean specifications as executable blueprints for autonomous agent
+      implementation — adjacent to but different from ARC's meaning ("written specifications before
+      implementation"). Risk: readers assume ARC endorses the SDD paradigm (human writes spec, agent
+      implements autonomously, human reviews), which is close to the opposite of co-development.
+    - Rename P1 across all occurrences (~35 files). Avoid "spec-first" (too close). Find language
+      that conveys "plan before you build" without triggering the SDD association.
+    - Where appropriate, reference SDD as a counterexample: similar starting point (specifications),
+      different execution model (delegation vs co-development).
+    - Discovered during Phase 2 methodology landscape research (2026-04-06).
+
+- [ ] **5.6 Connect skills to methodology docs**
     - Reference arc-task-audit from relevant methodology/workflow docs (currently a documentation
       island)
     - Reference new skills (arc-review, and any others from Phase 7) from the docs they support
