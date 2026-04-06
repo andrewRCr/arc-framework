@@ -79,7 +79,7 @@ configurable install directory in scope.
 - Upstream: WU1 (config schema), WU2 (methodology), Structural Validation (file inventory)
 - Downstream: Dogfooding, WU4
 
-**WU4: Beta Readiness** — In Progress
+**WU4: Beta Readiness** — ✅ Complete (April 2026)
 
 Migrate dev repo to a real ARC installation, implement contributor role support (ADR-014),
 establish public-facing scaffolding (repo rename, docs site skeleton, npm beta publish).
