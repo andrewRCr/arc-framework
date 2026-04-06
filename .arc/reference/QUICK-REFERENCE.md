@@ -10,7 +10,7 @@ Command patterns and environment context for the ARC framework.
 ### Critical Path Reference
 
 | Resource           | Location from Repo Root          | Why It Matters                        |
-|--------------------|----------------------------------|---------------------------------------|
+| ------------------ | -------------------------------- | ------------------------------------- |
 | Template documents | `.arc/reference/`                | Template/example content for adopters |
 | Active work        | `.arc/active/`                   | Current feature work                  |
 | CLI package        | `packages/arc-framework/`        | `@arc-framework/cli` npm package      |
@@ -263,6 +263,19 @@ Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / 
 # Browse completed atomic work from commit history
 arc log --atomic
 ```
+
+---
+
+## npm Publishing
+
+**Auth model:** Token-only. Use a granular access token from npmjs.com with "Bypass 2FA"
+enabled, stored as a literal `//registry.npmjs.org/:_authToken=<token>` in `~/.npmrc`.
+
+**Never run `npm login`** — it creates a session that overrides the granular token and
+triggers browser-based WebAuthn that doesn't work in WSL2.
+
+**Recovery:** `npm logout` deletes the entire `~/.npmrc`. If that happens, recreate the
+file from the token. Write tokens expire at 90 days max — rotate before expiry.
 
 ---
 
