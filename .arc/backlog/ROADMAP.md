@@ -82,7 +82,7 @@ configurable install directory in scope.
 **WU4: Beta Readiness** — ✅ Complete (April 2026)
 
 Migrate dev repo to a real ARC installation, implement contributor role support (ADR-014),
-establish public-facing scaffolding (repo rename, docs site skeleton, npm beta publish).
+establish public-facing scaffolding (repo rename, docs site with operational content, npm beta publish).
 Prepares the framework for multi-week beta testing on an external project.
 
 - Plan: `feature/plan-wu4-beta-readiness.md`

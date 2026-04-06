@@ -19,7 +19,7 @@
 **Next Task**: —
 **Last Completed**: Beta Readiness (archived)
 **Blockers**: [none]
-**Next Action**: Refine plan-methodology-maturation.md into PRD, then generate tasks for WU-A
+**Next Action**: Create PRD for WU-A (Methodology Maturation) from refined plan doc
 
 ---
 
