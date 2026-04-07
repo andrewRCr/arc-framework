@@ -39,9 +39,12 @@ while IFS= read -r arc_file; do
     classification=$(grep -A1 "\"${rel_path}\"" "$manifest_file" 2>/dev/null | \
         grep '"classification"' | sed 's/.*: *"\(.*\)".*/\1/' || true)
     if [ "$classification" = "Framework" ]; then
-        # Check if the package counterpart is also staged
+        # Check if the package counterpart is also staged.
+        # Template files render from .template.md (package) to .md (.arc/),
+        # so check both the direct path and the .template.md variant.
         pkg_file="$pkg_arc/$rel_path"
-        pkg_staged=$(git diff --cached --name-only | grep -F "$pkg_file" || true)
+        pkg_template="${pkg_file%.md}.template.md"
+        pkg_staged=$(git diff --cached --name-only | grep -F -e "$pkg_file" -e "$pkg_template" || true)
         if [ -z "$pkg_staged" ]; then
             unsynced_framework="${unsynced_framework}${arc_file}\n"
         fi
