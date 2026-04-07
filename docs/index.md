@@ -51,7 +51,7 @@ tasks. Commit preparation analyzes atomic boundaries and keeps project state in 
 move through a managed lifecycle from planning through integration. The agent follows workflows
 that branch on your project's configuration — not interpreting guidelines, executing protocols.
 
-**A real configurability architecture.** ARC's [11 principles](philosophy.md) are
+**A real configurability architecture.** ARC's [11 principles](philosophy/index.md) are
 non-negotiable; everything else is a convention with a strong default your team replaces.
 Config values (`arc-config.yml`) control runtime behavior like commit format and branch
 protection. Methods (`arc-methods.md`) are overridable contracts at workflow trigger points:
@@ -82,13 +82,13 @@ project standards survive across framework versions.
 
 ## Documentation
 
-| Section                               | What You'll Find                                                     |
-|---------------------------------------|----------------------------------------------------------------------|
-| [Getting Started](getting-started.md) | Install, first session walkthrough, what the setup produces          |
-| [How ARC Works](how-arc-works.md)     | Session lifecycle, skills, task execution, committing, handoffs      |
-| [Philosophy](philosophy.md)           | The 11 principles, evidence base, where ARC fits                     |
-| [Work Planning](work-planning.md)     | The planning pipeline from idea to task list, work organization      |
-| [Updating ARC](updating.md)           | What `arc update` does, file classifications, what's safe to edit    |
-| [Reference](reference/index.md)       | Configuration, quality gates, skills, team coordination, glossary    |
-| [FAQ](faq.md)                         | Common questions about design choices, agent compatibility, usage    |
-| [Contributing](contributing.md)       | How to contribute — setup, commit conventions, quality standards     |
+| Section                                     | What You'll Find                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| [Getting Started](getting-started.md)       | Install, first session walkthrough, what the setup produces       |
+| [How ARC Works](how-arc-works.md)           | Session lifecycle, skills, task execution, committing, handoffs   |
+| [Philosophy](philosophy/index.md)           | The 11 principles, evidence base, where ARC fits                  |
+| [Work Planning](work-planning.md)           | The planning pipeline from idea to task list, work organization   |
+| [Updating ARC](updating.md)                 | What `arc update` does, file classifications, what's safe to edit |
+| [Reference](reference/index.md)             | Configuration, quality gates, skills, team coordination, glossary |
+| [FAQ](faq.md)                               | Common questions about design choices, agent compatibility, usage |
+| [Contributing](contributing.md)             | How to contribute — setup, commit conventions, quality standards  |

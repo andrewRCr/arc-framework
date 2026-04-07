@@ -66,7 +66,7 @@ opposite position.
 
 Human attention for novel knowledge work is single-threaded. The cognitive science on this is
 extensive, well-replicated, and not controversial (see
-[Philosophy](philosophy.md#human-attention-is-single-threaded) for the evidence base). ARC
+[Philosophy](philosophy/index.md#human-attention-is-single-threaded) for the evidence base). ARC
 treats this as a design constraint worth respecting rather than a limitation to engineer around.
 Sequential focus forces quality input at every step and keeps the developer genuinely engaged
 rather than superficially monitoring. The result is work that reflects real judgment, not the
@@ -135,5 +135,5 @@ as a deliberate design variable, sequential focus as a respected constraint, and
 as a structural practice. The supporting disciplines are how the commitments work. The specific
 tools are how the disciplines get enforced.
 
-For the reasoning behind these commitments, see [Philosophy](philosophy.md). For how the ARC
+For the reasoning behind these commitments, see [Philosophy](philosophy/index.md). For how the ARC
 Framework implements them, see [How ARC Works](how-arc-works.md).

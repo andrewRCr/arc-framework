@@ -18,7 +18,7 @@ ARC's collaboration model: the developer and agent work together through
 tight, iterative loops during implementation, not in a review-after-the-fact pattern. The
 developer directs, the agent executes within bounded scope, and both contribute throughout. This
 is ARC's most distinctive characteristic: the human directs, not merely reviews.
-See [Philosophy § Core Commitments](../philosophy.md#core-commitments) (P2).
+See [Philosophy § Core Commitments](../philosophy/index.md#core-commitments) (P2).
 
 ## *Context preservation*
 
@@ -32,21 +32,21 @@ boundaries. Implemented through WORK-STATUS.md (tracked project state) and SESSI
 A configurable practice with a sensible default (tier 2 in ARC's flexibility
 model). Changing a convention keeps ARC intact. Examples: commit format, quality gate commands,
 merge strategy. Contrast with *principle*. See
-[Philosophy § Principles vs. Conventions](../philosophy.md#principles-vs-conventions).
+[Philosophy § Principles vs. Conventions](../philosophy/index.md#principles-vs-conventions).
 
 ## *Escape hatch*
 
 A practice ARC doesn't formally support but doesn't block (tier 3).
 Acknowledged in documentation with the tradeoff stated. Example: squash merging, which ARC
 accommodates by shifting traceability to PR descriptions. See
-[Philosophy § Principles vs. Conventions](../philosophy.md#principles-vs-conventions).
+[Philosophy § Principles vs. Conventions](../philosophy/index.md#principles-vs-conventions).
 
 ## *Extension point*
 
 A preset location in an ARC workflow where teams can inject additional
 steps via `arc-extensions.md`. Extensions add behavior without replacing existing steps.
 Example: running a security scan after each task's quality checks. See
-[Configuration § Extension Points](configuration.md#extension-points).
+[Configuration § Extension Points](customizing/configuration.md#extension-points).
 
 ## *Handoff*
 
@@ -65,7 +65,7 @@ capture surface if it would derail the current task. Issues are never silently i
 A structured replacement in `arc-methods.md` that substitutes ARC's
 default implementation for a convention with the team's alternative. The override must satisfy
 the same contract as the default. Example: replacing ARC's commit format with a Jira-prefixed
-format. See [Configuration § Method Overrides](configuration.md#method-overrides).
+format. See [Configuration § Method Overrides](customizing/configuration.md#method-overrides).
 
 ## *Planning Module*
 
@@ -83,7 +83,7 @@ maps to one task list. PRDs are living documents updated as understanding evolve
 
 A non-negotiable aspect of ARC's identity (tier 1). Removing or violating a
 principle means you're not meaningfully using ARC. ARC has 11 principles (P1–P11). Contrast
-with *convention*. See [Philosophy § Principles](../philosophy.md#principles).
+with *convention*. See [Philosophy § Principles](../philosophy/index.md#principles).
 
 ## *Process task loop*
 

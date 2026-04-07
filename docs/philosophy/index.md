@@ -19,7 +19,7 @@ meaningfully. You're present during execution — steering, correcting, contribu
 agent. Sessions are bounded and intentional, with structured handoffs that preserve context for the
 next session. Quality gates verify work at every level. The reasoning for each of these choices
 follows — if you'd rather start with the practical mechanics, see
-[How ARC Works](how-arc-works.md).
+[How ARC Works](../how-arc-works.md).
 
 ## Three Observations
 
@@ -172,7 +172,7 @@ traceability). Quality gate enforcement is a principle (removing verification en
 ARC). Squash merging is an escape hatch (ARC accommodates it but sacrifices granular commit
 history).
 
-The [configuration mechanisms](reference/configuration.md) — config values, method overrides, and
+The [configuration mechanisms](../reference/customizing/configuration.md) — config values, method overrides, and
 extension points — operate on conventions, never principles.
 
 ## Why Bounded Sessions
@@ -216,7 +216,7 @@ deliberate context loading and ends with intentional state preservation. Without
 knowledge accumulates implicitly and is lost when the conversation ends.
 
 For practical session duration guidance, see
-[How ARC Works § When to End a Session](how-arc-works.md#when-to-end-a-session).
+[How ARC Works § When to End a Session](../how-arc-works.md#when-to-end-a-session).
 
 ## Where ARC Fits
 

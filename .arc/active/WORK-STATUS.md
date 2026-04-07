@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.3 — Docs site structural preparation (line ~253)
-**Last Completed**: Tasks 4.1–4.2 — Per-doc content placement and arc/project extraction evaluation
+**Next Task**: Task 4.4 — Philosophy section extraction (line ~266)
+**Last Completed**: Task 4.3 — Docs site structural preparation
 **Blockers**: [none]
-**Next Action**: Prepare docs site structure (directories, mkdocs.yml nav, stub files) before extraction
+**Next Action**: Extract core-philosophy content to docs site philosophy/ pages, establishing pointer and collapsible patterns
 
 ---
 

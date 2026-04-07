@@ -34,17 +34,25 @@ not_in_nav: |
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - How ARC Works: how-arc-works.md
   - Methodology: methodology.md
-  - Philosophy: philosophy.md
+  - Philosophy:
+    - philosophy/index.md
+    - The 11 Principles: philosophy/principles.md
+  - How ARC Works: how-arc-works.md
   - Work Planning: work-planning.md
   - Updating ARC: updating.md
+  - Customizing ARC:
+    - Configuration: reference/customizing/configuration.md
+    - Methods & Extensions: reference/customizing/methods.md
+    - Agent Hooks: reference/customizing/hooks.md
   - Reference:
     - reference/index.md
-    - Configuration: reference/configuration.md
     - Quality Gates: reference/quality-gates.md
+    - Work Organization: reference/work-organization.md
+    - Sessions & Context: reference/sessions.md
     - Skills: reference/skills.md
     - Team Coordination: reference/team-coordination.md
+    - Task Lists: reference/task-lists.md
     - Glossary: reference/glossary.md
   - FAQ: faq.md
   - Contributing: contributing.md

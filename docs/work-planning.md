@@ -133,7 +133,7 @@ Each work unit moves through a managed lifecycle:
 6. **Archival** — completed artifacts move to the archive for historical reference
 
 ARC provides workflows for each transition. The level of ceremony scales with your
-[branch protection mode](reference/configuration.md#branch-model). `partial` (default) keeps it
+[branch protection mode](reference/customizing/configuration.md#branch-model). `partial` (default) keeps it
 lightweight for solo developers and small teams; `full` requires branches and PR review for all
 changes.
 

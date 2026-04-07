@@ -210,9 +210,11 @@ Every setting in `arc-config.yml`, with its options and default:
 
 ### Team mode
 
-| Setting     | Options         | Default | What it controls                                                                                                         |
-|-------------|-----------------|---------|--------------------------------------------------------------------------------------------------------------------------|
-| `team.mode` | `false`, `true` | `false` | Multi-developer mode. **Structural** — requires `arc init --reconfigure`. See [Team Coordination](team-coordination.md). |
+| Setting     | Options         | Default | What it controls                                                  |
+|-------------|-----------------|---------|-------------------------------------------------------------------|
+| `team.mode` | `false`, `true` | `false` | Multi-developer mode. **Structural** — `arc init --reconfigure`.  |
+
+See [Team Coordination](../team-coordination.md) for the full coordination protocol.
 
 ### User directory
 

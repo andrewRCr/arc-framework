@@ -24,11 +24,11 @@ Agent output quality degrades as context accumulates; human attention for sustai
 same pattern through a different mechanism. Bounded sessions work with both constraints rather than
 against them. The handoff cost is low — a few minutes to capture state — and the fresh start gives
 you clean context and a natural checkpoint to reassess direction. See
-[Philosophy § Why Bounded Sessions](philosophy.md#why-bounded-sessions) for the evidence.
+[Philosophy § Why Bounded Sessions](philosophy/index.md#why-bounded-sessions) for the evidence.
 
 ## Why one task at a time? Why not let the agent work in parallel?
 
-ARC's sequential model serves [co-development](philosophy.md#core-commitments): each task is a
+ARC's sequential model serves [co-development](philosophy/index.md#core-commitments): each task is a
 [review increment](reference/glossary.md#review-increment) — a bounded chunk of execution between
 human review points. Running tasks in parallel means the developer can't meaningfully participate in
 any of them. This applies to the developer's attention, not the agent's capabilities — team-level
@@ -48,7 +48,7 @@ ARC's core value (co-development through tight iterative loops) is absent when t
 asynchronously without the developer present. That said, ARC can function at the boundaries:
 planning produces well-specified task descriptions that serve as dispatch specifications, and quality
 gates verify the output at integration time. See
-[Philosophy § Agent Compatibility](philosophy.md#agent-compatibility).
+[Philosophy § Agent Compatibility](philosophy/index.md#agent-compatibility).
 
 ## Which agents does ARC support?
 
@@ -58,7 +58,7 @@ with **Claude Code** and **Codex CLI**, with validation against **Warp**, **Gemi
 validated through sustained use — if you're using one and have feedback,
 [start a discussion](https://github.com/andrewRCr/arc-framework/discussions) to help improve
 support. See
-[Philosophy § Agent Compatibility](philosophy.md#agent-compatibility).
+[Philosophy § Agent Compatibility](philosophy/index.md#agent-compatibility).
 
 ## Is ARC only for solo developers?
 
@@ -93,7 +93,7 @@ You'd lose more than oversight — you'd lose the architectural insights and cro
 that only surface when you're present during implementation. If you need to step away,
 [deferred review](how-arc-works.md#working-through-tasks) lets you authorize a batch and review when
 you return. If your goal is to hand off work and check results later, ARC isn't the right fit — and
-that's by design. See [Philosophy](philosophy.md#three-observations) for the full reasoning.
+that's by design. See [Philosophy](philosophy/index.md#three-observations) for the full reasoning.
 
 ## Do I need to understand all of ARC before starting?
 

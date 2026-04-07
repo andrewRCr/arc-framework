@@ -250,13 +250,18 @@ Remove .arc/README from installs._
       model, atomic companion rationale, quality-gates philosophy) handled via collapsible
       sections on docs site — no project/ split needed.
 
-- [ ] **4.3 Docs site structural preparation**
-    - Create `docs/philosophy/` directory; move `docs/philosophy.md` → `docs/philosophy/index.md`
-    - Create `docs/reference/customizing/` directory; move `docs/reference/configuration.md` →
-      `docs/reference/customizing/configuration.md`
-    - Update `mkdocs.yml` nav to proposed structure (notes file § Docs Site Extraction Target
-      Mapping). Create stub files for new pages (H1 title only) so nav resolves.
-    - Verify docs site builds with new structure (`mkdocs build --strict`)
+- [x] **4.3 Docs site structural preparation**
+    - Moved `docs/philosophy.md` → `docs/philosophy/index.md`, created `docs/philosophy/`
+      section with stub `principles.md`
+    - Moved `docs/reference/configuration.md` → `docs/reference/customizing/configuration.md`,
+      created `docs/reference/customizing/` with stubs for `methods.md` and `hooks.md`
+    - Created stubs for 3 new reference pages: `work-organization.md`, `sessions.md`,
+      `task-lists.md`
+    - Updated `mkdocs.yml` nav: Philosophy section (2 pages), Customizing ARC section (3
+      pages), expanded Reference section (3 new pages)
+    - Fixed all cross-references across 12 docs files (philosophy path updates, configuration
+      path updates, table realignment for MD060 compliance)
+    - `mkdocs build --strict` passes, all modified files lint clean
 
 - [ ] **4.4 Philosophy section extraction**
     - **Source:** strategy-core-philosophy (474 lines, entire doc → docs site, then removed)

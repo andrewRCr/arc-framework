@@ -38,7 +38,7 @@ are overwritten — these files shouldn't be modified directly.
 
 **If you need to customize:** Don't edit Framework files. Your changes will be overwritten. Use the
 appropriate customization mechanism instead: [config values, method overrides, or extension
-points](reference/configuration.md).
+points](reference/customizing/configuration.md).
 
 ### Configurable
 
