@@ -140,7 +140,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 - PRD reference is absolute path from repo root
 - `Branch(es)` lists the primary implementation branch; add additional branches comma-separated
   when using stacked PRs or team sub-branches (see
-  [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
+  [Task Lists and Branches](strategy-work-organization.md#task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
 - Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
   `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md))
@@ -268,9 +268,9 @@ Task list headers provide essential metadata and context. Format varies by task 
 ```markdown
 ✅ ### **Phase 1:** Backend Tests and Data Models
 
-❌ ### Phase 1: Backend Tests and Data Models  # Missing bold on "Phase 1:"
-❌ ### **Phase 1: Backend Tests**  # Colon inside bold
-❌ ### **Phase 1:** Backend Tests (2 hours)  # Time estimate (prohibited)
+❌ ### Phase 1: Backend Tests and Data Models # Missing bold on "Phase 1:"
+❌ ### **Phase 1: Backend Tests** # Colon inside bold
+❌ ### **Phase 1:** Backend Tests (2 hours) # Time estimate (prohibited)
 ```
 
 ### Parent Tasks
@@ -288,9 +288,9 @@ Task list headers provide essential metadata and context. Format varies by task 
 ```markdown
 ✅ - [ ] **1.1 Write tests for data models**
 
-❌ - [ ] 1.1 Write tests for data models  # Not bold
-❌ - [ ] **1.1** Write tests for data models  # Only number bold
-❌ - [x] **1.1 Write tests for data models**  # Pre-checked (starts unchecked)
+❌ - [ ] 1.1 Write tests for data models # Not bold
+❌ - [ ] **1.1** Write tests for data models # Only number bold
+❌ - [x] **1.1 Write tests for data models** # Pre-checked (starts unchecked)
 ```
 
 ### Subtasks (Third Level)
@@ -312,7 +312,6 @@ Task list headers provide essential metadata and context. Format varies by task 
 ✅ Subtasks with detail bullets:
 
 - [ ] **1.1 `User` model (`models.py`)**
-
     - [ ] **1.1.a Field validation**
 
         Build `test-first` (one behavior at a time):
@@ -330,8 +329,8 @@ Task list headers provide essential metadata and context. Format varies by task 
     - [ ] 1.2.a Run linting checks
     - [ ] 1.2.b Run type checking
 
-❌ - [ ] **1.1.1 Create test for User model**  # Numeric third level (use letters)
-❌ - [ ] 1.1.a Create test with details  # Not bold but has details below
+❌ - [ ] **1.1.1 Create test for User model** # Numeric third level (use letters)
+❌ - [ ] 1.1.a Create test with details # Not bold but has details below
 ```
 
 ### Letter Numbering (Third Level and Beyond)
@@ -400,10 +399,10 @@ completable steps that warrant tracking separately.
 
        - [ ] **1.1.a Field validation**
 
-❌     **Goal:** Create the User model.  # Repeats title, adds no value
-❌     **Goal:** This task involves building a comprehensive user model
-       with field validation, password hashing, and relationship setup
-       to ensure data integrity across the application.  # Too long, should be 1 line
+❌ **Goal:** Create the User model. # Repeats title, adds no value
+❌ **Goal:** This task involves building a comprehensive user model
+with field validation, password hashing, and relationship setup
+to ensure data integrity across the application. # Too long, should be 1 line
 ```
 
 ### Revision Numbering (R Scheme)
@@ -447,10 +446,9 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
 (`MAX_LENGTH`), variables (`response_data`)
 
 ```markdown
-✅ - [ ] 1.2.1 Create `User` model in `src/models/user.py`
-       - Add fields: `username`, `email`, `date_joined`
+✅ - [ ] 1.2.1 Create `User` model in `src/models/user.py` - Add fields: `username`, `email`, `date_joined`
 
-❌ - [ ] 1.2.1 Create User model in src/models/user.py  # No backticks
+❌ - [ ] 1.2.1 Create User model in src/models/user.py # No backticks
 ```
 
 ### Indentation Rules
@@ -483,7 +481,6 @@ Parent Task (0 spaces) - [ ] **X.Y Description**
 - [ ] **1.1 `User` model (`models.py`)**
 
     **Goal:** Validated user model with email and username constraints.
-
     - [ ] **1.1.a Field validation**
         - Fields: `username`, `email`, `password_hash`
         - Add `clean()` method for validation
@@ -558,7 +555,6 @@ convention. Group test and implementation together — by module or concern, not
 ### **Phase 1:** User Model
 
 - [ ] **1.1 `User` model (`models.py`)**
-
     - [ ] **1.1.a Field validation**
         - Fields: `username`, `email`, `password_hash`
         - Add validation in `clean()` method
@@ -600,10 +596,12 @@ cross-layer validation phase.
 
 ```markdown
 ### **Phase 1:** Implement Features
+
 - [ ] **1.1 Create models**
 - [ ] **1.2 Create API endpoints**
 
-### **Phase 2:** Write Tests  # DON'T DO THIS
+### **Phase 2:** Write Tests # DON'T DO THIS
+
 - [ ] **2.1 Write model tests**
 - [ ] **2.2 Write API tests**
 ```
@@ -612,11 +610,12 @@ cross-layer validation phase.
 
 ```markdown
 ### **Phase 1:** User Model
-- [ ] **1.1 Write tests for User model**  # DON'T DO THIS
-- [ ] **1.2 Implement User model**        # Splits one concern into two tasks
+
+- [ ] **1.1 Write tests for User model** # DON'T DO THIS
+- [ ] **1.2 Implement User model** # Splits one concern into two tasks
 ```
 
-Both patterns produce horizontal slicing — writing tests in bulk tests *imagined* behavior, not
+Both patterns produce horizontal slicing — writing tests in bulk tests _imagined_ behavior, not
 actual behavior. Group test + implementation together so each test cycle informs the next.
 
 ---
@@ -663,7 +662,6 @@ This example demonstrates all formatting elements in proper context:
 - [ ] **1.1 Create test fixtures for config scenarios**
 
     **Goal:** Reusable fixtures to test validation across configuration types.
-
     - [ ] **1.1.a Create fixture for valid configs in `test_helpers.py`**
         - Return mock config object with all required fields
         - Support partial overrides for test variations
@@ -674,7 +672,6 @@ This example demonstrates all formatting elements in proper context:
         - Support combining multiple violations in one config
 
 - [ ] **1.2 Verify fixture compatibility with existing tests**
-
     - [ ] **1.2.a Run existing test suite with new fixtures**
         - Ensure no regressions
         - All tests should still PASS
@@ -682,7 +679,6 @@ This example demonstrates all formatting elements in proper context:
 ### **Phase 2:** Validation and Error Reporting
 
 - [ ] **2.1 Field validation (`src/config/loader.py`, `src/config/parser.py`)**
-
     - [ ] **2.1.a Required field validation**
         - Collect all violations before reporting (don't fail on first)
         - Include field path in each error
@@ -705,7 +701,6 @@ This example demonstrates all formatting elements in proper context:
 - [ ] **2.2 Error message formatting (`src/config/errors.py`)**
 
     **Goal:** Ensure error messages are actionable and include fix suggestions.
-
     - [ ] **2.2.a Error output format**
         - Collect errors into structured report, sort by field path
 
@@ -722,7 +717,6 @@ This example demonstrates all formatting elements in proper context:
 ### **Phase 4:** Quality Gates and Manual Verification
 
 - [ ] **4.1 Automated quality checks**
-
     - [ ] **4.1.a Run full test suite**
         - Unit tests: All pass
         - Integration tests: All pass
@@ -732,7 +726,6 @@ This example demonstrates all formatting elements in proper context:
         - Type checker: 0 errors
 
 - [ ] **4.2 Manual testing**
-
     - [ ] **4.2.a Test missing field errors**
         - Remove required field → verify clear error message
         - Test with multiple missing fields
@@ -975,11 +968,11 @@ should map to a verifiable criterion. These checkboxes are checked during the
 
 **Three states** (see [verify-work-unit.md][verify-work-unit] for the execution protocol):
 
-| Marker | Meaning    | Annotation                                                   |
-|--------|------------|--------------------------------------------------------------|
-| `[x]`  | Met        | None needed, or **Deviation** note if addressed differently  |
-| `[~]`  | Superseded | **Superseded** note required - why dropped/deferred          |
-| `[ ]`  | Not met    | Genuine gap - resolve before work is considered complete     |
+| Marker | Meaning    | Annotation                                                  |
+| ------ | ---------- | ----------------------------------------------------------- |
+| `[x]`  | Met        | None needed, or **Deviation** note if addressed differently |
+| `[~]`  | Superseded | **Superseded** note required - why dropped/deferred         |
+| `[ ]`  | Not met    | Genuine gap - resolve before work is considered complete    |
 
 **Example:**
 

@@ -31,7 +31,7 @@ deleted after the PRD is written — they've served their purpose.
 
 ### PRDs
 
-Product Requirements Documents define *what* and *why*; task lists define *how*. One PRD maps to one
+Product Requirements Documents define _what_ and _why_; task lists define _how_. One PRD maps to one
 work unit (a branch and task list). PRDs are living documents, updated as understanding evolves during
 implementation, but changes are intentional, not scope creep.
 
@@ -64,7 +64,7 @@ There's no way to automate recurring task creation.
 ### Task lists
 
 Task lists are the execution layer. Each task is a bounded
-*[review increment](reference/glossary.md#review-increment)* — a single chunk of work the agent
+_[review increment](reference/glossary.md#review-increment)_ — a single chunk of work the agent
 executes autonomously before stopping for the developer's review. One task, one review — this is the
 mechanism that implements [co-development](reference/glossary.md#co-development) at execution time.
 Here's what task entries look like during and after execution:
@@ -115,7 +115,9 @@ they're reactive, not planned from a product vision. Ideally they're rare; the w
 when they're unavoidable.
 
 This is distinct from small discovered issues (a type error, a missing test, a documentation
-gap), which are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units.
+gap), which are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units. For the
+decision guide (how to categorize edge cases) and common pitfalls, see the
+[Work Organization reference](reference/work-organization.md).
 
 Branch naming, directory structure, and archive paths all align:
 `feature/user-authentication` → `.arc/active/feature/` → `.arc/reference/archive/`.

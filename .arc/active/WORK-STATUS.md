@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.6 — Reference pages: work organization and sessions (line ~312)
-**Last Completed**: Task 4.5 — Customizing ARC section extraction
+**Next Task**: Task 4.7 — Reference pages: task lists, team coordination, quality gates (line ~332)
+**Last Completed**: Task 4.6 — Reference pages: work organization and sessions
 **Blockers**: [none]
-**Next Action**: Extract work-organization, session-management, context-loading to reference/ pages
+**Next Action**: Extract task-list-formatting, team-coordination, quality-gates to reference/ pages
 
 ---
 

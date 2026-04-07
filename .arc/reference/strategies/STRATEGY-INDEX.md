@@ -22,7 +22,7 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults
     - Consult when: working on config, extensions, or methods infrastructure
-- `arc/strategy-context-loading.md` - Three-tier loading model, instruction density, method/extension on-demand patterns
+- `arc/strategy-context-loading.md` - Three-tier loading model, classification criteria, method/extension on-demand patterns
     - Consult when: adding new guidance content, deciding loading tier, working on session-init or method loading
 - `arc/strategy-file-classification.md` - File taxonomy, naming conventions, merge strategies, complete inventory
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
@@ -30,8 +30,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: creating PRDs, setting up discovery phases, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
     - Consult when: running quality gates beyond Tier 1, understanding tier boundaries or escalation
-- `arc/strategy-session-management.md` - Focused sessions, context degradation evidence, monitoring responsibility
-    - Consult when: configuring session management, deciding session duration thresholds, understanding the evidence base
+- `arc/strategy-session-management.md` - Monitoring responsibility, session state portability, auto-compaction guidance
+    - Consult when: configuring session state portability, understanding monitoring roles, working on session workflows
 - `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
     - Consult when: creating or restructuring task lists, formatting task entries
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration

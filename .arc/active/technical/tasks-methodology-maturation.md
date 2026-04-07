@@ -316,18 +316,23 @@ Remove .arc/README from installs._
     - **New:** `docs/.markdownlint-cli2.jsonc` disabling MD046 for docs/ (MkDocs admonition
       syntax conflicts with code block style consistency check).
 
-- [ ] **4.6 Reference pages: work organization and sessions**
-    - **Sources:** work-organization (757 lines, ~37%), session-management (211 lines, ~45%),
-      context-loading (267 lines, ~45%)
-    - **Targets:** `reference/work-organization.md` (new), `reference/sessions.md` (new)
-    - work-organization.md: problem-solution narrative, core principles, incidental work
-      rationale, branch protection trade-offs (~280 lines)
-    - sessions.md: three-tier context loading model, instruction density concept, context
-      degradation research, focused sessions philosophy (~135 lines combined from
-      session-management + context-loading)
-    - **Local rewrite (3 docs):** session-management ~115 lines, context-loading ~155 lines,
-      work-organization ~475 lines. Add header pointers + inline links.
-    - **Two-copy edits:** All three are Framework files — edit through package source.
+- [x] **4.6 Reference pages: work organization and sessions**
+    - Two-layer extraction model: docs site pages carry rationale/guidance, installed
+      strategies retain pure operational specs with header blockquote pointers
+    - `docs/reference/work-organization.md` (147 lines): decision guide, edge cases,
+      incidental work unit branching model, branch protection choosing, anti-patterns.
+      Industry citations (Phoenix Project, SAFe, stacked-dev) in collapsible.
+    - `docs/reference/sessions.md` (139 lines): context degradation evidence with research
+      citations in collapsible, three-tier loading model, instruction density concept,
+      duration guidance, monitoring responsibility, auto-compaction reasoning.
+    - **Strategy rewrites (both copies):** work-organization 757→397 (48%), session-management
+      210→100 (52%), context-loading 268→174 (35%). Stripped all narrative/rationale,
+      added header blockquote pointers.
+    - Renamed anchor `#5-task-lists-and-branches` → `#task-lists-and-branches`, updated
+      6 workflow/strategy references (both copies).
+    - Updated cross-references: reference/index.md, work-planning.md, the-framework.md,
+      glossary.md, STRATEGY-INDEX (both copies).
+    - 20 files, -842 net lines.
 
 - [ ] **4.7 Reference pages: task lists, team coordination, quality gates**
     - **Sources:** task-list-formatting (1,020 lines, ~22%), team-coordination (395 lines,

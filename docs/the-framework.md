@@ -188,7 +188,7 @@ next step. Shorter, focused sessions with intentional handoffs produce better re
 sessions, even when context technically permits continuation.
 
 For practical duration guidance and the evidence behind bounded sessions, see
-[Philosophy § Why Bounded Sessions](methodology/rationale.md#why-bounded-sessions).
+[Sessions & Context](reference/sessions.md).
 
 !!! note "Auto-compaction"
     Some platforms automatically summarize conversation history when context fills. Where possible,

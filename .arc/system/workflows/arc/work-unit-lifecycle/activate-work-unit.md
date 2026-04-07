@@ -95,9 +95,9 @@ Edit `.arc/active/{category}/tasks-{name}.md`:
 1. Change `Status: Not Started` → `Status: In Progress`
 2. **(arc-in-git only)** Update PRD path reference from `backlog` to `active`:
 
-   ```
-   **PRD:** `.arc/active/{category}/prd-{name}.md`
-   ```
+    ```
+    **PRD:** `.arc/active/{category}/prd-{name}.md`
+    ```
 
 ### Step 5: Update WORK-STATUS.md
 
@@ -207,7 +207,7 @@ With the work unit activated, proceed to task execution:
 ---
 
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
-[work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#5-task-lists-and-branches
+[work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
 [arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
 [arc-config]: ../../../arc-config.yml
 [integrate-planning-branch]: planning/integrate-planning-branch.md

@@ -140,7 +140,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 - PRD reference is absolute path from repo root
 - `Branch(es)` lists the primary implementation branch; add additional branches comma-separated
   when using stacked PRs or team sub-branches (see
-  [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
+  [Task Lists and Branches](strategy-work-organization.md#task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
 - Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
   `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md))
