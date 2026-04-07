@@ -281,6 +281,406 @@ pre-implementation, codebase-grounded); this is post-exploration, pre-PRD, requi
 
 ---
 
+## Phase 4 Research Findings: Content Placement
+
+### Approach Decision: Hybrid Model
+
+External research (two rounds, April 2026) confirmed the industry norm: no established developer
+tooling or methodology framework ships explanatory/rationale content locally installed alongside
+operational content. Categories surveyed: dev tooling (ESLint, Prettier, Husky, etc.), framework
+scaffolding (Rails, Django, Next.js, Vite), methodology frameworks (SAFe, Scrum, DORA), AI dev
+tooling (Cursor, Copilot, Windsurf, Aider), IaC (Terraform, Pulumi), docs-as-code tools.
+
+**Closest analogue:** Next.js ships `AGENTS.md` with `create-next-app` — version-matched docs
+consumed by AI agents during work. But it's operational API reference, not explanatory philosophy,
+and uses comment boundary markers to prevent merge conflicts on update.
+
+**Opinionated framework precedents:** Rails doctrine, Prettier rationale, Black philosophy, Angular
+style guide — all keep philosophy/rationale on hosted docs, ship only operational defaults.
+
+**Adopted approach — hybrid model:**
+
+- **Operational reference** consumed by workflows/methods → stays local
+- **Brief rationale context** (1-2 paragraphs per key decision, enough for agent to advise on
+  "why") → stays local
+- **Full explanatory content** (evidence bases, deep-dive analysis, philosophical foundations) →
+  moves to docs site
+
+This respects industry norms while preserving agent access to "why" context during sessions. Local
+strategy docs become thinner operational reference with enough rationale to support agent advisory,
+not bare-bones lookup tables.
+
+### Pointer Patterns (Local → Hosted)
+
+Research found three viable patterns for local-to-hosted connection:
+
+1. **YAML frontmatter metadata** — `rationale-url` field, parseable by tooling and agents
+2. **"See Also" sections** — brief pointer blocks at end of operational content
+3. **Inline context sentences** — one-line "why" hint before pointer link
+
+Decision on which pattern(s) to use: during Task 4.1 per-doc evaluation.
+
+### Agent Access Post-Extraction
+
+Three patterns identified for agent rationale access once explanatory content is hosted:
+
+1. **WebFetch fallback** (zero infrastructure) — agent fetches docs site URL on demand. Works
+   today, no setup, slower, requires internet.
+2. **MCP server** (weekend-level effort) — existing open-source MkDocs MCP servers available
+   (`@serverless-dna/mkdocs-mcp`, `douinc/mkdocs-mcp-plugin`). Basic impl ~100 lines.
+3. **Hybrid local** (adopted) — brief rationale stays local, full explanatory on docs site.
+   Agent has enough context without fetching.
+
+**MCP server deferred** — docs platform may change from MkDocs; revisit when docs platform is
+settled. WebFetch available as fallback if agent needs deeper rationale than local summaries
+provide.
+
+### .arc/README Removal Decision
+
+Decision: remove entirely. Rationale:
+
+- Content is duplicative — all blocks covered elsewhere (Getting Started → docs site, Directory
+  Structure → AGENT-BRIEFING.ARC.md, Updating ARC → docs site, Document Audiences → extract
+  to docs site before removal)
+- Users at install point already know what ARC is (went through repo README and docs to get there)
+- The "ambient discoverer" scenario (repo browser encounters .arc/) is real but serves ARC's
+  adoption funnel more than the user's needs — not worth permanent root clutter
+- The .arc/ directory structure (active/, reference/, system/) communicates purpose on its own;
+  curious browsers will look up ARC independently
+- Puts more pressure on docs site and repo README to handle onboarding flow well
+
+### Sources
+
+- Diátaxis documentation framework (diataxis.fr)
+- Next.js AGENTS.md (nextjs.org/docs/app/guides/ai-agents)
+- Rails Doctrine (rubyonrails.org/doctrine)
+- Prettier Rationale (prettier.io/docs/rationale)
+- Black Code Style (black.readthedocs.io)
+- MCP server development (modelcontextprotocol.io/docs/develop/build-server)
+- MkDocs MCP servers (github.com/serverless-dna/mkdocs-mcp, github.com/douinc/mkdocs-mcp-plugin)
+
+### Docs Site Organization Pattern
+
+External research (April 2026) on how concept-heavy framework docs sites organize explanatory
+content relative to operational content. Surveyed: Kubernetes, Rails, Tailwind CSS, Angular,
+Stripe, MkDocs Material capabilities, Diátaxis framework.
+
+**Adopted pattern: Interleaved narrative + collapsible rationale (MkDocs Material native).**
+
+Main narrative explains "what" and "how" with rationale woven naturally into the flow. Deeper
+evidence, trade-off analysis, and design philosophy in collapsible `??? info` sections. Inline
+`!!! tip` callouts for key insights. Heavy cross-linking between related concepts.
+
+**Anti-patterns to avoid:**
+
+- Dedicated `rationale/` directory → becomes a dead zone nobody visits
+- Too many small pages → cognitive overhead of navigation, context lost
+- Hard separation of "why" from "how" → readers lose context, "why" section ignored
+- Mixing so thoroughly neither audience is served → long pages with no entry point
+
+**MkDocs Material features for mixed content:**
+
+- Collapsible admonitions (`??? info "Why this design?"`) — primary tool for rationale depth
+- Inline admonitions (`!!! tip`) — key insights without disrupting flow
+- Content tabs (`===`) — use sparingly, better for code variants than why/how pairs
+- Navigation sections — max 3 levels deep, search as failsafe
+
+---
+
+## Task 4.1 Deliverable: Per-Doc Content Placement Decisions
+
+### Per-Doc Decisions
+
+**Full doc moves (entire strategy doc → docs site):**
+
+| Doc                      | Lines | Decision                   | Rationale                                                                                                                                                                                                                                              |
+|--------------------------|-------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| strategy-core-philosophy | 466   | **Entire doc → docs site** | 100% explanatory/rationale. P1-P11 definitions, philosophical foundation, positioning, key concepts. No operational content consumed by workflows. Agents follow DEV-RULES.ARC, not this file. Industry norm: no framework ships its doctrine locally. |
+| strategy-agent-hooks     | 216   | **Entire doc → docs site** | Supplementary operational reference. Not workflow-referenced. Rationale tightly woven with decision guidance (51% explanatory) — doesn't split cleanly. Adopter guidance for an optional mechanism.                                                    |
+
+**Partial extractions (explanatory content → docs site, operational core stays local):**
+
+| Doc                          | Lines | Extract %  | Stays Local | Extracted Content Summary                                                                                                                                                |
+|------------------------------|-------|------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| configurability-architecture | 710   | 48% (~340) | ~370        | Customization model philosophy, adoption defaults philosophy, validation scenarios                                                                                       |
+| work-organization            | 757   | 37% (~280) | ~475        | Problem-solution narrative ("The Challenge"), core principles, incidental work rationale, branch protection trade-offs                                                   |
+| task-list-formatting         | 1,020 | 22% (~220) | ~700        | Design rationale, structural vs style explanation, annotated example, pedagogical content                                                                                |
+| team-coordination            | 395   | 48% (~190) | ~210        | Handoff rationale, branching pattern trade-offs, merge conflict philosophy, tracker complementarity                                                                      |
+| context-loading              | 267   | 45% (~120) | ~155        | Three-tier model philosophy, instruction density concept, adopter scaling rationale                                                                                      |
+| work-planning                | 232   | 45% (~105) | ~135        | Planning pipeline concept, plan document philosophy, readiness signals                                                                                                   |
+| quality-gates                | 243   | 39% (~95)  | ~150        | Core philosophy, escalation rationale, decision guidance                                                                                                                 |
+| session-management           | 211   | 45% (~95)  | ~115        | Context degradation research (citations), focused sessions philosophy, auto-compaction rationale                                                                         |
+| adr-methodology              | 356   | 24% (~85)  | ~270        | Industry context ("what ADRs are"), relationship to strategy docs. Rework for docs site: light summary of how ARC handles ADRs, not a deep explanation of what ADRs are. |
+| file-classification          | 382   | 17% (~65)  | ~320        | "Why prefixes matter" section — design rationale for naming conventions                                                                                                  |
+| backlog-organization         | 96    | 26% (~25)  | ~70         | ATOMIC-INBOX design rationale, inbox vs companion distinction                                                                                                            |
+
+**Totals:** ~5,351 lines current → ~2,970 local / ~2,380 to docs site.
+
+### Docs Site Extraction Target Mapping
+
+**Proposed docs site navigation (post-extraction):**
+
+```text
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Methodology: methodology.md
+  - Philosophy:
+    - philosophy/index.md
+    - The 11 Principles: philosophy/principles.md
+  - How ARC Works: how-arc-works.md
+  - Work Planning: work-planning.md
+  - Updating ARC: updating.md
+  - Customizing ARC:
+    - Configuration: reference/customizing/configuration.md
+    - Methods & Extensions: reference/customizing/methods.md
+    - Agent Hooks: reference/customizing/hooks.md
+  - Reference:
+    - reference/index.md
+    - Quality Gates: reference/quality-gates.md
+    - Work Organization: reference/work-organization.md
+    - Sessions & Context: reference/sessions.md
+    - Skills: reference/skills.md
+    - Team Coordination: reference/team-coordination.md
+    - Task Lists: reference/task-lists.md
+    - Glossary: reference/glossary.md
+  - FAQ: faq.md
+  - Contributing: contributing.md
+```
+
+**Changes from current structure:**
+
+- Philosophy splits into section (2 pages) — too much content for single page
+- Customizing ARC: new 3-page section — Configuration (settings + customization philosophy),
+  Methods & Extensions (override mechanisms), Agent Hooks (hook integration guidance)
+- Three new reference pages: Work Organization, Sessions & Context, Task Lists
+- Three existing reference pages enriched: Quality Gates, Team Coordination, Glossary
+- Existing "see strategy doc in your .arc/" pointers reverse direction — depth now lives on
+  docs site, local files point to docs site for rationale
+
+**Extraction target mapping by docs site page:**
+
+`philosophy/index.md` (enriched — current philosophy.md restructured):
+
+- ← core-philosophy: Philosophical Foundation evidence base (~80 lines, enriches "Three
+  Observations" with citations and deeper evidence, collapsible sections)
+- ← core-philosophy: Positioning — what ARC is/isn't, where it operates, agent compatibility
+  (~60 lines, new section)
+- ← core-philosophy: Principle/Convention Boundary explanation (~30 lines, enriches existing
+  section on conventions vs principles)
+- ← session-management: Context degradation research (~30 lines, collapsible evidence under
+  bounded sessions reasoning)
+
+`philosophy/principles.md` (new):
+
+- ← core-philosophy: P1-P11 definitions with per-principle rationale and conventions list
+  (~280 lines). Each principle gets: definition, "Remove this and..." reasoning, conventions.
+  Per-principle rationale in collapsible sections for depth.
+
+`methodology.md` (enriched):
+
+- ← session-management: Focused sessions philosophy (~24 lines, enriches bounded sessions
+  commitment section)
+
+`how-arc-works.md` (lightly enriched):
+
+- ← session-management: Auto-compaction rationale (~26 lines, collapsible under session
+  lifecycle section)
+
+`work-planning.md` (enriched):
+
+- ← work-planning: Pipeline concept, plan document philosophy, readiness signals (~105 lines,
+  rationale woven into existing narrative with collapsible deep dives)
+- ← backlog-organization: ATOMIC-INBOX design rationale (~25 lines, collapsible section in
+  backlog/capture context)
+
+`reference/customizing/configuration.md` (restructured from current reference/configuration.md):
+
+- ← configurability-architecture: Customization model philosophy, adoption defaults, three-tier
+  flexibility explanation (~200 lines, rationale sections with collapsible deep dives)
+- ← configurability-architecture: Validation scenarios (~60 lines, collapsible adopter
+  walk-throughs)
+- Retains existing arc-config.yml settings reference content
+
+`reference/customizing/methods.md` (new, split from configuration):
+
+- ← configurability-architecture: Method/extension mechanism explanation (~80 lines)
+- Existing methods and extensions guide content restructured here
+
+`reference/customizing/hooks.md` (new):
+
+- ← agent-hooks: Entire doc (~216 lines). Platform landscape survey and value assessment in
+  collapsible sections. Adopter guidance checklists as primary content.
+
+`reference/quality-gates.md` (enriched):
+
+- ← quality-gates: Core philosophy, escalation rationale, decision guidance (~95 lines).
+  Replaces "see strategy doc" pointer. Collapsible sections for tier design rationale.
+
+`reference/work-organization.md` (new):
+
+- ← work-organization: Problem-solution narrative, core principles, incidental work rationale,
+  branch protection trade-offs (~280 lines). Work categorization concepts, branching model
+  design, incidental work philosophy. Collapsible sections for extended rationale.
+
+`reference/sessions.md` (new):
+
+- ← context-loading: Three-tier model philosophy, instruction density concept, adopter scaling
+  (~120 lines)
+- ← session-management: Remaining rationale fragments not placed elsewhere (~15 lines)
+- "How ARC manages agent context" — session boundaries and context loading as one concern.
+
+`reference/team-coordination.md` (enriched):
+
+- ← team-coordination: Handoff rationale, branching pattern trade-offs, merge conflict
+  philosophy, tracker complementarity (~190 lines). Replaces "see strategy doc" pointer.
+
+`reference/task-lists.md` (new):
+
+- ← task-list-formatting: Design rationale, structural vs style conventions explanation,
+  annotated example (~220 lines). Pedagogical content for task list authors.
+
+`reference/glossary.md` (enriched):
+
+- ← core-philosophy: Key Concepts vocabulary table (~16 lines)
+
+`contributing.md` (enriched):
+
+- ← adr-methodology: Light summary of how ARC handles ADRs (~50 lines, reworked — not full
+  industry context, just ARC's approach)
+- ← file-classification: "Why prefixes matter" naming rationale (~40 lines, reworked for
+  contributor audience)
+
+### Local Strategy Consolidation (Post-Extraction)
+
+**Removed (entirely docs site):**
+
+- strategy-core-philosophy → gone
+- strategy-agent-hooks → gone
+
+**Consolidation candidates:**
+
+- session-management (~115 lines) + context-loading (~155 lines) → combined
+  "strategy-session-operations.md" (~270 lines). Both session-related operational reference.
+  Different workflow trigger points but thematically unified. Combined file is still reasonable
+  size for on-demand loading.
+- backlog-organization (~70 lines) → fold into work-planning (~135 lines) as conditional
+  section (arc-in-git specifics). Combined ~205 lines. Introduces template conditionals in
+  strategies — new pattern but mechanically identical to existing workflow conditionals.
+
+**Stays standalone:**
+
+- file-classification (~320 lines) — taxonomy tables, inventory, naming conventions
+- adr-methodology (~270 lines) — operational manual (when/how/format/lifecycle/amendments)
+- task-list-formatting (~700 lines) — primary format reference, heavily workflow-referenced
+- work-organization (~475 lines) — categories, decision rules, git workflow
+- configurability-architecture (~370 lines) — config specs, extension/method mechanisms
+- team-coordination (~210 lines) — workflow adaptations, ownership, branching patterns
+- quality-gates (~150 lines) — tier specs, task list integration
+
+**Post-consolidation: 13 files → 9 files, ~2,970 lines total locally.**
+
+### Phase 5 Forward-Compatibility Guidelines
+
+Phase 5 (Tasks 5.1-5.5) addresses methodology/implementation language distinction, harness
+engineering positioning, and P1 rename. Since Phase 4 extraction touches most docs site pages,
+apply these guidelines during extraction to avoid double-editing:
+
+**Methodology vs implementation language:**
+
+- New/rewritten docs site content should already distinguish "ARC's methodology requires X"
+  from "the framework implements X through Y"
+- Don't audit existing page content for this (that's Phase 5) — but don't introduce new
+  conflation either
+- "How ARC Works" page will likely be reframed in 5.1 to distinguish methodology mechanics
+  from framework mechanics. New reference pages should use framework-aware language where
+  appropriate (e.g., "the framework's quality gate system implements P4")
+
+**P1 rename (Task 5.5):**
+
+- ~35 files affected by rename away from "spec-driven development"
+- During extraction, reference P1 by number or description ("written specifications before
+  implementation") rather than embedding the current name. Avoids a rename pass on freshly
+  written content.
+
+**Harness engineering positioning (Task 5.4):**
+
+- Goes into philosophy content and docs site "What is ARC" framing
+- Since core-philosophy moves entirely to docs site and philosophy/ is being restructured,
+  leave a natural insertion point in philosophy/index.md for a "Harness Engineering" section
+- Don't pre-write the section — just don't structure pages in a way that makes adding it
+  awkward
+
+**Task 5.2 scope adjustment:**
+
+- 5.2 targets strategy-core-philosophy for language cleanup, but that doc moves entirely to
+  docs site in Phase 4. Phase 5.2 would operate on the docs site version (philosophy/
+  section) instead. No conflict, but note the scope shift.
+
+---
+
+## Task 4.2 Deliverable: arc/ vs project/ Extraction Decisions
+
+### Framework-Dev-Only Content Found
+
+**1. File inventory in strategy-file-classification.md (~177 lines, lines 178-355)**
+
+Per-directory tables listing every .arc/ file with Classification, Layer, and Notes. Framework
+maintenance artifact — tracks what ships where, maintains two-copy architecture. Adopters
+discover classifications via the taxonomy definitions and summary table (which stay), not
+by reading 177 lines of per-directory tables.
+
+**Decision:** Fold into `strategies/project/strategy-package-project-sync.md`, consolidating
+with the existing dependency map. Avoids maintaining two parallel file listings.
+
+**2. "Relationship to Strategy Documents" in strategy-adr-methodology.md (~30 lines, 325-356)**
+
+Explains ARC's own documentation architecture: why ADRs and strategy docs are separate types,
+pattern recognition flow (multiple ADRs → extract to strategy), why this separation matters.
+This is framework design reasoning — adopters follow the ADR format, but they don't need to
+understand how ARC organizes its own documentation taxonomy.
+
+**Decision:** Move to `strategies/project/`. Could fold into package-project-sync or become
+a lightweight "ARC documentation architecture" note. Small enough that exact placement is a
+judgment call during implementation.
+
+### Adopter vs Maintainer Rationale Assessment
+
+Audited all content tagged for docs-site extraction in Task 4.1. Most rationale is
+adopter-facing (explains why ARC works this way, helps adopters understand and buy in).
+
+**Three "both" items** — design rationale embedded in adopter-facing content:
+
+- context-loading: Three-Tier Model has design thinking mixed with adoption guidance
+- task-list-formatting: Atomic Companion File has "Why a standalone file?" paragraph
+- quality-gates: Core Philosophy explains design thinking + helps adopters understand gates
+
+These don't warrant splitting — thin, and the collapsible section pattern handles dual audience
+naturally on docs site. Adopters see guidance; collapsible section holds deeper design reasoning.
+
+**Everything else is adopter-facing.** The arc/ strategies are written for adopters ("your
+team," "your project"). Rationale content explains why ARC works this way, not why it was
+built this way. The maintainer-vs-adopter split is narrow.
+
+### Impact on 4.1 Totals
+
+- adr-methodology: ~85 lines originally tagged for docs site → revised: ~55 lines docs site,
+  ~30 lines project/
+- File inventory: already excluded from 4.1 extraction (it was staying local) → now moves to
+  project/ instead
+- Net docs site: ~2,350 lines (was ~2,380). Net project/: ~207 lines.
+
+### Post-4.1 + 4.2 State of strategy-file-classification.md
+
+- Original: 382 lines
+- After 4.1 (extract "Why prefixes matter"): -65 lines
+- After 4.2 (move file inventory to project/): -177 lines
+- Remaining: ~140 lines (taxonomy definitions + naming conventions + summary table)
+- Still viable as standalone operational reference — the taxonomy and naming conventions are
+  the primary content agents and adopters consume.
+
+---
+
 ## Backlog Items Resolved
 
 - **ATOMIC-INBOX: Internal path/reference audit** — Fully resolved by sync audit (PRD Req 1)

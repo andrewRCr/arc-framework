@@ -16,11 +16,11 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.1 — Evaluate Axis 1: Install vs docs site (line ~218)
-**Last Completed**: Phase 3 — CLI Update Behavior Fix (Tasks 3.1–3.3)
+**Next Task**: Task 4.3 — Implement content extraction and placement (line ~251)
+**Last Completed**: Tasks 4.1–4.2 — Per-doc content placement and arc/project extraction evaluation
 **Blockers**: [none]
-**Next Action**: Begin Phase 4 — content placement and install structure
+**Next Action**: Begin content extraction implementation per 4.1/4.2 evaluation decisions
 
 ---
 
-**Last Updated**: 2026-04-06
+**Last Updated**: 2026-04-07

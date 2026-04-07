@@ -212,58 +212,84 @@ _Goal: Framework-classified files wholesale replaced on `arc update` instead of 
 
 ### **Phase 4:** Content Placement and Install Structure
 
-_Goal: Evaluate and implement content placement decisions across three axes, plus install root
-streamlining._
+_Goal: Evaluate and implement content placement using hybrid approach — operational reference
+with brief rationale context stays local, full explanatory content moves to docs site.
+Remove .arc/README from installs._
 
-- [ ] **4.1 Evaluate Axis 1: Install vs docs site**
-    - For each strategy doc (using the dependency mapping from notes file), assess:
-      is this Reference (operational, consumed by workflows) or Explanation (rationale, philosophy)?
-    - For mixed docs: can the explanatory portions extract while operational portions stay?
-    - Where operational content from a docs-site-bound doc needs to stay, can it relocate to a
-      method, workflow inline section, or DEV-RULES section?
-    - Document decisions with rationale per doc
+- [x] **4.1 Per-doc content placement evaluation**
+    - Evaluated all 13 strategy docs against the hybrid model using dependency mapping from
+      notes file (§ Strategy Doc Operational Dependency Mapping) and section-by-section content
+      analysis. Full deliverable in notes file (§ Task 4.1 Deliverable).
+    - **Two full doc moves:** core-philosophy (466 lines, 100% explanatory) and agent-hooks
+      (216 lines, supplementary, doesn't split cleanly) → entirely to docs site
+    - **Nine partial extractions:** 22-48% per doc, totaling ~1,700 lines extractable.
+      Operational reference + brief rationale stays local; full explanatory content → docs site.
+    - **Two docs unchanged:** file-classification (17%, mostly tables) and backlog-organization
+      (26%, small file) have minimal extractable content.
+    - **Net:** 5,351 lines current → ~2,970 local / ~2,380 to docs site
+    - Designed docs site target mapping: Philosophy splits into 2-page section, Customizing ARC
+      becomes 3-page section (Configuration, Methods & Extensions, Agent Hooks), 3 new reference
+      pages (Work Organization, Sessions & Context, Task Lists), 3 existing reference pages
+      enriched. Interleaved narrative + collapsible rationale pattern (MkDocs Material native).
+    - Designed local consolidation: 13 → 9 files. core-philosophy and agent-hooks removed.
+      session-management + context-loading combined. backlog-organization folded into work-planning.
+    - Phase 5 forward-compatibility guidelines documented: methodology/implementation language
+      distinction, P1 rename avoidance, harness engineering insertion point.
 
-- [ ] **4.2 Evaluate Axis 2: arc/ vs project/ extraction**
-    - Audit `strategies/arc/` for framework-dev-only content that shouldn't ship to adopters
-    - Known candidate: file inventory in strategy-file-classification
-    - Check for other framework-dev-only content embedded in arc/ strategies
-    - Document decisions with rationale
+- [x] **4.2 Evaluate arc/ vs project/ extraction**
+    - Audited all `strategies/arc/` content for framework-dev-only material. Full deliverable
+      in notes file (§ Task 4.2 Deliverable).
+    - **File inventory** in strategy-file-classification (~177 lines) → move to
+      `strategies/project/strategy-package-project-sync.md`, consolidating with existing
+      dependency map
+    - **"Relationship to Strategy Documents"** in strategy-adr-methodology (~30 lines) →
+      move to `strategies/project/` — ARC documentation architecture reasoning, not
+      adopter guidance
+    - **Maintainer-vs-adopter split is narrow** (~207 lines total). All other rationale
+      content in arc/ strategies is adopter-facing. Three "both" items (context-loading
+      model, atomic companion rationale, quality-gates philosophy) handled via collapsible
+      sections on docs site — no project/ split needed.
 
 - [ ] **4.3 Implement content extraction and placement**
+    - Scope determined by 4.1/4.2 decisions — re-assess subtask structure after evaluation
+
     - [ ] **4.3.a Extract explanatory content to docs site**
-        - Move Explanation-type content from strategy docs to docs site pages (per Axis 1 decisions)
-        - Rewrite extracted content to work as standalone docs-site pages
-        - Skip if Axis 1 decision is in-place separation rather than relocation
+        - Move full explanatory content from strategy docs to docs site pages (per 4.1 decisions)
+        - Rewrite extracted content for docs-site audience and flow
+        - Add pointer infrastructure to local operational files (frontmatter, "See Also" links)
 
     - [ ] **4.3.b Extract framework-dev-only content to project/**
-        - Move framework-development-only content to `strategies/project/` (per Axis 2 decisions)
+        - Move framework-development-only content to `strategies/project/` (per 4.2 decisions)
 
-    - [ ] **4.3.c Rewrite remaining strategy doc prose**
-        - Remaining operational reference content must stand alone without the "why" context that
-          surrounded it
-        - Apply even if explanatory content stays in-place (Diátaxis separation improves clarity
-          regardless of placement)
+    - [ ] **4.3.c Rewrite retained local content**
+        - Remaining local content must stand alone as operational reference with brief rationale
+        - Add brief rationale summaries where agent-accessible "why" context is needed
+        - Ensure local docs don't read as gutted versions of their former selves
 
     - [ ] **4.3.d Update cross-references**
-        - Fix all references in both directions: install docs pointing to docs site, docs site
-          pointing to install content
+        - Fix all references in both directions: local docs pointing to docs site, docs site
+          pointing to local operational content
         - Verify no broken links in either location
 
 - [ ] **4.4 Update docs site structure**
-    - [ ] **4.4.a Add methodology/philosophy pages**
-        - Create new docs-site pages for any extracted content
-        - Write or adapt content for the docs-site audience and format
+    - [ ] **4.4.a Integrate extracted content into docs site**
+        - Extend existing pages (methodology.md, philosophy.md already substantial from Phase 2)
+          or create new pages as needed — complement existing content, don't duplicate
+        - Write or adapt content for docs-site audience and format
 
     - [ ] **4.4.b Update navigation and verify**
-        - Update `mkdocs.yml` navigation structure for new pages
-        - Verify all cross-references resolve (internal links, docs-site links)
+        - Update `mkdocs.yml` navigation structure for any new pages
+        - Verify all cross-references resolve (internal links, docs-site links, local pointers)
         - Docs site must remain fully functional after changes
 
 - [ ] **4.5 Remove `.arc/README.md` from installs**
     - [ ] **4.5.a Extract Document Audiences content to docs site**
         - Four-audience taxonomy (agent-executed, collaborative, shared context, human-facing)
           plus explanation of audience headers in workflows
-        - Likely destination: `getting-started.md` or a dedicated section
+        - Likely destination: getting-started.md or a dedicated section
+        - Verify other README content blocks are adequately covered elsewhere: Getting Started
+          (→ docs/getting-started.md), Directory Structure (→ AGENT-BRIEFING.ARC.md),
+          Updating ARC (→ docs/updating.md)
 
     - [ ] **4.5.b Remove README from both copies**
         - Remove from package source (`packages/arc-framework/arc/README.md`)
@@ -272,11 +298,14 @@ streamlining._
         - Update any docs or workflows that reference `.arc/README.md`
 
 - [ ] **4.6 Evaluate and decide `user/` directory placement**
-    - Assess whether a `system/` rename resolves the semantic mismatch
-    - If a rename works: implement the move (update CLI path construction, all doc references,
-      gitignore patterns, file classification inventory)
-    - If not: document the decision to keep at root with rationale
-    - Update ADR-012 with a note if the decision changes the directory structure
+    - The semantic mismatch: `user/` is a personal workspace (session notes, scratch files,
+      atomic inbox) sitting at .arc/ root alongside structural directories. Moving into
+      `system/` would be wrong — system/ is "agent-facing operational files," not personal
+      workspace. The question is whether any alternative improves on root placement.
+    - Weigh root clutter cost against blast radius (~30 files, ADR-012 supersession, git
+      notes namespace migration) and team-mode discoverability value
+    - If rename warranted: propose as a separate work item given scope
+    - If not: document decision to keep at root with rationale
 
 ### **Phase 5:** Language and Positioning Cleanup
 
