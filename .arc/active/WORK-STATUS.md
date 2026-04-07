@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.3 — Implement content extraction and placement (line ~251)
+**Next Task**: Task 4.3 — Docs site structural preparation (line ~253)
 **Last Completed**: Tasks 4.1–4.2 — Per-doc content placement and arc/project extraction evaluation
 **Blockers**: [none]
-**Next Action**: Begin content extraction implementation per 4.1/4.2 evaluation decisions
+**Next Action**: Prepare docs site structure (directories, mkdocs.yml nav, stub files) before extraction
 
 ---
 

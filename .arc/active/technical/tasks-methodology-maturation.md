@@ -250,40 +250,133 @@ Remove .arc/README from installs._
       model, atomic companion rationale, quality-gates philosophy) handled via collapsible
       sections on docs site — no project/ split needed.
 
-- [ ] **4.3 Implement content extraction and placement**
-    - Scope determined by 4.1/4.2 decisions — re-assess subtask structure after evaluation
+- [ ] **4.3 Docs site structural preparation**
+    - Create `docs/philosophy/` directory; move `docs/philosophy.md` → `docs/philosophy/index.md`
+    - Create `docs/reference/customizing/` directory; move `docs/reference/configuration.md` →
+      `docs/reference/customizing/configuration.md`
+    - Update `mkdocs.yml` nav to proposed structure (notes file § Docs Site Extraction Target
+      Mapping). Create stub files for new pages (H1 title only) so nav resolves.
+    - Verify docs site builds with new structure (`mkdocs build --strict`)
 
-    - [ ] **4.3.a Extract explanatory content to docs site**
-        - Move full explanatory content from strategy docs to docs site pages (per 4.1 decisions)
-        - Rewrite extracted content for docs-site audience and flow
-        - Add pointer infrastructure to local operational files (frontmatter, "See Also" links)
+- [ ] **4.4 Philosophy section extraction**
+    - **Source:** strategy-core-philosophy (474 lines, entire doc → docs site, then removed)
+    - **Targets:** `philosophy/index.md` (enriched), `philosophy/principles.md` (new)
+    - **Establishes the pointer and collapsible rationale patterns** used by all subsequent
+      extraction tasks. Pointer pattern: header blockquote link on every strategy doc with a
+      docs-site counterpart (`> **Full guide:** [Title](URL)`), plus inline contextual links
+      at natural "why?" transition points. Rationale pattern: `??? info` for deep dives,
+      `!!! tip` for inline insights.
+    - philosophy/index.md: philosophical foundation evidence (~80 lines), positioning (~60
+      lines), principle/convention boundary (~30 lines), context degradation research from
+      session-management (~30 lines collapsible)
+    - philosophy/principles.md: P1-P11 definitions with per-principle rationale and conventions
+      (~280 lines). Per-principle rationale in collapsible sections.
+    - **Two-copy removal:** Delete from `packages/arc-framework/arc/` and `.arc/`. Update
+      STRATEGY-INDEX (remove or redirect). Update DEV-RULES.ARC core-philosophy link.
+    - Phase 5 forward-compat: reference P1 by description not name, leave insertion point for
+      harness engineering section in philosophy/index.md
+    - See notes file § Task 4.1 Deliverable → philosophy/* for detailed content mapping
+    - **Scope note:** Phase 5 tasks 5.2 and 5.4 reference strategy-core-philosophy, which this
+      task removes. Those tasks will operate on docs site `philosophy/` pages instead.
 
-    - [ ] **4.3.b Extract framework-dev-only content to project/**
-        - Move framework-development-only content to `strategies/project/` (per 4.2 decisions)
+- [ ] **4.5 Customizing ARC section extraction**
+    - **Sources:** configurability-architecture (710 lines, ~48% extraction),
+      agent-hooks (216 lines, entire doc → docs site, then removed)
+    - **Targets:** `reference/customizing/configuration.md` (restructured),
+      `reference/customizing/methods.md` (new), `reference/customizing/hooks.md` (new)
+    - configuration.md: retain existing settings reference, add customization model philosophy
+      and adoption defaults (~200 lines), validation scenarios as collapsible walk-throughs
+      (~60 lines)
+    - methods.md: method/extension mechanism explanation (~80 lines), restructure existing
+      methods and extensions guide content
+    - hooks.md: entire agent-hooks doc (~216 lines), platform landscape and value assessment
+      in collapsible sections
+    - **Local rewrite:** configurability-architecture retains ~370 lines operational content.
+      Add header pointer + inline links. Must stand alone for agent use during workflows.
+    - **Two-copy removal (agent-hooks):** Delete from both copies. Update STRATEGY-INDEX.
+    - **Two-copy edit (configurability-architecture):** Edit through package source, sync to
+      `.arc/`.
 
-    - [ ] **4.3.c Rewrite retained local content**
-        - Remaining local content must stand alone as operational reference with brief rationale
-        - Add brief rationale summaries where agent-accessible "why" context is needed
-        - Ensure local docs don't read as gutted versions of their former selves
+- [ ] **4.6 Reference pages: work organization and sessions**
+    - **Sources:** work-organization (757 lines, ~37%), session-management (211 lines, ~45%),
+      context-loading (267 lines, ~45%)
+    - **Targets:** `reference/work-organization.md` (new), `reference/sessions.md` (new)
+    - work-organization.md: problem-solution narrative, core principles, incidental work
+      rationale, branch protection trade-offs (~280 lines)
+    - sessions.md: three-tier context loading model, instruction density concept, context
+      degradation research, focused sessions philosophy (~135 lines combined from
+      session-management + context-loading)
+    - **Local rewrite (3 docs):** session-management ~115 lines, context-loading ~155 lines,
+      work-organization ~475 lines. Add header pointers + inline links.
+    - **Two-copy edits:** All three are Framework files — edit through package source.
 
-    - [ ] **4.3.d Update cross-references**
-        - Fix all references in both directions: local docs pointing to docs site, docs site
-          pointing to local operational content
-        - Verify no broken links in either location
+- [ ] **4.7 Reference pages: task lists, team coordination, quality gates**
+    - **Sources:** task-list-formatting (1,020 lines, ~22%), team-coordination (395 lines,
+      ~48%), quality-gates (243 lines, ~39%)
+    - **Targets:** `reference/task-lists.md` (new), `reference/team-coordination.md` (enriched),
+      `reference/quality-gates.md` (enriched)
+    - task-lists.md: design rationale, structural vs style explanation, annotated example,
+      pedagogical content (~220 lines)
+    - team-coordination.md: handoff rationale, branching trade-offs, merge conflict philosophy,
+      tracker complementarity (~190 lines enriching existing page)
+    - quality-gates.md: core philosophy, escalation rationale, decision guidance (~95 lines
+      enriching existing page)
+    - **Local rewrite (3 docs):** task-list-formatting ~700 lines, team-coordination ~210
+      lines, quality-gates ~150 lines. Add header pointers + inline links.
+    - **Two-copy edits:** All three are Framework files — edit through package source.
 
-- [ ] **4.4 Update docs site structure**
-    - [ ] **4.4.a Integrate extracted content into docs site**
-        - Extend existing pages (methodology.md, philosophy.md already substantial from Phase 2)
-          or create new pages as needed — complement existing content, don't duplicate
-        - Write or adapt content for docs-site audience and format
+- [ ] **4.8 Existing page enrichments**
+    - Lighter-touch additions across 5 existing docs site pages — smaller content placements,
+      not full page restructures
+    - methodology.md: focused sessions philosophy from session-management (~24 lines)
+    - how-arc-works.md: auto-compaction rationale from session-management (~26 lines,
+      collapsible)
+    - work-planning.md: pipeline concept and plan doc philosophy from work-planning (~105
+      lines), ATOMIC-INBOX rationale from backlog-organization (~25 lines, collapsible)
+    - contributing.md: light ADR summary from adr-methodology (~50 lines, reworked), "Why
+      prefixes matter" from file-classification (~40 lines, reworked for contributor audience)
+    - glossary.md: Key Concepts vocabulary from core-philosophy (~16 lines)
+    - **Local source edits:** adr-methodology, file-classification, work-planning,
+      backlog-organization, session-management — all through package source.
 
-    - [ ] **4.4.b Update navigation and verify**
-        - Update `mkdocs.yml` navigation structure for any new pages
-        - Verify all cross-references resolve (internal links, docs-site links, local pointers)
-        - Docs site must remain fully functional after changes
+- [ ] **4.9 Framework-dev content extraction to project/**
+    - Independent of docs site work — can execute in any order relative to 4.4-4.8
+    - **File inventory** (~177 lines from strategy-file-classification, lines 178-355) → fold
+      into `strategies/project/strategy-package-project-sync.md`, consolidating with existing
+      dependency map
+    - **"Relationship to Strategy Documents"** (~30 lines from strategy-adr-methodology, lines
+      325-356) → move to `strategies/project/`. Exact placement decided during implementation.
+    - Update file-classification summary table after inventory removal
+    - **Two-copy edits:** Both source files are Framework files — edit through package source.
 
-- [ ] **4.5 Remove `.arc/README.md` from installs**
-    - [ ] **4.5.a Extract Document Audiences content to docs site**
+- [ ] **4.10 Local strategy consolidation and coherence pass**
+    - **After all extractions complete.** Separate pass to consolidate and verify.
+    - **Consolidation 1:** session-management + context-loading → combined
+      `strategy-session-operations.md` (~270 lines). Both session-related operational
+      reference, thematically unified.
+    - **Consolidation 2:** backlog-organization → fold into work-planning as conditional
+      section (arc-in-git specifics). Combined ~205 lines.
+    - **Coherence check:** Read each post-extraction strategy doc end-to-end. Each must stand
+      alone as operational reference usable by an agent during workflow execution — all rules,
+      thresholds, and format specs present without requiring the docs site version. Only deep
+      "why" rationale should require the docs site link.
+    - Update STRATEGY-INDEX for renames, removals, and consolidations.
+    - **Two-copy work:** Consolidations create/rename Framework files — edit through package
+      source.
+
+- [ ] **4.11 Cross-reference verification**
+    - Full link check in both directions after all extraction and consolidation complete
+    - Local → docs site: every strategy doc with a docs-site counterpart has header pointer
+      blockquote; inline contextual links resolve
+    - Docs site → local: references to strategy docs use post-consolidation filenames
+    - Internal local: strategy cross-references and workflow references resolve
+      post-consolidation
+    - Internal docs site: all nav entries resolve, cross-page links work
+    - Run `mkdocs build --strict` for docs site link validation
+    - Run markdown linting on all modified files (`npm run -s lint:md`)
+
+- [ ] **4.12 Remove `.arc/README.md` from installs**
+    - [ ] **4.12.a Extract Document Audiences content to docs site**
         - Four-audience taxonomy (agent-executed, collaborative, shared context, human-facing)
           plus explanation of audience headers in workflows
         - Likely destination: getting-started.md or a dedicated section
@@ -291,13 +384,13 @@ Remove .arc/README from installs._
           (→ docs/getting-started.md), Directory Structure (→ AGENT-BRIEFING.ARC.md),
           Updating ARC (→ docs/updating.md)
 
-    - [ ] **4.5.b Remove README from both copies**
+    - [ ] **4.12.b Remove README from both copies**
         - Remove from package source (`packages/arc-framework/arc/README.md`)
         - Remove from project instance (`.arc/README.md`)
         - Update file classification inventory
         - Update any docs or workflows that reference `.arc/README.md`
 
-- [ ] **4.6 Evaluate and decide `user/` directory placement**
+- [ ] **4.13 Evaluate and decide `user/` directory placement**
     - The semantic mismatch: `user/` is a personal workspace (session notes, scratch files,
       atomic inbox) sitting at .arc/ root alongside structural directories. Moving into
       `system/` would be wrong — system/ is "agent-facing operational files," not personal
@@ -318,9 +411,10 @@ framing integrated._
       implementation mechanisms
     - Contextually considered — preserve prose flow, don't mechanically insert "framework"
 
-- [ ] **5.2 Language cleanup: philosophy strategy and agent briefings**
-    - Review `strategy-core-philosophy.md` — principle statements clearly methodology-level,
-      convention descriptions clearly implementation-level
+- [ ] **5.2 Language cleanup: philosophy pages and agent briefings**
+    - Review docs site `philosophy/` pages (formerly strategy-core-philosophy, moved in 4.4) —
+      principle statements clearly methodology-level, convention descriptions clearly
+      implementation-level
     - Review agent briefings (`AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.PROJECT.md`) and main
       repository `README.md`
     - Apply same methodology/implementation distinction
@@ -331,7 +425,8 @@ framing integrated._
     - Operational strategy docs (task-list-formatting, work-organization): light touch
 
 - [ ] **5.4 Integrate harness engineering positioning**
-    - Add positioning section in philosophy strategy: ARC as a "process-level harness"
+    - Add positioning section in docs site `philosophy/index.md` (formerly philosophy strategy,
+      moved in 4.4; insertion point left during extraction): ARC as a "process-level harness"
     - Adopt terminology where it strengthens clarity: feedforward controls, feedback controls
     - Reference Fowler article in philosophy strategy and docs site "What is ARC" content
     - Frame as "ARC's approach maps to the harness engineering model" — not derivative
