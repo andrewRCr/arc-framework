@@ -269,10 +269,8 @@ to update classification — both axes apply independently.
 | `README.md`                                    | Framework      | Core       | Directory overview.                                  |
 | `STRATEGY-INDEX.md`                            | Configurable   | Core       | ARC strategies section + project strategies section. |
 | `arc/strategy-adr-methodology.md`              | Framework      | Core       | ARC methodology.                                     |
-| `arc/strategy-agent-hooks.md`                  | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-backlog-organization.md`         | Framework      | arc-in-git | ARC methodology.                                     |
 | `arc/strategy-configurability-architecture.md` | Framework      | Core       | ARC methodology.                                     |
-| `arc/strategy-core-philosophy.md`              | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-file-classification.md`          | Framework      | Core       | ARC methodology (this document).                     |
 | `arc/strategy-quality-gates.md`                | Framework      | Core       | ARC methodology.                                     |
 | `arc/strategy-session-management.md`           | Framework      | Core       | ARC methodology.                                     |

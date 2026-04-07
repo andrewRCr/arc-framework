@@ -21,7 +21,6 @@
     "reference/templates/template-plan.md",
     "reference/templates/template-prd.md",
     "reference/strategies/arc/strategy-adr-methodology.md",
-    "reference/strategies/arc/strategy-agent-hooks.md",
     "reference/strategies/arc/strategy-configurability-architecture.md",
     "reference/strategies/arc/strategy-context-loading.md",
     "reference/strategies/arc/strategy-file-classification.md",

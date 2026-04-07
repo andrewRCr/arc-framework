@@ -18,8 +18,6 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
     - Consult when: writing an ADR, deciding whether a decision warrants one
-- `arc/strategy-agent-hooks.md` - Agent lifecycle hooks as optional automation/enforcement alongside ARC
-    - Consult when: considering agent hooks for session automation, deterministic enforcement, or platform integration
 - `arc/strategy-backlog-organization.md` **(arc-in-git)** - Backlog structure, processing flow, atomic task conventions
     - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults

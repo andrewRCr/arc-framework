@@ -1,0 +1,9 @@
+{
+    // Override for docs/ directory.
+    // MkDocs Material admonitions (??? info, !!! tip) use indented content that
+    // markdownlint misidentifies as indented code blocks, conflicting with MD046
+    // when fenced code blocks are also present in the same file.
+    "config": {
+        "MD046": false
+    }
+}

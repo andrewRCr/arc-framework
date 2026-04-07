@@ -291,23 +291,30 @@ Remove .arc/README from installs._
     - **Reference updates:** DEV-RULES.ARC, session-management, configurability-architecture
       links updated (both copies). Cosmetic references deferred to Task 4.11.
 
-- [ ] **4.5 Customizing ARC section extraction**
-    - **Sources:** configurability-architecture (710 lines, ~48% extraction),
-      agent-hooks (216 lines, entire doc → docs site, then removed)
-    - **Targets:** `customization/configuration.md` (restructured),
-      `customization/methods.md` (new), `customization/hooks.md` (new)
-    - configuration.md: retain existing settings reference, add customization model philosophy
-      and adoption defaults (~200 lines), validation scenarios as collapsible walk-throughs
-      (~60 lines)
-    - methods.md: method/extension mechanism explanation (~80 lines), restructure existing
-      methods and extensions guide content
-    - hooks.md: entire agent-hooks doc (~216 lines), platform landscape and value assessment
-      in collapsible sections
-    - **Local rewrite:** configurability-architecture retains ~370 lines operational content.
-      Add header pointer + inline links. Must stand alone for agent use during workflows.
-    - **Two-copy removal (agent-hooks):** Delete from both copies. Update STRATEGY-INDEX.
-    - **Two-copy edit (configurability-architecture):** Edit through package source, sync to
-      `.arc/`.
+- [x] **4.5 Customizing ARC section extraction**
+    - **Docs site pages (4 files):** Restructured customization section with improved IA:
+        - index.md: landing page with project-level files as frontline customization, then
+          mechanism links
+        - configuration.md: rewritten for arc-config.yml focus only — design philosophy,
+          enforcement vs guidance, adoption flexibility, settings reference, validation
+          scenarios as collapsible walk-throughs
+        - methods.md: method overrides + extension points mechanics, template structural
+          contract note, decision guide
+        - hooks.md: agent-hooks content with platform landscape and value assessment in
+          collapsible sections
+    - **configurability-architecture rewrite:** 708 → ~435 lines. Removed adoption defaults
+      philosophy, validation scenarios, command landscape. Added header blockquote pointer
+      (first partial extraction — pattern established). Rewrote "Relationship to Other
+      Documentation" for removed refs. Corrected convention inventory: templates reclassified
+      from "File-customizable" to "Structural contract" (they're Framework files, workflows
+      depend on structure). Added "Structural contract" to configurability path definitions.
+    - **Two-copy removal (agent-hooks):** Deleted from both copies. Removed from
+      STRATEGY-INDEX, init-recipe.json, manifest.json, file-classification inventory, and
+      package-project-sync dependency map.
+    - **Incidental:** Removed stale core-philosophy entries from file-classification inventory
+      (both copies) and package-project-sync dependency map (missed in Task 4.4).
+    - **New:** `docs/.markdownlint-cli2.jsonc` disabling MD046 for docs/ (MkDocs admonition
+      syntax conflicts with code block style consistency check).
 
 - [ ] **4.6 Reference pages: work organization and sessions**
     - **Sources:** work-organization (757 lines, ~37%), session-management (211 lines, ~45%),

@@ -111,11 +111,6 @@
       "layer": "core",
       "pristine_hash": "bd2d12e6eeba3f142944eeb317870f9ad0ba2d9b90d7c6b5ec51e4904af50c0c"
     },
-    "reference/strategies/arc/strategy-agent-hooks.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "84bae5c7d551f6b79dd2630d8e95d6c93e59937d297028dce627321f00780a47"
-    },
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",

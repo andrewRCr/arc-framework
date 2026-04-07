@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.5 — Customizing ARC section extraction (line ~294)
-**Last Completed**: Task 4.4 — Philosophy extraction + docs site IA restructuring
+**Next Task**: Task 4.6 — Reference pages: work organization and sessions (line ~312)
+**Last Completed**: Task 4.5 — Customizing ARC section extraction
 **Blockers**: [none]
-**Next Action**: Extract configurability-architecture + agent-hooks to customization/ pages
+**Next Action**: Extract work-organization, session-management, context-loading to reference/ pages
 
 ---
 
