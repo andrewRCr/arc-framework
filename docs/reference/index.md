@@ -12,7 +12,6 @@ during sessions. Reference pages here point to the relevant strategy document wh
 
 | Page                                          | What You'll Find                                                       |
 |-----------------------------------------------|------------------------------------------------------------------------|
-| [Configuration](customizing/configuration.md) | Customization mechanisms, config settings, methods, extensions         |
 | [Quality Gates](quality-gates.md)             | The three-tier verification system and when each tier runs             |
 | [Skills](skills.md)                           | ARC's skills — what each does, when to use it, core vs supplemental    |
 | [Team Coordination](team-coordination.md)     | Multi-developer patterns, task ownership, branching, external trackers |

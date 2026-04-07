@@ -90,7 +90,7 @@ Completed tasks (`[x]`) are updated to reflect what was actually done — outcom
 plan. Incomplete tasks (`[ ]`) retain their original specification.
 
 For the full task execution model — how the agent works through tasks, quality gates, and review
-stops — see [How ARC Works](how-arc-works.md#working-through-tasks).
+stops — see [How ARC Works](the-framework.md#working-through-tasks).
 
 ## Work Organization
 
@@ -127,13 +127,13 @@ Each work unit moves through a managed lifecycle:
 1. **Planning** — explore the problem, write a PRD, generate a task list
 2. **Activation** — move artifacts from backlog to active, create the implementation branch
 3. **Execution** — work through tasks via the
-   [task execution model](how-arc-works.md#working-through-tasks)
+   [task execution model](the-framework.md#working-through-tasks)
 4. **Verification** — final quality gates, success criteria validation
 5. **Integration** — pre-merge review, PR, merge
 6. **Archival** — completed artifacts move to the archive for historical reference
 
 ARC provides workflows for each transition. The level of ceremony scales with your
-[branch protection mode](reference/customizing/configuration.md#branch-model). `partial` (default) keeps it
+[branch protection mode](customization/configuration.md#branch-model). `partial` (default) keeps it
 lightweight for solo developers and small teams; `full` requires branches and PR review for all
 changes.
 

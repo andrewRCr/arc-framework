@@ -126,11 +126,6 @@
       "layer": "core",
       "pristine_hash": "928c99636f3e4fc4d299b9e29b6b297c9288c25c883410c2a52be6eb5fb6881e"
     },
-    "reference/strategies/arc/strategy-core-philosophy.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "a954f782214d66cde8eb33ae1c795c313ba536e802bfa57be61caa714572458c"
-    },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
       "layer": "core",

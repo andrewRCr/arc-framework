@@ -1,4 +1,4 @@
-# Philosophy
+# Rationale
 
 Every developer who's worked with an AI coding agent has experienced the gap between what's possible
 and what's reliable. Agents can generate impressive code, but the output quality varies — sometimes
@@ -19,7 +19,7 @@ meaningfully. You're present during execution — steering, correcting, contribu
 agent. Sessions are bounded and intentional, with structured handoffs that preserve context for the
 next session. Quality gates verify work at every level. The reasoning for each of these choices
 follows — if you'd rather start with the practical mechanics, see
-[How ARC Works](../how-arc-works.md).
+[How ARC Works](../the-framework.md).
 
 ## Three Observations
 
@@ -45,6 +45,13 @@ structure that works with the attention constraint rather than against it — th
 control uses radar, separation standards, and checklists to manage inherent attention limits through
 intelligent task ordering.
 
+??? info "What about genuine exceptions?"
+
+    Genuine exceptions exist — supertaskers (roughly 2.5% of the population, innate and not
+    trainable; Watson & Strayer, 2010), practiced time-sharing under narrow conditions,
+    domain-structured multitasking like air traffic control. None of these generalize to novel,
+    semantically rich work, which is what AI-assisted software development is.
+
 ### Software is for humans
 
 Software is overwhelmingly produced for human consumption. Deep human involvement during development
@@ -64,6 +71,12 @@ present during execution notices that this feature's data flow mirrors another m
 that the current approach would simplify a planned future change. These observations — the kind that
 improve the broader system, not just the current task — require engagement during implementation, not
 after it. Co-development preserves the conditions under which they occur.
+
+!!! tip "The maintenance dimension"
+
+    Delegation-based approaches risk producing code that no human deeply understands, creating
+    maintenance debt that accumulates quietly. Co-development means developers have context
+    because they were there — not because they reviewed a PR.
 
 ### Collaboration improves with frequency
 
@@ -91,18 +104,33 @@ down. You context-switch to something else, come back to a batch of completed wo
 becomes reconstruction rather than participation. The mandatory stop between tasks isn't overhead;
 it's the mechanism that keeps review from degrading into rubber-stamping.
 
+??? info "Developer disengagement"
+
+    A documented pattern is emerging where developers reduced to reviewing AI output lose
+    context on their own codebase, and review quality degrades because disengaged review is
+    ineffective review. Frequent interaction sustains engagement — the developer stays close
+    enough to the work to contribute meaningfully, not just approve.
+
 ## The Operating Premise
 
 The industry's default framing treats human single-threaded attention as a bottleneck, something to
 minimize, parallelize around, or eliminate. ARC's position: human attention being single-threaded is
 a design constraint worth respecting. It forces focus, ensures quality input at every step, and
-produces work that reflects genuine judgment.
+produces work that reflects genuine judgment. Throughput is not the only measure of effective
+development, and for most work it is not the most important one.
+
+This is a deliberate stance with real costs. ARC is not the right choice for every team or every
+kind of work. Where it fits and where it doesn't is addressed in
+[What ARC Is Not](#what-arc-is-not).
 
 ## Principles
 
 ARC has 11 non-negotiable principles that define its identity. An adoption that doesn't honor all of
 them is not meaningfully using ARC. Under each principle, configurable conventions implement it in
 practice — conventions are strong defaults your team can change without changing what ARC is.
+
+Each principle is summarized below. For the full treatment — rationale, conventions, and the
+reasoning behind each one — see [The 11 Principles](principles.md).
 
 ### Core commitments
 
@@ -167,12 +195,19 @@ ARC uses a three-tier flexibility model:
 The test: "If an adopter changed or removed this, would they still be meaningfully using ARC?"
 Yes → convention. No → principle.
 
-Examples: conventional commit format is a convention (any communicative format maintains
-traceability). Quality gate enforcement is a principle (removing verification entirely is outside
-ARC). Squash merging is an escape hatch (ARC accommodates it but sacrifices granular commit
-history).
+A few examples to make this concrete:
 
-The [configuration mechanisms](../reference/customizing/configuration.md) — config values, method overrides, and
+- **Conventional commit format** is a convention (under P6). Teams can use any communicative format
+  and still maintain traceability.
+- **Per-task mandatory review stop** is a convention (under P2). Teams can adjust the review
+  increment size while still maintaining co-development.
+- **Quality gate enforcement** is a principle (P4). Removing automated verification entirely is
+  outside ARC.
+- **Squash merging** is an escape hatch. ARC accommodates it by shifting traceability to PR
+  descriptions, but it sacrifices the granular commit history that the default merge strategy
+  preserves.
+
+The [configuration mechanisms](../customization/configuration.md) — config values, method overrides, and
 extension points — operate on conventions, never principles.
 
 ## Why Bounded Sessions
@@ -216,7 +251,7 @@ deliberate context loading and ends with intentional state preservation. Without
 knowledge accumulates implicitly and is lost when the conversation ends.
 
 For practical session duration guidance, see
-[How ARC Works § When to End a Session](../how-arc-works.md#when-to-end-a-session).
+[How ARC Works § When to End a Session](../the-framework.md#when-to-end-a-session).
 
 ## Where ARC Fits
 
@@ -230,7 +265,10 @@ operates below and alongside team coordination methodologies.
 | **Execution pair** | **How a developer and agent implement**  | **ARC**                      |
 
 Scrum answers "what does the team commit to this sprint?" ARC answers "how does this developer-agent
-pair work through this task effectively?" These are complementary, not competing.
+pair work through this task effectively?" These are complementary because they address different
+concerns at different scales. ARC does not replace or compete with team-level methodologies. For
+teams without an existing methodology (solo developers, small teams working ad-hoc), ARC provides
+the planning discipline, execution structure, and knowledge preservation they may currently lack.
 
 ### Agent compatibility
 
@@ -243,6 +281,17 @@ ARC is designed for conversational agents where developer and agent share contex
 - **Cloud/async agents** (Jules, Codex cloud, Devin) — off-label. ARC can function at the
   boundaries (planning as specification, quality gates as verification), but the core
   co-development value is absent during execution.
+
+### What ARC is not
+
+- **Not a team coordination methodology.** ARC does not prescribe sprint length, story format,
+  estimation approach, team ceremonies, team roles, board structure, or backlog prioritization.
+- **Not universally agent-compatible.** ARC is honest about where its methodology applies and where
+  it doesn't. Claiming broad compatibility and underdelivering would be worse than being clear
+  about the design target.
+- **Not a throughput optimizer.** ARC optimizes for the quality of developer-agent collaboration.
+  Teams that primarily need to maximize code output velocity on deterministic, bounded work may
+  find delegation-based approaches more appropriate for that work.
 
 ---
 

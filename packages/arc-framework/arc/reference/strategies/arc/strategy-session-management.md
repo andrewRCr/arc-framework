@@ -33,8 +33,7 @@ preserved and then rebuilt fresh.
 **Attention quality.** ARC's co-development model (P2) requires sustained human attention — the developer is a
 co-developer, not a passive observer. Human attention for novel knowledge work is single-threaded, and task-switching
 costs up to 40% of productive time (Rubinstein, Meyer & Evans, 2001). Marathon sessions degrade human judgment the same
-way they degrade agent context, just through a different mechanism. See [Core Philosophy][core-philosophy] § Cognitive
-Reality for the full reasoning.
+way they degrade agent context, just through a different mechanism.
 
 **Methodology discipline.** The session boundary enforces the establish-execute-capture rhythm (P5). Each session starts
 with deliberate context loading, proceeds through focused work, and ends with intentional state preservation. This
@@ -203,7 +202,6 @@ additional plumbing.
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
-[core-philosophy]: strategy-core-philosophy.md
 [git-notes]: https://git-scm.com/docs/git-notes
 [ctx-length-hurts]: https://arxiv.org/abs/2510.05381
 [ruler]: https://arxiv.org/abs/2404.06654

@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.4 — Philosophy section extraction (line ~266)
-**Last Completed**: Task 4.3 — Docs site structural preparation
+**Next Task**: Task 4.5 — Customizing ARC section extraction (line ~294)
+**Last Completed**: Task 4.4 — Philosophy extraction + docs site IA restructuring
 **Blockers**: [none]
-**Next Action**: Extract core-philosophy content to docs site philosophy/ pages, establishing pointer and collapsible patterns
+**Next Action**: Extract configurability-architecture + agent-hooks to customization/ pages
 
 ---
 

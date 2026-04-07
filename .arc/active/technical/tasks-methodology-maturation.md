@@ -263,32 +263,39 @@ Remove .arc/README from installs._
       path updates, table realignment for MD060 compliance)
     - `mkdocs build --strict` passes, all modified files lint clean
 
-- [ ] **4.4 Philosophy section extraction**
-    - **Source:** strategy-core-philosophy (474 lines, entire doc → docs site, then removed)
-    - **Targets:** `philosophy/index.md` (enriched), `philosophy/principles.md` (new)
-    - **Establishes the pointer and collapsible rationale patterns** used by all subsequent
-      extraction tasks. Pointer pattern: header blockquote link on every strategy doc with a
-      docs-site counterpart (`> **Full guide:** [Title](URL)`), plus inline contextual links
-      at natural "why?" transition points. Rationale pattern: `??? info` for deep dives,
-      `!!! tip` for inline insights.
-    - philosophy/index.md: philosophical foundation evidence (~80 lines), positioning (~60
-      lines), principle/convention boundary (~30 lines), context degradation research from
-      session-management (~30 lines collapsible)
-    - philosophy/principles.md: P1-P11 definitions with per-principle rationale and conventions
-      (~280 lines). Per-principle rationale in collapsible sections.
-    - **Two-copy removal:** Delete from `packages/arc-framework/arc/` and `.arc/`. Update
-      STRATEGY-INDEX (remove or redirect). Update DEV-RULES.ARC core-philosophy link.
-    - Phase 5 forward-compat: reference P1 by description not name, leave insertion point for
-      harness engineering section in philosophy/index.md
-    - See notes file § Task 4.1 Deliverable → philosophy/* for detailed content mapping
-    - **Scope note:** Phase 5 tasks 5.2 and 5.4 reference strategy-core-philosophy, which this
-      task removes. Those tasks will operate on docs site `philosophy/` pages instead.
+- [x] **4.4 Philosophy section extraction + docs site IA restructuring**
+    - **Source:** strategy-core-philosophy (474 lines) → docs site, then removed from both copies
+    - **methodology/principles.md** (new, ~250 lines): Full P1-P11 with per-principle
+      collapsible `??? info` rationale sections and conventions lists. P1 referenced by
+      description ("Development from written specifications") per Phase 5 forward-compat.
+    - **methodology/rationale.md** (enriched, renamed from philosophy): Added collapsible
+      evidence sections (supertasker nuance, maintenance debt tip, developer disengagement),
+      enriched Operating Premise, added Principles vs Conventions examples, added "What ARC
+      Is Not" section, expanded "Where ARC Fits." Session-management context degradation
+      already present from Phase 2.
+    - **Docs site information architecture restructuring** (emerged from extraction work):
+        - Removed `navigation.sections` → collapsible sidebar sections
+        - Methodology/Framework nav split: "Methodology" section (index + Rationale +
+          Principles), "The Framework" standalone page with framing intro
+        - "Customization" section (was "Customizing ARC" under reference/) with new index page
+        - "Updating" moved to Reference section
+        - "Overview" replaces "Home" nav label
+        - philosophy/ → methodology/rationale.md + methodology/principles.md
+        - how-arc-works.md → the-framework.md (title + framing intro updated)
+        - reference/customizing/ → customization/ (independent section)
+        - updating.md → reference/updating.md
+        - Cross-references updated across 15 docs files, notes file extraction target mapping
+          updated, task descriptions updated for 4.5, 4.8, 5.1, 5.2, 5.4
+    - **Two-copy removal (core-philosophy):** Deleted from both copies. Removed from
+      init-recipe.json, manifest.json, STRATEGY-INDEX (both copies).
+    - **Reference updates:** DEV-RULES.ARC, session-management, configurability-architecture
+      links updated (both copies). Cosmetic references deferred to Task 4.11.
 
 - [ ] **4.5 Customizing ARC section extraction**
     - **Sources:** configurability-architecture (710 lines, ~48% extraction),
       agent-hooks (216 lines, entire doc → docs site, then removed)
-    - **Targets:** `reference/customizing/configuration.md` (restructured),
-      `reference/customizing/methods.md` (new), `reference/customizing/hooks.md` (new)
+    - **Targets:** `customization/configuration.md` (restructured),
+      `customization/methods.md` (new), `customization/hooks.md` (new)
     - configuration.md: retain existing settings reference, add customization model philosophy
       and adoption defaults (~200 lines), validation scenarios as collapsible walk-throughs
       (~60 lines)
@@ -333,8 +340,8 @@ Remove .arc/README from installs._
 - [ ] **4.8 Existing page enrichments**
     - Lighter-touch additions across 5 existing docs site pages — smaller content placements,
       not full page restructures
-    - methodology.md: focused sessions philosophy from session-management (~24 lines)
-    - how-arc-works.md: auto-compaction rationale from session-management (~26 lines,
+    - methodology/index.md: focused sessions philosophy from session-management (~24 lines)
+    - the-framework.md: auto-compaction rationale from session-management (~26 lines,
       collapsible)
     - work-planning.md: pipeline concept and plan doc philosophy from work-planning (~105
       lines), ATOMIC-INBOX rationale from backlog-organization (~25 lines, collapsible)
@@ -412,14 +419,15 @@ framing integrated._
 
 - [ ] **5.1 Language cleanup: docs site**
     - Review `docs/` pages for methodology/implementation conflation
-    - "How ARC Works" and similar sections: ensure framing distinguishes principles from specific
-      implementation mechanisms
+    - "The Framework" page and similar sections: ensure framing distinguishes principles from
+      specific implementation mechanisms (partially addressed by 4.4 IA restructuring —
+      Methodology/Framework nav split already establishes the distinction structurally)
     - Contextually considered — preserve prose flow, don't mechanically insert "framework"
 
-- [ ] **5.2 Language cleanup: philosophy pages and agent briefings**
-    - Review docs site `philosophy/` pages (formerly strategy-core-philosophy, moved in 4.4) —
-      principle statements clearly methodology-level, convention descriptions clearly
-      implementation-level
+- [ ] **5.2 Language cleanup: methodology section and agent briefings**
+    - Review docs site `methodology/` pages (rationale.md and principles.md, formerly
+      strategy-core-philosophy, moved and restructured in 4.4) — principle statements clearly
+      methodology-level, convention descriptions clearly implementation-level
     - Review agent briefings (`AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.PROJECT.md`) and main
       repository `README.md`
     - Apply same methodology/implementation distinction
@@ -430,8 +438,9 @@ framing integrated._
     - Operational strategy docs (task-list-formatting, work-organization): light touch
 
 - [ ] **5.4 Integrate harness engineering positioning**
-    - Add positioning section in docs site `philosophy/index.md` (formerly philosophy strategy,
-      moved in 4.4; insertion point left during extraction): ARC as a "process-level harness"
+    - Add positioning section in docs site `methodology/rationale.md` (formerly philosophy
+      strategy, moved and restructured in 4.4; insertion point left during extraction): ARC as
+      a "process-level harness"
     - Adopt terminology where it strengthens clarity: feedforward controls, feedback controls
     - Reference Fowler article in philosophy strategy and docs site "What is ARC" content
     - Frame as "ARC's approach maps to the harness engineering model" — not derivative

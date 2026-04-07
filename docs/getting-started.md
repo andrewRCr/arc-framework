@@ -12,7 +12,7 @@ initial setup, and your first session.
   Gemini CLI, and Copilot CLI. IDE-embedded agents (Cursor, Windsurf, Cline) are architecturally
   supported but not yet validated. If you're using one, your feedback helps close that gap
   ([file an issue](https://github.com/andrewRCr/arc-framework/issues)). See
-  [agent compatibility](philosophy/index.md#agent-compatibility) for the full compatibility spectrum.
+  [agent compatibility](methodology/rationale.md#agent-compatibility) for the full compatibility spectrum.
 
 ## Installation
 
@@ -66,7 +66,7 @@ points into ARC workflows (e.g., `/arc-setup` in Claude Code, `$arc-setup` in Co
 walkthrough that:
 
 1. **Verifies and configures** — confirms the installation, walks through ARC's customization
-   surfaces ([config values, methods, extensions](reference/customizing/configuration.md)), and orients you
+   surfaces ([config values, methods, extensions](customization/configuration.md)), and orients you
    to the directory structure.
 2. **Defines your project** — guides you through the documents that shape every session: project
    briefing (technology stack, friction points), development rules (quality gates, testing
@@ -92,13 +92,13 @@ takes over: working through tasks one at a time, each as a bounded
 review between tasks.
 
 For the full operational model (sessions, skills, task execution), see
-[How ARC Works](how-arc-works.md).
+[How ARC Works](the-framework.md).
 
 ### Committing changes
 
 When work is ready to commit, invoke `arc-commit`. The skill handles atomic boundary analysis,
 commit format guidance (conventional commits with `Context:` footers linking each commit to its
-task, [customizable](reference/customizing/configuration.md#commit-discipline)), and stages WORK-STATUS.md
+task, [customizable](customization/configuration.md#commit-discipline)), and stages WORK-STATUS.md
 alongside task list changes so project state stays in sync.
 
 ### Ending a session
@@ -110,11 +110,11 @@ quality dropping), invoke `arc-handoff`. This captures:
 - **SESSION-NOTES.md** — what you were thinking (personal, gitignored)
 
 The next session rebuilds context fresh and picks up where you left off. See
-[Philosophy § Why Bounded Sessions](philosophy/index.md#why-bounded-sessions) for the evidence behind
+[Philosophy § Why Bounded Sessions](methodology/rationale.md#why-bounded-sessions) for the evidence behind
 shorter, focused sessions.
 
 ## Next Steps
 
-- [How ARC Works](how-arc-works.md) — the session lifecycle, skills, and task execution model
-- [Philosophy](philosophy/index.md) — the 11 principles and the evidence behind them
+- [How ARC Works](the-framework.md) — the session lifecycle, skills, and task execution model
+- [Philosophy](methodology/rationale.md) — the 11 principles and the evidence behind them
 - [Work Planning](work-planning.md) — the planning pipeline and work organization

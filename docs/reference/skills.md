@@ -19,7 +19,7 @@ workflows.
 ## Core Skills
 
 These three skills form the operational rhythm of every ARC session. You'll use them regularly;
-they map directly to the [session lifecycle](../how-arc-works.md#the-session-lifecycle).
+they map directly to the [session lifecycle](../the-framework.md#the-session-lifecycle).
 
 ### arc-resume
 

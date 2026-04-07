@@ -18,54 +18,54 @@ ARC's collaboration model: the developer and agent work together through
 tight, iterative loops during implementation, not in a review-after-the-fact pattern. The
 developer directs, the agent executes within bounded scope, and both contribute throughout. This
 is ARC's most distinctive characteristic: the human directs, not merely reviews.
-See [Philosophy § Core Commitments](../philosophy/index.md#core-commitments) (P2).
+See [Philosophy § Core Commitments](../methodology/rationale.md#core-commitments) (P2).
 
 ## *Context preservation*
 
 The principle that work context must be recoverable across session
 boundaries. Implemented through WORK-STATUS.md (tracked project state) and SESSION-NOTES.md
 (personal working context), with git notes providing portability. See
-[Sessions § Handoff](../how-arc-works.md#ending-a-session) (P5).
+[Sessions § Handoff](../the-framework.md#ending-a-session) (P5).
 
 ## *Convention*
 
 A configurable practice with a sensible default (tier 2 in ARC's flexibility
 model). Changing a convention keeps ARC intact. Examples: commit format, quality gate commands,
 merge strategy. Contrast with *principle*. See
-[Philosophy § Principles vs. Conventions](../philosophy/index.md#principles-vs-conventions).
+[Philosophy § Principles vs. Conventions](../methodology/rationale.md#principles-vs-conventions).
 
 ## *Escape hatch*
 
 A practice ARC doesn't formally support but doesn't block (tier 3).
 Acknowledged in documentation with the tradeoff stated. Example: squash merging, which ARC
 accommodates by shifting traceability to PR descriptions. See
-[Philosophy § Principles vs. Conventions](../philosophy/index.md#principles-vs-conventions).
+[Philosophy § Principles vs. Conventions](../methodology/rationale.md#principles-vs-conventions).
 
 ## *Extension point*
 
 A preset location in an ARC workflow where teams can inject additional
 steps via `arc-extensions.md`. Extensions add behavior without replacing existing steps.
 Example: running a security scan after each task's quality checks. See
-[Configuration § Extension Points](customizing/configuration.md#extension-points).
+[Configuration § Extension Points](../customization/configuration.md#extension-points).
 
 ## *Handoff*
 
 The structured end of a session. Captures WORK-STATUS.md and SESSION-NOTES.md so
-the next session can recover context. See [Sessions § Handoff](../how-arc-works.md#ending-a-session).
+the next session can recover context. See [Sessions § Handoff](../the-framework.md#ending-a-session).
 
 ## *Leave-it-cleaner*
 
 The principle that when you encounter an issue in a file you're
 modifying, you take responsibility for it. Fix it inline if small enough, or route it to a
 capture surface if it would derail the current task. Issues are never silently ignored. See
-[How ARC Works § Working Through Tasks](../how-arc-works.md#working-through-tasks) (P4).
+[How ARC Works § Working Through Tasks](../the-framework.md#working-through-tasks) (P4).
 
 ## *Method override*
 
 A structured replacement in `arc-methods.md` that substitutes ARC's
 default implementation for a convention with the team's alternative. The override must satisfy
 the same contract as the default. Example: replacing ARC's commit format with a Jira-prefixed
-format. See [Configuration § Method Overrides](customizing/configuration.md#method-overrides).
+format. See [Configuration § Method Overrides](../customization/configuration.md#method-overrides).
 
 ## *Planning Module*
 
@@ -83,7 +83,7 @@ maps to one task list. PRDs are living documents updated as understanding evolve
 
 A non-negotiable aspect of ARC's identity (tier 1). Removing or violating a
 principle means you're not meaningfully using ARC. ARC has 11 principles (P1–P11). Contrast
-with *convention*. See [Philosophy § Principles](../philosophy/index.md#principles).
+with *convention*. See [Philosophy § Principles](../methodology/rationale.md#principles).
 
 ## *Process task loop*
 
@@ -93,7 +93,7 @@ quality gates, mark complete, report, mandatory stop), test-first assessment, qu
 escalation, deferred review, coherent unit completion, and incidental work routing. This is the
 mechanical core of ARC's [co-development](#co-development) model, not guidelines the agent
 interprets, but a loop with checkpoints, escalation paths, and enforced stops. See
-[How ARC Works § Working Through Tasks](../how-arc-works.md#working-through-tasks).
+[How ARC Works § Working Through Tasks](../the-framework.md#working-through-tasks).
 
 ## *Quality gate*
 
@@ -109,14 +109,14 @@ review points. The agent implements one review increment, runs quality gates, re
 and stops for the developer's review before proceeding. This is the mechanism that implements
 co-development at execution time: small enough for meaningful review, large
 enough for productive autonomy. See
-[How ARC Works § Working Through Tasks](../how-arc-works.md#working-through-tasks).
+[How ARC Works § Working Through Tasks](../the-framework.md#working-through-tasks).
 
 ## *Session*
 
 A bounded, intentional period of work. Starts with structured initialization
 (context loading), proceeds through focused work, and ends with handoff (state preservation).
 Sessions are designed to be shorter and more focused than the context window allows; quality
-degrades with length. See [Sessions](../how-arc-works.md).
+degrades with length. See [Sessions](../the-framework.md).
 
 ## *Skill*
 

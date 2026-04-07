@@ -1,7 +1,7 @@
 # Quality Gates
 
 Quality gates are automated verification checkpoints that run at defined moments during
-development. The [principle](../philosophy/index.md#operational-discipline) is that quality is
+development. The [principle](../methodology/rationale.md#operational-discipline) is that quality is
 verified, not assumed (P4). The specific gates, tools, and strictness levels are project-defined
 conventions. ARC provides the checkpoint structure; you provide the commands.
 

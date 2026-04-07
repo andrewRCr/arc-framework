@@ -1,13 +1,11 @@
 # Strategy: Configurability Architecture
 
 **Purpose:** Define how teams customize ARC — the mechanisms, the boundaries, and the conventions that make the
-framework adaptable without losing its identity. This is the companion to
-[strategy-core-philosophy.md][core-philosophy], which defines what ARC is.
+framework adaptable without losing its identity.
 
 **Scope:** Configuration settings, extension points, method overrides, content-level customization (project strategies,
 workflows, domain-specific rules), adoption defaults, framework layers, platform compatibility, and the full convention
-inventory. For ARC's principles, philosophical foundation, and positioning, see the
-[core philosophy strategy][core-philosophy].
+inventory.
 
 ---
 
@@ -702,7 +700,7 @@ period demonstrated the conventions in practice before enforcement was activated
 ---
 
 [context-loading]: strategy-context-loading.md
-[core-philosophy]: strategy-core-philosophy.md
+[core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/principles/
 [dev-methodology]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md

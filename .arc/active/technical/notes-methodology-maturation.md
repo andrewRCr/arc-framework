@@ -418,25 +418,26 @@ evidence, trade-off analysis, and design philosophy in collapsible `??? info` se
 
 ### Docs Site Extraction Target Mapping
 
-**Proposed docs site navigation (post-extraction):**
+**Docs site navigation (implemented in Task 4.4):**
 
 ```text
 nav:
-  - Home: index.md
+  - Overview: index.md
   - Getting Started: getting-started.md
-  - Methodology: methodology.md
-  - Philosophy:
-    - philosophy/index.md
-    - The 11 Principles: philosophy/principles.md
-  - How ARC Works: how-arc-works.md
+  - Methodology:
+    - methodology/index.md
+    - Rationale: methodology/rationale.md
+    - Principles: methodology/principles.md
+  - The Framework: the-framework.md
   - Work Planning: work-planning.md
-  - Updating ARC: updating.md
-  - Customizing ARC:
-    - Configuration: reference/customizing/configuration.md
-    - Methods & Extensions: reference/customizing/methods.md
-    - Agent Hooks: reference/customizing/hooks.md
+  - Customization:
+    - customization/index.md
+    - Configuration: customization/configuration.md
+    - Methods & Extensions: customization/methods.md
+    - Agent Hooks: customization/hooks.md
   - Reference:
     - reference/index.md
+    - Updating: reference/updating.md
     - Quality Gates: reference/quality-gates.md
     - Work Organization: reference/work-organization.md
     - Sessions & Context: reference/sessions.md
@@ -448,11 +449,15 @@ nav:
   - Contributing: contributing.md
 ```
 
-**Changes from current structure:**
+**Design decisions (from Task 4.4 IA restructuring):**
 
-- Philosophy splits into section (2 pages) — too much content for single page
-- Customizing ARC: new 3-page section — Configuration (settings + customization philosophy),
-  Methods & Extensions (override mechanisms), Agent Hooks (hook integration guidance)
+- Collapsible nav sections (removed `navigation.sections` feature flag)
+- Methodology/Framework nav split establishes the Phase 5 language distinction structurally
+- "Methodology" section: overview (commitments), Rationale (evidence/reasoning, renamed from
+  Philosophy), Principles (P1-P11)
+- "The Framework" standalone page: bridges methodology → mechanics, framing intro added
+- "Customization" section with landing page (was "Customizing ARC" under reference/)
+- "Updating" moved to Reference (maintenance/lookup content)
 - Three new reference pages: Work Organization, Sessions & Context, Task Lists
 - Three existing reference pages enriched: Quality Gates, Team Coordination, Glossary
 - Existing "see strategy doc in your .arc/" pointers reverse direction — depth now lives on
@@ -460,29 +465,26 @@ nav:
 
 **Extraction target mapping by docs site page:**
 
-`philosophy/index.md` (enriched — current philosophy.md restructured):
+`methodology/rationale.md` (**done in Task 4.4** — enriched from philosophy.md):
 
-- ← core-philosophy: Philosophical Foundation evidence base (~80 lines, enriches "Three
-  Observations" with citations and deeper evidence, collapsible sections)
-- ← core-philosophy: Positioning — what ARC is/isn't, where it operates, agent compatibility
-  (~60 lines, new section)
-- ← core-philosophy: Principle/Convention Boundary explanation (~30 lines, enriches existing
-  section on conventions vs principles)
-- ← session-management: Context degradation research (~30 lines, collapsible evidence under
-  bounded sessions reasoning)
+- ← core-philosophy: Philosophical Foundation evidence base (collapsible sections: supertasker
+  nuance, maintenance debt tip, developer disengagement)
+- ← core-philosophy: Positioning — "What ARC Is Not" section added
+- ← core-philosophy: Principle/Convention Boundary examples enriched
+- ← core-philosophy: Operating Premise costs/tradeoffs framing added
+- Session-management context degradation: already present from Phase 2, no additional needed
 
-`philosophy/principles.md` (new):
+`methodology/principles.md` (**done in Task 4.4** — new):
 
-- ← core-philosophy: P1-P11 definitions with per-principle rationale and conventions list
-  (~280 lines). Each principle gets: definition, "Remove this and..." reasoning, conventions.
-  Per-principle rationale in collapsible sections for depth.
+- ← core-philosophy: P1-P11 definitions with per-principle `??? info` rationale and conventions
+  (~250 lines). P1 referenced by description per Phase 5 forward-compat.
 
-`methodology.md` (enriched):
+`methodology/index.md` (enriched):
 
 - ← session-management: Focused sessions philosophy (~24 lines, enriches bounded sessions
   commitment section)
 
-`how-arc-works.md` (lightly enriched):
+`the-framework.md` (lightly enriched):
 
 - ← session-management: Auto-compaction rationale (~26 lines, collapsible under session
   lifecycle section)
@@ -494,7 +496,7 @@ nav:
 - ← backlog-organization: ATOMIC-INBOX design rationale (~25 lines, collapsible section in
   backlog/capture context)
 
-`reference/customizing/configuration.md` (restructured from current reference/configuration.md):
+`customization/configuration.md` (restructured):
 
 - ← configurability-architecture: Customization model philosophy, adoption defaults, three-tier
   flexibility explanation (~200 lines, rationale sections with collapsible deep dives)
@@ -502,12 +504,12 @@ nav:
   walk-throughs)
 - Retains existing arc-config.yml settings reference content
 
-`reference/customizing/methods.md` (new, split from configuration):
+`customization/methods.md` (new, split from configuration):
 
 - ← configurability-architecture: Method/extension mechanism explanation (~80 lines)
 - Existing methods and extensions guide content restructured here
 
-`reference/customizing/hooks.md` (new):
+`customization/hooks.md` (new):
 
 - ← agent-hooks: Entire doc (~216 lines). Platform landscape survey and value assessment in
   collapsible sections. Adopter guidance checklists as primary content.
