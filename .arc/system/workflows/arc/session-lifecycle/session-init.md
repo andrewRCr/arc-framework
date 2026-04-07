@@ -195,6 +195,12 @@ session-state, follow the override instead.
     - **Why partial read OK**: This is the ONLY exception — reference material, often 500+ lines,
       too large to internalize upfront. But you MUST read the overview + current task context.
     - **What to extract**: Current phase, task details, acceptance criteria
+    - **Companion file awareness**: Check the task list's directory for companion files
+      (`notes-[name].md`, `atomic-[name].md`). Note their existence so task references to
+      "notes file" or "atomic companion" resolve immediately during execution. **Do NOT read
+      these files during init** — they are on-demand reference material, often large, loaded
+      only when a specific task references them or SESSION-NOTES indicates context from them
+      is needed for the current task.
 
 11. **Task execution workflow** - **READ IN FULL** (Batch 2 — conditional)
 
