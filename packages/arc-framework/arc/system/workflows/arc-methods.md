@@ -10,7 +10,7 @@ implementation. For each method, the agent checks `.override` first. If populate
 **Loading model:** Method defaults and overrides load on-demand at workflow trigger points, not at session
 initialization. Session-init scans only for override *presence* (which methods have active overrides) without
 reading method content. Workflow documents include method dependencies blocks that trigger loading when the agent
-reaches the relevant activity. See the [Context Loading Strategy][context-loading] for the tiered model and
+reaches the relevant activity. See the [Session Operations Strategy][session-ops] for the tiered model and
 ADR-013 for the decision rationale.
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
@@ -387,6 +387,6 @@ references quality gates uniformly through the method layer, and teams with non-
 [session-handoff]: arc/session-lifecycle/session-handoff.md
 [arc-config]: ../arc-config.yml
 [arc-ext-pre-merge-review]: arc-extensions.md#pre-merge-review
-[context-loading]: ../../reference/strategies/arc/strategy-context-loading.md
+[session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
 [dev-rules-project]: ../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md

@@ -4,16 +4,23 @@
 
 ## Purpose
 
-Every task list ends with a verification phase as its final phase. The standard task-by-task
-completion protocol still applies, but the two verification tasks follow this protocol.
+Every task list ends with a verification phase containing a single task that points here.
+The task description is intentionally thin — this workflow is the authoritative protocol.
+Complete all three steps below, then mark the single verification task `[x]` with completion
+notes covering what was verified (see [Completion Notes](#completion-notes)).
 
-## Task 1 — Tier 3 Quality Gates
+**Relationship to integrate-work-unit:** This is the implementer's validation pass. The
+[integrate-work-unit workflow][integrate-work-unit] performs a second confirmation during
+integration — a lightweight check that works whether the same person or a different team
+member integrates.
+
+## Step 1 — Tier 3 Quality Gates
 
 Run the full quality gate suite as defined by the project's
 [Quality Gates Strategy][quality-gates]. Even when incremental checks have been clean throughout
 implementation, the full-suite run serves as attestation that everything passes as a whole.
 
-## Task 2 — Validate Success Criteria Against PRD
+## Step 2 — Validate Success Criteria Against PRD
 
 Open the PRD, walk through its success criteria, and compare each against actual outcomes.
 Then mark each criterion in the task list's Success Criteria section (see
@@ -33,11 +40,7 @@ original text preserves intent; annotations capture reality.
 during implementation. Implementation tasks get checked as work progresses; success criteria
 get checked when the implementer steps back and validates outcomes against the PRD.
 
-**Relationship to integrate-work-unit:** This is the implementer's validation pass. The
-[integrate-work-unit workflow][integrate-work-unit] performs a second confirmation during integration —
-a lightweight check that works whether the same person or a different team member integrates.
-
-## Task 3 — Verify All Atomic Tasks Resolved
+## Step 3 — Verify All Atomic Tasks Resolved
 
 Review the atomic companion file (`atomic-{name}.md`). Every item must have a final
 disposition — none should remain `[ ]`:
@@ -55,6 +58,19 @@ disposition — none should remain `[ ]`:
 If unresolved atomic tasks are found, address them before considering verification complete.
 If the companion file is empty (no checkbox items), it will be deleted during integration —
 no action needed.
+
+## Completion Notes
+
+When marking the verification task `[x]`, include completion notes that make the task
+self-documenting — a reader of the archived task list should understand what was verified
+without loading this workflow. Cover all three steps:
+
+- **Quality gates**: What ran and the outcome (e.g., "md lint, code lint, typecheck,
+  42 tests, build — all passed")
+- **Success criteria**: Summary disposition (e.g., "8 criteria: 7 met, 1 superseded
+  with annotation")
+- **Atomic tasks**: Disposition (e.g., "companion file empty" or "3 completed, 1 deferred
+  to backlog")
 
 ---
 

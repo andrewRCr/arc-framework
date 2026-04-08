@@ -10,10 +10,12 @@ canonical deep-dive; they ship with every ARC installation and are referenced by
 during sessions. Reference pages here point to the relevant strategy document where applicable
 — these are available after running `arc init`.
 
-| Page                                      | What You'll Find                                                            |
-| ----------------------------------------- | --------------------------------------------------------------------------- |
-| [Configuration](configuration.md)         | Customization mechanisms, config settings, methods, extensions              |
-| [Quality Gates](quality-gates.md)         | The three-tier verification system and when each tier runs                  |
-| [Skills](skills.md)                       | ARC's skills — what each does, when to use it, core vs supplemental         |
-| [Team Coordination](team-coordination.md) | Multi-developer patterns, task ownership, branching, external trackers      |
-| [Glossary](glossary.md)                   | Definitions of ARC-specific terms used throughout the documentation         |
+| Page                                      | What You'll Find                                                           |
+|-------------------------------------------|----------------------------------------------------------------------------|
+| [Work Organization](work-organization.md) | Decision guide for categorizing work, incidental branching, anti-patterns  |
+| [Sessions & Context](sessions.md)         | Context degradation evidence, loading tiers, duration guidance, monitoring |
+| [Quality Gates](quality-gates.md)         | The three-tier verification system, escalation reasoning, common mistakes  |
+| [Task Lists](task-lists.md)               | Structure, formatting guidance, annotated examples, common pitfalls        |
+| [Skills](skills.md)                       | ARC's skills — what each does, when to use it, core vs supplemental        |
+| [Team Coordination](team-coordination.md) | Multi-developer patterns, task ownership, branching, merge conflicts       |
+| [Glossary](glossary.md)                   | Definitions of ARC-specific terms used throughout the documentation        |

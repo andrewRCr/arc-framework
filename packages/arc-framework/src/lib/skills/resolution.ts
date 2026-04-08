@@ -67,8 +67,10 @@ export const CANONICAL_SKILLS = [
   "arc-resume",
   "arc-commit",
   "arc-handoff",
+  "arc-plan",
   "arc-setup",
   "arc-task-audit",
+  "arc-task-review",
   "arc-verify",
 ] as const;
 

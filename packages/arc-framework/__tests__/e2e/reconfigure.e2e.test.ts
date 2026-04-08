@@ -52,7 +52,7 @@ describe("arc init --reconfigure", () => {
     // arc-in-git files should now exist
     expect(await pathExists(join(tmpDir, ".arc", "backlog", "ROADMAP.md"))).toBe(true);
     expect(await pathExists(
-      join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-backlog-organization.md"),
+      join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md"),
     )).toBe(true);
 
     // Manifest should reflect new config
@@ -156,9 +156,9 @@ describe("arc init --reconfigure", () => {
     );
     expect(reconf.exitCode).toBe(0);
 
-    // Framework files (strategy-backlog-organization.md) should be auto-removed
+    // Framework files (strategy-planning-module.md) should be auto-removed
     expect(await pathExists(
-      join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-backlog-organization.md"),
+      join(tmpDir, ".arc", "reference", "strategies", "arc", "strategy-planning-module.md"),
     )).toBe(false);
 
     // Scaffolded files (ROADMAP.md) should be kept on disk (--yes keeps non-Framework)

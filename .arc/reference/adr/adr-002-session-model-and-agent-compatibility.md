@@ -69,7 +69,7 @@ middle, and state capture at its end.
    session-bounded model.
 
 2. **Sessions enforce methodology discipline.** The rhythm of establish context → execute within scope → capture state
-   reinforces P1 (spec-driven work), P7 (granular tracking), and P2 (tight feedback loop). Without session boundaries,
+   reinforces P1 (spec-directed work), P7 (granular tracking), and P2 (tight feedback loop). Without session boundaries,
    work drifts toward open-ended accumulation — which is exactly the pattern the degradation research warns produces
    worse outcomes.
 

@@ -220,14 +220,14 @@ Archival commits use type/scope `docs(arc)` or `docs(archive)` with Context foot
 **Example:**
 
 ```bash
-git commit -m "docs(arc): archive fix-auth-edge-cases
+git commit -m "docs(arc): archive auth-edge-cases
 
 Archival of completed incidental work:
 - Fixed token refresh race condition and session expiry handling
 - Added retry logic for intermittent auth failures
 - All quality gates passed
 
-Context: tasks-fix-auth-edge-cases.md (archival)"
+Context: tasks-auth-edge-cases.md (archival)"
 ```
 
 ### 9) Next Step

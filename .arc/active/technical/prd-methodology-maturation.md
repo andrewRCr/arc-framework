@@ -2,6 +2,7 @@
 
 **Type:** Technical
 **Updated:** 2026-04-06
+**Status:** Complete
 
 ---
 
@@ -196,29 +197,23 @@ in `system/workflows/arc/supplemental/`.
 12. All workflow and doc references remain coherent after structural changes — no broken
     cross-references or stale paths
 
-## Open Questions
+## Open Questions (Resolved)
 
-### Resolve during work
-
-1. **Content placement post-CLI-fix.** With merge burden eliminated, is there still sufficient
-   motivation to move explanatory content to the docs site? Remaining motivations
-   (discoverability, install focus, Diátaxis clarity) are real but weaker. May resolve toward
-   in-place separation rather than relocation.
-2. **Strategy doc prose quality scope.** Does the Reference/Explanation separation belong in
-   Deliverable 4, Deliverable 3, or span both? Likely emerges during implementation as language
-   cleanup and content placement converge.
-3. **arc-plan workflow weight.** The collaborative exploration skill needs to be light enough
-   that planning doesn't feel like a Procedure. Validate during skill design that it adds value
-   over just starting a conversation.
-4. **Skill candidates.** arc-plan and arc-plan-audit may not survive detailed design. The
-   exploration has value regardless — confirming a moment doesn't need a skill is a useful
-   finding.
-5. **`user/` directory final placement.** Leaning toward keeping at root. Revisit if a
-   `system/` rename naturally resolves the semantic mismatch. Final decision during
-   implementation.
-6. **Hook enforcement viability.** Pre-commit check for package-project sync may be clean and
-   simple, or may have edge cases that make it not worth the complexity. Evaluate and decide
-   during Deliverable 1 Phase 2.
+1. **Content placement post-CLI-fix.** Resolved: hybrid approach — operational reference stays
+   local, explanatory content moves to docs site. Discoverability and install focus remain
+   strong motivations even without merge burden.
+2. **Strategy doc prose quality scope.** Resolved: spanned Phase 4 (content placement) and
+   Phase 5 (language cleanup). Reference/Explanation separation handled during extraction.
+3. **arc-plan workflow weight.** Resolved: self-contained skill (no supporting workflow). Four
+   steps: determine starting point, gather context, present framing questions, step back.
+4. **Skill candidates.** Resolved: arc-task-review and arc-plan pass; arc-plan-audit does not
+   (PRD workflow already covers plan readiness; plan docs lack structured analysis surface).
+5. **`user/` directory final placement.** Resolved: keep at `.arc/` root. External conventions
+   favor in-tool-directory placement; blast radius confirmed prohibitive but decision based on
+   convention fit, not migration cost.
+6. **Hook enforcement viability.** Resolved: viable and implemented. Project-specific script
+   in `.husky/pre-commit`, not in the ARC hook. Warns on Framework file edits without package
+   counterpart staged.
 
 ## Document History
 

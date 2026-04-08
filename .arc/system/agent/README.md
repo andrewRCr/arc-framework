@@ -81,7 +81,7 @@ tools, it belongs in a shared doc (AGENT-BRIEFING.PROJECT.md, DEV-RULES, a workf
 
 **Classification**: Framework (auto-merged on update). Not customized by adopters.
 
-### AGENT-BRIEFING.PROJECT.template.md
+### AGENT-BRIEFING.PROJECT.md
 
 **Purpose**: Project-specific reference card for all AI tools — the project entry point.
 

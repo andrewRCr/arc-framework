@@ -188,8 +188,8 @@ describe("applyChangePlan", () => {
     });
   });
 
-  describe("merges", () => {
-    test("performs three-way merge and advances pristine on clean", async () => {
+  describe("merges — Framework wholesale replacement", () => {
+    test("overwrites adopter modifications with framework content", async () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         merges: [{
@@ -202,15 +202,13 @@ describe("applyChangePlan", () => {
         outputToTemplate: { "reference/README.md": "reference/README.md" },
       };
 
-      // Template has new content, current file has adopter changes
       const { io, renderCtx } = mockRenderCtx({
         "reference/README.md": "new framework content",
       });
-      // Current file on disk (adopter untouched = same as old pristine)
       (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
         async (path: string) => {
           if (path === "/project/.arc/reference/README.md") {
-            return "old framework content";
+            return "adopter modified this file";
           }
           if (path.endsWith("reference/README.md")) {
             return "new framework content";
@@ -223,14 +221,17 @@ describe("applyChangePlan", () => {
         plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
       );
 
-      // base === current, so merge returns "clean" with updated content
       expect(result.updated).toBe(1);
+      expect(result.conflicts).toHaveLength(0);
+      expect(io.writeFile).toHaveBeenCalledWith(
+        "/project/.arc/reference/README.md", "new framework content",
+      );
       expect(result.newPristineStore["reference/README.md"]).toBe(
         "new framework content",
       );
     });
 
-    test("tracks pristine rebuild when pristineContent is undefined", async () => {
+    test("skips write when content is already current", async () => {
       const plan: FileChangePlan = {
         ...emptyPlan(),
         merges: [{
@@ -238,7 +239,7 @@ describe("applyChangePlan", () => {
           templateFile: "reference/README.md",
           classification: "Framework",
           layer: "core",
-          pristineContent: undefined, // Missing from store
+          pristineContent: "framework content",
         }],
         outputToTemplate: { "reference/README.md": "reference/README.md" },
       };
@@ -249,7 +250,7 @@ describe("applyChangePlan", () => {
       (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
         async (path: string) => {
           if (path === "/project/.arc/reference/README.md") {
-            return "framework content"; // Same as template → unchanged
+            return "framework content";
           }
           if (path.endsWith("reference/README.md")) {
             return "framework content";
@@ -262,7 +263,9 @@ describe("applyChangePlan", () => {
         plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
       );
 
-      expect(result.pristineRebuilt).toEqual(["reference/README.md"]);
+      expect(result.unchanged).toBe(1);
+      expect(result.updated).toBe(0);
+      expect(io.writeFile).not.toHaveBeenCalled();
     });
 
     test("reinstalls file missing from disk", async () => {
@@ -281,7 +284,6 @@ describe("applyChangePlan", () => {
       const { io, renderCtx } = mockRenderCtx({
         "reference/README.md": "new content",
       });
-      // Current file throws ENOENT
       (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
         async (path: string) => {
           if (path === "/project/.arc/reference/README.md") {
@@ -303,6 +305,201 @@ describe("applyChangePlan", () => {
       expect(result.updated).toBe(1);
       expect(io.writeFile).toHaveBeenCalledWith(
         "/project/.arc/reference/README.md", "new content",
+      );
+    });
+
+    test("replaces regardless of missing pristine baseline", async () => {
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "reference/README.md",
+          templateFile: "reference/README.md",
+          classification: "Framework",
+          layer: "core",
+          pristineContent: undefined, // Missing from store
+        }],
+        outputToTemplate: { "reference/README.md": "reference/README.md" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "reference/README.md": "new framework content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/reference/README.md") {
+            return "old content on disk";
+          }
+          if (path.endsWith("reference/README.md")) {
+            return "new framework content";
+          }
+          throw new Error("not found");
+        },
+      );
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
+      );
+
+      expect(result.updated).toBe(1);
+      expect(result.pristineRebuilt).toHaveLength(0);
+      expect(io.writeFile).toHaveBeenCalledWith(
+        "/project/.arc/reference/README.md", "new framework content",
+      );
+    });
+
+    test("never produces conflicts", async () => {
+      const mergeFn: FileMergeFn = vi.fn(async () => ({
+        content: "", hasConflicts: true,
+      }));
+
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "reference/README.md",
+          templateFile: "reference/README.md",
+          classification: "Framework",
+          layer: "core",
+          pristineContent: "old content",
+        }],
+        outputToTemplate: { "reference/README.md": "reference/README.md" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "reference/README.md": "new framework content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/reference/README.md") {
+            return "adopter modified content";
+          }
+          if (path.endsWith("reference/README.md")) {
+            return "new framework content";
+          }
+          throw new Error("not found");
+        },
+      );
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), mergeFn, io, renderCtx,
+      );
+
+      expect(result.conflicts).toHaveLength(0);
+      expect(mergeFn).not.toHaveBeenCalled();
+      expect(result.updated).toBe(1);
+    });
+  });
+
+  describe("merges — Configurable three-way merge", () => {
+    test("performs three-way merge and advances pristine on clean", async () => {
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "system/arc-config.yml",
+          templateFile: "system/arc-config.yml",
+          classification: "Configurable",
+          layer: "core",
+          pristineContent: "old config content",
+        }],
+        outputToTemplate: { "system/arc-config.yml": "system/arc-config.yml" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "system/arc-config.yml": "new config content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/system/arc-config.yml") {
+            return "old config content";
+          }
+          if (path.endsWith("system/arc-config.yml")) {
+            return "new config content";
+          }
+          throw new Error("not found");
+        },
+      );
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
+      );
+
+      expect(result.updated).toBe(1);
+      expect(result.newPristineStore["system/arc-config.yml"]).toBe(
+        "new config content",
+      );
+    });
+
+    test("tracks pristine rebuild when pristineContent is undefined", async () => {
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "system/arc-config.yml",
+          templateFile: "system/arc-config.yml",
+          classification: "Configurable",
+          layer: "core",
+          pristineContent: undefined, // Missing from store
+        }],
+        outputToTemplate: { "system/arc-config.yml": "system/arc-config.yml" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "system/arc-config.yml": "config content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/system/arc-config.yml") {
+            return "config content";
+          }
+          if (path.endsWith("system/arc-config.yml")) {
+            return "config content";
+          }
+          throw new Error("not found");
+        },
+      );
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
+      );
+
+      expect(result.pristineRebuilt).toEqual(["system/arc-config.yml"]);
+    });
+
+    test("reinstalls Configurable file missing from disk", async () => {
+      const plan: FileChangePlan = {
+        ...emptyPlan(),
+        merges: [{
+          outputPath: "system/arc-config.yml",
+          templateFile: "system/arc-config.yml",
+          classification: "Configurable",
+          layer: "core",
+          pristineContent: "old content",
+        }],
+        outputToTemplate: { "system/arc-config.yml": "system/arc-config.yml" },
+      };
+
+      const { io, renderCtx } = mockRenderCtx({
+        "system/arc-config.yml": "new content",
+      });
+      (io.readFile as ReturnType<typeof vi.fn>).mockImplementation(
+        async (path: string) => {
+          if (path === "/project/.arc/system/arc-config.yml") {
+            const err = new Error("ENOENT") as NodeJS.ErrnoException;
+            err.code = "ENOENT";
+            throw err;
+          }
+          if (path.endsWith("system/arc-config.yml")) {
+            return "new content";
+          }
+          throw new Error("not found");
+        },
+      );
+
+      const result = await applyChangePlan(
+        plan, "/project/.arc", makeManifest(), noopMerge, io, renderCtx,
+      );
+
+      expect(result.updated).toBe(1);
+      expect(io.writeFile).toHaveBeenCalledWith(
+        "/project/.arc/system/arc-config.yml", "new content",
       );
     });
   });

@@ -367,6 +367,13 @@ principles; it is a documented, intentional step in the handoff workflow.
   substantial enough to justify a named layer. If this proves true, Team PM could be folded into Core as optional team
   conventions rather than a separate layer.
 
+### Amendments
+
+**Amendment (2026-04-08):** Strategy documents referenced in this ADR were renamed during the methodology maturation
+work unit. `strategy-backlog-organization.md` was replaced by `strategy-planning-module.md` (scoped to the arc-in-git
+PM module rather than backlog mechanics alone). References in the Decision and Consequences sections above reflect
+the names at the time of the decision and are preserved as historical record.
+
 ---
 
 Context: tasks-methodology-completion.md (Pre-Task 4.1 evaluation — backlog infrastructure)

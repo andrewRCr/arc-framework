@@ -1,18 +1,19 @@
 # Strategy: Team Coordination
 
-## Purpose
+> **Guide and rationale:** [Team Coordination](https://andrewrcr.github.io/arc-framework/reference/team-coordination/)
+> on the docs site covers branching pattern trade-offs, merge conflict expectations, and
+> tracker complementarity reasoning.
 
-Available conventions for multi-developer projects using ARC. Covers task ownership, team
-branching patterns, merge conflict expectations, and integration with external project trackers.
+Operational specification for multi-developer ARC projects. Covers task ownership conventions,
+team branching patterns, merge conflict handling, and external tracker integration.
 
 These conventions activate when `team.mode: true` is set in `arc-config.yml`. Some structural
 foundations are always present regardless of team mode — per-identity `user/{identity}/`
 directories, shared `WORK-STATUS.md` in `active/`. The conventions below add coordination
-patterns on top of that foundation; adopt the ones that fit your team's workflow.
+patterns on top of that foundation.
 
-**Prerequisite:** Familiarity with [Work Organization Strategy][work-org] (branching model,
-work categories, protection modes). This strategy layers team-specific patterns on top of that
-foundation.
+**Prerequisite:** [Work Organization Strategy][work-org] (branching model, work categories,
+protection modes). This strategy layers team-specific patterns on top of that foundation.
 
 **Scope:** Team coordination conventions only. For per-developer workspace structure, see
 `user/README.md`.
@@ -84,10 +85,8 @@ commits; duplicating that information in ARC metadata adds maintenance burden wi
 
 ### Identity
 
-`(@name)` identifies the **human developer**, not their AI agent. ARC frames work as
-human-agent pairs — the developer drives decisions while the agent assists with execution.
-In team mode, multiple human-agent pairs collaborate, and the ownership marker identifies
-which pair owns a task.
+`(@name)` identifies the **human developer**, not their AI agent. In team mode, multiple
+human-agent pairs collaborate — the ownership marker identifies which pair owns a task.
 
 ### Reassignment
 
@@ -157,21 +156,17 @@ The incoming developer runs a standard session-init with these additions:
 
 ### Async Conventions
 
-Person-to-person handoff is designed to work asynchronously. The outgoing developer may not be
-available when the incoming developer starts. Design for this:
+Person-to-person handoff works asynchronously — the outgoing developer may not be available
+when the incoming developer starts.
 
 - **Documents must stand alone.** SESSION-NOTES.md + WORK-STATUS.md should provide complete
-  orientation without verbal walkthrough. When writing for handoff, ask: "Would this make sense
-  to someone reading it cold?"
-- **WORK-STATUS.md provides minimum viable context.** Even without SESSION-NOTES.md, the project
-  pointer (branch, task list, current task, next action) is sufficient to start work. Session
-  notes are an enhancement, not a prerequisite.
-- **Graceful degradation applies.** If git notes weren't pushed or aren't available, fall back to
-  WORK-STATUS.md + task list + git log. Less context is not no context — the incoming developer
-  starts with tracked artifacts and builds understanding through the work itself.
-- **Questions are expected.** The incoming developer may need to leave questions in commit
-  messages, PR comments, or team channels. Not having the outgoing developer available is
-  normal, not a blocker.
+  orientation without verbal walkthrough.
+- **WORK-STATUS.md provides minimum viable context.** Even without SESSION-NOTES.md, the
+  project pointer (branch, task list, current task, next action) is sufficient to start work.
+- **Graceful degradation.** If git notes weren't pushed, fall back to WORK-STATUS.md + task
+  list + git log.
+- **Questions are expected.** The incoming developer may leave questions in commit messages,
+  PR comments, or team channels.
 
 ---
 
@@ -197,12 +192,6 @@ main
 └── feature/user-authentication        # Shared — all team members commit here
 ```
 
-**Best for:** Small teams (2-3 developers), tightly coupled work where frequent integration
-is more valuable than isolated review.
-
-**Trade-off:** Less PR review surface between team members. Relies on communication and
-local review.
-
 ### Personal Sub-Branches
 
 Each developer gets a sub-branch off the shared integration branch. Work is reviewed
@@ -214,12 +203,6 @@ main
     ├── feature/user-auth/alice        # Alice's working branch
     └── feature/user-auth/bob          # Bob's working branch
 ```
-
-**Best for:** Teams wanting PR review between members while sharing an integration point.
-Works well with the fully protected branch mode.
-
-**Trade-off:** More branch management overhead. Requires rebasing or merging from the
-integration branch as peers' work lands.
 
 ### Stacked PRs per Developer
 
@@ -235,17 +218,10 @@ main
     └── feature/user-auth/bob-frontend       # Bob's work
 ```
 
-**Best for:** Larger tasks where each developer's work naturally decomposes into
-reviewable chunks. Enables parallel review.
-
 ### Direct Shared Branch
 
 All team members commit to the same branch with no sub-branches. The simplest model —
 essentially solo workflow with multiple contributors.
-
-**Best for:** Very small, tightly scoped work. Quick collaborative fixes.
-
-**Trade-off:** No review gate between team members. Merge conflicts resolved in real time.
 
 ---
 
@@ -312,22 +288,12 @@ developers are actively working simultaneously on the same branch:
 - **SESSION-NOTES.md:** No conflict possible — each developer writes to their own
   `user/{identity}/` directory.
 
-Concurrent sessions are a normal team workflow, not an edge case. The design intentionally
-separates personal state (gitignored, per-identity) from shared state (tracked, branch-level)
-to minimize coordination overhead.
-
 ### Configuration Notes
 
 **`user.sync_push` and team mode:** When `arc init` sets `team.mode: true`, it defaults
 `user.sync_push` to `prompt` (ask before pushing session notes). If you toggle `team.mode`
 after init by editing `arc-config.yml`, `user.sync_push` is not automatically updated — check
 and adjust it manually. Per-developer override: `git config arc.sync_push`.
-
-**Enforcement model:** `user.sync_push` behavior is agent-interpreted prose in the
-[session-handoff workflow][session-handoff]. No hook or CLI command enforces the push policy
-at handoff time — the agent reads the config value and follows the documented protocol. This
-is a known design choice, consistent with ARC's general approach of agent-interpreted guidance
-for workflow steps.
 
 ---
 
@@ -344,16 +310,6 @@ Teams using external project trackers (Jira, Linear, GitHub Issues) treat them a
 | Status tracking       | Primary (board view, sprint) | Checkbox state for agent context     |
 | Implementation detail | Not tracked                  | Subtasks, acceptance criteria, notes |
 | Session context       | Not tracked                  | SESSION-NOTES.md, handoff state      |
-
-### How They Complement Each Other
-
-External trackers excel at cross-team visibility, sprint planning, and stakeholder
-reporting. ARC task lists excel at implementation-level detail that agents need for
-context — subtask breakdowns, acceptance criteria, completion notes, and session handoffs.
-
-Neither replaces the other. A Jira ticket might say "Implement user authentication";
-the ARC task list breaks that into 15 subtasks with specific acceptance criteria that
-the human-agent pair works through one at a time.
 
 ### Integration Mechanism
 
@@ -381,7 +337,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 ## Related Documentation
 
 - [Work Organization Strategy][work-org] — Branching model, work categories, protection modes
-- [Development Methodology][dev-methodology] — Task management protocol, commit standards
+- [DEV-RULES.ARC][dev-methodology] — Task management protocol, commit standards
 - [Process Task Loop][process-task-loop] — Task execution workflow
 - `user/README.md` — Per-developer workspace structure and session state
 

@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 ADR-001 established ARC's 11 principles and 19 conventions, including focused sequential execution (P3), granular
-task tracking (P7), spec-driven development (P1), and quality gate enforcement (P4). These define how a
+task tracking (P7), spec-directed development (P1), and quality gate enforcement (P4). These define how a
 developer-agent pair works through implementation. But a question remained open: how does this execution model
 coexist with the team-level methodologies that govern how professional software teams plan, coordinate, and deliver?
 
@@ -23,7 +23,7 @@ If ARC's work organization model is incompatible with these methodologies, it ex
 professional teams. The design question: is ARC a complementary layer (works alongside Scrum/Kanban) or a
 competing model (replaces sprint planning)?
 
-**The potential conflict surface:** ARC prescribes spec-driven planning (PRDs → task lists), sequential focused
+**The potential conflict surface:** ARC prescribes spec-directed planning (PRDs → task lists), sequential focused
 execution (one-task-at-a-time with mandatory stops), quality gate checkpoints (tiered verification), session
 management (bounded work periods), and structured context preservation. Teams using Scrum already have sprint
 planning, story decomposition, velocity tracking, Definition of Done, and sprint ceremonies. Teams using Kanban
@@ -76,7 +76,7 @@ execution discipline it provides to developer-agent collaboration, not in compet
 methodologies that have decades of refinement and organizational buy-in.
 
 This positioning also aligns with ADR-001's core identity. ARC's principles (P1-P11) are about the
-developer-agent relationship: spec-driven development, co-development, focused execution, quality gates,
+developer-agent relationship: spec-directed development, co-development, focused execution, quality gates,
 context preservation. None of them prescribe how a *team* should coordinate. The execution-pair level is where
 ARC's principles live, and confining the methodology to that level is both honest and strategically sound.
 
@@ -198,7 +198,7 @@ without architectural change (ADR-001's principles apply regardless of team size
 
 #### Waterfall and Plan-Driven (44% in mixed portfolios)
 
-**Integration model:** ARC's spec-driven approach parallels waterfall's documentation-heavy tradition. PRDs map
+**Integration model:** ARC's spec-directed approach parallels waterfall's documentation-heavy tradition. PRDs map
 to requirements specifications; task lists map to detailed design/implementation plans. ARC's iterative
 task execution (test-first ordering, incremental quality gates) operates within waterfall phases without
 requiring the team to adopt iterative delivery at the project level.
@@ -255,7 +255,7 @@ layer, not the coordination layer.
 ARC provides the **execution discipline that makes AI-assisted work trackable and predictable** regardless of
 the team's coordination methodology. Specifically:
 
-- **Spec-driven planning (P1)** produces the detailed specifications that AI performs best with — addressing the
+- **Spec-directed planning (P1)** produces the detailed specifications that AI performs best with — addressing the
   specification clarity premium without requiring the team to change their planning methodology. The team plans
   at their level (stories, cards, pitches); ARC decomposes at the execution level (task lists with acceptance
   criteria).

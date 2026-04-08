@@ -21,13 +21,10 @@
     "reference/templates/template-plan.md",
     "reference/templates/template-prd.md",
     "reference/strategies/arc/strategy-adr-methodology.md",
-    "reference/strategies/arc/strategy-agent-hooks.md",
     "reference/strategies/arc/strategy-configurability-architecture.md",
-    "reference/strategies/arc/strategy-context-loading.md",
-    "reference/strategies/arc/strategy-core-philosophy.md",
     "reference/strategies/arc/strategy-file-classification.md",
     "reference/strategies/arc/strategy-quality-gates.md",
-    "reference/strategies/arc/strategy-session-management.md",
+    "reference/strategies/arc/strategy-session-operations.md",
     "reference/strategies/arc/strategy-task-list-formatting.md",
     "reference/strategies/arc/strategy-work-organization.md",
     "reference/strategies/arc/strategy-work-planning.md",
@@ -49,8 +46,10 @@
     "system/skills/arc-setup/SKILL.md",
     "system/skills/arc-commit/SKILL.md",
     "system/skills/arc-handoff/SKILL.md",
+    "system/skills/arc-plan/SKILL.md",
     "system/skills/arc-resume/SKILL.md",
     "system/skills/arc-task-audit/SKILL.md",
+    "system/skills/arc-task-review/SKILL.md",
     "system/skills/arc-verify/SKILL.md",
     "system/skills/README.md",
     "system/workflows/arc-extensions.md",
@@ -127,7 +126,7 @@
         "backlog/feature/BACKLOG-FEATURE.template.md",
         "backlog/technical/BACKLOG-TECHNICAL.template.md",
         "reference/PROJECT-STATUS.template.md",
-        "reference/strategies/arc/strategy-backlog-organization.md"
+        "reference/strategies/arc/strategy-planning-module.md"
       ]
     },
     "tools includes claude": {

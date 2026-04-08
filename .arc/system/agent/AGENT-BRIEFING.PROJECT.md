@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-The ARC Framework is a development methodology for human-AI collaboration. It structures how a
-developer and an AI agent work together through implementation — planning, executing, verifying,
-and preserving context across work sessions. The methodology is expressed as documentation:
-workflows, templates, strategies, and constitutional documents that live in `.arc/`.
+ARC is a development methodology for human-AI collaboration. It structures how a developer and
+an AI agent work together through implementation — planning, executing, verifying, and preserving
+context across work sessions. The ARC Framework implements this methodology as documentation —
+workflows, templates, strategies, and constitutional documents — that lives in `.arc/`.
 
 **Project Type**: Solo framework development with public release goals
 **Primary Goal**: Deliver a coherent, configurable methodology — 11 non-negotiable principles

@@ -3,12 +3,12 @@
 ## I already have a CLAUDE.md / AGENTS.md — what does ARC add?
 
 A context file is static — the agent reads it and interprets whatever it says. ARC is an operational
-methodology. Spec-driven planning produces task breakdowns with acceptance criteria before
+methodology. Spec-directed planning produces task breakdowns with acceptance criteria before
 implementation begins. A session lifecycle preserves context across conversations — the agent picks
 up where you left off. Git hooks enforce commit format, quality gates, and traceability at commit
 time. A configurability architecture lets you override how ARC does things without modifying
 framework files. The result compounds across sessions rather than resetting each time. See
-[How ARC Works](how-arc-works.md) for the full picture.
+[How ARC Works](the-framework.md) for the full picture.
 
 ## ARC seems like a lot of overhead
 
@@ -24,11 +24,11 @@ Agent output quality degrades as context accumulates; human attention for sustai
 same pattern through a different mechanism. Bounded sessions work with both constraints rather than
 against them. The handoff cost is low — a few minutes to capture state — and the fresh start gives
 you clean context and a natural checkpoint to reassess direction. See
-[Philosophy § Why Bounded Sessions](philosophy.md#why-bounded-sessions) for the evidence.
+[Philosophy § Why Bounded Sessions](methodology/rationale.md#why-bounded-sessions) for the evidence.
 
 ## Why one task at a time? Why not let the agent work in parallel?
 
-ARC's sequential model serves [co-development](philosophy.md#core-commitments): each task is a
+ARC's sequential model serves [co-development](methodology/rationale.md#core-commitments): each task is a
 [review increment](reference/glossary.md#review-increment) — a bounded chunk of execution between
 human review points. Running tasks in parallel means the developer can't meaningfully participate in
 any of them. This applies to the developer's attention, not the agent's capabilities — team-level
@@ -40,7 +40,7 @@ Each task is one review increment: typically a few files modified, a few minutes
 The agent implements it, runs quality gates, reports what was done, and stops for your review. You're
 reviewing work in flight with full context, not reconstructing what happened in a long autonomous
 run. If a task regularly exceeds a few minutes, it's a signal to break it down further. See
-[How ARC Works § Working Through Tasks](how-arc-works.md#working-through-tasks).
+[How ARC Works § Working Through Tasks](the-framework.md#working-through-tasks).
 
 ## Does ARC work with cloud/async agents like Devin or Codex cloud?
 
@@ -48,7 +48,7 @@ ARC's core value (co-development through tight iterative loops) is absent when t
 asynchronously without the developer present. That said, ARC can function at the boundaries:
 planning produces well-specified task descriptions that serve as dispatch specifications, and quality
 gates verify the output at integration time. See
-[Philosophy § Agent Compatibility](philosophy.md#agent-compatibility).
+[Philosophy § Agent Compatibility](methodology/rationale.md#agent-compatibility).
 
 ## Which agents does ARC support?
 
@@ -58,7 +58,7 @@ with **Claude Code** and **Codex CLI**, with validation against **Warp**, **Gemi
 validated through sustained use — if you're using one and have feedback,
 [start a discussion](https://github.com/andrewRCr/arc-framework/discussions) to help improve
 support. See
-[Philosophy § Agent Compatibility](philosophy.md#agent-compatibility).
+[Philosophy § Agent Compatibility](methodology/rationale.md#agent-compatibility).
 
 ## Is ARC only for solo developers?
 
@@ -91,9 +91,9 @@ works through. Neither replaces the other. Teams using external trackers select 
 
 You'd lose more than oversight — you'd lose the architectural insights and cross-cutting connections
 that only surface when you're present during implementation. If you need to step away,
-[deferred review](how-arc-works.md#working-through-tasks) lets you authorize a batch and review when
+[deferred review](the-framework.md#working-through-tasks) lets you authorize a batch and review when
 you return. If your goal is to hand off work and check results later, ARC isn't the right fit — and
-that's by design. See [Philosophy](philosophy.md#three-observations) for the full reasoning.
+that's by design. See [Philosophy](methodology/rationale.md#three-observations) for the full reasoning.
 
 ## Do I need to understand all of ARC before starting?
 
@@ -105,8 +105,8 @@ conventions. You learn the concepts through doing them, not by studying upfront.
 ## Can I use ARC without the CLI?
 
 Yes, with caveats. The CLI (`arc init`, `arc update`, `arc join`) handles installation, updates, and
-developer onboarding — scaffolding files, setting up git hooks, managing the manifest, and performing
-three-way merges during updates. You could maintain the `.arc/` structure manually, but you'd lose
+developer onboarding — scaffolding files, setting up git hooks, managing the manifest, and handling
+file updates by classification. You could maintain the `.arc/` structure manually, but you'd lose
 the update mechanism, hook installation, and file classification system.
 
 The methodology itself is expressed as markdown documents that work with any agent. The CLI is the

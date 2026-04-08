@@ -285,6 +285,13 @@ tasks section — unchanged), ADR-009 Part 1 (three PM modes — unchanged).
 - ADR-008 status line: note ATOMIC-TASKS.md path references superseded by ADR-012
 - ADR-009 status line: note Part 2 file placement superseded by ADR-012
 
+### Amendments
+
+**Amendment (2026-04-08):** Strategy documents referenced in the Required Follow-Up section were renamed during the
+methodology maturation work unit. `strategy-backlog-organization.md` → `strategy-planning-module.md`;
+`strategy-session-management.md` → `strategy-session-operations.md`. The follow-up work described has been completed
+under those new names.
+
 ---
 
 Context: tasks-cli-implementation.md (off-plan — architectural evaluation before Phase 2)

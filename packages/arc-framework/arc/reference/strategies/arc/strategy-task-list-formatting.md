@@ -1,29 +1,28 @@
 # Strategy: Task List Formatting
 
-## Purpose
+> **Guide and rationale:** [Task Lists](https://andrewrcr.github.io/arc-framework/reference/task-lists/)
+> on the docs site covers the structural vs style distinction, design reasoning, annotated
+> examples, and common pitfalls.
 
-Authoritative standards and conventions for task list structure, style, and organization across all work types
-(feature, technical, incidental). This strategy ensures consistency, readability, and maintainability of task
-documentation throughout the project lifecycle.
+Authoritative formatting specification for task list structure, style, and organization across
+all work types (feature, technical, incidental). Agent reference for task list generation and
+maintenance.
 
 **Referenced by:**
 
 - [2_generate-tasks.md][generate-tasks] - Planned feature/technical work
 - [manage-incidental-work.md][manage-incidental] - Reactive incidental work
 
-## Table of Contents
+## Contents
 
 1. [Quick Format Checklist](#quick-format-checklist)
 2. [Task List Headers](#task-list-headers)
 3. [Format Elements Reference](#format-elements-reference)
 4. [Task Ownership Markers](#task-ownership-markers)
 5. [Test-First Task Structure](#test-first-task-structure)
-6. [Complete Annotated Example](#complete-annotated-example)
-7. [Common Mistakes](#common-mistakes)
-8. [Decision Guidelines](#decision-guidelines)
-9. [Verification Phase](#verification-phase)
-10. [Atomic Companion File](#atomic-companion-file)
-11. [Success Criteria Section](#success-criteria-section)
+6. [Verification Phase](#verification-phase)
+7. [Atomic Companion File](#atomic-companion-file)
+8. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -43,54 +42,9 @@ Before finalizing any task list, verify:
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
-- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic task check)
+- [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
-
----
-
-## Structural Requirements vs. Style Conventions
-
-Not all formatting guidance carries equal weight. Some elements are **structural** — tooling,
-hooks, and workflows depend on them. Others are **style conventions** — they produce better task
-lists but aren't mechanically enforced. Understanding the boundary helps adopters know what they
-can relax without breaking anything.
-
-### Structural (tooling depends on these)
-
-These elements are parsed by git hooks, workflows, or session initialization. Deviating from
-them may cause hook failures, workflow mismatches, or context loading errors.
-
-- **Checkbox syntax**: `- [ ]` / `- [x]` / `- [~]` — workflows track completion state (`[~]` =
-  intentionally deferred or superseded)
-- **Task numbering pattern**: `X.Y` (parent), `X.Y.a` (subtask) — pre-commit hook validates
-  letter numbering at third level (`[configurable]`: `hooks.task_numbering` in `arc-config.yml`)
-- **Phase header format**: `### **Phase X:** Description` — used for phase counting and navigation
-- **Header metadata fields**: `**Status:**`, `**Branch(es):**`, `**PRD:**` — parsed by workflows
-  and session initialization
-- **File naming**: `tasks-{name}.md` in `active/` or `backlog/` — hook file matching, WORK-STATUS
-  references
-- **Atomic companion file**: `atomic-{name}.md` created alongside `tasks-{name}.md` — workflows reference this file
-- **Success criteria markers**: `[x]`, `[ ]`, `[~]` — verification workflow reads these
-
-### Style (human-facing quality)
-
-These conventions improve readability, consistency, and maintainability. They represent ARC's
-recommended practices but aren't enforced by tooling. Adopters can adjust these to team
-preference without breaking workflows.
-
-- Bold formatting on task descriptions
-- Goal/Note line placement and formatting
-- Blank lines between subtasks with detail bullets
-- Test-first task grouping within phases
-- Backticks on technical terms
-- Emoji policy
-- Indentation depth (4-space convention)
-- Detail bullet conventions (unnumbered, no checkboxes)
-- Revision numbering (R scheme)
-
-The rest of this document covers both categories together — structural requirements are the
-baseline, style conventions build on them.
 
 ---
 
@@ -140,7 +94,7 @@ Task list headers provide essential metadata and context. Format varies by task 
 - PRD reference is absolute path from repo root
 - `Branch(es)` lists the primary implementation branch; add additional branches comma-separated
   when using stacked PRs or team sub-branches (see
-  [Task Lists and Branches](strategy-work-organization.md#5-task-lists-and-branches))
+  [Task Lists and Branches](strategy-work-organization.md#task-lists-and-branches))
 - Base Branch references the project's configured base branch, not a hardcoded name
 - Status values: `Pending` (planned), `In Progress` (active), `Complete` (all tasks done, pre-merge),
   `Integrated` (merged to base branch — set during [archival](../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md))
@@ -376,9 +330,6 @@ Detail bullets serve two distinct purposes:
 - Use backticks for technical terms
 - Keep concise (1-2 lines per bullet)
 
-**Key distinction:** Unnumbered bullets provide guidance or grouped actions, not independent
-completable steps that warrant tracking separately.
-
 ### Goal/Note Lines
 
 **Format:** `**Goal:** One-line clarification` or `**Note:** Important context`
@@ -594,236 +545,6 @@ behavior list and `Build \`test-first\`:` marker. For multi-layer projects (back
 API + CLI), use separate phases per layer with the same grouped pattern in each, plus a
 cross-layer validation phase.
 
-### Anti-Patterns
-
-❌ **Wrong — tests as separate final phase:**
-
-```markdown
-### **Phase 1:** Implement Features
-- [ ] **1.1 Create models**
-- [ ] **1.2 Create API endpoints**
-
-### **Phase 2:** Write Tests  # DON'T DO THIS
-- [ ] **2.1 Write model tests**
-- [ ] **2.2 Write API tests**
-```
-
-❌ **Wrong — separate test and implement tasks within a phase:**
-
-```markdown
-### **Phase 1:** User Model
-- [ ] **1.1 Write tests for User model**  # DON'T DO THIS
-- [ ] **1.2 Implement User model**        # Splits one concern into two tasks
-```
-
-Both patterns produce horizontal slicing — writing tests in bulk tests *imagined* behavior, not
-actual behavior. Group test + implementation together so each test cycle informs the next.
-
----
-
-## Complete Annotated Example
-
-This example demonstrates all formatting elements in proper context:
-
-```markdown
-# Incidental: Config Validation Error Reporting
-
-**Created:** 2025-10-29
-**Branch:** `incidental/config-validation-errors`
-**Base Branch:** `feature/plugin-system`
-**Status:** In Progress
-
-## Context
-
-**Discovered:** Manual testing during Phase 3.6 (plugin loader implementation)
-
-**Interrupts:** `tasks-plugin-system.md` at Phase 3.6, Task 3.6.2
-
-**Problem:** Invalid configuration silently ignored instead of reporting clear errors.
-
-**Why Now:** Blocks manual testing confidence and affects newly implemented plugin loading.
-
-## Scope
-
-### Will Do
-
-- Fix error reporting for all configuration fields
-- Add comprehensive validation tests
-- Manual verification of error messages
-
-### Won't Do
-
-- Performance optimization (separate enhancement)
-- Custom validation rules API (out of scope)
-
----
-
-### **Phase 1:** Test Infrastructure
-
-- [ ] **1.1 Create test fixtures for config scenarios**
-
-    **Goal:** Reusable fixtures to test validation across configuration types.
-
-    - [ ] **1.1.a Create fixture for valid configs in `test_helpers.py`**
-        - Return mock config object with all required fields
-        - Support partial overrides for test variations
-        - Include nested config (plugin settings, environment overrides)
-
-    - [ ] **1.1.b Create fixture for invalid configs**
-        - Missing required fields, type mismatches, out-of-range values
-        - Support combining multiple violations in one config
-
-- [ ] **1.2 Verify fixture compatibility with existing tests**
-
-    - [ ] **1.2.a Run existing test suite with new fixtures**
-        - Ensure no regressions
-        - All tests should still PASS
-
-### **Phase 2:** Validation and Error Reporting
-
-- [ ] **2.1 Field validation (`src/config/loader.py`, `src/config/parser.py`)**
-
-    - [ ] **2.1.a Required field validation**
-        - Collect all violations before reporting (don't fail on first)
-        - Include field path in each error
-        - File location: `src/config/loader.py:89-120`
-
-        Build `test-first` (one behavior at a time):
-        - Required fields report missing with field path
-        - Empty config (all fields missing)
-
-    - [ ] **2.1.b Type checking**
-        - Handle nested configs recursively
-        - File location: `src/config/parser.py:45-78`
-
-        Build `test-first` (one behavior at a time):
-        - Type mismatches report expected vs actual type
-        - Range violations report allowed bounds
-        - Deeply nested invalid fields
-        - Multiple simultaneous violations
-
-- [ ] **2.2 Error message formatting (`src/config/errors.py`)**
-
-    **Goal:** Ensure error messages are actionable and include fix suggestions.
-
-    - [ ] **2.2.a Error output format**
-        - Collect errors into structured report, sort by field path
-
-        Build `test-first` (one behavior at a time):
-        - Errors include field path (e.g., `plugins.auth.timeout`)
-        - Errors include expected type or value range
-        - Multiple errors collected and reported together
-
-    - [ ] **2.2.b Suggestion generation**
-
-        Build `test-first` (one behavior at a time):
-        - Typos suggest closest valid field name
-
-### **Phase 4:** Quality Gates and Manual Verification
-
-- [ ] **4.1 Automated quality checks**
-
-    - [ ] **4.1.a Run full test suite**
-        - Unit tests: All pass
-        - Integration tests: All pass
-
-    - [ ] **4.1.b Run linting and type checking**
-        - Linter: 0 violations
-        - Type checker: 0 errors
-
-- [ ] **4.2 Manual testing**
-
-    - [ ] **4.2.a Test missing field errors**
-        - Remove required field → verify clear error message
-        - Test with multiple missing fields
-
-    - [ ] **4.2.b Test type mismatch errors**
-        - String where int expected → verify helpful message
-
-    - [ ] **4.2.c Test suggestion accuracy**
-        - Typo in field name → verify closest match suggested
-
----
-
-## Success Criteria
-
-- [ ] Required-field validation reports all missing fields with paths
-- [ ] Type-mismatch validation reports expected vs actual types
-- [ ] Multiple errors collected and reported in single pass
-- [ ] All quality gates pass (tests, linting, type checking — 0 violations)
-- [ ] Ready to resume interrupted work at Task 3.6.2
-```
-
----
-
-## Common Mistakes
-
-Quick reference for frequent errors. Each element's detailed examples are in
-[Format Elements Reference](#format-elements-reference) above.
-
-1. **Headers instead of parent tasks** — Use `- [ ] **X.Y Description**` (checkbox + bold), not
-   `### X.Y` (heading)
-2. **Splitting test and implementation** — Group together by concern, not as separate tasks
-3. **Pre-checked tasks** — All tasks start as `- [ ]` (unchecked), never `- [x]`
-4. **Numbered detail bullets** — Implementation details use unnumbered bullets, not numbered subtasks
-5. **Goal/Note at wrong indent** — Indent 4 spaces from margin (same level as subtasks), not at margin
-6. **Missing backticks** — All technical identifiers need backticks: `ClassName`, `file.py`, `/api/path/`
-7. **Vague descriptions** — Be specific: "Capture all query params before redirect", not "Fix the bug"
-8. **Numeric third level** — Use letters (`1.1.a`) not numbers (`1.1.1`) — letters signal depth
-
----
-
-## Decision Guidelines
-
-### Subtask Granularity: Numbered vs Detail Bullets
-
-**Core principle:** Number subtasks when tracking completion adds value; use detail bullets when numbering
-creates noise.
-
-#### Use Subtasks (X.Y.a) When
-
-- **Independently completable** at different times/sessions
-- **Clear checkpoint value** — marking complete signals progress
-- **Could be assigned separately** or worked on by different people
-- **Meaningful pause points** between steps
-
-**Decision test:**
-
-- Would you complete these at different times? → Subtasks
-- Would you do them all in one sitting? → Detail bullets
-- Does splitting add clarity or just noise? → If noise, use detail bullets
-
-#### Use Detail Bullets When
-
-Items are done in one sitting, too granular/coupled to track separately, or non-actionable
-context/guidance. See [Unnumbered Implementation Bullets](#unnumbered-implementation-bullets)
-for the two-purpose breakdown and formatting rules.
-
-#### Avoid Parent Tasks with Single Subtask
-
-**Anti-pattern:** Parent task with only 1 numbered subtask. Two options:
-
-**Collapse** (most common): Remove subtask number, make parent task more specific.
-
-- ❌ `1.1 Write tests` → `1.1.1 Create test file`
-- ✅ `1.1 Create test file in test_navigation.ts`
-
-**Split** (if subtask has multiple distinct actions):
-
-- ❌ `2.3 Verify compatibility` → `2.3.a Review and test integration`
-- ✅ `2.3 Verify compatibility` → `2.3.a Review integration` + `2.3.b Test integration`
-
-### When to Add Goal/Note Lines
-
-**Add when:** Parent task title is technical/terse, purpose needs clarification, or context helps
-future readers. **Skip when:** Title is already descriptive, purpose is obvious, or it would repeat
-the title. See [Goal/Note Lines](#goalnote-lines) for formatting rules.
-
-### When to Add Blank Lines Between Subtasks
-
-**Add when:** Parent has 3+ subtasks and each has 2+ detail bullets (visual chunking helps).
-**Skip when:** Subtasks are simple/single-line or parent has only 1-2 subtasks.
-
 ---
 
 ## Verification Phase
@@ -836,21 +557,23 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 ```markdown
 ### **Phase N:** Verification
 
-**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
-
-- [ ] **N.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
-- [ ] **N.2 Validate success criteria against PRD**
-- [ ] **N.3 Verify all atomic tasks resolved** (`atomic-{name}.md`)
+- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 ```
 
-The `**Workflow:**` line and `[verify-work-unit]` link reference are part of the template —
-include them in every generated task list. The workflow contains the step-by-step procedure,
-three-state success criteria model, and atomic task verification protocol.
+A single task that points to the workflow. The task description is intentionally thin — the
+workflow is the authoritative protocol (Tier 3 quality gates, success criteria validation,
+atomic task resolution). The `[verify-work-unit]` link reference is part of the template —
+include it in every generated task list.
 
-The workflow reference also appears on **N.1** (the first verification subtask) as a gate
-reminder. Agents using graduated reads may jump directly to a subtask via WORK-STATUS,
-skipping the phase preamble — the inline reference ensures the workflow is loaded regardless
-of entry point.
+**Why a single task:** Verification is one review increment — three read-only validation
+activities that produce a single coherent outcome. Breaking them into separate tasks created
+self-contained descriptions that agents could execute without loading the workflow, causing
+protocol details (immutable criteria text, three-state model) to be missed. A thin pointer
+forces the workflow load.
+
+**Completion notes as record:** The workflow instructs the agent to include completion notes
+covering what was verified. This makes the archived task list self-documenting — a reader
+sees the verification outcome without needing to find the workflow.
 
 ---
 
@@ -861,19 +584,8 @@ as `tasks-{name}.md`. Empty by default — populated during execution as off-pla
 
 **Purpose:** Tracks indivisible one-off tasks you elect to do in parallel to the planned work —
 discovered during execution, not required for the work unit's success criteria. Unlike the phased
-task list, these tasks have no position in the dependency sequence and are accessed at unpredictable
-times throughout execution, benefiting from a separate, quickly-accessible file.
-
-**Why a standalone file, not an inline section:**
-
-- **Access pattern** — atomic tasks are captured and worked on at any point during execution, not
-  sequentially. In large task lists (500+ lines), finding an inline section means losing your place
-  in the phased work, in both directions.
-- **Staging hygiene** — committing an atomic task mid-phased-work doesn't require surgical staging
-  of the task list. The companion file is independent.
-- **Commit traceability** — `Context: atomic-{name}.md` is a clean file reference, no special
-  suffix needed.
-- **Parallel access** — human and agent can have the companion file open alongside the task list.
+task list, these tasks have no position in the dependency sequence and are accessed at
+unpredictable times throughout execution.
 
 **Companion file format:**
 
@@ -1002,12 +714,12 @@ should map to a verifiable criterion. These checkboxes are checked during the
 
 ---
 
-## References
+## Related Documentation
 
-- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) - Test-first assessment
-- [2_generate-tasks.md][generate-tasks] - Planned work task generation
-- [manage-incidental-work.md][manage-incidental] - Incidental work lifecycle
-- [3_process-task-loop.md][process-task-loop] - Task execution workflow
+- [DEV-RULES.ARC](../../constitution/DEV-RULES.ARC.md) — Test-first assessment
+- [2_generate-tasks.md][generate-tasks] — Planned work task generation
+- [manage-incidental-work.md][manage-incidental] — Incidental work lifecycle
+- [3_process-task-loop.md][process-task-loop] — Task execution workflow
 
 ---
 

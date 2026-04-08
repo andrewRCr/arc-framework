@@ -1,13 +1,13 @@
 # Quality Gates
 
 Quality gates are automated verification checkpoints that run at defined moments during
-development. The [principle](../philosophy.md#operational-discipline) is that quality is
+development. The [principle](../methodology/rationale.md#operational-discipline) is that quality is
 verified, not assumed (P4). The specific gates, tools, and strictness levels are project-defined
 conventions. ARC provides the checkpoint structure; you provide the commands.
 
-This page covers the tiered system at guide level. For tier boundaries, escalation guidance, and
-task list integration patterns, see `strategy-quality-gates.md` in your
-`.arc/reference/strategies/` directory.
+This page covers the tiered system, escalation reasoning, and common pitfalls. For the complete
+operational specification (tier boundaries, targeted test patterns, and task list integration
+templates), see `strategy-quality-gates.md` in your `.arc/reference/strategies/` directory.
 
 ## The Three-Tier System
 
@@ -110,3 +110,20 @@ Quality gate checkpoints integrate naturally into task lists:
 
 Phase-level checkpoints can also be explicit when a phase modifies code that integration tests
 exercise — a "run integration checkpoint" task at the end of the phase.
+
+## Common Mistakes
+
+**Skipping Tier 2 entirely.** "I'll just run everything at the end" leads to many failures
+discovered at once, each requiring context reconstruction. Tier 2 catches integration breakage
+at meaningful boundaries while context is still fresh.
+
+**Running full E2E at Tier 2.** Running the complete test suite after every coherent unit is
+wasteful. Targeted tests for the area you modified provide integration confidence in a fraction
+of the time. Save the full suite for Tier 3.
+
+**Skipping Tier 1 to "save time."** Tier 1 takes seconds. Skipping it lets type errors and
+lint violations accumulate, making Tier 3 cleanup painful and disorienting.
+
+**Treating Tier 3 as optional.** "Tests were passing at Tier 2, so Tier 3 will be fine." Tier 3
+catches cross-cutting issues that targeted tests miss — it's mandatory at phase boundaries and
+before PRs.

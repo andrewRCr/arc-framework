@@ -58,8 +58,11 @@ describe("update", () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
-    // Pick a Framework file and modify it
-    const filePath = join(tmpDir, ".arc", "README.md");
+    // Pick a Configurable file — merge behavior (three-way merge with conflict
+    // detection) only applies to Configurable files. Framework files are
+    // wholesale-replaced on update.
+    const configFile = "reference/constitution/DEV-RULES.PROJECT.md";
+    const filePath = join(tmpDir, ".arc", configFile);
     const pristineStorePath = join(tmpDir, ".arc", "system", ".internal", "pristine.json");
 
     // Read current content
@@ -67,18 +70,18 @@ describe("update", () => {
     const lines = original.split("\n");
 
     // Modify the installed file (adopter's version) — change the first line
-    lines[0] = "# My Customized ARC";
+    lines[0] = "# My Customized Rules";
     await writeFile(filePath, lines.join("\n"), "utf-8");
 
     // Modify the pristine store (simulate old template version) so the three-way
     // merge sees the current template as a "new" change at the same location
     const storeRaw = await readFile(pristineStorePath, "utf-8");
     const store = JSON.parse(storeRaw) as Record<string, string>;
-    store["README.md"] = "# Old ARC Title\n" + lines.slice(1).join("\n");
+    store[configFile] = "# Old Rules Title\n" + lines.slice(1).join("\n");
     await writeFile(pristineStorePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
 
-    // Now update: base (pristine) = "# Old ARC Title", current = "# My Customized ARC",
-    // updated (template) = "# .arc — ARC Framework" — all three differ on line 1 → conflict.
+    // Now update: base (pristine) = "# Old Rules Title", current = "# My Customized Rules",
+    // updated (template) = "# Development Rules (Project)" — all three differ on line 1 → conflict.
     // arc update exits 0 even with conflicts — conflicts are an expected merge outcome
     // (like git merge-file), not an error. The adopter resolves markers manually.
     const update = await runArc(["update"], tmpDir);

@@ -13,14 +13,14 @@
 
 ## Active Work
 
-**Branch**: `feature/plan-arc-modes`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: Beta Readiness (archived)
+**Branch**: `technical/methodology-maturation`
+**Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
+**Following Task List**: Yes
+**Next Task**: [none — all tasks complete]
+**Last Completed**: Task 8.3 — Verify all atomic tasks resolved
 **Blockers**: [none]
-**Next Action**: Integrate planning branch, then activate WU-A (Methodology Maturation)
+**Next Action**: integrate-work-unit Step 7 — push and create PR
 
 ---
 
-**Last Updated**: 2026-04-06
+**Last Updated**: 2026-04-08

@@ -1,1 +1,2 @@
 bash .arc/system/githooks/pre-commit
+bash scripts/check-package-sync.sh

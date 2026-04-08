@@ -22,7 +22,6 @@ ADRs serve as:
 5. [ADR Lifecycle](#adr-lifecycle)
 6. [Template](#template)
 7. [Amending Accepted ADRs](#amending-accepted-adrs)
-8. [Relationship to Strategy Documents](#relationship-to-strategy-documents)
 
 ---
 
@@ -40,19 +39,6 @@ along with its context and consequences.
 - **Sequential:** Numbered sequentially (001, 002, 003...), numbers never reused
 - **Concise:** Typically 1-2 pages, focusing on decision and context, not implementation details
 - **Discoverable:** Stored in version control alongside code, easily searchable
-
-### Industry Context
-
-ADRs were introduced by Michael Nygard in his 2011 blog post "Documenting Architecture Decisions."
-The practice has achieved broad industry adoption — ThoughtWorks classified ADRs as "Adopt" on their
-Technology Radar (2018), and AWS, Google Cloud, and Microsoft Azure all include ADR guidance in their
-architecture frameworks.
-
-This strategy follows Nygard's original five-section format (Title, Status, Context, Decision,
-Consequences). Notable variants exist for different contexts: MADR (Markdown Architectural Decision
-Records) adds structured options analysis, and Y-statements offer a minimalist single-sentence format
-for rapid capture. The core principles — immutability, sequential numbering, context-and-consequences
-documentation — are consistent across all variants.
 
 ---
 
@@ -319,38 +305,5 @@ When the decision itself changes, write a new ADR and update the original's stat
 | Reword the Decision for clarity             | Amendment (must not change meaning)     |
 | Reverse or significantly alter the decision | Supersession                            |
 | Choose a different technology than decided  | Supersession                            |
-
----
-
-## Relationship to Strategy Documents
-
-**Strategy Documents** (`.arc/reference/strategies/`):
-
-- Synthesized approaches to problem domains
-- "How we think about X" (testing, type safety, API integration)
-- Extracted from multiple experiences and decisions
-- Updated as understanding evolves
-
-**ADRs** (`.arc/reference/adr/adr-*.md`):
-
-- Specific decisions made at a point in time
-- "What we chose for X situation"
-- Decision is final once accepted (corrections and amendments permitted — see [above](#amending-accepted-adrs))
-- Raw material that can inform strategies
-
-**Relationship:**
-
-- Multiple related ADRs may reveal patterns worth extracting into a strategy
-- Strategy documents often reference ADRs as examples
-- Writing ADRs helps identify when a strategy is needed
-- This separation operationalizes a widely-recognized principle: ADRs should remain
-  point-in-time records, not evolve into prescriptive design guides
-
-**Example Pattern:**
-
-1. Write ADR-001 (REST for public API), ADR-007 (rate limiting strategy), ADR-012 (cache invalidation)
-2. Notice pattern: "We keep making decisions about external API integration"
-3. Extract: `strategy-api-integration.md` synthesizing principles across those ADRs
-4. Strategy references specific ADRs as case studies
 
 ---

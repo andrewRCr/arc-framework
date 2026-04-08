@@ -31,7 +31,7 @@ deleted after the PRD is written — they've served their purpose.
 
 ### PRDs
 
-Product Requirements Documents define *what* and *why*; task lists define *how*. One PRD maps to one
+Product Requirements Documents define _what_ and _why_; task lists define _how_. One PRD maps to one
 work unit (a branch and task list). PRDs are living documents, updated as understanding evolves during
 implementation, but changes are intentional, not scope creep.
 
@@ -64,7 +64,7 @@ There's no way to automate recurring task creation.
 ### Task lists
 
 Task lists are the execution layer. Each task is a bounded
-*[review increment](reference/glossary.md#review-increment)* — a single chunk of work the agent
+_[review increment](reference/glossary.md#review-increment)_ — a single chunk of work the agent
 executes autonomously before stopping for the developer's review. One task, one review — this is the
 mechanism that implements [co-development](reference/glossary.md#co-development) at execution time.
 Here's what task entries look like during and after execution:
@@ -90,7 +90,10 @@ Completed tasks (`[x]`) are updated to reflect what was actually done — outcom
 plan. Incomplete tasks (`[ ]`) retain their original specification.
 
 For the full task execution model — how the agent works through tasks, quality gates, and review
-stops — see [How ARC Works](how-arc-works.md#working-through-tasks).
+stops — see [How ARC Works](the-framework.md#working-through-tasks). Before starting tasks where
+you want extra confidence — tasks written in a prior session, tasks touching unfamiliar code, or
+tasks with complex dependencies — the [arc-task-audit](reference/skills.md#arc-task-audit) skill
+runs a pre-implementation analysis to surface drift, hidden assumptions, and scope ambiguity.
 
 ## Work Organization
 
@@ -115,7 +118,9 @@ they're reactive, not planned from a product vision. Ideally they're rare; the w
 when they're unavoidable.
 
 This is distinct from small discovered issues (a type error, a missing test, a documentation
-gap), which are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units.
+gap), which are handled as inline fixes or [atomic tasks](#atomic-tasks), not work units. For the
+decision guide (how to categorize edge cases) and common pitfalls, see the
+[Work Organization reference](reference/work-organization.md).
 
 Branch naming, directory structure, and archive paths all align:
 `feature/user-authentication` → `.arc/active/feature/` → `.arc/reference/archive/`.
@@ -127,13 +132,13 @@ Each work unit moves through a managed lifecycle:
 1. **Planning** — explore the problem, write a PRD, generate a task list
 2. **Activation** — move artifacts from backlog to active, create the implementation branch
 3. **Execution** — work through tasks via the
-   [task execution model](how-arc-works.md#working-through-tasks)
+   [task execution model](the-framework.md#working-through-tasks)
 4. **Verification** — final quality gates, success criteria validation
 5. **Integration** — pre-merge review, PR, merge
 6. **Archival** — completed artifacts move to the archive for historical reference
 
 ARC provides workflows for each transition. The level of ceremony scales with your
-[branch protection mode](reference/configuration.md#branch-model). `partial` (default) keeps it
+[branch protection mode](customization/configuration.md#branch-model). `partial` (default) keeps it
 lightweight for solo developers and small teams; `full` requires branches and PR review for all
 changes.
 
@@ -151,22 +156,49 @@ adds in-repo planning infrastructure:
 This is activated by selecting `arc-in-git` (ARC Core + Planning Module) during `arc init` (or
 switching later with `arc init --reconfigure`).
 
-**When to use it:** The Planning Module works well for solo developers and small teams — everything
-lives in git alongside your code, no external tooling to maintain, and the agent can read and
-reason about your backlog and roadmap directly. For larger teams, in-git backlog files become a concurrency
-bottleneck (multiple developers editing the same markdown files), and you'll likely want an external
-tracker instead.
+#### When it fits
 
-**With external trackers:** Teams using Jira, Linear, GitHub Issues, or similar select
-`external` (ARC Core + External Tracker) during init. ARC still expects local, in-repo task lists for
-execution; these are the review increments the developer-agent pair works through. The external
-tracker handles assignment, status, and sprint-level coordination; ARC task lists handle the
-execution-level decomposition. Extension points (`post-task-completion`, `post-work-unit-activate`,
-`post-work-unit-archive`) provide hooks for syncing status between the two.
+The Planning Module is designed for solo developers and small teams where keeping everything in
+git is a simplicity win — no external tools to maintain, no context-switching, and the agent can
+read and reason about your backlog and roadmap directly.
 
-**Without either:** `none` (ARC Core) alone provides the complete methodology engine. You manage planning
-however you like — PRDs and task lists are still created as part of ARC's execution workflow, but
-there's no backlog, roadmap, or project status tracking in-repo.
+**Ideal for:**
+
+- **Solo development** — no concurrency concerns, backlog always current, zero tool overhead
+- **Small teams (2-3)** integrating regularly — occasional merge conflicts in backlog files are
+  trivial, backlog stays roughly current across branches
+
+**Works with awareness:**
+
+- **Medium teams (4-6)** with short-lived branches. Backlog files may lag behind in-flight work
+  between integrations. The personal inbox (`ATOMIC-INBOX.md`) absorbs captures during branch
+  work; items promote to backlog at integration boundaries. Expect occasional merge conflicts in
+  bucket files — manageable if branches integrate often.
+
+**The scaling boundary** is a function of team size, branch lifetime, and integration frequency —
+not a hard headcount threshold. The backlog surface (bucket files, roadmap, project status) is
+tracked in git on the base branch. When multiple developers capture work from concurrent feature
+branches, those edits only converge at merge time. Teams that integrate often stay current; teams
+with long-lived branches experience growing staleness and merge friction.
+
+When the global backlog needs to be live, shared, and branch-independent — typically larger teams
+or teams with longer branch lifetimes — an external tracker is the right tool. ARC's
+`pm.mode: external` provides a structured integration path for exactly this (see below).
+
+#### With external trackers (`external`)
+
+Teams using Jira, Linear, GitHub Issues, or similar select `external` (ARC Core + External
+Tracker) during init. ARC still expects local, in-repo task lists for execution; these are the
+review increments the developer-agent pair works through. The external tracker handles assignment,
+status, and sprint-level coordination; ARC task lists handle the execution-level decomposition.
+Extension points (`post-task-completion`, `post-work-unit-activate`, `post-work-unit-archive`)
+provide hooks for syncing status between the two.
+
+#### Without either (`none`)
+
+`none` (ARC Core) alone provides the complete methodology engine. You manage planning however you
+like — PRDs and task lists are still created as part of ARC's execution workflow, but there's no
+backlog, roadmap, or project status tracking in-repo.
 
 ## Atomic Tasks
 
@@ -183,3 +215,15 @@ planned:
 The key principle: when you discover something that needs fixing, capture it. Don't ignore it and
 don't let it derail the current task. Small enough to fix inline? Fix it. Too large or out of scope?
 Route it to the appropriate capture surface so it doesn't get lost.
+
+??? info "Why two capture surfaces? (Planning Module)"
+
+    With the Planning Module (`pm.mode: arc-in-git`), the distinguishing question between the
+    companion file and ATOMIC-INBOX is **lifecycle intent**, not domain. "Will I do this during
+    the current work unit?" → companion file (branch-scoped, archives with the work unit). "Is
+    this for later?" → ATOMIC-INBOX (personal, gitignored, branch-agnostic — persists across
+    branch switches and work unit boundaries).
+
+    The inbox is especially valuable in team contexts, where you can't edit tracked backlog files
+    from a feature branch. Items that grow beyond atomic scope promote from the inbox to the
+    appropriate backlog file.

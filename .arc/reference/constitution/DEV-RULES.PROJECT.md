@@ -21,6 +21,7 @@ Use this when a domain's rules are substantial enough to warrant separation.
 - [Documentation Standards](#documentation-standards) — markdown quality, style conventions
 - [File Organization](#file-organization) — directory structure and boundaries
 - [Capture Routing](#capture-routing) — where deferred issues go
+- [Package-Project Sync](#package-project-sync) — two-copy discipline for framework files
 - [Architecture Documentation](#architecture-documentation) — ADRs and design records
 
 ---
@@ -35,34 +36,34 @@ pre-PR (Tier 3). See [Quality Gates Strategy][quality-gates] for tier definition
 and task list integration.
 
 1. **Markdown Linting**: Zero violations
-   - Command: `npm run -s lint:md`
-   - Auto-fix: `npm run -s lint:md:fix`
-   - Config: `.markdownlint-cli2.jsonc`
+    - Command: `npm run -s lint:md`
+    - Auto-fix: `npm run -s lint:md:fix`
+    - Config: `.markdownlint-cli2.jsonc`
 
 2. **Code Linting**: Zero violations
-   - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
-     (typescript-eslint recommended-type-checked)
-   - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts
+    - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
+      (typescript-eslint recommended-type-checked)
+    - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts
 
 3. **TypeScript Type Checking**: Zero errors
-   - Command: `npm run typecheck`
-   - Config: `packages/arc-framework/tsconfig.json` (strict mode)
+    - Command: `npm run typecheck`
+    - Config: `packages/arc-framework/tsconfig.json` (strict mode)
 
 4. **Tests**: All pass
-   - Command: `npm test` (full suite), `npm run test:unit` (unit only)
-   - Framework: Vitest
-   - Config: `packages/arc-framework/vitest.config.ts`
+    - Command: `npm test` (full suite), `npm run test:unit` (unit only)
+    - Framework: Vitest
+    - Config: `packages/arc-framework/vitest.config.ts`
 
 5. **Build**: Succeeds
-   - Command: `npm run build`
-   - Tooling: tsup (ESM output, declarations, shebang injection)
+    - Command: `npm run build`
+    - Tooling: tsup (ESM output, declarations, shebang injection)
 
 6. **CI Validation**: All checks pass
-   - GitHub Actions runs automatically on push/PR
-   - Markdown linting, code linting (zero violations policy)
-   - TypeScript type checking, test suite, build verification
-   - Template structure validation
-   - Internal link checking
+    - GitHub Actions runs automatically on push/PR
+    - Markdown linting, code linting (zero violations policy)
+    - TypeScript type checking, test suite, build verification
+    - Template structure validation
+    - Internal link checking
 
 ## Testing Requirements
 
@@ -137,6 +138,17 @@ Separate concerns, prefer composition over duplication, favor readability when p
 - `packages/arc-framework/` = CLI npm package (`@arc-framework/cli`)
 - Separate concerns: keep production code, tests, and configuration in distinct directories
 
+## Package-Project Sync
+
+This repo has two copies of ARC framework content: `packages/arc-framework/arc/` (authoritative
+source, ships to adopters) and `.arc/` (project instance). Methodology edits to Framework files
+go through the package source and sync to `.arc/` — not the other way around. Configurable files
+are edited in `.arc/` (project-specific sections) or package source (framework sections).
+
+A pre-commit hook warns when Framework files are edited in `.arc/` without the package counterpart
+staged. See [Package-Project Sync Strategy][package-sync] for the full architecture, dependency
+map, and template handling guidance.
+
 ## Capture Routing
 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces:
@@ -180,3 +192,4 @@ in [ADR Methodology Strategy][adr-methodology], but the decision itself changes 
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../strategies/arc/strategy-adr-methodology.md
 [testing-methodology]: ../strategies/project/strategy-testing-methodology.md
+[package-sync]: ../strategies/project/strategy-package-project-sync.md
