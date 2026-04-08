@@ -668,37 +668,45 @@ that pass the bar._
 
 _Goal: Confirm all deliverables meet PRD success criteria._
 
-- [ ] **8.1 Tier 3 quality gates**
-    - Run full quality gate suite per [verify-work-unit.md][verify-work-unit]:
-      `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck`,
-      `npm run typecheck:test`, `npm test`, `npm run build`
+- [x] **8.1 Tier 3 quality gates**
+    - Full suite passed: markdown lint (168 files, 0 errors), TS lint (0 errors), shell lint
+      (0 errors), typecheck src+test (0 errors), 617 tests (574 unit/integration + 43 E2E),
+      build success
 
-- [ ] **8.2 Validate success criteria against PRD**
-    - Walk through each PRD success criterion and compare against actual outcomes
-    - Mark each criterion in the Success Criteria section below
+- [x] **8.2 Validate success criteria against PRD**
+    - All 12 PRD success criteria validated against completed work. Two wording adjustments
+      in the task list criteria to match actual outcomes:
+        - Criterion 8: "arc-review" → "arc-task-review" (renamed per Task 7.2.a rationale)
+        - Criterion 9: README kept and thinned (102→55 lines) rather than removed —
+          Task 4.12.b superseded with documented rationale; Document Audiences extracted
+          to docs site (4.12.a), intent satisfied differently
 
-- [ ] **8.3 Verify all atomic tasks resolved**
-    - Review `atomic-methodology-maturation.md` — all items `[x]` or `[~]`
+- [x] **8.3 Verify all atomic tasks resolved**
+    - `atomic-methodology-maturation.md` is empty — no atomic tasks were captured during
+      this work unit. All incidental work was handled inline per issue-triage thresholds.
 
 ---
 
 ## Success Criteria
 
-- [ ] Package and project copies in sync with zero undocumented deviations
-- [ ] Dev safeguard strategy operational — loaded or referenced when methodology edits are in scope
-- [ ] A reader can distinguish what ARC-the-methodology requires from what ARC Framework implements
-- [ ] Human co-development posture described in methodology docs — descriptive, not prescriptive
-- [ ] `arc update` wholesale-replaces Framework files without merge conflicts
-- [ ] Strategy docs cleanly separate operational reference from explanation
-- [ ] Content placement decisions documented with rationale on all three axes
-- [ ] At least one new skill (arc-review) designed, implemented, and connected to methodology docs
-- [ ] `.arc/` root README removed; Document Audiences content preserved on docs site
-- [ ] Conditional content inventory documented with scaling assessment for proposed modes
-- [ ] Docs site remains fully functional — content additions include required structural changes
-- [ ] All workflow and doc references remain coherent — no broken cross-references or stale paths
-- [ ] All quality gates pass (tests, linting, type checking — 0 violations)
+- [x] Package and project copies in sync with zero undocumented deviations
+- [x] Dev safeguard strategy operational — loaded or referenced when methodology edits are in scope
+- [x] A reader can distinguish what ARC-the-methodology requires from what ARC Framework implements
+- [x] Human co-development posture described in methodology docs — descriptive, not prescriptive
+- [x] `arc update` wholesale-replaces Framework files without merge conflicts
+- [x] Strategy docs cleanly separate operational reference from explanation
+- [x] Content placement decisions documented with rationale on all three axes
+- [x] At least one new skill (arc-review) designed, implemented, and connected to methodology docs
+    - **Deviation:** Skill named `arc-task-review` (not `arc-review`) — bookend pattern with
+      `arc-task-audit`; `arc-review` rejected to avoid overlap with integration-level review
+- [~] `.arc/` root README removed; Document Audiences content preserved on docs site
+    - **Superseded:** README kept and thinned (102→55 lines) rather than removed. Analysis
+      concluded README serves genuine orientation value (GitHub rendering, new team members,
+      pattern consistency). Document Audiences extracted to docs site (Task 4.12.a)
+- [x] Conditional content inventory documented with scaling assessment for proposed modes
+- [x] Docs site remains fully functional — content additions include required structural changes
+- [x] All workflow and doc references remain coherent — no broken cross-references or stale paths
+- [x] All quality gates pass (tests, linting, type checking — 0 violations)
 - [ ] Ready for integration
 
 ---
-
-[verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

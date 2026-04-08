@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 8.1 — Tier 3 quality gates (line ~667)
-**Last Completed**: Task 7.5 — Update file classification and package source
+**Next Task**: [none — all tasks complete]
+**Last Completed**: Task 8.3 — Verify all atomic tasks resolved
 **Blockers**: [none]
-**Next Action**: Begin Phase 8 — verification
+**Next Action**: Integration — load and follow `integrate-work-unit.md`
 
 ---
 
