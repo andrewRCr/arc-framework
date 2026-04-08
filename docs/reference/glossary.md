@@ -46,7 +46,7 @@ accommodates by shifting traceability to PR descriptions. See
 A preset location in an ARC workflow where teams can inject additional
 steps via `arc-extensions.md`. Extensions add behavior without replacing existing steps.
 Example: running a security scan after each task's quality checks. See
-[Configuration § Extension Points](../customization/configuration.md#extension-points).
+[Methods & Extensions § Extension Points](../customization/methods.md#extension-points).
 
 ## _Handoff_
 
@@ -65,7 +65,7 @@ capture surface if it would derail the current task. Issues are never silently i
 A structured replacement in `arc-methods.md` that substitutes ARC's
 default implementation for a convention with the team's alternative. The override must satisfy
 the same contract as the default. Example: replacing ARC's commit format with a Jira-prefixed
-format. See [Configuration § Method Overrides](../customization/configuration.md#method-overrides).
+format. See [Methods & Extensions § Method Overrides](../customization/methods.md#method-overrides).
 
 ## _Planning Module_
 
