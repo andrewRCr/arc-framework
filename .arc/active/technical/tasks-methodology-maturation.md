@@ -412,30 +412,43 @@ Remove .arc/README from installs._
     - All new filename references resolve to existing files.
     - `mkdocs build --strict`: passed (0 warnings). `npm run -s lint:md`: 0 errors.
 
-- [ ] **4.12 Remove `.arc/README.md` from installs**
-    - [ ] **4.12.a Extract Document Audiences content to docs site**
-        - Four-audience taxonomy (agent-executed, collaborative, shared context, human-facing)
-          plus explanation of audience headers in workflows
-        - Likely destination: getting-started.md or a dedicated section
-        - Verify other README content blocks are adequately covered elsewhere: Getting Started
-          (→ docs/getting-started.md), Directory Structure (→ AGENT-BRIEFING.ARC.md),
-          Updating ARC (→ docs/updating.md)
+- [x] **4.12 `.arc/README.md` — evaluate, extract, and thin**
+    - [x] **4.12.a Extract Document Audiences content to docs site**
+        - Added "Document Audiences" section to `docs/the-framework.md` before the Session
+          Lifecycle section — four-audience taxonomy table plus workflow audience header
+          explanation and session-init context
+        - Verified other README content blocks covered elsewhere: Getting Started
+          (→ `docs/getting-started.md`), Directory Structure (→ `AGENT-BRIEFING.ARC.md`),
+          Updating ARC (→ `docs/reference/updating.md`)
 
-    - [ ] **4.12.b Remove README from both copies**
-        - Remove from package source (`packages/arc-framework/arc/README.md`)
-        - Remove from project instance (`.arc/README.md`)
-        - Update file classification inventory
-        - Update any docs or workflows that reference `.arc/README.md`
+    - [~] **4.12.b Remove README from both copies**
+        - Superseded: analysis concluded README should stay. `.arc/` is a transparent,
+          documentation-heavy directory where a README serves genuine orientation value
+          (GitHub rendering, new team members, pattern consistency with 15 subdirectory
+          READMEs). Clutter cost (1 file among 5 dirs) is negligible. Content restructuring
+          addresses duplication without removing the file. Additionally, the upcoming ARCd
+          rebrand makes the README a natural surface for explaining the ARC/ARCd naming
+          distinction in-context.
 
-- [ ] **4.13 Evaluate and decide `user/` directory placement**
-    - The semantic mismatch: `user/` is a personal workspace (session notes, scratch files,
-      atomic inbox) sitting at .arc/ root alongside structural directories. Moving into
-      `system/` would be wrong — system/ is "agent-facing operational files," not personal
-      workspace. The question is whether any alternative improves on root placement.
-    - Weigh root clutter cost against blast radius (~30 files, ADR-012 supersession, git
-      notes namespace migration) and team-mode discoverability value
-    - If rename warranted: propose as a separate work item given scope
-    - If not: document decision to keep at root with rationale
+    - [x] **4.12.c Thin README content to reduce duplication**
+        - Removed Document Audiences section (extracted to docs site in 4.12.a)
+        - Converted Getting Started from step-by-step to brief pointer to docs site
+        - Replaced Updating ARC section (detailed file classification tables) with a "Learn
+          More" link list pointing to docs site pages
+        - Kept Directory Structure and intro paragraph (core in-context orientation value)
+        - README reduced from 102 lines to 55 lines. Applied to both copies (package source
+          first, synced to project instance)
+
+- [x] **4.13 Evaluate and decide `user/` directory placement**
+    - Decision: keep at `.arc/` root. External conventions (Terraform, VS Code, JetBrains)
+      consistently place per-user state inside the tool directory. Gitignored subdirectories
+      inside tracked directories is a standard pattern. In-repo placement provides team-mode
+      discoverability. The "semantic mismatch" with structural sibling directories is not a
+      real UX concern — the distinction is clarifying, not confusing.
+    - Blast radius confirmed prohibitive (~74 files, ~150 reference sites, ADR-012
+      supersession, git notes namespace migration) — but the decision is based on conventions
+      favoring current placement, not just migration cost.
+    - ADR-012 remains valid; no new ADR needed.
 
 ### **Phase 5:** Language and Positioning Cleanup
 

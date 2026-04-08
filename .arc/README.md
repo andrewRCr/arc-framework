@@ -6,13 +6,9 @@ documents that work with any agent platform.
 
 ## Getting Started
 
-After running `arc init`, restart your AI agent to load the new configuration, then:
-
-- Run `/arc-setup` to walk through verification and project definition with your agent
-- Or paste: _"Read `.arc/system/agent/AGENT-BRIEFING.ARC.md` for context, then follow
-  `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`"_
-
-After setup, run `/arc-verify` to confirm everything installed correctly.
+After running `arc init`, restart your AI agent and run the `arc-setup` skill to walk through
+verification and project definition. See the [Getting Started guide][getting-started] for the
+full installation and setup walkthrough.
 
 ## Directory Structure
 
@@ -48,55 +44,16 @@ After setup, run `/arc-verify` to confirm everything installed correctly.
         └── project/           # Project-specific workflows
 ```
 
-## Document Audiences
+## Learn More
 
-ARC documents serve different audiences — knowing this helps you understand what to read
-and what to leave for your agent:
-
-| Audience           | Documents                                                  | Who reads them                                                |
-| ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------- |
-| **Agent-executed** | Session init/handoff, process-task-loop, commit workflow   | Your agent follows these as procedures. Read when customizing |
-| **Collaborative**  | Setup workflows, create-prd, generate-tasks                | You and your agent work through these together                |
-| **Shared context** | Constitution, strategies, ADRs, task lists, project status | Both you and your agent — the common project baseline         |
-| **Human-facing**   | Repository README, external documentation site             | You, when evaluating or onboarding to the framework           |
-
-**Audience headers in workflows:** All workflow files include an `**Audience:**` line at the
-top indicating who drives the process. This makes it clear at a glance whether a workflow is
-something your agent runs autonomously, something you work through together, or something
-you drive yourself.
-
-When your agent initializes each session, it reads several documents in full — constitution,
-development rules, quick reference, current session state. This is by design: agents start
-with zero memory and need complete context every time. The reading list looks heavy, but
-it's what ensures consistent, well-informed agent behavior session after session.
-
-## Updating ARC
-
-Run `arc update` to bring your `.arc/` files to the latest framework version. Framework
-files are replaced with the latest version; Configurable files merge preserving your
-customizations.
-
-**File classifications** determine what happens to each file during an update:
-
-| Classification   | Your edits  | During update                          | Examples                                   |
-| ---------------- | ----------- | -------------------------------------- | ------------------------------------------ |
-| **Framework**    | Overwritten | Wholesale replaced with latest version | Workflows, strategies, hooks, scripts      |
-| **Configurable** | Preserved   | Three-way merged with your changes     | `arc-config.yml`, `DEV-RULES.PROJECT.md`   |
-| **Scaffolded**   | Preserved   | Skipped entirely — these are yours     | `WORK-STATUS.md`, `ROADMAP.md`, `META-PRD` |
-
-**Before you customize a file**, check whether it's Framework-classified — your changes
-will be overwritten on the next update. Files you're expected to customize (`arc-config.yml`,
-`DEV-RULES.PROJECT.md`, `AGENT-BRIEFING.PROJECT.md`, strategy files in `project/`) are
-Configurable by design. Run `arc status` to see each file's classification.
-
-**After an update**, check the output for conflicts (files where both you and the framework
-changed the same content — marked with standard conflict markers) and resolve them before
-committing. Skill files are regenerated from canonical sources; customizations to generated
-skill files are not preserved.
-
-For the complete file inventory and classification rationale, see the
-[File Classification Strategy][file-classification].
+- [Getting Started][getting-started] — installation, setup, and first session
+- [How ARC Works][the-framework] — session lifecycle, skills, and task execution
+- [Document Audiences][audiences] — who reads what in `.arc/`
+- [Updating ARC][updating] — file classifications and update behavior
 
 ---
 
-[file-classification]: reference/strategies/arc/strategy-file-classification.md
+[getting-started]: https://andrewrcr.github.io/arc-framework/getting-started/
+[the-framework]: https://andrewrcr.github.io/arc-framework/the-framework/
+[audiences]: https://andrewrcr.github.io/arc-framework/the-framework/#document-audiences
+[updating]: https://andrewrcr.github.io/arc-framework/reference/updating/

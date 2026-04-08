@@ -25,6 +25,27 @@ agent's other workflows — task execution, quality gates, planning — load aut
 the ARC instruction chain once a session is running. See the [Skills Reference](reference/skills.md)
 for the full list and details.
 
+## Document Audiences
+
+Not everything in `.arc/` is meant for you to read directly. ARC documents serve different
+audiences, and knowing which is which helps you focus on what matters:
+
+| Audience           | Documents                                                  | Who reads them                                                |
+| ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| **Agent-executed** | Session init/handoff, process-task-loop, commit workflow   | Your agent follows these as procedures. Read when customizing |
+| **Collaborative**  | Setup workflows, create-prd, generate-tasks                | You and your agent work through these together                |
+| **Shared context** | Constitution, strategies, ADRs, task lists, project status | Both you and your agent — the common project baseline         |
+| **Human-facing**   | Repository README, external documentation site             | You, when evaluating or onboarding to the framework           |
+
+All workflow files include an `**Audience:**` line at the top indicating who drives the process.
+This makes it clear at a glance whether a workflow is something your agent runs autonomously,
+something you work through together, or something you drive yourself.
+
+Your agent reads several documents in full at the start of every session — constitution,
+development rules, quick reference, current work state. This is by design: agents start with zero
+memory and need complete context each time. The reading list looks heavy, but it's what ensures
+consistent, well-informed behavior session after session.
+
 ## The Session Lifecycle
 
 Work happens in bounded sessions. Each session follows a deliberate lifecycle:
