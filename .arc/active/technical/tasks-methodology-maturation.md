@@ -403,17 +403,14 @@ Remove .arc/README from installs._
       not caused by this task).
     - 40 files changed, +400/-1200 net. Two-copy work through package source.
 
-- [ ] **4.11 Cross-reference verification**
-    - Full link check in both directions after all extraction and consolidation complete
-    -
-    - Local → docs site: every strategy doc with a docs-site counterpart has header pointer
-      blockquote; inline contextual links resolve
-    - Docs site → local: references to strategy docs use post-consolidation filenames
-    - Internal local: strategy cross-references and workflow references resolve
-      post-consolidation
-    - Internal docs site: all nav entries resolve, cross-page links work
-    - Run `mkdocs build --strict` for docs site link validation
-    - Run markdown linting on all modified files (`npm run -s lint:md`)
+- [x] **4.11 Cross-reference verification**
+    - Substantially completed during 4.10 — reference updates were done inline with
+      each consolidation/rename rather than deferred.
+    - Confirmation pass verified: zero old filenames in live navigational docs (package
+      source, docs site, strategies, workflows, DEV-RULES). Old names remain only in
+      historical docs (ADRs, analysis, archive, session notes) — correct per immutability.
+    - All new filename references resolve to existing files.
+    - `mkdocs build --strict`: passed (0 warnings). `npm run -s lint:md`: 0 errors.
 
 - [ ] **4.12 Remove `.arc/README.md` from installs**
     - [ ] **4.12.a Extract Document Audiences content to docs site**

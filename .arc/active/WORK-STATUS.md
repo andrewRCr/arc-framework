@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.11 — Cross-reference verification (line ~401)
-**Last Completed**: Task 4.10 — Local strategy consolidation and coherence pass
+**Next Task**: Task 4.12 — Remove `.arc/README.md` from installs (line ~418)
+**Last Completed**: Task 4.11 — Cross-reference verification
 **Blockers**: [none]
-**Next Action**: Full link check in both directions after consolidation — local ↔ docs site, internal references, mkdocs build --strict, markdown linting
+**Next Action**: Extract Document Audiences content to docs site, then remove README from both copies
 
 ---
 
