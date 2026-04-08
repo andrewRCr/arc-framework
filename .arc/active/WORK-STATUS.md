@@ -16,11 +16,11 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.7 — Reference pages: task lists, team coordination, quality gates (line ~332)
-**Last Completed**: Task 4.6 — Reference pages: work organization and sessions
+**Next Task**: Task 4.8 — Existing page enrichments (line ~352)
+**Last Completed**: Task 4.7 — Reference pages: task lists, team coordination, quality gates
 **Blockers**: [none]
-**Next Action**: Extract task-list-formatting, team-coordination, quality-gates to reference/ pages
+**Next Action**: Lighter-touch additions across 5 existing docs site pages
 
 ---
 
-**Last Updated**: 2026-04-07
+**Last Updated**: 2026-04-08

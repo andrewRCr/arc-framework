@@ -28,14 +28,14 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
     - Consult when: creating PRDs, setting up discovery phases, planning work units
-- `arc/strategy-quality-gates.md` - Tiered quality gate system, integration checkpoints
-    - Consult when: running quality gates beyond Tier 1, understanding tier boundaries or escalation
+- `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
+    - Consult when: running quality gates beyond Tier 1, identifying integration checkpoints, escalation decisions
 - `arc/strategy-session-management.md` - Monitoring responsibility, session state portability, auto-compaction guidance
     - Consult when: configuring session state portability, understanding monitoring roles, working on session workflows
-- `arc/strategy-task-list-formatting.md` - Task list structure, formatting conventions
-    - Consult when: creating or restructuring task lists, formatting task entries
-- `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, external tracker integration
-    - Consult when: working in team mode, setting up multi-agent coordination
+- `arc/strategy-task-list-formatting.md` - Task list formatting specification, header templates, element rules
+    - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
+- `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers
+    - Consult when: working in team mode, setting up multi-developer coordination
 - `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival
     - Consult when: creating branches, deciding work unit types, archiving completed work
 
@@ -44,15 +44,11 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 Create project-specific strategies in `project/` as your project's patterns emerge.
 See `project/README.md` for guidance on when to create one.
 
-- `project/strategy-package-project-sync.md` - Two-copy architecture, edit flow rules, dependency map, template handling
-    - Consult when: editing methodology content in `.arc/` or `packages/arc-framework/arc/`, syncing between copies
-- `project/strategy-testing-methodology.md` - TDD approach, test tiers, mocking rules, design-for-testability
-    - Consult when: writing tests, deciding test-first vs test-after, choosing mock boundaries
-
 **Example strategies adopters might create** (illustrations — these files don't exist until you
 create them):
 
 - `project/strategy-authentication.md` - Auth flow, session management
+- `project/strategy-testing-methodology.md` - Testing patterns, coverage expectations
 - `project/strategy-service-layer.md` - Business logic organization, DI patterns
 - `project/strategy-type-safety.md` - Type checking approach, policy decisions
 - `project/style/strategy-component-styling.md` - Component patterns, design system

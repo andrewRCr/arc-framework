@@ -334,20 +334,21 @@ Remove .arc/README from installs._
       glossary.md, STRATEGY-INDEX (both copies).
     - 20 files, -842 net lines.
 
-- [ ] **4.7 Reference pages: task lists, team coordination, quality gates**
-    - **Sources:** task-list-formatting (1,020 lines, ~22%), team-coordination (395 lines,
-      ~48%), quality-gates (243 lines, ~39%)
-    - **Targets:** `reference/task-lists.md` (new), `reference/team-coordination.md` (enriched),
-      `reference/quality-gates.md` (enriched)
-    - task-lists.md: design rationale, structural vs style explanation, annotated example,
-      pedagogical content (~220 lines)
-    - team-coordination.md: handoff rationale, branching trade-offs, merge conflict philosophy,
-      tracker complementarity (~190 lines enriching existing page)
-    - quality-gates.md: core philosophy, escalation rationale, decision guidance (~95 lines
-      enriching existing page)
-    - **Local rewrite (3 docs):** task-list-formatting ~700 lines, team-coordination ~210
-      lines, quality-gates ~150 lines. Add header pointers + inline links.
-    - **Two-copy edits:** All three are Framework files — edit through package source.
+- [x] **4.7 Reference pages: task lists, team coordination, quality gates**
+    - `docs/reference/task-lists.md` (206 lines, new): structural vs style distinction,
+      condensed annotated example, test-first grouping, atomic companion rationale, common
+      mistakes, decision guidelines. Audience-filtered — lighter touch than strategy internals.
+    - `docs/reference/team-coordination.md` (166 lines, enriched): added branching pattern
+      decision guide, merge conflict expectations section, tracker complementarity collapsible.
+    - `docs/reference/quality-gates.md` (129 lines, enriched): added common mistakes section,
+      updated intro to reverse pointer direction.
+    - **Strategy rewrites (both copies):** task-list-formatting 1,020→758, team-coordination
+      396→353, quality-gates 244→209. Stripped rationale/pedagogical content, added header
+      blockquote pointers. Reductions lighter than estimated — much of original content is
+      genuinely operational spec that the agent needs.
+    - Updated STRATEGY-INDEX descriptions (both copies), reference/index.md (added Task Lists
+      row, updated descriptions).
+    - 12 files, -411 net lines.
 
 - [ ] **4.8 Existing page enrichments**
     - Lighter-touch additions across 5 existing docs site pages — smaller content placements,

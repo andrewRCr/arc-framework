@@ -4,9 +4,9 @@ ARC's core methodology (sessions, task execution, quality gates, commit discipli
 designed around a single developer-agent pair. Team coordination adds conventions for multiple
 pairs working on the same project, activated by setting `team.mode: true` in `arc-config.yml`.
 
-This page covers the key patterns at guide level. For the complete coordination protocol
-(merge conflict conventions, concurrent session handling, configuration notes, and the full
-person-to-person handoff procedure), see `strategy-team-coordination.md` in your
+This page covers the key patterns and rationale at guide level. For the complete operational
+protocol (merge conflict resolution steps, concurrent session handling, configuration notes,
+and the full person-to-person handoff procedure), see `strategy-team-coordination.md` in your
 `.arc/reference/strategies/` directory.
 
 ## What Changes in Team Mode
@@ -24,8 +24,8 @@ Everything else layers on top of the existing model:
 | Branching      | One branch per work unit      | Multiple patterns available                        |
 
 The `user/{identity}/` directory structure is identical in solo and team mode. Team scaling
-means adding identity directories — one per developer. Personal files (SESSION-NOTES.md,
-ATOMIC-INBOX.md) are gitignored, so concurrent developers never conflict on session state.
+means adding identity directories — one per developer. Personal files like SESSION-NOTES.md
+are gitignored, so concurrent developers never conflict on session state.
 
 ## Task Ownership
 
@@ -91,6 +91,36 @@ main
 
 Best for larger tasks where each developer's work naturally decomposes into reviewable chunks.
 
+### Choosing a pattern
+
+Start with the shared integration branch — it's the simplest and works for most team sizes.
+Move to personal sub-branches when you want PR review between team members, or stacked PRs
+when individual developers' work naturally decomposes into reviewable chunks. Patterns can
+coexist within a project: use a shared branch for tightly coupled tasks and sub-branches
+for independent streams.
+
+The key trade-off is **integration frequency vs review surface**. Shared branches integrate
+constantly but have no review gate between team members. Sub-branches and stacked PRs add
+review gates but require more branch management and periodic rebasing.
+
+## Merge Conflicts
+
+Task lists are shared files — multiple developers reference and update them. Merge conflicts
+are expected and typically straightforward to resolve.
+
+The most common conflict: two developers mark different tasks complete on different branches.
+Resolution is mechanical — accept both checkbox changes. If both modified the same task
+(unlikely with `(@name)` markers), coordinate verbally.
+
+**Minimizing conflict surface:** Keep task list edits minimal — checkbox state plus completion
+notes only. Avoid reformatting or restructuring task lists on feature branches. Make structural
+changes (reordering, adding phases) on the integration branch where all members can pull them.
+
+**Personal files don't conflict.** Files in `user/{identity}/` (like SESSION-NOTES.md) are
+gitignored — each developer writes to their own directory. Only WORK-STATUS.md (shared,
+tracked, one per branch) can produce merge conflicts between developers, and `.gitattributes`
+auto-resolves most cases.
+
 ## Person-to-Person Handoff
 
 When work transfers between developers (vacation, rotation, workload rebalancing), ARC's
@@ -125,3 +155,12 @@ works through one at a time.
 ARC provides extension points for syncing: `post-task-completion` (sync task status),
 `post-work-unit-activate` (update sprint boards), and `post-work-unit-archive` (close epics).
 Configure these in `arc-extensions.md`.
+
+??? info "Why not just use the external tracker?"
+
+    External trackers excel at cross-team visibility, sprint planning, and stakeholder reporting.
+    ARC task lists excel at the implementation detail that agents need for context — subtask
+    breakdowns, acceptance criteria, completion notes, and session handoffs. A Jira ticket might
+    say "Implement user authentication"; the ARC task list breaks that into 15 subtasks with
+    specific acceptance criteria that the developer-agent pair works through one at a time. The
+    two layers serve different audiences at different granularities.
