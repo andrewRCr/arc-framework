@@ -1,7 +1,28 @@
 # Notes: Methodology Maturation
 
-Implementation reference extracted from the plan document. Research findings, pre-PRD analysis
-data, and design context that will be useful during task generation and execution.
+**Task List:** `tasks-methodology-maturation.md`
+**Status:** Complete
+**Completed:** 2026-04-08
+
+Research findings, pre-PRD analysis data, and design context used during task generation
+and execution.
+
+---
+
+## Contents
+
+- [Research Findings](#research-findings) — harness engineering, Diátaxis, methodology floor,
+  co-development gap
+- [Pre-PRD Analysis Data](#pre-prd-analysis-data) — strategy doc mapping, session-init baseline,
+  CLI update behavior, install root surface area
+- [Skill Design Context](#skill-design-context) — existing skills, pipeline coverage, design notes
+- [Content Placement Research](#content-placement-research) — hybrid model, pointer patterns,
+  agent access, docs site organization
+- [Per-Doc Content Placement Decisions](#per-doc-content-placement-decisions) — extraction targets,
+  local consolidation, Phase 5 guidelines
+- [arc/ vs project/ Extraction Decisions](#arc-vs-project-extraction-decisions) — framework-dev
+  content, adopter vs maintainer assessment
+- [Backlog Items Resolved](#backlog-items-resolved)
 
 ---
 
@@ -281,7 +302,7 @@ pre-implementation, codebase-grounded); this is post-exploration, pre-PRD, requi
 
 ---
 
-## Phase 4 Research Findings: Content Placement
+## Content Placement Research
 
 ### Approach Decision: Hybrid Model
 
@@ -335,19 +356,14 @@ Three patterns identified for agent rationale access once explanatory content is
 settled. WebFetch available as fallback if agent needs deeper rationale than local summaries
 provide.
 
-### .arc/README Removal Decision
+### .arc/README Evaluation
 
-Decision: remove entirely. Rationale:
-
-- Content is duplicative — all blocks covered elsewhere (Getting Started → docs site, Directory
-  Structure → AGENT-BRIEFING.ARC.md, Updating ARC → docs site, Document Audiences → extract
-  to docs site before removal)
-- Users at install point already know what ARC is (went through repo README and docs to get there)
-- The "ambient discoverer" scenario (repo browser encounters .arc/) is real but serves ARC's
-  adoption funnel more than the user's needs — not worth permanent root clutter
-- The .arc/ directory structure (active/, reference/, system/) communicates purpose on its own;
-  curious browsers will look up ARC independently
-- Puts more pressure on docs site and repo README to handle onboarding flow well
+Initial analysis recommended removal (duplicative content, install clutter). During
+implementation (Task 4.12.b), analysis concluded README should stay: `.arc/` is a
+transparent, documentation-heavy directory where a README serves genuine orientation value
+(GitHub rendering, new team members, pattern consistency with 15 subdirectory READMEs).
+README thinned from 102→55 lines instead — Document Audiences extracted to docs site,
+Getting Started and Updating sections replaced with pointers.
 
 ### Sources
 
@@ -387,7 +403,7 @@ evidence, trade-off analysis, and design philosophy in collapsible `??? info` se
 
 ---
 
-## Task 4.1 Deliverable: Per-Doc Content Placement Decisions
+## Per-Doc Content Placement Decisions
 
 ### Per-Doc Decisions
 
@@ -621,7 +637,7 @@ apply these guidelines during extraction to avoid double-editing:
 
 ---
 
-## Task 4.2 Deliverable: arc/ vs project/ Extraction Decisions
+## arc/ vs project/ Extraction Decisions
 
 ### Framework-Dev-Only Content Found
 
