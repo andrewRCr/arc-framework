@@ -191,11 +191,11 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
 
 ## Verification Phase
 
-Every task list ends with a verification phase as its final phase. The standard task-by-task
-completion protocol applies, but the verification tasks (Tier 3 gates, success criteria
-validation, atomic task resolution) follow a specific protocol.
+Every task list ends with a verification phase — a single task that points to the
+verification workflow. Load the workflow and follow it; the task description is a pointer,
+not a standalone instruction.
 
-**→ [verify-work-unit.md](work-unit-lifecycle/verify-work-unit.md)** ← Full verification protocol
+**→ [verify-work-unit.md](work-unit-lifecycle/verify-work-unit.md)** ← Load and follow for the verification task
 
 ## Next Step
 

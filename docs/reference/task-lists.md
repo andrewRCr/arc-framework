@@ -97,11 +97,7 @@ verification phase and success criteria.
 
 ### **Phase 2:** Verification
 
-**Workflow:** `verify-work-unit.md` — load and follow for this phase.
-
-- [ ] **2.1 Run Tier 3 quality gates** — begin `verify-work-unit.md`
-- [ ] **2.2 Validate success criteria against PRD**
-- [ ] **2.3 Verify all atomic tasks resolved** (`atomic-config-validation.md`)
+- [ ] **2.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---
 
@@ -124,7 +120,7 @@ Key elements to notice:
 - **Detail bullets** (no checkbox, no number) provide implementation guidance or group coupled
   sub-actions that don't warrant individual tracking
 - **Goal lines** clarify purpose when the task title is terse
-- **Verification phase** is always the final phase, referencing the verification workflow
+- **Verification phase** is always the final phase — a single task pointing to the verification workflow
 
 ## Grouping Test and Implementation
 

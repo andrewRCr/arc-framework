@@ -42,7 +42,7 @@ Before finalizing any task list, verify:
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
-- [ ] Verification phase as final phase (workflow reference + Tier 3 gates + PRD validation + atomic task check)
+- [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
 - [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
@@ -557,21 +557,23 @@ phase. This phase marks the boundary between "doing the work" and "confirming th
 ```markdown
 ### **Phase N:** Verification
 
-**Workflow:** [`verify-work-unit.md`][verify-work-unit] — load and follow for this phase.
-
-- [ ] **N.1 Run Tier 3 quality gates** — begin [`verify-work-unit.md`][verify-work-unit]
-- [ ] **N.2 Validate success criteria against PRD**
-- [ ] **N.3 Verify all atomic tasks resolved** (`atomic-{name}.md`)
+- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 ```
 
-The `**Workflow:**` line and `[verify-work-unit]` link reference are part of the template —
-include them in every generated task list. The workflow contains the step-by-step procedure,
-three-state success criteria model, and atomic task verification protocol.
+A single task that points to the workflow. The task description is intentionally thin — the
+workflow is the authoritative protocol (Tier 3 quality gates, success criteria validation,
+atomic task resolution). The `[verify-work-unit]` link reference is part of the template —
+include it in every generated task list.
 
-The workflow reference also appears on **N.1** (the first verification subtask) as a gate
-reminder. Agents using graduated reads may jump directly to a subtask via WORK-STATUS,
-skipping the phase preamble — the inline reference ensures the workflow is loaded regardless
-of entry point.
+**Why a single task:** Verification is one review increment — three read-only validation
+activities that produce a single coherent outcome. Breaking them into separate tasks created
+self-contained descriptions that agents could execute without loading the workflow, causing
+protocol details (immutable criteria text, three-state model) to be missed. A thin pointer
+forces the workflow load.
+
+**Completion notes as record:** The workflow instructs the agent to include completion notes
+covering what was verified. This makes the archived task list self-documenting — a reader
+sees the verification outcome without needing to find the workflow.
 
 ---
 
