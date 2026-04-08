@@ -4,7 +4,8 @@
 distinctive, searchable product identity while preserving "ARC" as the methodology name. Captures
 rationale from the naming/domain exploration and defines the actionable work.
 
-**Status:** Draft (decision pending — strong candidate, not yet committed)
+**Status:** Draft (naming architecture revised — see
+[Revised Naming Architecture](#revised-naming-architecture); go/no-go still pending)
 **Created:** 2026-04-07
 **Origin:** Adding docs site links to shipped `.arc/` documents revealed that the ideal domain (arc.dev)
 and obvious alternatives (arcframework.dev) are taken by adjacent software/AI projects. Exploration of
@@ -101,6 +102,10 @@ implements the methodology — ARCd is ARC, applied.
   (domain, CLI, npm, directory references in prose).
 
 ## Naming Architecture
+
+> **⚠ Superseded.** The dual-brand approach below (ARC methodology / ARCd product) has been
+> replaced by a unified single-brand model. See [Revised Naming Architecture](#revised-naming-architecture)
+> at the end of this document for the current direction and rationale.
 
 ### The ARC / ARCd relationship
 
@@ -215,6 +220,113 @@ and leaves redirect artifacts.
 **Estimated scope:** Small-to-medium work unit. The methodology layer is untouched, so the rename
 is limited to product-facing surfaces: CLI package, docs site, README, and shipped doc references.
 No directory restructuring, no file renames, no config schema changes.
+
+---
+
+## Revised Naming Architecture
+
+**Decision:** ARCd is a single, unified brand — not a methodology/product split. Everything is ARCd.
+
+**Status:** Adopted (supersedes the [original naming architecture](#naming-architecture) above).
+
+### Why the original split was abandoned
+
+The original approach kept "ARC" as the methodology name and introduced "ARCd" only for
+product-facing surfaces (CLI binary, npm package, domain, README). Analysis of the installed
+framework's naming surface area revealed a critical problem: **the daily user experience would
+be ~95% "arc" by interaction frequency.**
+
+- `.arc/` directory — visible in every file path, every session
+- `/arc-resume`, `/arc-commit` — typed every session (6 skills)
+- `arc-config.yml`, `arc-methods.md` — loaded every session
+- `arc.identity`, `arc.role` — read every session init
+- Hundreds of prose references in methodology docs
+
+"ARCd" would have appeared only in rare touchpoints: CLI commands (used occasionally), the npm
+package (installed once), the domain (visited occasionally), and the README (read once). The
+brand would fade from consciousness within days of installation, leaving users thinking of it
+simply as "ARC" — defeating the entire purpose of the rebrand.
+
+Concrete failure modes:
+
+- **Muscle memory:** After months of `/arc-resume` and `.arc/` paths, a user types `arc update`
+  instead of `arcd update`
+- **Recommendations:** "Use ARCd" followed by "you'll see `.arc/`, run `/arc-resume`..." — the
+  brand name vanishes after the first sentence
+- **New user confusion:** README says "ARCd," file explorer shows `.arc/` — "did I install the
+  right thing?"
+
+Maintaining a methodology/product distinction added cognitive overhead that served the author's
+mental model, not the user's. Users have one concept of "the thing they use" — it needs one name.
+
+### The unified model
+
+ARCd is the brand for everything: the methodology, the framework, the CLI, the docs site.
+
+- **ARCd** — the methodology AND the implementation
+- **ARCd Framework** — long form when specificity is needed (install instructions, comparisons
+  with other tools, formal references)
+- **"The 11 principles"**, **"the methodology"** — contextual shorthand in prose (no need to
+  repeat the name in every reference)
+
+"ARC" as a bare term appears only in etymological context ("ARC stands for Agentic Reciprocal
+Co-development") and in the wordplay origin ("your project has been ARC'd"). It is not a
+parallel brand.
+
+### Full rename scope
+
+Unlike the original plan (which left `.arc/`, config naming, skills, and file suffixes
+unchanged), the unified model renames everything:
+
+| Surface | Before | After |
+| --- | --- | --- |
+| Directory | `.arc/` | `.arcd/` |
+| Config | `arc-config.yml` | `arcd-config.yml` |
+| Methods/extensions | `arc-methods.md`, `arc-extensions.md` | `arcd-methods.md`, `arcd-extensions.md` |
+| File suffixes | `.ARC.md` | `.ARCD.md` |
+| Git config | `arc.identity`, `arc.role`, `arc.tools` | `arcd.identity`, `arcd.role`, `arcd.tools` |
+| Skills | `/arc-resume`, `/arc-commit` | `/arcd-resume`, `/arcd-commit` |
+| CLI binary | `arc` | `arcd` |
+| Git refs | `refs/notes/arc/user/` | `refs/notes/arcd/user/` |
+| Constants | `ARC_BLOCK_START` | `ARCD_BLOCK_START` |
+| npm package | `@arc-framework/cli` | `@arcd/cli` |
+| Hooks | `arc-pre-commit` | `arcd-pre-commit` |
+| Shell functions | `arc_config_get()` | `arcd_config_get()` |
+
+The `.ARCD.md` suffix retains its original semantic: "ships with the framework" (vs `.PROJECT.md`
+= "your project's customization"). `DEV-RULES.ARCD.md` = "rules from ARCd." Clean.
+
+The rename is mechanical — large but bounded. One-time cost, best sequenced immediately after
+Methodology Maturation completes (files freshly settled, minimal churn).
+
+### Casing convention
+
+The lowercase 'd' is grounded by two independent justifications:
+
+1. **Wordplay:** ARC'd → ARCd. The 'd' is inflection (past participle), not a core initial.
+   A project has been ARC'd — the methodology has been applied.
+2. **Acronym:** **A**gentic **R**eciprocal **C**o-**d**evelopment. All four letters are
+   represented. The 'd' shares a word with 'C' (co-development), making lowercase feel
+   natural — it's a dependent letter, not a standalone initial.
+
+| Context | Form | Examples |
+| --- | --- | --- |
+| Brand, prose, headings | ARCd | "ARCd's principles", "the ARCd approach" |
+| Technical identifiers | `arcd` | `arcd.dev`, `@arcd/cli`, `.arcd/`, `arcd init` |
+| Environment/constants | `ARCD_` | `ARCD_CONFIG_FILE` (rare, unavoidable) |
+| Concatenated (handles, orgs) | ARCdFramework | Natural visual break at the case change |
+
+The concatenation benefit is notable: ARCdFramework reads as two words due to the lowercase 'd'
+creating a natural boundary. Compare: ARCFramework (ambiguous break), ArcFramework (loses the
+acronym feel), ARCD-Framework (hyphen required). This affects GitHub orgs, social handles, and
+any context where spaces aren't available.
+
+### What stays from the original plan
+
+The problem statement, options evaluation, domain/namespace research, secured namespaces, and
+implementation work items remain valid. The work item scope expands (full rename vs partial) but
+the sequencing and dependency analysis are unchanged. Timing recommendation (after Methodology
+Maturation, before Operating Modes / public release) still holds.
 
 ---
 
