@@ -350,19 +350,18 @@ Remove .arc/README from installs._
       row, updated descriptions).
     - 12 files, -411 net lines.
 
-- [ ] **4.8 Existing page enrichments**
-    - Lighter-touch additions across 5 existing docs site pages — smaller content placements,
-      not full page restructures
-    - methodology/index.md: focused sessions philosophy from session-management (~24 lines)
-    - the-framework.md: auto-compaction rationale from session-management (~26 lines,
-      collapsible)
-    - work-planning.md: pipeline concept and plan doc philosophy from work-planning (~105
-      lines), ATOMIC-INBOX rationale from backlog-organization (~25 lines, collapsible)
-    - contributing.md: light ADR summary from adr-methodology (~50 lines, reworked), "Why
-      prefixes matter" from file-classification (~40 lines, reworked for contributor audience)
-    - glossary.md: Key Concepts vocabulary from core-philosophy (~16 lines)
-    - **Local source edits:** adr-methodology, file-classification, work-planning,
-      backlog-organization, session-management — all through package source.
+- [x] **4.8 Existing page enrichments**
+    - Descoped from 5 pages to 3 — methodology/index.md, the-framework.md, and
+      work-planning.md pipeline content already placed in prior tasks (4.4, 4.6).
+    - `work-planning.md`: ATOMIC-INBOX rationale collapsible (~12 lines), qualified as
+      arc-in-git with Planning Module note.
+    - `contributing.md`: ADR summary section (~25 lines, reworked for contributor audience)
+        - file naming conventions section (~20 lines, reworked "Why prefixes matter").
+    - `glossary.md`: Added 2 missing terms — "Framework file" and "Incidental work unit".
+      Key Concepts from core-philosophy already covered by existing 20 terms (verified).
+    - **No source strategy edits:** Content was reworked for the target audience rather than
+      extracted verbatim — source strategies keep their operational content unchanged.
+      Header blockquote pointers deferred to Task 4.10 consolidation pass.
 
 - [ ] **4.9 Framework-dev content extraction to project/**
     - Independent of docs site work — can execute in any order relative to 4.4-4.8

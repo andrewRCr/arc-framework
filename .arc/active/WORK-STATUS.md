@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.8 — Existing page enrichments (line ~352)
-**Last Completed**: Task 4.7 — Reference pages: task lists, team coordination, quality gates
+**Next Task**: Task 4.9 — Framework-dev content extraction to project/ (line ~366)
+**Last Completed**: Task 4.8 — Existing page enrichments
 **Blockers**: [none]
-**Next Action**: Lighter-touch additions across 5 existing docs site pages
+**Next Action**: Move file inventory and ADR relationship content to project/ strategies
 
 ---
 

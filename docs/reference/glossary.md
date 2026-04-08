@@ -48,10 +48,25 @@ steps via `arc-extensions.md`. Extensions add behavior without replacing existin
 Example: running a security scan after each task's quality checks. See
 [Methods & Extensions § Extension Points](../customization/methods.md#extension-points).
 
+## _Framework file_
+
+A file classified as part of ARC's shipped methodology — wholesale-replaced during `arc update`.
+Contrast with _configurable_ files (preserved through three-way merge) and _project-owned_ files
+(never touched by updates). See
+[Customization § Configuration](../customization/configuration.md).
+
 ## _Handoff_
 
 The structured end of a session. Captures WORK-STATUS.md and SESSION-NOTES.md so
 the next session can recover context. See [Sessions § Handoff](../the-framework.md#ending-a-session).
+
+## _Incidental work unit_
+
+A multi-phase piece of work discovered during active development — a dependency you didn't know
+existed, a foundational issue that must resolve before the current work can continue. Distinguished
+from inline fixes or atomic tasks by needing its own task list, branch, and review cycle. Incidental
+work units get task lists but not PRDs; requirements emerge during execution, not upfront. See
+[Work Organization § Incidental Work](work-organization.md#incidental-work).
 
 ## _Leave-it-cleaner_
 

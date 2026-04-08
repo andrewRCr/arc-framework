@@ -185,3 +185,15 @@ planned:
 The key principle: when you discover something that needs fixing, capture it. Don't ignore it and
 don't let it derail the current task. Small enough to fix inline? Fix it. Too large or out of scope?
 Route it to the appropriate capture surface so it doesn't get lost.
+
+??? info "Why two capture surfaces? (Planning Module)"
+
+    With the Planning Module (`pm.mode: arc-in-git`), the distinguishing question between the
+    companion file and ATOMIC-INBOX is **lifecycle intent**, not domain. "Will I do this during
+    the current work unit?" → companion file (branch-scoped, archives with the work unit). "Is
+    this for later?" → ATOMIC-INBOX (personal, gitignored, branch-agnostic — persists across
+    branch switches and work unit boundaries).
+
+    The inbox is especially valuable in team contexts, where you can't edit tracked backlog files
+    from a feature branch. Items that grow beyond atomic scope promote from the inbox to the
+    appropriate backlog file.

@@ -96,6 +96,46 @@ runs automatically, but you can run checks manually:
 - Add tests for new functionality
 - Reference relevant issues in the PR description
 
+## Architectural Decisions
+
+Significant design choices are documented as Architecture Decision Records (ADRs) in
+`.arc/reference/adr/`. ADRs capture not just *what* was decided, but *why* — so future
+contributors have the context they need before revisiting a choice.
+
+**Write an ADR when:**
+
+- The decision affects system structure or external contracts
+- Multiple alternatives were considered and trade-offs weighed
+- An external constraint drove the choice (API limitations, regulatory requirements)
+- Future developers will ask "why did we do it this way?"
+
+**Don't write an ADR for** tactical choices obvious from reading the code (variable names,
+standard patterns, framework conventions) or temporary experiments.
+
+ADRs use a five-section format (Title, Status, Context, Decision, Consequences) following the
+`ADR-NNN` sequential numbering convention. Once accepted, an ADR's decision changes only through
+supersession — a new ADR that explicitly replaces it. Minor corrections (typos, broken links,
+clarified wording) are permitted without a new ADR. See `strategy-adr-methodology.md` in your
+`.arc/reference/strategies/` directory for the full format and lifecycle.
+
+## File Naming Conventions
+
+ARC uses filename prefixes (`strategy-`, `tasks-`, `prd-`, `plan-`, `atomic-`) for type-based
+grouping. This matters for two reasons:
+
+**Fuzzy-find grouping.** Typing `@strategy` in an editor or prompt file picker surfaces all
+strategy documents regardless of their directory. Without the prefix, you'd search by domain
+keyword and get unrelated results from across the repository.
+
+**Context-independent type marking.** Filenames appear without full paths in git log, diff stats,
+and search results. `strategy-work-organization.md` communicates its type anywhere;
+`work-organization.md` does not. This is especially useful for files that move between
+directories during their lifecycle (backlog → active → archive).
+
+Workflows are the exception — they use numbered prefixes (`1_`, `2_`, `3_`) for pipeline
+ordering rather than a `workflow-` prefix, because they're activated through embedded
+cross-references, not fuzzy-find.
+
 ## Maintainer-Managed Files
 
 Files in `.arc/active/` and `.arc/backlog/` are managed by project maintainers: task lists,
