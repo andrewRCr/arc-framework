@@ -19,7 +19,7 @@
 **Next Task**: —
 **Last Completed**: Methodology Maturation (archived)
 **Blockers**: [none]
-**Next Action**: Create PRD for Operating Modes work unit (plan-arc-modes.md in backlog)
+**Next Action**: Continue plan exploration — local mode design (plan-arc-modes.md in backlog)
 
 ---
 
