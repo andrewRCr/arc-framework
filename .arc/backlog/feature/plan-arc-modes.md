@@ -4,7 +4,7 @@
 can be used. Two modes: a lightweight mode that preserves execution discipline without lifecycle ceremony,
 and a local mode that enables ARC in repositories the developer doesn't control.
 
-**Status:** Draft (deep design phase — resolve design decisions before PRD)
+**Status:** Draft (design phase — Lite boundary resolved, details and local mode still open)
 **Created:** 2026-04-01
 **Origin:** Developer experience gaps at both ends of the adoption spectrum — small projects need less
 ceremony, and constrained environments need ARC without repo footprint.
@@ -16,7 +16,8 @@ until design decisions are resolved.
 
 **Upstream dependency:** Methodology Maturation (`prd-methodology-maturation.md`) — settles the
 methodology/implementation boundary, language consistency, and content architecture that this work unit
-builds on. That work unit must complete before this one begins implementation.
+builds on. **Completed** (2026-04-08, archived). The conditional content architecture analysis
+(`analysis-conditional-content-architecture.md`) is a direct feed-forward deliverable from that work unit.
 
 **Deliverable structure:**
 
@@ -68,44 +69,73 @@ operating mode design.
 
 How modes are expressed in ARC's configuration system. This affects both modes.
 
-`pm.mode` currently means "where does project management live" — the axis is PM artifact location. What
-we're describing changes more than PM artifacts: workflow layer, file structure, branch model, session-init
-behavior, tracking strategy.
+**Partially resolved.** ARC Lite is too foundational to be a config value — it determines what config
+options even exist. The decision:
 
-**Options to evaluate:**
+- **Lite vs Full is the first fork in `arc init`** — a top-level installation type, not a `pm.mode`
+  value or a config setting in `arc-config.yml`. It's stored in the manifest's `install_config`
+  (like `pm.mode` is now) and readable by the CLI for reconfigure/update operations.
+- **Lite gates downstream prompts** — Lite skips the `pm.mode` prompt (implicitly `none`; `arc-in-git`
+  is contradictory since Lite has no work unit stream for the planning module to manage). `team.mode`
+  is likely also skipped — Lite is inherently solo from a methodology perspective.
+- **Lite ships its own config template** — a reduced `arc-config.yml` containing only settings relevant
+  to Lite, rather than conditionalizing the Full config. The CLI recipe already supports mode-conditional
+  file installation.
 
-1. **New `pm.mode` value** (e.g., `pm.mode: lite`) — simplest, but stretches `pm.mode` semantics
-2. **Top-level mode** (e.g., `arc.mode: lite | standard`) — separate from PM, affects multiple layers.
-   `pm.mode` still exists within standard mode for arc-in-git vs external
-3. **Profile concept** — named collection of settings that configure multiple axes at once
-4. **Orthogonal flags** — e.g., `pm.work_units: false` disables lifecycle layer, `arc.tracking: local`
-   disables repo tracking. Modes emerge from flag combinations rather than being named presets
+**Still open:** Lite + `pm.mode: external` interaction. There's no reason you couldn't use Lite execution
+discipline with an external tracker — but what concrete value does `external` mode provide in Lite, given
+there's no integration workflow or lifecycle to hook into? May reduce to "different context footer
+pattern" rather than a mode. Evaluate during detail design.
 
-Option 4 is interesting because it naturally handles the ARC Lite + local mode composition — they're
-independent flags, not a matrix of named modes. But it risks confusing flag combinations that don't
-make sense.
+**Original options considered** (preserved for context):
 
-**Mutual exclusivity:** Lite mode and `pm.mode: arc-in-git` are mutually exclusive. Local mode and
-`team.mode: true` are mutually exclusive. The CLI must guard against incompatible combinations.
-Graduation/downgrade paths are the supported transitions.
-
-Decision deferred pending deeper analysis of what exactly changes at the workflow and CLI level.
+1. New `pm.mode` value (e.g., `pm.mode: lite`) — rejected, stretches `pm.mode` semantics beyond PM
+2. Top-level mode (e.g., `arc.mode: lite | standard`) — closest to the resolution, but expressed via
+   CLI init flow rather than a config key
+3. Profile concept — explored and rejected during earlier work (WU1); too many moving parts
+4. Orthogonal flags — interesting but risks confusing combinations; the bounded Lite mode is better
+   served by a single installation-type choice than emergent flag combinations
 
 ### Conditional Content Architecture
 
-The upstream Methodology Maturation work unit inventories existing conditionals and assesses whether
-the mechanisms scale. This investigation applies those findings to the specific modes being added.
+The upstream Methodology Maturation work unit produced `analysis-conditional-content-architecture.md` —
+a complete inventory of all conditional mechanisms in ARC with scaling projections for Lite and local mode.
 
-**Mode-specific evaluation:** For each conditional mechanism (in-prose, template rendering, file
-inclusion), determine what changes for ARC Lite and local mode. The conditional matrix grows with each
-mode — each workflow step, template block, and file inclusion decision potentially needs to account for
-more combinations. The pattern established upstream guides how new conditionals are expressed.
+Key findings relevant to Lite mode design:
+
+- **Current mechanisms scale.** The projected growth for Lite is 15-25 new conditionals across all
+  mechanism types. No architectural change needed.
+- **File exclusion absorbs the largest impact** — work unit lifecycle workflows simply aren't installed,
+  avoiding dozens of potential in-prose conditionals.
+- **Density thresholds** — session-init and process-task-loop may warrant Lite-specific template
+  variants rather than layering conditionals into the Full versions. The analysis recommends variants
+  when a document accumulates 5+ in-prose conditionals on the same axis.
+- **Install-time resolution preferred** — where content can be decided at `arc init` time, use template
+  blocks or recipe conditions rather than in-prose conditionals. Keeps rendered documents clean.
 
 ---
 
 ## Mode 1: ARC Lite (Primary Deliverable)
 
-### Core Boundary Hypothesis
+### Design Philosophy
+
+**"Does less, just as reliably."**
+
+ARC's strength is that you can trust it. The system has opinions, enforces them, and protects you from
+common failure modes. Lite mode preserves this property — it does less than Full ARC, but everything it
+does, it does with the same reliability and enforcement.
+
+Lite is not "Full ARC with optional steps." Making features optional means the system has no opinions,
+which means the system can't protect you. A toolkit that hopes you'll use it well is not ARC.
+
+Lite is not for developers who want Full ARC's lifecycle management with less ceremony. If you need work
+unit lifecycle (multiple concurrent work streams, formal verification, integration review, archival),
+you need Full ARC. Lite doesn't try to serve that audience with a watered-down version.
+
+**The target audience is projects you can hold in a single task list and scope brief.** When the project
+outgrows that — and the system will tell you when it does — you graduate to Full.
+
+### Core Boundary Hypothesis (Confirmed)
 
 **The differentiator is work unit lifecycle presence/absence.**
 
@@ -113,28 +143,59 @@ Full ARC models projects as a stream of work units flowing through a lifecycle p
 born (planning), activated, executed, verified, integrated, and archived. The project persists across many
 work units.
 
-Lightweight ARC models the project as a single evolving task list. There is no lifecycle pipeline — tasks
-are added, completed, and the list grows organically. The project _is_ the work unit.
+ARC Lite models the project as a single bounded effort. There is no lifecycle pipeline — you plan scope,
+create tasks, execute them, and ship. The project _is_ the work unit.
 
-All other structural differences flow from this boundary:
+**Why this boundary, and not others:**
 
-| Aspect              | Full ARC                                                       | ARC Lite                    |
-| ------------------- | -------------------------------------------------------------- | --------------------------- |
-| Work model          | Stream of work units                                           | Single evolving task list   |
-| Task list location  | `.arc/active/{category}/tasks-{name}.md`                       | `.arc/active/tasks.md`      |
-| PRD                 | Required before task generation                                | Available, not required     |
-| Plan docs           | Pipeline stage                                                 | Available, not required     |
-| Branching model     | Strategy-driven (full/partial protection)                      | Simplified (on/off)         |
-| Active directory    | Category subdirs (feature/, technical/)                        | Flat                        |
-| Backlog             | Pipeline with roadmap                                          | Not installed               |
-| Work unit lifecycle | Activation → execution → verification → integration → archival | None                        |
-| Verification        | Formal phase in task list                                      | Run Tier 3 gates when ready |
-| Integration         | Pre-merge review, formal PR workflow                           | Push/merge when ready       |
-| Session lifecycle   | Same                                                           | Same                        |
-| Process-task-loop   | Same                                                           | Same                        |
-| Hooks               | Same                                                           | Same                        |
-| Methods             | Same                                                           | Same                        |
-| Dev rules           | Same                                                           | Same                        |
+This decision was reached after exploring two alternatives that were ultimately rejected:
+
+1. **"Required vs. available" model** — same capabilities as Full, but pipeline gates removed. Everything
+   above a minimum floor is optional. Rejected because: making features optional means the system can't
+   enforce quality. ARC's value comes from structural enforcement, not developer discipline. "Trust the
+   dev, hope for the best" is not ARC. This model would serve a wider audience but guarantee nothing.
+
+2. **"Simplified-but-complete workflow suite"** — Lite variants of every Full workflow (lite-activate,
+   lite-integrate, lite-archive). Rejected because: every process needs its own Lite boundary definition,
+   which is arbitrary and unmaintainable. You're defining "how much simpler?" for each workflow with no
+   principled answer. The complexity shifts from the user to the framework maintainer.
+
+The work unit lifecycle is the right structural cut because:
+
+- It's a natural boundary — the conditional content architecture analysis confirms 85-90% of the
+  framework has zero dependencies on work unit lifecycle workflows.
+- It aligns with the value decomposition — execution discipline (scale-independent) vs. lifecycle
+  ceremony (scale-dependent). Research confirms execution discipline drives quality independent of
+  project size.
+- It's clean — workflows are either installed or not. No parallel variants, no "simpler how?" questions.
+- It matches the research boundary — ~2 weeks is where planning pipeline overhead begins to earn its
+  keep. Below that, execution discipline alone is sufficient.
+
+### Enforced Sequence
+
+Lite has a defined, enforced sequence — not a pipeline with gates like Full, but a progression that the
+system expects and the agent follows:
+
+**Scope --> Tasks --> Execute --> Ship**
+
+| Step        | Lite                                                                     | Full ARC equivalent                                |
+| ----------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
+| **Scope**   | Required lightweight scope artifact — intent, approach, success criteria | Plan doc --> formal PRD (multi-section, detailed)  |
+| **Tasks**   | Single task list generated from scope                                    | Task list generated from PRD, multi-phase common   |
+| **Execute** | Same process-task-loop (identical)                                       | Same process-task-loop (identical)                 |
+| **Ship**    | Run Tier 3 quality gates, review diff, merge/push                        | Verify --> Integrate --> Archive (3 formal phases) |
+
+**Scope artifact:** ARC is spec-directed development — having zero planning artifacts means you're not
+doing ARC. Lite requires a lightweight scope document before task creation. The vehicle is lighter than a
+full PRD (fewer sections, faster to produce, purpose-built for Lite), but it's **required, not optional**.
+You can write it in 5-10 minutes for a simple project. The system won't let you skip it.
+
+Format and template details are open for later design. The important constraint is: it must capture enough
+intent that scope drift can be detected (see guardrails below).
+
+**Ship step:** Replaces Full ARC's three-phase ending (verification, integration, archival) with a
+lightweight checklist — run quality gates, review your aggregate diff, merge or push. Not a ceremony,
+but not nothing either. Details TBD.
 
 ### What Stays Identical
 
@@ -150,9 +211,14 @@ These layers are project-scale-independent and work the same in both modes:
 
 ### What Changes
 
-**Task list creation:** Without a PRD requirement, task lists are created conversationally. The developer
-describes what they're building; the agent drafts a task list. The formatting strategy still applies — same
-structure, likely fewer phases (possibly single-phase for very small work).
+**Scope artifact replaces PRD:** Lite's planning requirement is a lightweight scope document, not a full
+PRD. The scope brief captures intent, approach, and success criteria — enough for the agent to generate
+a task list and enough for guardrails to detect scope drift. A full PRD's detailed sections (background
+research, technical constraints, verification criteria, etc.) are not required.
+
+**Task list structure:** Single task list, likely simpler default structure. Fewer phases (possibly
+single-phase default for very small projects). Same formatting conventions. Task list location is
+`.arc/active/tasks.md` (singular, no category subdirs).
 
 **File structure:**
 
@@ -161,8 +227,7 @@ structure, likely fewer phases (possibly single-phase for very small work).
   active/
     tasks.md              # The task list (singular)
     WORK-STATUS.md        # Current task pointer
-    prd.md                # Optional — only if developer wants one
-    notes.md              # Optional — thinking/planning notes
+    scope.md              # Lightweight scope artifact (name TBD)
   reference/              # Constitutional docs, strategies
   system/                 # Agent config, workflows, settings
   user/{identity}/        # Session state (same as full ARC)
@@ -178,42 +243,117 @@ List" field. Possibly just: current task, last completed, blockers, next action.
 apply. Simplified choice: work on main directly, or create a single branch per effort. No
 strategy-work-organization dependency.
 
+**Absent workflows:** Work unit lifecycle workflows are not installed — activate-work-unit,
+archive-work-unit, integrate-work-unit, clean-work-unit, verify-arc-integrity. Planning pipeline
+workflows (activate-planning-branch, integrate-planning-branch) are also absent. These are excluded
+via recipe conditions, not conditionals.
+
+**Session init/handoff:** Simplified Lite variants — different document set, simpler discovery (no work
+unit pipeline to assess), no lifecycle state tracking. Likely separate template files rather than
+conditionals layered onto the Full versions.
+
+### Guardrails and Graduation Triggers
+
+Lite doesn't have lifecycle workflows to manage complexity — so it needs a different mechanism to keep
+you honest. The system should detect when a project is outgrowing Lite and surface that clearly, without
+hard-blocking the user.
+
+**Observable signals that suggest graduation:**
+
+- **Task list size** — past a threshold, a single evolving task list becomes unwieldy. Research suggests
+  working memory is ~3-5 concurrent concerns.
+- **Scope drift** — user describing work that doesn't connect back to the scope brief. The scope artifact
+  exists precisely so this is detectable.
+- **Multiple efforts emerging** — "let's also do X" where X is clearly a separate concern, not a task
+  within the current scope.
+- **Duration** — the ~2 week boundary from research. Session count is a rough proxy.
+- **Branch pressure** — user wanting to separate work onto different branches, which signals multiple
+  concurrent concerns that Lite isn't built to manage.
+
+**Response model:** Not "you can't do that" — transparent, honest communication:
+
+> This project is showing signs of outgrowing Lite mode — [specific signal]. Lite is designed for
+> projects you can hold in a single task list and scope brief. Consider graduating to Full ARC
+> (`arc init --reconfigure`) where you can manage separate work units with their own scope, task
+> lists, and lifecycle. Continuing in Lite is fine, but the framework can't help you manage this
+> complexity.
+
+**Where guardrails live:**
+
+- **Session init** — the natural checkpoint. Already reads the task list and WORK-STATUS. A Lite-specific
+  assessment step checks for signals and surfaces them in the orientation summary. Persistent — it keeps
+  noting the signal until the user graduates or the signal subsides.
+- **Process-task-loop** — agent awareness during execution. If the user starts describing a second effort,
+  the agent flags it in the moment rather than waiting for the next session.
+
+Exact thresholds and language are detail-design concerns. The architectural decision is: Lite has active
+guardrails that detect complexity growth and nudge toward graduation.
+
 ### Graduation / Downgrade Paths
 
-**Lightweight → Full:** When a project outgrows lightweight mode — scope expands, multiple work streams
-emerge, the single task list becomes unwieldy:
+**Lite --> Full:** When a project outgrows Lite — scope expands, multiple work streams emerge, the single
+task list becomes unwieldy. Graduation should be feasible and relatively seamless from a user perspective.
 
-1. Introduce category subdirs in `active/` (move `tasks.md` → `active/feature/tasks-{name}.md`)
-2. Install backlog infrastructure (ROADMAP, backlog files)
-3. Switch configuration to full mode
-4. Existing task list continues as-is — same format, new location
-5. Future work follows the full pipeline (PRD → task generation → lifecycle)
+Mechanically: `arc init --reconfigure`. The CLI already supports reconfigure with file add/remove based
+on config deltas. Graduation would:
 
-**Key constraint:** Task list format must be identical in both modes. Graduation = relocation and
+1. Switch installation type from Lite to Full
+2. Install Full-specific workflows, config, and directory structure
+3. Relocate the existing task list (e.g., `active/tasks.md` --> `active/feature/tasks-{name}.md`)
+4. The scope brief becomes (or informs) a proper PRD
+5. Install backlog infrastructure if pm.mode is set to arc-in-git
+6. Future work follows the full pipeline
+
+**Key constraint:** Task list format must be identical in both modes. Graduation is relocation and
 infrastructure addition, not content rewrite.
 
-**Full → Lightweight:** For developers who find full ARC too heavy:
+**Full --> Lite:** For developers who find Full ARC too heavy:
 
 1. Only possible when a single work unit is active (or between work units)
 2. Collapse directory structure — move active task list to `active/tasks.md`
-3. Remove backlog infrastructure
+3. Remove lifecycle workflows and backlog infrastructure
 4. Switch configuration
 
-Also serves as an adoption on-ramp: try full ARC, find it heavy, dial back to what you actually use
-rather than abandoning the framework entirely.
+Also serves as an escape hatch: try Full ARC, find it heavy, dial back to what you actually use rather
+than abandoning the framework entirely.
 
-CLI support: `arc init --reconfigure` or a dedicated command handles mode transitions in both directions.
+### Configuration and Installation
+
+**Installation type, not config value.** Lite vs Full is the first fork in `arc init`:
+
+```text
+? Project mode
+  > ARC Lite  - Execution discipline for focused projects
+    Full ARC  - Complete lifecycle management
+```
+
+The choice is stored in the manifest (`install_config`), not in `arc-config.yml`. It determines what
+files are installed, what config options are available, and what prompts appear during init.
+
+**PM mode gating:** Lite + `arc-in-git` is contradictory (no work unit stream for the planning module to
+manage). The `pm.mode` prompt is skipped in Lite; the effective mode is `none`. Lite + `external` is an
+open question — there may be value (external ticket references in context footers) but no integration
+workflow to hook into. Evaluate during detail design.
+
+**Lite config template:** Lite ships a reduced `arc-config.yml` that omits irrelevant settings (`pm.mode`,
+`team.mode`, and possibly others). This keeps the config honest about what Lite actually configures rather
+than showing options that don't apply.
 
 ### Quick-Start / On-Ramp Angle
 
-Lightweight mode could be the default first experience with ARC:
+Lite mode could be the default first experience with ARC:
 
-- `arc init` → lightweight mode. Hooks work, dev rules load, you can create a task list immediately
+- `arc init` --> Lite mode. Hooks work, dev rules load, you can create a scope brief and task list
+  immediately
 - Developer experiences the execution discipline without upfront ceremony
-- When the project (or a new project) outgrows it, graduate to full
+- When the project (or a new project) outgrows it, graduate to Full
 
-This reverses the current adoption model where you choose your PM mode before experiencing ARC. Instead:
-start working, discover value, add structure when you need it.
+This reverses the current adoption model where you choose your complexity level before experiencing ARC.
+Instead: start working, discover value, add structure when you need it.
+
+**Open question:** Should Lite be the default, or should `arc init` always ask? The on-ramp argument
+favors defaulting to Lite. The "informed choice" argument favors asking. The CLI's `--lite` and `--full`
+flags provide explicit paths regardless.
 
 ---
 
@@ -299,7 +439,7 @@ losing all tracking state. The CLI should make backup seamless once init is done
 Baseline ships with local mode. Persistent sync is available but opt-in — the happy path (short-lived
 local use) has zero friction.
 
-### Upgrade Path (Local → Tracked)
+### Upgrade Path (Local --> Tracked)
 
 Upgrading is frictionless because files are already in `.arc/` in the working tree:
 
@@ -309,8 +449,8 @@ Upgrading is frictionless because files are already in `.arc/` in the working tr
 4. Going forward, commits get full traceability
 
 No migration, no content rewrite, no file moves. Git history starts from the point of tracking, but
-content is continuous. The graduation path composes: local ARC Lite → tracked ARC Lite → tracked Full ARC.
-Each step adds structure; none requires rewriting what you have.
+content is continuous. The graduation path composes: local ARC Lite --> tracked ARC Lite --> tracked
+Full ARC. Each step adds structure; none requires rewriting what you have.
 
 ### Branching and Solo Context
 
@@ -333,9 +473,10 @@ documented or supported path.
 
 ## Content Audit
 
-Once the upstream methodology boundary is settled, audit all framework domains to classify each file and
-concept by mode applicability. Uses the methodology/implementation classification from the Methodology
-Maturation work unit as its foundation.
+Once detail design begins, audit all framework domains to classify each file and concept by mode
+applicability. Uses the methodology/implementation classification from the Methodology Maturation work
+unit and the conditional content analysis (`analysis-conditional-content-architecture.md`) as its
+foundation.
 
 **Categories:**
 
@@ -350,49 +491,70 @@ Audit scope: strategy documents, workflow documents, constitutional documents (D
 referencing work unit concepts), session-init document set, templates installed by `arc init`, and CLI
 commands (available, hidden, or guarded by mode).
 
+---
+
 ## Open Questions
 
 ### ARC Lite
 
-1. **Naming**: "ARC Lite" is a working name. Does it accurately convey what this is? Other options:
-   "ARC Solo," "ARC Quick," "ARC Core+" (core + task lists). The name should suggest "same discipline,
-   less ceremony" rather than "lesser version."
+1. ~~**Naming**~~: **Resolved** — ARC Lite (will become ARCd Lite after rebrand).
 
-2. **Atomic tasks**: In full ARC, atomic companion files and ATOMIC-INBOX handle small deferred work.
-   Does Lite need these? Probably not the companion file (no work unit boundary), but ATOMIC-INBOX could
-   still be useful for "I'll get to this later" capture.
+2. **Scope artifact design**: What does the lightweight planning document look like? How is it different
+   from a PRD — subset of the same template, or a distinct document? What's the minimum it must capture
+   to satisfy spec-directed development and enable guardrail detection? Shape is right (required,
+   lightweight, quick to produce); details need design.
 
-3. **Session management weight**: Is the full session init/handoff ceremony appropriate for a 2-hour
-   project? The document loading is the same, but SESSION-NOTES might be overkill for single-session work.
-   Maybe session handoff is only triggered if the developer is actually leaving and coming back?
+3. **"Ship" step specifics**: How structured is the ship step? Literally "run Tier 3 gates and merge,"
+   or does it include a lightweight pre-merge review? Research shows self-review catches significant
+   issues at any scale — worth including even in Lite?
 
-4. **Process-task-loop adjustments**: The loop references work unit concepts (atomic companion files,
-   incidental work routing to backlog). These need conditional handling or lightweight alternatives.
+4. **Task list simplifications**: Does Lite default to single-phase task lists? Are multi-phase lists
+   available but unusual, or actively discouraged? Does phase structure imply lifecycle complexity that
+   Lite shouldn't have?
 
-5. **Strategy applicability mapping**: Which strategies apply in Lite? Core philosophy, context loading,
-   session management, quality gates — yes. Work organization, backlog organization, work planning — no.
-   Task list formatting — yes. Need a clear mapping.
+5. **Session management simplifications**: What does Lite session-init look like? The document loading is
+   the same core set, but discovery and lifecycle assessment are absent. Is the full session handoff
+   ceremony appropriate, or does Lite need a lighter version?
 
-6. **The "feels lighter" test**: Beyond structural differences, the day-to-day experience must feel
-   measurably lighter. What does session init look like? What does "start working" look like? (Describe
-   what you're building → task list → go?) What does "I'm done for now" look like?
+6. **Process-task-loop adjustments**: The loop references work unit concepts (atomic companion files,
+   incidental work routing to backlog, coherent unit protocol). These need conditional handling or
+   removal in Lite. Separate template variant or in-prose conditionals?
+
+7. **Strategy applicability mapping**: Which strategies apply in Lite? Core philosophy, session
+   operations, quality gates, task list formatting — yes. Work organization, planning module — no.
+   Need a clear mapping for the content audit.
+
+8. **Guardrail thresholds**: What are the specific trigger thresholds for graduation nudges? Task list
+   size, session count, scope drift detection — these need calibration. Too sensitive is annoying;
+   too lax defeats the purpose.
+
+9. **Default mode question**: Should `arc init` default to Lite (on-ramp argument) or always ask
+   (informed choice argument)? Affects adoption story.
+
+10. **Lite + external PM**: Is there meaningful value in `pm.mode: external` within Lite? If so, what
+    does it concretely provide? If not, Lite is always `pm.mode: none` implicitly.
 
 ### Local mode
 
-7. **Context footer strategy**: Disable entirely, use plain-text descriptions, or make configurable?
-   What does the commit-msg hook do in local mode?
+11. **Context footer strategy**: Disable entirely, use plain-text descriptions, or make configurable?
+    What does the commit-msg hook do in local mode?
 
-8. **Backing store scope**: Does `arc export` capture everything in `.arc/`, or a curated subset?
-   How large can `.arc/` get, and does that affect export viability?
+12. **Backing store scope**: Does `arc export` capture everything in `.arc/`, or a curated subset?
+    How large can `.arc/` get, and does that affect export viability?
 
-9. **Agent discoverability mitigations**: Beyond CLI `arc open` commands, are there platform-specific
-   solutions? (e.g., Claude Code settings, VS Code `search.useIgnoreFiles`, editor plugins)
+13. **Agent discoverability mitigations**: Beyond CLI `arc open` commands, are there platform-specific
+    solutions? (e.g., Claude Code settings, VS Code `search.useIgnoreFiles`, editor plugins)
 
 ### Cross-cutting
 
-10. **Configuration mechanism**: Does the orthogonal-flags approach (mode emerges from flag combinations)
-    scale better than named modes? How does the CLI present this to users without exposing combinatorial
-    complexity?
+14. **Configuration mechanism for local mode**: Local mode is orthogonal to Lite/Full. How is it
+    expressed? `arc init --local` flag, or a prompt? Can you combine `--local` with `--lite`?
+
+15. **Initial setup workflow impact**: The current `01_verify-and-configure.md` and
+    `02_define-project.md` assume Full ARC. Lite needs a dramatically faster setup path. This likely
+    means Lite-specific setup workflows or a single combined workflow.
+
+---
 
 ## Research Findings
 
@@ -404,7 +566,7 @@ Humphrey's Personal Software Process research demonstrates that structured execu
 discipline, commit standards, code review at ~200 LOC/hour — reduce defect density with statistical
 significance, independent of project size. TSP implementations showed 94% on-time delivery at Microsoft
 India. The discipline itself drives quality, not the planning ceremony around it. This validates the core
-hypothesis: execution discipline (what lightweight mode keeps) is the high-value layer.
+hypothesis: execution discipline (what Lite keeps) is the high-value layer.
 
 ### Duration boundary: ~2 weeks
 
@@ -419,7 +581,7 @@ Research points to a natural breakpoint around project duration:
 
 Process overhead becomes counterproductive when ceremony time exceeds 15-20% of total project time. For a
 2-hour project, even 20 minutes of setup is ~17% — right at the threshold. For a 2-week project, 30
-minutes of ceremony is trivial (~0.6%). This suggests lightweight mode should target near-zero setup time.
+minutes of ceremony is trivial (~0.6%). This suggests Lite should target near-zero setup time.
 
 ### Graduation triggers should be signal-based
 
@@ -437,7 +599,7 @@ These are more actionable than arbitrary duration cutoffs and could inform the g
 Practitioners consistently adopt: frequent commits (traceability + recovery), feature branches even for
 solo work, automated testing, structured commit messages. Practitioners consistently abandon: planning
 documents, formal review ceremonies, lifecycle phases. This directly matches the split between what
-lightweight mode keeps and what it drops.
+Lite keeps and what it drops.
 
 ### Sources
 
