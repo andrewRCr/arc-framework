@@ -35,7 +35,7 @@ and agents. These documents aren't only static files — many are also mechanica
 branch on configuration values, methods define overridable contracts at trigger points,
 extension points inject custom behavior at workflow boundaries, and git hooks enforce
 conventions deterministically at commit time. A CLI manages the full lifecycle:
-initialization, onboarding, framework updates that preserve your customizations, and
+initialization, onboarding, framework updates that preserve your configuration and project standards, and
 session state portability through git notes. Guidance is embedded where it's needed, and conventions
 are enforced where they matter.
 
@@ -73,7 +73,7 @@ complete structure and what each component does.
   most of how they're implemented is. Commit format, quality gates, triage
   thresholds, review methods, session state mechanics — all configurable conventions
   with strong defaults your team replaces when they don't fit. The CLI handles
-  initialization, onboarding, framework updates that preserve your customizations, and
+  initialization, onboarding, framework updates that preserve your configuration and project standards, and
   session state portability across machines.
 - **Shared context with tiered delivery.** Project specifications, development standards,
   and codified strategies give humans and agents the same understanding. Not everything

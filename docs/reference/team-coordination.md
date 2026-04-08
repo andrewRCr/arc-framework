@@ -160,7 +160,5 @@ Configure these in `arc-extensions.md`.
 
     External trackers excel at cross-team visibility, sprint planning, and stakeholder reporting.
     ARC task lists excel at the implementation detail that agents need for context — subtask
-    breakdowns, acceptance criteria, completion notes, and session handoffs. A Jira ticket might
-    say "Implement user authentication"; the ARC task list breaks that into 15 subtasks with
-    specific acceptance criteria that the developer-agent pair works through one at a time. The
-    two layers serve different audiences at different granularities.
+    breakdowns, acceptance criteria, completion notes, and session handoffs. The two layers serve
+    different audiences at different granularities.

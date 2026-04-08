@@ -126,7 +126,6 @@ arc-in-git files are annotated explicitly.
 - `README.md` (root)
 - `reference/adr/README.md`
 - `reference/analysis/README.md`
-- `reference/archive/README.md`
 - `reference/constitution/DEV-RULES.ARC.md`
 - `reference/constitution/README.md`
 - `reference/research/README.md`
@@ -192,11 +191,14 @@ arc-in-git files are annotated explicitly.
 
 ### Configurable files (project sections expected to differ)
 
+- `reference/archive/README.md`
 - `reference/constitution/DEV-RULES.PROJECT.md`
+- `reference/QUICK-REFERENCE.md` · template counterpart
 - `reference/strategies/STRATEGY-INDEX.md`
-- `system/arc-config.yml`
+- `system/agent/AGENT-BRIEFING.PROJECT.md` · template counterpart
 - `system/agent/CLAUDE.ARC.md`
 - `system/agent/CODEX.ARC.md`
+- `system/arc-config.yml`
 - `system/workflows/arc-extensions.md`
 - `system/workflows/arc-methods.md`
 
@@ -238,12 +240,12 @@ arc-in-git files are annotated explicitly.
 
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
-| Framework      | 56    | Wholesale replaced. No conflicts.                     |
-| Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
+| Framework      | 67    | Wholesale replaced. No conflicts.                     |
+| Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 7     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 76.
+**Total template files:** 89.
 
 *`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
 

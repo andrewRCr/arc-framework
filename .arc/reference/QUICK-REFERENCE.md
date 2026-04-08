@@ -271,11 +271,13 @@ arc log --atomic
 **Auth model:** Token-only. Use a granular access token from npmjs.com with "Bypass 2FA"
 enabled, stored as a literal `//registry.npmjs.org/:_authToken=<token>` in `~/.npmrc`.
 
-**Never run `npm login`** — it creates a session that overrides the granular token and
-triggers browser-based WebAuthn that doesn't work in WSL2.
+**Never run `npm login`** — it triggers browser-based WebAuthn that doesn't work in WSL2
+and creates a session that overrides the granular token. If interactive login is needed,
+use `npm login --auth-type=legacy` for prompt-based auth.
 
-**Recovery:** `npm logout` deletes the entire `~/.npmrc`. If that happens, recreate the
-file from the token. Write tokens expire at 90 days max — rotate before expiry.
+**Recovery:** `npm logout` removes auth entries (`_authToken`, registry-scoped keys) from
+`~/.npmrc`. If the file only contained auth, it's effectively empty — recreate from the
+token. Write tokens expire at 90 days max — rotate before expiry.
 
 ---
 

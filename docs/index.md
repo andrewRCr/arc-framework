@@ -77,7 +77,7 @@ project standards survive across framework versions.
 
 - **`arc init`** — initialize ARC in a project. `--reconfigure` to change settings later.
 - **`arc join`** — join an existing ARC project (role, identity, agent skills).
-- **`arc update`** — update framework files, preserving your customizations.
+- **`arc update`** — replace framework files, merge configurables, skip scaffolded.
 - **`arc sync`** — save and push session state via git notes (or `--load` to pull and restore).
 
 ## Documentation

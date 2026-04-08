@@ -151,14 +151,14 @@ Every incidental work unit gets a stacked branch off the current branch (not the
         └── incidental/pagination-buffer-tracking
 ```
 
-Branch naming: `incidental/<name>` matching task list name (minus `tasks-` prefix).
+Branch naming: `incidental/<name>` matching task list name (minus `tasks-<type>-` prefix).
 
 ### Branch Lifecycle
 
 ```text
 On Child Branch:
 1. Create branch off current: git checkout -b incidental/<name>
-2. Create task list: .arc/active/incidental/tasks-<name>.md
+2. Create task list: .arc/active/incidental/tasks-<type>-<name>.md
 3. Work on branch, commit with task references
 4. Complete work (all tasks done, quality gates pass)
 5. Clean task list (clean-work-unit.md Mode 2)

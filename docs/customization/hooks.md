@@ -79,13 +79,11 @@ structured initialization ceremony.
     - **stdin/stdout communication** — standard I/O for data exchange
     - **Project-scoped and user-scoped** configuration layers
 
-    As of early 2026, agent hook support is near-universal among major coding agent platforms
-    including Claude Code, GitHub Copilot, Cursor, Windsurf, Gemini CLI, OpenAI Codex CLI,
-    and VS Code. Event naming and configuration structure vary but follow the common patterns
-    above. Platforms differ in supported events (4 to 20+) and handler types (shell commands
-    are universal; some also support HTTP, prompt injection, and sub-agent handlers).
-
-    This landscape is evolving. Consult your platform's documentation for current capabilities.
+    Agent hook support is broadly available across major coding agent platforms. Event naming
+    and configuration structure vary but follow the common patterns above. Platforms differ in
+    supported events (4 to 20+) and handler types (shell commands are universal; some also
+    support HTTP, prompt injection, and sub-agent handlers). Consult your platform's
+    documentation for current capabilities.
 
 ## When to Consider Hooks
 

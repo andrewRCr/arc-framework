@@ -26,6 +26,7 @@ Use this when a domain's rules are substantial enough to warrant separation.
 - [Documentation Standards](#documentation-standards) — markdown quality, style conventions
 - [File Organization](#file-organization) — directory structure and boundaries
 - [Capture Routing](#capture-routing) — where deferred issues go
+- [Package-Project Sync](#package-project-sync) — two-copy discipline for framework files
 - [Architecture Documentation](#architecture-documentation) — ADRs and design records
 
 ---

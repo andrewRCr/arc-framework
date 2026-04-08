@@ -195,7 +195,7 @@ Organized by file, with the config key and behavioral effect for each.
 Conditional blocks in `.template.md` source files (`packages/arc-framework/arc/`) that are resolved at
 install/update time. Agents never see these — they see the rendered output.
 
-### `session-init.template.md` (7 blocks)
+### `session-init.template.md` (6 blocks)
 
 | Line | Condition               | Content summary                                                     |
 | ---- | ----------------------- | ------------------------------------------------------------------- |
@@ -240,8 +240,7 @@ install/update time. Agents never see these — they see the rendered output.
 | 67   | `team.mode == true` | Task ownership instructions: `(@name)` markers, examples |
 | 168  | `team.mode == true` | Reference link to team-coordination strategy             |
 
-**Total: 21 blocks across 5 files** (the 6th template file with conditionals is `session-init` which has
-7 blocks — counted in the 21).
+**Total: 20 blocks across 5 files.**
 
 ---
 
@@ -337,7 +336,7 @@ Cross-mechanism view showing where each config key drives conditional behavior.
 | Mechanism                  | Count                   | Complexity                             |
 | -------------------------- | ----------------------- | -------------------------------------- |
 | In-prose conditionals      | ~37 across 16 documents | Low — binary skip/include per step     |
-| Template `arc:if` blocks   | 21 across 6 files       | Low-medium — some nesting, mostly flat |
+| Template `arc:if` blocks   | 20 across 5 files       | Low-medium — some nesting, mostly flat |
 | Recipe conditions          | 10 conditions, 15 files | Low — flat additive model              |
 | Runtime code gates (TS)    | ~10 locations           | Low — simple `if` branches             |
 | Runtime code gates (shell) | ~10 checks              | Low — simple `if` branches             |
