@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.3 — Design and implement arc-plan (line ~627)
-**Last Completed**: Task 7.2 — Design and implement arc-task-review
+**Next Task**: Task 8.1 — Tier 3 quality gates (line ~667)
+**Last Completed**: Task 7.5 — Update file classification and package source
 **Blockers**: [none]
-**Next Action**: Continue Phase 7 — design and implement arc-plan skill
+**Next Action**: Begin Phase 8 — verification
 
 ---
 

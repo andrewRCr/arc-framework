@@ -625,34 +625,44 @@ that pass the bar._
           `.codex/skills/arc-task-review/` — all 4 copies verified identical
         - Updated skills README in both `.arc/system/skills/` and package source
 
-- [ ] **7.3 Design and implement arc-plan (if evaluation passes)**
-    - Skill file + supporting workflow
-    - Context gathering: reads roadmap, backlog items, prior upstream work, relevant codebase state
-    - Framing questions to help the human articulate what's in their head
-    - Then freeform — gets out of the way
-    - Must be light enough that planning doesn't feel like a Procedure
-    - Skip if evaluation (7.1) determines it doesn't add value over just starting a conversation
+- [x] **7.3 Design and implement arc-plan (if evaluation passes)**
+    - Self-contained skill (no supporting workflow) — context gathering, framing questions,
+      then step back. Lighter than arc-commit; the skill IS the workflow.
+    - Four steps: (1) determine starting point (fresh idea vs existing plan doc),
+      (2) gather project context (direction, prior work, captured ideas, ADRs,
+      project strategies, codebase), (3) present findings + framing questions adapted
+      to starting point, (4) step back for freeform.
+    - Dual-mode: works both for starting from a vague idea (no plan doc) and for
+      revisiting a rough `plan-*.md` to refine toward PRD readiness. Framing questions
+      adapt per mode (fresh: problem/scope/approach; refining: gaps/staleness/alternatives).
+    - Mode-agnostic: context gathering describes _what_ to look for rather than
+      arc-in-git-specific locations. Works across all PM modes without conditionals.
+    - Scope guard: explicit instruction to keep context gathering targeted — read titles
+      and summaries before full content, skip irrelevant sources, aim for concise
+      orientation not comprehensive research.
+    - Canonical + package source + local variants (`.claude/`, `.codex/`) created.
+      Skills READMEs updated.
 
 - [~] **7.4 Design and implement arc-plan-audit (if evaluation passes)**
     - Skipped — evaluation (7.1) determined insufficient value. `1_create-prd.md` Step 1 already
       performs plan readiness assessment; plan docs lack the structured analysis surface that
       makes task auditing effective; low frequency (once per WU) doesn't justify skill packaging
 
-- [ ] **7.5 Update file classification and package source**
-    - [ ] **7.5.a Add skills to package source and generate local variants**
-        - Canonical skill files already in `system/skills/` — ensure mirrored to
-          `packages/arc-framework/arc/system/skills/` for distribution
-        - Add new skill names to `CANONICAL_SKILLS` in
-          `packages/arc-framework/src/lib/skills/resolution.ts`
-        - Add any supporting workflow files to package source
-        - Regenerate local agent-specific variants (`.claude/`, `.codex/`) from canonical source
+- [x] **7.5 Update file classification and package source**
+    - [x] **7.5.a Add skills to package source and generate local variants**
+        - Package source mirrored for arc-task-review and arc-plan (done during 7.2/7.3)
+        - Added `arc-plan` and `arc-task-review` to `CANONICAL_SKILLS` in `resolution.ts`
+        - No supporting workflow files needed (both skills are self-contained)
+        - All local variants verified: `.claude/` (8 arc skills + 2 project), `.codex/`
+          (8 arc skills), canonical (8), package source (8) — all in sync
+        - Also regenerated missing codex `arc-task-audit` copy (pre-existing gap)
 
-    - [ ] **7.5.b Update file inventory and docs**
-        - Add new skill and workflow files to `strategy-package-project-sync.md` inventory
-          (existing skills already listed there, lines 164-170)
-        - Verify classification (Framework) and layer assignment
-        - Update `docs/reference/skills.md` and `system/skills/README.md` with new skill entries
-          (deferred from Task 5.6 — "Phase 7 skills will be connected when created")
+    - [x] **7.5.b Update file inventory and docs**
+        - Added arc-plan and arc-task-review to `strategy-package-project-sync.md` inventory
+        - Classification: Framework, layer: core (consistent with existing skills)
+        - Added arc-task-review and arc-plan entries to `docs/reference/skills.md` under
+          Supplemental Skills (with arc-task-audit — on-demand tools, not session rhythm)
+        - Skills READMEs already updated during 7.2/7.3
 
 ### **Phase 8:** Verification
 

@@ -91,3 +91,29 @@ suspect drift since the time of writing. This is not part of any workflow and is
 you run routinely; it's a tool for when the cost of discovering problems mid-implementation is
 high enough to justify an analysis pass. Particularly useful for tasks written in a prior
 session, tasks touching unfamiliar code, or tasks with complex dependencies.
+
+### arc-task-review
+
+**Post-implementation review.** Surfaces structured information for independent human judgment
+at the review increment boundary — the raw material you need to form your own view of the
+completed work, beyond the agent's completion report. Analyzes five dimensions: spec
+deviations, unexpected file changes, ambiguity interpretations, judgment calls, and
+unaddressed observations (a leave-it-cleaner failsafe).
+
+**When to use:** After the agent reports task completion, when you want a structured second
+look before approving. Like arc-task-audit, this is not routine — use it when the task was
+complex, touched unfamiliar areas, or when you want to verify that the agent's choices align
+with your intent. The bookend to arc-task-audit: audit before, review after.
+
+### arc-plan
+
+**Collaborative exploration.** Sets up a planning conversation with project context — scans
+for related prior work, captured ideas, design constraints, and relevant codebase state —
+then surfaces framing questions and steps back for freeform exploration. Works both for
+starting from a vague idea (no plan document yet) and for revisiting an existing rough plan
+to refine it toward PRD readiness.
+
+**When to use:** When you're starting to think about a new piece of work and want the
+conversation to begin informed rather than cold, or when you're returning to an earlier plan
+document to develop it further. The skill front-loads the context gathering that you'd
+otherwise do manually or skip.

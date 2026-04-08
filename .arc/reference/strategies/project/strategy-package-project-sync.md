@@ -164,9 +164,11 @@ arc-in-git files are annotated explicitly.
 - `system/skills/README.md`
 - `system/skills/arc-commit/SKILL.md`
 - `system/skills/arc-handoff/SKILL.md`
+- `system/skills/arc-plan/SKILL.md`
 - `system/skills/arc-resume/SKILL.md`
 - `system/skills/arc-setup/SKILL.md`
 - `system/skills/arc-task-audit/SKILL.md`
+- `system/skills/arc-task-review/SKILL.md`
 - `system/skills/arc-verify/SKILL.md`
 - `system/workflows/arc/1_create-prd.md`
 - `system/workflows/arc/initial-setup/01_verify-and-configure.md`
