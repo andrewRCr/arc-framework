@@ -294,7 +294,7 @@ describe("update integration — merge scenarios", () => {
 
   it("non-overlapping adopter changes → auto-merge preserves both", async () => {
     await setupInitialState(tempDir, {
-      [FRAMEWORK_FILE]: { content: V1_CONTENT, classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: V1_CONTENT, classification: "Configurable" },
     });
 
     const adopterContent = V1_CONTENT.replace(
@@ -302,7 +302,7 @@ describe("update integration — merge scenarios", () => {
       "Line B: adopter customization",
     );
     await writeFile(
-      join(tempDir, ".arc", FRAMEWORK_FILE),
+      join(tempDir, ".arc", CONFIGURABLE_FILE),
       adopterContent,
       "utf-8",
     );
@@ -312,10 +312,10 @@ describe("update integration — merge scenarios", () => {
       "Line A: updated in v2",
     );
     templateDir = await createTemplateDir({
-      [FRAMEWORK_FILE]: v2Content,
+      [CONFIGURABLE_FILE]: v2Content,
     });
 
-    const recipe = makeRecipe([FRAMEWORK_FILE]);
+    const recipe = makeRecipe([CONFIGURABLE_FILE]);
     const result = await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -327,7 +327,7 @@ describe("update integration — merge scenarios", () => {
     expect(result.conflicts).toEqual([]);
 
     const merged = await readFile(
-      join(tempDir, ".arc", FRAMEWORK_FILE),
+      join(tempDir, ".arc", CONFIGURABLE_FILE),
       "utf-8",
     );
     expect(merged).toContain("Line A: updated in v2");
@@ -336,7 +336,7 @@ describe("update integration — merge scenarios", () => {
 
   it("conflicting changes → conflict markers in file, pristine unchanged", async () => {
     await setupInitialState(tempDir, {
-      [FRAMEWORK_FILE]: { content: V1_CONTENT, classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: V1_CONTENT, classification: "Configurable" },
     });
 
     const adopterContent = V1_CONTENT.replace(
@@ -344,7 +344,7 @@ describe("update integration — merge scenarios", () => {
       "Line A: adopter version",
     );
     await writeFile(
-      join(tempDir, ".arc", FRAMEWORK_FILE),
+      join(tempDir, ".arc", CONFIGURABLE_FILE),
       adopterContent,
       "utf-8",
     );
@@ -354,10 +354,10 @@ describe("update integration — merge scenarios", () => {
       "Line A: framework v2 version",
     );
     templateDir = await createTemplateDir({
-      [FRAMEWORK_FILE]: v2Content,
+      [CONFIGURABLE_FILE]: v2Content,
     });
 
-    const recipe = makeRecipe([FRAMEWORK_FILE]);
+    const recipe = makeRecipe([CONFIGURABLE_FILE]);
     const result = await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -365,10 +365,10 @@ describe("update integration — merge scenarios", () => {
       recipe,
     });
 
-    expect(result.conflicts).toEqual([FRAMEWORK_FILE]);
+    expect(result.conflicts).toEqual([CONFIGURABLE_FILE]);
 
     const content = await readFile(
-      join(tempDir, ".arc", FRAMEWORK_FILE),
+      join(tempDir, ".arc", CONFIGURABLE_FILE),
       "utf-8",
     );
     expect(content).toContain("<<<<<<<");
@@ -376,10 +376,10 @@ describe("update integration — merge scenarios", () => {
     expect(content).toContain(">>>>>>>");
 
     const store = await readPristineStore(tempDir);
-    expect(store[FRAMEWORK_FILE]).toBe(V1_CONTENT);
+    expect(store[CONFIGURABLE_FILE]).toBe(V1_CONTENT);
 
     const manifest = await readManifestFile(tempDir);
-    expect(manifest.files[FRAMEWORK_FILE]?.pristine_hash).toBe(
+    expect(manifest.files[CONFIGURABLE_FILE]?.pristine_hash).toBe(
       sha256(V1_CONTENT),
     );
   });
@@ -579,21 +579,21 @@ describe("update integration — pristine repair", () => {
 
   it("missing pristine → one-pass repair: file preserved, pristine rebuilt from framework content", async () => {
     await setupInitialState(tempDir, {
-      [FRAMEWORK_FILE]: { content: CONTENT, classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: CONTENT, classification: "Configurable" },
     });
 
-    // Remove the framework file's entry from pristine store to simulate corruption
+    // Remove the configurable file's entry from pristine store to simulate corruption
     const fullStore = await readPristineStore(tempDir);
     const store = Object.fromEntries(
-      Object.entries(fullStore).filter(([key]) => key !== FRAMEWORK_FILE),
+      Object.entries(fullStore).filter(([key]) => key !== CONFIGURABLE_FILE),
     );
     await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
-      [FRAMEWORK_FILE]: V2_CONTENT,
+      [CONFIGURABLE_FILE]: V2_CONTENT,
     });
 
-    const recipe = makeRecipe([FRAMEWORK_FILE]);
+    const recipe = makeRecipe([CONFIGURABLE_FILE]);
     const result = await runUpdate({
       cwd: tempDir,
       io: makeIOContext(tempDir),
@@ -601,19 +601,19 @@ describe("update integration — pristine repair", () => {
       recipe,
     });
 
-    expect(result.pristineRebuilt).toEqual([FRAMEWORK_FILE]);
+    expect(result.pristineRebuilt).toEqual([CONFIGURABLE_FILE]);
     // One-pass: base===updated → "unchanged" (adopter's content preserved)
     expect(result.unchanged).toBe(1);
     expect(result.updated).toBe(0);
     expect(result.conflicts).toEqual([]);
 
     // Current file untouched — adopter customizations preserved
-    const current = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
+    const current = await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8");
     expect(current).toBe(CONTENT);
 
     // Pristine rebuilt from rendered framework content (not adopter's current)
     const repairedStore = await readPristineStore(tempDir);
-    expect(repairedStore[FRAMEWORK_FILE]).toBe(V2_CONTENT);
+    expect(repairedStore[CONFIGURABLE_FILE]).toBe(V2_CONTENT);
   });
 
   it("after one-pass repair, next version update merges correctly", async () => {
@@ -621,21 +621,21 @@ describe("update integration — pristine repair", () => {
 
     // File on disk matches what was installed (no adopter modifications)
     await setupInitialState(tempDir, {
-      [FRAMEWORK_FILE]: { content: V2_CONTENT, classification: "Framework" },
+      [CONFIGURABLE_FILE]: { content: V2_CONTENT, classification: "Configurable" },
     });
 
     // Remove from pristine store to simulate corruption
     const fullStore2 = await readPristineStore(tempDir);
     const store = Object.fromEntries(
-      Object.entries(fullStore2).filter(([key]) => key !== FRAMEWORK_FILE),
+      Object.entries(fullStore2).filter(([key]) => key !== CONFIGURABLE_FILE),
     );
     await writePristineStore(tempDir, store);
 
     templateDir = await createTemplateDir({
-      [FRAMEWORK_FILE]: V2_CONTENT,
+      [CONFIGURABLE_FILE]: V2_CONTENT,
     });
 
-    const recipe = makeRecipe([FRAMEWORK_FILE]);
+    const recipe = makeRecipe([CONFIGURABLE_FILE]);
 
     // First update: one-pass repair — pristine set to V2_CONTENT, file unchanged
     await runUpdate({
@@ -648,7 +648,7 @@ describe("update integration — pristine repair", () => {
     // Simulate a new framework version (V3) arriving
     await rm(templateDir, { recursive: true, force: true });
     templateDir = await createTemplateDir({
-      [FRAMEWORK_FILE]: V3_CONTENT,
+      [CONFIGURABLE_FILE]: V3_CONTENT,
     });
 
     // Second update: pristine=V2, current=V2 (no adopter changes), updated=V3
@@ -663,7 +663,7 @@ describe("update integration — pristine repair", () => {
     expect(result2.pristineRebuilt).toEqual([]);
     expect(result2.updated).toBe(1);
 
-    const content = await readFile(join(tempDir, ".arc", FRAMEWORK_FILE), "utf-8");
+    const content = await readFile(join(tempDir, ".arc", CONFIGURABLE_FILE), "utf-8");
     expect(content).toBe(V3_CONTENT);
   });
 });
