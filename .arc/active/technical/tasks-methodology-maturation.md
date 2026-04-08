@@ -149,13 +149,18 @@ _Goal: Define what ARC-the-methodology requires, independent of any specific imp
     - Updated philosophy strategy conventions lines for P4, P5, P7 (both copies synced)
 
 - [x] **2.3 Resolve grey areas (batch 2: 6-10)**
-    - Classifications with rationale (all 5 resolved as convention, two with methodology kernels): 6. Trust hierarchy → convention with methodology kernel under P5 (having a defined priority
+    - Classifications with rationale (all 5 resolved as convention, two with methodology kernels):
+    - 6. Trust hierarchy → convention with methodology kernel under P5 (having a defined priority
       ordering is methodology — without it, conflicting state is unresolvable; the specific
-      four-level ordering is convention; added to P5 conventions text with methodology note) 7. Strategy document pattern → convention under P10 (codified improvement is methodology;
+      four-level ordering is convention; added to P5 conventions text with methodology note)
+    7. Strategy document pattern → convention under P10 (codified improvement is methodology;
       the specific mechanism — strategy docs, directory structure, consult protocol — is
-      convention; no text update needed, P10 conventions already general enough) 8. Deferred review scope → convention under P2 (already listed in P2 conventions;
-      configurable relaxation of default review cadence) 9. Verification phase → convention under P4 (methodology requires thorough pre-merge
-      verification; the formal phase structure is convention; added to P4 conventions text) 10. Context footer requirement → convention under P6 (already listed in P6 conventions;
+      convention; no text update needed, P10 conventions already general enough)
+    8. Deferred review scope → convention under P2 (already listed in P2 conventions;
+      configurable relaxation of default review cadence)
+    9. Verification phase → convention under P4 (methodology requires thorough pre-merge
+      verification; the formal phase structure is convention; added to P4 conventions text)
+    10. Context footer requirement → convention under P6 (already listed in P6 conventions;
       traceability is methodology, specific footer format is convention)
     - Two methodology kernels identified: trust priority ordering (P5), work capture requirement (P4)
 
@@ -571,27 +576,54 @@ _Goal: Document current conditional mechanisms and assess scaling for proposed m
 _Goal: Evaluate the ARC workflow surface for skill opportunities, then design and implement skills
 that pass the bar._
 
-- [ ] **7.1 Systematic skill evaluation**
-    - Walk the full pipeline (planning → PRD → task generation → execution → integration → archival)
-    - For each candidate (arc-plan, arc-plan-audit, arc-review, plus any newly identified):
-      does it fill a real gap? Overlap with existing workflows? Support human judgment or replace it?
-      Simpler alternative?
-    - Document the evaluation: which candidates pass, which don't, rationale for each
+- [x] **7.1 Systematic skill evaluation**
+    - Walked full pipeline: planning → PRD → task generation → execution → integration → archival.
+      Mapped current coverage (workflows + skills) at each stage, identified gaps.
+    - **arc-task-review — passes.** Fills the mandatory stop information gap: surfaces spec
+      deviations, unexpected file changes, ambiguity interpretations, and judgment calls for
+      independent human judgment. No overlap with existing workflows (process-task-loop defines
+      the stop but not structured review information; pre-merge-review operates at work-unit
+      level). Self-contained skill pattern (like arc-task-audit), not a workflow delegator.
+    - **arc-plan — passes (with scope caution).** Fills the unstructured idea → plan doc gap.
+      Value is in systematic context gathering (roadmap, backlog, prior work, codebase state)
+      and framing questions — the tedious assembly a human would otherwise do manually or skip.
+      Must stay light: context gathering + framing questions + get out of the way. If it feels
+      like a Procedure, it failed. Skill + short workflow pattern (like arc-commit).
+    - **arc-plan-audit — does not pass.** `1_create-prd.md` Step 1 already performs plan
+      readiness assessment ("check for unresolved design decisions, open unknowns... If the
+      plan isn't ready, surface the gaps"). Plan docs are freeform prose without the structured
+      analysis surface that makes arc-task-audit effective (numbered tasks × codebase state).
+      Low transition frequency (once per work unit) doesn't justify skill packaging. Simpler
+      alternative: ask the agent "is this plan ready for a PRD?" — no ceremony needed.
+    - **No additional candidates identified.** Integration, verification, archival, and
+      activation stages are well-covered by existing workflows, methods, and extensions.
+      No gap warrants a new skill.
 
-- [ ] **7.2 Design and implement arc-review**
-    - [ ] **7.2.a Design skill scope and workflow**
-        - Define what the skill surfaces: spec deviations, unexpected file changes, ambiguity
-          points where agent chose an interpretation, judgment calls
-        - Does NOT present the diff (user has the code open)
-        - Determine whether a supporting workflow is needed or if the skill is self-contained
-        - Draft the skill's step-by-step instructions
+- [x] **7.2 Design and implement arc-task-review**
+    - [x] **7.2.a Design skill scope and workflow**
+        - **Self-contained** (no supporting workflow needed) — bounded information surface,
+          no multi-step decision process, no method dependencies, structurally parallel to
+          arc-task-audit
+        - Five analysis dimensions: spec deviations, unexpected file changes, ambiguity
+          interpretations, judgment calls, unaddressed observations (leave-it-cleaner failsafe)
+        - Two analysis modes: mechanical (git-based file/spec comparison for dimensions 1-2)
+          and reflective (agent self-analysis for dimensions 3-5, leveraging same-session context)
+        - Does NOT present the diff, evaluate code quality, or recommend approval/rejection
+        - Uses "review increment" terminology (ARC concept) in instructions; retains "mandatory
+          stop" in frontmatter description for discoverability
+        - Naming rationale: `arc-task-review` parallels `arc-task-audit` (bookend pattern around
+          task execution: audit before, review after). `arc-review` rejected — overlaps
+          semantically with integration-level review (pre-merge-review method/extension,
+          review-triage method) and could mislead users into skipping work-unit-level review
+        - Full SKILL.md draft reviewed and approved — ready for implementation in 7.2.b
 
-    - [ ] **7.2.b Implement skill file and supporting docs**
-        - Canonical skill file: `system/skills/arc-review/SKILL.md` (agent-agnostic, shipped in
-          package — CLI generates agent-specific versions during `arc init`)
-        - Supporting workflow if needed (in `system/workflows/arc/supplemental/`)
-        - Generate local agent-specific variants (`.claude/`, `.codex/`) for internal dev use
-        - Invoked at user discretion, not every mandatory stop
+    - [x] **7.2.b Implement skill file and supporting docs**
+        - Created canonical `system/skills/arc-task-review/SKILL.md` (self-contained, no
+          supporting workflow needed per 7.2.a design)
+        - Mirrored to package source (`packages/arc-framework/arc/system/skills/arc-task-review/`)
+        - Generated local agent-specific variants: `.claude/skills/arc-task-review/`,
+          `.codex/skills/arc-task-review/` — all 4 copies verified identical
+        - Updated skills README in both `.arc/system/skills/` and package source
 
 - [ ] **7.3 Design and implement arc-plan (if evaluation passes)**
     - Skill file + supporting workflow
@@ -601,24 +633,26 @@ that pass the bar._
     - Must be light enough that planning doesn't feel like a Procedure
     - Skip if evaluation (7.1) determines it doesn't add value over just starting a conversation
 
-- [ ] **7.4 Design and implement arc-plan-audit (if evaluation passes)**
-    - Skill file (similar structure to arc-task-audit)
-    - Examines: unresolved decisions, untested assumptions, specificity gaps, scope coherence,
-      downstream readiness, staleness
-    - Different concern surface from arc-task-audit (requirements-grounded, not codebase-grounded)
-    - Skip if evaluation (7.1) determines it doesn't add sufficient value
+- [~] **7.4 Design and implement arc-plan-audit (if evaluation passes)**
+    - Skipped — evaluation (7.1) determined insufficient value. `1_create-prd.md` Step 1 already
+      performs plan readiness assessment; plan docs lack the structured analysis surface that
+      makes task auditing effective; low frequency (once per WU) doesn't justify skill packaging
 
 - [ ] **7.5 Update file classification and package source**
     - [ ] **7.5.a Add skills to package source and generate local variants**
         - Canonical skill files already in `system/skills/` — ensure mirrored to
           `packages/arc-framework/arc/system/skills/` for distribution
+        - Add new skill names to `CANONICAL_SKILLS` in
+          `packages/arc-framework/src/lib/skills/resolution.ts`
         - Add any supporting workflow files to package source
-        - Ensure `arc init` / `arc update` handles the new skill files correctly
         - Regenerate local agent-specific variants (`.claude/`, `.codex/`) from canonical source
 
-    - [ ] **7.5.b Update file classification inventory**
-        - Add new skill and workflow files to `strategy-file-classification.md`
+    - [ ] **7.5.b Update file inventory and docs**
+        - Add new skill and workflow files to `strategy-package-project-sync.md` inventory
+          (existing skills already listed there, lines 164-170)
         - Verify classification (Framework) and layer assignment
+        - Update `docs/reference/skills.md` and `system/skills/README.md` with new skill entries
+          (deferred from Task 5.6 — "Phase 7 skills will be connected when created")
 
 ### **Phase 8:** Verification
 

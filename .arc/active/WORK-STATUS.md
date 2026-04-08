@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 7.1 — Systematic skill evaluation (line ~574)
-**Last Completed**: Task 6.2 — Assess scaling and document pattern guidance
+**Next Task**: Task 7.3 — Design and implement arc-plan (line ~627)
+**Last Completed**: Task 7.2 — Design and implement arc-task-review
 **Blockers**: [none]
-**Next Action**: Begin Phase 7 — evaluate ARC workflow surface for skill opportunities
+**Next Action**: Continue Phase 7 — design and implement arc-plan skill
 
 ---
 
