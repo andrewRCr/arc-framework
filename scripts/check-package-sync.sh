@@ -24,7 +24,7 @@ if [ ! -f "$manifest_file" ] || [ ! -d "$pkg_arc" ]; then
 fi
 
 framework_arc_files=$(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -E '^\.arc/(reference|system)/' | \
+    grep -E '^\.arc/(README\.md|reference/|system/)' | \
     grep -v '\.arc/system/\.internal/' || true)
 
 if [ -z "$framework_arc_files" ]; then

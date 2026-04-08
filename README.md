@@ -58,7 +58,7 @@ install through configuration and team coordination.
 └── user/{identity}/    Personal workspace (gitignored, portable via git notes)
 ```
 
-See [How ARC Works](https://andrewrcr.github.io/arc-framework/how-arc-works/) for the
+See [How ARC Works](https://andrewrcr.github.io/arc-framework/the-framework/) for the
 complete structure and what each component does.
 
 ### Key Features

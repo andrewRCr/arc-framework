@@ -122,3 +122,10 @@ workflow-embedded directives, strategy-index triggers, user-invocable skills).
 - **Method loading omission.** An agent executing a quick commit without loading prepare-commits might not load
   commit-format. Mitigated by the arc-commit skill (which references the workflow) and by DEV-RULES retaining
   the "When to Load Additional Guidance" section as a T1 safety net.
+
+### Amendments
+
+**Amendment (2026-04-08):** The `strategy-context-loading.md` referenced in the Decision section was never created
+as a standalone file. Its content — the three-tier loading model (T1/T2/T3), classification criteria, and loading
+mechanisms — was absorbed into `strategy-session-operations.md` during the methodology maturation work unit, which
+consolidated session management and context loading into a single strategy.

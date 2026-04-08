@@ -19,7 +19,7 @@
 **Next Task**: [none — all tasks complete]
 **Last Completed**: Task 8.3 — Verify all atomic tasks resolved
 **Blockers**: [none]
-**Next Action**: integrate-work-unit Step 6 — pre-merge-review extension (CodeRabbit subagent)
+**Next Action**: integrate-work-unit Step 6b — completion metadata freshness check (review fixes committed)
 
 ---
 

@@ -109,7 +109,7 @@
     "reference/strategies/arc/strategy-adr-methodology.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "bd2d12e6eeba3f142944eeb317870f9ad0ba2d9b90d7c6b5ec51e4904af50c0c"
+      "pristine_hash": "70af5e803865110f1ecea2e8b00e532e3b33a02c879606e21da46c5e59a15436"
     },
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
@@ -119,7 +119,7 @@
     "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": ""
+      "pristine_hash": "310c23c3f46b6c6a94a16e4c279c55b6f4e403ad0617024a2d9e163856c133c2"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
@@ -240,6 +240,21 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "81bfc0b5cb84b5cc13421a8ddac84cb54e4eb5fbe7889adba8417dc477b3dcec"
+    },
+    "system/skills/arc-task-audit/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "cc62d9b0d574b3b2886d377778d0d2ddca21711a5a7090734a945b778c0cc2f5"
+    },
+    "system/skills/arc-task-review/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "2b62268b880bd206377f26d490bc4cbd41f788033f19a8e1eb6cd0531067562e"
+    },
+    "system/skills/arc-plan/SKILL.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "fae2af0409d3096c30897afcd8c702926b5ce8f743f7154baed1186a39630d34"
     },
     "system/skills/arc-verify/SKILL.md": {
       "classification": "Framework",
@@ -399,7 +414,7 @@
     "reference/strategies/arc/strategy-planning-module.md": {
       "classification": "Framework",
       "layer": "arc-in-git",
-      "pristine_hash": ""
+      "pristine_hash": "738a0df28debd0540eb7043b55fcae261316568124fba35f14e607a86142981a"
     },
     "system/agent/CLAUDE.ARC.md": {
       "classification": "Configurable",

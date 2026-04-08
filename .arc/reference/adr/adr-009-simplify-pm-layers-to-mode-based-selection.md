@@ -158,6 +158,11 @@ When referencing PM modes in documentation:
   communicate the trade-offs (merge friction, branch divergence) without discouraging valid small-team use. Honest
   documentation, not gatekeeping.
 
+### Amendments
+
+**Amendment (2026-04-08):** `strategy-backlog-organization.md` referenced in the arc-in-git artifacts table was
+renamed to `strategy-planning-module.md` during the methodology maturation work unit.
+
 ---
 
 Context: tasks-methodology-completion.md (pre-Task 5.9 — PM mode simplification)
