@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.9 — Framework-dev content extraction to project/ (line ~366)
-**Last Completed**: Task 4.8 — Existing page enrichments
+**Next Task**: Task 4.10 — Local strategy consolidation and coherence pass (line ~389)
+**Last Completed**: Task 4.9 — Framework-dev content extraction to project/
 **Blockers**: [none]
-**Next Action**: Move file inventory and ADR relationship content to project/ strategies
+**Next Action**: Consolidate session strategies, fold backlog-organization, rationale stripping pass, coherence check
 
 ---
 

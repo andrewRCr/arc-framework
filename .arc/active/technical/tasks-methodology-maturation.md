@@ -363,15 +363,20 @@ Remove .arc/README from installs._
       extracted verbatim — source strategies keep their operational content unchanged.
       Header blockquote pointers deferred to Task 4.10 consolidation pass.
 
-- [ ] **4.9 Framework-dev content extraction to project/**
-    - Independent of docs site work — can execute in any order relative to 4.4-4.8
-    - **File inventory** (~177 lines from strategy-file-classification, lines 178-355) → fold
-      into `strategies/project/strategy-package-project-sync.md`, consolidating with existing
-      dependency map
-    - **"Relationship to Strategy Documents"** (~30 lines from strategy-adr-methodology, lines
-      325-356) → move to `strategies/project/`. Exact placement decided during implementation.
-    - Update file-classification summary table after inventory removal
-    - **Two-copy edits:** Both source files are Framework files — edit through package source.
+- [x] **4.9 Framework-dev content extraction to project/**
+    - Merged file inventory into package-project-sync as unified "File Inventory and
+      Dependency Map" — kept classification grouping, added Layer annotations (arc-in-git
+      files marked explicitly), added Summary table. Single authoritative listing.
+    - Moved "Relationship to Strategy Documents" from adr-methodology into
+      package-project-sync as "Documentation Architecture" section with comparison table.
+    - Stripped file-classification: removed File Inventory (177 lines), "Why prefixes
+      matter" (24 lines), Summary table. 381→157 lines. Updated Scope line to point to
+      package-project-sync for inventory.
+    - Stripped adr-methodology: removed section + stale TOC entry. 356→323 lines.
+    - Added adopter-facing "File Naming" section to docs/reference/work-organization.md
+      (~17 lines) — prefix rationale for adopters wondering about naming conventions.
+    - Added brief cross-reference in docs/the-framework.md where `.arc/` is introduced.
+    - 8 files, -438 net lines.
 
 - [ ] **4.10 Local strategy consolidation and coherence pass**
     - **After all extractions complete.** Separate pass to consolidate and verify.
@@ -380,6 +385,11 @@ Remove .arc/README from installs._
       reference, thematically unified.
     - **Consolidation 2:** backlog-organization → fold into work-planning as conditional
       section (arc-in-git specifics). Combined ~205 lines.
+    - **Rationale stripping pass:** Tasks 4.7 and 4.8 left residual rationale fragments in
+      strategies that should have been stripped: team-coordination (Identity explanation),
+      quality-gates (per-tier Purpose paragraphs), task-list-formatting (Key distinction
+      paragraph, anti-pattern prose), adr-methodology (Industry Context subsection). Strip
+      these and add header blockquote pointers where missing.
     - **Coherence check:** Read each post-extraction strategy doc end-to-end. Each must stand
       alone as operational reference usable by an agent during workflow execution — all rules,
       thresholds, and format specs present without requiring the docs site version. Only deep

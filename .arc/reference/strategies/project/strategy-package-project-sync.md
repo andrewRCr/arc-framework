@@ -15,7 +15,7 @@ those are project-owned with no package counterparts.
 This repo has two copies of the ARC framework content:
 
 | Copy                 | Location                      | Role                                                                         |
-| -------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+|----------------------|-------------------------------|------------------------------------------------------------------------------|
 | **Package source**   | `packages/arc-framework/arc/` | Authoritative. What adopters receive via `arc init` and `arc update`.        |
 | **Project instance** | `.arc/`                       | Rendered output of the package source, plus project-specific customizations. |
 
@@ -28,7 +28,7 @@ source to reach adopters.
 Edit direction depends on file classification (per [strategy-file-classification.md][file-class]):
 
 | Classification    | Edit direction    | Rationale                                                                             |
-| ----------------- | ----------------- | ------------------------------------------------------------------------------------- |
+|-------------------|-------------------|---------------------------------------------------------------------------------------|
 | **Framework**     | Package → `.arc/` | `.arc/` copy should match package. Edits here are methodology changes that must ship. |
 | **Configurable**  | Both (by section) | Framework sections from package; project-specific sections in `.arc/` only.           |
 | **Scaffolded**    | `.arc/` only      | Project-owned after init. Package has template, `.arc/` has rendered content.         |
@@ -48,7 +48,7 @@ ambiguous, ask.
 `<!-- arc:if -->` conditionals resolved during rendering:
 
 | Template file                        | Conditions                    |
-| ------------------------------------ | ----------------------------- |
+|--------------------------------------|-------------------------------|
 | `3_process-task-loop.template.md`    | team.mode, pm.mode (3 blocks) |
 | `session-init.template.md`           | team.mode, pm.mode (5 blocks) |
 | `session-handoff.template.md`        | team.mode (1 block)           |
@@ -93,10 +93,31 @@ ARC pre-commit hook (`.arc/system/githooks/pre-commit`). The ARC hook is a Frame
 shipped to adopters — only universal checks belong there. This supersedes the prior
 `.arc-internal/` dual-hook approach from WU2.
 
-## Dependency Map
+## Documentation Architecture
 
-Files that exist in both copies, grouped by classification. Paths relative to their
-respective roots (`.arc/` or `packages/arc-framework/arc/`).
+**Strategy documents** and **ADRs** serve complementary roles in ARC's documentation system:
+
+| Aspect     | Strategy documents                            | ADRs                                       |
+|------------|-----------------------------------------------|--------------------------------------------|
+| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time |
+| Style      | "How we think about X"                        | "What we chose for X situation"            |
+| Mutability | Updated as understanding evolves              | Immutable once accepted (supersession)     |
+| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies    |
+
+Multiple related ADRs may reveal patterns worth extracting into a strategy. This separation
+operationalizes a widely-recognized principle: ADRs should remain point-in-time records, not
+evolve into prescriptive design guides. See [ADR Methodology Strategy][adr-methodology] for
+the full ADR lifecycle.
+
+## File Inventory and Dependency Map
+
+Consolidated listing of all `.arc/` template files with classification, layer, and sync
+status. Paths relative to their respective roots (`.arc/` or `packages/arc-framework/arc/`).
+
+**Classification** determines update behavior (see [File Classification Strategy][file-class]
+for taxonomy definitions). **Layer** indicates which framework layer owns the file: **Core**
+(always installed) or **arc-in-git** (`pm.mode: arc-in-git` only). Most files are Core;
+arc-in-git files are annotated explicitly.
 
 ### Framework files (must match between copies)
 
@@ -111,7 +132,7 @@ respective roots (`.arc/` or `packages/arc-framework/arc/`).
 - `reference/research/README.md`
 - `reference/strategies/README.md`
 - `reference/strategies/arc/strategy-adr-methodology.md`
-- `reference/strategies/arc/strategy-backlog-organization.md`
+- `reference/strategies/arc/strategy-backlog-organization.md` · arc-in-git
 - `reference/strategies/arc/strategy-configurability-architecture.md`
 - `reference/strategies/arc/strategy-context-loading.md`
 - `reference/strategies/arc/strategy-file-classification.md`
@@ -195,11 +216,11 @@ respective roots (`.arc/` or `packages/arc-framework/arc/`).
 ### Template counterparts (package `.template.md` → `.arc/` `.md`)
 
 - `active/WORK-STATUS.template.md` → `active/WORK-STATUS.md` (Scaffolded)
-- `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded)
-- `backlog/feature/BACKLOG-FEATURE.template.md` → `backlog/feature/BACKLOG-FEATURE.md` (Scaffolded)
-- `backlog/technical/BACKLOG-TECHNICAL.template.md` → `backlog/technical/BACKLOG-TECHNICAL.md` (Scaffolded)
+- `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded · arc-in-git)
+- `backlog/feature/BACKLOG-FEATURE.template.md` → `backlog/feature/BACKLOG-FEATURE.md` (Scaffolded · arc-in-git)
+- `backlog/technical/BACKLOG-TECHNICAL.template.md` → `backlog/technical/BACKLOG-TECHNICAL.md` (Scaffolded · arc-in-git)
 - `reference/META-PRD.template.md` → `reference/META-PRD.md` (Scaffolded)
-- `reference/PROJECT-STATUS.template.md` → `reference/PROJECT-STATUS.md` (Scaffolded)
+- `reference/PROJECT-STATUS.template.md` → `reference/PROJECT-STATUS.md` (Scaffolded · arc-in-git)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
 - `system/agent/AGENT-BRIEFING.PROJECT.template.md` → `system/agent/AGENT-BRIEFING.PROJECT.md` (Configurable)
@@ -212,6 +233,20 @@ respective roots (`.arc/` or `packages/arc-framework/arc/`).
 - `system/workflows/arc/session-lifecycle/session-init.template.md` →
   `system/workflows/arc/session-lifecycle/session-init.md` (Framework)
 
+### Summary
+
+| Classification | Count | Update Behavior                                       |
+|----------------|-------|-------------------------------------------------------|
+| Framework      | 56    | Wholesale replaced. No conflicts.                     |
+| Configurable   | 13    | Three-way merge. Conflicts expected in user sections. |
+| Scaffolded     | 7     | Skip. Project-owned after init.                       |
+| Project-owned  | 0     | Ignore. User-created, not in template.                |
+
+**Total template files:** 76.
+
+*`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
+
 ---
 
 [file-class]: ../arc/strategy-file-classification.md
+[adr-methodology]: ../arc/strategy-adr-methodology.md

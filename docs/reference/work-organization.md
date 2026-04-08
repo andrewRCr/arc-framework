@@ -127,6 +127,26 @@ of the completed work unit alongside planning artifacts for the next one, merged
 
 For the full settings table, see [Configuration § Branch Model](../customization/configuration.md#branch-model).
 
+## File Naming
+
+ARC uses filename prefixes (`strategy-`, `tasks-`, `prd-`, `plan-`, `atomic-`) for type-based
+grouping. This is a deliberate design choice, not cosmetic convention — two properties make
+prefixes valuable in practice:
+
+**Fuzzy-find grouping.** Typing `@strategy` in an editor file picker surfaces all strategy
+documents regardless of directory. Without the prefix, you'd search by domain keyword and get
+unrelated results. The prefix creates a reliable type filter at the filename level.
+
+**Context-independent type marking.** Filenames appear without full paths in git log, diff
+stats, and search results. `strategy-work-organization.md` communicates its type anywhere;
+`work-organization.md` does not. This is especially useful for files that move between
+directories during their lifecycle (backlog → active → archive).
+
+When creating project-specific artifacts, follow the same prefixes: `strategy-authentication.md`,
+`research-performance-benchmarks.md`, `prd-user-dashboard.md`. For the full naming conventions
+(ALL-CAPS vs. lowercase, template suffix, workflow numbering), see
+`strategy-file-classification.md` in your `.arc/reference/strategies/` directory.
+
 ## Common Mistakes
 
 **Categorizing by size, not type.** Directories like `epic/` or `small-features/` mix up what

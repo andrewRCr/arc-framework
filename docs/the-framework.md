@@ -4,8 +4,10 @@ ARC's [methodology](methodology/index.md) — the principles, commitments, and r
 tool-independent. The ARC Framework is the specific implementation: documents, workflows, and git
 hooks that live in your repository and structure the collaboration.
 
-Once installed, the framework lives in an `.arc/` directory in your repository. The documents
-inside aren't passive reference material; they're mechanical. Workflows branch on configuration values, methods define overridable
+Once installed, the framework lives in an `.arc/` directory in your repository. Files use
+[type-based naming conventions](reference/work-organization.md#file-naming) (`strategy-`,
+`tasks-`, `prd-`, etc.) for discoverability. The documents inside aren't passive reference
+material; they're mechanical. Workflows branch on configuration values, methods define overridable
 contracts at specific trigger points, extension points inject custom behavior at workflow boundaries,
 and git hooks enforce conventions deterministically at commit time.
 
