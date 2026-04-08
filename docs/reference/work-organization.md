@@ -33,8 +33,8 @@ dedicated branches; incidental work doesn't.
 | ------------------------------------- | -------- | ------------- | ----------------------------- |
 | User authentication system            | Yes      | Yes           | `feature/user-authentication` |
 | CI pipeline improvements              | Yes      | No            | `technical/ci-pipeline`       |
-| Type errors found during feature work | No       | —             | `incidental/tasks-chore-*.md` |
-| Bug found while testing               | No       | —             | `incidental/tasks-fix-*.md`   |
+| Type errors found during feature work | No       | —             | `incidental/type-safety`      |
+| Bug found while testing               | No       | —             | `incidental/auth-token-fix`   |
 
 ### Edge cases
 

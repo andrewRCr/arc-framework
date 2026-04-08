@@ -56,20 +56,11 @@ Planned work that improves codebase quality, architecture, or developer experien
 Unplanned work discovered during feature/technical development. Gets task lists but not PRDs.
 See [Incidental Work Model](#incidental-work-model) for branching and lifecycle.
 
-**File naming uses conventional commit prefixes:** `tasks-<type>-<name>.md`
-
-- `tasks-chore-*` — Maintenance, tooling, config, dependencies
-- `tasks-refactor-*` — Code restructuring, pattern extraction
-- `tasks-fix-*` — Bug fixes discovered during development
-- `tasks-test-*` — Test infrastructure, coverage improvements
-- `tasks-perf-*` — Performance optimizations
-- `tasks-docs-*` — Documentation updates
-
 **Documentation:**
 
-- Tasks: `.arc/active/incidental/tasks-<type>-<name>.md`
-- Notes: `.arc/active/incidental/notes-<type>-<name>.md` (optional)
-- Atomic: `.arc/active/incidental/atomic-<type>-<name>.md` (companion)
+- Tasks: `.arc/active/incidental/tasks-<name>.md`
+- Notes: `.arc/active/incidental/notes-<name>.md` (optional)
+- Atomic: `.arc/active/incidental/atomic-<name>.md` (companion)
 - Git branch: `incidental/<name>` (stacked on parent; see [Incidental Work Model](#incidental-work-model))
 
 ---
@@ -90,8 +81,8 @@ See [Incidental Work Model](#incidental-work-model) for branching and lifecycle.
 | ------------------------------------- | -------- | ------------- | ------------------------------------------------ |
 | User authentication                   | Yes      | Yes           | `feature/user-authentication`                    |
 | CI pipeline improvements              | Yes      | No            | `technical/ci-pipeline-improvements`             |
-| Type errors found during feature work | No       | —             | `incidental/tasks-chore-type-safety.md`          |
-| Bug found while testing               | No       | —             | `incidental/tasks-fix-auth-token-expiration.md`  |
+| Type errors found during feature work | No       | —             | `incidental/type-safety`                         |
+| Bug found while testing               | No       | —             | `incidental/auth-token-expiration`               |
 
 **Edge cases:**
 
@@ -151,14 +142,14 @@ Every incidental work unit gets a stacked branch off the current branch (not the
         └── incidental/pagination-buffer-tracking
 ```
 
-Branch naming: `incidental/<name>` matching task list name (minus `tasks-<type>-` prefix).
+Branch naming: `incidental/<name>` matching task list name (minus `tasks-` prefix).
 
 ### Branch Lifecycle
 
 ```text
 On Child Branch:
 1. Create branch off current: git checkout -b incidental/<name>
-2. Create task list: .arc/active/incidental/tasks-<type>-<name>.md
+2. Create task list: .arc/active/incidental/tasks-<name>.md
 3. Work on branch, commit with task references
 4. Complete work (all tasks done, quality gates pass)
 5. Clean task list (clean-work-unit.md Mode 2)
@@ -234,6 +225,8 @@ the base branch as a documented exception.
 **Documented exceptions** (direct base branch commits allowed):
 
 - Framework maintenance: Documentation updates, linting fixes
+- Solo planning artifacts: PRDs, task lists committed directly by the sole author (see
+  [Planning Branch Workflow](#planning-branch-workflow) mode-specific note)
 
 ### Fully Protected
 
@@ -294,8 +287,8 @@ via PR for review before implementation begins. This separates "decide what to b
 - **Mode-specific behavior:**
     - **Partially protected:** Planning branches are the default for planned work. Solo
       developers who find the planning branch → PR → merge → activate cycle too heavy for
-      self-authored plans can commit planning artifacts directly to base — this falls under
-      the documented exception for documentation updates.
+      self-authored plans can commit planning artifacts directly to base (documented
+      exception above).
     - **Fully protected:** Planning branches are required — all changes need branches and
       PR review.
 
@@ -330,8 +323,8 @@ via PR for review before implementation begins. This separates "decide what to b
   technical/
     prd-<name>.md, tasks-<name>.md, notes-<name>.md, atomic-<name>.md
   incidental/
-    tasks-<type>-<name>.md, notes-<type>-<name>.md (optional),
-    atomic-<type>-<name>.md, completion-<type>-<name>.md (created before PR)
+    tasks-<name>.md, notes-<name>.md (optional),
+    atomic-<name>.md, completion-<name>.md (created before PR)
 ```
 
 ### Archive
@@ -347,7 +340,7 @@ Archive preserves structure with global sequence numbering:
     02_api-modernization/
       prd-*, tasks-*, notes-*, completion-*
   incidental/
-    03_chore-type-safety/
+    03_type-safety/
       tasks-*, notes-*, completion-*
 ```
 
@@ -363,9 +356,9 @@ Branch, directory, and file naming align consistently:
 
 - **Planned:** Branch `technical/api-modernization` → `.arc/active/technical/` →
   `.arc/reference/archive/{quarter}/technical/{NN}_api-modernization/`
-- **Incidental:** Branch `incidental/chore-type-safety` →
+- **Incidental:** Branch `incidental/type-safety` →
   `.arc/active/incidental/` →
-  `.arc/reference/archive/{quarter}/incidental/{NN}_chore-type-safety/`
+  `.arc/reference/archive/{quarter}/incidental/{NN}_type-safety/`
 
 ---
 

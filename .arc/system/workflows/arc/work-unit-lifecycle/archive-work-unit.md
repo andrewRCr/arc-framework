@@ -227,7 +227,7 @@ Archival of completed incidental work:
 - Added retry logic for intermittent auth failures
 - All quality gates passed
 
-Context: tasks-fix-auth-edge-cases.md (archival)"
+Context: tasks-auth-edge-cases.md (archival)"
 ```
 
 ### 9) Next Step
