@@ -13,13 +13,13 @@
 
 ## Active Work
 
-**Branch**: `technical/methodology-maturation`
-**Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
-**Following Task List**: Yes
-**Next Task**: [none — all tasks complete]
-**Last Completed**: Task 8.3 — Verify all atomic tasks resolved
+**Branch**: `technical/plan-operating-modes`
+**Task List**: [none]
+**Following Task List**: No
+**Next Task**: —
+**Last Completed**: Methodology Maturation (archived)
 **Blockers**: [none]
-**Next Action**: integrate-work-unit Step 7 — push and create PR
+**Next Action**: Create PRD for Operating Modes work unit (plan-arc-modes.md in backlog)
 
 ---
 
