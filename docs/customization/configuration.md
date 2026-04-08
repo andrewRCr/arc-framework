@@ -243,6 +243,9 @@ Every setting in `arc-config.yml`, with its options and default.
 | --------- | -------------------------------- | ------- | ------------------------------------------------------------ |
 | `pm.mode` | `none`, `arc-in-git`, `external` | `none`  | PM mode. **Structural** — requires `arc init --reconfigure`. |
 
+See [The Planning Module](../work-planning.md#the-planning-module) for guidance on choosing a PM
+mode — what each option provides and when it fits.
+
 ### Team mode
 
 | Setting     | Options         | Default | What it controls                                                 |

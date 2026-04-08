@@ -153,22 +153,49 @@ adds in-repo planning infrastructure:
 This is activated by selecting `arc-in-git` (ARC Core + Planning Module) during `arc init` (or
 switching later with `arc init --reconfigure`).
 
-**When to use it:** The Planning Module works well for solo developers and small teams — everything
-lives in git alongside your code, no external tooling to maintain, and the agent can read and
-reason about your backlog and roadmap directly. For larger teams, in-git backlog files become a concurrency
-bottleneck (multiple developers editing the same markdown files), and you'll likely want an external
-tracker instead.
+#### When it fits
 
-**With external trackers:** Teams using Jira, Linear, GitHub Issues, or similar select
-`external` (ARC Core + External Tracker) during init. ARC still expects local, in-repo task lists for
-execution; these are the review increments the developer-agent pair works through. The external
-tracker handles assignment, status, and sprint-level coordination; ARC task lists handle the
-execution-level decomposition. Extension points (`post-task-completion`, `post-work-unit-activate`,
-`post-work-unit-archive`) provide hooks for syncing status between the two.
+The Planning Module is designed for solo developers and small teams where keeping everything in
+git is a simplicity win — no external tools to maintain, no context-switching, and the agent can
+read and reason about your backlog and roadmap directly.
 
-**Without either:** `none` (ARC Core) alone provides the complete methodology engine. You manage planning
-however you like — PRDs and task lists are still created as part of ARC's execution workflow, but
-there's no backlog, roadmap, or project status tracking in-repo.
+**Ideal for:**
+
+- **Solo development** — no concurrency concerns, backlog always current, zero tool overhead
+- **Small teams (2-3)** integrating regularly — occasional merge conflicts in backlog files are
+  trivial, backlog stays roughly current across branches
+
+**Works with awareness:**
+
+- **Medium teams (4-6)** with short-lived branches. Backlog files may lag behind in-flight work
+  between integrations. The personal inbox (`ATOMIC-INBOX.md`) absorbs captures during branch
+  work; items promote to backlog at integration boundaries. Expect occasional merge conflicts in
+  bucket files — manageable if branches integrate often.
+
+**The scaling boundary** is a function of team size, branch lifetime, and integration frequency —
+not a hard headcount threshold. The backlog surface (bucket files, roadmap, project status) is
+tracked in git on the base branch. When multiple developers capture work from concurrent feature
+branches, those edits only converge at merge time. Teams that integrate often stay current; teams
+with long-lived branches experience growing staleness and merge friction.
+
+When the global backlog needs to be live, shared, and branch-independent — typically larger teams
+or teams with longer branch lifetimes — an external tracker is the right tool. ARC's
+`pm.mode: external` provides a structured integration path for exactly this (see below).
+
+#### With external trackers (`external`)
+
+Teams using Jira, Linear, GitHub Issues, or similar select `external` (ARC Core + External
+Tracker) during init. ARC still expects local, in-repo task lists for execution; these are the
+review increments the developer-agent pair works through. The external tracker handles assignment,
+status, and sprint-level coordination; ARC task lists handle the execution-level decomposition.
+Extension points (`post-task-completion`, `post-work-unit-activate`, `post-work-unit-archive`)
+provide hooks for syncing status between the two.
+
+#### Without either (`none`)
+
+`none` (ARC Core) alone provides the complete methodology engine. You manage planning however you
+like — PRDs and task lists are still created as part of ARC's execution workflow, but there's no
+backlog, roadmap, or project status tracking in-repo.
 
 ## Atomic Tasks
 
