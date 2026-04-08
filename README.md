@@ -11,7 +11,7 @@
 
 </div>
 
-ARC is a structured methodology for spec-driven development with AI agents, emphasizing
+ARC is a structured methodology for spec-directed development with AI agents, emphasizing
 disciplined collaboration over automation. Implemented as portable markdown documents and a
 CLI, it's built on the premise that better outcomes come from deliberately coupling human
 judgment with agent capability, not separating them through delegation. Agentic task execution

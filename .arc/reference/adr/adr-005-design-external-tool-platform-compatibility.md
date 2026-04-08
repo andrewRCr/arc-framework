@@ -24,7 +24,7 @@ alternative practices, not absence of preference.
 **Three concerns drive this decision:**
 
 **External tracker integration.** Teams using Jira, Linear, or GitHub Issues as their tracking authority need ARC's
-methodology (spec-driven planning, quality gates, co-development) without being forced to use markdown checkboxes as
+methodology (spec-directed planning, quality gates, co-development) without being forced to use markdown checkboxes as
 the completion mechanism. ADR-001 already classified markdown task lists as convention under P7; the mechanism for
 substitution was deferred.
 

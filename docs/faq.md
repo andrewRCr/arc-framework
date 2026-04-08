@@ -3,7 +3,7 @@
 ## I already have a CLAUDE.md / AGENTS.md — what does ARC add?
 
 A context file is static — the agent reads it and interprets whatever it says. ARC is an operational
-methodology. Spec-driven planning produces task breakdowns with acceptance criteria before
+methodology. Spec-directed planning produces task breakdowns with acceptance criteria before
 implementation begins. A session lifecycle preserves context across conversations — the agent picks
 up where you left off. Git hooks enforce commit format, quality gates, and traceability at commit
 time. A configurability architecture lets you override how ARC does things without modifying

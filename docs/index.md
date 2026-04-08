@@ -1,6 +1,6 @@
 # ARC Framework
 
-ARC is a structured methodology for spec-driven development with AI agents. It's built on a
+ARC is a structured methodology for spec-directed development with AI agents. It's built on a
 specific premise: that focused, iterative collaboration between a developer and an agent
 (co-development) produces better work than either full delegation or ad-hoc prompting. The
 framework unifies planning, execution, and context preservation in a single system that works

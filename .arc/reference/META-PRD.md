@@ -40,7 +40,7 @@ The full philosophical argument, with research grounding, is in the
 
 ### Methodology
 
-- 11 principles (P1-P11) defining ARC's identity — spec-driven development, human-agent
+- 11 principles (P1-P11) defining ARC's identity — spec-directed development, human-agent
   co-development, focused sequential execution, quality gate enforcement, context preservation,
   traceability, granular task tracking, agent-agnostic design, dual-audience documentation,
   codified improvement, shared-context co-development
@@ -61,7 +61,7 @@ The full philosophical argument, with research grounding, is in the
 
 ### Workflows
 
-- Spec-driven planning pipeline: META-PRD → PRD → task list → execution
+- Spec-directed planning pipeline: META-PRD → PRD → task list → execution
 - Task processing loop with iterative review increments (co-development, not review-at-merge)
 - Supplemental workflows: atomic commits, session handoff, incidental work management
 - Extension points at workflow boundaries for project-specific steps

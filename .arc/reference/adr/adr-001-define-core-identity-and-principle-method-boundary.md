@@ -44,14 +44,14 @@ default — strong starting points that teams can configure to their context wit
 
 ### Principles (Tier 1 — Non-Negotiable)
 
-#### P1. Spec-Driven Development
+#### P1. Spec-Directed Development
 
 **Statement:** Development begins from explicit, written specifications that establish intent, scope, and success
 criteria before implementation. Planning leads execution at every level, never the reverse.
 
-Spec-driven development is foundational — remove it and the entire methodology collapses into ad-hoc AI prompting with
+Spec-directed development is foundational — remove it and the entire methodology collapses into ad-hoc AI prompting with
 organized folders. The specification is what makes work directed rather than reactive. "Plan before executing" is
-integral: spec-driven thinking applies from project vision down to individual tasks.
+integral: spec-directed thinking applies from project vision down to individual tasks.
 
 The decomposition may be refined iteratively, but it always precedes the work it governs. Retrofitting planning
 artifacts to match what was already done introduces drift between intent and execution and defeats the purpose of the
@@ -231,7 +231,7 @@ tool compatibility design (requirement 7).
 verifiable — not implicit in code changes or assumed from activity. Planning leads execution at every level, never the
 reverse.
 
-Task tracking is the operational bridge between spec-driven development (P1) and the human-agent interaction loop (P2).
+Task tracking is the operational bridge between spec-directed development (P1) and the human-agent interaction loop (P2).
 Specifications define intent; tracking makes that intent executable and reviewable at the right granularity. Without
 explicit tracking, the human can't review what they can't see decomposed, and the agent lacks the context needed to work
 effectively within bounded scope.
@@ -309,8 +309,8 @@ principles are honored.
 
 | Convention                                                  | Underlying Principle      | Default                                  | Configurable Aspect                            |
 |-------------------------------------------------------------|---------------------------|------------------------------------------|------------------------------------------------|
-| Document hierarchy (META-PRD → PRD → tasks)                 | P1 (spec-driven)          | Full hierarchy                           | Number of docs, naming, structure              |
-| Template-first documents                                    | P1 (spec-driven)          | Copy-ready templates                     | Template format and content                    |
+| Document hierarchy (META-PRD → PRD → tasks)                 | P1 (spec-directed)        | Full hierarchy                           | Number of docs, naming, structure              |
+| Template-first documents                                    | P1 (spec-directed)        | Copy-ready templates                     | Template format and content                    |
 | Markdown task list checkboxes                               | P7 (task tracking)        | Markdown in git                          | Tracking tool (Jira, Linear, etc.)             |
 | Per-task mandatory review stop                              | P2 (co-development)       | Stop after each checkbox                 | Review increment size (per-task to per-parent) |
 | Completion protocol (check → mark → verify → report → stop) | P2 + P4                   | Full ceremony                            | Protocol steps and ordering                    |
@@ -352,7 +352,7 @@ step, and produces work that reflects genuine human judgment. Throughput alone i
   with known patterns
 - Triage and exploration: bounded autonomy for information gathering (ARC's own research sub-agent uses this pattern)
 - Parallel execution on truly independent, well-specified work — with the key qualifier that "well-specified" means
-  someone did the spec-driven planning work first
+  someone did the spec-directed planning work first
 
 **Sequential agent handoffs are compatible:** Using different agents for different phases (e.g., one for design, another
 for implementation) is sequential, not parallel. The human is the continuity thread with full attention on each phase.

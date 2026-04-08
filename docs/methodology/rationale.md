@@ -134,9 +134,11 @@ reasoning behind each one — see [The 11 Principles](principles.md).
 
 ### Core commitments
 
-**P1. Spec-driven development.** Development begins from written specifications that establish
-intent, scope, and success criteria before implementation. Planning leads execution, not the reverse.
-The specific document hierarchy (PRDs, task lists) and templates are conventions.
+**P1. Spec-directed development.** Development begins from written specifications that establish
+intent, scope, and success criteria before implementation. Directed, not driven — the specification
+provides direction for co-development, not a blueprint for autonomous execution. Planning leads
+execution, not the reverse. The specific document hierarchy (PRDs, task lists) and templates are
+conventions.
 
 **P2. Human-agent co-development.** Humans and agents collaborate through tight, iterative feedback
 loops. Review happens during work, not after it. The human directs; the agent executes within bounded
@@ -253,6 +255,37 @@ knowledge accumulates implicitly and is lost when the conversation ends.
 For practical session duration guidance, see
 [How ARC Works § When to End a Session](../the-framework.md#when-to-end-a-session).
 
+## ARC as a Process Harness
+
+ARC's structure maps to what Birgitta Böckeler describes as [harness engineering][harness-eng] —
+everything around an AI agent except the model itself, the tooling and practices that keep agent
+output reliable. In that framing, ARC is a process-level harness: it wraps the developer-agent
+collaboration in structured controls that guide agent behavior before it acts and verify it
+afterward.
+
+**Feedforward controls** steer the agent before it acts. In ARC, these include written
+specifications (P1 — establishing intent before implementation), constitutional documents loaded at
+session start (development rules, quality standards, strategies), and task decomposition that scopes
+each increment of autonomous execution. The agent doesn't start from a blank prompt; it starts from
+structured context that directs the work.
+
+**Feedback controls** observe agent output and correct course. Quality gates (P4) run after every
+task — linting, type checking, tests — catching mechanical errors before the human reviews. The
+mandatory review stop after each task is itself a feedback mechanism: the developer evaluates not
+just correctness but judgment, design fit, and alignment with intent. Commit hooks enforce format
+and traceability at commit time.
+
+The two control types work together. Feedforward controls reduce the space of possible agent
+actions; feedback controls verify the actions taken. Neither is sufficient alone — specifications
+without verification produce plausible but unchecked work; verification without specifications
+produces correct code that may solve the wrong problem.
+
+What makes ARC distinctive in harness terms is where the human sits. In Böckeler's taxonomy,
+"humans on the loop" maintain the harness while agents execute. ARC positions the human closer:
+present during execution, contributing at every review increment, not just maintaining the system
+from outside. The harness doesn't replace human involvement — it makes human involvement more
+effective by handling mechanical verification so the developer focuses on judgment and direction.
+
 ## Where ARC Fits
 
 ARC governs the execution pair — how a developer and agent work through implementation together. It
@@ -303,3 +336,4 @@ ARC is designed for conversational agents where developer and agent share contex
 [interruption-general]: https://doi.org/10.1145/985692.985715
 [code-review-size]: https://smartbear.com/resources/ebooks/best-kept-secrets-of-code-review/
 [interruption-recovery]: https://doi.org/10.1145/3613904.3642861
+[harness-eng]: https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html

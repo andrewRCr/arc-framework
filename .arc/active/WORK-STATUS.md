@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 5.1 — Language cleanup: docs site (line ~457)
-**Last Completed**: Task 4.13 — Evaluate and decide `user/` directory placement
+**Next Task**: Task 6.1 — Inventory all current conditionals (line ~517)
+**Last Completed**: Task 5.6 — Connect skills to methodology docs
 **Blockers**: [none]
-**Next Action**: Review docs/ pages for methodology/implementation conflation
+**Next Action**: Begin Phase 6 — scan workflow/doc/CLI conditionals for structured inventory
 
 ---
 

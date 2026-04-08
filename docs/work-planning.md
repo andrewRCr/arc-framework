@@ -90,7 +90,10 @@ Completed tasks (`[x]`) are updated to reflect what was actually done — outcom
 plan. Incomplete tasks (`[ ]`) retain their original specification.
 
 For the full task execution model — how the agent works through tasks, quality gates, and review
-stops — see [How ARC Works](the-framework.md#working-through-tasks).
+stops — see [How ARC Works](the-framework.md#working-through-tasks). Before starting tasks where
+you want extra confidence — tasks written in a prior session, tasks touching unfamiliar code, or
+tasks with complex dependencies — the [arc-task-audit](reference/skills.md#arc-task-audit) skill
+runs a pre-implementation analysis to surface drift, hidden assumptions, and scope ambiguity.
 
 ## Work Organization
 

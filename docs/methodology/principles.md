@@ -12,10 +12,17 @@ other, not a hierarchy of importance.
 
 These define ARC's distinctive approach to development.
 
-### P1 — Development from written specifications
+### P1 — Spec-directed development
 
 Development begins from explicit, written specifications that establish intent, scope, and success
 criteria before implementation. Planning leads execution at every level, not the reverse.
+
+Directed, not driven: the specification provides direction for co-development, not a blueprint for
+autonomous execution. In [spec-driven development][sdd-fowler] as the term is increasingly used,
+the spec drives an agent that implements autonomously — the human writes, the machine executes.
+ARC's model is different: the spec is a collaborative planning artifact that human and agent build
+together, then implement together through bounded review increments. The specification directs the
+work; it doesn't replace the developer's presence during it.
 
 Not every action requires formal specification. Quick fixes with clear scope can rely on
 well-crafted commits as the record. ARC provides methods for specification; teams decide how
@@ -265,3 +272,7 @@ the agent is doing, intervene at any point, and contribute directly to the same 
 *Conventions:* Local CLI with filesystem access is ARC's primary design target. The specific
 mechanism (terminal, editor, remote session) is convention; the shared context and mutual
 visibility requirement is not.
+
+---
+
+[sdd-fowler]: https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html

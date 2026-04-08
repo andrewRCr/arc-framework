@@ -2,8 +2,8 @@
 
 ARC is a development methodology for human-AI collaboration. It structures how a developer
 and an AI agent work together — planning, executing, verifying, and preserving context across
-work sessions. The methodology is expressed as markdown documents that work with any agent
-platform.
+work sessions. The ARC Framework implements this methodology as markdown documents and git
+hooks that work with any agent platform.
 
 ## How ARC Works
 

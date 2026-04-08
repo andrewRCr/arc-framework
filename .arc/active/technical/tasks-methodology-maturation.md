@@ -127,7 +127,8 @@ _Goal: Define what ARC-the-methodology requires, independent of any specific imp
     - Created `docs/methodology.md` as standalone docs site page (not in philosophy strategy)
     - Structured as practices (core practice, what it asks of the developer, where methodology
       ends), not as P1-P11 list; principles woven in without numbering
-    - Deliberately avoids "spec-driven development" terminology (see Task 5.5)
+    - Deliberately avoids "spec-driven development" terminology (renamed to "spec-directed"
+      in Task 5.5)
     - Added to mkdocs.yml navigation between Home/Getting Started and Philosophy
     - Cross-references philosophy page evidence base for the single-threaded attention claim
     - External research validated positioning: co-development as primary mode with bounded review
@@ -455,52 +456,64 @@ Remove .arc/README from installs._
 _Goal: Docs consistently distinguish methodology from framework implementation. Harness engineering
 framing integrated._
 
-- [ ] **5.1 Language cleanup: docs site**
-    - Review `docs/` pages for methodology/implementation conflation
-    - "The Framework" page and similar sections: ensure framing distinguishes principles from
-      specific implementation mechanisms (partially addressed by 4.4 IA restructuring —
-      Methodology/Framework nav split already establishes the distinction structurally)
-    - Contextually considered — preserve prose flow, don't mechanically insert "framework"
+- [x] **5.1 Language cleanup: docs site**
+    - Reviewed all docs/ pages. Phase 4 IA restructuring (Methodology/Framework nav split)
+      already resolved the structural distinction. `the-framework.md` lines 3-5 set the
+      exemplary pattern: "ARC's methodology... is tool-independent. The ARC Framework is the
+      specific implementation." Only residual item: `docs/index.md` line 19 uses "ARC" where
+      "the framework" would be more precise, but reads naturally in context — left as-is.
 
-- [ ] **5.2 Language cleanup: methodology section and agent briefings**
-    - Review docs site `methodology/` pages (rationale.md and principles.md, formerly
-      strategy-core-philosophy, moved and restructured in 4.4) — principle statements clearly
-      methodology-level, convention descriptions clearly implementation-level
-    - Review agent briefings (`AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.PROJECT.md`) and main
-      repository `README.md`
-    - Apply same methodology/implementation distinction
+- [x] **5.2 Language cleanup: methodology section and agent briefings**
+    - Methodology pages (`rationale.md`, `principles.md`, `index.md`): already clean from
+      Phase 4 restructuring. P1 section in principles.md strengthened with spec-directed
+      positioning (done in 5.5). Harness engineering section added to rationale.md (done in
+      5.4).
+    - Agent briefings: tightened opening in both `AGENT-BRIEFING.ARC.md` and
+      `AGENT-BRIEFING.PROJECT.md` — changed "The methodology is expressed as..." to "The ARC
+      Framework implements this methodology as..." Package source updated, project instance
+      synced.
+    - README: already clean — "ARC is a structured methodology" (line 14) and "The framework
+      unifies..." (line 22) make the distinction naturally.
 
-- [ ] **5.3 Language cleanup: remaining priority docs**
-    - Review other strategy docs touched or referenced by this WU
-    - Clean up only where they actively mislead about methodology vs implementation
-    - Operational strategy docs (task-list-formatting, work-organization): light touch
+- [x] **5.3 Language cleanup: remaining priority docs**
+    - Reviewed strategy docs touched by this WU (session-operations, configurability-
+      architecture, planning-module). Clean — "ARC" used as shorthand in operational context
+      is natural and unambiguous. No instances actively misleading about methodology vs
+      implementation.
 
-- [ ] **5.4 Integrate harness engineering positioning**
-    - Add positioning section in docs site `methodology/rationale.md` (formerly philosophy
-      strategy, moved and restructured in 4.4; insertion point left during extraction): ARC as
-      a "process-level harness"
-    - Adopt terminology where it strengthens clarity: feedforward controls, feedback controls
-    - Reference Fowler article in philosophy strategy and docs site "What is ARC" content
-    - Frame as "ARC's approach maps to the harness engineering model" — not derivative
+- [x] **5.4 Integrate harness engineering positioning and terminology**
+    - Added "ARC as a Process Harness" section in `docs/methodology/rationale.md` before
+      "Where ARC Fits." Maps ARC to Böckeler's harness engineering model: feedforward controls
+      (specs, constitutional docs, task decomposition) and feedback controls (quality gates,
+      review stops, commit hooks). Positions ARC's human involvement as closer than "on the
+      loop" — present during execution, not just maintaining the harness.
+    - Referenced Böckeler article (martinfowler.com) with link.
+    - Existing language in `principles.md` P4 ("feedback mechanism," "complete feedback
+      system") already aligns naturally with the harness terminology.
+    - Broader terminology adoption across docs and `.arc/` packaged docs continues in the
+      5.1–5.3 language cleanup pass — feedforward/feedback language woven in where it
+      strengthens clarity during that review.
 
-- [ ] **5.5 Rename P1 away from "spec-driven development"**
-    - "Spec-driven development" has been claimed in 2025-2026 AI discourse (ThoughtWorks, Fowler/SDD
-      tools, GitHub spec-kit) to mean specifications as executable blueprints for autonomous agent
-      implementation — adjacent to but different from ARC's meaning ("written specifications before
-      implementation"). Risk: readers assume ARC endorses the SDD paradigm (human writes spec, agent
-      implements autonomously, human reviews), which is close to the opposite of co-development.
-    - Rename P1 across all occurrences (~35 files). Avoid "spec-first" (too close). Find language
-      that conveys "plan before you build" without triggering the SDD association.
-    - Where appropriate, reference SDD as a counterexample: similar starting point (specifications),
-      different execution model (delegation vs co-development).
-    - Discovered during Phase 2 methodology landscape research (2026-04-06).
+- [x] **5.5 Rename P1 from "spec-driven" to "spec-directed development"**
+    - Renamed across 11 live documents: docs site (index, faq, rationale, principles), repo
+      README, META-PRD, and 4 ADRs (001, 002, 005, 006). ~20 individual edit sites.
+    - Strengthened P1 in `docs/methodology/principles.md` with full positioning: "Directed,
+      not driven" framing, contrast with SDD discourse, reference to Böckeler taxonomy
+      (martinfowler.com), and co-authorship distinction.
+    - Added positioning line to `docs/methodology/rationale.md` principle summary.
+    - Left as-is: archive (historical), research docs (reference external SDD concept),
+      session notes (historical context). These correctly reference the external "spec-driven
+      development" discourse, not ARC's principle name.
+    - Where appropriate, reference SDD discourse as counterexample: similar starting point
+      (specifications), different execution model (delegation vs co-development).
 
-- [ ] **5.6 Connect skills to methodology docs**
-    - Reference arc-task-audit from relevant methodology/workflow docs (currently a documentation
-      island)
-    - Reference new skills (arc-review, and any others from Phase 7) from the docs they support
-    - Ensure a developer reading ARC's methodology docs discovers the skills that support the
-      practices described
+- [x] **5.6 Connect skills to methodology docs**
+    - Added arc-task-audit reference to `docs/work-planning.md` in the task lists section —
+      natural discovery point where someone reading about task execution finds the pre-
+      implementation analysis tool.
+    - Phase 7 skills (arc-review, others) don't exist yet — will be connected when created.
+    - Other skills (arc-resume, arc-commit, arc-handoff) already well-integrated in
+      `the-framework.md` and `getting-started.md`.
 
 ### **Phase 6:** Conditional Content Architecture
 
