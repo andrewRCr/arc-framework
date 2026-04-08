@@ -21,7 +21,7 @@ documentation.
 - [Planning Branch Workflow](#planning-branch-workflow)
 - [Directory Structure](#directory-structure)
 - [Team Coordination](#team-coordination) *(→ dedicated strategy)*
-- [Backlog Organization](#backlog-organization) *(→ dedicated strategy)*
+- [Planning Module](#planning-module) *(→ dedicated strategy)*
 
 ---
 
@@ -376,11 +376,10 @@ patterns, merge conflict expectations, and external tracker integration.
 
 ---
 
-## Backlog Organization
+## Planning Module
 
-See [Backlog Organization Strategy](strategy-backlog-organization.md) — backlog directory
-structure, processing flow (capture → triage → graduation), atomic task conventions, and
-commit context.
+See [Planning Module Strategy](strategy-planning-module.md) **(arc-in-git)** — what arc-in-git
+installs, routing and graduation flow, inbox vs. companion file routing, and scaling guidance.
 
 ---
 

@@ -116,10 +116,10 @@
       "layer": "core",
       "pristine_hash": "99d7c4d8709e8146e7f81ceefac9e0cd99d5f259d7e021aa29555e5e13595530"
     },
-    "reference/strategies/arc/strategy-context-loading.md": {
+    "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "928c99636f3e4fc4d299b9e29b6b297c9288c25c883410c2a52be6eb5fb6881e"
+      "pristine_hash": ""
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
@@ -130,11 +130,6 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "01a1edbec5dd2c1c2dd4e8d4d9d8fba3e632df401eabdb54dd6b81cc27a656a4"
-    },
-    "reference/strategies/arc/strategy-session-management.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "cc4242671c7bfd1175b9bec3affe906a96cdfda7bfac441e826c467af97ad49a"
     },
     "reference/strategies/arc/strategy-task-list-formatting.md": {
       "classification": "Framework",
@@ -401,10 +396,10 @@
       "layer": "arc-in-git",
       "pristine_hash": "7636bd99d4ca66b9856d06cd5abc52c4d974cc95578efed685db6a6766f2fd6b"
     },
-    "reference/strategies/arc/strategy-backlog-organization.md": {
+    "reference/strategies/arc/strategy-planning-module.md": {
       "classification": "Framework",
       "layer": "arc-in-git",
-      "pristine_hash": "658e5e833de35f92a23239880928a19c56d4468e5d3fe9bde936007a7fbef41c"
+      "pristine_hash": ""
     },
     "system/agent/CLAUDE.ARC.md": {
       "classification": "Configurable",

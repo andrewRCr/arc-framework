@@ -330,9 +330,6 @@ Detail bullets serve two distinct purposes:
 - Use backticks for technical terms
 - Keep concise (1-2 lines per bullet)
 
-**Key distinction:** Unnumbered bullets provide guidance or grouped actions, not independent
-completable steps that warrant tracking separately.
-
 ### Goal/Note Lines
 
 **Format:** `**Goal:** One-line clarification` or `**Note:** Important context`
@@ -547,31 +544,6 @@ convention. Group test and implementation together — by module or concern, not
 behavior list and `Build \`test-first\`:` marker. For multi-layer projects (backend + frontend,
 API + CLI), use separate phases per layer with the same grouped pattern in each, plus a
 cross-layer validation phase.
-
-### Anti-Patterns
-
-❌ **Wrong — tests as separate final phase:**
-
-```markdown
-### **Phase 1:** Implement Features
-- [ ] **1.1 Create models**
-- [ ] **1.2 Create API endpoints**
-
-### **Phase 2:** Write Tests  # DON'T DO THIS
-- [ ] **2.1 Write model tests**
-- [ ] **2.2 Write API tests**
-```
-
-❌ **Wrong — separate test and implement tasks within a phase:**
-
-```markdown
-### **Phase 1:** User Model
-- [ ] **1.1 Write tests for User model**  # DON'T DO THIS
-- [ ] **1.2 Implement User model**        # Splits one concern into two tasks
-```
-
-Both patterns produce horizontal slicing — writing tests in bulk tests *imagined* behavior, not
-actual behavior. Group test + implementation together so each test cycle informs the next.
 
 ---
 

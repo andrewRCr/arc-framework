@@ -196,7 +196,7 @@ Session state uses two files with different update triggers:
 - **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
   Personal working context for the next session. Each developer has their own directory
   (`user/{identity}/`), so concurrent developers don't conflict on session state. Portability
-  across machines via git notes — see [Session Management Strategy][session-mgmt] § Portability.
+  across machines via git notes — see [Session Operations Strategy][session-ops] § Portability.
 
 AI reports progress throughout the session; session state files capture the summary at commit
 and handoff boundaries.
@@ -210,7 +210,7 @@ specification throughout the session regardless of context window size or utiliz
 just as windows fill, but as accumulated context pushes early guidance toward weaker retrieval
 positions. Focused sessions that reset at natural boundaries maintain higher quality than
 marathon sessions that technically fit in the window. See
-[Session Management Strategy][session-mgmt] for the evidence base and duration guidance.
+[Session Operations Strategy][session-ops] for the evidence base and duration guidance.
 
 **Natural session boundaries:**
 
@@ -320,7 +320,7 @@ document.
 ## When to Load Additional Guidance
 
 These documents contain detailed procedures for specific activities — procedural content (T3) in the
-[Context Loading Strategy][context-loading]. Load them when you reach the relevant work — not during
+[Session Operations Strategy][session-ops]. Load them when you reach the relevant work — not during
 session initialization.
 
 - **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
@@ -346,12 +346,11 @@ session initialization.
 [arc-methods]: ../../system/workflows/arc-methods.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
 [config-arch]: ../strategies/arc/strategy-configurability-architecture.md
-[context-loading]: ../strategies/arc/strategy-context-loading.md
+[session-ops]: ../strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../strategies/STRATEGY-INDEX.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
-[session-mgmt]: ../strategies/arc/strategy-session-management.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
 [contributor-briefing]: ../../system/agent/AGENT-BRIEFING.CONTRIBUTOR.md
 [team-coordination]: ../strategies/arc/strategy-team-coordination.md

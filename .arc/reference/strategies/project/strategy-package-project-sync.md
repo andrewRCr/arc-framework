@@ -132,12 +132,11 @@ arc-in-git files are annotated explicitly.
 - `reference/research/README.md`
 - `reference/strategies/README.md`
 - `reference/strategies/arc/strategy-adr-methodology.md`
-- `reference/strategies/arc/strategy-backlog-organization.md` · arc-in-git
 - `reference/strategies/arc/strategy-configurability-architecture.md`
-- `reference/strategies/arc/strategy-context-loading.md`
 - `reference/strategies/arc/strategy-file-classification.md`
+- `reference/strategies/arc/strategy-planning-module.md` · arc-in-git
 - `reference/strategies/arc/strategy-quality-gates.md`
-- `reference/strategies/arc/strategy-session-management.md`
+- `reference/strategies/arc/strategy-session-operations.md`
 - `reference/strategies/arc/strategy-task-list-formatting.md`
 - `reference/strategies/arc/strategy-team-coordination.md`
 - `reference/strategies/arc/strategy-work-organization.md`

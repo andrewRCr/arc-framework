@@ -142,7 +142,7 @@ the agent reads `arc-config.yml` and scans `arc-methods.md` for override presenc
    commands
 2. **Method override presence**: Scan `arc-methods.md` `.override` headings to note which methods have active
    overrides — a list of names, not content. Method defaults and override content load on-demand when workflows
-   reference them (see [Context Loading Strategy][context-loading])
+   reference them (see [Session Operations Strategy][session-ops])
 3. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
 
 This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies
@@ -426,7 +426,7 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
 
 ---
 
-[context-loading]: strategy-context-loading.md
+[session-ops]: strategy-session-operations.md
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md

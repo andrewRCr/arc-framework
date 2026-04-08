@@ -85,10 +85,8 @@ commits; duplicating that information in ARC metadata adds maintenance burden wi
 
 ### Identity
 
-`(@name)` identifies the **human developer**, not their AI agent. ARC frames work as
-human-agent pairs — the developer drives decisions while the agent assists with execution.
-In team mode, multiple human-agent pairs collaborate, and the ownership marker identifies
-which pair owns a task.
+`(@name)` identifies the **human developer**, not their AI agent. In team mode, multiple
+human-agent pairs collaborate — the ownership marker identifies which pair owns a task.
 
 ### Reassignment
 

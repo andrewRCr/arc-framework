@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 4.10 — Local strategy consolidation and coherence pass (line ~389)
-**Last Completed**: Task 4.9 — Framework-dev content extraction to project/
+**Next Task**: Task 4.11 — Cross-reference verification (line ~401)
+**Last Completed**: Task 4.10 — Local strategy consolidation and coherence pass
 **Blockers**: [none]
-**Next Action**: Consolidate session strategies, fold backlog-organization, rationale stripping pass, coherence check
+**Next Action**: Full link check in both directions after consolidation — local ↔ docs site, internal references, mkdocs build --strict, markdown linting
 
 ---
 

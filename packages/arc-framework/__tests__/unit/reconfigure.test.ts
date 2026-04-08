@@ -124,7 +124,7 @@ function makeArcInGitSetup() {
       "backlog/ROADMAP.md": {
         classification: "Scaffolded", layer: "arc-in-git",
       },
-      "reference/strategies/arc/strategy-backlog-organization.md": {
+      "reference/strategies/arc/strategy-planning-module.md": {
         classification: "Framework", layer: "arc-in-git", pristine_hash: "ghi",
       },
     },
@@ -136,7 +136,7 @@ function makeArcInGitSetup() {
   const pristineStore = {
     "reference/README.md": "# Readme",
     "system/arc-config.yml": "pm.mode: arc-in-git",
-    "reference/strategies/arc/strategy-backlog-organization.md": "# Backlog",
+    "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
   };
   const recipe: Recipe = {
     include_files: ["reference/README.md", "system/arc-config.yml"],
@@ -146,7 +146,7 @@ function makeArcInGitSetup() {
       "pm.mode == arc-in-git": {
         include_files: [
           "backlog/ROADMAP.template.md",
-          "reference/strategies/arc/strategy-backlog-organization.md",
+          "reference/strategies/arc/strategy-planning-module.md",
         ],
       },
     },
@@ -238,7 +238,7 @@ describe("runReconfigure", () => {
       "backlog/feature/BACKLOG-FEATURE.template.md": "# Feature Backlog",
       "backlog/technical/BACKLOG-TECHNICAL.template.md": "# Technical Backlog",
       "reference/PROJECT-STATUS.template.md": "# Project Status",
-      "reference/strategies/arc/strategy-backlog-organization.md": "# Backlog Org",
+      "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
     };
     const pristineStore = {
       "reference/README.md": "# Readme",
@@ -257,7 +257,7 @@ describe("runReconfigure", () => {
             "backlog/feature/BACKLOG-FEATURE.template.md",
             "backlog/technical/BACKLOG-TECHNICAL.template.md",
             "reference/PROJECT-STATUS.template.md",
-            "reference/strategies/arc/strategy-backlog-organization.md",
+            "reference/strategies/arc/strategy-planning-module.md",
           ],
         },
       },
@@ -282,7 +282,7 @@ describe("runReconfigure", () => {
     expect(result.added).toContain("backlog/technical/BACKLOG-TECHNICAL.md");
     expect(result.added).toContain("reference/PROJECT-STATUS.md");
     expect(result.added).toContain(
-      "reference/strategies/arc/strategy-backlog-organization.md",
+      "reference/strategies/arc/strategy-planning-module.md",
     );
   });
 
@@ -305,7 +305,7 @@ describe("runReconfigure", () => {
 
     // Framework arc-in-git file should be auto-removed
     expect(result.removed).toContain(
-      "reference/strategies/arc/strategy-backlog-organization.md",
+      "reference/strategies/arc/strategy-planning-module.md",
     );
     // Scaffolded file should not be auto-removed (left untouched)
     expect(result.removed).not.toContain("backlog/ROADMAP.md");
@@ -318,7 +318,7 @@ describe("runReconfigure", () => {
     // User chooses to keep the Framework file and remove the Scaffolded one
     const resolveRemovals = vi.fn(async () => [
       {
-        outputPath: "reference/strategies/arc/strategy-backlog-organization.md",
+        outputPath: "reference/strategies/arc/strategy-planning-module.md",
         classification: "Framework" as const,
         action: "keep" as const,
       },
@@ -345,11 +345,11 @@ describe("runReconfigure", () => {
 
     expect(resolveRemovals).toHaveBeenCalledOnce();
     expect(result.removed).not.toContain(
-      "reference/strategies/arc/strategy-backlog-organization.md",
+      "reference/strategies/arc/strategy-planning-module.md",
     );
     expect(result.removed).toContain("backlog/ROADMAP.md");
     expect(result.keptByUser).toContain(
-      "reference/strategies/arc/strategy-backlog-organization.md",
+      "reference/strategies/arc/strategy-planning-module.md",
     );
   });
 
@@ -380,7 +380,7 @@ describe("runReconfigure", () => {
 
     // Framework → remove, Scaffolded → keep
     expect(result.removed).toContain(
-      "reference/strategies/arc/strategy-backlog-organization.md",
+      "reference/strategies/arc/strategy-planning-module.md",
     );
     expect(result.removed).not.toContain("backlog/ROADMAP.md");
     expect(result.keptByUser).toContain("backlog/ROADMAP.md");
@@ -559,7 +559,7 @@ describe("runReconfigure", () => {
         "reference/README.md": "# Readme",
         "system/arc-config.yml": "pm.mode: none",
         "backlog/ROADMAP.template.md": "# Roadmap for {{PROJECT_NAME}}",
-        "reference/strategies/arc/strategy-backlog-organization.md": "# Backlog Org",
+        "reference/strategies/arc/strategy-planning-module.md": "# Planning Module",
       };
       const pristineStore = {
         "reference/README.md": "# Readme",
@@ -575,7 +575,7 @@ describe("runReconfigure", () => {
           "pm.mode == arc-in-git": {
             include_files: [
               "backlog/ROADMAP.template.md",
-              "reference/strategies/arc/strategy-backlog-organization.md",
+              "reference/strategies/arc/strategy-planning-module.md",
             ],
           },
         },
@@ -600,7 +600,7 @@ describe("runReconfigure", () => {
       const addedPaths = dr.wouldAdd.map((a) => a.outputPath);
       expect(addedPaths).toContain("backlog/ROADMAP.md");
       expect(addedPaths).toContain(
-        "reference/strategies/arc/strategy-backlog-organization.md",
+        "reference/strategies/arc/strategy-planning-module.md",
       );
     });
 
@@ -626,7 +626,7 @@ describe("runReconfigure", () => {
       expect(dr.dryRun).toBe(true);
       // Framework file should appear in removals with classification
       const frameworkRemoval = dr.wouldRemove.find(
-        (r) => r.outputPath === "reference/strategies/arc/strategy-backlog-organization.md",
+        (r) => r.outputPath === "reference/strategies/arc/strategy-planning-module.md",
       );
       expect(frameworkRemoval).toBeDefined();
       expect(frameworkRemoval!.classification).toBe("Framework");

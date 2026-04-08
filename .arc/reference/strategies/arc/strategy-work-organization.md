@@ -20,8 +20,8 @@ documentation.
 - [Branch Protection Modes](#branch-protection-modes)
 - [Planning Branch Workflow](#planning-branch-workflow)
 - [Directory Structure](#directory-structure)
-- [Team Coordination](#team-coordination) _(→ dedicated strategy)_
-- [Backlog Organization](#backlog-organization) _(→ dedicated strategy)_
+- [Team Coordination](#team-coordination) *(→ dedicated strategy)*
+- [Planning Module](#planning-module) *(→ dedicated strategy)*
 
 ---
 
@@ -86,12 +86,12 @@ See [Incidental Work Model](#incidental-work-model) for branching and lifecycle.
 - **Yes** → `feature/`
 - **No** → `technical/`
 
-| Scenario                              | Planned? | User-visible? | Category                                        |
-| ------------------------------------- | -------- | ------------- | ----------------------------------------------- |
-| User authentication                   | Yes      | Yes           | `feature/user-authentication`                   |
-| CI pipeline improvements              | Yes      | No            | `technical/ci-pipeline-improvements`            |
-| Type errors found during feature work | No       | —             | `incidental/tasks-chore-type-safety.md`         |
-| Bug found while testing               | No       | —             | `incidental/tasks-fix-auth-token-expiration.md` |
+| Scenario                              | Planned? | User-visible? | Category                                         |
+| ------------------------------------- | -------- | ------------- | ------------------------------------------------ |
+| User authentication                   | Yes      | Yes           | `feature/user-authentication`                    |
+| CI pipeline improvements              | Yes      | No            | `technical/ci-pipeline-improvements`             |
+| Type errors found during feature work | No       | —             | `incidental/tasks-chore-type-safety.md`          |
+| Bug found while testing               | No       | —             | `incidental/tasks-fix-auth-token-expiration.md`  |
 
 **Edge cases:**
 
@@ -266,9 +266,9 @@ via PR for review before implementation begins. This separates "decide what to b
 
 1. **Create planning branch** from base branch: `git checkout -b planning/<working-name>`
 2. **Create artifacts** in `backlog/{category}/`:
-    - `prd-<name>.md` (required for planned work)
-    - `tasks-<name>.md` (required)
-    - `notes-<name>.md` (optional)
+   - `prd-<name>.md` (required for planned work)
+   - `tasks-<name>.md` (required)
+   - `notes-<name>.md` (optional)
 3. **Commit, push, and create PR** against base branch
 4. **Review** — team reviews plan, catches scoping issues before implementation starts
 5. **Merge and delete** planning branch (artifacts now on base branch)
@@ -309,12 +309,12 @@ via PR for review before implementation begins. This separates "decide what to b
     5. PR to base branch, merge ([integrate-planning-branch][integrate-planning-branch])
     6. Activate new work unit from base branch ([activate-work-unit][activate-work-unit])
 
-    Each workflow's steps are unchanged — the batch branch is just the commit target instead of
-    the base branch. Activation happens after the batch PR merges (implementation branch is
-    created from the base branch, not the batch branch). The scope boundary is the PR merge:
-    archival-triggered PM updates (ROADMAP marking the completed WU) belong on the batch branch;
-    activation-triggered updates (ROADMAP marking the new WU, WORK-STATUS, file moves) belong in
-    step 6. See [integrate-planning-branch][integrate-planning-branch] for operational detail.
+  Each workflow's steps are unchanged — the batch branch is just the commit target instead of
+  the base branch. Activation happens after the batch PR merges (implementation branch is
+  created from the base branch, not the batch branch). The scope boundary is the PR merge:
+  archival-triggered PM updates (ROADMAP marking the completed WU) belong on the batch branch;
+  activation-triggered updates (ROADMAP marking the new WU, WORK-STATUS, file moves) belong in
+  step 6. See [integrate-planning-branch][integrate-planning-branch] for operational detail.
 
 ---
 
@@ -376,11 +376,10 @@ patterns, merge conflict expectations, and external tracker integration.
 
 ---
 
-## Backlog Organization
+## Planning Module
 
-See [Backlog Organization Strategy](strategy-backlog-organization.md) — backlog directory
-structure, processing flow (capture → triage → graduation), atomic task conventions, and
-commit context.
+See [Planning Module Strategy](strategy-planning-module.md) **(arc-in-git)** — what arc-in-git
+installs, routing and graduation flow, inbox vs. companion file routing, and scaling guidance.
 
 ---
 

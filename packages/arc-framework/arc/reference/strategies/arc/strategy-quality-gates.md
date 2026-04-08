@@ -118,7 +118,6 @@ npm run test:e2e -- --grep "@navigation"
 - Never skip or partially run Tier 3
 - If Tier 3 fails, fix before proceeding (see Quality gate failure in
   [DEV-RULES.ARC][dev-rules-arc])
-- Tier 3 failures after proper Tier 1/2 execution should be rare
 
 **Commits and quality gates:** Tiers are milestone-driven, not commit-driven. Work committed
 through the task loop inherits the gates already run at each milestone. For work outside the
@@ -182,9 +181,6 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 - You've completed a significant body of work spanning multiple tasks
 - You're about to take a break or end a session
 - You want high confidence before a major context switch
-
-**When in doubt:** Err toward running more checks. A few extra minutes of testing is cheaper
-than an hour of debugging with forgotten context.
 
 ---
 

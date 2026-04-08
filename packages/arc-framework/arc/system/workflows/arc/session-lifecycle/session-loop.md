@@ -56,8 +56,8 @@ secondary safety net, not the primary mechanism — agents assess their own toke
 ### Quality degradation
 
 Context quality degrades before context runs out. Complex reasoning tasks — the kind that dominate development work —
-show measurable quality decline well before hard platform limits. The [Session Management
-Strategy][session-mgmt-strategy] covers the evidence and thresholds in detail, but the practical guidance is
+show measurable quality decline well before hard platform limits. The [Session Operations
+Strategy][session-ops-strategy] covers the evidence and thresholds in detail, but the practical guidance is
 straightforward: if you notice the agent producing lower-quality output, losing track of prior decisions, or requiring
 more correction than earlier in the session, end the session rather than pushing through. A fresh session with good
 context recovery outperforms a degraded session with more raw history.
@@ -66,8 +66,8 @@ context recovery outperforms a degraded session with more raw history.
 
 Complete a work unit, finish a logical phase, reach a clean commit point with no immediate next step — these are natural
 session boundaries regardless of context state. Shorter, focused sessions with intentional handoffs produce better
-results than marathon sessions, even when context permits continuation. See [Session Management
-Strategy][session-mgmt-strategy] § Focused Sessions for the reasoning.
+results than marathon sessions, even when context permits continuation. See [Session Operations
+Strategy][session-ops-strategy] § Focused Sessions for the reasoning.
 
 ---
 
@@ -104,4 +104,4 @@ Use whatever your platform provides. The key habit is checking periodically, not
 [session-init]: session-init.md
 [session-handoff]: session-handoff.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
-[session-mgmt-strategy]: ../../../../reference/strategies/arc/strategy-session-management.md
+[session-ops-strategy]: ../../../../reference/strategies/arc/strategy-session-operations.md

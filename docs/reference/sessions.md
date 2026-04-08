@@ -8,8 +8,7 @@ For the session lifecycle (starting, working, committing, ending) and state port
 [The Framework](../the-framework.md#the-session-lifecycle). This page covers the evidence and
 design reasoning behind ARC's session model, the context loading architecture, and practical
 guidance for monitoring session health. For operational specifications, see
-`strategy-session-management.md` and `strategy-context-loading.md` in your
-`.arc/reference/strategies/` directory.
+`strategy-session-operations.md` in your `.arc/reference/strategies/` directory.
 
 ## Why Bounded Sessions
 

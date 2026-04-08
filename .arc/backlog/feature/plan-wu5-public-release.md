@@ -79,11 +79,11 @@ doesn't belong in the public repo. Extract to a private archive before the clean
 **Fully absorbed into strategies/ADRs** (citation-level detail only — strategies are authoritative):
 
 - `research-attention-single-tasking.md` → strategy-core-philosophy (P2)
-- `research-context-degradation.md` → strategy-session-management
-- `research-context-loading.md` → strategy-context-loading
-- `research-instruction-reliability.md` → strategy-context-loading
+- `research-context-degradation.md` → strategy-session-operations
+- `research-context-loading.md` → strategy-session-operations
+- `research-instruction-reliability.md` → strategy-session-operations
 - `research-planning-lifecycle.md` → strategy-work-planning
-- `research-session-lifecycle.md` → strategy-session-management
+- `research-session-lifecycle.md` → strategy-session-operations
 
 **Broad reference** (not tied to a single strategy — competitive/ecosystem surveys):
 

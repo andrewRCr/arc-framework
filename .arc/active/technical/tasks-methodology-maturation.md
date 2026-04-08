@@ -378,28 +378,34 @@ Remove .arc/README from installs._
     - Added brief cross-reference in docs/the-framework.md where `.arc/` is introduced.
     - 8 files, -438 net lines.
 
-- [ ] **4.10 Local strategy consolidation and coherence pass**
-    - **After all extractions complete.** Separate pass to consolidate and verify.
-    - **Consolidation 1:** session-management + context-loading → combined
-      `strategy-session-operations.md` (~270 lines). Both session-related operational
-      reference, thematically unified.
-    - **Consolidation 2:** backlog-organization → fold into work-planning as conditional
-      section (arc-in-git specifics). Combined ~205 lines.
-    - **Rationale stripping pass:** Tasks 4.7 and 4.8 left residual rationale fragments in
-      strategies that should have been stripped: team-coordination (Identity explanation),
-      quality-gates (per-tier Purpose paragraphs), task-list-formatting (Key distinction
-      paragraph, anti-pattern prose), adr-methodology (Industry Context subsection). Strip
-      these and add header blockquote pointers where missing.
-    - **Coherence check:** Read each post-extraction strategy doc end-to-end. Each must stand
-      alone as operational reference usable by an agent during workflow execution — all rules,
-      thresholds, and format specs present without requiring the docs site version. Only deep
-      "why" rationale should require the docs site link.
-    - Update STRATEGY-INDEX for renames, removals, and consolidations.
-    - **Two-copy work:** Consolidations create/rename Framework files — edit through package
-      source.
+- [x] **4.10 Local strategy consolidation and coherence pass**
+    - **Consolidation 1:** session-management (100 lines) + context-loading (174 lines) →
+      `strategy-session-operations.md` (213 lines). Structure: context loading model →
+      mechanisms → method/extension loading → monitoring → compaction → portability.
+    - **Consolidation 2 (revised):** Replaced `strategy-backlog-organization.md` with
+      `strategy-planning-module.md` (120 lines) — arc-in-git overview doc. Pre-audit
+      analysis found backlog-org content ~60% redundant with process-task-loop,
+      task-list-formatting, and arc-methods. New doc covers: what arc-in-git installs,
+      routing/graduation, inbox vs companion, scaling boundaries ("When to Use"), and
+      relationship to Core ARC.
+    - **Rationale stripping:** team-coordination (Identity explanation trimmed),
+      task-list-formatting (Key distinction paragraph + Anti-Patterns subsection removed),
+      adr-methodology (Industry Context subsection removed), quality-gates (residual
+      rationale lines trimmed).
+    - **Header blockquote pointers:** All strategies with docs-site counterparts already
+      had pointers (added in 4.6/4.7). Added pointer to new planning-module doc.
+    - **Infrastructure:** Updated init-recipe.json, manifest.json, reconfigure unit tests
+      (15 refs) and E2E tests (3 refs) for file renames.
+    - **Cross-references:** Updated all live navigational references across both copies
+      (~50 sites). ADRs, archive, and analysis files left untouched (historical records).
+    - **Coherence check:** All 8 post-extraction strategy docs read end-to-end. Clean —
+      one pre-existing issue noted (configurability-architecture has 3 undefined link refs,
+      not caused by this task).
+    - 40 files changed, +400/-1200 net. Two-copy work through package source.
 
 - [ ] **4.11 Cross-reference verification**
     - Full link check in both directions after all extraction and consolidation complete
+    -
     - Local → docs site: every strategy doc with a docs-site counterpart has header pointer
       blockquote; inline contextual links resolve
     - Docs site → local: references to strategy docs use post-consolidation filenames

@@ -40,19 +40,6 @@ along with its context and consequences.
 - **Concise:** Typically 1-2 pages, focusing on decision and context, not implementation details
 - **Discoverable:** Stored in version control alongside code, easily searchable
 
-### Industry Context
-
-ADRs were introduced by Michael Nygard in his 2011 blog post "Documenting Architecture Decisions."
-The practice has achieved broad industry adoption — ThoughtWorks classified ADRs as "Adopt" on their
-Technology Radar (2018), and AWS, Google Cloud, and Microsoft Azure all include ADR guidance in their
-architecture frameworks.
-
-This strategy follows Nygard's original five-section format (Title, Status, Context, Decision,
-Consequences). Notable variants exist for different contexts: MADR (Markdown Architectural Decision
-Records) adds structured options analysis, and Y-statements offer a minimalist single-sentence format
-for rapid capture. The core principles — immutability, sequential numbering, context-and-consequences
-documentation — are consistent across all variants.
-
 ---
 
 ## When to Write an ADR

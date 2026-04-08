@@ -10,7 +10,7 @@ graduation pipeline (backlog → active transitions) require `pm.mode: arc-in-gi
 arc-in-git-specific content are marked below.
 
 **Scope:** Planning artifact conventions, discovery guidance, and stage transitions. For backlog
-structure and triage, see [Backlog Organization][backlog-org] **(arc-in-git)**. For active work
+structure and triage, see [Planning Module][planning-module] **(arc-in-git)**. For active work
 categories and git workflow, see [Work Organization][work-org]. For task execution, see [Process
 Task Loop][process-loop].
 
@@ -43,7 +43,7 @@ Lifespan:  Transient     Ephemeral (deleted)    Semi-permanent        Active →
 
 > **arc-in-git mode** adds a structured first stage: backlog items in bucket files
 > (`BACKLOG-FEATURE.md`, `BACKLOG-TECHNICAL.md`) that capture and triage ideas before they enter
-> the pipeline. See [Backlog Organization][backlog-org] for the full graduation model.
+> the pipeline. See [Planning Module][planning-module] for the full graduation model.
 
 **Key principle:** Each stage's documentation should match its fidelity level. Requiring PRD-level
 structure in a plan document is premature formalization. Leaving a PRD at plan fidelity is
@@ -75,7 +75,7 @@ permanent records.
 **Location** (depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git**: `.arc/backlog/{category}/` — plans live in the backlog and graduate to PRDs
-  through the [backlog processing flow][backlog-org]
+  through the [planning module graduation flow][planning-module]
 - **none / external**: `.arc/active/{category}/` — plans are co-located with the PRDs they feed
   into (no backlog directory)
 
@@ -212,7 +212,7 @@ this.
 
 ## Related Documentation
 
-- [Backlog Organization][backlog-org] — Backlog structure, triage flow, atomic tasks **(arc-in-git)**
+- [Planning Module][planning-module] — Backlog structure, triage flow, atomic tasks **(arc-in-git)**
 - [Work Organization][work-org] — Work categories, branching model, directory structure
 - [Create PRD Workflow][create-prd] — Step-by-step PRD creation process
 - [PRD Template][template-prd] — Copy-ready PRD starting point
@@ -222,7 +222,7 @@ this.
 
 ---
 
-[backlog-org]: strategy-backlog-organization.md
+[planning-module]: strategy-planning-module.md
 [work-org]: strategy-work-organization.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [template-prd]: ../../templates/template-prd.md

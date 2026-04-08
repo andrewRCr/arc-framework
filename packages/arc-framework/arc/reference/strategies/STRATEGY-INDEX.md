@@ -18,20 +18,18 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
 
 - `arc/strategy-adr-methodology.md` - When/how to write Architecture Decision Records
     - Consult when: writing an ADR, deciding whether a decision warrants one
-- `arc/strategy-backlog-organization.md` **(arc-in-git)** - Backlog structure, processing flow, atomic task conventions
-    - Consult when: creating or reorganizing backlog structure, processing queued items
 - `arc/strategy-configurability-architecture.md` - Customization model, config/extensions/methods, adoption defaults
     - Consult when: working on config, extensions, or methods infrastructure
-- `arc/strategy-context-loading.md` - Three-tier loading model, classification criteria, method/extension on-demand patterns
-    - Consult when: adding new guidance content, deciding loading tier, working on session-init or method loading
+- `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/graduation, scaling boundaries
+    - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
 - `arc/strategy-file-classification.md` - File taxonomy, naming conventions, merge strategies, complete inventory
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
     - Consult when: creating PRDs, setting up discovery phases, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
     - Consult when: running quality gates beyond Tier 1, identifying integration checkpoints, escalation decisions
-- `arc/strategy-session-management.md` - Monitoring responsibility, session state portability, auto-compaction guidance
-    - Consult when: configuring session state portability, understanding monitoring roles, working on session workflows
+- `arc/strategy-session-operations.md` - Context loading model, monitoring, auto-compaction, session state portability
+    - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
 - `arc/strategy-task-list-formatting.md` - Task list formatting specification, header templates, element rules
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers
