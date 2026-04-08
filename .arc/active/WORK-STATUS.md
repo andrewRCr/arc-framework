@@ -16,10 +16,10 @@
 **Branch**: `technical/methodology-maturation`
 **Task List**: `.arc/active/technical/tasks-methodology-maturation.md`
 **Following Task List**: Yes
-**Next Task**: Task 6.1 — Inventory all current conditionals (line ~517)
-**Last Completed**: Task 5.6 — Connect skills to methodology docs
+**Next Task**: Task 7.1 — Systematic skill evaluation (line ~574)
+**Last Completed**: Task 6.2 — Assess scaling and document pattern guidance
 **Blockers**: [none]
-**Next Action**: Begin Phase 6 — scan workflow/doc/CLI conditionals for structured inventory
+**Next Action**: Begin Phase 7 — evaluate ARC workflow surface for skill opportunities
 
 ---
 

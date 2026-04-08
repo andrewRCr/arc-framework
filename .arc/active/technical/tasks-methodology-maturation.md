@@ -149,19 +149,14 @@ _Goal: Define what ARC-the-methodology requires, independent of any specific imp
     - Updated philosophy strategy conventions lines for P4, P5, P7 (both copies synced)
 
 - [x] **2.3 Resolve grey areas (batch 2: 6-10)**
-    - Classifications with rationale (all 5 resolved as convention, two with methodology kernels):
-        6. Trust hierarchy → convention with methodology kernel under P5 (having a defined priority
-           ordering is methodology — without it, conflicting state is unresolvable; the specific
-           four-level ordering is convention; added to P5 conventions text with methodology note)
-        7. Strategy document pattern → convention under P10 (codified improvement is methodology;
-           the specific mechanism — strategy docs, directory structure, consult protocol — is
-           convention; no text update needed, P10 conventions already general enough)
-        8. Deferred review scope → convention under P2 (already listed in P2 conventions;
-           configurable relaxation of default review cadence)
-        9. Verification phase → convention under P4 (methodology requires thorough pre-merge
-           verification; the formal phase structure is convention; added to P4 conventions text)
-        10. Context footer requirement → convention under P6 (already listed in P6 conventions;
-            traceability is methodology, specific footer format is convention)
+    - Classifications with rationale (all 5 resolved as convention, two with methodology kernels): 6. Trust hierarchy → convention with methodology kernel under P5 (having a defined priority
+      ordering is methodology — without it, conflicting state is unresolvable; the specific
+      four-level ordering is convention; added to P5 conventions text with methodology note) 7. Strategy document pattern → convention under P10 (codified improvement is methodology;
+      the specific mechanism — strategy docs, directory structure, consult protocol — is
+      convention; no text update needed, P10 conventions already general enough) 8. Deferred review scope → convention under P2 (already listed in P2 conventions;
+      configurable relaxation of default review cadence) 9. Verification phase → convention under P4 (methodology requires thorough pre-merge
+      verification; the formal phase structure is convention; added to P4 conventions text) 10. Context footer requirement → convention under P6 (already listed in P6 conventions;
+      traceability is methodology, specific footer format is convention)
     - Two methodology kernels identified: trust priority ordering (P5), work capture requirement (P4)
 
 - [x] **2.4 Articulate human co-development posture**
@@ -519,25 +514,57 @@ framing integrated._
 
 _Goal: Document current conditional mechanisms and assess scaling for proposed modes._
 
-- [ ] **6.1 Inventory all current conditionals**
-    - [ ] **6.1.a Scan workflow and doc conditionals**
-        - All workflow documents: conditional-in-prose patterns (e.g., "skip this step if
-          `pm.mode` is `none`")
-        - `.template.md` files: `<!-- arc:if -->` conditional blocks
+- [x] **6.1 Inventory all current conditionals**
+    - [x] **6.1.a Scan workflow and doc conditionals**
+        - **In-prose conditionals** found in 13 `.arc/` documents across workflows, constitution,
+          methods, agent briefings, and githook README. 6 config keys drive behavior:
+          `pm.mode`, `team.mode`, `arc.role`, `branch.protection`, `review.pre_merge`,
+          and WORK-STATUS state (task list presence). Heaviest: `session-init.md` (7),
+          `activate-work-unit.md` (6), `archive-work-unit.md` (4), `session-handoff.md` (3),
+          `integrate-work-unit.md` (4), `DEV-RULES.ARC.md` (3)
+        - **Template `arc:if` blocks**: 6 of 14 `.template.md` files contain conditionals (21
+          blocks total). Keys: `team.mode` (7 blocks across 4 files), `pm.mode` (13 blocks
+          across 3 files, using `==`/`!=` with `arc-in-git`, `external`, `none`). One file has
+          nested blocks (process-task-loop: pm.mode variants inside a bullet list)
+        - **Githook shell conditionals**: `pre-commit` branches on `branch.protection` (1),
+          `arc.role` (4 checks), `team.mode` (1); `commit-msg` branches on `arc.role` (3 checks)
 
-    - [ ] **6.1.b Scan CLI conditionals**
-        - Conditionally included/excluded files in recipe resolution
-        - Mode-dependent behavior in commands and handlers
+    - [x] **6.1.b Scan CLI conditionals**
+        - **Recipe conditions** (`init-recipe.json`): 10 conditions across 3 config keys.
+          `pm.mode == arc-in-git` (5 files), `pm.mode == external` (1 file),
+          `team.mode == true` (1 file), `tools includes <agent>` (7 agent files).
+          Evaluated by `evaluateCondition()` in `recipe.ts` using `==` and `includes` operators
+        - **Runtime code gates**: 5 TS locations branch on config values.
+          `setup.ts:91` + `user.ts:292` (ATOMIC-INBOX gated on pm.mode),
+          `config.ts:29` (user.sync_push derived from team.mode),
+          `init.ts:243` + `join.ts:91` (arc.role written to git config).
+          3 commands (init, reconfigure, update) extract `arcInGitFiles` set for layer assignment
+        - **Layer-dependent behavior**: `classification.ts:111` assigns `arc-in-git`/`core` layer.
+          `apply.ts:170` uses layer during manifest apply. `manifest/plan.ts:69` propagates
+          layer into update plans. Layer affects whether files are added/removed on mode change
+        - **Template rendering engine**: `render.ts:38-70` processes `arc:if` blocks using
+          `==`/`!=` operators with boolean stack for nesting. Config map built from `pm.mode`,
+          `team.mode`, `tools` in `config.ts:45-53`. Called by `files.ts:46` for every
+          `.template.*` file during init/update
 
-    - [ ] **6.1.c Produce structured inventory**
-        - Location, condition expression, what changes per conditional
-        - Organized by mechanism type (in-prose, template rendering, file inclusion)
+    - [x] **6.1.c Produce structured inventory**
+        - Created `reference/analysis/analysis-conditional-content-architecture.md` as standalone
+          feed-forward deliverable for the Operating Modes work unit
+        - Four mechanism types: in-prose (37 across 16 docs), template `arc:if` (21 blocks in 6
+          files), recipe (10 conditions, 15 files), runtime code gates (TS ~10, shell ~10)
+        - Cross-mechanism config key summary table for per-key filtering
+        - `pm.mode` most pervasive (28 locations), `arc.role` second (19), `team.mode` contained (10)
 
-- [ ] **6.2 Assess scaling and document pattern guidance**
-    - Estimate how many new conditionals each proposed mode (Lite, local) would add
-    - Determine if current mechanisms scale or if a more systematic approach is needed
-    - Document the pattern that new conditionals should follow
-    - Output: inventory + assessment + guidance for the Operating Modes work unit
+- [x] **6.2 Assess scaling and document pattern guidance**
+    - **Scaling assessment**: Current mechanisms scale for Lite + local. Estimated +15-25
+      conditionals for Lite (file exclusion absorbs largest impact), +10-15 for local.
+      No architectural change needed — linear, moderate growth.
+    - **Risk areas**: session-init/handoff in-prose density; process-task-loop may warrant
+      Lite-specific template variant
+    - **Pattern guidance**: mechanism selection decision table, in-prose formatting conventions,
+      template `arc:if` patterns, density thresholds (5+ prose → consider template blocks,
+      8+ template blocks → consider file split)
+    - Output in same analysis document: inventory + assessment + guidance consolidated
 
 ### **Phase 7:** Skill Exploration and Development
 
