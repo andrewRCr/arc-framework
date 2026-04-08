@@ -179,16 +179,22 @@ Claimed during planning (2026-04-07):
 
 ### Implementation
 
-Scope is bounded — the methodology layer (`.arc/`, `.ARC.` files, config naming) is unchanged.
-Only product-facing surfaces need updating.
+> **Note:** The scope below reflects the original partial-rename plan. Under the
+> [revised naming architecture](#revised-naming-architecture), the rename is full — `.arc/` →
+> `.arcd/`, all config/skill/hook identifiers, plus the items below. See the revised section's
+> rename scope table for the complete surface area.
 
 4. **CLI package rename.** `@arc-framework/cli` → `@arcd/cli`. Binary name `arc` → `arcd`.
    Update `package.json` name, bin field, and all internal references to the command name.
 5. **CLI internal references.** Update any hardcoded references to "ARC Framework" in CLI output
    (help text, init prompts, version display, error messages). Reference the methodology as "ARC"
    and the tool as "ARCd" consistently.
-6. **Docs site domain.** Configure `arcd.dev` CNAME pointing to GitHub Pages. Update `mkdocs.yml`
-   site name and any absolute URLs.
+6. **Docs site domain and landing page.** Configure `arcd.dev` CNAME. Update `mkdocs.yml` site
+   name and any absolute URLs. Consider adding a custom homepage using MkDocs Material's
+   built-in landing page support (hero, tagline, CTA into docs) rather than serving the docs
+   index directly at the apex domain. This keeps a single deployment pipeline — no separate
+   Vercel/hosting needed. If a richer landing page is wanted later, split docs to
+   `docs.arcd.dev` subdomain and put a standalone page at the apex.
 7. **Docs site content.** Update product references from "ARC Framework" to "ARCd" across all docs
    pages. Methodology references ("ARC's principles," "the ARC methodology") stay. Add the
    relationship explanation to the landing page and getting-started.
@@ -278,20 +284,20 @@ parallel brand.
 Unlike the original plan (which left `.arc/`, config naming, skills, and file suffixes
 unchanged), the unified model renames everything:
 
-| Surface | Before | After |
-| --- | --- | --- |
-| Directory | `.arc/` | `.arcd/` |
-| Config | `arc-config.yml` | `arcd-config.yml` |
-| Methods/extensions | `arc-methods.md`, `arc-extensions.md` | `arcd-methods.md`, `arcd-extensions.md` |
-| File suffixes | `.ARC.md` | `.ARCD.md` |
-| Git config | `arc.identity`, `arc.role`, `arc.tools` | `arcd.identity`, `arcd.role`, `arcd.tools` |
-| Skills | `/arc-resume`, `/arc-commit` | `/arcd-resume`, `/arcd-commit` |
-| CLI binary | `arc` | `arcd` |
-| Git refs | `refs/notes/arc/user/` | `refs/notes/arcd/user/` |
-| Constants | `ARC_BLOCK_START` | `ARCD_BLOCK_START` |
-| npm package | `@arc-framework/cli` | `@arcd/cli` |
-| Hooks | `arc-pre-commit` | `arcd-pre-commit` |
-| Shell functions | `arc_config_get()` | `arcd_config_get()` |
+| Surface            | Before                                  | After                                      |
+| ------------------ | --------------------------------------- | ------------------------------------------ |
+| Directory          | `.arc/`                                 | `.arcd/`                                   |
+| Config             | `arc-config.yml`                        | `arcd-config.yml`                          |
+| Methods/extensions | `arc-methods.md`, `arc-extensions.md`   | `arcd-methods.md`, `arcd-extensions.md`    |
+| File suffixes      | `.ARC.md`                               | `.ARCD.md`                                 |
+| Git config         | `arc.identity`, `arc.role`, `arc.tools` | `arcd.identity`, `arcd.role`, `arcd.tools` |
+| Skills             | `/arc-resume`, `/arc-commit`            | `/arcd-resume`, `/arcd-commit`             |
+| CLI binary         | `arc`                                   | `arcd`                                     |
+| Git refs           | `refs/notes/arc/user/`                  | `refs/notes/arcd/user/`                    |
+| Constants          | `ARC_BLOCK_START`                       | `ARCD_BLOCK_START`                         |
+| npm package        | `@arc-framework/cli`                    | `@arcd/cli`                                |
+| Hooks              | `arc-pre-commit`                        | `arcd-pre-commit`                          |
+| Shell functions    | `arc_config_get()`                      | `arcd_config_get()`                        |
 
 The `.ARCD.md` suffix retains its original semantic: "ships with the framework" (vs `.PROJECT.md`
 = "your project's customization"). `DEV-RULES.ARCD.md` = "rules from ARCd." Clean.
@@ -309,12 +315,12 @@ The lowercase 'd' is grounded by two independent justifications:
    represented. The 'd' shares a word with 'C' (co-development), making lowercase feel
    natural — it's a dependent letter, not a standalone initial.
 
-| Context | Form | Examples |
-| --- | --- | --- |
-| Brand, prose, headings | ARCd | "ARCd's principles", "the ARCd approach" |
-| Technical identifiers | `arcd` | `arcd.dev`, `@arcd/cli`, `.arcd/`, `arcd init` |
-| Environment/constants | `ARCD_` | `ARCD_CONFIG_FILE` (rare, unavoidable) |
-| Concatenated (handles, orgs) | ARCdFramework | Natural visual break at the case change |
+| Context                      | Form          | Examples                                       |
+| ---------------------------- | ------------- | ---------------------------------------------- |
+| Brand, prose, headings       | ARCd          | "ARCd's principles", "the ARCd approach"       |
+| Technical identifiers        | `arcd`        | `arcd.dev`, `@arcd/cli`, `.arcd/`, `arcd init` |
+| Environment/constants        | `ARCD_`       | `ARCD_CONFIG_FILE` (rare, unavoidable)         |
+| Concatenated (handles, orgs) | ARCdFramework | Natural visual break at the case change        |
 
 The concatenation benefit is notable: ARCdFramework reads as two words due to the lowercase 'd'
 creating a natural boundary. Compare: ARCFramework (ambiguous break), ArcFramework (loses the
