@@ -292,6 +292,49 @@ methodology maturation work unit. `strategy-backlog-organization.md` → `strate
 `strategy-session-management.md` → `strategy-session-operations.md`. The follow-up work described has been completed
 under those new names.
 
+**Amendment (2026-04-09):** Formalize the **mirror-structure principle** for personal workspace
+organization. The `user/{identity}/` directory is a personal workspace with a *defined framework
+read contract*: ARC reads from specific paths and manages their lifecycle, while everything else
+under the directory is the developer's to organize freely.
+
+**Framework read contract** (the paths ARC loads and manages):
+
+- `SESSION-NOTES.md` — session context (loaded at session-init, written at session-handoff)
+- `WORK-STATUS.md` — personal work state (loaded at session-init if present; optional for
+  maintainers, the primary work-state file for contributors per `ADR-014`)
+- `ATOMIC-INBOX.md` — personal capture queue (arc-in-git only)
+- `active/tasks-*.md` — task lists, when running a full planning pipeline locally (primarily
+  contributor use case per `ADR-014`, also applicable to any developer using personal planning)
+
+**User-managed content** (freeform, any structure the developer chooses):
+
+Personal scratch notes, investigation logs, reference links, archived completed work, mirrored
+strategies, personal conventions — anything else the developer wants. ARC does not load, validate,
+or manage this content.
+
+**Recommended convention:** Mirror ARC's tracked directory structure (`active/`, `reference/`,
+`reference/archive/`, etc.) when adding to the personal workspace. The recommendation is for the
+developer's consistency and mental model — not for framework functionality. ARC cannot enforce
+the structure of a gitignored personal directory, and making this honest is more useful than
+pretending otherwise.
+
+**Guardrails the framework depends on:**
+
+- Don't place files at paths the framework manages in a way that shadows or conflicts with them
+- Don't expect ARC to load arbitrary files added to the workspace (only the paths above are read)
+- Don't introduce hooks, workflows, or session-init-loaded content under `user/{identity}/` —
+  those live in `system/` and cannot be overridden through personal workspace content
+
+**Derivation:** The principle was formalized during the Operating Modes WU pre-PRD session
+(2026-04-09) after rediscovering that `ADR-014` § Contributor planning already committed
+contributors to running their own full planning pipeline in `user/{identity}/`. The rediscovery
+made explicit a pattern that had been implicit in `ADR-012`'s original "freeform personal
+workspace" framing — the framework always had a defined read contract, but it wasn't named or
+catalogued. This amendment names it and makes the boundary between framework-managed and
+user-managed content explicit. See
+`analysis-modes-contributor-lifecycle-stress-test.md` for the full derivation and
+`AGENT-BRIEFING.CONTRIBUTOR.md` for the principle applied to contributor workflow.
+
 ---
 
 Context: tasks-cli-implementation.md (off-plan — architectural evaluation before Phase 2)

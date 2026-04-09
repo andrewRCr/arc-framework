@@ -918,6 +918,31 @@ apply. Worked examples:
 - **Lite+tracked** → Lite layer removes lifecycle, keeps role (OSS solo-dev scenario); tracked intact
 - **Lite+local** → both layers apply: no lifecycle, no role, `.arc/` untracked, backing store required
 
+### Local Mode and Contributor Mode Are Alternatives, Not Compositions
+
+Local mode and contributor mode (per `ADR-014`) both answer the question "I want ARC in a
+repository whose tracked state I don't own." They achieve this through different mechanisms —
+Local mode excludes `.arc/` from git tracking via `.git/info/exclude`; contributor mode
+piggybacks on upstream's already-gitignored `user/{identity}/` subtree and runs a personal
+planning pipeline there (see `AGENT-BRIEFING.CONTRIBUTOR.md`).
+
+**The two are selected by upstream context, not stacked:**
+
+- **Upstream is NOT an ARC project** → Local mode is the answer. There is no upstream `.arc/`
+  to collide with; the Local mode exclusion mechanism works as designed.
+- **Upstream IS an ARC project** → contributor mode is the answer. Upstream's `.arc/` is
+  already present and the contributor's personal workspace at `user/{identity}/` is already
+  gitignored by upstream's tracked `.gitignore`. Contributor mode subsumes Local mode's value
+  proposition in this context, with zero directory collision and no need for a separate
+  backing store (git notes portability covers the user directory).
+
+The "nested Local mode inside an ARC upstream" scenario is explicitly not supported — it would
+require either colliding `.arc/` installs or a novel nested-install pattern that is not
+idiomatic in the wider tooling ecosystem. The `arc.role = contributor` path handles the
+motivating use case (OSS contribution to an ARC-using project) without the collision.
+
+See `analysis-modes-contributor-lifecycle-stress-test.md` § S6 for the full derivation.
+
 ### Walk-Through: Lite+Local
 
 This combination wasn't explicitly designed — it falls out of the orthogonal axes. Walking through
