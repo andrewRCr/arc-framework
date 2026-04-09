@@ -17,18 +17,21 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Contributor-lifecycle stress test and `ADR-014` rediscovery — captured as
-`analysis-modes-contributor-lifecycle-stress-test.md`. Solo-dev audit § clarification #5
-revised in place; Option A ruled out from registry walk; mirror-structure principle formalized
-as `ADR-012` amendment; contributor briefing + user/README + template-contributing +
-docs/contributing + plan-arc-modes updated to carry the corrected framing
+**Last Completed**: B-vs-C registry walk and pre-PRD design resolution for Operating Modes WU.
+Decided pure Option C (task list headers as single source of truth — no registry file, no
+per-dev cache), driven by the session-init reframe (multi-WU awareness is on-demand, not a
+session-init concern). Finding B resolved — `Paused` vs `Waiting-For {category}` vocabulary
+split baked into task list Status headers. Finding C resolved — no pause-pointer rename
+needed; formalizing the four existing pointer fields is an independent doc sweep. Added
+`/arc-status` skill spec (mid-session HUD, workflow `mid-session-status.md`) alongside
+`/arc-shift`. Solo-Dev Blind Spot Audit marked Complete in `plan-arc-modes.md`. CLI command
+surface cleanup (`arc status` → `arcd health` + explicit `arcd version` subcommand) absorbed
+into the ARCd Rebrand WU scope
 **Blockers**: [none]
-**Next Action**: Registry walk narrowed to **Options B and C only** (Option A ruled out).
-Walk the audit doc's scenario battery (Scenarios 1–6 baseline/coverage + 7–10 edge cases)
-against B and C; weigh shape symmetry (B's strength) vs. derivation simplicity (C's strength)
-alongside the existing criteria; decide; then resolve Finding B (paused vs waiting-for
-vocabulary split) and Finding C (reconciliation with clean-work-unit pause-pointer header
-fields). After the walk, proceed to Operating Modes WU PRD creation
+**Next Action**: Operating Modes WU is unblocked for PRD creation. All pre-PRD design
+questions resolved. Next session should read `plan-arc-modes.md` fresh (significantly updated
+in the shift-lifecycle, status-header, skill-shape, and resolved-decisions sections) and
+proceed to `1_create-prd.md` for the Operating Modes WU
 
 ---
 
