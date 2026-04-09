@@ -17,14 +17,18 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Solo-dev blind spot audit captured as
-`analysis-modes-solo-dev-blind-spot-audit.md` — pre-PRD gating deliverable per plan-arc-modes.md
-§ Design Investigations
+**Last Completed**: Contributor-lifecycle stress test and `ADR-014` rediscovery — captured as
+`analysis-modes-contributor-lifecycle-stress-test.md`. Solo-dev audit § clarification #5
+revised in place; Option A ruled out from registry walk; mirror-structure principle formalized
+as `ADR-012` amendment; contributor briefing + user/README + template-contributing +
+docs/contributing + plan-arc-modes updated to carry the corrected framing
 **Blockers**: [none]
-**Next Action**: Follow-up session walks Scenarios 1–6 of
-analysis-modes-solo-dev-blind-spot-audit.md against Options A/B/C, resolves the multi-WU registry
-design question, then decides Findings B (paused vs waiting-for vocabulary split) and C
-(reconciliation with existing clean-work-unit pause-pointer header fields)
+**Next Action**: Registry walk narrowed to **Options B and C only** (Option A ruled out).
+Walk the audit doc's scenario battery (Scenarios 1–6 baseline/coverage + 7–10 edge cases)
+against B and C; weigh shape symmetry (B's strength) vs. derivation simplicity (C's strength)
+alongside the existing criteria; decide; then resolve Finding B (paused vs waiting-for
+vocabulary split) and Finding C (reconciliation with clean-work-unit pause-pointer header
+fields). After the walk, proceed to Operating Modes WU PRD creation
 
 ---
 
