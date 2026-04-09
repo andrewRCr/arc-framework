@@ -17,11 +17,14 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Operating Modes plan design iteration — Local mode resolved, shift lifecycle
-added, scope split to rebrand + modes WUs (plan-arc-modes.md, plan-arcd-rebrand.md)
+**Last Completed**: Solo-dev blind spot audit captured as
+`analysis-modes-solo-dev-blind-spot-audit.md` — pre-PRD gating deliverable per plan-arc-modes.md
+§ Design Investigations
 **Blockers**: [none]
-**Next Action**: Run solo-dev blind spot audit (gating pre-PRD deliverable) per
-plan-arc-modes.md § Design Investigations (Pre-PRD)
+**Next Action**: Follow-up session walks Scenarios 1–6 of
+analysis-modes-solo-dev-blind-spot-audit.md against Options A/B/C, resolves the multi-WU registry
+design question, then decides Findings B (paused vs waiting-for vocabulary split) and C
+(reconciliation with existing clean-work-unit pause-pointer header fields)
 
 ---
 
