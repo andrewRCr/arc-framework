@@ -17,10 +17,12 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Methodology Maturation (archived)
+**Last Completed**: Operating Modes plan design iteration — Local mode resolved, shift lifecycle
+added, scope split to rebrand + modes WUs (plan-arc-modes.md, plan-arcd-rebrand.md)
 **Blockers**: [none]
-**Next Action**: Continue plan exploration — local mode design (plan-arc-modes.md in backlog)
+**Next Action**: Run solo-dev blind spot audit (gating pre-PRD deliverable) per
+plan-arc-modes.md § Design Investigations (Pre-PRD)
 
 ---
 
-**Last Updated**: 2026-04-08
+**Last Updated**: 2026-04-09

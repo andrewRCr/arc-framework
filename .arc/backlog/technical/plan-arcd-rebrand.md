@@ -4,9 +4,10 @@
 and day-to-day workflow vocabulary where that remains the clearest fit. This document captures the
 problem, alternatives considered, the chosen naming boundary, and the implementation scope.
 
-**Status:** Draft (direction settled; go/no-go and execution timing still pending)
+**Status:** Draft (direction settled; scope expanded 2026-04-09 to absorb related config cleanup
+from Operating Modes WU)
 **Created:** 2026-04-07
-**Last reviewed:** 2026-04-08
+**Last reviewed:** 2026-04-09
 **Origin:** Adding docs site links to shipped `.arc/` documents exposed a branding problem: the
 ideal domain (`arc.dev`) and obvious alternatives (`arcframework.dev`) are unavailable or occupied
 by adjacent software/AI projects. That forced a re-examination of whether "ARC Framework" can work
@@ -19,6 +20,23 @@ touch; interleaving a rename would create unnecessary churn.
 **Downstream impact:** Operating Modes, WU5 (Public Release), and dogfooding all benefit from
 settled naming before they begin. If the rebrand proceeds, it should land before the repo goes
 public.
+
+**Scope expansion (2026-04-09):** During Operating Modes design, two items surfaced that compose
+naturally with the rebrand's existing content-sweep work and are being absorbed here:
+
+1. **`pm.mode: arc-in-git` → `pm.mode: arc-pm` rename.** The existing value names a tracking
+   mechanism (git tracking) rather than a semantic (ARC's built-in PM). Local mode exposes the
+   conflict: `.arc/` can exist in Local mode without being tracked, yet the developer may still
+   want ARC's PM artifacts. Renaming to `arc-pm` (ARC project management / ARC planning module)
+   names the semantic, not the mechanism.
+2. **Unified content sweep.** Sweeping the `arc-in-git` → `arc-pm` references in one pass with the
+   ARCd/ARC language audit avoids a second editorial churn event. Both sweeps touch the same files
+   and same phrasing surfaces.
+
+Extracting these from Operating Modes leaves that WU focused on its core concerns (shift lifecycle,
+Lite, Local, mode-aware content updates) and gives the rebrand WU a modest scope increment that
+stays within its "small-to-medium" estimate. See
+[`plan-arc-modes.md`](../feature/plan-arc-modes.md) — Configurability Architecture Cleanup section.
 
 ---
 
@@ -301,44 +319,56 @@ Claimed during planning (2026-04-07):
 ### Public/product-facing changes
 
 1. **CLI package rename**
-   - `@arc-framework/cli` → `@arcd/cli`
-   - Binary name `arc` → `arcd`
+    - `@arc-framework/cli` → `@arcd/cli`
+    - Binary name `arc` → `arcd`
 
 2. **Docs site and public brand**
-   - Configure `arcd.dev`
-   - Rebrand site title, README hero, release language, and public-facing docs to ARCd
-   - Explain the relationship between ARCd and ARC clearly in onboarding/getting-started
+    - Configure `arcd.dev`
+    - Rebrand site title, README hero, release language, and public-facing docs to ARCd
+    - Explain the relationship between ARCd and ARC clearly in onboarding/getting-started
 
 3. **Repository / org / links**
-   - Rename repo and update links as needed
-   - Use ARCd consistently as the public-facing name
+    - Rename repo and update links as needed
+    - Use ARCd consistently as the public-facing name
 
 4. **npm transition**
-   - If `@arc-framework/cli` has published versions, deprecate cleanly toward `@arcd/cli`
+    - If `@arc-framework/cli` has published versions, deprecate cleanly toward `@arcd/cli`
 
 ### Installed-system naming changes
 
 5. **Config seam**
-   - Rename `arc-config.yml` → `ARCd-config.yml`
-   - Update references, scripts, docs, hooks, and CLI behavior accordingly
+    - Rename `arc-config.yml` → `ARCd-config.yml`
+    - Update references, scripts, docs, hooks, and CLI behavior accordingly
+
+6. **`pm.mode` value rename (absorbed from Operating Modes WU)**
+    - Rename `pm.mode: arc-in-git` → `pm.mode: arc-pm` within the config schema
+    - Reason: the existing value names a tracking mechanism rather than a semantic. `arc-pm`
+      (ARC project management / ARC planning module) names the semantic. Distinctive in doc
+      notation — "(arc-pm only)" is unambiguous, where "(arc only)" would be confused with the
+      framework name
+    - Three-way merge handles existing installs via `arc update`
+    - Runner-up `builtin` considered but loses the explicit ARC linkage
 
 ### Installed-system naming that remains unchanged
 
-6. **Keep ARC workflow substrate**
-   - `.arc/`
-   - `arc-methods.md`
-   - `arc-extensions.md`
-   - `.ARC.md`
-   - `arc-*` skills
-   - `arc.*` git config keys
-   - `refs/notes/arc/user/`
+7. **Keep ARC workflow substrate**
+    - `.arc/`
+    - `arc-methods.md`
+    - `arc-extensions.md`
+    - `.ARC.md`
+    - `arc-*` skills
+    - `arc.*` git config keys
+    - `refs/notes/arc/user/`
 
 ### Content cleanup
 
-7. **Public/internal language audit**
-   - Update docs so public/product references say ARCd where appropriate
-   - Keep methodology/workflow references as ARC where that reads more naturally
-   - Remove wording that implies an accidental or inconsistent split
+8. **Unified public/internal language audit (expanded)**
+    - Update docs so public/product references say ARCd where appropriate
+    - Keep methodology/workflow references as ARC where that reads more naturally
+    - Remove wording that implies an accidental or inconsistent split
+    - **Absorbed from Operating Modes WU:** sweep all existing references to `arc-in-git`,
+      `(arc-in-git only)`, and similar notations, replacing with `arc-pm` / `(arc-pm only)` as
+      appropriate. Single editorial pass covering ARCd/ARC language AND pm.mode references.
 
 ---
 
@@ -347,13 +377,13 @@ Claimed during planning (2026-04-07):
 These do not block the naming direction, but should be resolved before implementation:
 
 1. **License decision**
-   - Formalize the license for the open-source implementation (MIT vs Apache 2.0)
+    - Formalize the license for the open-source implementation (MIT vs Apache 2.0)
 
 2. **Repository naming**
-   - Final public repo shape under the org/personal namespace
+    - Final public repo shape under the org/personal namespace
 
 3. **Public explanation wording**
-   - Finalize the one-sentence relationship explanation for homepage, README, and onboarding
+    - Finalize the one-sentence relationship explanation for homepage, README, and onboarding
 
 ---
 
