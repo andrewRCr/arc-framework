@@ -45,8 +45,9 @@ Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] 
 files with additional detail — read those too. Before proceeding, assess PRD-readiness: check for
 unresolved design decisions, open unknowns marked for future resolution, or missing concrete details
 that the PRD would need to specify. If the plan isn't ready, surface the gaps and resolve them (or
-return to plan refinement) before investing in PRD writing. Focus discovery (Step 3) on remaining
-gaps and ambiguities rather than broad exploration.
+return to plan refinement) before investing in PRD writing. Treat the plan as authoritative upstream
+exploration state — focus discovery (Step 3) on remaining gaps and ambiguities rather than broad
+rediscovery.
 
 **If no plan exists**: Proceed directly to discovery.
 
@@ -65,7 +66,8 @@ technical work leans toward system impact and migration strategy.
 Ask clarifying questions to establish the "what" and "why." The "how" comes during task generation
 and implementation. See the [discovery checklist][discovery-checklist] for comprehensive coverage.
 
-**With a plan**: Ask targeted questions — fill gaps, validate assumptions, resolve open items.
+**With a plan**: Ask targeted questions only — fill gaps, validate assumptions, and resolve open
+items that block formalization.
 
 **Without a plan**: Ask broader questions to establish scope:
 
