@@ -21,7 +21,7 @@ touch; interleaving a rename would create unnecessary churn.
 settled naming before they begin. If the rebrand proceeds, it should land before the repo goes
 public.
 
-**Scope expansion (2026-04-09):** During Operating Modes design, two items surfaced that compose
+**Scope expansion (2026-04-09):** During Operating Modes design, three items surfaced that compose
 naturally with the rebrand's existing content-sweep work and are being absorbed here:
 
 1. **`pm.mode: arc-in-git` → `pm.mode: arc-pm` rename.** The existing value names a tracking
@@ -32,6 +32,11 @@ naturally with the rebrand's existing content-sweep work and are being absorbed 
 2. **Unified content sweep.** Sweeping the `arc-in-git` → `arc-pm` references in one pass with the
    ARCd/ARC language audit avoids a second editorial churn event. Both sweeps touch the same files
    and same phrasing surfaces.
+3. **CLI command surface cleanup.** Rename `arc status` → `arcd health` (the command checks
+   framework installation health, not work state — the current name is a naming collision with the
+   planned `/arc-status` skill for mid-session work orientation in Operating Modes WU). Add an
+   explicit `arcd version` subcommand alongside the existing `--version` flag for discoverability.
+   See Implementation Scope § CLI command surface (absorbed from Operating Modes WU) below.
 
 Extracting these from Operating Modes leaves that WU focused on its core concerns (shift lifecycle,
 Lite, Local, mode-aware content updates) and gives the rebrand WU a modest scope increment that
@@ -349,9 +354,28 @@ Claimed during planning (2026-04-07):
     - Three-way merge handles existing installs via `arc update`
     - Runner-up `builtin` considered but loses the explicit ARC linkage
 
+7. **CLI command surface cleanup (absorbed from Operating Modes WU)**
+    - **Rename `arc status` → `arcd health`.** The current command checks installed framework
+      health (is the install up to date, are there local modifications, should you run `arc
+      update`), not work state. The name collides with the planned `/arc-status` skill for
+      mid-session work orientation (see `plan-arc-modes.md` § Shift Lifecycle → Skill Shape).
+      Renaming the CLI command to `arcd health` names its actual function (diagnostic check on
+      the install) and frees the `arc-status` name for the skill, which uses it more naturally.
+    - **Add explicit `arcd version` subcommand.** `arcd --version` already works via Commander's
+      built-in `.version()` wiring, but an explicit subcommand is idiomatic across developer
+      tooling (git, docker, kubectl) and improves discoverability for users who guess `tool
+      version` before `tool --version`. Trivial addition (~5 lines in `cli.ts`).
+    - **Files touched:** `packages/arc-framework/src/cli.ts`, `src/handlers/lifecycle.ts`,
+      `src/commands/status.ts` (rename to `health.ts`), related tests, `QUICK-REFERENCE.md`,
+      any docs that reference `arc status` as a command.
+    - **Three-way merge consideration:** `arc status` is a CLI invocation, not a config value.
+      No migration machinery needed — users either type the new command or get a "command not
+      found" and check docs. The rebrand already breaks `arc` → `arcd` muscle memory, so this
+      rename adds zero incremental user cost within the same migration moment.
+
 ### Installed-system naming that remains unchanged
 
-7. **Keep ARC workflow substrate**
+8. **Keep ARC workflow substrate**
     - `.arc/`
     - `arc-methods.md`
     - `arc-extensions.md`
@@ -362,7 +386,7 @@ Claimed during planning (2026-04-07):
 
 ### Content cleanup
 
-8. **Unified public/internal language audit (expanded)**
+9. **Unified public/internal language audit (expanded)**
     - Update docs so public/product references say ARCd where appropriate
     - Keep methodology/workflow references as ARC where that reads more naturally
     - Remove wording that implies an accidental or inconsistent split
