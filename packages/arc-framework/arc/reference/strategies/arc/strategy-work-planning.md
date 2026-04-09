@@ -105,6 +105,22 @@ value is in the thinking, not the format.
 **Optional template:** For those who want starting structure, see [template-plan.md][template-plan].
 Using the template is optional — many plans work better as unstructured working documents.
 
+### Planning continuity
+
+Planning is iterative and often spans multiple sessions. The default continuity mechanism is the
+planning artifact itself — if a `plan-*` document already exists, resume from that artifact rather
+than rediscovering the entire surrounding landscape by default.
+
+On resume, treat the plan as the primary continuity anchor:
+
+- read it first
+- identify what appears resolved, rough, stale, and still open
+- perform only the additional discovery needed to test stale assumptions or fill concrete gaps
+
+Broad rediscovery is appropriate for fresh planning efforts or when the user explicitly wants a new
+landscape pass. When a plan already exists, artifact-first is the safer default for both time and
+context budget.
+
 ### Supplemental Files
 
 Plans may be accompanied by supplemental files in the same directory:
@@ -135,8 +151,9 @@ course-correction is cheap.
 7. **What's the minimum viable version?** The smallest useful increment.
 
 **For AI agents:** Treat these as prompts for discovery questions to ask the human before drafting
-requirements. Better discovery produces better PRDs — resist the pull to generate output before
-understanding the problem.
+requirements. Revisit them iteratively as the conversation develops — especially where ambiguity,
+assumptions, or trade-offs appear. Better discovery produces better PRDs — resist the pull to
+generate output before understanding the problem.
 
 ---
 
