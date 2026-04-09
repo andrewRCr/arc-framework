@@ -64,6 +64,13 @@ captured below as framing decisions this document carries forward into the follo
 These are treated as resolved for the follow-up session. They came out of the first-pass audit
 conversation and narrow the problem space.
 
+> **Revision history:** Clarification #5 was materially revised on 2026-04-09 after rediscovering
+> `ADR-014` § Contributor planning during the follow-up session. The original framing
+> ("contributors do not interact with WU state") was too strong and dismissed legitimate
+> contributor use cases the framework already supports by design. See § 5 for the corrected form.
+> Downstream findings and recommended next steps should be read with the revised understanding
+> in mind.
+
 ### 1. Planning is not a work unit
 
 A work unit begins at `activate-work-unit`, when the PRD and task list are promoted from the
@@ -116,17 +123,45 @@ Orientation derives and displays pause age. On long pauses (threshold TBD in det
 may surface a "re-read PRD/task list — your mental model may be stale" prompt. This is the shape
 of the original "M1 pause age" finding, simplified.
 
-### 5. Contributors do not interact with WU state
+### 5. Contributors own their planning state in `user/{identity}/`, not upstream's tracked state
 
-The role boundary in `ADR-014` and `AGENT-BRIEFING.CONTRIBUTOR` is firm: contributors are external
-— they fix issues, submit PRs, use the `Context: contribution (...)` commit footer. They do not
-manage WUs, do not see `WORK-STATUS.md` in their session-init, do not need to know what's paused.
-If a contributor's PR conflicts with code a maintainer has paused mid-WU, that is a merge conflict
-the maintainer handles on resume — normal git, not ARC's concern.
+> **Revised 2026-04-09** — the original framing ("contributors do not interact with WU state")
+> was materially wrong. Rediscovery of `ADR-014` § Contributor planning during the follow-up
+> session established the corrected form below.
 
-**Implication:** The audit's original "M3 contributor visibility into paused WUs" finding
-dissolves. Dropped entirely. Any future concern about "OSS contributors coordinating around
-maintainer-paused work" belongs to a different discussion, not this audit.
+The boundary is **ownership of tracked state**, not the presence of WU concepts. Per `ADR-014`
+§ Contributor planning and `AGENT-BRIEFING.CONTRIBUTOR`:
+
+- Contributors **do not** touch upstream's tracked planning artifacts (`active/`, `backlog/`,
+  project `WORK-STATUS.md`). Pre-commit hooks warn on staged files in protected paths;
+  session-init skips loading upstream WU state.
+- Contributors **can** run ARC's full planning pipeline — sessions, task lists, shift, handoffs
+  — scoped entirely to `.arc/user/{identity}/`. ADR-014's file sketch:
+
+    ```text
+    .arc/user/{identity}/
+      SESSION-NOTES.md       ← already exists
+      WORK-STATUS.md         ← contributor's work state
+      active/
+        tasks-*.md           ← contributor's task list
+    ```
+
+- Session-init in contributor mode already checks for `user/{identity}/WORK-STATUS.md` and
+  loads it if present. The infrastructure to _read_ contributor planning state exists; the
+  workflows to _write_ a full lifecycle into that tree are partially unimplemented. `ADR-014`
+  § Risks explicitly scoped the lightweight contributor path (no local planning) as the expected
+  common case; the full lifecycle was left as latent capability, to be finished when a WU
+  required it.
+
+**Implication:** The audit's original "M3 contributor visibility into paused WUs" finding does
+not dissolve outright — it transforms. Contributors run shift over their own state; they don't
+need visibility into upstream's paused WUs because the two state trees are independent. But the
+multi-WU registry decision (Finding A) must compose cleanly with the committed fact that
+contributor state already lives in `user/{identity}/`, and the Operating Modes WU inherits the
+task of finishing `ADR-014`'s latent contributor lifecycle capability where Operating Modes
+features (shift, registry, Local mode) intersect with it. The follow-up session's stress test
+walks these intersections explicitly and classifies gaps by cost before deciding what to bake
+in for launch vs. defer to a follow-up WU.
 
 ### 6. `arc-shift` is a skill, not a CLI command
 
@@ -157,7 +192,7 @@ walk against each.
 explicitly argues against "blocked" as a first-class state — it's opaque and encourages WIP
 violations. GTD's "Waiting For" list is the canonical prior art for externally-blocked items.
 Empirical research on PR review latency (CMU, arXiv, IEEE TSE) treats "awaiting review" as
-categorically distinct from "in progress" because the developer cannot unblock it. Work *occupies*
+categorically distinct from "in progress" because the developer cannot unblock it. Work _occupies_
 the waiting state; it does not "go back to in progress."
 
 **What "paused" currently conflates in the plan doc:**
@@ -312,11 +347,28 @@ Local mode section is sufficient).
 
 ## Open Design Space: Where Does Multi-WU State Live?
 
-**This is the central pre-PRD decision.** The audit identifies three viable options. Each has
-distinct tradeoffs that only become visible when scenarios are walked against them concretely. The
-follow-up session should walk the scenario battery below against all three (at least) and decide.
+**This is the central pre-PRD decision.** The audit originally identified three viable options.
+Each has distinct tradeoffs that only become visible when scenarios are walked against them
+concretely.
 
-### Option A — In Flight registry inside `WORK-STATUS.md` (plan doc's current sketch)
+> **Update (2026-04-09):** Option A was ruled out by the contributor-lifecycle stress test in
+> `analysis-modes-contributor-lifecycle-stress-test.md` § S5. The contributor lens revealed that
+> Option A creates dual unbridgeable registries when a developer operates under both roles
+> (common in solo-ARC self-contribution patterns) — a structural problem, not a preference. The
+> follow-up registry walk is narrowed to **Options B and C only**. The Option A section below is
+> preserved for historical reference and to document _why_ it was ruled out, but it should not
+> be walked against the scenario battery.
+
+### Option A — In Flight registry inside `WORK-STATUS.md` (plan doc's original sketch) [RULED OUT]
+
+> **Ruled out 2026-04-09.** See the contributor-lifecycle stress test for the full rationale.
+> Summary: contributor state lives in `user/{identity}/WORK-STATUS.md` per `ADR-014`; maintainer
+> state lives in `.arc/active/WORK-STATUS.md`. Option A would place an In-Flight registry in
+> both files with no join mechanism. A developer who operates under both roles — e.g., a solo
+> maintainer who self-contributes via contributor mode, or a future role-transition scenario —
+> ends up with dual registries that cannot be reconciled. The shape does not compose with
+> `ADR-014`'s committed per-dev contributor state, which is load-bearing framework behavior.
+> Retained below for historical context.
 
 **Shape:** `WORK-STATUS.md` gains `## In Flight` and `## Active Focus` sections. In Flight is the
 authoritative registry of WUs in `active/` and their current states. Active Focus is the single
@@ -405,7 +457,7 @@ paused, what was in their head) stays in `SESSION-NOTES.md` unchanged.
 - Session-init does more file reads to discover paused state (N task lists instead of one
   registry). Trivial in practice.
 - In Local Full, `.arc/active/` contains task lists for all branches (it's not branch-segregated
-  since `.arc/` is untracked), so the scan finds them all — which is actually a *feature*, not a
+  since `.arc/` is untracked), so the scan finds them all — which is actually a _feature_, not a
   bug (visibility into all Local paused WUs without branch switching).
 - In tracked Full, paused WUs on other branches are invisible to session-init until you switch
   branches. This may be desirable (scope info to current branch) or undesirable (lose cross-branch
@@ -428,10 +480,19 @@ paused, what was in their head) stays in `SESSION-NOTES.md` unchanged.
 
 The audit's current lean is **Option C, possibly composed with a small per-dev summary (part of
 Option B)** — but this is a lean, not a recommendation. The scenario battery below should be walked
-against all three before the follow-up session commits. Option C's artifact-first property is
-philosophically consistent with the rest of ARC ("state lives where it's relevant"), and reusing
-the dormant pause-pointer fields is a nice reuse. But Option B is also strong, and the tracked-Full
-cross-branch visibility question is real and the audit has no decisive evidence on it.
+against the remaining options (B and C after the 2026-04-09 Option A rule-out) before the
+follow-up session commits. Option C's artifact-first property is philosophically consistent with
+the rest of ARC ("state lives where it's relevant"), and reusing the dormant pause-pointer fields
+is a nice reuse. But Option B is also strong, and the tracked-Full cross-branch visibility
+question is real and the audit has no decisive evidence on it.
+
+> **Update (2026-04-09):** The contributor-lifecycle stress test added a new criterion to
+> consider during the walk — **cross-role shape symmetry**. Option B gains shape symmetry as a
+> real positive: maintainers and contributors use the same mechanism, same file pattern, same
+> code path, just different per-dev trees. Option C remains role-agnostic by design (derivation
+> works identically for any role's artifacts). Both remain viable; the walk should explicitly
+> weigh shape symmetry (B's strength) vs. derivation simplicity (C's strength) alongside the
+> existing criteria.
 
 Decision criteria the follow-up session should explicitly consider:
 
@@ -448,12 +509,17 @@ Decision criteria the follow-up session should explicitly consider:
 
 ## Scenario Battery for Follow-Up Session
 
-These are the scenarios to walk against Options A/B/C. They are ordered from baseline to edge case
-so the follow-up session can stop early if an option fails a baseline. Each scenario should be
-walked step by step: what files change, what does session-init show, what merges happen, what
-could go wrong.
+These are the scenarios to walk against the registry options. They are ordered from baseline to
+edge case so the follow-up session can stop early if an option fails a baseline. Each scenario
+should be walked step by step: what files change, what does session-init show, what merges happen,
+what could go wrong.
 
 The goal is not exhaustive coverage — it is to catch option failures against realistic cases.
+
+> **Scope update (2026-04-09):** The walk is now scoped to **Options B and C only** after the
+> contributor-lifecycle stress test ruled out Option A. Each scenario below retains its original
+> Option A walk line for historical context (showing the failure mode), but the follow-up
+> session should actively walk only B and C.
 
 ### Baseline scenarios
 
