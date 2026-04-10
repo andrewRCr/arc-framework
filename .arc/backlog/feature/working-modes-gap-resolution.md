@@ -345,20 +345,161 @@ is false in the direction Lite needs. Four candidate approaches:
 **User position (2026-04-10):** Whatever's cleanest long term, regardless of effort. Composition
 and inverting the baseline sound right, but needs deeper analysis.
 
-**Outstanding analysis (this is Tier 1 — highest leverage):**
+**Current state (read 2026-04-10 — bridge into next session):**
 
-- Evaluate each of the four approaches against: implementation effort, future maintenance,
-  extensibility to additional modes (Local, future modes), test impact, recipe-file duplication
-  risk, clarity for adopters reading the recipe.
-- Read `src/lib/manifest/apply.ts`, `merge.ts`, `plan.ts` to understand downstream impact of
-  each approach — which integrates most cleanly with the existing update/diff machinery.
-- Read `src/lib/template/recipe.ts` condition evaluation — is there already a pattern for
-  inversion, or would it be net-new?
-- Consider: does the answer here set precedent for future modes (mode axis proliferation)?
-- Consider: does this become its own `analysis-*` doc given the depth needed?
+Factual landscape pass over the recipe + manifest pipeline. No evaluation of the four
+approaches yet — that's the next session's synthesis work. Purpose here is to give the
+evaluation a concrete foundation so it doesn't spend its first half re-deriving how the code
+works.
 
-**Potential spawn:** This may warrant its own durable analysis file
-(`analysis-modes-recipe-architecture.md`) given the depth and breadth. Decide during work.
+**The single file-resolution site.** `resolveFileList()` in `lib/classification.ts` (lines
+~160–175) is the only place where the final file list is constructed. It's a pure function:
+
+```text
+files = Set(recipe.include_files ?? [])
+for each (condition, entry) in recipe.conditions:
+    if evaluateCondition(condition, config):
+        files.add(entry.include_files...)
+return [...files]
+```
+
+Strictly additive: baseline ∪ matching conditions. No subtraction, no precedence rules, no
+override semantics. Any of the four approaches has to either modify this function, add a
+post-processing step, or change the recipe schema so this function's logic shifts.
+
+**Recipe schema (TypeScript, `lib/types.ts`):**
+
+```ts
+interface RecipeCondition {
+  include_files: string[];   // only field
+}
+
+interface Recipe {
+  include_files?: string[];                       // unconditional baseline
+  computed_tokens?: Record<string, string>;
+  prompts: RecipePrompt[];
+  conditions: Record<string, RecipeCondition>;    // keyed by "key == value" strings
+}
+```
+
+`validateRecipe()` in `template/recipe.ts` enforces exactly this shape. Any new field
+(e.g., `exclude_files`, `lifecycle_files`) requires matching changes in `types.ts` AND
+`validateRecipe()`.
+
+**Condition evaluator (`evaluateCondition()` in `template/recipe.ts`, lines ~188–209):**
+Supports two operators — `==` (exact string equality) and `includes` (comma-separated list
+membership, for multiselect prompt values like `tools`). Returns false if the key is
+undefined in the config map. The operator set is fixed and easy to extend (single regex +
+branch), but extensions would cascade into `validateRecipe()`'s condition-key check.
+
+**Template-render `arc:if` mechanism (`template/render.ts`):** Separate from recipe
+conditions. Operators are `==` and `!=` (no `includes`). Uses HTML comment directives
+(`<!-- arc:if KEY == VALUE -->` ... `<!-- arc:endif -->`). Processes at install time for
+`.template.md` files and at update time for reconstructing pristine baselines. Collapses
+blank lines after stripping; nested `arc:if` inside an excluded outer block stays excluded.
+The two mechanisms (recipe conditions and template conditionals) are intentionally distinct —
+recipe works at install time on whole files, template conditionals work at render time on
+content blocks within files.
+
+**Three consumers of condition-included files** (code-duplication risk for schema changes):
+
+- `commands/init.ts` — calls `resolveFileList(recipe, config)` directly (line ~135), then
+  special-cases `ARC_IN_GIT_CONDITION` to build `arcInGitFiles` Set for layer classification
+  (lines ~141–146).
+- `commands/update.ts` — iterates over `recipe.conditions[condName].include_files` directly
+  for its own file-list reconstruction (line ~177).
+- `commands/reconfigure.ts` — similar direct iteration (line ~160).
+
+**`ARC_IN_GIT_CONDITION` is already special-cased.** The code already treats one condition
+differently from others for layer classification. Precedent — any new install-type condition
+would likely need similar special treatment, since install mode affects layer/classification
+semantics just like `pm.mode == arc-in-git` does.
+
+**Manifest schema (`InstallConfig` in `lib/types.ts`):**
+
+```ts
+interface InstallConfig {
+  project_name: string;
+  pm_mode: string;
+  tools: string[];
+  team_mode?: boolean;
+}
+```
+
+Four fields. Adding `install_type` (or equivalent) is a schema-version bump and cascades
+into: this interface, `validateManifest()` in `manifest/store.ts`, the manifest construction
+in `init.ts` (line ~197), the manifest re-build in `reconfigure.ts`, the manifest
+carry-forward in `update.ts`, and possibly migration logic for existing manifests at the old
+schema version.
+
+**Change plan pipeline** (`manifest/plan.ts` + `manifest/update-files.ts` + `manifest/apply.ts`):
+
+- `buildChangePlan()` is pure — diffs old manifest files against new file list from
+  `resolveFileList()`, produces `additions`, `removals`, `merges`, `skipped`.
+- `diffFileLists()` in `update-files.ts` is a simple set difference (`keep` / `added` /
+  `removed`).
+- `apply.ts` consumes the plan:
+    - **Additions:** render + write + update manifest.
+    - **Removals:** `safeUnlink` for Framework-class files; Configurable files go to
+      `keptForReview` (adopter-edited, needs human review before deletion); Scaffolded files
+      are left untouched (adopter-owned).
+    - **Merges:** three-way merge via `mergeFileContents()` in `manifest/merge.ts`.
+
+**Removals work today.** Infrastructure exists. This is critical for Finding #14 (Full → Lite
+downgrade) — the reconfigure path can already remove files when the new file list is smaller
+than the old one. What changes is *how* files get on the removal list (via recipe or
+conditional), not *whether* they can be removed.
+
+**Pristine store dependency.** The update pipeline reconstructs pristine baselines for
+three-way merges by re-rendering templates against the stored `install_config`. If `InstallConfig`
+gains an `install_type` field, pristine reconstruction during update needs to feed it through to
+`resolveFileList()` and `renderConditionals()` to reproduce the original rendered content. This
+couples install-type through the full update lifecycle, not just init.
+
+**Constraint summary for the four approaches:**
+
+| Constraint                        | Approach 1 (invert)      | Approach 2 (exclude_files)   | Approach 3 (two recipes)           | Approach 4 (bucket + gate)              |
+|-----------------------------------|--------------------------|------------------------------|------------------------------------|-----------------------------------------|
+| Recipe schema change              | No                       | Yes (`exclude_files` field)  | No                                 | Yes (e.g., `lifecycle_files` field)     |
+| `resolveFileList()` change        | No                       | Yes (set subtraction)        | No                                 | Yes (conditional append)                |
+| `validateRecipe()` change         | No                       | Yes                          | No                                 | Yes                                     |
+| New recipe-level operators        | No                       | No                           | No                                 | No                                      |
+| `InstallConfig` change            | Yes (`install_type`)     | Yes (`install_type`)         | Yes (`install_type`)               | Yes (`install_type`)                    |
+| Manifest schema version bump      | Yes                      | Yes                          | Yes                                | Yes                                     |
+| init.ts/update.ts/reconfigure.ts  | Light (3 call sites)     | Medium (set semantics)       | Medium (recipe selection step)     | Medium (new field handling)             |
+| Recipe file count                 | 1 (same file)            | 1 (same file)                | 2 (duplicated baselines)           | 1 (same file)                           |
+| Operator precedence question      | N/A                      | Yes (exclude vs include)     | N/A                                | N/A                                     |
+| Future mode extensibility         | Additive conditions      | Additive + subtractive       | Per-recipe fragmentation           | One bucket per axis (doesn't scale)     |
+
+All four require `install_type` in `InstallConfig` and a schema version bump — that part is
+common and unavoidable. The differentiation lives in the recipe-schema + `resolveFileList()`
+layer.
+
+**Not yet established (will need a quick scan during next session if relevant):**
+
+- Test file inventory and which specific tests exercise `resolveFileList()`, `validateRecipe()`,
+  and the three command paths. Affects change-size estimate.
+- Exact shape of `fileLayer()` classification function — only read the caller context, not
+  the function body. Relevant to Approach 1's "invert baseline" cleanliness, since lifecycle
+  files currently classify into a specific layer.
+- Whether `reconfigure.ts` has any pattern for "install_config field changed" vs "install_config
+  field same, just re-render" — matters for the Lite ↔ Full reconfigure path and Finding #14
+  orphan handling.
+
+**Next session starting point:** Four-approach evaluation against the constraint table above,
+ranked by cleanliness (user's stated criterion) and secondarily by implementation effort. Decision
+on whether this evaluation deserves its own `analysis-*` doc remains open — likely yes given the
+depth of the synthesis needed and the cross-cutting code impact.
+
+**Outstanding analysis (what's left after the current-state pass):**
+
+- Four-approach evaluation against the constraint table (above).
+- Decide: single `analysis-*` file or keep in the working doc.
+- Final recommendation with rationale.
+- Migration into plan doc.
+
+**Potential spawn:** Still open — may warrant its own `analysis-modes-recipe-architecture.md`
+given the breadth of cross-cutting code impact. Decide at the start of next session's evaluation.
 
 **Resolution:** *pending*
 
@@ -879,3 +1020,43 @@ those findings come up.
 
 **Next:** Decision point — migrate Findings #1 and #3 into `plan-arc-modes.md` now, or
 continue to the next Tier 1 finding (#8 recipe architecture) and batch migrations later.
+
+**2026-04-10 — Finding #8 current-state bridge**
+
+Read the recipe + manifest pipeline source to produce a factual landscape for Finding #8
+(recipe architecture). Deliberately no evaluation of the four candidate approaches — that's
+reserved for the next session's focused synthesis work. Intent: give the evaluation a
+concrete foundation so it doesn't spend its first half re-deriving how the code works.
+
+Files read: `lib/template/recipe.ts`, `lib/template/render.ts`, `lib/manifest/plan.ts`,
+`lib/manifest/update-files.ts`, `lib/manifest/merge.ts`, relevant portions of
+`lib/classification.ts` (`resolveFileList`), `commands/init.ts` (manifest construction),
+`lib/manifest/apply.ts` (removals path).
+
+Key facts established and captured in Finding #8's new **Current state** subsection:
+
+- `resolveFileList()` is the single file-resolution site. Strictly additive.
+- Recipe schema has no `exclude_files` or similar; only `include_files` per condition.
+- `evaluateCondition()` operator set is `==` and `includes`; easy to extend.
+- Template `arc:if` is a separate mechanism (`==`, `!=`) for in-content conditionals.
+- Three consumers duplicate condition iteration (init, update, reconfigure) — code-dup risk
+  for any schema change.
+- `ARC_IN_GIT_CONDITION` is already special-cased for layer classification — precedent.
+- `InstallConfig` has four fields; adding `install_type` is a schema-version bump common to
+  all four approaches.
+- Removals work today via `buildChangePlan()` + `apply.ts`; what changes between approaches
+  is *how* files end up on the removal list, not *whether* removal is possible.
+- Pristine store reconstruction during update depends on stored `install_config` — new
+  field needs to flow through the full update lifecycle.
+
+Constraint table produced comparing all four approaches on schema impact, call-site impact,
+operator precedence concerns, and future extensibility. Common constraints (InstallConfig
+field, schema version bump) factored out — differentiation lives in the recipe-schema +
+`resolveFileList()` layer.
+
+**Not yet read** (flagged for next session if relevant): test coverage of recipe/manifest
+paths, `fileLayer()` function body, `reconfigure.ts` install_config-change handling.
+
+**Next session entry point:** Four-approach evaluation against the constraint table. Decide
+early whether the evaluation deserves an `analysis-*` durable doc or stays in-line in the
+working doc.
