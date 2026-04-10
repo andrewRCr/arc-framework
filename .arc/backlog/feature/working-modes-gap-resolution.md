@@ -50,8 +50,8 @@ Tier determines what unblocks what.
 - **#2, #4, #5, #6** — All gate on #1 (now resolved and migrated).
 - *#9 (Conditional prompts orchestration) resolved and migrated 2026-04-10. See
   [`plan-arc-modes.md`][plan-doc] § Prompt Orchestration and Recipe Authority.*
-- **#10** — Lite `arc-config.yml` reduction mechanism. Depends on #8 mechanism (now resolved
-  and migrated).
+- *#10 (Lite `arc-config.yml` reduction mechanism) resolved and migrated 2026-04-10. See
+  [`plan-arc-modes.md`][plan-doc] § Lite Config Template Mechanism.*
 - **#12, R6** (OQ15 initial-setup workflows) — gate on #8 (now resolved and migrated).
 
 **Tier 4 — validation + inventory:**
@@ -191,69 +191,6 @@ that Full ARC would solve, they should know."
 **Parking note:** Orthogonal to mode architecture decisions. Can resolve in parallel or even
 post-PRD without blocking the rest of the plan. Review before PRD lock-in to confirm it doesn't
 impose new architectural requirements.
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
-
----
-
-### Finding 10 — Lite `arc-config.yml` reduction mechanism · 🟡
-
-**Origin (2026-04-10):** Surfaced during Finding #8 evaluation. `plan-arc-modes.md` lines
-410-412 state: "Lite ships a reduced `arc-config.yml` that omits irrelevant settings (`pm.mode`,
-`team.mode`, and possibly others). This keeps the config honest about what Lite actually
-configures rather than showing options that don't apply." The current recipe includes
-`system/arc-config.yml` unconditionally in the baseline as a plain `.yml` file — not a
-`.template.md`, so template render-time `arc:if` directives don't apply to it. Finding #8's
-mechanism (Approach 1b) resolves file inclusion but doesn't specify how a single config file
-produces different content per install type.
-
-**Question:** How does Lite get its reduced `arc-config.yml` template?
-
-**Candidate approaches:**
-
-1. **Two separate files in the recipe.** Move current `arc-config.yml` out of baseline. Put
-   Full version under `install.type == full` and Lite version under `install.type == lite`.
-   Two files, some duplication of universal settings. Simplest — uses Finding #8's mechanism
-   unchanged.
-2. **Rename to `arc-config.template.yml` and use `arc:if` directives.** Allow the template
-   render pipeline to process non-`.md` templates, then annotate the current file with
-   `arc:if install.type == full` blocks around `pm.mode` / `team.mode` sections. Single file,
-   DRY, but requires either extending `.template.md` matching to include `.template.yml`, or
-   adding a new `.template.*` generalization.
-3. **CLI-generated config content.** `init.ts` writes `arc-config.yml` programmatically based
-   on `install_config`. Splits config source of truth between a template and code. Worst option.
-4. **Hybrid: template fragments + stitching.** Break `arc-config.yml` into sections (universal,
-   Full-only, Lite-only) and stitch them at init. Over-engineered for the problem scale.
-
-**Lean:** Approach 2 (`arc-config.template.yml` with `arc:if`). The template render pipeline's
-`arc:if` mechanism already supports exactly this pattern; the blocker is the `.md`-only file
-matching. That's a small, localized extension to the render pipeline. Single source of truth
-for arc-config content, cleaner than two-file duplication.
-
-**Outstanding analysis:**
-
-- Read `template/render.ts` `.template.md` matching — confirm the file extension gate and
-  estimate the scope of generalizing it to `.template.*`.
-- Walk current `arc-config.yml` section-by-section — which sections are universal, which are
-  `install.type`-gated? Expected gated sections: `pm.mode`, `team.mode` settings blocks.
-  Verify nothing else is mode-specific.
-- Check whether `arc-config.yml` participates in any hash-based pristine tracking today — if
-  renaming to `arc-config.template.yml` affects manifest file paths, that's a migration
-  concern.
-- Evaluate the two-file approach as fallback: if render pipeline extension proves fraught,
-  Approach 1 is a mechanical fallback that uses Finding #8's mechanism unchanged.
-
-**Relationship to Finding #8:** Sibling concern. Finding #8 decided the mechanism for *file
-inclusion*; this finding decides the mechanism for *content reduction within a single installed
-file*. Both touch the recipe/template layer but resolve different axes.
-
-**Relationship to Finding #1:** Finding #1 already noted that `template-prd.md` uses template
-`arc:if` for Lite cuts (Document History, `Type:` field, Status/Related Work) — same pattern
-applies here if the render pipeline extension lands. Consistency bonus if Approach 2 wins.
-
-**Tier:** 3 (detail once Tier 1 lands). Gates on Finding #8 mechanism decision (now resolved).
 
 **Resolution:** *pending*
 
@@ -1004,6 +941,101 @@ candidate. Entry point: read `src/lib/template/render.ts` to assess whether exte
 between Approach 2 (`arc-config.template.yml` + render pipeline extension) and Approach 1
 (two-file fallback via Finding #8's mechanism). Framing C's "recipe as authoritative" direction
 composes with Approach 2 if render pipeline extension is viable.
+
+**2026-04-10 — Finding #10 resolved and migrated**
+
+Resolved Finding #10 (Lite `arc-config.yml` reduction mechanism) and migrated directly into
+`plan-arc-modes.md` as a new `### Lite Config Template Mechanism` subsection under
+`## Design Investigations (Pre-PRD)`. Same direct-to-plan-doc pattern as Finding #9 — no
+intermediate working-doc draft because the resolution was crisp from analysis and the
+entry-point code read surfaced a reframe that collapsed most of the outstanding checklist.
+
+**Key reframe from the code-read pass.** The session's lean (from the prior handoff) treated
+"generalize `.template.md` matching to `.template.*`" as the Approach 2 blocker question. The
+read of `lib/classification.ts:40-42` showed the gate is ALREADY extension-agnostic —
+`needsRendering()` matches `/\.template\.[^/]+$/`. Reading `lib/template/render.ts` confirmed
+`renderConditionals()` has zero markdown assumptions (line split, HTML-comment directives,
+blank-line collapse — all YAML-safe). **No render pipeline extension is required.** This
+reframe dropped Approach 2's cost to near-zero and eliminated the case for Approach 1 as a
+fallback.
+
+**Remaining risk landscape** after the reframe, evaluated in order:
+
+1. **Composition-order behavior change (primary risk).** Today `arc-config.yml` bypasses
+   `renderTokens()` and `renderConditionals()` entirely — only `renderConfigOverrides()` runs.
+   Approach 2 introduces the two skipped passes. Grep confirmed `arc-config.yml` contains zero
+   `{{...}}` and zero `<!-- ... -->` strings today, so both new passes are no-ops against
+   current content. Risk near-zero for greenfield installs. For the update path, the existing
+   three-way merge handles adopter customizations via the Configurable-file pipeline
+   (`applyChangePlan()` in `lib/manifest/apply.ts`), which rebuilds pristine from the new
+   template against stored `install_config`. Standard Configurable-file lifecycle; no
+   migration cost.
+2. **Manifest rename impact.** Manifest entries are keyed by **output path**
+   (`system/arc-config.yml`), which is stable across the template source rename. No schema
+   bump, no migration function. Trace through `buildManifestFiles()` confirmed the key path.
+3. **Gated section enumeration.** Walked `arc-config.yml` end-to-end. Gated set: `pm.mode`
+   section + `team.mode` section — two contiguous blocks. Everything else (branch, commit,
+   merge, hooks, review, platform, user) is universal. `hooks.contributor_protected_paths`
+   stays universal because the regex default harmlessly no-ops against absent paths.
+4. **Finding #1 composition check.** Finding #1's § Template delivery mechanism left the
+   single-file-with-`arc:if`-vs-two-file-variant choice open as an implementation-phase
+   detail. Finding #10's adoption of Approach 2 closes Finding #1's open sub-decision by
+   force of consistency: same render pipeline, same `arc:if` mechanism, no split of "how
+   template content is mode-gated" across two mechanisms.
+
+**Decision adopted:** Approach 2 — rename `system/arc-config.yml` → `system/arc-config.template.yml`
+and gate the two Full-only sections with `<!-- arc:if install.type == full -->` directives.
+Composition order: `renderConfigOverrides(renderConditionals(renderTokens(raw, tokens), config), overrides)`.
+Approaches 1 (two files), 3 (CLI-generated), and 4 (fragment + stitching) rejected with
+reasoning captured in the plan doc.
+
+**Call-site changes:** `renderTemplate()` in `lib/manifest/apply.ts` and its inline mirror in
+`commands/init.ts` fall through to the normal `needsRendering()` branch and apply
+`renderConfigOverrides()` as a post-pass. One conditional restructured, no new code paths.
+`ARC_CONFIG_TEMPLATE_PATH` constant in `lib/constants.ts:11` flips from `"system/arc-config.yml"`
+to `"system/arc-config.template.yml"`. `CONFIGURABLE_FILES` set entry in
+`lib/classification.ts:74` flips to match.
+
+**Plan doc landing points:**
+
+- **Finding #10** → new `### Lite Config Template Mechanism` subsection under `## Design
+  Investigations (Pre-PRD)`, immediately after `### Prompt Orchestration and Recipe Authority`
+  (sibling placement to Findings #8 and #9 — three mechanism-depth analyses of how
+  `install.type` drives downstream effects).
+- **Cascading sweeps** (four spots):
+    - § Configuration Identity "Lite ships a reduced `arc-config.yml`" bullet — updated to
+      point at the new subsection instead of referencing the working-doc finding as "in flight."
+    - § Installation Type Recipe Mechanism § Feedforward "`arc-config.yml` treatment" bullet
+      — resolved via the new subsection, no longer pending.
+    - § The Lite PRD § Template delivery mechanism — converted from pending single-file-vs-
+      variant decision to "landed as single-file-with-`arc:if` for consistency with
+      `arc-config.template.yml`."
+    - § Configuration and Installation § Lite config template passage — updated mechanism
+      description to reference the new subsection.
+    - § Configurability Architecture Cleanup § Mode-Aware Config Template Mechanism — added
+      cross-reference at the top clarifying that the "layer" framing is conceptual and the
+      mechanism is flat per-axis `arc:if` directives.
+- **Resolved Decisions table** — added 10 new rows covering: mechanism choice, render
+  pipeline already extension-agnostic reframe, composition order, call-site restructuring
+  pattern, gated section set, `ARC_CONFIG_TEMPLATE_PATH` rename, manifest lifecycle during
+  rename, Approach 1 rejection reasoning, Finding #1 closure via consistency, ADR deferral.
+- **Open Questions** — no entries to resolve (working-doc Finding #10 didn't have a parallel
+  OQ in the plan doc).
+
+**Working doc shrinkage:** Removed Finding #10 section entirely (~62 lines). Updated
+Sequencing § Tier 3 to mark #10 resolved and migrated. Tier 3 now carries only #2, #4, #5,
+\#6, and #12/R6 pending resolution.
+
+**Tier 1 fully drained.** All three Tier 1 findings plus the two Tier 3 adjacent-concern
+companions (#9, #10) are now resolved and migrated. Attention moves to Tier 2 smalls (#13,
+\#7, #16).
+
+**Next:** Tier 2 smalls. **#13** (Integrate × non-complete WU states) is a state-machine
+sketch with small scope. **#7** (Guardrail firing mechanism) is currently ⚪ parked; can
+resume in parallel or later. **#16** (Full → Lite downgrade) is mostly 🟢 and just needs a
+confirmation pass — Framing C from Finding #9 provides the reusable helper spine for whatever
+CLI surface it lands on, and Finding #10's rename + composition pattern composes cleanly with
+a downgrade re-render.
 
 ---
 

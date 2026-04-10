@@ -106,10 +106,11 @@ even exist. The decisions:
   is specified in [Prompt Orchestration and Recipe
   Authority](#prompt-orchestration-and-recipe-authority) below.
 - **Lite ships a reduced `arc-config.yml`** — containing only settings relevant to Lite, rather than
-  conditionalizing the Full config in place. The recipe-side mechanism that drives mode-conditional
-  file installation is specified below; the delivery mechanism for the reduced config file itself
-  (single-file-with-`arc:if` directives vs. a two-file variant) is a distinct design decision still
-  in flight — see Finding #10 in [`working-modes-gap-resolution.md`][working-gap-resolution].
+  conditionalizing the Full config in place. The recipe-side mechanism for whole-file installation
+  is specified in [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) below;
+  the mechanism for **within-file** content gating — how a single installed template produces
+  different content per install type via `arc:if` directives — is specified in [Lite Config Template
+  Mechanism](#lite-config-template-mechanism) below.
 
 **Still open:** Lite + `pm.mode: external` interaction. There's no reason you couldn't use Lite execution
 discipline with an external tracker — but what concrete value does `external` mode provide in Lite, given
@@ -429,9 +430,10 @@ decisions. Final bucket confirmation happens as each dependent decision lands.
   needed," two files go under respective `install.type` conditions. If "unified with minor cuts,"
   they stay in the baseline with template `arc:if` directives. Pending [Open Question
   5](#arc-lite).
-- **`arc-config.yml` treatment** — depends on the Lite reduced-config delivery mechanism decision
-  (single-file-with-`arc:if` vs. two-file variant). See Finding #10 in
-  [`working-modes-gap-resolution.md`][working-gap-resolution] for in-flight analysis.
+- **`arc-config.yml` treatment** — resolved by [Lite Config Template
+  Mechanism](#lite-config-template-mechanism) below. The file stays in the unconditional baseline
+  and is renamed to `system/arc-config.template.yml` with `<!-- arc:if install.type == full -->`
+  blocks gating the `pm.mode` and `team.mode` sections. No new bucket assignment needed.
 
 #### Not yet established (verify during implementation)
 
@@ -976,6 +978,306 @@ Finding #8 mechanism ADR. The two findings likely share a single combined ADR si
 mechanism siblings under the same "recipe as authoritative install-time specification" umbrella;
 the PRD decides single vs combined ADR based on writing economy.
 
+### Lite Config Template Mechanism
+
+**How `arc-config.yml` ships a reduced surface in Lite without duplicating the file.** [Configuration
+and Installation](#configuration-and-installation) establishes that Lite ships a reduced config
+omitting `pm.mode` and `team.mode`. [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism)
+specifies how `install.type` gates whole-file installation; this section specifies the mechanism for
+gating **content within a single file** that is installed unconditionally — the
+`arc-config.yml` template. The two mechanisms are siblings: recipe conditions gate which files land
+on disk, template conditionals gate which lines inside a given file survive rendering.
+
+#### The gap
+
+The current recipe installs `system/arc-config.yml` unconditionally as a plain `.yml` file. It is
+not a `.template.md` file, so the template-render `arc:if` mechanism does not apply to it today. Two
+existing render passes touch it: `renderConfigOverrides()` rewrites specific key-value lines from
+the install-time prompt answers (for example `pm.mode: arc-in-git` if the user selected arc-in-git
+during `arc init`), but no other rendering occurs — the file skips `renderTokens()` and
+`renderConditionals()` entirely.
+
+Finding #8's mechanism (symmetric additive recipe conditions) resolves **which** files get
+installed. It does not specify **how** a single installed file produces different content per
+install type. Lite's reduced config needs within-file gating, not whole-file gating — the file
+itself still lands on disk in both modes, but its contents differ.
+
+#### Current state — factual landscape
+
+Pre-resolution code-read pass (2026-04-10). This section foregrounds the reframe that dropped out
+of the read: the render pipeline is already capable of what Approach 2 needs. The question is no
+longer "can the render pipeline process a non-markdown template?" but "what composition order and
+which call sites are affected?"
+
+**Render pipeline is extension-agnostic today.** `needsRendering()` in `lib/classification.ts`
+matches `/\.template\.[^/]+$/` — any `.template.*` file passes the gate, not just `.template.md`.
+`toOutputPath()` strips `.template` before any extension, so `arc-config.template.yml` resolves to
+`arc-config.yml` for free. **No render pipeline extension is required.** The "`.template.md`-only
+gate" that prior analysis treated as the blocker for Approach 2 does not exist.
+
+**`renderConditionals()` has zero markdown assumptions.** Reading `lib/template/render.ts`:
+conditional processing splits on newlines, matches an HTML-comment directive regex
+(`<!--\s*arc:if\s+...\s*-->`), maintains a stack for nested blocks, and collapses triple-blank runs
+to double-blank at the end. Nothing in the implementation references markdown structure — no
+heading detection, no list handling, no code-fence awareness. YAML content runs through it cleanly.
+The blank-line collapse is YAML-safe because YAML's whitespace sensitivity is about **indentation**,
+not inter-section blank-line count; `arc-config.yml` is flat top-level keys with `# --- Section ---`
+comment headers separated by blanks, and collapsing `\n\n\n` → `\n\n` only tightens the appearance
+of stripped-block boundaries.
+
+**The existing arc-config special-case.** `commands/init.ts` (lines ~168–174) and the shared
+`renderTemplate()` helper in `lib/manifest/apply.ts` (lines ~79–98) both branch on
+`templateFile === ARC_CONFIG_TEMPLATE_PATH`. Today's branch runs `renderConfigOverrides(raw,
+overrides)` and nothing else — `renderTokens()` and `renderConditionals()` are explicitly skipped.
+The constant `ARC_CONFIG_TEMPLATE_PATH` in `lib/constants.ts:11` is currently `"system/arc-config.yml"`.
+
+**Rendering passes that compose for Approach 2:**
+
+1. `renderTokens(raw, tokens)` — substitutes `{{TOKEN}}` placeholders. `arc-config.yml` contains
+   no such placeholders today (verified by grep — zero `{{...}}` matches in the package source
+   file). Introducing this pass is a no-op against current content.
+2. `renderConditionals(content, config)` — strips `<!-- arc:if KEY == VALUE --> ... <!-- arc:endif -->`
+   blocks that don't match. `arc-config.yml` contains zero `<!-- ... -->` strings today (verified by
+   grep). Introducing this pass is a no-op against current content **until** directives are added
+   to the template source.
+3. `renderConfigOverrides(content, overrides)` — the existing arc-config-specific pass that
+   substitutes flat key-value lines from install-time prompts. Stays as-is.
+
+**Manifest and pristine lifecycle for `arc-config.yml`.** The file is classified as
+`Configurable` in `CONFIGURABLE_FILES` (`lib/classification.ts:74`). Manifest entries are keyed by
+**output path**, not template path — `buildManifestFiles()` uses `outputPath` as the key. Renaming
+the template source from `system/arc-config.yml` to `system/arc-config.template.yml` does not
+change the manifest key (`system/arc-config.yml` remains the output key). No manifest schema bump,
+no migration function, no legacy-manifest handling. Existing installs rebuild their pristine
+baseline via the standard three-way merge in `applyChangePlan()` on next `arc update`, against the
+newly-rendered content. This is the same Configurable-file lifecycle path that any Framework update
+to `arc-config.yml` exercises today.
+
+#### Candidate approaches
+
+Four approaches were identified during the pre-PRD work (Finding #10 in the working doc). The four
+are the same as those enumerated before the code-read pass; the read changes the cost calculus for
+Approach 2, not the shape of the alternatives.
+
+1. **Two separate files in the recipe** — move `arc-config.yml` out of the unconditional baseline,
+   ship `arc-config.full.yml` under `install.type == full` and `arc-config.lite.yml` under
+   `install.type == lite`. Uses Finding #8's mechanism unchanged.
+2. **Rename to `arc-config.template.yml` and use `arc:if` directives** — single source template
+   with inline `<!-- arc:if install.type == full -->` blocks around the Full-only sections.
+   Processed through the existing render pipeline.
+3. **CLI-generated config content** — `init.ts` writes `arc-config.yml` programmatically from the
+   `install_config` struct. Splits config source of truth between a template and code.
+4. **Template fragments + stitching** — decompose `arc-config.yml` into universal / Full-only /
+   Lite-only fragment files, concatenate them at install time.
+
+#### Rejections
+
+**Approach 1 (two separate files) — rejected.** Duplicates universal config content (branch,
+commit, merge, hooks, review, platform, user sections — the vast majority of the file) across two
+files. Every future addition of a universal setting touches both files, and silent divergence
+between the two is the same failure mode Approach 3 of Finding #8's evaluation was rejected for
+(baseline duplication risk on every feature add). The case for Approach 1 was entirely "Approach 2
+requires render pipeline extension, which is fraught." That premise is false — the render pipeline
+is already extension-agnostic — so Approach 1 loses its only advantage over Approach 2.
+
+**Approach 3 (CLI-generated content) — rejected.** Splits the config source of truth across a
+template file and imperative code. Every future addition of a setting requires coordinating two
+places: the template (for universal settings) and the code (for install-type-dependent sections).
+Loses the "template is the single source" property that both adopters and the framework's own
+update path rely on. The pristine-store three-way merge is built around a single rendered template
+as the authoritative baseline; programmatic generation would either bypass that merge (losing
+update-time customization preservation) or require reconstructing the same programmatic output
+during update (doubling the code surface).
+
+**Approach 4 (fragment + stitching) — rejected.** Over-engineered for the problem scale. The
+gated content amounts to two contiguous blocks (`pm.mode` section, `team.mode` section) in a ~165-
+line file. Fragment decomposition adds a new file-composition layer, a new ordering rule (which
+fragments go in which order), and a new failure mode (fragment order drift producing syntactically
+valid but semantically wrong output). None of this complexity earns its weight when the alternative
+(Approach 2) reuses existing render pipeline machinery unchanged.
+
+#### Adopted: Approach 2 — single template with `arc:if`
+
+**Rename `system/arc-config.yml` → `system/arc-config.template.yml`** in the package source.
+Annotate the `pm.mode` and `team.mode` sections with `<!-- arc:if install.type == full -->` /
+`<!-- arc:endif -->` blocks. Update the arc-config rendering branch in `init.ts` and
+`apply.ts` to compose the three passes instead of skipping two of them. Everything else
+(classification, manifest lifecycle, update path) follows the existing Configurable-file rules
+with no further changes.
+
+**Composition order:** `renderConfigOverrides(renderConditionals(renderTokens(raw, tokens), config), overrides)`.
+Tokens substitute first (no-op against current content but correctly ordered for future tokens),
+conditionals strip Full-only blocks when `install.type == lite`, overrides rewrite the surviving
+key-value lines. The composition order matters: overrides must apply after conditionals so that
+keys inside a stripped block are never "overridden" into a file where the key no longer exists.
+
+**Call-site restructuring shape.** The cleanest pattern is to fall through to the normal
+`.template.*` branch in `renderTemplate()` and apply `renderConfigOverrides()` as a **post-pass**
+rather than keeping the arc-config branch as an alternative that skips the normal pipeline:
+
+```ts
+let rendered = needsRendering(templateFile)
+  ? renderConditionals(renderTokens(raw, tokens), config)
+  : raw;
+if (templateFile === ARC_CONFIG_TEMPLATE_PATH) {
+  rendered = renderConfigOverrides(rendered, configKeyOverrides);
+}
+return rendered;
+```
+
+One conditional gets restructured, no new code paths, no new helpers. The same shape applies to
+`commands/init.ts`'s inline rendering block (which mirrors `renderTemplate()` today).
+
+**Constant update.** `ARC_CONFIG_TEMPLATE_PATH` in `lib/constants.ts:11` flips from
+`"system/arc-config.yml"` to `"system/arc-config.template.yml"`. The `CONFIGURABLE_FILES` set in
+`lib/classification.ts:74` flips its entry from `"system/arc-config.yml"` to
+`"system/arc-config.template.yml"` to match.
+
+#### Gated section enumeration
+
+Walked the current `arc-config.yml` end-to-end. The install-type-gated content is tight:
+
+| Section                                       | Lines   | Gating                 | Rationale                                                                          |
+|-----------------------------------------------|---------|------------------------|------------------------------------------------------------------------------------|
+| `# --- Branch Model ---` / `branch.*`         | 12–23   | Universal              | Branch model applies in both modes                                                 |
+| `# --- Commit Discipline ---` / `commit.*`    | 25–50   | Universal              | Commit format and context footer apply regardless of install type                  |
+| `# --- Merge Strategy ---` / `merge.strategy` | 52–59   | Universal              | Merge strategy is a git-integration concern, not a lifecycle concern               |
+| `# --- Hooks ---` / `hooks.*`                 | 61–114  | Universal              | Hook infrastructure runs in both modes; Lite still commits and still validates     |
+| `# --- Review ---` / `review.pre_merge`       | 116–124 | Universal              | Pre-merge review applies to both modes (method definition, not lifecycle coupling) |
+| `# --- Platform ---` / `platform.type`        | 126–133 | Universal              | Platform is informational; applies regardless of mode                              |
+| `# --- Project Management ---` / `pm.mode`    | 135–142 | `install.type == full` | Lite has no work unit stream; PM mode is meaningless                               |
+| `# --- Team Mode ---` / `team.mode`           | 144–154 | `install.type == full` | Lite is inherently solo per methodology; team mode is meaningless                  |
+| `# --- User Directory ---` / `user.sync_push` | 156–164 | Universal              | Git-notes portability applies to Lite's `user/{identity}/` directory               |
+
+**Two contiguous gated blocks.** `pm.mode` and `team.mode`. The `arc:if` annotation wraps each
+section header comment through the settings block, so the stripped output in Lite has no orphan
+section header and no comment-block-without-setting.
+
+**Edge case resolved:** `hooks.contributor_protected_paths` defaults to `active/|backlog/`. Lite
+has `active/` but may not have `backlog/` depending on `pm.mode`. The regex default harmlessly
+no-ops against absent paths, so the setting stays universal — no gating needed, no Lite-specific
+override.
+
+#### Composition with Finding #1 (template-prd.md)
+
+Finding #1's [The Lite PRD](#the-lite-prd) § Template delivery mechanism left the single-file-with-
+`arc:if`-vs-two-file-variant choice as an implementation-phase detail. Finding #10's adoption of
+Approach 2 resolves that detail by force of consistency: the same render pipeline, the same
+`.template.*` gate, and the same `arc:if` mechanism handle both files. **`template-prd.md` stays
+in the unconditional baseline and carries both variants via `arc:if`** — matching
+`arc-config.template.yml`'s approach. Shipping `template-prd.md` as a two-file variant would split
+the "how template content is mode-gated" story across two mechanisms for no gain.
+
+This closes Finding #1's open sub-decision without a separate migration pass. The § Template
+delivery mechanism paragraph in this plan doc is updated to reflect the landed choice rather than
+the pending one.
+
+#### Stress-test trace-throughs
+
+Each trace exercised the adopted mechanism against a realistic scenario. No trace surfaced an
+unhandled case.
+
+- **Fresh Lite install.** `arc init --install-type lite` answers the `install.type` prompt with
+  `"lite"`, populates `buildConfigMap()` with `install.type → "lite"`, renders
+  `arc-config.template.yml` through the three-pass composition. Tokens no-op, conditionals strip
+  both gated blocks, overrides apply surviving key-value lines (nothing lands in the stripped
+  blocks because those keys are not in the override map for Lite). Output is clean YAML with
+  `pm.mode` and `team.mode` absent.
+- **Fresh Full install.** Same path with `install.type → "full"`. Conditionals include both gated
+  blocks. Overrides apply to `pm.mode: arc-pm` and `team.mode: false` (or user-selected values).
+  Output is equivalent to today's Full install.
+- **Adopter upgrading an existing Full install.** Pristine baseline for `system/arc-config.yml` in
+  the existing manifest is the pre-rename rendered content (no `arc:if` directives — adopters
+  never see them). New framework version ships `arc-config.template.yml` with directives in the
+  template source. `applyChangePlan()` renders the new template against the adopter's stored
+  `install_config` (install type defaults to `"full"` via legacy migration from Finding #8's
+  manifest bump), producing rendered content that still includes both sections. Three-way merge
+  against the adopter's current file: if they customized `pm.mode` or `team.mode` values, those
+  customizations survive via the merge's diff-preservation semantics. Clean path.
+- **Reconfigure Full → Lite downgrade** (when that CLI surface exists — see Finding #16). Flipping
+  `install_config.install_type` to `"lite"` and re-rendering produces an arc-config.yml with the
+  gated sections stripped. The Configurable-file merge path routes the now-removed lines through
+  the standard three-way merge. Whether the merge surfaces this as a conflict (user had customized
+  the removed lines) or a clean strip depends on the adopter's edits, which is the correct
+  behavior — Finding #16 handles downgrade semantics for orphaned settings, not this mechanism.
+- **Pristine reconstruction during update** with no `install_type` change. Standard path —
+  re-render from stored `install_config` produces the same content as the existing pristine, merge
+  reports "unchanged," no work. Matches the existing `.template.md` lifecycle.
+- **Adopter who manually edited `{{` or `<!-- arc:if` into their `arc-config.yml`.** Near-zero
+  likelihood — no documented reason an adopter would type those sequences into a config file —
+  but worth naming. The new rendering passes would process those sequences on next update.
+  `renderTokens()` with an unknown token leaves it as-is (per its implementation), so stray `{{FOO}}`
+  survives untouched. `renderConditionals()` with a stray `<!-- arc:if ... -->` line would strip
+  it and surrounding content if the condition doesn't match the adopter's `install.type`. This is
+  the only behavioral change on the update path; the mitigation is to document in the framework
+  changelog that adding the rendering passes to `arc-config.yml` is a known incompatible change
+  with manually-inserted directive-like content, which any plausible adopter edit would not
+  contain.
+
+#### Feedforward — composes with other findings
+
+- **Finding #8 (Installation Type Recipe Mechanism).** Finding #10 sits on top of Finding #8's
+  mechanism: `install.type` flows through `buildConfigMap()` into both recipe condition evaluation
+  (Finding #8's job) and template conditional evaluation (Finding #10's job). The same config map,
+  the same value, two consumers. The "recipe as authoritative install-time specification" umbrella
+  from Finding #8's and Finding #9's ADR discussion extends cleanly to cover arc-config template
+  rendering — no new umbrella concept.
+- **Finding #9 (Prompt Orchestration and Recipe Authority).** Framing C's `install.type` prompt at
+  position 1 of the recipe prompts array is what populates the config map key that Finding #10's
+  `arc:if` directives test. The prompt defines the value; the template reads it. Decoupled, clean
+  composition.
+- **Finding #1 (The Lite PRD).** Resolves Finding #1's pending single-file-vs-variant decision by
+  consistency (see § Composition with Finding #1 above).
+- **Finding #16 (Full → Lite downgrade).** The downgrade CLI surface will re-render
+  `arc-config.template.yml` with the flipped `install.type`, producing a stripped config. The
+  existing three-way merge handles the "lines that existed in the Full install but not in the
+  new Lite install" case via the Configurable-file merge path. Finding #16 does not need a
+  special case for arc-config; the generic path works.
+- **[Mode-Aware Config Template Mechanism](#mode-aware-config-template-mechanism)** (lower in this
+  plan doc) describes the **conceptual** layer composition (Lite layer + Local layer, orthogonal
+  axes, each contributing independent changes). Finding #10 specifies the **mechanical** delivery:
+  all layer composition happens via flat `arc:if` directives testing each axis independently,
+  with no code-level "layer" construct. The conceptual framing is for humans reasoning about which
+  settings apply in which modes; the mechanism is flat per-axis gating.
+
+#### Not yet established (verify during implementation)
+
+These items don't gate the mechanism decision but will need confirmation during implementation task
+generation or execution.
+
+- **Editor ergonomics.** YAML editors will flag `<!-- arc:if ... -->` lines as invalid YAML
+  (HTML comments are not a YAML construct). This is a paper cut affecting maintainers editing the
+  template source, not adopters viewing their installed file (the directive lines are stripped by
+  rendering). Mitigation options at implementation time: accept the paper cut (lean — affects a
+  small number of template edits per release), or add a framework-level convention of wrapping
+  directives in YAML line comments (e.g., `# <!-- arc:if install.type == full -->`) and updating
+  the directive regex to tolerate a leading `#`. The second option is cheap but couples the
+  directive parser to YAML conventions, slightly eroding the "one directive syntax across all
+  template types" property.
+- **Framework changelog entry** flagging the new rendering passes on `arc-config.yml` as an
+  incompatible change for the (near-zero-likelihood) adopter who manually inserted directive-like
+  sequences. Standard changelog hygiene, not gating.
+- **Test coverage.** Unit tests exercising `renderTemplate()` against
+  `arc-config.template.yml` for each install type, plus an integration test that `arc init
+  --install-type lite` produces a config with the gated blocks absent. Specified during PRD task
+  generation.
+- **`arc-config.template.yml` vs `arc-config.yml.template`** naming. The former matches the
+  existing `.template.<ext>` convention in `needsRendering()`. The latter reads more naturally in
+  English but requires either extending the regex or renaming it from `.template.<ext>` to
+  something that matches both. Not worth the cost — adopt `.template.yml` for consistency.
+
+#### ADR authoring — deferred to PRD implementation
+
+Same rationale as Findings #8 and #9. The mechanism decision recorded here will be formalized as an
+Architecture Decision Record during implementation of the PRD derived from this plan doc, **not
+authored now**. The ADR belongs alongside the code change it documents, not as a pre-PRD artifact.
+
+The PRD will surface "author ADR for arc-config template mechanism" as an explicit task deliverable.
+The ADR likely combines with Findings #8 and #9's ADR under the "recipe as authoritative install-time
+specification" umbrella — three mechanism siblings covering whole-file installation, prompt
+orchestration, and within-file content rendering. The PRD decides single vs combined ADR based on
+writing economy.
+
 ### Solo-Dev Blind Spot Audit (Gating Pre-PRD) — **Complete**
 
 **Status:** Complete as of 2026-04-09. Audit ran in three phases: initial scenario battery,
@@ -1364,12 +1666,15 @@ blocks in one file. This is below the [conditional content
 analysis][conditional-content-analysis]'s density threshold for warranting a separate variant file,
 which confirms `arc:if` as a legitimate delivery tool (not theoretical) for this template.
 
-**Final single-file-with-`arc:if` vs. two-file-variant decision** is a detail-design choice that
-depends on the [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) — if Lite
-ships a separate `template-prd.lite.md`, it lands under the `install.type == lite` condition; if
-`template-prd.md` carries both variants via `arc:if`, it stays in the unconditional baseline and is
-rendered per-mode at install time. Either mechanism works for this specific template. Decide during
-implementation based on overall template-rendering consistency across the modes WU.
+**Decision (landed via Finding #10):** `template-prd.md` stays in the unconditional baseline and
+carries both variants via `arc:if` directives. The two-file variant (`template-prd.lite.md` under
+`install.type == lite`) was evaluated and rejected by force of consistency: [Lite Config Template
+Mechanism](#lite-config-template-mechanism) adopts single-file-with-`arc:if` for
+`arc-config.template.yml`, and shipping `template-prd.md` through a different mechanism would split
+"how template content is mode-gated" across two mechanisms for no gain. The render pipeline
+processes both files through the same `.template.*` matching gate, the same
+`renderConditionals()` pass, and the same `install.type` config map value. One mechanism, two
+templates.
 
 #### Cascades into other Lite surfaces
 
@@ -1476,11 +1781,11 @@ workflow to hook into. Evaluate during detail design. The prompt-gating mechanis
 `show_when` field, partial-config evaluation, drift mitigation) is specified in [Prompt
 Orchestration and Recipe Authority](#prompt-orchestration-and-recipe-authority).
 
-**Lite config template:** Lite ships a reduced `arc-config.yml` that omits irrelevant settings (`pm.mode`,
-`team.mode`, and possibly others). This keeps the config honest about what Lite actually configures rather
-than showing options that don't apply. The delivery mechanism for the reduced file (single-file-with-
-`arc:if` vs. two-file variant) is a pending design decision — see Finding #10 in
-[`working-modes-gap-resolution.md`][working-gap-resolution].
+**Lite config template:** Lite ships a reduced `arc-config.yml` that omits the `pm.mode` and
+`team.mode` sections. This keeps the config honest about what Lite actually configures rather than
+showing options that don't apply. The delivery mechanism — rename to `arc-config.template.yml` and
+gate the two sections with `<!-- arc:if install.type == full -->` directives — is specified in
+[Lite Config Template Mechanism](#lite-config-template-mechanism).
 
 **Recipe-side mechanism:** The installation-type choice drives which files land on disk via a
 symmetric-additive recipe condition — see [Installation Type Recipe
@@ -2341,6 +2646,13 @@ modes WU.
 
 ### Mode-Aware Config Template Mechanism
 
+**Delivery mechanism:** [Lite Config Template Mechanism](#lite-config-template-mechanism) in the
+Design Investigations section above specifies the install-time delivery mechanism — a single
+`arc-config.template.yml` file processed through the existing render pipeline, with `<!-- arc:if
+... -->` directives gating mode-specific sections. This section describes the **conceptual** layer
+composition (what each axis contributes); the mechanism is flat per-axis `arc:if` directives
+testing each axis independently, not a code-level "layer" construct.
+
 Each mode axis (Lite/Full, Tracked/Local) contributes its own deletions and overrides to the
 `ARCd-config.yml` template. The two axes compose orthogonally: each layer applies independently,
 and when combined, both layers' changes are applied.
@@ -2523,65 +2835,75 @@ what changes each needs.
 Decisions settled during the 2026-04-09 and 2026-04-10 design iterations. Each entry names the
 decision and a brief rationale; the full reasoning is in the relevant section above.
 
-| Decision                                                                | Resolution                                                                                                                                                                                                                                                      |
-|-------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Local mode exclusion — primary                                          | `.git/info/exclude` (research-verified industry norm for per-user tooling)                                                                                                                                                                                      |
-| Local mode exclusion — opt-in                                           | Tracked `.gitignore` line via `--shared-gitignore` flag                                                                                                                                                                                                         |
-| Local mode exclusion — dropped                                          | Global gitignore (machine-wide blast radius breaks coexistence with tracked ARC)                                                                                                                                                                                |
-| Backing store                                                           | Required, auto-created git-based local bare repo; durability + re-clone detection signal                                                                                                                                                                        |
-| Project ID                                                              | Git remote URL primary, first-commit hash fallback                                                                                                                                                                                                              |
-| Re-clone UX                                                             | Backing-store + absent-`.arc/` + missing-exclude → restoration flow, one-prompt recovery                                                                                                                                                                        |
-| Cross-machine portability                                               | Opt-in remote on backing store, not automatic                                                                                                                                                                                                                   |
-| Local + Full combination                                                | Supported via single-active invariant + shift lifecycle                                                                                                                                                                                                         |
-| Single-active invariant framing                                         | ARC tracks work units not branches; git usage unconstrained                                                                                                                                                                                                     |
-| Shift lifecycle — inclusion                                             | In-scope for this work unit (not deferred); universal, applies to all ARC modes                                                                                                                                                                                 |
-| Shift lifecycle — approach                                              | Metadata-in-place (no file moves); task list Status headers as single source of truth; no registry file, no per-dev cache                                                                                                                                       |
-| Shift lifecycle — state location                                        | Pure Option C (2026-04-09 decision after B-vs-C scenario walk). Task list headers carry Status, date, reason. `WORK-STATUS.md` stays single-slot                                                                                                                |
-| Shift lifecycle — multi-WU awareness                                    | On-demand via `/arc-status` skill, not baked into session-init. Session-init orientation remains single-WU focused                                                                                                                                              |
-| Shift lifecycle — skills                                                | Two skills: `/arc-shift` (transitions, workflow `shift-work-unit.md`) and `/arc-status` (mid-session HUD, workflow `mid-session-status.md`)                                                                                                                     |
-| Shift lifecycle — uncommitted work                                      | Workflow surfaces state, recommends commit, allows stash or leave-as-is                                                                                                                                                                                         |
-| Shift lifecycle — document status headers                               | PRDs and task lists updated in sync via the Status header (inline date + reason format); supplementary docs deferred to implementation                                                                                                                          |
-| Shift lifecycle — vocabulary (Finding B)                                | Two-state split: `Paused` (dev is next mover, counts toward WIP nudge) vs `Waiting-For {category}` (external is next mover, excluded from nudge)                                                                                                                |
-| Shift lifecycle — growth nudge                                          | Fires at pause-transition time inside shift workflow, not at session-init. Current-branch count; ≥3 paused is advisory                                                                                                                                          |
-| Shift lifecycle — Finding C (pause pointers)                            | No rename needed. The `Paused:` pointer field in `clean-work-unit.md` and the new Status header vocabulary do not collide (different field shapes, different semantics). Formalizing the four pointer fields is an independent doc sweep, not shift-blocking    |
-| Shift lifecycle — `PROJECT-STATUS.md`                                   | Stays project-focus oriented. Updated at activate/archive only, not at personal shift operations. Paused WUs still appear as project focus until archived (ownership-of-tracked-state framing)                                                                  |
-| Shift lifecycle — CLI naming coordination                               | `arc status` (framework health CLI) rename to `arcd health` absorbed into [ARCd Rebrand][arcd-rebrand] WU, freeing `/arc-status` for the mid-session skill                                                                                                      |
-| Context footer in Local mode                                            | Enforced descriptive freeform pattern via commit-msg hook                                                                                                                                                                                                       |
-| Role concept applicability                                              | Tracked concept. Applies in Full+tracked AND Lite+tracked (OSS solo-dev scenario). Dropped in Local regardless of Lite/Full.                                                                                                                                    |
-| `team.mode` in Local mode                                               | Forced `false`                                                                                                                                                                                                                                                  |
-| `user.sync_push` in Local mode                                          | Same shape, semantic redirected to backing store                                                                                                                                                                                                                |
-| Portability commands in Local mode                                      | Transparent redirect by install mode (`arc user save/load/push/pull`, `arc sync`)                                                                                                                                                                               |
-| `pm.mode: arc-in-git` → `arc-pm` rename                                 | Scope migrated to [ARCd Rebrand][arcd-rebrand] WU (composes with `arc-config.yml` → `ARCd-config.yml` rename and content sweep)                                                                                                                                 |
-| Mode axes composition                                                   | Lite/Full and Tracked/Local are orthogonal; four combinations all valid; each axis contributes independent changes to the config template                                                                                                                       |
-| Lite + Local development                                                | Intertwined, not sequential — shared machinery (config templates, init flow, session-init, audit, phrasing sweep) dominates unique per-mode work                                                                                                                |
-| WU scope split                                                          | pm.mode rename + mechanical content sweep → rebrand WU; pre-PRD audit + shift lifecycle + Lite + Local (intertwined) → modes WU                                                                                                                                 |
-| Content audit scope                                                     | Expanded to include configurability architecture and lifecycle transitions; mode-aware phrasing sweep added as implementation activity                                                                                                                          |
-| Branch / Active Focus mismatch UX                                       | Orientation reports facts without editorializing; escalation only on work-affecting actions                                                                                                                                                                     |
-| Solo-dev blind spot audit                                               | Gating pre-PRD deliverable of this work unit (not atomic, not deferred)                                                                                                                                                                                         |
-| Lite PRD artifact name                                                  | Still called a PRD (not "scope brief"). Keeps framework coherence across modes, makes graduation a content migration. See [The Lite PRD](#the-lite-prd)                                                                                                         |
-| Lite PRD template cuts                                                  | Drops `Type:` header field, `Status/Related Work` header block, `Document History` section. Retains all other sections with softened guidance in User Stories, Functional Requirements, Non-Goals                                                               |
-| Lite `create-prd` workflow shape                                        | Unified `create-prd` workflow with mode-conditional edges (Pre-Step 0 branch context, META-PRD review, Step 2 category classification, Step 4 template + save location). ~90% mode-neutral                                                                      |
-| META-PRD in Lite                                                        | Not installed. Project vision captured in the Lite PRD itself. META-PRD template assigned to `install.type == full` bucket                                                                                                                                      |
-| Lite `plan-*` doc location                                              | `.arc/active/plan-{name}.md` — sibling to `prd.md` and `tasks.md` in the flat `active/` directory                                                                                                                                                               |
-| Lite PRD filename                                                       | Singular `prd.md`. One PRD per Lite project; need for multiple is a soft graduation signal                                                                                                                                                                      |
-| Lite Non-Goals framing                                                  | Elevated as explicit scope guardrail. Template carries a guardrail note; `create-prd` Step 3 spends deliberate time on Non-Goals elicitation to compensate for absent WU-lifecycle guardrails                                                                   |
-| Lite ship step protocol                                                 | Three-step protocol reusing Full's Success Criteria section convention: (1) Success Criteria all `[x]` or `[~]`, (2) Tier 3 quality gates, (3) aggregate diff review. No new template section or workflow concept                                               |
-| Installation type mechanism                                             | Symmetric additive via `install.type` condition in the recipe. Three buckets: unconditional baseline, `install.type == full`, `install.type == lite`. Zero recipe schema change, zero `resolveFileList()` change                                                |
-| Installation type config key                                            | `install.type` (dotted form, consistent with existing `pm.mode`, `team.mode`, `branch.protection`)                                                                                                                                                              |
-| Manifest `install_config` schema extension                              | Gains `install_type: string` required field. Manifest schema version bumps. Legacy manifests migrate with `install_type: "full"` default                                                                                                                        |
-| ADR authoring sequencing                                                | ADRs are implementation-phase deliverables, not pre-PRD artifacts. Flow: working doc → plan doc → PRD → task list → ADR during execution. `install.type` mechanism ADR lands as an explicit task deliverable in the PRD                                         |
-| Recipe authority scope (prompts)                                        | Framing C — recipe owns prompt identity, `config_key` / `token` mapping, and gating (`show_when`). Hand-rolled code keeps UX. Framing A (hand-coded gating) rejected as no DRY progress; Framing B (full data-driven loop) rejected as speculative schema bloat |
-| Recipe `show_when` field                                                | New optional field on `RecipePrompt`. Same `CONDITION_PATTERN` grammar as existing `recipe.conditions` keys — reuses `evaluateCondition()` as-is. Validator extension is a single regex check                                                                   |
-| `shouldShowPrompt()` helper                                             | Pure function in `lib/template/recipe.ts` alongside `evaluateCondition()`. Partial-config-safe via existing undefined-key handling (returns false for not-yet-answered references)                                                                              |
-| `install.type` prompt position                                          | Position 2 in the recipe prompts array (after `project_name`, before `tools`). Ordering constraint: must precede any prompt that references `install.type` in `show_when`. Documented convention, not structural check                                          |
-| `install.type` prompt default                                           | `"full"` — matches back-compat (legacy manifests migrate with `install_type: "full"`) and the common case. Non-interactive `arc init --yes` without `--install-type` produces a Full install                                                                    |
-| `install.type` canonical flag                                           | `--install-type <lite\|full>`. Shorthand aliases `--lite` / `--full` supported, mutually exclusive. Matches plan-doc § Init Flow Implications                                                                                                                   |
-| Gated prompts (initial set)                                             | `pm_mode` and `team_mode` both gated on `install.type == full`. No other prompts need gating (verified against Finding #1's Lite PRD landing — workflow-level conditionals happen at template render time, not init prompt time)                                |
-| Skipped-prompt default semantics                                        | Gated-out prompts take their value from the recipe `default` field. `pm_mode` → `"none"`, `team_mode` → `false`. Matches existing Lite semantics already in § Configuration Identity                                                                            |
-| `buildConfigMap` / `buildConfigKeyOverrides` / `buildTokenMap` refactor | Iterate `recipe.prompts` for `config_key` and `token` mapping instead of hardcoded constants. `user.sync_push` derivation from `team_mode` and `REPO_ROOT` computed token stay in code                                                                          |
-| Drift mitigation                                                        | Unit tests comparing recipe prompt IDs to exported `INIT_PROMPT_IDS` / `RECONFIGURE_PROMPT_IDS` constants maintained alongside the hand-rolled loops. Rejected `validateRecipe()` runtime check (layering violation or re-introduces duplication)               |
-| Reconfigure boundary for `install.type`                                 | `arc init --reconfigure` does NOT mutate `install.type`. Lite↔Full transition is a distinct CLI surface — Finding #16 for downgrade, § Graduation / Downgrade Paths for upgrade. Framing C's helper and refactor are reusable there                             |
-| ADR authoring for Framing C                                             | Deferred to PRD implementation. Likely combined with Finding #8 mechanism ADR under a shared "recipe as authoritative install-time specification" umbrella; PRD decides single vs combined based on writing economy                                             |
+| Decision                                                                | Resolution                                                                                                                                                                                                                                                                               |
+|-------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Local mode exclusion — primary                                          | `.git/info/exclude` (research-verified industry norm for per-user tooling)                                                                                                                                                                                                               |
+| Local mode exclusion — opt-in                                           | Tracked `.gitignore` line via `--shared-gitignore` flag                                                                                                                                                                                                                                  |
+| Local mode exclusion — dropped                                          | Global gitignore (machine-wide blast radius breaks coexistence with tracked ARC)                                                                                                                                                                                                         |
+| Backing store                                                           | Required, auto-created git-based local bare repo; durability + re-clone detection signal                                                                                                                                                                                                 |
+| Project ID                                                              | Git remote URL primary, first-commit hash fallback                                                                                                                                                                                                                                       |
+| Re-clone UX                                                             | Backing-store + absent-`.arc/` + missing-exclude → restoration flow, one-prompt recovery                                                                                                                                                                                                 |
+| Cross-machine portability                                               | Opt-in remote on backing store, not automatic                                                                                                                                                                                                                                            |
+| Local + Full combination                                                | Supported via single-active invariant + shift lifecycle                                                                                                                                                                                                                                  |
+| Single-active invariant framing                                         | ARC tracks work units not branches; git usage unconstrained                                                                                                                                                                                                                              |
+| Shift lifecycle — inclusion                                             | In-scope for this work unit (not deferred); universal, applies to all ARC modes                                                                                                                                                                                                          |
+| Shift lifecycle — approach                                              | Metadata-in-place (no file moves); task list Status headers as single source of truth; no registry file, no per-dev cache                                                                                                                                                                |
+| Shift lifecycle — state location                                        | Pure Option C (2026-04-09 decision after B-vs-C scenario walk). Task list headers carry Status, date, reason. `WORK-STATUS.md` stays single-slot                                                                                                                                         |
+| Shift lifecycle — multi-WU awareness                                    | On-demand via `/arc-status` skill, not baked into session-init. Session-init orientation remains single-WU focused                                                                                                                                                                       |
+| Shift lifecycle — skills                                                | Two skills: `/arc-shift` (transitions, workflow `shift-work-unit.md`) and `/arc-status` (mid-session HUD, workflow `mid-session-status.md`)                                                                                                                                              |
+| Shift lifecycle — uncommitted work                                      | Workflow surfaces state, recommends commit, allows stash or leave-as-is                                                                                                                                                                                                                  |
+| Shift lifecycle — document status headers                               | PRDs and task lists updated in sync via the Status header (inline date + reason format); supplementary docs deferred to implementation                                                                                                                                                   |
+| Shift lifecycle — vocabulary (Finding B)                                | Two-state split: `Paused` (dev is next mover, counts toward WIP nudge) vs `Waiting-For {category}` (external is next mover, excluded from nudge)                                                                                                                                         |
+| Shift lifecycle — growth nudge                                          | Fires at pause-transition time inside shift workflow, not at session-init. Current-branch count; ≥3 paused is advisory                                                                                                                                                                   |
+| Shift lifecycle — Finding C (pause pointers)                            | No rename needed. The `Paused:` pointer field in `clean-work-unit.md` and the new Status header vocabulary do not collide (different field shapes, different semantics). Formalizing the four pointer fields is an independent doc sweep, not shift-blocking                             |
+| Shift lifecycle — `PROJECT-STATUS.md`                                   | Stays project-focus oriented. Updated at activate/archive only, not at personal shift operations. Paused WUs still appear as project focus until archived (ownership-of-tracked-state framing)                                                                                           |
+| Shift lifecycle — CLI naming coordination                               | `arc status` (framework health CLI) rename to `arcd health` absorbed into [ARCd Rebrand][arcd-rebrand] WU, freeing `/arc-status` for the mid-session skill                                                                                                                               |
+| Context footer in Local mode                                            | Enforced descriptive freeform pattern via commit-msg hook                                                                                                                                                                                                                                |
+| Role concept applicability                                              | Tracked concept. Applies in Full+tracked AND Lite+tracked (OSS solo-dev scenario). Dropped in Local regardless of Lite/Full.                                                                                                                                                             |
+| `team.mode` in Local mode                                               | Forced `false`                                                                                                                                                                                                                                                                           |
+| `user.sync_push` in Local mode                                          | Same shape, semantic redirected to backing store                                                                                                                                                                                                                                         |
+| Portability commands in Local mode                                      | Transparent redirect by install mode (`arc user save/load/push/pull`, `arc sync`)                                                                                                                                                                                                        |
+| `pm.mode: arc-in-git` → `arc-pm` rename                                 | Scope migrated to [ARCd Rebrand][arcd-rebrand] WU (composes with `arc-config.yml` → `ARCd-config.yml` rename and content sweep)                                                                                                                                                          |
+| Mode axes composition                                                   | Lite/Full and Tracked/Local are orthogonal; four combinations all valid; each axis contributes independent changes to the config template                                                                                                                                                |
+| Lite + Local development                                                | Intertwined, not sequential — shared machinery (config templates, init flow, session-init, audit, phrasing sweep) dominates unique per-mode work                                                                                                                                         |
+| WU scope split                                                          | pm.mode rename + mechanical content sweep → rebrand WU; pre-PRD audit + shift lifecycle + Lite + Local (intertwined) → modes WU                                                                                                                                                          |
+| Content audit scope                                                     | Expanded to include configurability architecture and lifecycle transitions; mode-aware phrasing sweep added as implementation activity                                                                                                                                                   |
+| Branch / Active Focus mismatch UX                                       | Orientation reports facts without editorializing; escalation only on work-affecting actions                                                                                                                                                                                              |
+| Solo-dev blind spot audit                                               | Gating pre-PRD deliverable of this work unit (not atomic, not deferred)                                                                                                                                                                                                                  |
+| Lite PRD artifact name                                                  | Still called a PRD (not "scope brief"). Keeps framework coherence across modes, makes graduation a content migration. See [The Lite PRD](#the-lite-prd)                                                                                                                                  |
+| Lite PRD template cuts                                                  | Drops `Type:` header field, `Status/Related Work` header block, `Document History` section. Retains all other sections with softened guidance in User Stories, Functional Requirements, Non-Goals                                                                                        |
+| Lite `create-prd` workflow shape                                        | Unified `create-prd` workflow with mode-conditional edges (Pre-Step 0 branch context, META-PRD review, Step 2 category classification, Step 4 template + save location). ~90% mode-neutral                                                                                               |
+| META-PRD in Lite                                                        | Not installed. Project vision captured in the Lite PRD itself. META-PRD template assigned to `install.type == full` bucket                                                                                                                                                               |
+| Lite `plan-*` doc location                                              | `.arc/active/plan-{name}.md` — sibling to `prd.md` and `tasks.md` in the flat `active/` directory                                                                                                                                                                                        |
+| Lite PRD filename                                                       | Singular `prd.md`. One PRD per Lite project; need for multiple is a soft graduation signal                                                                                                                                                                                               |
+| Lite Non-Goals framing                                                  | Elevated as explicit scope guardrail. Template carries a guardrail note; `create-prd` Step 3 spends deliberate time on Non-Goals elicitation to compensate for absent WU-lifecycle guardrails                                                                                            |
+| Lite ship step protocol                                                 | Three-step protocol reusing Full's Success Criteria section convention: (1) Success Criteria all `[x]` or `[~]`, (2) Tier 3 quality gates, (3) aggregate diff review. No new template section or workflow concept                                                                        |
+| Installation type mechanism                                             | Symmetric additive via `install.type` condition in the recipe. Three buckets: unconditional baseline, `install.type == full`, `install.type == lite`. Zero recipe schema change, zero `resolveFileList()` change                                                                         |
+| Installation type config key                                            | `install.type` (dotted form, consistent with existing `pm.mode`, `team.mode`, `branch.protection`)                                                                                                                                                                                       |
+| Manifest `install_config` schema extension                              | Gains `install_type: string` required field. Manifest schema version bumps. Legacy manifests migrate with `install_type: "full"` default                                                                                                                                                 |
+| ADR authoring sequencing                                                | ADRs are implementation-phase deliverables, not pre-PRD artifacts. Flow: working doc → plan doc → PRD → task list → ADR during execution. `install.type` mechanism ADR lands as an explicit task deliverable in the PRD                                                                  |
+| Recipe authority scope (prompts)                                        | Framing C — recipe owns prompt identity, `config_key` / `token` mapping, and gating (`show_when`). Hand-rolled code keeps UX. Framing A (hand-coded gating) rejected as no DRY progress; Framing B (full data-driven loop) rejected as speculative schema bloat                          |
+| Recipe `show_when` field                                                | New optional field on `RecipePrompt`. Same `CONDITION_PATTERN` grammar as existing `recipe.conditions` keys — reuses `evaluateCondition()` as-is. Validator extension is a single regex check                                                                                            |
+| `shouldShowPrompt()` helper                                             | Pure function in `lib/template/recipe.ts` alongside `evaluateCondition()`. Partial-config-safe via existing undefined-key handling (returns false for not-yet-answered references)                                                                                                       |
+| `install.type` prompt position                                          | Position 2 in the recipe prompts array (after `project_name`, before `tools`). Ordering constraint: must precede any prompt that references `install.type` in `show_when`. Documented convention, not structural check                                                                   |
+| `install.type` prompt default                                           | `"full"` — matches back-compat (legacy manifests migrate with `install_type: "full"`) and the common case. Non-interactive `arc init --yes` without `--install-type` produces a Full install                                                                                             |
+| `install.type` canonical flag                                           | `--install-type <lite\|full>`. Shorthand aliases `--lite` / `--full` supported, mutually exclusive. Matches plan-doc § Init Flow Implications                                                                                                                                            |
+| Gated prompts (initial set)                                             | `pm_mode` and `team_mode` both gated on `install.type == full`. No other prompts need gating (verified against Finding #1's Lite PRD landing — workflow-level conditionals happen at template render time, not init prompt time)                                                         |
+| Skipped-prompt default semantics                                        | Gated-out prompts take their value from the recipe `default` field. `pm_mode` → `"none"`, `team_mode` → `false`. Matches existing Lite semantics already in § Configuration Identity                                                                                                     |
+| `buildConfigMap` / `buildConfigKeyOverrides` / `buildTokenMap` refactor | Iterate `recipe.prompts` for `config_key` and `token` mapping instead of hardcoded constants. `user.sync_push` derivation from `team_mode` and `REPO_ROOT` computed token stay in code                                                                                                   |
+| Drift mitigation                                                        | Unit tests comparing recipe prompt IDs to exported `INIT_PROMPT_IDS` / `RECONFIGURE_PROMPT_IDS` constants maintained alongside the hand-rolled loops. Rejected `validateRecipe()` runtime check (layering violation or re-introduces duplication)                                        |
+| Reconfigure boundary for `install.type`                                 | `arc init --reconfigure` does NOT mutate `install.type`. Lite↔Full transition is a distinct CLI surface — Finding #16 for downgrade, § Graduation / Downgrade Paths for upgrade. Framing C's helper and refactor are reusable there                                                      |
+| ADR authoring for Framing C                                             | Deferred to PRD implementation. Likely combined with Finding #8 mechanism ADR under a shared "recipe as authoritative install-time specification" umbrella; PRD decides single vs combined based on writing economy                                                                      |
+| Lite config template mechanism                                          | Approach 2 — rename `system/arc-config.yml` → `system/arc-config.template.yml` and gate Full-only sections with `<!-- arc:if install.type == full -->` directives. Processed through the existing render pipeline. Single source of truth, no file duplication                           |
+| Render pipeline already extension-agnostic                              | `needsRendering()` in `lib/classification.ts` matches `/\.template\.[^/]+$/` today. `renderConditionals()` has zero markdown assumptions (line-based, HTML-comment directives, YAML-safe blank collapse). No render pipeline extension is required for Approach 2                        |
+| arc-config render composition order                                     | `renderConfigOverrides(renderConditionals(renderTokens(raw, tokens), config), overrides)`. Tokens → conditionals → overrides. Overrides must apply after conditionals so keys inside stripped blocks are never "overridden" into a file where the key is absent                          |
+| arc-config call-site restructuring                                      | `renderTemplate()` in `apply.ts` and its inline mirror in `commands/init.ts` fall through to the normal `needsRendering()` branch, then apply `renderConfigOverrides()` as a post-pass when `templateFile === ARC_CONFIG_TEMPLATE_PATH`. One conditional restructured, no new code paths |
+| arc-config gated section set                                            | Two contiguous blocks: `# --- Project Management ---` / `pm.mode` section and `# --- Team Mode ---` / `team.mode` section. Everything else (branch, commit, merge, hooks, review, platform, user) is universal across install types                                                      |
+| `ARC_CONFIG_TEMPLATE_PATH` constant rename                              | Flips from `"system/arc-config.yml"` to `"system/arc-config.template.yml"` in `lib/constants.ts`. `CONFIGURABLE_FILES` set entry in `lib/classification.ts` flips to match                                                                                                               |
+| arc-config manifest lifecycle during rename                             | Zero migration cost. Manifest entries are keyed by output path (`system/arc-config.yml`), which is stable across the template rename. Existing installs rebuild pristine via the standard Configurable-file three-way merge on next `arc update`                                         |
+| Approach 1 (two separate arc-config files) rejected                     | Duplicates universal config content (branch, commit, merge, hooks, review, platform, user sections) across two files. Silent divergence risk on every feature add. Only justification was "Approach 2 requires render pipeline extension"; that premise is false                         |
+| Finding #1 template delivery closed via consistency                     | `template-prd.md` stays in the unconditional baseline and carries both variants via `arc:if`, matching `arc-config.template.yml`. Shipping it as a two-file variant would split "how template content is mode-gated" across two mechanisms for no gain                                   |
+| ADR authoring for Lite config template mechanism                        | Deferred to PRD implementation. Likely combined with Findings #8 and #9 ADR under the "recipe as authoritative install-time specification" umbrella — three mechanism siblings covering whole-file installation, prompt orchestration, and within-file content rendering                 |
 
 ## Open Questions
 
@@ -2720,4 +3042,3 @@ Lite keeps and what it drops.
 [create-prd]: ../../system/workflows/arc/1_create-prd.md
 [work-planning]: ../../reference/strategies/arc/strategy-work-planning.md
 [conditional-content-analysis]: ../../reference/analysis/analysis-conditional-content-architecture.md
-[working-gap-resolution]: working-modes-gap-resolution.md
