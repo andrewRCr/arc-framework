@@ -91,6 +91,7 @@ you what kind."
 | `notes-`      | Work unit notes          | Agent      | `notes-api-modernization.md`      |
 | `atomic-`     | Atomic companion file    | Agent      | `atomic-api-modernization.md`     |
 | `plan-`       | Work plan (pre-PRD)      | User/agent | `plan-api-migration.md`           |
+| `working-`    | Working doc for `plan-*` | User/agent | `working-modes-gap-resolution.md` |
 | `strategy-`   | Strategy document        | Framework  | `strategy-work-organization.md`   |
 | `research-`   | Research document        | User/agent | `research-context-loading.md`     |
 | `adr-`        | Architecture Decision    | User/agent | `adr-001-define-core-identity.md` |
@@ -99,6 +100,39 @@ you what kind."
 Work unit artifacts (`prd-`, `tasks-`, `completion-`, `notes-`) share a slug across files — the
 slug is the work unit's identity. `prd-authentication.md` and `tasks-authentication.md` belong to
 the same work unit.
+
+### Working docs (optional)
+
+`working-*` is an optional convention for tracked working docs that support a `plan-*` doc when
+the plan itself isn't enough workspace. The plan doc is normally the primary working surface for
+pre-PRD exploration, so many efforts won't need a working doc — but deeper analytical or
+multi-axis work can benefit from separation.
+
+**Positioning:**
+
+- `plan-*` is the starting point and "working record of intent" — what the work is and why.
+- `working-*` is the workspace for refining that intent when the refinement is too large or too
+  noisy to stay in the plan doc itself.
+- `notes-*` is different polarity: `notes-*` captures extracted reference content from *retired*
+  `plan-*` docs (post-PRD-creation, durable). `working-*` is pre-resolution workspace that
+  drains into the plan.
+
+**Lifecycle:**
+
+- **Tracked** (committed to git), unlike `temp-*` files which are gitignored. Multi-session work
+  needs git history for traceability.
+- **Temporal, not archived** — when findings drain into the plan doc (or the eventual PRD), the
+  working doc can be deleted. Its reasoning lives in commit history and the plan itself. Unlike
+  `analysis-*` and `research-*` files in `reference/` which are durable reference, working docs
+  are not preserved long-term.
+- **Retention past drain** is at author's discretion — delete for cleanliness or keep as a
+  working record, either is valid.
+
+**When to use:** Reach for `working-*` when a plan refinement generates enough discrete findings
+or multi-session state that keeping it in the plan doc would hurt the plan's readability as
+intent. If the plan doc can carry the work without degrading, keep it there.
+
+**Location:** Alongside the plan doc being supported (same directory).
 
 ### Template suffix: `.template.md`
 
