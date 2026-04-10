@@ -26,11 +26,15 @@ reduction mechanism). Old Findings #9–#17 renumbered to #11–#19 with all cro
 updated. ADR authoring explicitly deferred to PRD implementation (task-execution deliverable),
 not pre-PRD artifact. Single commit this session touching only the working doc.
 **Blockers**: [none]
-**Next Action**: Determine next target in the pre-PRD gap audit — options include
-batch-migrating resolved Findings #1, #3, #8 into `plan-arc-modes.md`, continuing with a
-Tier 2 finding (#13 integrate × non-complete, #7 guardrails, #16 Full → Lite downgrade),
-or addressing the newly-surfaced #9/#10 before batch migration. Discuss and decide during
-session handoff; SESSION-NOTES will carry the refined plan forward.
+**Next Action**: Batch-migrate resolved Findings #1, #3, and #8 from
+`working-modes-gap-resolution.md` into `plan-arc-modes.md` as the first batch migration.
+Tier 1 is now complete — cleanest possible migration anchor. Each finding's resolution
+rewrites into the plan doc's voice (decision + feedforward, not full evaluation history;
+the working doc remains the durable evaluation record). After migration, mark each finding
+as ✅ Absorbed in the working doc and add line references. Then continue with Findings #9
+(conditional prompts orchestration) and #10 (Lite `arc-config.yml` reduction mechanism) to
+close out Finding #8's adjacent-concerns story before moving to Tier 2. SESSION-NOTES
+carries the detailed migration plan and design insights forward.
 
 ---
 
