@@ -17,40 +17,40 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Finding #10 (Lite `arc-config.yml` reduction mechanism) resolved and
-migrated into `plan-arc-modes.md` as a new `### Lite Config Template Mechanism` subsection
-under Design Investigations, sibling to Findings #8 and #9. Pre-migration code reads
-(`lib/template/render.ts`, `lib/classification.ts`, `lib/manifest/apply.ts`,
-`commands/init.ts`) revealed the session's lean had a stale premise: `needsRendering()`
-already matches `/\.template\.[^/]+$/` today (not `.template.md`-only), and
-`renderConditionals()` has zero markdown assumptions. **No render pipeline extension
-required.** That reframe dropped Approach 2's cost to near-zero and eliminated Approach 1
-(two-file fallback) as a serious contender. **Adopted Approach 2** — rename
-`system/arc-config.yml` → `system/arc-config.template.yml` and gate the `pm.mode` and
-`team.mode` sections with `<!-- arc:if install.type == full -->` directives. Composition
-order: `renderConfigOverrides(renderConditionals(renderTokens(raw, tokens), config),
-overrides)`. Call-site restructuring: `renderTemplate()` in `apply.ts` and its inline mirror
-in `init.ts` fall through to the normal `needsRendering()` branch, then apply
-`renderConfigOverrides()` as a post-pass — one conditional restructured, no new code paths.
-`ARC_CONFIG_TEMPLATE_PATH` flips in `constants.ts:11`; `CONFIGURABLE_FILES` set entry flips
-in `classification.ts:74`. Manifest lifecycle during rename: zero migration cost — entries
-are keyed by output path (stable). Gated section walk confirmed tight set: `pm.mode` +
-`team.mode` only. Finding #1's pending template-prd single-file-vs-variant decision closed
-by consistency: `template-prd.md` stays in the unconditional baseline with `arc:if`
-directives, matching `arc-config.template.yml`. 10 new Resolved Decisions rows. Cascading
-sweeps across Configuration Identity, Installation Type feedforward, The Lite PRD §
-Template delivery mechanism, Configuration and Installation § Lite config template, and
-Configurability Architecture Cleanup § Mode-Aware Config Template Mechanism. Working doc
-Finding #10 removed (~62 lines); Sequencing § Tier 3 updated (now only #2, #4, #5, #6, and
-\#12/R6 pending). Tier 1 fully drained (#1, #3, #8 + adjacent-concern companions #9, #10).
+**Last Completed**: Finding #13 (Integrate × non-complete WU states) resolved and migrated
+into `plan-arc-modes.md` as a new `### Integration Interaction with Shift States` subsection
+under `## Shift Lifecycle`, placed between `### Skill Shape` and `### Why This Lives in Its
+Own Cross-Cutting Section`. **Key reframe from a code read of `integrate-work-unit.md`:**
+the handoff lean that the workflow "presumably validates `Status: Complete`" was wrong.
+Step 1's checks are all about subtask/success-criteria state; the Status header line is an
+imperative ("updated to Complete") not a gate, and the transition itself is a silent side
+effect of Step 2's `clean-work-unit.md` Mode 2 run. There is no existing validation layer
+to extend. That collapsed Finding #13 from "add a validation layer" to "surface the state
+transition explicitly so it can accept the shift-lifecycle vocabulary." **Adopted entry
+contract:** accept `In Progress`, `Complete`, and all `Waiting-For {category}` values;
+`Paused` triggers a warn-and-confirm inline prompt (default no, not hard refuse with
+`--force`). **Load-bearing semantics:** (1) invocation is the assertion — running integrate
+on a `Waiting-For` WU is the user's assertion that the wait is over, workflow does not
+validate what was waited for; (2) `Paused` ≠ `Waiting-For` per Finding B's vocabulary split,
+so Paused gets a confirmation prompt while Waiting-For states don't; (3) integrate owns the
+terminal `→ Complete` transition, `/arc-shift` owns mid-flight transitions
+(pause/resume/rotate) only. Implementation-phase edit to `integrate-work-unit.md` is a
+small block of workflow prose at the top of Step 1 — deferred to PRD task generation.
+5 new Resolved Decisions rows (entry contract, invocation-as-assertion, Paused ergonomic,
+terminal transition ownership, ADR deferral — composes with shift-lifecycle ADR). No
+cascading sweeps — grep confirmed no existing integrate-state references in the plan doc.
+Working doc Finding #13 removed (~35 lines), Sequencing § Tier 2 updated, R5 ("walk missing
+shift scenarios") updated to reflect Finding #13 half resolved (Finding #14 half still
+tracked). Third consecutive direct-to-plan-doc migration; third handoff lean in a row
+partially overturned by a targeted code read.
 **Blockers**: [none]
-**Next Action**: Tier 2 smalls. **#13** (Integrate × non-complete WU states) is a state-
-machine sketch with small scope — likely the next candidate. **#7** (Guardrail firing
-mechanism) is ⚪ parked and can resume in parallel or later. **#16** (Full → Lite downgrade)
-is mostly 🟢 and needs a confirmation pass; Framing C from Finding #9 provides the reusable
-helper spine, and Finding #10's rename + composition pattern composes cleanly with a
-downgrade re-render. Pick one of #13, #7, #16 to resolve next — #13 is the most self-
-contained starting point.
+**Next Action**: Tier 2 smalls remaining. **#7** (Guardrail firing mechanism) is ⚪ parked
+and can resume in parallel or later. **#16** (Full → Lite downgrade) is mostly 🟢 and just
+needs a confirmation pass; Framing C from Finding #9 provides the reusable helper spine and
+Finding #10's rename + composition pattern composes cleanly with a downgrade re-render.
+Either is a reasonable next target. After Tier 2 drains (likely 1-2 more sessions), Tier 3
+(#2, #4, #5, #6, #12/R6) becomes the focus. Rough estimate from here: 4-5 more sessions to
+produce a PRD-ready `plan-arc-modes.md`.
 
 ---
 

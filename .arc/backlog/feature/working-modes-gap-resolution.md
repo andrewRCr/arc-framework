@@ -40,7 +40,8 @@ Tier determines what unblocks what.
 
 **Tier 2 — independent, manageable:**
 
-- **#13** — Integrate × non-complete states. State-machine sketch, small scope.
+- *#13 (Integrate × non-complete states) resolved and migrated 2026-04-10. See
+  [`plan-arc-modes.md`][plan-doc] § Integration Interaction with Shift States.*
 - **#7** — Guardrails. Orthogonal, can run in parallel.
 - **#16** — Full → Lite downgrade. Small, user's framing already mostly resolves it.
 - *#3 (Ship step) resolved and migrated with the Tier 1 batch.*
@@ -245,43 +246,6 @@ and #8 land.
   viable.
 - Density threshold from conditional content analysis applies (5+ conditionals on same axis →
   variant).
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
-
----
-
-### Finding 13 — Integrate × non-complete WU states · 🟡
-
-**Original:** `integrate-work-unit.md` presumably validates `Status: Complete` before merging.
-New states (`Paused`, `Waiting-For`) create cases: refuse integrate? Force resume first?
-Auto-transition? Not walked in the plan. `integrate-work-unit.md` needs at least a paragraph of
-update that's not in the deliverable list.
-
-**User position (2026-04-10):** Wants explicit handling, wants to avoid churn. "Reactivating a
-work unit that was parked pending code review prior to merge/integration is silly and would
-waste everyone's time." Needs focused analysis.
-
-**Outstanding analysis:**
-
-- Walk state × integrate matrix:
-    - `In Progress` → integrate: standard path.
-    - `Paused` → integrate: probably refuse? "Resume first, then integrate" — but what if user
-      knows it's done?
-    - `Waiting-For Review` → integrate: this is exactly the natural transition (review lands,
-      integrate). Should probably allow directly without requiring resume-then-integrate churn.
-    - `Waiting-For Approval` / `Delivery` / `Decision` / `Other` → integrate: depends on what's
-      waiting. If the waiting-for item is the last blocker, integrate is the correct next step.
-    - `Complete` → integrate: standard path.
-- Proposal shape: integrate allows `In Progress`, `Waiting-For {any}`, `Complete`. Refuses
-  `Paused` with a "resume first" error. Or: allows all non-`Paused` with a prompt confirming
-  the integrator understands the state.
-- Does `/arc-shift` or `integrate-work-unit` own the state transition on merge? (Integrate
-  probably sets Status → Complete as a side effect.)
-- Does the Waiting-For category itself imply the integration readiness? E.g., `Waiting-For
-  Review` → when review lands, integrator knows to proceed; `Waiting-For Approval` → approval
-  gates integrate explicitly; etc.
 
 **Resolution:** *pending*
 
@@ -625,9 +589,10 @@ Same as B4. Tracking there.
 ### R5 — Walk missing shift scenarios · 🟡
 
 **Finding:** Two missing scenarios: integrate-work-unit on a paused/waiting-for WU (Finding #13,
-tracked), and shift-with-activation end-to-end (Finding #14, tracked).
+resolved and migrated 2026-04-10), and shift-with-activation end-to-end (Finding #14, tracked).
 
-**Resolution:** Covered by Findings #13 and #14.
+**Resolution:** Finding #13 resolved (see [`plan-arc-modes.md`][plan-doc] § Integration
+Interaction with Shift States). Finding #14 still tracked.
 
 ### R6 — Resolve OQ15 (initial-setup workflows) · 🟡
 
@@ -1036,6 +1001,93 @@ resume in parallel or later. **#16** (Full → Lite downgrade) is mostly 🟢 an
 confirmation pass — Framing C from Finding #9 provides the reusable helper spine for whatever
 CLI surface it lands on, and Finding #10's rename + composition pattern composes cleanly with
 a downgrade re-render.
+
+### 2026-04-10 — Finding #13 resolved and migrated (first Tier 2 resolution)
+
+**Resolution:** The user-identified anti-pattern driving Finding #13 — "reactivating a work
+unit that was parked pending code review prior to merge is silly" — shaped the whole
+analysis. The resolution centers on the semantic that **invocation is the assertion**: when a
+developer runs integrate on a WU in `Waiting-For Review`, they are stating "the review landed"
+and the workflow does not need to validate what was waited for.
+
+**Key reframe from the code read:** The handoff lean claimed `integrate-work-unit.md`
+"presumably validates `Status: Complete` before merging." A read of the workflow showed this
+is not the case. Step 1 ("Verify Work Completion") is agent-enforced prose whose actual
+checks are "all subtasks `[x]`," "Success Criteria checked," and "quality gates passed." The
+Status header line — `[ ] Task list header **Status:** updated to Complete` — is phrased as
+an imperative, not a gate, and the transition itself is a silent side effect of Step 2's
+`clean-work-unit.md` Mode 2 run (which sets `Status: Complete` unconditionally). **There is
+no existing validation layer refusing non-Complete states.** This collapsed Finding #13 from
+"add a validation layer" to "surface the state transition explicitly so it can accept the
+shift-lifecycle vocabulary." The resolution is primarily a widening of the entry contract,
+not a new mechanism. Third handoff lean in a row partially overturned by a code read —
+pattern is now consistent enough to bake "verify premise via targeted read first" into every
+future handoff lean for workflow-shape questions.
+
+**Adopted acceptance matrix:**
+
+- `In Progress` → accept (standard happy path)
+- `Complete` → accept (idempotent; e.g., re-run after crash)
+- `Waiting-For Review/Approval/Delivery/Decision/Other` → accept, transition to `Complete`
+- `Paused` → warn and prompt for confirmation inline (default no); on confirm, proceed
+  through standard path
+
+**Key semantic load-bearers documented in the resolution:**
+
+1. **Invocation is the assertion.** The workflow's job is to transition state and proceed;
+   judging whether the wait is actually over is the user's responsibility and is discharged
+   by the invocation itself. Holds symmetrically across all `Waiting-For` categories
+   including `Other` (freeform reason carries whatever the user knew at pause time).
+2. **`Paused` ≠ `Waiting-For`.** Per Finding B's vocabulary split, `Paused` specifically
+   means "dev is next mover." A `Paused` WU at integrate time is semantically suspicious
+   (stale state, or work isn't actually done). Warn-and-confirm is the right ergonomic —
+   not a hard refuse with `--force`, which would push the edge case into CLI surface the
+   user has to discover. Inline prompt matches ARC's established warn-and-confirm idiom
+   (parallel to uncommitted-work handling at pause time in § Workflow Shape).
+3. **Integrate owns the terminal transition.** Resolution of the working doc's "does
+   `/arc-shift` or `integrate-work-unit` own the state transition on merge" open question:
+   integrate owns it. `/arc-shift` owns mid-flight transitions (pause/resume/rotate) only
+   and never writes `Status: Complete`. Locality: the workflow that finalizes the WU owns
+   the final state write. Already implicitly true today via `clean-work-unit.md` Mode 2 —
+   the resolution does not move the transition, only surfaces the entry-state check
+   explicitly upstream.
+
+**Plan doc landing points:**
+
+- **Finding #13** → new `### Integration Interaction with Shift States` subsection under
+  `## Shift Lifecycle`, placed between `### Skill Shape` (`/arc-status`) and `### Why This
+  Lives in Its Own Cross-Cutting Section`. Groups with the other workflow-integration
+  subsections (Session-Init Integration, Skill Shape) while being last before the
+  meta-framing sections. Six internal sub-headings: current workflow reading, acceptance
+  matrix, invocation-as-assertion, Paused warn-and-confirm, integrate-owns-terminal-
+  transition, feedforward to implementation.
+- **Cascading sweeps** — none. Grep pass confirmed no existing content in `plan-arc-modes.md`
+  references integrate-work-unit's state handling or the non-complete entry question. Clean
+  insertion.
+- **Resolved Decisions table** — added 5 new rows covering: entry contract (acceptance
+  matrix), invocation-as-assertion semantic, Paused warn-and-confirm ergonomic, terminal
+  transition ownership, ADR deferral (not a standalone ADR — composes with shift-lifecycle
+  ADR).
+- **Open Questions** — no entries to resolve (working-doc Finding #13 didn't have a
+  parallel OQ in the plan doc).
+
+**Working doc shrinkage:** Removed Finding #13 section entirely (~35 lines). Updated
+Sequencing § Tier 2 to mark #13 resolved and migrated. Updated R5 ("walk missing shift
+scenarios") to reflect that #13 is now resolved (R5 still tracks the #14 half). Tier 2 now
+carries only #7 (parked) and #16 pending resolution.
+
+**Session velocity:** Smaller than Findings #9 and #10, as expected. The analysis was
+mostly in hand from the orientation read of `integrate-work-unit.md` + the existing working-
+doc outstanding-analysis section + Finding B's already-decided vocabulary. Direct-to-plan-
+doc migration path (same as #9 and #10) — no intermediate working-doc draft. Roughly 45
+minutes for analysis + orientation + code read; migration itself ~30 minutes. **Fourth
+consecutive session using the direct-to-plan-doc pattern** — strongly established as the
+default for crisp-from-analysis findings.
+
+**Next:** Tier 2 smalls remaining. **#7** (Guardrail firing mechanism) currently ⚪ parked;
+\#16 (Full → Lite downgrade) mostly 🟢 and just needs a confirmation pass. Either is a
+reasonable next target. After Tier 2 drains, Tier 3 (#2, #4, #5, #6, #12/R6) becomes the
+focus.
 
 ---
 

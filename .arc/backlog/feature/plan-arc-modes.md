@@ -2475,6 +2475,113 @@ naming ambiguity at its root. See
   perform an on-demand git query for task lists with paused Status headers across all
   branches when the user explicitly asks. Pay-for-what-you-request.
 
+### Integration Interaction with Shift States
+
+The shift lifecycle introduces `Paused` and `Waiting-For {category}` as valid mid-flight states for
+an in-progress work unit. `integrate-work-unit.md` is the terminal transition point — it takes a
+completed WU and prepares it for merge. Without explicit handling, the expanded state vocabulary
+leaves an ambiguity: what should integrate do when invoked on a WU whose task list header reads
+something other than `In Progress`?
+
+#### Current workflow does not validate the Status header
+
+A reading of `integrate-work-unit.md` clarifies the pre-shift-lifecycle behavior. Step 1 ("Verify
+Work Completion") is agent-enforced prose. Its validation checks are: all subtasks and parent
+tasks marked `[x]`, Success Criteria all checked, quality gates passed.
+
+The Status header line in Step 1 — `[ ] Task list header **Status:** updated to Complete` — is
+phrased as an **imperative**, not a gate. It instructs the agent to ensure the header says
+`Complete` before proceeding, and the transition itself is a silent side effect of Step 2's
+`clean-work-unit.md` Mode 2 run (which sets `Status: Complete` unconditionally during doc cleanup).
+There is no validation today that refuses integration if the current Status value is something
+else — the workflow effectively assumes `In Progress` and rewrites the header during prep.
+
+This reframes Finding #13 from "add a validation layer" to **"surface the state transition
+explicitly so it can accept the shift-lifecycle vocabulary."** The resolution is primarily a
+widening of the entry contract, not a new mechanism.
+
+#### Acceptance matrix
+
+| Entry state            | Behavior                                                         |
+|------------------------|------------------------------------------------------------------|
+| `In Progress`          | Accept. Standard happy path.                                     |
+| `Complete`             | Accept. Idempotent (e.g., re-running after a crash).             |
+| `Waiting-For Review`   | Accept. Transition to `Complete`.                                |
+| `Waiting-For Approval` | Accept. Transition to `Complete`.                                |
+| `Waiting-For Delivery` | Accept. Transition to `Complete`.                                |
+| `Waiting-For Decision` | Accept. Transition to `Complete`.                                |
+| `Waiting-For Other`    | Accept. Transition to `Complete`.                                |
+| `Paused`               | Warn, prompt for confirmation, proceed or abort per user choice. |
+
+The transition to `Complete` continues to happen in `clean-work-unit.md` Mode 2 (no change to that
+workflow). Step 1 of `integrate-work-unit.md` gains an explicit state-vocabulary read upstream of
+the existing checks — reporting the current state, applying the acceptance matrix, and
+short-circuiting with a prompt in the `Paused` case.
+
+#### Invocation is the assertion
+
+The semantic that makes the acceptance matrix work: **invoking integrate on a `Waiting-For` WU is
+the user's assertion that the wait is over.** When the developer runs integrate on a WU in
+`Waiting-For Review`, they are stating "the review landed." The workflow does not need to validate
+what was waited for — the invocation itself carries the signal. This is why `Waiting-For Review`
+→ integrate is the natural transition path rather than an error condition requiring
+resume-then-integrate churn, which was the user-identified anti-pattern driving Finding #13.
+
+The semantic holds symmetrically across the `Waiting-For` categories (including `Other`, where the
+freeform reason carries whatever the user knew at pause time). The workflow's job is to transition
+state and proceed with integration; judging whether the wait is actually over is the user's
+responsibility, discharged by the invocation.
+
+#### Paused is warn-and-confirm, not hard refuse
+
+Per the [Finding B vocabulary split](#finding-b-paused-vs-waiting-for-vocabulary-split), `Paused`
+specifically means "the developer is the next mover." A `Paused` WU at integrate time is
+semantically suspicious — either the state is stale (the developer forgot to shift-resume after
+finishing) or the work isn't actually done. Neither case is a hard "refuse and abort," but neither
+is a silent "just integrate."
+
+The resolution is an inline prompt along the lines of:
+
+```text
+This work unit is Paused (2026-04-09 — reason) — dev-next-mover state.
+Proceed with integration anyway? [y/N]
+```
+
+Default is no. If the user confirms, the workflow proceeds through the standard path,
+transitioning `Paused` → `Complete` via `clean-work-unit.md` Mode 2 like any other accepted state.
+No `--force` flag; the prompt surfaces the decision inline where the user already is, matching
+ARC's established warn-and-confirm idiom (see [Workflow Shape](#workflow-shape) above for the
+parallel pattern in uncommitted-work handling at pause time).
+
+#### Integrate owns the terminal transition
+
+A related open question from the working doc: **does `integrate-work-unit` or `/arc-shift` own
+the final `→ Complete` state transition?** The resolution: **integrate owns it.**
+
+- `/arc-shift` owns _mid-flight_ transitions: pause, resume, rotate. These are reversible and
+  expose personal developer state changes while a WU is in flight.
+- `integrate-work-unit` owns the terminal `→ Complete` transition. It is coupled to the merge
+  operation and is not a "shift" — it is the close-out.
+
+This is already implicitly true today (`clean-work-unit.md` Mode 2 performs the transition during
+integrate's Step 2). The resolution does not move the transition; it preserves locality — the
+workflow that finalizes the WU owns the final state write — while making the entry-state check
+explicit upstream. `/arc-shift` never writes `Status: Complete`.
+
+#### Feedforward to implementation
+
+The `integrate-work-unit.md` workflow needs a small, targeted edit during the modes WU
+implementation phase: insert an explicit state-vocabulary read and acceptance-matrix check at the
+top of Step 1, before the existing subtask/success-criteria validations. The existing Step 1
+Status-header checkbox line becomes a natural landing for the matrix evaluation. No changes to
+`clean-work-unit.md`. No changes to `/arc-shift`. The change is a small block of workflow prose
+plus an updated checklist item in Step 1.
+
+This is implementation-phase content; the task list will carry it as a concrete task when the PRD
+generates it. No standalone ADR is expected — the decision is a behavioral extension of the
+shift-lifecycle vocabulary already captured in the § Shift Lifecycle content above, and composes
+with the shift-lifecycle ADR that Findings #8, #9, and #10 defer to PRD implementation.
+
 ### Why This Lives in Its Own Cross-Cutting Section
 
 Shift was initially scoped as a Local-mode necessity — needed because Local Full's single-active
@@ -2858,6 +2965,11 @@ decision and a brief rationale; the full reasoning is in the relevant section ab
 | Shift lifecycle — Finding C (pause pointers)                            | No rename needed. The `Paused:` pointer field in `clean-work-unit.md` and the new Status header vocabulary do not collide (different field shapes, different semantics). Formalizing the four pointer fields is an independent doc sweep, not shift-blocking                             |
 | Shift lifecycle — `PROJECT-STATUS.md`                                   | Stays project-focus oriented. Updated at activate/archive only, not at personal shift operations. Paused WUs still appear as project focus until archived (ownership-of-tracked-state framing)                                                                                           |
 | Shift lifecycle — CLI naming coordination                               | `arc status` (framework health CLI) rename to `arcd health` absorbed into [ARCd Rebrand][arcd-rebrand] WU, freeing `/arc-status` for the mid-session skill                                                                                                                               |
+| Integrate × shift states — entry contract                               | `integrate-work-unit` accepts `In Progress`, `Complete`, and all `Waiting-For {category}` values. `Paused` triggers an inline warn-and-confirm prompt. Entry check inserted at top of Step 1; transition to `Complete` remains in `clean-work-unit.md` Mode 2                            |
+| Invocation-as-assertion semantic for `Waiting-For`                      | Running integrate on a `Waiting-For` WU is the user's assertion that the wait is over. Workflow does not validate what was waited for; the invocation itself carries the signal, and the transition proceeds through the standard path                                                   |
+| `Paused` handling at integrate                                          | Warn-and-confirm inline (default no), not hard refuse with a `--force` flag. Matches ARC's warn-and-confirm idiom elsewhere. User confirmation proceeds through standard path; transition to `Complete` happens in `clean-work-unit.md` Mode 2 like any other accepted state             |
+| Terminal `→ Complete` transition ownership                              | `integrate-work-unit` owns the terminal state write (via `clean-work-unit.md` Mode 2). `/arc-shift` owns mid-flight transitions (pause/resume/rotate) only and never writes `Status: Complete`. Locality: the workflow that finalizes the WU owns the final state write                  |
+| ADR authoring for integrate × shift states                              | Not a standalone ADR. Behavioral extension of the shift-lifecycle vocabulary — composes with the shift-lifecycle ADR that Findings #8, #9, and #10 defer to PRD implementation                                                                                                           |
 | Context footer in Local mode                                            | Enforced descriptive freeform pattern via commit-msg hook                                                                                                                                                                                                                                |
 | Role concept applicability                                              | Tracked concept. Applies in Full+tracked AND Lite+tracked (OSS solo-dev scenario). Dropped in Local regardless of Lite/Full.                                                                                                                                                             |
 | `team.mode` in Local mode                                               | Forced `false`                                                                                                                                                                                                                                                                           |
