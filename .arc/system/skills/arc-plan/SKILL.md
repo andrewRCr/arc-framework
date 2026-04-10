@@ -1,32 +1,31 @@
 ---
 name: arc-plan
 description: >-
-  Collaborative planning facilitation for new or in-progress work — orients
-  from current artifact state, supports iterative elicitation, and helps
-  refine exploration toward a formal requirements artifact.
+  Collaborative elicitation for pre-PRD planning exploration — helps when
+  no plan-* document exists yet, or one exists but is still being refined
+  toward formalization. Iterative facilitation, not plan generation. Not
+  for use during task execution; invoke only when the user explicitly
+  requests planning help.
 disable-model-invocation: false
 ---
 
 # ARC Plan
-
-Collaborative facilitation for work planning. Helps the human move from a
-vague idea or rough planning artifact toward clearer shared understanding and
-an eventual formal requirements artifact.
 
 Works for two common scenarios:
 
 - starting from a vague idea with no planning artifact yet
 - resuming or refining an existing `plan-*` document that is still rough
 
-The value is in collaborative elicitation, not plan generation. The agent
-should help surface ambiguity, assumptions, alternatives, risks, trade-offs,
-and scope boundaries while the human works through the problem.
+The agent should help surface ambiguity, assumptions, alternatives, risks,
+trade-offs, and scope boundaries while the human works through the problem.
 
 Not a "plan mode" where the agent produces a finished plan for approval. The
 human formulates and explores _with_ the agent.
 
 **Non-goals:** This skill is not a PRD gate, not a task generator, and not a
-dispatcher into downstream workflows by default.
+dispatcher into downstream workflows by default. Not for use during active
+work unit execution — task-execution questions belong in the task loop, not
+in a planning facilitation pass.
 
 **Scope guard:** Context gathering should be targeted, not exhaustive. Read
 document titles and summaries to assess relevance before reading full
@@ -38,8 +37,7 @@ comprehensive research report.
 
    - **If a plan document exists** (`plan-*.md` referenced by the user or
      found in the expected directory): Read it first. This is the primary
-     continuity artifact. Classify what appears resolved, rough, stale, and
-     still open. Do **not** perform broad rediscovery by default.
+     continuity artifact. Do **not** perform broad rediscovery by default.
    - **If no plan document exists**: The user has an idea or direction.
      Proceed to broader context gathering with whatever the user has
      described.
@@ -57,9 +55,8 @@ comprehensive research report.
    - **Broad discovery** — use for a fresh idea with no planning artifact,
      or when the user explicitly wants a landscape-mapping pass.
 
-   If a plan exists and there is no clear reason to refresh context,
-   continue artifact-first. If additional discovery looks useful, surface
-   that choice explicitly rather than silently spending time and tokens.
+   If additional discovery beyond the artifact looks useful, surface that
+   choice explicitly rather than silently spending time and tokens.
 
 3. Gather project context.
 
@@ -89,9 +86,8 @@ comprehensive research report.
 4. Facilitate elicitation.
 
    Share the minimum context needed to orient the conversation. Then help
-   the human refine their thinking through iterative elicitation. Treat the
-   planning strategy's discovery checklist as prompt material, not a rigid
-   questionnaire.
+   the human refine their thinking through iterative elicitation. Treat
+   the following as prompt material, not a rigid questionnaire.
 
    Revisit these areas as needed:
 
@@ -112,14 +108,29 @@ comprehensive research report.
 
 5. Synthesize the current state.
 
-   At natural stopping points, summarize the planning state:
+   At natural stopping points, produce a structured synthesis so the plan's
+   progression toward PRD readiness is visible.
 
+   - **State** — where the plan sits on the progression:
+       - **fresh** — no `plan-*` document yet, shaping the idea
+       - **rough** — `plan-*` exists but has significant gaps or
+         unresolved direction
+       - **maturing** — scope known, open items are detail-design rather
+         than fundamentals
+       - **formalization-ready** — exploration stable, suitable input for
+         create-prd
    - **Resolved** — what now seems settled
-   - **Open** — what still needs decision, validation, or investigation
-   - **Next artifact** — continue refining the plan, update the existing
-     plan, or move to the formalization workflow
+   - **Open — masked design decisions** — choices implementation will
+     force that the plan does not yet acknowledge
+   - **Open — unvalidated assumptions** — claims the plan leans on that
+     have not been tested against code, prior work, or external sources
+   - **Open — scope boundaries** — where in-scope / out-of-scope is still
+     soft and could shift under pressure
+   - **Next** — continue exploring, update the `plan-*` document, or
+     propose moving to create-prd
 
-   If the exploration has enough shape to write down, suggest creating or
-   updating the planning artifact. If it appears mature enough for
-   formalization, suggest the relevant workflow without treating this skill
-   as the formal gate.
+   Empty categories are fine — say so explicitly rather than manufacturing
+   findings. If the state reads formalization-ready, suggest create-prd as
+   the next step; create-prd remains the authoritative readiness gate. If
+   earlier, name what would need to land for the plan to advance to the
+   next state.

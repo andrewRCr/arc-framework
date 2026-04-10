@@ -114,7 +114,7 @@ than rediscovering the entire surrounding landscape by default.
 On resume, treat the plan as the primary continuity anchor:
 
 - read it first
-- identify what appears resolved, rough, stale, and still open
+- identify what appears resolved, stale, and still open
 - perform only the additional discovery needed to test stale assumptions or fill concrete gaps
 
 Broad rediscovery is appropriate for fresh planning efforts or when the user explicitly wants a new

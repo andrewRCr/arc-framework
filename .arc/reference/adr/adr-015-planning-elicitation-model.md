@@ -161,3 +161,29 @@ and same layered model apply.
   These are captured as follow-up work for Operating Modes and ongoing planning refinement.
 
 ## Amending This Document
+
+**Amendment (2026-04-10):** Implementation refinements to the `arc-plan` skill
+during initial iteration resolved two of the Risks § deferred questions and
+refined the stopping-point synthesis beyond the original "lightweight" framing.
+The Decision still holds as stated; this note captures the shape the skill
+ended up with so future readers don't misread the original wording as
+authoritative current behavior.
+
+- **Synthesis format (formerly deferred).** Step 5 of the core loop now
+  produces a structured synthesis — explicit state position (`fresh` /
+  `rough` / `maturing` / `formalization-ready`) plus categorized open items
+  (masked design decisions, unvalidated assumptions, scope boundaries). The
+  skill file is the authoritative current shape; the Decision's step 5
+  describes the original simpler "resolved / open / next" version.
+- **Invocation scoping (formerly deferred).** The skill's frontmatter
+  description now includes an explicit "invoke only when the user explicitly
+  requests planning help" guardrail. This scopes auto-invocation at the
+  description level without moving the skill to fully user-invocable-only,
+  which was the stricter alternative the deferred question raised.
+- **Vocabulary alignment.** Step 1 of the core loop (as written in the
+  Decision section and echoed in the strategy's Planning Continuity bullet)
+  directed classifying items as `resolved / rough / stale / open`. This
+  collided with the step 5 four-state model, where `rough` is a whole-plan
+  state rather than a per-item adjective. The skill now defers classification
+  entirely to step 5, and `strategy-work-planning.md` was trimmed to drop
+  the `rough` adjective from its continuity bullet.
