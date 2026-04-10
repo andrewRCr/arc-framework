@@ -101,7 +101,10 @@ even exist. The decisions:
   Mechanism](#installation-type-recipe-mechanism) below.
 - **Lite gates downstream prompts** — Lite skips the `pm.mode` prompt (implicitly `none`; `arc-pm`
   is contradictory since Lite has no work unit stream for the planning module to manage).
-  `team.mode` is also skipped — Lite is inherently solo from a methodology perspective.
+  `team.mode` is also skipped — Lite is inherently solo from a methodology perspective. The gating
+  mechanism (new `show_when` field on recipe prompts, with `install.type == full` as the condition)
+  is specified in [Prompt Orchestration and Recipe
+  Authority](#prompt-orchestration-and-recipe-authority) below.
 - **Lite ships a reduced `arc-config.yml`** — containing only settings relevant to Lite, rather than
   conditionalizing the Full config in place. The recipe-side mechanism that drives mode-conditional
   file installation is specified below; the delivery mechanism for the reduced config file itself
@@ -458,6 +461,520 @@ the ADR itself is written during that task's execution. ADR number is assigned a
 This sequencing — working doc → plan doc → PRD → task list → ADR during execution — is a general
 discipline for ARC planning work: ADRs are implementation-phase deliverables, not pre-PRD
 artifacts.
+
+### Prompt Orchestration and Recipe Authority
+
+**How `arc init` asks the Lite-vs-Full question, gates downstream prompts on the answer, and where
+the authority for prompt declarations actually lives.** [Configuration Identity](#configuration-identity)
+above establishes that Lite skips `pm.mode` and `team.mode`; [Installation Type Recipe
+Mechanism](#installation-type-recipe-mechanism) resolves how the stored `install.type` value drives
+file installation. This section resolves the parallel question for prompts: what mechanism expresses
+"show this prompt only when `install.type == full`" — and, as the deeper question that surfaced
+during evaluation, who owns the declaration of prompts in the first place.
+
+#### The gap
+
+The plan doc (§ Configuration Identity and § Configuration and Installation) states that Lite skips
+the `pm.mode` and `team.mode` prompts. The recipe (`packages/arc-framework/init-recipe.json`) defines
+these prompts as entries in a flat `prompts` array with no conditionality field, so there is no
+in-schema way to express "skip this under Lite." Finding #8's Approach 1b resolves file inclusion via
+the `install.type` condition but does not give the recipe or the CLI a mechanism for prompt gating —
+a distinct concern with its own solution space.
+
+**The deeper gap surfaced during evaluation.** The initial framing was "add a `show_when` field to
+`RecipePrompt` entries and have the prompt loop consult it." A pre-migration code read revealed a
+load-bearing fact the handoff's resolution lean did not fully account for: **`recipe.prompts` is
+validated but never consumed.** No code in the CLI iterates the recipe's `prompts` array to drive
+prompting. The hand-rolled `runInitPrompts()` in `src/prompts/init-prompts.ts` hardcodes the same
+four prompts as explicit `@clack/prompts` calls, and the same pattern repeats across six other sites
+(enumerated below). Finding #9 is therefore not a simple "add `show_when`" addition — it is a
+question about what authority the recipe schema holds today and what authority it should hold going
+forward. The gating decision falls out of that authority decision.
+
+#### Current state — factual landscape
+
+The [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) § above already walks
+the recipe and manifest pipeline. This section refers back to that factual landscape rather than
+re-describing it, and zooms in on the prompt-specific pieces.
+
+**`recipe.prompts` is metadata-only.** Verified via `grep` for `recipe\.prompts|Recipe\.prompts|
+\.prompts\b` across `packages/arc-framework/src/`:
+
+- **`validateRecipe()`** in `lib/template/recipe.ts` reads `recipe.prompts` to validate the array
+  shape (each prompt has an `id`, a `type` in `text|select|multiselect|confirm`, a `message`, option
+  arrays where required).
+- **Nothing else** reads `recipe.prompts`. Not `runInitPrompts()`, not `runReconfigurePrompts()`, not
+  `runJoinPrompts()`, not `buildConfigMap()`, not `buildConfigKeyOverrides()`, not `buildTokenMap()`,
+  not the non-interactive builders. The `id`, `message`, `options`, `default`, `token`, and
+  `config_key` fields declared in `init-recipe.json` are inert metadata.
+
+**Seven hand-coded duplication sites** encode the same four-prompt knowledge the recipe already
+declares:
+
+1. **`runInitPrompts()`** (`src/prompts/init-prompts.ts`) — four explicit
+   `p.text` / `p.autocompleteMultiselect` / `p.select` / `p.confirm` calls for `project_name`,
+   `tools`, `pm_mode`, `team_mode`. Owns the rich UX: note preambles, autocomplete with labels and
+   hints, defaults derived from `basename(cwd)`, title-case transformation, clack cancellation
+   sentinel handling.
+2. **`runReconfigurePrompts()`** (`src/prompts/reconfigure-prompts.ts`) — three explicit prompt calls
+   for `project_name`, `pm_mode`, `team_mode` (tools are excluded — they route through the add-agent
+   workflow). Owns a different UX: current-value-as-default, team-mode-enable warning logic,
+   `isNoChange()` comparator, separate `ReconfigurePromptResult` type.
+3. **`runJoinPrompts()`** (`src/prompts/join-prompts.ts`) — two prompt calls for `role` and `tools`.
+   Shares the `promptTools()` helper with init (one small, genuine piece of DRY).
+4. **`buildNonInteractivePrompts()`** (`src/prompts/non-interactive.ts`) — CLI flag mapping for
+   `--name` / `--pm-mode` / `--tools` / `--team`. Hardcodes defaults
+   (`project_name: basename(cwd)`, `tools: []`, `pm_mode: "none"`, `team_mode: false`). Hardcodes the
+   valid `pm_mode` set as `VALID_PM_MODES = ["none", "arc-in-git", "external"]` — a third copy of
+   knowledge already in `init-recipe.json`.
+5. **`buildNonInteractiveReconfigurePrompts()`** (`src/prompts/reconfigure-prompts.ts`) — parallel
+   flag mapping for reconfigure; hardcodes the same fields.
+6. **`buildConfigMap()`** (`src/lib/config.ts`) — maps prompt result to condition-evaluation config
+   map. Hardcodes `pm.mode`, `team.mode`, `tools` via constants (`CONFIG_KEY_PM_MODE`,
+   `CONFIG_KEY_TEAM_MODE`) and a literal `"tools"` string. Ignores `recipe.prompts[i].config_key`.
+7. **`buildConfigKeyOverrides()`** (`src/lib/config.ts`) — parallel mapping for `arc-config.yml`
+   rendering. Hardcodes the same keys plus a `user.sync_push` derivation from `team_mode`.
+
+And `buildTokenMap()` (`src/lib/config.ts`) hardcodes `PROJECT_NAME` and `REPO_ROOT` despite
+`recipe.prompts[0].token = "PROJECT_NAME"` being right there in the recipe declaration.
+
+**What hand-rolled code has that the recipe schema can't express today.** Significant — any
+"make the recipe authoritative for everything" reframe has to solve these or accept UX regression:
+
+- **Multi-line note preambles** before select prompts (the tools preamble; the PM mode preamble with
+  four paragraphs of per-option descriptions).
+- **Autocomplete multiselect** with per-option `label` + `hint` fields (the tools list).
+- **Computed defaults** like `basename(cwd) → titleCase()` for `project_name`. Recipe has a
+  `computed_tokens` field for init-time token computation but no parallel for prompt defaults.
+- **Current-value-as-default** for reconfigure (each prompt's default is read from the existing
+  manifest).
+- **Conditional warnings** — "team mode changes affect all developers" warning fires only when the
+  user enables team mode from a previously-disabled state.
+- **Non-interactive flag mapping** with per-field validation (e.g., `--name` cannot be empty,
+  `VALID_PM_MODES` check).
+- **Sentinel-based cancellation** across nested `await` points.
+
+**`evaluateCondition()` is partial-config-safe.** The condition evaluator in `lib/template/recipe.ts`
+returns `false` when the referenced key is undefined in the config map
+(`if (configValue === undefined) return false`). This matters for prompt gating: a `show_when`
+evaluated mid-loop against the partial config built so far will correctly return `false` for keys
+not yet answered — which is the right behavior as long as the `install.type` prompt comes before
+any prompt that references it.
+
+**Recipe `prompts` ordering is already significant.** The recipe declares prompts as an ordered
+array; the hand-rolled loops walk that order implicitly by writing four sequential awaits. Adding
+`show_when` constrains the order further: gated prompts must come after the prompt that defines
+their gating condition. This is a documented convention rather than a structural check (see drift
+mitigation below).
+
+#### Three framings
+
+The gating question collapses into a broader question: what authority does `recipe.prompts` hold?
+Three defensible answers, in order of ambition.
+
+**Framing A — hand-coded gating; recipe stays metadata.** Accept that `recipe.prompts` is
+vestigial. Do not touch the schema. Hand-code the gating directly in `runInitPrompts()` (and the
+reconfigure and non-interactive parallel spots): collect `install.type` first, then
+`if (install_type === "full") { prompt for pm_mode ... } else { pm_mode = "none" }`. Add
+`install.type` as a new hand-rolled prompt, new constant, new CLI flag. Lowest cost; honest about
+the current state; leaves the duplication unresolved.
+
+- **Pros:** Smallest change. No schema touch. No drift risk (there is only one source). Ships today
+  with a local modification to `runInitPrompts()` + `runReconfigurePrompts()` + non-interactive
+  builders. Code does not pretend the recipe is authoritative when it is not.
+- **Cons:** Every new mode-axis prompt in the future requires touching the same seven sites. The
+  next time "add a conditional prompt" comes up, the same analysis happens. `recipe.prompts` stays
+  inert metadata indefinitely — a latent smell in the codebase that invites the next reader to
+  repeat this investigation. No progress on the duplication.
+- **Rejection reasoning:** Framing A is the honest fallback if scope must be minimized, but it
+  accepts a known problem instead of reducing it. Finding #8 already moved the recipe toward
+  authoritative status for file inclusion; Finding #9 is the natural moment to move it forward for
+  prompts too. Choosing A here makes the next session's Finding #10 work harder (more duplicated
+  surfaces to keep in sync), and the session after that harder still. The marginal cost of Framing
+  C over Framing A is small; the compounding cost of repeatedly choosing A is not.
+
+**Framing B — full data-driven prompt loop.** Convert `runInitPrompts()` (and the reconfigure and
+non-interactive parallels) to iterate `recipe.prompts` and dispatch to `@clack/prompts` based on
+`prompt.type`. Grow the schema to express everything hand-rolled code currently owns: multi-line
+note preambles, option labels and hints, computed defaults, current-value-as-default, conditional
+warnings, non-interactive flag conventions, validation rules. The recipe becomes the true single
+source of truth for init-time behavior across all surfaces.
+
+- **Pros:** Single source of truth, in the strongest sense. Adding a new prompt is a pure recipe
+  edit. Maximum DRY. The recipe as a declarative contract is then actually honored by execution.
+  Aligns with the "recipe is authoritative" direction Finding #8 started.
+- **Cons:** The schema bloat required to express all current UX affordances is significant. Note
+  preambles are multi-line strings with interior formatting; option hints are per-option metadata
+  that changes the select widget shape; defaults need a computation language (how do you express
+  `basename(cwd) → titleCase()` in JSON?); current-value-as-default needs a different source of
+  default per command; conditional warnings need a predicate grammar plus a warning-text field.
+  Each of these is an open design problem on its own. And the growth is speculative: we do not yet
+  know which affordances future mode-axis prompts will need. Growing the schema to accommodate
+  hypothetical needs is the kind of premature abstraction ARC's own YAGNI stance pushes back on.
+- **Rejection reasoning:** Framing B is the right target state eventually, but attempting it in
+  this finding would couple Finding #9's resolution to a cascade of schema design decisions that
+  are not actually blocking prompt gating. The gating question has a cheaper answer (Framing C)
+  that composes toward Framing B's target state without requiring it today. If a future finding
+  surfaces a new affordance the schema cannot express, the same schema-growth debate happens
+  then — but grounded in a concrete need, not a preemptive refactor.
+
+**Framing C — narrow recipe authority.** Recipe owns three things: **identity** (which prompts
+exist, keyed by stable IDs), **config-surface mapping** (each prompt's `config_key` and `token`
+fields become the authoritative source for `buildConfigMap` / `buildConfigKeyOverrides` /
+`buildTokenMap`), and **gating** (a new optional `show_when` field on `RecipePrompt` entries, using
+the same condition grammar as `recipe.conditions`). Hand-rolled code keeps ownership of the UX
+layer — note preambles, autocomplete, defaults, warnings, flag mapping. Hand-rolled loops consult
+the recipe for gating and iterate it for config and token map assembly.
+
+- **Mechanism summary:** Schema delta is one optional field (`show_when?: string`) plus a validator
+  extension (check it matches `CONDITION_PATTERN` when present). A new helper
+  `shouldShowPrompt(prompt, partialConfig): boolean` lives alongside `evaluateCondition()` in
+  `lib/template/recipe.ts`. Each hand-rolled loop calls it before each gated prompt.
+  `buildConfigMap` / `buildConfigKeyOverrides` / `buildTokenMap` refactor to iterate
+  `recipe.prompts` for their mapping source. The `install.type` prompt is added as a new recipe
+  entry near the front of the array (position detailed below).
+- **Pros:** Resolves Finding #9's gating question cleanly. Gives `recipe.prompts` real authority
+  for the first time (gating + config mapping + identity), which justifies its continued existence.
+  No schema bloat for UX affordances. Composes toward Framing B's target state — a future session
+  can convert UX to data-driven without rewriting the gating layer. Reduces duplication by removing
+  hardcoded-constant mappings from `config.ts`. Adding a new gated prompt is a recipe edit plus a
+  drift-test update, not a seven-site tour.
+- **Cons:** Dual-source-of-truth persists (recipe declares prompt identity; hand-rolled code
+  executes the prompts). If a developer adds a prompt to `runInitPrompts()` without updating the
+  recipe, the prompt has no `config_key` mapping, no gating, no token mapping — silent partial rot.
+  This is the real cost of Framing C and the drift mitigation below directly addresses it.
+
+**Adopted: Framing C — narrow recipe authority.** Reasoning: it advances the "recipe is
+authoritative" story from Finding #8 without committing to the speculative schema growth Framing B
+requires; it resolves prompt gating along the way; the drift risk is real but tractable at low
+cost (see drift mitigation below).
+
+#### Schema delta
+
+Single optional field added to `RecipePrompt` in `lib/types.ts`:
+
+```ts
+interface RecipePrompt {
+  id: string;
+  type: PromptType;
+  message: string;
+  default?: string | boolean | string[];
+  options?: string[];
+  token?: string;
+  config_key?: string;
+  show_when?: string;  // NEW — optional condition; prompt is shown when it evaluates true
+}
+```
+
+**Grammar.** `show_when` values use the same `CONDITION_PATTERN` grammar as existing
+`recipe.conditions` keys — `"key == value"` or `"key includes value"`. Reusing the grammar means no
+new operator work, no new regex, and the same `evaluateCondition()` implementation handles both.
+`show_when` values reference config keys from **earlier** prompts in the same recipe (by ordering
+constraint, below).
+
+**Semantics.** When `show_when` is absent (the common case), the prompt is always shown. When
+`show_when` is present, the condition is evaluated against the partial config map built from prior
+prompts' answers. If the condition returns `true`, the prompt is shown and its answer is collected;
+if `false`, the prompt is skipped and its value is taken from `default` (see "Skipped-prompt
+defaults" below).
+
+**Validator extension.** `validateRecipe()` gets a new check: if `show_when` is present on any
+prompt, verify its value matches `CONDITION_PATTERN`. Error message matches the existing condition-key
+validation: `"Prompt ${i} ('${id}'): invalid 'show_when' (expected 'key == value' or 'key includes
+value' format)"`.
+
+#### Helper contract
+
+A new exported function lives in `lib/template/recipe.ts` alongside `evaluateCondition()`:
+
+```ts
+/**
+ * Decide whether a prompt should be shown given the partial config
+ * collected from prior prompts. Returns true when show_when is absent
+ * or when the show_when condition evaluates true against partialConfig.
+ */
+export function shouldShowPrompt(
+  prompt: RecipePrompt,
+  partialConfig: Record<string, string>,
+): boolean {
+  if (!prompt.show_when) return true;
+  return evaluateCondition(prompt.show_when, partialConfig);
+}
+```
+
+Pure function; single dependency on `evaluateCondition`; testable in isolation. No change to
+`evaluateCondition` itself — it already handles partial maps via the `configValue === undefined`
+check.
+
+#### Wire points
+
+**`runInitPrompts()`** (`src/prompts/init-prompts.ts`):
+
+1. Accept the recipe as a parameter (the existing call site in `commands/init.ts` already has it in
+   scope).
+2. Maintain a `partialConfig: Record<string, string>` that accumulates as answers come in. After
+   each prompt, write the answer's config key into the map using the prompt's `config_key` field
+   from the recipe (looked up by `id`).
+3. Before each existing prompt call, consult
+   `shouldShowPrompt(recipe.prompts.find(p => p.id === "pm_mode"), partialConfig)`. If `true`, run
+   the existing `p.select` / `p.confirm` call unchanged. If `false`, skip the prompt and use the
+   recipe's `default` value.
+4. The `tools` and `project_name` prompts are unconditional — `show_when` is absent on their recipe
+   entries, `shouldShowPrompt` returns `true`, and they run unchanged. No existing UX regression.
+
+**`runReconfigurePrompts()`** (`src/prompts/reconfigure-prompts.ts`):
+
+Same pattern. `install.type` is NOT prompted here — reconfigure keeps the existing manifest value
+(see "Reconfigure boundary" below). But `pm_mode` and `team_mode` gating still applies: if the
+existing manifest has `install_type: "lite"`, reconfigure respects it by skipping both prompts.
+`partialConfig` is seeded with `install.type` from the manifest's `install_config.install_type`
+before the first prompt so `shouldShowPrompt` evaluates correctly from the first gated prompt
+onward.
+
+**Non-interactive builders** (`src/prompts/non-interactive.ts`,
+`src/prompts/reconfigure-prompts.ts`):
+
+Same gating logic applied to flag-derived config. `buildNonInteractivePrompts()` computes each
+field's value; for gated fields (`pm_mode`, `team_mode`), it consults `shouldShowPrompt()` against
+the partial config built so far and uses the recipe default when gated out. This ensures
+`arc init --yes --install-type lite` produces the same config shape as the interactive Lite path.
+
+**`buildConfigMap()` and `buildConfigKeyOverrides()` refactor** (`src/lib/config.ts`):
+
+Replace hardcoded key constants with recipe iteration. For each prompt in `recipe.prompts` that has
+a `config_key`, map the answer value into the config map using that key. Multiselect values
+(`string[]`) flatten via `join(",")` to match the existing `tools` semantics. Booleans stringify via
+`String(value)` to match the existing `team_mode` semantics. The `user.sync_push` derivation from
+`team_mode` stays in code — that is a computed override, not a recipe-declared mapping.
+
+```ts
+export function buildConfigMap(
+  prompts: InitPromptResult,
+  recipe: Recipe,
+): Record<string, string> {
+  const config: Record<string, string> = {};
+  for (const prompt of recipe.prompts) {
+    if (!prompt.config_key) continue;
+    const value = (prompts as unknown as Record<string, unknown>)[prompt.id];
+    if (Array.isArray(value)) {
+      config[prompt.config_key] = value.join(",");
+    } else if (value !== undefined) {
+      config[prompt.config_key] = String(value);
+    }
+  }
+  return config;
+}
+```
+
+This removes `CONFIG_KEY_PM_MODE` / `CONFIG_KEY_TEAM_MODE` as load-bearing constants in `config.ts`
+(they may remain elsewhere if the shell-side hooks reference them). The recipe becomes the
+authoritative source for the config-key-to-prompt-field mapping.
+
+**`buildTokenMap()` refactor** (`src/lib/config.ts`):
+
+Similar iteration for `prompt.token`. `PROJECT_NAME` (from the `project_name` prompt) is sourced
+from the recipe; `REPO_ROOT` stays as a computed token (not from a prompt). Future prompts that
+declare a `token` field will flow through automatically.
+
+**`promptTools()` stays shared.** The one small piece of existing DRY between `runInitPrompts()` and
+`runJoinPrompts()` is preserved unchanged.
+
+#### `install.type` prompt addition
+
+The Lite-vs-Full choice needs to be collected at init time. It is added as a new recipe prompt at
+position 1 (after `project_name`, before `tools`) and as a new clack `p.select` call at the
+corresponding position in `runInitPrompts()`.
+
+**Recipe entry:**
+
+```json
+{
+  "id": "install_type",
+  "type": "select",
+  "message": "Installation type?",
+  "options": ["full", "lite"],
+  "default": "full",
+  "config_key": "install.type"
+}
+```
+
+**Default: `full`.** Matches the back-compat default established in Finding #8's manifest migration
+path (legacy manifests migrate with `install_type: "full"`). Matches the common case: Full ARC is
+the current shape of the framework; Lite is the minority path. Non-interactive `arc init --yes`
+without `--install-type` produces a Full install, matching today's behavior pre-Finding #9.
+
+**Canonical flag: `--install-type <lite|full>`.** Consistent with other dotted-key flags (`--pm-mode`,
+`--name`, `--team`). Shorthand aliases `--lite` and `--full` are also supported — already committed
+to in plan-doc § Init Flow Implications. `--lite` and `--full` are mutually exclusive; passing both
+is a flag-validation error. Both the canonical and shorthand flags route through
+`buildNonInteractivePrompts()` and produce the same effect.
+
+**Prompt position — ordering constraint.** The `install.type` prompt must come before any prompt
+gated on it. In the recipe's `prompts` array the order becomes:
+
+1. `project_name` — unconditional
+2. `install_type` — unconditional (NEW)
+3. `tools` — unconditional
+4. `pm_mode` — `show_when: "install.type == full"`
+5. `team_mode` — `show_when: "install.type == full"`
+
+In `runInitPrompts()` the same order is preserved in the hand-rolled sequence. The `install_type`
+select gets its own clack `p.select` call with a short note preamble describing the choice and
+pointing to documentation.
+
+**Ordering as documented convention, not structural check.** `validateRecipe()` does not enforce
+that `show_when` references come from earlier prompts in the array. Adding a structural check is
+possible (walk the prompts array, maintain a running set of seen config keys, verify each
+`show_when`'s referenced key is in the set) but this is more infrastructure than the constraint
+warrants today. The drift unit test (below) catches the practical failure mode.
+
+**Skipped-prompt defaults.** When a prompt is gated out, its value comes from `default` in the
+recipe entry. For `pm_mode` the current default is `"none"` (correct for Lite — `pm.mode: arc-pm`
+is contradictory per § Configuration Identity). For `team_mode` the default is `false` (correct for
+Lite — Lite is inherently solo per § Configuration Identity). Both defaults match the existing Lite
+semantics already stated in the plan doc; no new design decisions required.
+
+#### Gating declarations
+
+The explicit set of `show_when` declarations in the recipe after this finding lands:
+
+| Prompt         | `show_when`            | Skipped value (default) |
+|----------------|------------------------|-------------------------|
+| `project_name` | — (always shown)       | —                       |
+| `install_type` | — (always shown)       | —                       |
+| `tools`        | — (always shown)       | —                       |
+| `pm_mode`      | `install.type == full` | `"none"`                |
+| `team_mode`    | `install.type == full` | `false`                 |
+
+**No other prompts need gating.** Verified against Finding #1's Lite PRD landing — the Lite PRD's
+workflow shape uses mode-conditional edges at the workflow-step level (inside `.template.md` files
+rendered via `arc:if`), not at init-time prompt level. No new Lite-conditional prompts emerged from
+Finding #1.
+
+#### Drift mitigation — validation via unit test
+
+Framing C's dual-source split (recipe declares identity, hand-rolled code executes) has one real
+failure mode: a prompt added to `runInitPrompts()` without a matching recipe entry, or vice versa.
+The failure is silent — the new prompt has no `config_key` mapping, no gating support, no flow
+through the refactored `buildConfigMap`. The symptoms (missing config key, unmapped condition,
+broken install for certain combinations) are hard to trace to the root cause.
+
+**Mitigation: a unit test in `__tests__/unit/prompts/` that compares the recipe's prompt IDs against
+the hand-rolled loops' known sets.** The test enumerates the prompt IDs actually awaited in
+`runInitPrompts()` and `runReconfigurePrompts()` (via exported constants `INIT_PROMPT_IDS` and
+`RECONFIGURE_PROMPT_IDS` maintained alongside the hand-rolled loops) and asserts they match the
+corresponding recipe prompt IDs for that surface.
+
+**Why a unit test and not a `validateRecipe()`-level runtime check.** `validateRecipe()` runs at
+install time and validates the recipe shape in isolation — it has no visibility into what the
+hand-rolled prompt loops actually await. Wiring `validateRecipe()` to know about the hand-rolled
+loops either imports prompt-loop code into the recipe validator (layering violation) or duplicates
+the prompt IDs into a list the validator checks against (re-introduces the same duplication the
+finding is trying to reduce). A CI-time unit test catches the drift at the right latency without
+either problem.
+
+**Test shape** (conceptual):
+
+```ts
+test("runInitPrompts prompt set matches recipe.prompts", () => {
+  const recipe = loadRecipe();
+  const recipePromptIds = recipe.prompts.map(p => p.id);
+  expect(INIT_PROMPT_IDS).toEqual(recipePromptIds);
+});
+
+test("runReconfigurePrompts prompt set matches recipe.prompts (minus tools)", () => {
+  const recipe = loadRecipe();
+  const expected = recipe.prompts.filter(p => p.id !== "tools").map(p => p.id);
+  expect(RECONFIGURE_PROMPT_IDS).toEqual(expected);
+});
+```
+
+The `INIT_PROMPT_IDS` and `RECONFIGURE_PROMPT_IDS` constants are maintained in the same files as
+the hand-rolled loops — touching the prompt sequence without updating the constant produces an
+immediately visible diff in review, and touching only the constant without updating the sequence
+produces a test failure on the next CI run.
+
+This is small infrastructure cost (two tests, two exported constants) for the right weight of
+mitigation: cheap enough to include, effective enough to catch the realistic failure mode.
+
+#### Reconfigure boundary
+
+`arc init --reconfigure` does not mutate `install.type`. The interactive reconfigure flow
+(`runReconfigurePrompts`) does not prompt for it; the non-interactive flow
+(`buildNonInteractiveReconfigurePrompts`) does not accept `--install-type` as a flag. The existing
+manifest's `install_config.install_type` is read and seeded into `partialConfig` for gating
+evaluation, then written back unchanged.
+
+**Rationale.** Reconfigure is for structural settings — project name, PM mode, team mode.
+Lite↔Full transition is a materially different operation: it adds or removes files, rewrites the
+manifest schema, potentially re-prompts for mode-specific settings, and involves methodology-level
+decisions (is this project ready for Full? Is this project right-sized for Lite?) that do not fit
+the "change a value, re-render" reconfigure model.
+
+**The upgrade and downgrade paths need their own CLI surfaces.** Finding #16 (Full → Lite
+downgrade) is the concrete case currently tracked in the working doc sequencing. The Lite → Full
+upgrade path is covered in plan-doc's existing § Graduation / Downgrade Paths. Whatever shape those
+workflows ultimately take — dedicated `arc graduate` / `arc downgrade` commands, an interactive
+migration wizard, or workflow-driven manual steps with CLI helpers — they will re-touch prompt
+orchestration: the user needs to answer mode-specific questions (PM mode, team mode on upgrade;
+file reconciliation on downgrade). Framing C's `shouldShowPrompt` helper and the
+recipe-as-config-mapping refactor are reusable in that future work. Finding #9 does not solve
+graduation/downgrade; it specifies the shape so graduation/downgrade can build on it.
+
+#### Feedforward
+
+- **Finding #10 (Lite `arc-config.yml` reduction mechanism)** — If #10 adopts the "extend render
+  pipeline to match `.template.*` files" approach, recipe and render-pipeline become symmetric
+  authorities: recipe drives install-time behavior (which files, which prompts, which gating),
+  render pipeline drives per-file content substitution (which blocks, which tokens). Framing C's
+  "narrow recipe authority" direction composes with #10's render-pipeline extension. If #10 adopts
+  the two-file fallback instead, recipe authority stays narrower but the `install.type` mechanism
+  from #8 already supports it.
+- **Finding #16 (Full → Lite downgrade)** — Will need a CLI surface for file removal, manifest
+  rewrite, and possibly re-prompting for values that were defaulted in Lite. The `shouldShowPrompt`
+  helper and the partial-config-threaded prompt loop are reusable. Whatever `arc downgrade` (or
+  equivalent) looks like, prompt orchestration for it lives on the same authority spine Finding #9
+  establishes.
+- **Graduation Paths (Lite → Full)** — Symmetric concern to #16. Needs to prompt the user for
+  `pm_mode` and `team_mode` (which were gated out in Lite) and add the Full-only files. Same
+  reusability story.
+- **Future mode-axis prompts** — If a new mode axis emerges (e.g., a hypothetical `install.tier`
+  for `minimal` / `standard` / `complete`), it lands as a new recipe prompt with `show_when` on
+  its own gating condition. The seven-site tour is reduced to: update `init-recipe.json` (add
+  entry), update `runInitPrompts()` (add clack call at correct position), update
+  `INIT_PROMPT_IDS` constant. The drift test catches any of the three being missed.
+- **`buildConfigMap` recipe iteration composes with Finding #8.** Finding #8 specified that
+  `install.type` flows through `buildConfigMap` for condition evaluation. Framing C's
+  `buildConfigMap` refactor makes that flow automatic: the new `install_type` prompt declares
+  `config_key: "install.type"`, and the refactored function picks it up without a new hardcoded
+  constant. Findings #8 and #9 compose cleanly at the `buildConfigMap` boundary.
+
+#### Not yet established
+
+- **Whether `install_type` needs a `computed_tokens` entry or a `token` field for display in
+  templates.** Templates currently use `{{PROJECT_NAME}}` as the only prompt-derived token. If any
+  template needs to reference the installation type for display (e.g., a welcome message noting
+  "Lite installation"), an `INSTALL_TYPE` token would be added via `prompt.token = "INSTALL_TYPE"`.
+  No current template uses such a token; decision deferred to template-content work.
+- **Whether the `install.type` select offers richer option labels and hints** like PM mode does
+  today. A UX-layer decision — e.g., `{ value: "lite", label: "ARC Lite", hint: "Execution
+  discipline only" }` vs `{ value: "full", label: "Full ARC", hint: "Complete lifecycle" }`. Not a
+  mechanism decision; detailed in the PRD implementation task.
+- **Whether a `validateRecipe()` structural check for prompt ordering** (show_when references must
+  come from earlier prompts) is worth adding eventually. Current decision: no, not worth the cost
+  today. Revisit if a future prompt addition produces a silent-ordering-bug incident.
+
+#### ADR authoring — deferred to PRD implementation
+
+Same rationale as Finding #8. The recipe authority reframe and Framing C's mechanism will be
+formalized as an Architecture Decision Record during implementation of the PRD derived from this
+plan doc, not authored now. The ADR belongs alongside the code change it documents. Creating it
+now would lock in decisions that have not been validated through the full planning pipeline.
+
+The PRD will surface ADR authoring for Framing C as an explicit task deliverable alongside the
+Finding #8 mechanism ADR. The two findings likely share a single combined ADR since they are
+mechanism siblings under the same "recipe as authoritative install-time specification" umbrella;
+the PRD decides single vs combined ADR based on writing economy.
 
 ### Solo-Dev Blind Spot Audit (Gating Pre-PRD) — **Complete**
 
@@ -955,7 +1472,9 @@ files are installed, what config options are available, and what prompts appear 
 **PM mode gating:** Lite + `arc-pm` is contradictory (no work unit stream for the planning module to
 manage). The `pm.mode` prompt is skipped in Lite; the effective mode is `none`. Lite + `external` is an
 open question — there may be value (external ticket references in context footers) but no integration
-workflow to hook into. Evaluate during detail design.
+workflow to hook into. Evaluate during detail design. The prompt-gating mechanism itself (recipe
+`show_when` field, partial-config evaluation, drift mitigation) is specified in [Prompt
+Orchestration and Recipe Authority](#prompt-orchestration-and-recipe-authority).
 
 **Lite config template:** Lite ships a reduced `arc-config.yml` that omits irrelevant settings (`pm.mode`,
 `team.mode`, and possibly others). This keeps the config honest about what Lite actually configures rather
@@ -1796,9 +2315,16 @@ Order matters only modestly — install type first establishes the bigger struct
 is then applied as an overlay. The questions are independent: no combination is invalid, no earlier
 answer closes off a later choice.
 
+The install-type question enters the init prompt sequence as a new recipe prompt at position 2
+(after `project_name`, before `tools`), and gates `pm.mode` / `team.mode` on
+`install.type == full`. See [Prompt Orchestration and Recipe
+Authority](#prompt-orchestration-and-recipe-authority) for the mechanism — schema delta, helper
+contract, wire points, and drift mitigation.
+
 Flags for non-interactive use:
 
-- `--lite` / `--full` (default: ask)
+- `--install-type <lite|full>` (canonical; default: `full` — matches back-compat behavior)
+- `--lite` / `--full` (shorthand aliases for `--install-type`; mutually exclusive)
 - `--local` / `--tracked` (default: tracked, the common case)
 - `--shared-gitignore` (Local only, opt-in for teams that welcome tool-specific tracked entries)
 
@@ -1997,53 +2523,65 @@ what changes each needs.
 Decisions settled during the 2026-04-09 and 2026-04-10 design iterations. Each entry names the
 decision and a brief rationale; the full reasoning is in the relevant section above.
 
-| Decision                                     | Resolution                                                                                                                                                                                                                                                   |
-|----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Local mode exclusion — primary               | `.git/info/exclude` (research-verified industry norm for per-user tooling)                                                                                                                                                                                   |
-| Local mode exclusion — opt-in                | Tracked `.gitignore` line via `--shared-gitignore` flag                                                                                                                                                                                                      |
-| Local mode exclusion — dropped               | Global gitignore (machine-wide blast radius breaks coexistence with tracked ARC)                                                                                                                                                                             |
-| Backing store                                | Required, auto-created git-based local bare repo; durability + re-clone detection signal                                                                                                                                                                     |
-| Project ID                                   | Git remote URL primary, first-commit hash fallback                                                                                                                                                                                                           |
-| Re-clone UX                                  | Backing-store + absent-`.arc/` + missing-exclude → restoration flow, one-prompt recovery                                                                                                                                                                     |
-| Cross-machine portability                    | Opt-in remote on backing store, not automatic                                                                                                                                                                                                                |
-| Local + Full combination                     | Supported via single-active invariant + shift lifecycle                                                                                                                                                                                                      |
-| Single-active invariant framing              | ARC tracks work units not branches; git usage unconstrained                                                                                                                                                                                                  |
-| Shift lifecycle — inclusion                  | In-scope for this work unit (not deferred); universal, applies to all ARC modes                                                                                                                                                                              |
-| Shift lifecycle — approach                   | Metadata-in-place (no file moves); task list Status headers as single source of truth; no registry file, no per-dev cache                                                                                                                                    |
-| Shift lifecycle — state location             | Pure Option C (2026-04-09 decision after B-vs-C scenario walk). Task list headers carry Status, date, reason. `WORK-STATUS.md` stays single-slot                                                                                                             |
-| Shift lifecycle — multi-WU awareness         | On-demand via `/arc-status` skill, not baked into session-init. Session-init orientation remains single-WU focused                                                                                                                                           |
-| Shift lifecycle — skills                     | Two skills: `/arc-shift` (transitions, workflow `shift-work-unit.md`) and `/arc-status` (mid-session HUD, workflow `mid-session-status.md`)                                                                                                                  |
-| Shift lifecycle — uncommitted work           | Workflow surfaces state, recommends commit, allows stash or leave-as-is                                                                                                                                                                                      |
-| Shift lifecycle — document status headers    | PRDs and task lists updated in sync via the Status header (inline date + reason format); supplementary docs deferred to implementation                                                                                                                       |
-| Shift lifecycle — vocabulary (Finding B)     | Two-state split: `Paused` (dev is next mover, counts toward WIP nudge) vs `Waiting-For {category}` (external is next mover, excluded from nudge)                                                                                                             |
-| Shift lifecycle — growth nudge               | Fires at pause-transition time inside shift workflow, not at session-init. Current-branch count; ≥3 paused is advisory                                                                                                                                       |
-| Shift lifecycle — Finding C (pause pointers) | No rename needed. The `Paused:` pointer field in `clean-work-unit.md` and the new Status header vocabulary do not collide (different field shapes, different semantics). Formalizing the four pointer fields is an independent doc sweep, not shift-blocking |
-| Shift lifecycle — `PROJECT-STATUS.md`        | Stays project-focus oriented. Updated at activate/archive only, not at personal shift operations. Paused WUs still appear as project focus until archived (ownership-of-tracked-state framing)                                                               |
-| Shift lifecycle — CLI naming coordination    | `arc status` (framework health CLI) rename to `arcd health` absorbed into [ARCd Rebrand][arcd-rebrand] WU, freeing `/arc-status` for the mid-session skill                                                                                                   |
-| Context footer in Local mode                 | Enforced descriptive freeform pattern via commit-msg hook                                                                                                                                                                                                    |
-| Role concept applicability                   | Tracked concept. Applies in Full+tracked AND Lite+tracked (OSS solo-dev scenario). Dropped in Local regardless of Lite/Full.                                                                                                                                 |
-| `team.mode` in Local mode                    | Forced `false`                                                                                                                                                                                                                                               |
-| `user.sync_push` in Local mode               | Same shape, semantic redirected to backing store                                                                                                                                                                                                             |
-| Portability commands in Local mode           | Transparent redirect by install mode (`arc user save/load/push/pull`, `arc sync`)                                                                                                                                                                            |
-| `pm.mode: arc-in-git` → `arc-pm` rename      | Scope migrated to [ARCd Rebrand][arcd-rebrand] WU (composes with `arc-config.yml` → `ARCd-config.yml` rename and content sweep)                                                                                                                              |
-| Mode axes composition                        | Lite/Full and Tracked/Local are orthogonal; four combinations all valid; each axis contributes independent changes to the config template                                                                                                                    |
-| Lite + Local development                     | Intertwined, not sequential — shared machinery (config templates, init flow, session-init, audit, phrasing sweep) dominates unique per-mode work                                                                                                             |
-| WU scope split                               | pm.mode rename + mechanical content sweep → rebrand WU; pre-PRD audit + shift lifecycle + Lite + Local (intertwined) → modes WU                                                                                                                              |
-| Content audit scope                          | Expanded to include configurability architecture and lifecycle transitions; mode-aware phrasing sweep added as implementation activity                                                                                                                       |
-| Branch / Active Focus mismatch UX            | Orientation reports facts without editorializing; escalation only on work-affecting actions                                                                                                                                                                  |
-| Solo-dev blind spot audit                    | Gating pre-PRD deliverable of this work unit (not atomic, not deferred)                                                                                                                                                                                      |
-| Lite PRD artifact name                       | Still called a PRD (not "scope brief"). Keeps framework coherence across modes, makes graduation a content migration. See [The Lite PRD](#the-lite-prd)                                                                                                      |
-| Lite PRD template cuts                       | Drops `Type:` header field, `Status/Related Work` header block, `Document History` section. Retains all other sections with softened guidance in User Stories, Functional Requirements, Non-Goals                                                            |
-| Lite `create-prd` workflow shape             | Unified `create-prd` workflow with mode-conditional edges (Pre-Step 0 branch context, META-PRD review, Step 2 category classification, Step 4 template + save location). ~90% mode-neutral                                                                   |
-| META-PRD in Lite                             | Not installed. Project vision captured in the Lite PRD itself. META-PRD template assigned to `install.type == full` bucket                                                                                                                                   |
-| Lite `plan-*` doc location                   | `.arc/active/plan-{name}.md` — sibling to `prd.md` and `tasks.md` in the flat `active/` directory                                                                                                                                                            |
-| Lite PRD filename                            | Singular `prd.md`. One PRD per Lite project; need for multiple is a soft graduation signal                                                                                                                                                                   |
-| Lite Non-Goals framing                       | Elevated as explicit scope guardrail. Template carries a guardrail note; `create-prd` Step 3 spends deliberate time on Non-Goals elicitation to compensate for absent WU-lifecycle guardrails                                                                |
-| Lite ship step protocol                      | Three-step protocol reusing Full's Success Criteria section convention: (1) Success Criteria all `[x]` or `[~]`, (2) Tier 3 quality gates, (3) aggregate diff review. No new template section or workflow concept                                            |
-| Installation type mechanism                  | Symmetric additive via `install.type` condition in the recipe. Three buckets: unconditional baseline, `install.type == full`, `install.type == lite`. Zero recipe schema change, zero `resolveFileList()` change                                             |
-| Installation type config key                 | `install.type` (dotted form, consistent with existing `pm.mode`, `team.mode`, `branch.protection`)                                                                                                                                                           |
-| Manifest `install_config` schema extension   | Gains `install_type: string` required field. Manifest schema version bumps. Legacy manifests migrate with `install_type: "full"` default                                                                                                                     |
-| ADR authoring sequencing                     | ADRs are implementation-phase deliverables, not pre-PRD artifacts. Flow: working doc → plan doc → PRD → task list → ADR during execution. `install.type` mechanism ADR lands as an explicit task deliverable in the PRD                                      |
+| Decision                                                                | Resolution                                                                                                                                                                                                                                                      |
+|-------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Local mode exclusion — primary                                          | `.git/info/exclude` (research-verified industry norm for per-user tooling)                                                                                                                                                                                      |
+| Local mode exclusion — opt-in                                           | Tracked `.gitignore` line via `--shared-gitignore` flag                                                                                                                                                                                                         |
+| Local mode exclusion — dropped                                          | Global gitignore (machine-wide blast radius breaks coexistence with tracked ARC)                                                                                                                                                                                |
+| Backing store                                                           | Required, auto-created git-based local bare repo; durability + re-clone detection signal                                                                                                                                                                        |
+| Project ID                                                              | Git remote URL primary, first-commit hash fallback                                                                                                                                                                                                              |
+| Re-clone UX                                                             | Backing-store + absent-`.arc/` + missing-exclude → restoration flow, one-prompt recovery                                                                                                                                                                        |
+| Cross-machine portability                                               | Opt-in remote on backing store, not automatic                                                                                                                                                                                                                   |
+| Local + Full combination                                                | Supported via single-active invariant + shift lifecycle                                                                                                                                                                                                         |
+| Single-active invariant framing                                         | ARC tracks work units not branches; git usage unconstrained                                                                                                                                                                                                     |
+| Shift lifecycle — inclusion                                             | In-scope for this work unit (not deferred); universal, applies to all ARC modes                                                                                                                                                                                 |
+| Shift lifecycle — approach                                              | Metadata-in-place (no file moves); task list Status headers as single source of truth; no registry file, no per-dev cache                                                                                                                                       |
+| Shift lifecycle — state location                                        | Pure Option C (2026-04-09 decision after B-vs-C scenario walk). Task list headers carry Status, date, reason. `WORK-STATUS.md` stays single-slot                                                                                                                |
+| Shift lifecycle — multi-WU awareness                                    | On-demand via `/arc-status` skill, not baked into session-init. Session-init orientation remains single-WU focused                                                                                                                                              |
+| Shift lifecycle — skills                                                | Two skills: `/arc-shift` (transitions, workflow `shift-work-unit.md`) and `/arc-status` (mid-session HUD, workflow `mid-session-status.md`)                                                                                                                     |
+| Shift lifecycle — uncommitted work                                      | Workflow surfaces state, recommends commit, allows stash or leave-as-is                                                                                                                                                                                         |
+| Shift lifecycle — document status headers                               | PRDs and task lists updated in sync via the Status header (inline date + reason format); supplementary docs deferred to implementation                                                                                                                          |
+| Shift lifecycle — vocabulary (Finding B)                                | Two-state split: `Paused` (dev is next mover, counts toward WIP nudge) vs `Waiting-For {category}` (external is next mover, excluded from nudge)                                                                                                                |
+| Shift lifecycle — growth nudge                                          | Fires at pause-transition time inside shift workflow, not at session-init. Current-branch count; ≥3 paused is advisory                                                                                                                                          |
+| Shift lifecycle — Finding C (pause pointers)                            | No rename needed. The `Paused:` pointer field in `clean-work-unit.md` and the new Status header vocabulary do not collide (different field shapes, different semantics). Formalizing the four pointer fields is an independent doc sweep, not shift-blocking    |
+| Shift lifecycle — `PROJECT-STATUS.md`                                   | Stays project-focus oriented. Updated at activate/archive only, not at personal shift operations. Paused WUs still appear as project focus until archived (ownership-of-tracked-state framing)                                                                  |
+| Shift lifecycle — CLI naming coordination                               | `arc status` (framework health CLI) rename to `arcd health` absorbed into [ARCd Rebrand][arcd-rebrand] WU, freeing `/arc-status` for the mid-session skill                                                                                                      |
+| Context footer in Local mode                                            | Enforced descriptive freeform pattern via commit-msg hook                                                                                                                                                                                                       |
+| Role concept applicability                                              | Tracked concept. Applies in Full+tracked AND Lite+tracked (OSS solo-dev scenario). Dropped in Local regardless of Lite/Full.                                                                                                                                    |
+| `team.mode` in Local mode                                               | Forced `false`                                                                                                                                                                                                                                                  |
+| `user.sync_push` in Local mode                                          | Same shape, semantic redirected to backing store                                                                                                                                                                                                                |
+| Portability commands in Local mode                                      | Transparent redirect by install mode (`arc user save/load/push/pull`, `arc sync`)                                                                                                                                                                               |
+| `pm.mode: arc-in-git` → `arc-pm` rename                                 | Scope migrated to [ARCd Rebrand][arcd-rebrand] WU (composes with `arc-config.yml` → `ARCd-config.yml` rename and content sweep)                                                                                                                                 |
+| Mode axes composition                                                   | Lite/Full and Tracked/Local are orthogonal; four combinations all valid; each axis contributes independent changes to the config template                                                                                                                       |
+| Lite + Local development                                                | Intertwined, not sequential — shared machinery (config templates, init flow, session-init, audit, phrasing sweep) dominates unique per-mode work                                                                                                                |
+| WU scope split                                                          | pm.mode rename + mechanical content sweep → rebrand WU; pre-PRD audit + shift lifecycle + Lite + Local (intertwined) → modes WU                                                                                                                                 |
+| Content audit scope                                                     | Expanded to include configurability architecture and lifecycle transitions; mode-aware phrasing sweep added as implementation activity                                                                                                                          |
+| Branch / Active Focus mismatch UX                                       | Orientation reports facts without editorializing; escalation only on work-affecting actions                                                                                                                                                                     |
+| Solo-dev blind spot audit                                               | Gating pre-PRD deliverable of this work unit (not atomic, not deferred)                                                                                                                                                                                         |
+| Lite PRD artifact name                                                  | Still called a PRD (not "scope brief"). Keeps framework coherence across modes, makes graduation a content migration. See [The Lite PRD](#the-lite-prd)                                                                                                         |
+| Lite PRD template cuts                                                  | Drops `Type:` header field, `Status/Related Work` header block, `Document History` section. Retains all other sections with softened guidance in User Stories, Functional Requirements, Non-Goals                                                               |
+| Lite `create-prd` workflow shape                                        | Unified `create-prd` workflow with mode-conditional edges (Pre-Step 0 branch context, META-PRD review, Step 2 category classification, Step 4 template + save location). ~90% mode-neutral                                                                      |
+| META-PRD in Lite                                                        | Not installed. Project vision captured in the Lite PRD itself. META-PRD template assigned to `install.type == full` bucket                                                                                                                                      |
+| Lite `plan-*` doc location                                              | `.arc/active/plan-{name}.md` — sibling to `prd.md` and `tasks.md` in the flat `active/` directory                                                                                                                                                               |
+| Lite PRD filename                                                       | Singular `prd.md`. One PRD per Lite project; need for multiple is a soft graduation signal                                                                                                                                                                      |
+| Lite Non-Goals framing                                                  | Elevated as explicit scope guardrail. Template carries a guardrail note; `create-prd` Step 3 spends deliberate time on Non-Goals elicitation to compensate for absent WU-lifecycle guardrails                                                                   |
+| Lite ship step protocol                                                 | Three-step protocol reusing Full's Success Criteria section convention: (1) Success Criteria all `[x]` or `[~]`, (2) Tier 3 quality gates, (3) aggregate diff review. No new template section or workflow concept                                               |
+| Installation type mechanism                                             | Symmetric additive via `install.type` condition in the recipe. Three buckets: unconditional baseline, `install.type == full`, `install.type == lite`. Zero recipe schema change, zero `resolveFileList()` change                                                |
+| Installation type config key                                            | `install.type` (dotted form, consistent with existing `pm.mode`, `team.mode`, `branch.protection`)                                                                                                                                                              |
+| Manifest `install_config` schema extension                              | Gains `install_type: string` required field. Manifest schema version bumps. Legacy manifests migrate with `install_type: "full"` default                                                                                                                        |
+| ADR authoring sequencing                                                | ADRs are implementation-phase deliverables, not pre-PRD artifacts. Flow: working doc → plan doc → PRD → task list → ADR during execution. `install.type` mechanism ADR lands as an explicit task deliverable in the PRD                                         |
+| Recipe authority scope (prompts)                                        | Framing C — recipe owns prompt identity, `config_key` / `token` mapping, and gating (`show_when`). Hand-rolled code keeps UX. Framing A (hand-coded gating) rejected as no DRY progress; Framing B (full data-driven loop) rejected as speculative schema bloat |
+| Recipe `show_when` field                                                | New optional field on `RecipePrompt`. Same `CONDITION_PATTERN` grammar as existing `recipe.conditions` keys — reuses `evaluateCondition()` as-is. Validator extension is a single regex check                                                                   |
+| `shouldShowPrompt()` helper                                             | Pure function in `lib/template/recipe.ts` alongside `evaluateCondition()`. Partial-config-safe via existing undefined-key handling (returns false for not-yet-answered references)                                                                              |
+| `install.type` prompt position                                          | Position 2 in the recipe prompts array (after `project_name`, before `tools`). Ordering constraint: must precede any prompt that references `install.type` in `show_when`. Documented convention, not structural check                                          |
+| `install.type` prompt default                                           | `"full"` — matches back-compat (legacy manifests migrate with `install_type: "full"`) and the common case. Non-interactive `arc init --yes` without `--install-type` produces a Full install                                                                    |
+| `install.type` canonical flag                                           | `--install-type <lite\|full>`. Shorthand aliases `--lite` / `--full` supported, mutually exclusive. Matches plan-doc § Init Flow Implications                                                                                                                   |
+| Gated prompts (initial set)                                             | `pm_mode` and `team_mode` both gated on `install.type == full`. No other prompts need gating (verified against Finding #1's Lite PRD landing — workflow-level conditionals happen at template render time, not init prompt time)                                |
+| Skipped-prompt default semantics                                        | Gated-out prompts take their value from the recipe `default` field. `pm_mode` → `"none"`, `team_mode` → `false`. Matches existing Lite semantics already in § Configuration Identity                                                                            |
+| `buildConfigMap` / `buildConfigKeyOverrides` / `buildTokenMap` refactor | Iterate `recipe.prompts` for `config_key` and `token` mapping instead of hardcoded constants. `user.sync_push` derivation from `team_mode` and `REPO_ROOT` computed token stay in code                                                                          |
+| Drift mitigation                                                        | Unit tests comparing recipe prompt IDs to exported `INIT_PROMPT_IDS` / `RECONFIGURE_PROMPT_IDS` constants maintained alongside the hand-rolled loops. Rejected `validateRecipe()` runtime check (layering violation or re-introduces duplication)               |
+| Reconfigure boundary for `install.type`                                 | `arc init --reconfigure` does NOT mutate `install.type`. Lite↔Full transition is a distinct CLI surface — Finding #16 for downgrade, § Graduation / Downgrade Paths for upgrade. Framing C's helper and refactor are reusable there                             |
+| ADR authoring for Framing C                                             | Deferred to PRD implementation. Likely combined with Finding #8 mechanism ADR under a shared "recipe as authoritative install-time specification" umbrella; PRD decides single vs combined based on writing economy                                             |
 
 ## Open Questions
 

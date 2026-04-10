@@ -48,8 +48,8 @@ Tier determines what unblocks what.
 **Tier 3 — detail once Tier 1 lands:**
 
 - **#2, #4, #5, #6** — All gate on #1 (now resolved and migrated).
-- **#9** — Conditional prompts orchestration. Depends on #8 mechanism (now resolved and
-  migrated).
+- *#9 (Conditional prompts orchestration) resolved and migrated 2026-04-10. See
+  [`plan-arc-modes.md`][plan-doc] § Prompt Orchestration and Recipe Authority.*
 - **#10** — Lite `arc-config.yml` reduction mechanism. Depends on #8 mechanism (now resolved
   and migrated).
 - **#12, R6** (OQ15 initial-setup workflows) — gate on #8 (now resolved and migrated).
@@ -191,70 +191,6 @@ that Full ARC would solve, they should know."
 **Parking note:** Orthogonal to mode architecture decisions. Can resolve in parallel or even
 post-PRD without blocking the rest of the plan. Review before PRD lock-in to confirm it doesn't
 impose new architectural requirements.
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
-
----
-
-### Finding 9 — Conditional prompts orchestration · 🟡
-
-**Origin (2026-04-10):** Surfaced during Finding #8 evaluation. `plan-arc-modes.md` states that
-Lite skips the `pm.mode` prompt entirely (lines 99-101, 405-412) and the `team.mode` prompt is
-"likely also skipped." The current recipe's `prompts` array is a flat list — every prompt is
-shown unconditionally, with no conditionality mechanism. Finding #8's Approach 1b resolves file
-inclusion cleanly but does not give the recipe a way to gate prompts on prior answers. This is
-a separate mechanism decision from file inclusion and deserves its own resolution path.
-
-**Question:** How does the recipe (or the CLI) express "show this prompt only when
-`install.type == full`"?
-
-**Candidate approaches:**
-
-1. **Recipe schema extension for conditional prompts.** Add a `show_when` (or `skip_when`) field
-   to each `RecipePrompt` entry — e.g., `"show_when": "install.type == full"`. Uses the same
-   condition string grammar as `recipe.conditions`. Symmetric with the file inclusion pattern.
-   Scales to any number of gated prompts on any axis. Requires: `RecipePrompt` type update,
-   `validateRecipe()` update, CLI prompt loop update to evaluate `show_when` against
-   already-collected answers.
-2. **CLI-side hard-coding.** Keep the recipe flat; in `init.ts` / `reconfigure.ts`, check
-   `install_type` after the earlier prompts and skip `pm_mode` / `team_mode` directly with
-   defaulted values. No schema change, but the recipe stops being authoritative for the prompt
-   flow in Lite — authoring a new mode-gated prompt requires touching CLI code instead of the
-   recipe.
-3. **Post-prompt validation + rejection.** Ask all prompts regardless, validate the combination,
-   reject invalid ones (Lite + `pm.mode: arc-pm`). Works but degrades UX with dead-end prompts
-   and error messages for a state that could have been prevented.
-
-**Lean:** Approach 1 (recipe schema extension). Parallels the file inclusion pattern and keeps
-the recipe as the single source of truth for init-time behavior. `show_when` uses the same
-condition grammar as existing recipe conditions, so no new operator work.
-
-**Outstanding analysis:**
-
-- Enumerate all prompts that need gating. Confirmed from plan doc: `pm_mode`, `team_mode`.
-  Possibly others once Finding #1 and Finding #6 land (e.g., a Lite-specific prompt may need
-  gating on `install.type == lite`).
-- Evaluate the condition-grammar reuse question — current `evaluateCondition()` expects
-  `config: Record<string, string>` with flat keys. The prompt loop would need to evaluate
-  `show_when` against a partial config (the answers collected so far). Does the existing
-  evaluator handle partial maps correctly? Likely yes (missing keys return false), but verify.
-- Determine prompt ordering constraint. If `show_when` references `install.type`, the
-  `install.type` prompt must come before any prompt that references it. Recipe `prompts` order
-  is already significant; this constrains it further. Document the constraint.
-- Consider whether `show_when` applies only to prompts or also to condition evaluation in
-  general. Lean: only prompts; conditions already have their own evaluation path.
-
-**Relationship to Finding #8:** Depends on Finding #8's `install.type` mechanism being in place.
-The prompt gating pattern re-uses the same condition grammar. Not a flaw in Finding #8 — an
-adjacent concern surfaced during its evaluation.
-
-**Relationship to plan doc:** Plan doc already states Lite skips these prompts — this finding
-is about the mechanism for *how* that skip is expressed in the recipe schema. Resolution feeds
-into plan doc's "CLI config surface" content.
-
-**Tier:** 3 (detail once Tier 1 lands). Gates on Finding #8 mechanism decision (now resolved).
 
 **Resolution:** *pending*
 
@@ -972,6 +908,102 @@ Findings #9 (conditional prompts orchestration) and #10 (Lite `arc-config.yml` r
 mechanism) — both were surfaced during Finding #8's evaluation and depend on its now-migrated
 mechanism, so they can be resolved now. After #9 and #10, move to Tier 2 (Findings #13, #7,
 \#16) and then Tier 3 (Findings #2, #4, #5, #6, #12).
+
+**2026-04-10 — Finding #9 resolution + migration into plan doc**
+
+Resolved Finding #9 (Conditional prompts orchestration) and migrated it directly into
+`plan-arc-modes.md` without an intermediate write to this working doc — the resolution was
+crisp enough to skip the draft-in-working-doc step. The session's work landed as a single
+batch that covered code reads, design reframe, decision, and migration.
+
+**The reframe.** The initial lean (carried from Finding #8's session) was "add a `show_when`
+field to `RecipePrompt` and iterate it in the prompt loop." A pre-migration code read of
+`src/prompts/init-prompts.ts`, `src/prompts/reconfigure-prompts.ts`, `src/prompts/join-prompts.ts`,
+`src/prompts/non-interactive.ts`, `src/lib/config.ts`, and `src/lib/template/recipe.ts` revealed
+that **`recipe.prompts` is validated but never consumed.** `validateRecipe()` is the only code
+in the CLI that reads the field. The hand-rolled `runInitPrompts()` duplicates the same four
+prompts as explicit `@clack/prompts` calls with richer UX affordances (note preambles,
+autocomplete labels/hints, computed defaults). Six other sites (`runReconfigurePrompts`,
+`runJoinPrompts`, `buildNonInteractivePrompts`, `buildNonInteractiveReconfigurePrompts`,
+`buildConfigMap`, `buildConfigKeyOverrides`, plus `buildTokenMap`) independently hardcode the
+same prompt/config knowledge. Finding #9 therefore collapsed into a broader question: what
+authority does `recipe.prompts` hold, and what authority should it hold?
+
+**Three framings evaluated** (documented in full in plan doc § Prompt Orchestration and Recipe
+Authority):
+
+- **Framing A — hand-coded gating, recipe stays metadata.** Rejected as no DRY progress; every
+  future mode-axis prompt requires touching seven sites again.
+- **Framing B — full data-driven prompt loop.** Rejected as speculative schema bloat; the
+  schema growth required to express multi-line note preambles, option labels/hints, computed
+  defaults, current-value-as-default, conditional warnings, and non-interactive flag
+  conventions is premature abstraction for affordances we don't yet know future prompts will
+  need.
+- **Framing C — narrow recipe authority.** Adopted. Recipe owns prompt identity,
+  `config_key` / `token` mapping, and gating (`show_when`). Hand-rolled code keeps UX.
+
+**Framing C mechanism** (captured in plan doc): schema delta is one optional `show_when` field
+on `RecipePrompt` using the existing `CONDITION_PATTERN` grammar; a new `shouldShowPrompt()`
+helper alongside `evaluateCondition()` in `lib/template/recipe.ts`; each hand-rolled loop
+consults the helper before each gated prompt; `buildConfigMap` / `buildConfigKeyOverrides` /
+`buildTokenMap` refactor to iterate `recipe.prompts` for their mapping source. `install.type`
+is added as a new recipe prompt at position 1 (between `project_name` and `tools`) with
+default `"full"` for back-compat. Canonical flag `--install-type`, shorthand `--lite` / `--full`.
+
+**Drift mitigation** (user-confirmed in scope): unit tests comparing recipe prompt IDs against
+exported `INIT_PROMPT_IDS` / `RECONFIGURE_PROMPT_IDS` constants maintained alongside the
+hand-rolled loops. Rejected a runtime `validateRecipe()` check as a layering violation (or
+duplication re-introduction).
+
+**Reconfigure boundary:** `arc init --reconfigure` does not mutate `install.type`. Lite↔Full
+transition is a distinct CLI surface — Finding #16 for downgrade, plan-doc § Graduation /
+Downgrade Paths for upgrade. Framing C's helper and refactor are reusable there.
+
+**ADR:** Deferred to PRD implementation per the established ADR sequencing discipline.
+Likely combined with Finding #8's mechanism ADR under a shared "recipe as authoritative
+install-time specification" umbrella; PRD decides single vs combined based on writing economy.
+
+**Plan doc landing points:**
+
+- **Finding #9** → new `### Prompt Orchestration and Recipe Authority` subsection under
+  `## Design Investigations (Pre-PRD)`, immediately after `### Installation Type Recipe
+  Mechanism` (sibling placement to Finding #8 because both are mechanism-depth analyses of
+  how `install.type` drives downstream effects). Structure mirrors Finding #8: gap + current
+  state factual landscape (leaning on Finding #8 for shared schema description) + three
+  framings with rejection reasoning + adopted Framing C at full detail + schema delta + helper
+  contract + wire points + install.type prompt addition + gating declarations table + drift
+  mitigation + reconfigure boundary + feedforward + not-yet-established + ADR deferral.
+- **Cascading sweeps** (three spots):
+    - § Configuration Identity "Lite gates downstream prompts" bullet — added pointer to new
+      subsection.
+    - § Configuration and Installation "PM mode gating" paragraph — added cross-reference.
+    - § Init Flow Implications — added cross-reference plus new `--install-type` canonical
+      flag entry in the flag list (keeping `--lite` / `--full` as shorthand aliases).
+- **Resolved Decisions table** — added 12 new rows covering: recipe authority scope
+  (Framing C), `show_when` field, `shouldShowPrompt()` helper, `install.type` prompt
+  position, default, canonical flag, gated-prompt set, skipped-prompt defaults,
+  `buildConfigMap` / `buildConfigKeyOverrides` / `buildTokenMap` refactor, drift mitigation
+  unit test, reconfigure boundary, ADR deferral for Framing C.
+- **Open Questions** — no entries to resolve (working-doc Finding #9 didn't have a parallel
+  OQ in the plan doc).
+
+**Working doc shrinkage:** Removed Finding #9 section entirely (~62 lines). Updated
+Sequencing § Tier 3 to mark #9 resolved and migrated. Tier 3 now carries only #2, #4, #5, #6,
+\#10, and #12/R6 pending resolution.
+
+**Not yet migrated in this pass** (intentional): Finding #10 is deliberately held for its own
+resolution session since its mechanism space (render-pipeline extension vs two-file fallback)
+is distinct from Finding #9's prompt-authority question. Ambitious-vs-conservative call made
+in favor of conservative scope — one finding per session gives each its own synthesis pass
+without cross-contamination.
+
+**Next:** Finding #10 (Lite `arc-config.yml` reduction mechanism) is the immediate next
+candidate. Entry point: read `src/lib/template/render.ts` to assess whether extending the
+`.template.md` matching gate to `.template.*` is one-line or fraught; walk current
+`arc-config.yml` section-by-section to identify which blocks are `install.type`-gated; decide
+between Approach 2 (`arc-config.template.yml` + render pipeline extension) and Approach 1
+(two-file fallback via Finding #8's mechanism). Framing C's "recipe as authoritative" direction
+composes with Approach 2 if render pipeline extension is viable.
 
 ---
 
