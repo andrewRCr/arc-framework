@@ -1,7 +1,7 @@
 # Working: Modes Gap Resolution
 
 **Purpose:** Working doc supporting `plan-arc-modes.md`. Tracks gaps surfaced in the pre-PRD
-audit (2026-04-10), captures analysis as it lands, and migrates resolved findings into the plan
+audit (2026-04-10), captures analysis as it lands, and drains resolved findings into the plan
 doc. Not a plan doc itself — supports one. Each finding is numbered to match the original audit
 synthesis for traceability.
 
@@ -9,11 +9,11 @@ synthesis for traceability.
 synthesis and the user's first-pass responses.
 
 **Lifecycle:** Tracked (committed to git) for traceability, unlike `temp-*` working files which
-are gitignored. When all findings are drained — resolved and migrated into `plan-arc-modes.md`
-— this doc can be deleted (its reasoning lives in commit history and the plan doc itself) or
-retained as a working record at the user's discretion. Do not treat this file as a durable
-long-term reference while findings are still in flight; its content graduates into
-`plan-arc-modes.md` as decisions land.
+are gitignored. **The plan doc subsumes this one.** When a finding reaches 🟢 Resolved and is
+migrated, its content lands in `plan-arc-modes.md` at full detail — this working doc shrinks
+accordingly (resolved findings are removed entirely, not marked as absorbed). Partial findings
+(🟡/🔴/⚪) stay until they reach 🟢 and are themselves migrated. When the last finding drains,
+this file is deleted — its reasoning lives in the plan doc and commit history.
 
 ---
 
@@ -21,8 +21,8 @@ long-term reference while findings are still in flight; its content graduates in
 
 - 🔴 **Open** — no position yet
 - 🟡 **In-discussion** — user thoughts captured, analysis pending
-- 🟢 **Resolved** — decision landed, awaiting migration into plan doc
-- ✅ **Absorbed** — migrated into `plan-arc-modes.md`, line reference below
+- 🟢 **Resolved** — decision landed, awaiting migration into plan doc. Removed from this file
+  once migrated.
 - ⚪ **Parked** — out of scope for pre-PRD, revisit later (not blocking formalization)
 
 ---
@@ -34,27 +34,31 @@ Tier determines what unblocks what.
 
 **Tier 1 — gates most downstream:**
 
-- **#1** — Lite PRD functional requirements. Gates #2, #4, #5, #6 plus the content audit.
-- **#8** — Recipe architecture. Gates the entire CLI implementation plus #9, #10, #11, #12, #17.
+- *All Tier 1 findings resolved and migrated (2026-04-10):* #1 (Lite PRD), #8 (recipe
+  architecture). See [`plan-arc-modes.md`][plan-doc] § The Lite PRD and § Installation Type
+  Recipe Mechanism.
 
 **Tier 2 — independent, manageable:**
 
 - **#13** — Integrate × non-complete states. State-machine sketch, small scope.
 - **#7** — Guardrails. Orthogonal, can run in parallel.
 - **#16** — Full → Lite downgrade. Small, user's framing already mostly resolves it.
-- **#3** — Ship step. Small, once #1 lands.
+- *#3 (Ship step) resolved and migrated with the Tier 1 batch.*
 
 **Tier 3 — detail once Tier 1 lands:**
 
-- **#2, #4, #5, #6** — All gate on #1.
-- **#9** — Conditional prompts orchestration. Surfaced during #8 evaluation; depends on #8 mechanism.
-- **#10** — Lite `arc-config.yml` reduction mechanism. Surfaced during #8 evaluation; depends on #8 mechanism.
-- **#12, R6** (OQ15 initial-setup workflows) — gate on #8.
+- **#2, #4, #5, #6** — All gate on #1 (now resolved and migrated).
+- **#9** — Conditional prompts orchestration. Depends on #8 mechanism (now resolved and
+  migrated).
+- **#10** — Lite `arc-config.yml` reduction mechanism. Depends on #8 mechanism (now resolved
+  and migrated).
+- **#12, R6** (OQ15 initial-setup workflows) — gate on #8 (now resolved and migrated).
 
 **Tier 4 — validation + inventory:**
 
-- **#11** — install_config precision. Quick once #8 is decided.
-- **A1–A4** — Unvalidated assumptions. Correct directly in the plan doc.
+- **#11** — install_config precision. Quick now that #8 is migrated.
+- **A1, A4** — Remaining unvalidated assumptions. Correct directly in the plan doc. (A2 and
+  A3 resolved and migrated in the 2026-04-10 Tier 1 batch.)
 - **R4** — Consolidated deliverable inventory. Once Tier 1–3 decisions have landed.
 
 **Parking lot (revisit when touched, not blocking formalization):** Lite + external PM (plan
@@ -65,101 +69,6 @@ limit policy (OQ11).
 ---
 
 ## Masked Design Decisions
-
-### Finding 1 — Lite PRD functional requirements · 🟢
-
-**Original:** Lite's scope artifact has no concrete shape; required as a deliverable but zero
-format specified.
-
-**User reframe (2026-04-10):** Keep calling it a PRD (no separate artifact name). Vary the
-template and `create-prd` workflow by mode. `plan-*` docs are the same across modes (subsumed by
-PRD at impl time, with notes extracted to `notes-*`). General lean: "mirror Full where possible
-but scaled back" — preserves framework coherence, good UX, keeps the concept recognizable.
-Functional requirements gate the format.
-
-**Analysis conducted (2026-04-10):** First-pass purpose enumeration + section-by-section walk of
-`template-prd.md` + step-by-step walk of `1_create-prd.md`. Identified ten purposes the Full PRD
-serves (alignment check, work classification, scope definition upstream of tasks, verification
-anchor, historical record, scope guardrail during execution, collaboration handshake, dependency
-tracking, plan retirement trigger, open questions parking). Tested each against Lite's single-
-bounded-effort context. **Eight of ten purposes survive in Lite; two drop** (P2 work
-classification, P8 dependency tracking). Template cuts: `Type:` field, `Status/Related Work`
-header block, and `Document History` section entirely. All other sections stay identical or
-with small guidance softening. Workflow: ~90% mode-neutral; changes concentrated at workflow
-edges (branch context, META-PRD review, category classification, save-location plumbing).
-
-**Resolution:**
-
-**Lite PRD template section set.** Keeps identically or with minor softening: Introduction,
-Goals, User Stories or Use Cases (guidance simplified — no Feature/Technical split), Requirements
-(prioritization softened — "use if it helps; Lite projects often have a flat list"), Non-Goals
-(elevated framing — explicit one-line note that it's the scope guardrail), Technical
-Considerations (optional), Design Considerations (optional), Success Criteria (unchanged —
-critical), Open Questions (unchanged). Drops vs Full: `Type:` header field, `Status/Related
-Work` header block, `Document History` section.
-
-**Lite `create-prd` workflow shape.** Single unified workflow with mode conditionals at these
-edges — **not** a separate Lite variant (inverse of Finding #5's task-loop decision). Rationale:
-mode differences are small and localized, mode-neutral content is the bulk, cross-mode
-consistency preserves collaborative-elicitation guidance as it evolves.
-
-Mode-conditional edges:
-
-- **Pre-Step 0 branch context** — simplified or dropped in Lite (no full/partial branch
-  protection in Lite).
-- **Pre-Step 0 META-PRD review** — dropped in Lite (no META-PRD installed; see SQ1).
-- **Step 2 category classification** — dropped entirely in Lite.
-- **Step 4 template reference + save location** — swaps template reference (or selects Lite
-  variant via template `arc:if`) and uses `active/prd.md` singular save location.
-
-Mode-neutral (apply identically across Lite and Full):
-
-- **Step 1** — existing plan-\*.md lookup and PRD-readiness assessment.
-- **Step 3** — discovery (discovery checklist from `strategy-work-planning.md`).
-- **Step 5** — plan retirement + notes-\* creation + commit atomicity.
-- **Stop-for-review** conclusion.
-
-**Sub-questions resolved:**
-
-- **SQ1 META-PRD in Lite:** Not installed. Project vision captured in the Lite PRD itself; a
-  separate META-PRD adds ceremony without commensurate value at Lite's scale.
-- **SQ2 `plan-*` doc location:** `.arc/active/plan-{name}.md` — sibling to `prd.md` and
-  `tasks.md`. Matches Lite's flat structure, allows multiple exploration threads, retires
-  normally on PRD creation.
-- **SQ3 PRD filename:** Singular `prd.md`. One PRD per Lite project. If user needs multiple,
-  that's a graduation signal.
-- **SQ4 Document History:** **Cut entirely in Lite** (user decision 2026-04-10). No value at
-  project level for Lite's bounded-effort context.
-- **SQ5 Non-Goals framing:** Elevated. Template carries a one-line note — "In Lite, this
-  section is your scope guardrail — drift from Non-Goals is a signal to reconsider scope or
-  graduate to Full." Workflow Step 3 discovery guidance spends deliberate time on Non-Goals
-  elicitation.
-
-**Template delivery mechanism:** Template-render `arc:if` mechanism is viable for
-`template-prd.md` Lite variant (since cuts are minimal and localized — a few conditional blocks
-in one file). Confirms A4 as a legitimate tool, not theoretical. Final decision between
-single-file-with-arc:if vs two-file-variant depends on Finding #8 recipe architecture
-resolution — either approach works for this specific template.
-
-**Cascades into other findings** (informational — see those entries for status):
-
-- **Finding #2:** Lite task list keeps Success Criteria section (chain confirmed:
-  PRD success criteria → task list Success Criteria → ship step).
-- **Finding #3:** Ship step substrate confirmed — upgraded to 🟢.
-- **Finding #4:** Lite session-init document set: `.arc/active/prd.md` +
-  `.arc/active/tasks.md` + `.arc/active/WORK-STATUS.md`. No backlog scan, no category-path
-  lookup.
-- **Finding #6:** `strategy-work-planning.md` partially applies in Lite (discovery checklist
-  used by create-prd Step 3).
-- **Finding #8:** Datapoint — template `arc:if` earns its keep on `template-prd.md`. Factor
-  into recipe architecture decision.
-- **Finding #12:** Prediction — initial-setup workflows likely take the same shape (unified
-  with mode conditionals at the edges). Strong lean, not yet decided.
-- **A4:** Template `arc:if` confirmed as a legitimate tool.
-
-**Migrated to plan doc:** *pending migration*
-
----
 
 ### Finding 2 — Lite task list template · 🟡
 
@@ -182,44 +91,6 @@ pause-related header fields (single task list never pauses). Thoughts only, not 
   which drives the task list bottom section.
 
 **Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
-
----
-
-### Finding 3 — Lite ship step · 🟢
-
-**Original:** "Run Tier 3 gates and merge/push" is all the plan says; no workflow home, no
-structural anchor.
-
-**User position (2026-04-10):** Questioned whether ship step even makes sense as formal protocol
-in Lite — "done is whatever the user thinks it is." Prompted reuse of Full's existing Success
-Criteria convention.
-
-**Resolution (2026-04-10):** Lite ship step reuses Full ARC's `Success Criteria` section
-convention directly (see `strategy-task-list-formatting.md` § Success Criteria Section). Ship
-step protocol:
-
-1. All Success Criteria items must be marked `[x]` (met) or `[~]` (superseded, with annotation).
-   Any remaining `[ ]` items represent genuine gaps requiring resolution before ship.
-2. Run Tier 3 quality gates (full lint, type check, test suite, build).
-3. Review aggregate diff before push/merge.
-
-No new template section, no new workflow concept. Reuses Full's convention verbatim. Chain
-confirmed by Finding #1 analysis: Lite PRD carries Success Criteria (the section survives all
-cuts), Lite task list operationalizes them (identical to Full convention), ship step checks
-them.
-
-**Remaining detail decisions (detail-design, not pre-PRD blocking):**
-
-- **Protocol location.** Dedicated `lite-ship.md` supplemental workflow vs inline section at
-  the end of the Lite process-task-loop variant. Lean: **dedicated file** for discoverability
-  and to parallel Full's three-phase ship convention (verify/integrate/archive), just collapsed
-  into one file.
-- **Aggregate-diff review formalization.** Link to `prepare-commits.md` for review conventions,
-  or leave as informal "review your changes" directive? Lean: **link to `prepare-commits.md`**
-  if it applies mode-neutrally; inline minimum review guidance otherwise. Decide during
-  implementation.
 
 **Migrated to plan doc:** *pending*
 
@@ -324,307 +195,6 @@ impose new architectural requirements.
 **Resolution:** *pending*
 
 **Migrated to plan doc:** *pending*
-
----
-
-### Finding 8 — Recipe architecture for mode-conditional installation · 🟢
-
-**Original:** Verified against `packages/arc-framework/init-recipe.json` and `src/lib/types.ts`:
-`RecipeCondition` only supports `include_files` (additive). The current recipe lists all
-work-unit-lifecycle workflows unconditionally. Lite needs to exclude ~15 files + possibly swap
-2-3 templates. Plan's claim that "CLI recipe already supports mode-conditional file installation"
-is false in the direction Lite needs. Four candidate approaches:
-
-1. **Invert the baseline** — make Lite the unconditional include list, add Full files via
-   `install_type == full` condition. Invasive refactor, tests touch this.
-2. **Extend the recipe schema** — add `exclude_files` to `RecipeCondition`. Smaller code change
-   but affects merge/update/diff logic throughout the manifest module.
-3. **Ship two recipes** — `init-recipe-lite.json` + `init-recipe-full.json`, pick after first
-   prompt. Simplest schema but introduces recipe duplication risk on future feature adds.
-4. **Bucket + gate** — split current `include_files` into baseline + `lifecycle_files`, expose
-   `lifecycle_files` under a new condition form.
-
-**User position (2026-04-10):** Whatever's cleanest long term, regardless of effort. Composition
-and inverting the baseline sound right, but needs deeper analysis.
-
-**Current state (read 2026-04-10 — bridge into next session):**
-
-Factual landscape pass over the recipe + manifest pipeline. No evaluation of the four
-approaches yet — that's the next session's synthesis work. Purpose here is to give the
-evaluation a concrete foundation so it doesn't spend its first half re-deriving how the code
-works.
-
-**The single file-resolution site.** `resolveFileList()` in `lib/classification.ts` (lines
-~160–175) is the only place where the final file list is constructed. It's a pure function:
-
-```text
-files = Set(recipe.include_files ?? [])
-for each (condition, entry) in recipe.conditions:
-    if evaluateCondition(condition, config):
-        files.add(entry.include_files...)
-return [...files]
-```
-
-Strictly additive: baseline ∪ matching conditions. No subtraction, no precedence rules, no
-override semantics. Any of the four approaches has to either modify this function, add a
-post-processing step, or change the recipe schema so this function's logic shifts.
-
-**Recipe schema (TypeScript, `lib/types.ts`):**
-
-```ts
-interface RecipeCondition {
-  include_files: string[];   // only field
-}
-
-interface Recipe {
-  include_files?: string[];                       // unconditional baseline
-  computed_tokens?: Record<string, string>;
-  prompts: RecipePrompt[];
-  conditions: Record<string, RecipeCondition>;    // keyed by "key == value" strings
-}
-```
-
-`validateRecipe()` in `template/recipe.ts` enforces exactly this shape. Any new field
-(e.g., `exclude_files`, `lifecycle_files`) requires matching changes in `types.ts` AND
-`validateRecipe()`.
-
-**Condition evaluator (`evaluateCondition()` in `template/recipe.ts`, lines ~188–209):**
-Supports two operators — `==` (exact string equality) and `includes` (comma-separated list
-membership, for multiselect prompt values like `tools`). Returns false if the key is
-undefined in the config map. The operator set is fixed and easy to extend (single regex +
-branch), but extensions would cascade into `validateRecipe()`'s condition-key check.
-
-**Template-render `arc:if` mechanism (`template/render.ts`):** Separate from recipe
-conditions. Operators are `==` and `!=` (no `includes`). Uses HTML comment directives
-(`<!-- arc:if KEY == VALUE -->` ... `<!-- arc:endif -->`). Processes at install time for
-`.template.md` files and at update time for reconstructing pristine baselines. Collapses
-blank lines after stripping; nested `arc:if` inside an excluded outer block stays excluded.
-The two mechanisms (recipe conditions and template conditionals) are intentionally distinct —
-recipe works at install time on whole files, template conditionals work at render time on
-content blocks within files.
-
-**Three consumers of condition-included files** (code-duplication risk for schema changes):
-
-- `commands/init.ts` — calls `resolveFileList(recipe, config)` directly (line ~135), then
-  special-cases `ARC_IN_GIT_CONDITION` to build `arcInGitFiles` Set for layer classification
-  (lines ~141–146).
-- `commands/update.ts` — iterates over `recipe.conditions[condName].include_files` directly
-  for its own file-list reconstruction (line ~177).
-- `commands/reconfigure.ts` — similar direct iteration (line ~160).
-
-**`ARC_IN_GIT_CONDITION` is already special-cased.** The code already treats one condition
-differently from others for layer classification. Precedent — any new install-type condition
-would likely need similar special treatment, since install mode affects layer/classification
-semantics just like `pm.mode == arc-in-git` does.
-
-**Manifest schema (`InstallConfig` in `lib/types.ts`):**
-
-```ts
-interface InstallConfig {
-  project_name: string;
-  pm_mode: string;
-  tools: string[];
-  team_mode?: boolean;
-}
-```
-
-Four fields. Adding `install_type` (or equivalent) is a schema-version bump and cascades
-into: this interface, `validateManifest()` in `manifest/store.ts`, the manifest construction
-in `init.ts` (line ~197), the manifest re-build in `reconfigure.ts`, the manifest
-carry-forward in `update.ts`, and possibly migration logic for existing manifests at the old
-schema version.
-
-**Change plan pipeline** (`manifest/plan.ts` + `manifest/update-files.ts` + `manifest/apply.ts`):
-
-- `buildChangePlan()` is pure — diffs old manifest files against new file list from
-  `resolveFileList()`, produces `additions`, `removals`, `merges`, `skipped`.
-- `diffFileLists()` in `update-files.ts` is a simple set difference (`keep` / `added` /
-  `removed`).
-- `apply.ts` consumes the plan:
-    - **Additions:** render + write + update manifest.
-    - **Removals:** `safeUnlink` for Framework-class files; Configurable files go to
-      `keptForReview` (adopter-edited, needs human review before deletion); Scaffolded files
-      are left untouched (adopter-owned).
-    - **Merges:** three-way merge via `mergeFileContents()` in `manifest/merge.ts`.
-
-**Removals work today.** Infrastructure exists. This is critical for Finding #16 (Full → Lite
-downgrade) — the reconfigure path can already remove files when the new file list is smaller
-than the old one. What changes is *how* files get on the removal list (via recipe or
-conditional), not *whether* they can be removed.
-
-**Pristine store dependency.** The update pipeline reconstructs pristine baselines for
-three-way merges by re-rendering templates against the stored `install_config`. If `InstallConfig`
-gains an `install_type` field, pristine reconstruction during update needs to feed it through to
-`resolveFileList()` and `renderConditionals()` to reproduce the original rendered content. This
-couples install-type through the full update lifecycle, not just init.
-
-**Constraint summary for the four approaches:**
-
-| Constraint                        | Approach 1 (invert)      | Approach 2 (exclude_files)   | Approach 3 (two recipes)           | Approach 4 (bucket + gate)              |
-|-----------------------------------|--------------------------|------------------------------|------------------------------------|-----------------------------------------|
-| Recipe schema change              | No                       | Yes (`exclude_files` field)  | No                                 | Yes (e.g., `lifecycle_files` field)     |
-| `resolveFileList()` change        | No                       | Yes (set subtraction)        | No                                 | Yes (conditional append)                |
-| `validateRecipe()` change         | No                       | Yes                          | No                                 | Yes                                     |
-| New recipe-level operators        | No                       | No                           | No                                 | No                                      |
-| `InstallConfig` change            | Yes (`install_type`)     | Yes (`install_type`)         | Yes (`install_type`)               | Yes (`install_type`)                    |
-| Manifest schema version bump      | Yes                      | Yes                          | Yes                                | Yes                                     |
-| init.ts/update.ts/reconfigure.ts  | Light (3 call sites)     | Medium (set semantics)       | Medium (recipe selection step)     | Medium (new field handling)             |
-| Recipe file count                 | 1 (same file)            | 1 (same file)                | 2 (duplicated baselines)           | 1 (same file)                           |
-| Operator precedence question      | N/A                      | Yes (exclude vs include)     | N/A                                | N/A                                     |
-| Future mode extensibility         | Additive conditions      | Additive + subtractive       | Per-recipe fragmentation           | One bucket per axis (doesn't scale)     |
-
-All four require `install_type` in `InstallConfig` and a schema version bump — that part is
-common and unavoidable. The differentiation lives in the recipe-schema + `resolveFileList()`
-layer.
-
-**Not yet established (will need a quick scan during next session if relevant):**
-
-- Test file inventory and which specific tests exercise `resolveFileList()`, `validateRecipe()`,
-  and the three command paths. Affects change-size estimate.
-- Exact shape of `fileLayer()` classification function — only read the caller context, not
-  the function body. Relevant to Approach 1's "invert baseline" cleanliness, since lifecycle
-  files currently classify into a specific layer.
-- Whether `reconfigure.ts` has any pattern for "install_config field changed" vs "install_config
-  field same, just re-render" — matters for the Lite ↔ Full reconfigure path and Finding #16
-  orphan handling.
-
-**Resolution (2026-04-10):** Mechanism decided. Detail items feed forward into plan doc + PRD.
-
-**Evaluation of the four approaches:**
-
-**Approach 3 (two recipes) — rejected.** Baseline duplication across two files creates a silent
-divergence risk on every feature add. Orthogonal axes (future content subsets, team variants,
-etc.) are multiplicative in file count. Violates DRY at the authoring surface. Fails the user's
-"cleanest long-term" criterion.
-
-**Approach 4 (bucket + gate) — rejected.** The `lifecycle_files` bucket handles the one mode
-axis cleanly but accretes a new field per orthogonal axis. The constraint table already flagged
-"doesn't scale to orthogonal mode axes without accretion" — that alone kills it under the user's
-criterion.
-
-**Approach 2 (`exclude_files` schema extension) — rejected.** Introduces subtractive semantics
-into a model that is currently pure union. Consequences:
-
-- `resolveFileList()` becomes `baseline ∪ included − excluded`, forcing an ordering decision
-  (exclude-before-include? include-before-exclude? what if two conditions overlap?). There is no
-  single defensible answer — it depends on intent per call site.
-- Every future recipe reviewer has to mentally simulate both set operations on every read.
-- The new operator would be used for a single axis (install type). That's schema weight added
-  to the recipe language for one use case that doesn't earn its keep.
-- Every consumer of the recipe-conditions pipeline (`init.ts`, `update.ts`, `reconfigure.ts`)
-  would need to handle both operations.
-
-**Approach 1 (invert baseline) — adopted with refinement as Approach 1b (symmetric additive).**
-
-The original framing ("make Lite the unconditional baseline, add Full via condition") privileges
-one mode as the baseline. Refinement: partition into three buckets symmetrically, so Full and
-Lite are peer extensions on a shared foundation rather than one being primary:
-
-- **Unconditional baseline** — files universal to both modes (constitution, most strategies,
-  core workflows, templates, system infrastructure, initial-setup, session-lifecycle,
-  supplemental).
-- **`install.type == full`** condition — Full-only files (work-unit-lifecycle/\*, META-PRD
-  template, Full process-task-loop variant contents once Finding #1/#5 land).
-- **`install.type == lite`** condition — Lite-only files (Lite ship protocol deliverable per
-  Finding #3, Lite process-task-loop variant contents once Finding #1/#5 land).
-
-**Why Approach 1b wins on every criterion:**
-
-| Criterion                   | Approach 1b                              | Approach 2                     |
-|-----------------------------|------------------------------------------|--------------------------------|
-| Additive-model fit          | Unchanged                                | Introduces subtraction         |
-| `resolveFileList()` change  | Zero                                     | Set arithmetic + ordering      |
-| Schema change               | Zero                                     | New field + validator          |
-| Operator precedence         | N/A                                      | Exclude-vs-include ambiguity   |
-| Scaling to new axes         | Additive conditions                      | Additive + subtractive         |
-| Recipe readability          | Conditions self-document modes           | "Plus these, minus those"      |
-| Test surface                | Existing `resolveFileList()` tests hold  | New semantics need new tests   |
-| Precedent                   | Matches `pm.mode == arc-in-git` pattern  | New pattern                    |
-
-**Stress-test trace-throughs** (run 2026-04-10):
-
-- **Multi-axis composition** with `pm.mode`, `tools`, `team.mode` all resolved cleanly. The one
-  interaction that looked like it might surface an open question — Lite × `pm.mode: arc-in-git`
-  — is already forbidden in the plan doc (see `plan-arc-modes.md` lines 99-101, 405-412,
-  1346-1347); Lite skips the `pm.mode` prompt entirely, so the condition never fires.
-- **Update pipeline** (Full → Full on framework version bump): standard additions path,
-  unchanged.
-- **Pristine reconstruction during update**: `install_type` needs to flow through
-  `buildConfigMap()` alongside `pm_mode`. Pattern already established; one-line addition.
-- **Reconfigure Full → Lite downgrade**: existing removal infrastructure (`safeUnlink` for
-  Framework class, `keptForReview` for Configurable) handles it. Finding #16 owns the
-  orphan-handling details; Finding #8's mechanism doesn't make the problem worse.
-- **Reconfigure Lite → Full upgrade**: inverse, additions path, no surprises.
-- **Legacy manifest migration**: existing Full manifests pre-`install_type` get default
-  `install_type: "full"` during manifest version bump. Standard pattern.
-
-**Decided (feedforward into plan doc and downstream implementation):**
-
-- **Mechanism:** Symmetric additive via `install.type` condition. No recipe schema change. No
-  `resolveFileList()` change. Three buckets (universal baseline / `install.type == lite` /
-  `install.type == full`).
-- **Config key:** `install.type` (dotted form, consistent with `pm.mode`, `team.mode`,
-  `branch.protection`).
-- **`InstallConfig` schema:** Adds `install_type: string`. Manifest schema version bumps.
-  Legacy manifests migrate with `install_type: "full"` default.
-- **`buildConfigMap()` plumbing:** Flattens `install_type → install.type`, making it available
-  to both `evaluateCondition()` (recipe conditions) and `renderConditionals()` (template
-  `arc:if` directives). Pattern parallels existing `pm_mode → pm.mode` handling.
-- **Anchor file assignments (safe now, nothing else contradicts):**
-    - `work-unit-lifecycle/*` (8 files) → `install.type == full`.
-    - Other bucket assignments pending resolution of dependent findings — see Feedforward
-      below.
-
-**Adjacent concerns surfaced during this evaluation** — captured as separate findings rather
-than bundled here: new Finding #9 (conditional prompts orchestration) and new Finding #10 (Lite
-`arc-config.yml` reduction mechanism). Both depend on this mechanism decision but have distinct
-solution spaces and deserve independent resolution before PRD formalization.
-
-**Feedforward — file bucket assignments pending other findings:**
-
-These files have preliminary bucket assignments that depend on resolution of other findings.
-Resolved here only as far as current understanding allows; final bucket confirmation happens as
-each dependent finding lands.
-
-- `reference/META-PRD.template.md` — Lean: `install.type == full`. Finding #1 resolved "no
-  META-PRD in Lite." Confirm on Finding #1 migration.
-- **Process-task-loop variant contents** — Finding #5 resolved "variant over conditional."
-  Two files will land under `install.type == full` and `install.type == lite` conditions
-  respectively. Exact filenames and contents pending Finding #1 landing (which determines
-  which references need cutting in the Lite variant).
-- **Lite ship step deliverable** — Finding #3 resolved the three-step protocol. File-vs-inline
-  location is a detail decision (Finding #3 "Remaining detail decisions"); if a separate
-  supplemental workflow, lands under `install.type == lite`.
-- **`manage-incidental-work.md`, `maintain-project-docs.md`** — unclear bucket assignment.
-  Incidental work routing depends on the WU pipeline concept (Full territory); project docs
-  maintenance is arguably universal. Finding #6 (strategy applicability mapping) territory.
-- **Strategy files** (most of `reference/strategies/arc/*`) — most likely stay in the baseline.
-  `strategy-work-organization.md` and `strategy-work-planning.md` may be Full-only or partial.
-  Finding #6 territory.
-- **Session-lifecycle workflow variants** (`session-init.template.md`,
-  `session-handoff.template.md`) — if Finding #4 lands on "variant needed," two files go under
-  respective `install.type` conditions. If "unified with minor cuts," stays in baseline with
-  template `arc:if` directives. Finding #4 territory.
-- **`arc-config.yml` treatment** — depends on resolution of new Finding #10 (Lite config
-  template reduction mechanism). Bucket assignment deferred until that finding lands.
-
-**Not yet established** (verify during implementation, not gating this decision):
-
-- Test file inventory exercising `resolveFileList()`, `validateRecipe()`, and the three command
-  paths — affects change-size estimate for the PRD's task generation phase.
-- Exact migration step wiring in manifest version bump logic.
-- Final `install_type` naming: `install_type` vs alternatives (`install_mode`, `arc_mode`,
-  `mode`). Coordinate with rebrand WU's config naming work — see Finding #11 (`install_config`
-  precision).
-
-**Decision formalization — ADR as PRD deliverable.** This mechanism decision will be formalized
-as an Architecture Decision Record during implementation, not authored now. The ADR belongs
-alongside the code change it documents, not as a pre-PRD artifact. The PRD derived from
-`plan-arc-modes.md` will include "author ADR for `install.type` mechanism" as an explicit
-deliverable; the ADR itself is written during that task's execution. ADR number assigned at
-write time.
-
-**Migrated to plan doc:** *pending* (batch-migrate with Findings #1 and #3)
 
 ---
 
@@ -1078,35 +648,6 @@ shell conditionals or a mode-aware hook installation."
 
 ---
 
-### A2 — Unsourced "85-90% no lifecycle dependency" statistic · 🟢
-
-**Finding:** Plan § Core Boundary Hypothesis attributes "85-90% of the framework has zero
-dependencies on work unit lifecycle workflows" to `analysis-conditional-content-architecture.md`.
-Not in the analysis doc. The analysis gives concrete counts (15-25 new conditionals, 4-8 template
-`arc:if` blocks, 1-2 recipe conditions) but no percentage. The figure appears manufactured.
-
-**Resolution:** Drop the 85-90% figure. Replace with the analysis's actual counts, or reframe as
-"the analysis confirms work unit lifecycle workflows can be excluded entirely via file exclusion,
-avoiding dozens of in-prose conditionals." Accurate, sourced, no fabricated number.
-
-**Migrated to plan doc:** *pending*
-
----
-
-### A3 — "Recipe already supports mode-conditional file installation" · 🟢
-
-**Finding:** Plan § Configuration Identity: "The CLI recipe already supports mode-conditional
-file installation." False in the direction Lite needs — recipe only supports additive
-`include_files`. See Finding #8 for the architectural follow-up.
-
-**Resolution:** Correct the plan claim. Replace with: "The recipe will need extension to support
-mode-conditional file installation (see [recipe architecture] decision)." Link to Finding #8's
-eventual resolution.
-
-**Migrated to plan doc:** *pending*
-
----
-
 ### A4 — Template `arc:if` mechanism not discussed · 🟡
 
 **Finding:** `analysis-conditional-content-architecture.md` projects "+4-8 template `arc:if`
@@ -1370,3 +911,68 @@ write time, not reserved now.
 commit. New findings #9 and #10 continue tracking in this working doc pending their own
 resolution. After the batch migration, Tier 1 work is complete and attention moves to Tier 2
 (#13 integrate × non-complete, #7 guardrails, #16 downgrade, #3 ship step detail decision).
+
+**2026-04-10 — Tier 1 batch migration into plan doc**
+
+Migrated Findings #1 (Lite PRD), #3 (Lite ship step), and #8 (recipe architecture) into
+`plan-arc-modes.md`, plus unvalidated assumptions A2 (fabricated 85-90% statistic) and A3
+(false "recipe already supports mode-conditional file installation" claim). A3 was the same
+correction as Finding #8's premise, so they folded into a single edit pass.
+
+**Migration shape:** Per user direction, the plan doc subsumes this working doc at full
+detail — not decision-record summarization. Full evaluation trails, factual landscapes,
+rejected alternatives, stress-test trace-throughs, feedforward bucket assignments, and ADR
+deferral notes all landed in the plan doc. Resolved findings were removed from this file
+entirely rather than marked ✅ Absorbed; the working doc shrinks to only unresolveds and
+partials as findings drain. The ✅ state was removed from the Status legend to reflect this.
+
+**Plan doc landing points:**
+
+- **Finding #1** → new `### The Lite PRD` subsection under `## Mode 1: ARC Lite`
+  (functional requirements, template cuts, workflow shape, five SQs, template delivery
+  mechanism, cascades). Upstream edits: Enforced Sequence table/Scope paragraph, What
+  Changes/Scope artifact paragraph, file-structure diagram (`scope.md` → `prd.md` + `plan-*`
+  sibling), cascading `scope brief` → `Lite PRD` sweep across Guardrails, Graduation Paths,
+  Quick-Start, Walk-Through: Lite+Local, Graduation Grid, and Role Is a Tracked Concept. Open
+  Question 2 marked resolved.
+- **Finding #3** → inline rewrite of `### Enforced Sequence` → Ship step paragraph with the
+  three-step Success Criteria protocol + detail-design deferrals. Open Question 3 marked
+  resolved.
+- **Finding #8 + A3** → new `### Installation Type Recipe Mechanism` subsection under
+  `## Design Investigations (Pre-PRD)` (peer to Configuration Identity). Carries: the gap
+  statement + correction of A3's false claim, full current-state factual landscape, four
+  candidate approaches + constraint summary table, rejections (3/4/2 with full reasoning),
+  adopted Approach 1b + symmetric-additive refinement + win table vs Approach 2, stress-test
+  trace-throughs, decided mechanism + plumbing, anchor file bucket assignments, feedforward
+  (pending dependent decisions), not-yet-established items, ADR deferral. Upstream edits:
+  Configuration Identity rewritten to drop the false claim and point forward; Mode 1 →
+  Configuration and Installation light touch with cross-reference.
+- **A2** → inline correction in `## Mode 1: ARC Lite → Core Boundary Hypothesis`
+  bullet — replaced "85-90% of the framework has zero dependencies" with the analysis doc's
+  actual counts framing (15-25 new conditionals, 4-8 template `arc:if` blocks, 1-2 recipe
+  conditions).
+- **Resolved Decisions table** (plan doc) — added 13 new rows for the migrated decisions.
+- **Open Questions** (plan doc) — OQ2 (Scope artifact design) and OQ3 (Ship step specifics)
+  marked resolved with section pointers.
+- **pm.mode naming:** new content uses `arc-pm` rather than `arc-in-git` per the ARCd rebrand
+  direction (rebrand WU lands before modes WU; unified content sweep will catch pre-rename
+  leakage in the surrounding plan doc text).
+
+**Working doc shrinkage:** Removed Finding #1, Finding #3, Finding #8, A2, and A3 sections
+entirely. Updated Sequencing section (Tier 1 empty, Tier 2 notes #3 resolved, Tier 4 reduced
+to A1 and A4). Updated intro and Status legend to reflect the removal-on-migration lifecycle.
+Renumbering was NOT needed — no new findings inserted, just removals.
+
+**Not yet migrated in this pass** (intentional): Findings #2, #4, #5, #6, #7, #9, #10, #11,
+and \#12 through \#19, plus A1, A4, B1, B4, and R1–R8. These remain in flight (🟡/🔴/⚪) or
+have their own pending work.
+
+**Next:** Continue draining findings into the plan doc. Immediate next candidates are
+Findings #9 (conditional prompts orchestration) and #10 (Lite `arc-config.yml` reduction
+mechanism) — both were surfaced during Finding #8's evaluation and depend on its now-migrated
+mechanism, so they can be resolved now. After #9 and #10, move to Tier 2 (Findings #13, #7,
+\#16) and then Tier 3 (Findings #2, #4, #5, #6, #12).
+
+---
+
+[plan-doc]: plan-arc-modes.md

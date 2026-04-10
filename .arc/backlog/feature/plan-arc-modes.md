@@ -90,18 +90,23 @@ operating mode design.
 
 How modes are expressed in ARC's configuration system. This affects both modes.
 
-**Partially resolved.** ARC Lite is too foundational to be a config value — it determines what config
-options even exist. The decision:
+**Resolved.** ARC Lite is too foundational to be a config value — it determines what config options
+even exist. The decisions:
 
 - **Lite vs Full is the first fork in `arc init`** — a top-level installation type, not a `pm.mode`
-  value or a config setting in `arc-config.yml`. It's stored in the manifest's `install_config`
-  (like `pm.mode` is now) and readable by the CLI for reconfigure/update operations.
-- **Lite gates downstream prompts** — Lite skips the `pm.mode` prompt (implicitly `none`; `arc-in-git`
-  is contradictory since Lite has no work unit stream for the planning module to manage). `team.mode`
-  is likely also skipped — Lite is inherently solo from a methodology perspective.
-- **Lite ships its own config template** — a reduced `arc-config.yml` containing only settings relevant
-  to Lite, rather than conditionalizing the Full config. The CLI recipe already supports mode-conditional
-  file installation.
+  value or a config setting in `arc-config.yml`. It's stored in the manifest's
+  `install_config.install_type` field and read by the CLI for reconfigure/update operations. The
+  installation-type mechanism (how it drives file installation, manifest schema, and plumbing
+  through `buildConfigMap`) is specified in [Installation Type Recipe
+  Mechanism](#installation-type-recipe-mechanism) below.
+- **Lite gates downstream prompts** — Lite skips the `pm.mode` prompt (implicitly `none`; `arc-pm`
+  is contradictory since Lite has no work unit stream for the planning module to manage).
+  `team.mode` is also skipped — Lite is inherently solo from a methodology perspective.
+- **Lite ships a reduced `arc-config.yml`** — containing only settings relevant to Lite, rather than
+  conditionalizing the Full config in place. The recipe-side mechanism that drives mode-conditional
+  file installation is specified below; the delivery mechanism for the reduced config file itself
+  (single-file-with-`arc:if` directives vs. a two-file variant) is a distinct design decision still
+  in flight — see Finding #10 in [`working-modes-gap-resolution.md`][working-gap-resolution].
 
 **Still open:** Lite + `pm.mode: external` interaction. There's no reason you couldn't use Lite execution
 discipline with an external tracker — but what concrete value does `external` mode provide in Lite, given
@@ -116,6 +121,343 @@ pattern" rather than a mode. Evaluate during detail design.
 3. Profile concept — explored and rejected during earlier work (WU1); too many moving parts
 4. Orthogonal flags — interesting but risks confusing combinations; the bounded Lite mode is better
    served by a single installation-type choice than emergent flag combinations
+
+### Installation Type Recipe Mechanism
+
+**How the install-type choice (Lite vs Full) drives which files get installed by `arc init`.**
+[Configuration Identity](#configuration-identity) above establishes that install type is stored in
+the manifest and gates downstream prompts. This section specifies the recipe-level mechanism that
+turns that stored value into concrete file installation: which files land on disk for each mode,
+and how the existing CLI infrastructure is extended to support it.
+
+#### The gap
+
+The CLI recipe (`packages/arc-framework/init-recipe.json`) currently supports additive
+`include_files` conditions — a recipe-level condition like `pm.mode == arc-pm` adds files on top of
+the baseline when matched. But the current baseline lists work-unit-lifecycle workflows
+unconditionally, and Lite needs to exclude ~15 of those files plus possibly swap 2-3 templates. The
+existing mechanism is additive only, so Lite's exclusion needs either a refactor of the baseline, a
+new recipe operator, or a different mechanism entirely.
+
+**Correction to prior plan text:** Earlier drafts of this plan doc asserted "the CLI recipe already
+supports mode-conditional file installation." That claim was accurate only in the weak sense
+(additive conditions exist); it was misleading in the direction Lite actually needs. This section
+resolves the mechanism gap.
+
+#### Current state — factual landscape
+
+Pre-synthesis read of the recipe + manifest pipeline (2026-04-10). The code-path walk informs the
+mechanism decision below and remains useful as implementation reference.
+
+**The single file-resolution site.** `resolveFileList()` in `lib/classification.ts` (lines ~160–175)
+is the only place where the final file list is constructed. It's a pure function:
+
+```text
+files = Set(recipe.include_files ?? [])
+for each (condition, entry) in recipe.conditions:
+    if evaluateCondition(condition, config):
+        files.add(entry.include_files...)
+return [...files]
+```
+
+Strictly additive: baseline ∪ matching conditions. No subtraction, no precedence rules, no override
+semantics. Any mechanism change has to either modify this function, add a post-processing step, or
+change the recipe schema so this function's logic shifts.
+
+**Recipe schema** (TypeScript, `lib/types.ts`):
+
+```ts
+interface RecipeCondition {
+  include_files: string[];   // only field
+}
+
+interface Recipe {
+  include_files?: string[];                       // unconditional baseline
+  computed_tokens?: Record<string, string>;
+  prompts: RecipePrompt[];
+  conditions: Record<string, RecipeCondition>;    // keyed by "key == value" strings
+}
+```
+
+`validateRecipe()` in `template/recipe.ts` enforces exactly this shape. Any new field (e.g.,
+`exclude_files`, `lifecycle_files`) requires matching changes in `types.ts` AND `validateRecipe()`.
+
+**Condition evaluator** (`evaluateCondition()` in `template/recipe.ts`, lines ~188–209) supports two
+operators — `==` (exact string equality) and `includes` (comma-separated list membership, for
+multiselect prompt values like `tools`). Returns false if the key is undefined in the config map.
+The operator set is fixed and easy to extend (single regex + branch), but extensions would cascade
+into `validateRecipe()`'s condition-key check.
+
+**Template-render `arc:if` mechanism** (`template/render.ts`) is separate from recipe conditions.
+Operators are `==` and `!=` (no `includes`). Uses HTML comment directives
+(`<!-- arc:if KEY == VALUE -->` ... `<!-- arc:endif -->`). Processes at install time for
+`.template.md` files and at update time for reconstructing pristine baselines. Collapses blank
+lines after stripping; nested `arc:if` inside an excluded outer block stays excluded. The two
+mechanisms — recipe conditions and template conditionals — are intentionally distinct: recipe works
+at install time on whole files, template conditionals work at render time on content blocks within
+files.
+
+**Three consumers of condition-included files** (code-duplication risk for schema changes):
+
+- `commands/init.ts` — calls `resolveFileList(recipe, config)` directly (line ~135), then
+  special-cases `ARC_IN_GIT_CONDITION` to build `arcInGitFiles` Set for layer classification
+  (lines ~141–146).
+- `commands/update.ts` — iterates over `recipe.conditions[condName].include_files` directly for
+  its own file-list reconstruction (line ~177).
+- `commands/reconfigure.ts` — similar direct iteration (line ~160).
+
+**`ARC_IN_GIT_CONDITION` is already special-cased.** The code already treats one condition
+differently from others for layer classification. Precedent — any new install-type condition would
+likely need similar special treatment, since install mode affects layer/classification semantics
+just like `pm.mode == arc-pm` does.
+
+**Manifest schema** (`InstallConfig` in `lib/types.ts`):
+
+```ts
+interface InstallConfig {
+  project_name: string;
+  pm_mode: string;
+  tools: string[];
+  team_mode?: boolean;
+}
+```
+
+Four fields. Adding `install_type` (or equivalent) is a schema-version bump and cascades into: this
+interface, `validateManifest()` in `manifest/store.ts`, the manifest construction in `init.ts`
+(line ~197), the manifest re-build in `reconfigure.ts`, the manifest carry-forward in `update.ts`,
+and possibly migration logic for existing manifests at the old schema version.
+
+**Change plan pipeline** (`manifest/plan.ts` + `manifest/update-files.ts` + `manifest/apply.ts`):
+
+- `buildChangePlan()` is pure — diffs old manifest files against new file list from
+  `resolveFileList()`, produces `additions`, `removals`, `merges`, `skipped`.
+- `diffFileLists()` in `update-files.ts` is a simple set difference (`keep` / `added` / `removed`).
+- `apply.ts` consumes the plan: Additions render + write + update manifest; Removals use
+  `safeUnlink` for Framework-class files and route Configurable files to `keptForReview`
+  (adopter-edited, needs human review before deletion); Scaffolded files are left untouched
+  (adopter-owned).
+- **Merges** use three-way merge via `mergeFileContents()` in `manifest/merge.ts`.
+
+**Removals work today.** The infrastructure exists. This is critical for the Full → Lite downgrade
+case — the reconfigure path can already remove files when the new file list is smaller than the
+old one. What changes is _how_ files get on the removal list (via recipe or conditional), not
+_whether_ they can be removed.
+
+**Pristine store dependency.** The update pipeline reconstructs pristine baselines for three-way
+merges by re-rendering templates against the stored `install_config`. If `InstallConfig` gains an
+`install_type` field, pristine reconstruction during update needs to feed it through to
+`resolveFileList()` and `renderConditionals()` to reproduce the original rendered content. This
+couples install-type through the full update lifecycle, not just init.
+
+#### Candidate approaches
+
+Four approaches were evaluated against the "cleanest long-term" criterion:
+
+1. **Invert the baseline** — make Lite the unconditional include list, add Full files via
+   `install_type == full` condition. Zero schema change.
+2. **Extend the recipe schema with `exclude_files`** — add a subtractive field to `RecipeCondition`.
+   Smaller surface change but introduces set arithmetic into `resolveFileList()`.
+3. **Ship two recipes** — `init-recipe-lite.json` + `init-recipe-full.json`, pick after first
+   prompt. Simplest schema but duplicates the baseline across files.
+4. **Bucket + gate** — split current `include_files` into baseline + `lifecycle_files`, expose
+   `lifecycle_files` under a new condition form.
+
+**Constraint summary across all four:**
+
+| Constraint                       | Approach 1 (invert)  | Approach 2 (exclude_files)  | Approach 3 (two recipes)       | Approach 4 (bucket + gate)          |
+|----------------------------------|----------------------|-----------------------------|--------------------------------|-------------------------------------|
+| Recipe schema change             | No                   | Yes (`exclude_files` field) | No                             | Yes (e.g., `lifecycle_files` field) |
+| `resolveFileList()` change       | No                   | Yes (set subtraction)       | No                             | Yes (conditional append)            |
+| `validateRecipe()` change        | No                   | Yes                         | No                             | Yes                                 |
+| New recipe-level operators       | No                   | No                          | No                             | No                                  |
+| `InstallConfig` change           | Yes (`install_type`) | Yes (`install_type`)        | Yes (`install_type`)           | Yes (`install_type`)                |
+| Manifest schema version bump     | Yes                  | Yes                         | Yes                            | Yes                                 |
+| init.ts/update.ts/reconfigure.ts | Light (3 call sites) | Medium (set semantics)      | Medium (recipe selection step) | Medium (new field handling)         |
+| Recipe file count                | 1 (same file)        | 1 (same file)               | 2 (duplicated baselines)       | 1 (same file)                       |
+| Operator precedence question     | N/A                  | Yes (exclude vs include)    | N/A                            | N/A                                 |
+| Future mode extensibility        | Additive conditions  | Additive + subtractive      | Per-recipe fragmentation       | One bucket per axis (doesn't scale) |
+
+All four require `install_type` in `InstallConfig` and a schema version bump — that's common and
+unavoidable. The differentiation lives in the recipe-schema + `resolveFileList()` layer.
+
+#### Rejections
+
+**Approach 3 (two recipes) — rejected.** Baseline duplication across two files creates a silent
+divergence risk on every feature add. Orthogonal axes (future content subsets, team variants, etc.)
+are multiplicative in file count. Violates DRY at the authoring surface. Fails the "cleanest
+long-term" criterion immediately.
+
+**Approach 4 (bucket + gate) — rejected.** The `lifecycle_files` bucket handles the one mode axis
+cleanly but accretes a new field per orthogonal axis. The constraint table above already flagged
+"doesn't scale to orthogonal mode axes without accretion" — that alone kills it under the
+criterion. Future axes (Local mode, team mode variants, etc.) would each add a new bucket field,
+producing a schema that grows linearly with axis count instead of compositionally.
+
+**Approach 2 (`exclude_files` schema extension) — rejected.** Introduces subtractive semantics
+into a model that is currently pure union. Consequences:
+
+- `resolveFileList()` becomes `baseline ∪ included − excluded`, forcing an ordering decision
+  (exclude-before-include? include-before-exclude? what if two conditions overlap with opposing
+  semantics?). There is no single defensible answer — it depends on intent per call site, which
+  is exactly the kind of implicit-context dependence that clean schemas avoid.
+- Every future recipe reviewer has to mentally simulate both set operations on every read.
+- The new operator would be used for a single axis (install type) and doesn't earn its schema
+  weight. ARC's additive conditions successfully handle `pm.mode`, `tools`, and other axes
+  without needing subtraction.
+- Every consumer of the recipe-conditions pipeline (`init.ts`, `update.ts`, `reconfigure.ts`)
+  would need to handle both operations, multiplying the change surface.
+
+The additive-model-fit argument is the decisive one: when a proposed mechanism change would
+introduce new operators (subtraction, precedence rules, conflict resolution) for a single use
+case, the additive alternative is preferred even if the refactor is larger. Approach #2 was
+mechanically correct but introduced operator precedence ambiguity with no single defensible
+answer.
+
+#### Adopted: Approach 1b — symmetric additive
+
+**Approach 1 (invert baseline) adopted with refinement as Approach 1b (symmetric additive).**
+
+The original Approach 1 framing ("make Lite the unconditional baseline, add Full via condition")
+privileges one mode as the baseline. Refinement 1b partitions into three buckets symmetrically, so
+Full and Lite are peer extensions on a shared foundation rather than one being primary and one
+derivative:
+
+- **Unconditional baseline** — files universal to both modes (constitution, most strategies, core
+  workflows, templates, system infrastructure, initial-setup workflows, session-lifecycle
+  workflows, supplemental workflows).
+- **`install.type == full`** condition — Full-only files (`work-unit-lifecycle/*`, META-PRD
+  template, Full process-task-loop variant contents once the task-loop variant decision lands).
+- **`install.type == lite`** condition — Lite-only files (Lite ship protocol deliverable if
+  delivered as a dedicated file per [Enforced Sequence](#enforced-sequence), Lite
+  process-task-loop variant contents, any Lite-specific template variants).
+
+The mechanical work is identical to vanilla Approach 1, but the conceptual framing matches how
+this plan doc talks about Lite and Full (peer modes with different ceremony, not "Full minus
+things"). Aligning the mechanism with the conceptual framing is free — no additional code, just a
+symmetric layout of the recipe file.
+
+**Why Approach 1b wins on every criterion versus the strongest alternative (Approach 2):**
+
+| Criterion                  | Approach 1b                             | Approach 2                   |
+|----------------------------|-----------------------------------------|------------------------------|
+| Additive-model fit         | Unchanged                               | Introduces subtraction       |
+| `resolveFileList()` change | Zero                                    | Set arithmetic + ordering    |
+| Schema change              | Zero                                    | New field + validator        |
+| Operator precedence        | N/A                                     | Exclude-vs-include ambiguity |
+| Scaling to new axes        | Additive conditions                     | Additive + subtractive       |
+| Recipe readability         | Conditions self-document modes          | "Plus these, minus those"    |
+| Test surface               | Existing `resolveFileList()` tests hold | New semantics need new tests |
+| Precedent                  | Matches `pm.mode == arc-pm` pattern     | New pattern                  |
+
+#### Stress-test trace-throughs
+
+Run 2026-04-10 before committing to the mechanism. Each trace exercised the adopted approach
+against a realistic usage scenario; no trace surfaced an unhandled case.
+
+- **Multi-axis composition** with `pm.mode`, `tools`, `team.mode` all resolved cleanly. The one
+  interaction that looked like it might surface an open question — Lite × `pm.mode: arc-pm` — is
+  already forbidden elsewhere in this plan doc (see [Configuration
+  Identity](#configuration-identity) above and [Forbidden Combinations](#forbidden-combinations)
+  below); Lite skips the `pm.mode` prompt entirely, so the condition never fires.
+- **Update pipeline** (Full → Full on framework version bump): standard additions path, unchanged
+  from current behavior.
+- **Pristine reconstruction during update**: `install_type` needs to flow through
+  `buildConfigMap()` alongside `pm_mode`. The pattern is already established; one-line addition.
+- **Reconfigure Full → Lite downgrade**: existing removal infrastructure (`safeUnlink` for
+  Framework-class files, `keptForReview` for Configurable files) handles it. The orphan-handling
+  details are owned by the Full → Lite downgrade work (see [Graduation / Downgrade
+  Paths](#graduation--downgrade-paths)); this mechanism doesn't make that problem worse.
+- **Reconfigure Lite → Full upgrade**: inverse case, additions path, no surprises.
+- **Legacy manifest migration**: existing Full manifests pre-`install_type` get default
+  `install_type: "full"` during manifest version bump. Standard pattern.
+
+#### Decided mechanism
+
+- **Approach:** Symmetric additive via `install.type` condition. Three buckets: unconditional
+  universal baseline, `install.type == full` condition, `install.type == lite` condition. Full and
+  Lite are peer extensions on a shared foundation.
+- **No recipe schema change.** `Recipe` and `RecipeCondition` interfaces stay as-is.
+- **No `resolveFileList()` change.** The existing pure-additive logic covers the new conditions
+  without modification.
+- **Config key:** `install.type` (dotted form, consistent with `pm.mode`, `team.mode`,
+  `branch.protection`). Authoritative storage is the manifest's `install_config.install_type`
+  field; the dotted form is what appears in recipe condition keys and template `arc:if`
+  directives.
+- **`InstallConfig` schema:** Adds a new required field `install_type: string`. Manifest schema
+  version bumps. Legacy manifests (pre-`install_type`) migrate with `install_type: "full"`
+  default as part of the version-bump migration.
+- **`buildConfigMap()` plumbing:** Flattens `install_type → install.type`, making the value
+  available to both `evaluateCondition()` (for recipe conditions) and `renderConditionals()` (for
+  template `arc:if` directives). This pattern parallels the existing `pm_mode → pm.mode` handling
+  and is a one-line addition.
+
+**Anchor file bucket assignments confirmed now** (nothing else contradicts):
+
+- `work-unit-lifecycle/*` (8 files) → `install.type == full`.
+- META-PRD template (`reference/META-PRD.template.md`) → `install.type == full`. Confirmed by
+  [The Lite PRD](#the-lite-prd) § SQ1 (META-PRD not installed in Lite).
+
+Other bucket assignments are pending resolution of dependent design decisions — see Feedforward
+below.
+
+#### Feedforward — file bucket assignments pending other decisions
+
+These files have preliminary bucket assignments that depend on resolution of other design
+decisions. Final bucket confirmation happens as each dependent decision lands.
+
+- **Process-task-loop variant contents** — the variant-over-conditional decision is recorded
+  elsewhere; two files will land under `install.type == full` and `install.type == lite`
+  conditions respectively. Exact filenames and contents are pending the task-loop variant design
+  landing (which determines which Full-oriented references need cutting in the Lite variant).
+  See [Open Question 6](#arc-lite) below.
+- **Lite ship step deliverable** — [Enforced Sequence](#enforced-sequence) above specifies the
+  three-step ship protocol. The file-vs-inline location is a detail decision; if delivered as a
+  dedicated `lite-ship.md` supplemental workflow, it lands under `install.type == lite`.
+- **`manage-incidental-work.md`, `maintain-project-docs.md`** — unclear bucket assignment.
+  Incidental work routing depends on the WU pipeline concept (Full territory); project docs
+  maintenance is arguably universal. Pending the strategy applicability mapping for Lite (see
+  [Open Question 7](#arc-lite)).
+- **Strategy files** (most of `reference/strategies/arc/*`) — most likely stay in the
+  unconditional baseline. `strategy-work-organization.md` and `strategy-work-planning.md` may be
+  Full-only or partially applicable. Pending the strategy applicability mapping ([Open Question
+  7](#arc-lite)).
+- **Session-lifecycle workflow variants** (`session-init.template.md`,
+  `session-handoff.template.md`) — if the Lite session-lifecycle decision lands on "variant
+  needed," two files go under respective `install.type` conditions. If "unified with minor cuts,"
+  they stay in the baseline with template `arc:if` directives. Pending [Open Question
+  5](#arc-lite).
+- **`arc-config.yml` treatment** — depends on the Lite reduced-config delivery mechanism decision
+  (single-file-with-`arc:if` vs. two-file variant). See Finding #10 in
+  [`working-modes-gap-resolution.md`][working-gap-resolution] for in-flight analysis.
+
+#### Not yet established (verify during implementation)
+
+These items don't gate the mechanism decision but will need confirmation during implementation
+task generation or execution. They're recorded here so the PRD's task generation phase can scope
+them.
+
+- **Test file inventory** exercising `resolveFileList()`, `validateRecipe()`, and the three
+  command paths. Affects the change-size estimate for implementation tasks.
+- **Exact migration step wiring** in manifest version bump logic — confirm the migration function
+  signature and where legacy-manifest detection fires.
+- **Final `install_type` naming** — `install_type` vs. alternatives (`install_mode`, `arc_mode`,
+  `mode`). Coordinate with the [ARCd Rebrand][arcd-rebrand] WU's config naming work if any
+  overlaps surface.
+
+#### ADR authoring — deferred to PRD implementation
+
+The mechanism decision recorded here will be formalized as an Architecture Decision Record during
+implementation of the PRD derived from this plan doc, **not authored now**. The ADR belongs
+alongside the code change it documents, not as a pre-PRD artifact. Creating the ADR now would
+lock in decisions that haven't been validated through the full planning pipeline (plan doc → PRD
+→ task list → task execution → ADR).
+
+The PRD will surface "author ADR for `install.type` mechanism" as an explicit task deliverable;
+the ADR itself is written during that task's execution. ADR number is assigned at write time.
+
+This sequencing — working doc → plan doc → PRD → task list → ADR during execution — is a general
+discipline for ARC planning work: ADRs are implementation-phase deliverables, not pre-PRD
+artifacts.
 
 ### Solo-Dev Blind Spot Audit (Gating Pre-PRD) — **Complete**
 
@@ -204,7 +546,7 @@ Lite is not for developers who want Full ARC's lifecycle management with less ce
 unit lifecycle (multiple concurrent work streams, formal verification, integration review, archival),
 you need Full ARC. Lite doesn't try to serve that audience with a watered-down version.
 
-**The target audience is projects you can hold in a single task list and scope brief.** When the project
+**The target audience is projects you can hold in a single task list and Lite PRD.** When the project
 outgrows that — and the system will tell you when it does — you graduate to Full.
 
 ### Core Boundary Hypothesis (Confirmed)
@@ -234,8 +576,11 @@ This decision was reached after exploring two alternatives that were ultimately 
 
 The work unit lifecycle is the right structural cut because:
 
-- It's a natural boundary — the conditional content architecture analysis confirms 85-90% of the
-  framework has zero dependencies on work unit lifecycle workflows.
+- It's a natural boundary — the conditional content architecture analysis confirms work unit
+  lifecycle workflows can be excluded entirely via file exclusion, avoiding dozens of potential
+  in-prose conditionals. Projected impact: 15-25 new conditionals across all mechanism types,
+  4-8 template `arc:if` blocks, 1-2 recipe conditions. Current mechanisms scale without
+  architectural change.
 - It aligns with the value decomposition — execution discipline (scale-independent) vs. lifecycle
   ceremony (scale-dependent). Research confirms execution discipline drives quality independent of
   project size.
@@ -250,24 +595,52 @@ system expects and the agent follows:
 
 **Scope --> Tasks --> Execute --> Ship**
 
-| Step        | Lite                                                                     | Full ARC equivalent                                |
-|-------------|--------------------------------------------------------------------------|----------------------------------------------------|
-| **Scope**   | Required lightweight scope artifact — intent, approach, success criteria | Plan doc --> formal PRD (multi-section, detailed)  |
-| **Tasks**   | Single task list generated from scope                                    | Task list generated from PRD, multi-phase common   |
-| **Execute** | Same process-task-loop (identical)                                       | Same process-task-loop (identical)                 |
-| **Ship**    | Run Tier 3 quality gates, review diff, merge/push                        | Verify --> Integrate --> Archive (3 formal phases) |
+| Step        | Lite                                                                | Full ARC equivalent                                |
+|-------------|---------------------------------------------------------------------|----------------------------------------------------|
+| **Scope**   | Required Lite PRD — reduced template, same spec-directed discipline | Plan doc --> formal PRD (multi-section, detailed)  |
+| **Tasks**   | Single task list generated from the Lite PRD                        | Task list generated from PRD, multi-phase common   |
+| **Execute** | Same process-task-loop (identical)                                  | Same process-task-loop (identical)                 |
+| **Ship**    | Success Criteria check --> Tier 3 gates --> aggregate diff review   | Verify --> Integrate --> Archive (3 formal phases) |
 
 **Scope artifact:** ARC is spec-directed development — having zero planning artifacts means you're not
-doing ARC. Lite requires a lightweight scope document before task creation. The vehicle is lighter than a
-full PRD (fewer sections, faster to produce, purpose-built for Lite), but it's **required, not optional**.
-You can write it in 5-10 minutes for a simple project. The system won't let you skip it.
+doing ARC. Lite requires a PRD before task creation, same as Full. The artifact is still called a PRD —
+keeping the name preserves framework coherence, makes the concept recognizable across modes, and makes
+graduation a content migration rather than a conceptual shift. What changes is the template (reduced
+sections, softened guidance) and the workflow shape (mode-conditional edges on a shared spine); the
+substance — intent, goals, non-goals, success criteria — is structurally the same. You can write a
+Lite PRD in 5-10 minutes for a simple project, and the system won't let you skip it. See
+[The Lite PRD](#the-lite-prd) below for the full template cuts, workflow shape, and sub-decisions.
 
-Format and template details are open for later design. The important constraint is: it must capture enough
-intent that scope drift can be detected (see guardrails below).
+**Ship step:** Lite's ship step reuses Full ARC's `Success Criteria` section convention directly (see
+[`strategy-task-list-formatting.md`][task-list-formatting] § Success Criteria Section) — no new template
+section, no new workflow concept. Three-step protocol:
 
-**Ship step:** Replaces Full ARC's three-phase ending (verification, integration, archival) with a
-lightweight checklist — run quality gates, review your aggregate diff, merge or push. Not a ceremony,
-but not nothing either. Details TBD.
+1. **Success Criteria check.** All Success Criteria items in the task list must be marked `[x]` (met) or
+   `[~]` (superseded, with annotation). Any remaining `[ ]` items represent genuine gaps requiring
+   resolution before ship.
+2. **Tier 3 quality gates.** Full lint, type check, test suite, build.
+3. **Aggregate diff review.** Review the aggregate diff before push/merge.
+
+Replaces Full ARC's three-phase ending (verification, integration, archival) with this lightweight but
+structured checklist. Not ceremony, but not nothing either — the Success Criteria chain links the Lite
+PRD's functional contract to the task list's operationalization to the ship gate, so "done" is
+observable and recoverable rather than "whatever the developer thinks it is."
+
+**Chain:** Lite PRD carries a Success Criteria section (the section survives all Lite template cuts —
+see [The Lite PRD](#the-lite-prd) below) → Lite task list operationalizes those criteria in its
+Success Criteria section (identical to Full convention) → ship step checks them. The same convention
+crosses all three artifacts without mode-specific variants.
+
+**Detail-design decisions deferred to implementation** (not pre-PRD blocking):
+
+- **Protocol location.** Dedicated `lite-ship.md` supplemental workflow file vs. inline section at the
+  end of the Lite process-task-loop variant. Lean: **dedicated file** for discoverability and to
+  parallel Full's three-phase ship convention (verify/integrate/archive), just collapsed into one
+  file. If dedicated, the file lives under the `install.type == lite` condition in the recipe (see
+  [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism)).
+- **Aggregate-diff review formalization.** Link to [`prepare-commits.md`][prepare-commits] for review
+  conventions if it applies mode-neutrally, or carry inline minimum review guidance otherwise. Decide
+  during implementation based on the state of `prepare-commits.md`'s mode assumptions.
 
 ### What Stays Identical
 
@@ -283,10 +656,14 @@ These layers are project-scale-independent and work the same in both modes:
 
 ### What Changes
 
-**Scope artifact replaces PRD:** Lite's planning requirement is a lightweight scope document, not a full
-PRD. The scope brief captures intent, approach, and success criteria — enough for the agent to generate
-a task list and enough for guardrails to detect scope drift. A full PRD's detailed sections (background
-research, technical constraints, verification criteria, etc.) are not required.
+**Lite PRD (reduced template):** Lite's planning requirement is still a PRD — same artifact name as Full,
+with a reduced template and an adapted `create-prd` workflow. The template drops three elements outright
+(`Type:` header field, `Status/Related Work` header block, `Document History` section) and softens
+guidance in a few others; the rest of the section set is unchanged. Eight of Full's ten PRD purposes
+survive in Lite; the two that drop (work classification, dependency tracking) are structurally
+unavailable in Lite's single-effort model. See [The Lite PRD](#the-lite-prd) for the full section-by-
+section breakdown, workflow shape, and sub-decisions (META-PRD absence, plan-\* location, filename,
+Non-Goals elevation, template delivery mechanism).
 
 **Task list structure:** Single task list, likely simpler default structure. Fewer phases (possibly
 single-phase default for very small projects). Same formatting conventions. Task list location is
@@ -297,9 +674,10 @@ single-phase default for very small projects). Same formatting conventions. Task
 ```text
 .arc/
   active/
+    prd.md                # The Lite PRD (singular; see "The Lite PRD" below)
     tasks.md              # The task list (singular)
     WORK-STATUS.md        # Current task pointer
-    scope.md              # Lightweight scope artifact (name TBD)
+    plan-{name}.md        # Optional pre-PRD exploration doc (sibling, retires into PRD)
   reference/              # Constitutional docs, strategies
   system/                 # Agent config, workflows, settings
   user/{identity}/        # Session state (same as full ARC)
@@ -324,6 +702,175 @@ via recipe conditions, not conditionals.
 unit pipeline to assess), no lifecycle state tracking. Likely separate template files rather than
 conditionals layered onto the Full versions.
 
+### The Lite PRD
+
+**Lite has a PRD, not a "scope brief."** Framework coherence is easier to preserve when the same
+artifact name is used across modes — the concept is recognizable, graduation is a content migration
+rather than a conceptual shift, and the PRD's methodological role (spec-directed development, scope
+guardrail, success contract) is identical in both modes. Lite's PRD is simpler in template and in
+workflow, but not in kind. "Mirror Full where possible but scaled back" is the operating principle:
+preserves coherence, produces good UX, and keeps the concept recognizable across mode transitions.
+
+#### Functional requirements — what survives, what drops
+
+Ten purposes the Full PRD serves were enumerated and tested against Lite's single-bounded-effort
+context. Eight survive; two drop.
+
+**Survive in Lite:**
+
+1. **Alignment check** — human and agent agree on what the work is before tasks are generated.
+2. **Scope definition upstream of tasks** — the task list implements the PRD, not the other way around.
+3. **Verification anchor** — Success Criteria give "done" an observable definition.
+4. **Historical record** — future-you (or a collaborator) can read what the project was trying to do.
+5. **Scope guardrail during execution** — detect drift via Non-Goals and Requirements.
+6. **Collaboration handshake** — when another human enters the project, the PRD is the onboarding doc.
+7. **Plan retirement trigger** — creating the PRD retires pre-PRD exploration docs.
+8. **Open questions parking** — live questions tracked in-artifact rather than lost.
+
+**Drop in Lite:**
+
+- **Work classification.** Lite has no feature/technical/incidental category system — no category
+  subdirectories, no planning branch taxonomy. The `Type:` field is meaningless.
+- **Dependency tracking.** Lite has no work unit stream, so there are no upstream/downstream work
+  units to reference. The `Status/Related Work` header block is vestigial.
+
+The two dropped purposes directly justify two of the three template cuts below. The third cut
+(Document History) drops for a separate reason — see SQ4.
+
+#### Template cuts — section-by-section
+
+Template source: [`template-prd.md`][template-prd].
+
+**Cut outright in Lite:**
+
+- **`Type:` header field** — no work classification in Lite.
+- **`Status/Related Work` header block** — no dependency tracking in Lite.
+- **`Document History` section** — no value at project level for Lite's bounded-effort context. PRD
+  revision history is a multi-stakeholder concern; single-developer Lite projects track evolution
+  via git log and don't benefit from in-document history.
+
+**Retained with softened guidance:**
+
+- **Introduction / Overview** — unchanged.
+- **Goals** — unchanged. Still the "why" statement.
+- **User Stories or Use Cases** — simplified. The Full template splits guidance into Feature and
+  Technical user story flavors; Lite drops that split and offers one combined guidance block. Use
+  whichever framing fits the project.
+- **Functional Requirements** — prioritization softened. Full's "use MoSCoW or similar" becomes "use
+  prioritization if it helps; Lite projects often have a flat list where everything is needed." At
+  Lite scale, the cognitive overhead of explicit prioritization often isn't earned.
+- **Non-Goals** — **elevated framing.** The template carries a one-line explicit note: "In Lite,
+  this section is your scope guardrail — drift from Non-Goals is a signal to reconsider scope or
+  graduate to Full." The `create-prd` workflow's discovery step spends deliberate time on Non-Goals
+  elicitation. Non-Goals does more work in Lite than in Full (where the WU lifecycle absorbs some
+  of the guardrail function via verification, integration review, and archival gates).
+- **Technical Considerations** — unchanged; remains optional.
+- **Design Considerations** — unchanged; remains optional.
+- **Success Criteria** — **unchanged and critical.** This section is the anchor for the ship step
+  (see [Enforced Sequence](#enforced-sequence) above). All of Lite's PRD survival purposes route
+  through Success Criteria at some point. The ship step protocol — Success Criteria all `[x]` or
+  `[~]`, then Tier 3 gates, then aggregate diff review — depends on this section surviving intact.
+- **Open Questions** — unchanged.
+
+#### Workflow shape
+
+**Unified `create-prd` workflow with mode-conditional edges** — not a separate Lite variant. This is
+the inverse of the process-task-loop decision (which splits into variants; see Open Question 6).
+Rationale: mode differences in `create-prd` are small and localized to workflow edges, the
+mode-neutral content is the bulk, and cross-mode consistency preserves collaborative-elicitation
+guidance as it evolves. Roughly 90% of `create-prd` is mode-neutral; the conditional content is
+concentrated at workflow edges, which is the pattern most amenable to a unified workflow with
+targeted conditionals.
+
+**Mode-conditional edges** (apply in Lite only or Full only):
+
+- **Pre-Step 0 branch context** — simplified or dropped in Lite. Lite has no branch protection modes
+  and no category-based branching; "which branch am I on" is a trivial check rather than a
+  structured pre-flight.
+- **Pre-Step 0 META-PRD review** — dropped in Lite (no META-PRD installed; see SQ1 below).
+- **Step 2 category classification** — dropped entirely in Lite. No feature/technical/incidental
+  taxonomy to classify into.
+- **Step 4 template reference + save location** — swaps template reference (or selects Lite variant
+  via template `arc:if` directives) and uses the singular `.arc/active/prd.md` save location instead
+  of Full's `.arc/backlog/{category}/prd-{name}.md`.
+
+**Mode-neutral steps** (apply identically in Lite and Full):
+
+- **Step 1** — existing `plan-*.md` lookup and PRD-readiness assessment.
+- **Step 3** — discovery phase, using the discovery checklist from
+  [`strategy-work-planning.md`][work-planning].
+- **Step 5** — plan retirement, `notes-*` creation (if needed), and commit atomicity.
+- **Stop-for-review conclusion** — the review cadence at the end of the workflow is identical across
+  modes.
+
+See [`1_create-prd.md`][create-prd] for the current workflow; mode-conditionals land at the edges
+enumerated above.
+
+#### Sub-decisions
+
+**SQ1 — META-PRD in Lite: not installed.** Project vision in Lite is captured in the Lite PRD itself.
+A separate META-PRD exists to coordinate multi-PRD efforts and track long-running project vision
+across many work units. Lite has one PRD by construction, so there is nothing to coordinate.
+Installing META-PRD in Lite would violate the "does less, just as reliably" philosophy by adding an
+artifact that serves no Lite-relevant purpose. The META-PRD template is assigned to the
+`install.type == full` bucket in the recipe (see [Installation Type Recipe
+Mechanism](#installation-type-recipe-mechanism)).
+
+**SQ2 — `plan-*` doc location in Lite: `.arc/active/plan-{name}.md`.** Sibling to `prd.md` and
+`tasks.md` in the flat `active/` directory. Matches Lite's overall flat structure (no category
+subdirectories, no backlog directory). Multiple `plan-*` docs are allowed — exploration threads can
+coexist before a PRD consolidates them. Normal retirement: when the PRD is created, all contributing
+plan docs retire via the existing `create-prd` Step 5 logic, mode-neutral.
+
+**SQ3 — PRD filename in Lite: singular `prd.md`.** One PRD per Lite project. If the developer needs
+multiple concurrent PRDs, that's a structural signal that the project has outgrown Lite — graduate
+to Full, which supports multiple work units each with their own PRD. The filename itself acts as a
+soft graduation trigger: the collision ("I need a second PRD") surfaces the mode-fit question
+without the framework having to detect it via guardrail signals.
+
+**SQ4 — Document History section: cut entirely in Lite.** Decided 2026-04-10. Single-developer
+bounded projects track evolution via git log; in-document history duplicates git information and
+ages poorly. Full projects retain Document History because multi-stakeholder coordination over long
+time horizons benefits from in-artifact revision notes; Lite projects don't.
+
+**SQ5 — Non-Goals framing: elevated to scope guardrail.** The template carries a one-line explicit
+note (see template cuts above), and the `create-prd` workflow's discovery step (Step 3) spends
+deliberate time on Non-Goals elicitation. This compensates for Lite's missing WU-lifecycle scope
+guardrails (verification phase, integration review, archival gates), loading more scope discipline
+onto the Non-Goals section than Full needs to.
+
+#### Template delivery mechanism
+
+Template-render `arc:if` directives are viable for delivering `template-prd.md` Lite variant content
+within a single template file — the cuts are minimal and localized, fitting within ~3-5 conditional
+blocks in one file. This is below the [conditional content
+analysis][conditional-content-analysis]'s density threshold for warranting a separate variant file,
+which confirms `arc:if` as a legitimate delivery tool (not theoretical) for this template.
+
+**Final single-file-with-`arc:if` vs. two-file-variant decision** is a detail-design choice that
+depends on the [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) — if Lite
+ships a separate `template-prd.lite.md`, it lands under the `install.type == lite` condition; if
+`template-prd.md` carries both variants via `arc:if`, it stays in the unconditional baseline and is
+rendered per-mode at install time. Either mechanism works for this specific template. Decide during
+implementation based on overall template-rendering consistency across the modes WU.
+
+#### Cascades into other Lite surfaces
+
+The Lite PRD's functional contract feeds forward into several other Lite design decisions still in
+flight:
+
+- **Lite task list template** (Open Question 4): keeps a Success Criteria section. Chain confirmed
+  — PRD Success Criteria → task list Success Criteria → ship step (see [Enforced
+  Sequence](#enforced-sequence)).
+- **Lite session-init document set** (Open Question 5): includes `.arc/active/prd.md`,
+  `.arc/active/tasks.md`, and `.arc/active/WORK-STATUS.md`. No backlog scan, no category-path
+  lookup, no PRD-file discovery.
+- **Strategy applicability mapping for Lite** (Open Question 7): `strategy-work-planning.md`
+  partially applies in Lite (the discovery checklist is used by Lite `create-prd` Step 3; the
+  work-unit-lifecycle sections do not apply).
+- **Initial-setup workflows** (Open Question 15): strong lean toward the same unified-with-mode-
+  conditionals shape as `create-prd`. Not yet decided.
+
 ### Guardrails and Graduation Triggers
 
 Lite doesn't have lifecycle workflows to manage complexity — so it needs a different mechanism to keep
@@ -334,8 +881,8 @@ hard-blocking the user.
 
 - **Task list size** — past a threshold, a single evolving task list becomes unwieldy. Research suggests
   working memory is ~3-5 concurrent concerns.
-- **Scope drift** — user describing work that doesn't connect back to the scope brief. The scope artifact
-  exists precisely so this is detectable.
+- **Scope drift** — user describing work that doesn't connect back to the Lite PRD. The Lite PRD's
+  Non-Goals section exists precisely so this is detectable (see [The Lite PRD](#the-lite-prd) § SQ5).
 - **Multiple efforts emerging** — "let's also do X" where X is clearly a separate concern, not a task
   within the current scope.
 - **Duration** — the ~2 week boundary from research. Session count is a rough proxy.
@@ -345,8 +892,8 @@ hard-blocking the user.
 **Response model:** Not "you can't do that" — transparent, honest communication:
 
 > This project is showing signs of outgrowing Lite mode — [specific signal]. Lite is designed for
-> projects you can hold in a single task list and scope brief. Consider graduating to Full ARC
-> (`arc init --reconfigure`) where you can manage separate work units with their own scope, task
+> projects you can hold in a single task list and Lite PRD. Consider graduating to Full ARC
+> (`arc init --reconfigure`) where you can manage separate work units with their own PRDs, task
 > lists, and lifecycle. Continuing in Lite is fine, but the framework can't help you manage this
 > complexity.
 
@@ -372,8 +919,11 @@ on config deltas. Graduation would:
 1. Switch installation type from Lite to Full
 2. Install Full-specific workflows, config, and directory structure
 3. Relocate the existing task list (e.g., `active/tasks.md` --> `active/feature/tasks-{name}.md`)
-4. The scope brief becomes (or informs) a proper PRD
-5. Install backlog infrastructure if pm.mode is set to arc-in-git
+4. The Lite PRD becomes the Full PRD. Mechanically: the file is relocated (e.g.,
+   `active/prd.md` --> `active/feature/prd-{name}.md`) and the cut template sections
+   (`Type:`, `Status/Related Work`, `Document History`) are added with empty content for the
+   developer to fill in. No structural rewrite — the retained sections carry over verbatim.
+5. Install backlog infrastructure if `pm.mode` is set to `arc-pm`
 6. Future work follows the full pipeline
 
 **Key constraint:** Task list format must be identical in both modes. Graduation is relocation and
@@ -402,20 +952,26 @@ than abandoning the framework entirely.
 The choice is stored in the manifest (`install_config`), not in `arc-config.yml`. It determines what
 files are installed, what config options are available, and what prompts appear during init.
 
-**PM mode gating:** Lite + `arc-in-git` is contradictory (no work unit stream for the planning module to
+**PM mode gating:** Lite + `arc-pm` is contradictory (no work unit stream for the planning module to
 manage). The `pm.mode` prompt is skipped in Lite; the effective mode is `none`. Lite + `external` is an
 open question — there may be value (external ticket references in context footers) but no integration
 workflow to hook into. Evaluate during detail design.
 
 **Lite config template:** Lite ships a reduced `arc-config.yml` that omits irrelevant settings (`pm.mode`,
 `team.mode`, and possibly others). This keeps the config honest about what Lite actually configures rather
-than showing options that don't apply.
+than showing options that don't apply. The delivery mechanism for the reduced file (single-file-with-
+`arc:if` vs. two-file variant) is a pending design decision — see Finding #10 in
+[`working-modes-gap-resolution.md`][working-gap-resolution].
+
+**Recipe-side mechanism:** The installation-type choice drives which files land on disk via a
+symmetric-additive recipe condition — see [Installation Type Recipe
+Mechanism](#installation-type-recipe-mechanism) for the full specification.
 
 ### Quick-Start / On-Ramp Angle
 
 Lite mode could be the default first experience with ARC:
 
-- `arc init` --> Lite mode. Hooks work, dev rules load, you can create a scope brief and task list
+- `arc init` --> Lite mode. Hooks work, dev rules load, you can create a Lite PRD and task list
   immediately
 - Developer experiences the execution discipline without upfront ceremony
 - When the project (or a new project) outgrows it, graduate to Full
@@ -1181,7 +1737,7 @@ This combination wasn't explicitly designed — it falls out of the orthogonal a
 what it actually looks like:
 
 - `.arc/` exists in working tree, untracked via `.git/info/exclude`
-- Contains: `scope.md` (or equivalent scope artifact), `active/tasks.md`, `active/WORK-STATUS.md`,
+- Contains: `active/prd.md`, `active/tasks.md`, `active/WORK-STATUS.md`,
   `user/{identity}/SESSION-NOTES.md`, plus reference/system/constitutional content
 - No `backlog/`, no `suspended/`, no `feature/` subdirs, no lifecycle workflows (Lite's contribution)
 - No `arc.role` in config, Local-mode context footer pattern, role resolution skipped (Local's
@@ -1193,7 +1749,7 @@ what it actually looks like:
 - Shift lifecycle is not present — there are no parallel work units to shift between
 
 This is arguably the **smallest, most focused ARC install possible:** execution discipline,
-spec-directed development (via scope brief), session continuity, quality gates, everything backed
+spec-directed development (via the Lite PRD), session continuity, quality gates, everything backed
 up reliably, zero footprint in the project repo. It's potentially the best "try ARC in five minutes
 on a work project" story — and maybe the most-recommended first install for a large audience.
 
@@ -1211,7 +1767,8 @@ Lite+local  ──────▶ Full+local
 **Four axis movements:**
 
 1. **Lite → Full (tracked):** `arc init --reconfigure` adds work unit lifecycle, relocates task
-   list into `active/feature/`, scope brief becomes (or informs) a PRD, backlog infrastructure
+   list into `active/feature/`, Lite PRD is relocated and gains the previously-cut template sections
+   (see [Graduation / Downgrade Paths](#graduation--downgrade-paths) step 4), backlog infrastructure
    installed if `pm.mode: arc-pm` selected
 2. **Local → tracked (Lite variant):** remove exclusion entry, `git add .arc/`, standard commit;
    role concept becomes available (reconfigure may prompt for it)
@@ -1294,7 +1851,7 @@ touching them and use a different commit footer.
 
 - **Full+tracked** — original case. Maintainer owns backlog, PRDs, task lists; contributors submit
   code without touching ARC planning artifacts.
-- **Lite+tracked** — OSS solo-developed scenario. The solo maintainer owns the scope brief and
+- **Lite+tracked** — OSS solo-developed scenario. The solo maintainer owns the Lite PRD and
   single task list; external contributors submit patches without touching them. Every
   contributor-role concern applies unchanged: reduced session-init document set, `contribution`
   commit footer, contributor-protected-paths warning for `active/`.
@@ -1437,8 +1994,8 @@ what changes each needs.
 
 ## Resolved Decisions
 
-Decisions settled during the 2026-04-09 design iteration. Each entry names the decision and a brief
-rationale; the full reasoning is in the relevant section above.
+Decisions settled during the 2026-04-09 and 2026-04-10 design iterations. Each entry names the
+decision and a brief rationale; the full reasoning is in the relevant section above.
 
 | Decision                                     | Resolution                                                                                                                                                                                                                                                   |
 |----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1475,6 +2032,18 @@ rationale; the full reasoning is in the relevant section above.
 | Content audit scope                          | Expanded to include configurability architecture and lifecycle transitions; mode-aware phrasing sweep added as implementation activity                                                                                                                       |
 | Branch / Active Focus mismatch UX            | Orientation reports facts without editorializing; escalation only on work-affecting actions                                                                                                                                                                  |
 | Solo-dev blind spot audit                    | Gating pre-PRD deliverable of this work unit (not atomic, not deferred)                                                                                                                                                                                      |
+| Lite PRD artifact name                       | Still called a PRD (not "scope brief"). Keeps framework coherence across modes, makes graduation a content migration. See [The Lite PRD](#the-lite-prd)                                                                                                      |
+| Lite PRD template cuts                       | Drops `Type:` header field, `Status/Related Work` header block, `Document History` section. Retains all other sections with softened guidance in User Stories, Functional Requirements, Non-Goals                                                            |
+| Lite `create-prd` workflow shape             | Unified `create-prd` workflow with mode-conditional edges (Pre-Step 0 branch context, META-PRD review, Step 2 category classification, Step 4 template + save location). ~90% mode-neutral                                                                   |
+| META-PRD in Lite                             | Not installed. Project vision captured in the Lite PRD itself. META-PRD template assigned to `install.type == full` bucket                                                                                                                                   |
+| Lite `plan-*` doc location                   | `.arc/active/plan-{name}.md` — sibling to `prd.md` and `tasks.md` in the flat `active/` directory                                                                                                                                                            |
+| Lite PRD filename                            | Singular `prd.md`. One PRD per Lite project; need for multiple is a soft graduation signal                                                                                                                                                                   |
+| Lite Non-Goals framing                       | Elevated as explicit scope guardrail. Template carries a guardrail note; `create-prd` Step 3 spends deliberate time on Non-Goals elicitation to compensate for absent WU-lifecycle guardrails                                                                |
+| Lite ship step protocol                      | Three-step protocol reusing Full's Success Criteria section convention: (1) Success Criteria all `[x]` or `[~]`, (2) Tier 3 quality gates, (3) aggregate diff review. No new template section or workflow concept                                            |
+| Installation type mechanism                  | Symmetric additive via `install.type` condition in the recipe. Three buckets: unconditional baseline, `install.type == full`, `install.type == lite`. Zero recipe schema change, zero `resolveFileList()` change                                             |
+| Installation type config key                 | `install.type` (dotted form, consistent with existing `pm.mode`, `team.mode`, `branch.protection`)                                                                                                                                                           |
+| Manifest `install_config` schema extension   | Gains `install_type: string` required field. Manifest schema version bumps. Legacy manifests migrate with `install_type: "full"` default                                                                                                                     |
+| ADR authoring sequencing                     | ADRs are implementation-phase deliverables, not pre-PRD artifacts. Flow: working doc → plan doc → PRD → task list → ADR during execution. `install.type` mechanism ADR lands as an explicit task deliverable in the PRD                                      |
 
 ## Open Questions
 
@@ -1482,14 +2051,13 @@ rationale; the full reasoning is in the relevant section above.
 
 1. ~~**Naming**~~: **Resolved** — ARC Lite (will become ARCd Lite after rebrand).
 
-2. **Scope artifact design**: What does the lightweight planning document look like? How is it different
-   from a PRD — subset of the same template, or a distinct document? What's the minimum it must capture
-   to satisfy spec-directed development and enable guardrail detection? Shape is right (required,
-   lightweight, quick to produce); details need design.
+2. ~~**Scope artifact design**~~: **Resolved** (2026-04-10) — it's still a PRD, with a reduced template
+   and a unified `create-prd` workflow carrying mode-conditional edges. See [The Lite PRD](#the-lite-prd)
+   for template cuts, workflow shape, and sub-decisions.
 
-3. **"Ship" step specifics**: How structured is the ship step? Literally "run Tier 3 gates and merge,"
-   or does it include a lightweight pre-merge review? Research shows self-review catches significant
-   issues at any scale — worth including even in Lite?
+3. ~~**"Ship" step specifics**~~: **Resolved** (2026-04-10) — three-step protocol reusing Full's
+   Success Criteria section convention: Success Criteria all `[x]` or `[~]`, Tier 3 quality gates,
+   aggregate diff review. See [Enforced Sequence](#enforced-sequence) § Ship step.
 
 4. **Task list simplifications**: Does Lite default to single-phase task lists? Are multi-phase lists
    available but unusual, or actively discouraged? Does phase structure imply lifecycle complexity that
@@ -1608,3 +2176,10 @@ Lite keeps and what it drops.
 [arcd-rebrand]: ../technical/plan-arcd-rebrand.md
 [contrib-stress-test]: ../../reference/analysis/analysis-modes-contributor-lifecycle-stress-test.md
 [solo-audit]: ../../reference/analysis/analysis-modes-solo-dev-blind-spot-audit.md
+[task-list-formatting]: ../../reference/strategies/arc/strategy-task-list-formatting.md
+[prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
+[template-prd]: ../../reference/templates/template-prd.md
+[create-prd]: ../../system/workflows/arc/1_create-prd.md
+[work-planning]: ../../reference/strategies/arc/strategy-work-planning.md
+[conditional-content-analysis]: ../../reference/analysis/analysis-conditional-content-architecture.md
+[working-gap-resolution]: working-modes-gap-resolution.md
