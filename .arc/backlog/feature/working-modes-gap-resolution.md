@@ -58,29 +58,35 @@ OQ10), waiting-for taxonomy finalization (OQ12), long-pause staleness threshold 
 
 ## Masked Design Decisions
 
-### Finding 2 — Lite task list template · 🟡
+### Finding 2 — Lite task list template · ✅
 
-**Original:** "Single task list, likely simpler default structure" — no concrete spec.
+**Resolution** (2026-04-11): Lite task list uses the **same format as Full**, with four surgical
+trims only: header `Status:` values restrict to `{Pending | In Progress | Complete}` (`Integrated`
+and `Paused` drop — both ride on Full-only concepts); `PRD:` path is `.arc/active/prd.md` (singular);
+verification phase task points to a new Lite-only `verify-work.md` workflow (parallel-named to
+Full's `verify-work-unit.md`, two dedicated files over one unified-with-`arc:if`); atomic companion
+file retained in Lite, named `atomic-tasks.md` (paralleling `tasks.md`, with "tasks" filling the
+`{wu-name}` slot of Full's `atomic-{wu-name}.md` convention). Phases required in Lite, minimum two
+(work + verification), multi-phase normal — "single-phase default" rejected because it would force
+retroactive phase addition on graduation, violating "graduation is relocation, not content rewrite".
 
-**User lean (2026-04-10):** Likely identical barring ceremonial-assumption stripping. Task lists
-are generated and maintained by agents; Lite is lighter for the user, not the agent. Candidates
-for removal: mandatory verification phase at end (doesn't fit single evolving task list),
-pause-related header fields (single task list never pauses). Thoughts only, not certainties.
+**Strategy classification correction absorbed:** `strategy-task-list-formatting` reclassified
+applies-as-is → needs-variant (corrects Finding #6's 2026-04-11 migration). Four `arc:if`-gated
+surfaces: Verification Phase example pointer, Atomic Companion File archival sub-rule, Atomic
+Companion File "all work unit types" phrasing, Status values `Paused` and `Integrated`. Naming
+convention (Full `atomic-{wu-name}.md` vs Lite `atomic-tasks.md`) handled via mode-aware prose,
+no gate.
 
-**Outstanding analysis:**
+**Finding #5 interaction:** This resolution revises Finding #5's 2026-04-10 cut list. Atomic
+companion references stay in Lite's process-task-loop variant. Remaining cuts: incidental routing
+to backlog, coherent-unit protocol's WU-lifecycle framing.
 
-- Clarify verification: (a) verification as a task list phase, vs (b) verification as a
-  lifecycle workflow (`verify-work-unit.md`). (b) doesn't exist in Lite. (a) is just a phase;
-  should the template *suggest* a verification phase by default, or leave it to the user?
-- Which Status header values apply in Lite? If single task list never rotates, `Paused` and
-  `Waiting-For` are Full-only. `In Progress` and `Complete` stay.
-- Does Lite allow multi-phase task lists, or force single-phase default? (Plan OQ4 open.)
-- Gates on Finding #1 — PRD functional requirements drive what Success Criteria look like,
-  which drives the task list bottom section.
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
+**Migrated to plan doc:** New § The Lite Task List subsection under § Mode 1: ARC Lite, between
+§ The Lite PRD and § Graduation / Downgrade Paths. § What Changes "Task list structure" bullet
+updated. § Strategy Applicability Mapping rationale cell and Finding #2/#5 follow-ons updated.
+§ Enforced Sequence § Ship step "Protocol location" deferral resolved. Feedforward "Lite ship step
+deliverable" resolved. Cascades bullet updated. OQ4 marked resolved. Four new Resolved Decisions
+rows (phases, verify workflow, atomic naming, strategy reclassification correction).
 
 ---
 
@@ -115,18 +121,29 @@ normally loaded at init or a step in handoff." Parking until Finding #1 resolves
 **User decision (2026-04-10):** **Variant over conditional, committed.** Process-task-loop is a
 core agent operating doc referenced constantly during task execution — noise in that document is
 expensive. Cuts should be minimal to zero: only remove "wrong info" (references to ARC docs or
-processes that don't exist in Lite — e.g., atomic companion files, incidental work routing to
+processes that don't exist in Lite — ~~atomic companion files~~, incidental work routing to
 backlog, coherent unit protocol referencing lifecycle). Underlying loop is identical.
+
+**Cut list narrowed (2026-04-11, Finding #2 interaction):** Atomic companion files are retained
+in Lite as `atomic-tasks.md` (see Finding #2 resolution). The earlier "atomic companion files"
+entry in the cut list was premised on atomic being Full-only; with the concept retained, those
+references stay in the Lite process-task-loop variant. Final cut list: **incidental work routing
+to backlog** (no backlog in Lite) and **coherent-unit protocol's WU-lifecycle framing**
+(no lifecycle in Lite). Tier 1/2/3 quality gate structure retained. `atomic-tasks.md` references
+stay.
 
 **Outstanding analysis:**
 
 - Exact list of "wrong info" references in current `3_process-task-loop.md` — produces the diff
   for the Lite variant. Runs after Finding #1 lands (since some cuts depend on Lite scope
-  around atomic companion files, incidental work routing, etc.).
+  around incidental work routing, etc.).
 
 **Resolution:** Variant over conditional. Minimal cuts. Underlying loop identical across modes.
+Cut list: incidental routing to backlog, coherent-unit WU-lifecycle framing.
 
-**Migrated to plan doc:** *pending*
+**Migrated to plan doc:** *pending* (cut list narrowing absorbed into Finding #2 migration
+2026-04-11 via Finding #2/#5 follow-on bullet update in § Strategy Applicability Mapping; full
+variant contents still pending as part of Finding #5's own migration).
 
 ---
 
@@ -134,7 +151,7 @@ backlog, coherent unit protocol referencing lifecycle). Underlying loop is ident
 
 **Resolution** (2026-04-11): All 10 framework strategies classified. 6 applies-as-is
 (adr-methodology, configurability-architecture, file-classification, quality-gates,
-session-operations, task-list-formatting); 2 needs-variant via inline
+session-operations, ~~task-list-formatting~~); 2 needs-variant via inline
 `<!-- arc:if install.type == full -->` blocks (work-organization retains Branch Protection
 Modes as universal git convention; work-planning retains Discovery Checklist, PRD Readiness,
 and PRD Conventions); 2 excluded (team-coordination forced solo in Lite; planning-module
@@ -142,6 +159,15 @@ excluded by composition via `pm.layer` gate). Mechanism for needs-variant: same 
 pipeline as `arc-config.template.yml`, `.template.md` rename so `needsRendering()` picks them
 up. Upgrades plan doc's prior "pure Excluded" label on `work-organization` to needs-variant.
 Unblocks Findings #2, #4, #5.
+
+**Correction absorbed (2026-04-11, Finding #2):** `strategy-task-list-formatting` reclassified
+applies-as-is → needs-variant. The original classification was based on "core format is
+universal" reasoning without auditing the strategy's example blocks and Status value rules.
+Finding #2's Lite task list spec design surfaced four Full-coupled surfaces requiring
+`arc:if` gating (Verification Phase example pointer, Atomic Companion File archival sub-rule,
+Atomic Companion File "all work unit types" phrasing, Status values `Paused` and `Integrated`).
+Corrected count: **5 applies-as-is / 3 needs-variant / 2 excluded**. Plan doc rationale cell
+and Resolved Decisions row updated in place during Finding #2 migration.
 
 **Migrated to plan doc:** § Strategy Applicability Mapping (under § Content Audit). Resolved
 Decisions table adds three rows: "Strategy applicability mapping (Finding #6)",
