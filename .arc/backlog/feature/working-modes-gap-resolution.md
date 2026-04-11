@@ -130,31 +130,24 @@ backlog, coherent unit protocol referencing lifecycle). Underlying loop is ident
 
 ---
 
-### Finding 6 — Strategy applicability mapping for Lite · 🟡
+### Finding 6 — Strategy applicability mapping for Lite · ✅
 
-**Original:** OQ7 — no concrete per-strategy inclusion/exclusion list. Needed as input to content
-audit.
+**Resolution** (2026-04-11): All 10 framework strategies classified. 6 applies-as-is
+(adr-methodology, configurability-architecture, file-classification, quality-gates,
+session-operations, task-list-formatting); 2 needs-variant via inline
+`<!-- arc:if install.type == full -->` blocks (work-organization retains Branch Protection
+Modes as universal git convention; work-planning retains Discovery Checklist, PRD Readiness,
+and PRD Conventions); 2 excluded (team-coordination forced solo in Lite; planning-module
+excluded by composition via `pm.layer` gate). Mechanism for needs-variant: same render
+pipeline as `arc-config.template.yml`, `.template.md` rename so `needsRendering()` picks them
+up. Upgrades plan doc's prior "pure Excluded" label on `work-organization` to needs-variant.
+Unblocks Findings #2, #4, #5.
 
-**User position (2026-04-10):** Static-docs consistency work, should be later in sequencing (not
-deferred). Similar priority to the docs site pass — mechanical elements (workflows, hooks, CLI
-innards) matter more for getting things watertight first.
-
-**Outstanding analysis:**
-
-- Walk `strategy-index.md` — per strategy, classify: **applies** / **partially applies**
-  (which sections) / **does not apply** / **needs mode-aware rewrite**.
-- Likely applies in Lite: core-philosophy, configurability-architecture, file-classification,
-  session-operations, task-list-formatting, quality-gates.
-- Likely does NOT apply in Lite: work-organization (branching model depends on lifecycle),
-  planning-module (arc-in-git only anyway).
-- Uncertain: work-planning (planning pipeline concept doesn't apply, but PRD conventions do —
-  partial), team-coordination (if Lite always forces solo, does not apply), adr-methodology
-  (applies universally? or Full-only?).
-- Feeds content audit scope sizing.
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
+**Migrated to plan doc:** § Strategy Applicability Mapping (under § Content Audit). Resolved
+Decisions table adds three rows: "Strategy applicability mapping (Finding #6)",
+"work-organization scope refinement", "team-coordination Lite treatment". OQ7 marked resolved.
+Upstream recipe-bucket pending references (plan doc § Installation Type Recipe Mechanism)
+updated to point at the new subsection.
 
 ---
 
