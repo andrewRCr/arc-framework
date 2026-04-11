@@ -90,27 +90,97 @@ rows (phases, verify workflow, atomic naming, strategy reclassification correcti
 
 ---
 
-### Finding 4 — Lite session-init + session-handoff · 🟡
+### Finding 4 — Lite session-init + session-handoff · ✅
 
 **Original:** Plan hedges "simplified Lite variants... likely separate template files" — no
 commitment.
 
 **User position (2026-04-10):** Depends on what's cut elsewhere — "anything cut from full that's
-normally loaded at init or a step in handoff." Parking until Finding #1 resolves.
+normally loaded at init or a step in handoff." Parked until Finding #1 resolves.
 
-**Outstanding analysis (deferred until #1 lands):**
+**Resolution** (2026-04-11):
 
-- Session-init document load order: which items in the current session-init workflow don't
-  apply in Lite? (Candidates: WORK-STATUS fields that don't exist in Lite, work-unit discovery
-  step, task list loading from WORK-STATUS path.)
-- Session-handoff ceremony: does the full handoff protocol apply, or does Lite use a lighter
-  version?
-- Variant vs conditional — the density threshold from the conditional content analysis (5+
-  in-prose conditionals on the same axis) suggests variant for session-init.
+**Mechanism: single-file-with-`arc:if`**, not two-file variant. `session-init.md` and
+`session-handoff.md` rename to `session-init.template.md` and `session-handoff.template.md` in
+the package source. Inline `<!-- arc:if install.type == full -->` blocks gate Full-only content,
+rendered at install time via the same pipeline as `arc-config.template.yml` and `template-prd.md`.
+Adopters see clean `session-init.md` / `session-handoff.md` with only their mode's content — no
+runtime gate evaluation, no filename suffixes, no semantic rename.
 
-**Resolution:** *pending*
+Initial lean (per prior handoff) was variant per the 5+ density threshold. Discussion flipped
+the lean when the "variant vs. conditional" framing was unpacked into three distinct mechanisms:
+**Mechanism A** recipe-gated distinct-name files (like `verify-work.md` / `verify-work-unit.md`),
+**Mechanism B** template-gated single file with `arc:if` (like `arc-config.template.yml` /
+`template-prd.md`), **Mechanism C** runtime in-prose conditionals in installed content (like
+`create-prd`). My first-cut reasoning about agent cognitive load applied only to Mechanism C
+(which the agent reads and evaluates at runtime). Mechanism B strips gates at install time, so
+the installed file is clean. That eliminated the main argument against a unified source and
+preserved the "universal parts stay single-source-of-truth" advantage. Mechanism B is also
+consistent with existing framework precedent — Approach 1 for `arc-config.yml` was explicitly
+rejected at plan-doc L1082-1088 for the same duplication reasoning that applies to session-init.
 
-**Migrated to plan doc:** *pending*
+**Four gated surfaces in `session-init.template.md`:**
+
+1. Step 2 Item 8 WORK-STATUS field enumeration — Lite drops `Task List` field entirely
+2. Step 2 Item 10 task list path resolution — Lite uses fixed `.arc/active/tasks.md`
+3. Step 5 work-unit-discovery subsection — replaced with narrower Lite discovery (check
+   `prd.md` / `plan-*.md`)
+4. Contributor role branch + team-mode trust hierarchy example — drop entirely in Lite
+   (single-dev by construction)
+
+**`session-handoff.template.md` has no block-level mode gates.** The handoff operation is
+mechanically identical across modes — pre-update verification, SESSION-NOTES structure,
+persistent-context criterion, markdown lint, git notes save, conditional WORK-STATUS commit,
+confirm summary all apply uniformly. Only the WORK-STATUS field set differs, and that's
+handled via the field-set decision below.
+
+**WORK-STATUS field set — Lite tracks five fields**: `Branch`, `Next Task`, `Last Completed`,
+`Blockers`, `Next Action`. Drops `Task List` (path fixed, nothing to track). `Branch` retained
+as lightweight informational — Lite users may branch without ARC enforcing it. Full retains
+`Task List` (multi-WU pipeline).
+
+**`Following Task List` field removed from both Lite AND Full uniformly.** Scope-expansion
+folded into Finding #4 after the Yes/No flag's redundancy surfaced during Lite WORK-STATUS
+design. Reasoning applies symmetrically — the field is redundant with Next Task + Next Action
+in both modes (off-task-list detour, on-task-list prep, and mid-task resume all readable from
+the relationship between those two fields' content). Uniform simplification, not mode-gated.
+
+**Discovery gate parity.** Lite's Step 5 gates on "skip if Next Action is concrete AND tasks.md
+exists with incomplete tasks," parallel to Full's "skip if task list is active." Sessions with
+clear resume targets skip discovery regardless of mode. When discovery fires in Lite, it checks
+for `prd.md` / `plan-*.md` in `.arc/active/` — no ROADMAP, no backlog, no category-path lookup.
+
+**`strategy-session-operations` reclassification.** applies-as-is → **needs-variant**. Two
+in-doc tables embed Full-only surface references: State-Conditional Promotion trigger
+(`Following Task List: Yes` — becomes universal after FTL removal, no per-row gating) and
+Method Classification by Trigger row for pre-merge-review / review-triage (Full:
+`integrate-work-unit`; Lite: `verify-work.md` ship step — dual-value entry). Mechanism:
+mode-aware prose + dual-value rows, NOT `.template.md` rename (strategy is on-demand reference
+content; templating scope doesn't expand to reference tier for two-row edits). This is the
+**second instance** of the Finding #6 classification-by-concept-not-by-content drift pattern
+— first was Finding #2's `strategy-task-list-formatting` correction. **Strategy count
+corrects to 4 applies-as-is / 4 needs-variant / 2 excluded** (Finding #2's 5/3/2 → Finding #4's
+4/4/2).
+
+**Plan doc drift fixes:**
+
+- L1474 § What Stays Identical — "Session lifecycle: Session init and handoff, WORK-STATUS,
+  SESSION-NOTES" overstated. Reframed to "Session lifecycle concepts: T1/T2 loading model,
+  trust hierarchy, freshness check, git-notes portability, handoff ceremony structure. Shape
+  differs in narrow surfaces..." with pointer to § Lite Session Management.
+- L1515-1516 § What Changes — WORK-STATUS hedge firmed up. Five fields enumerated, FTL
+  cross-mode removal noted.
+- L1527-1529 § What Changes — session init/handoff hedge firmed up. Mechanism B committed.
+- L1695-1697 § Cascades — forward-pointer updated to point to new § Lite Session Management,
+  carry-forward on discovery content unchanged.
+
+**Migrated to plan doc:** Yes — new § Lite Session Management subsection (~185 lines) between
+§ The Lite Task List and § Graduation / Downgrade Paths, parallel structure to § The Lite PRD
+and § The Lite Task List. Strategy Applicability Mapping table row for
+`strategy-session-operations` flipped applies-as-is → needs-variant with dual-table rationale.
+Finding #6 follow-on bullet for Finding #4 updated. Five new Resolved Decisions rows
+(mechanism, WORK-STATUS field set, FTL removal, Step 5 gate, strategy reclassification).
+OQ5 marked resolved.
 
 ---
 
