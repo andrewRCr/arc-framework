@@ -973,17 +973,10 @@ graduation/downgrade; it specifies the shape so graduation/downgrade can build o
   come from earlier prompts) is worth adding eventually. Current decision: no, not worth the cost
   today. Revisit if a future prompt addition produces a silent-ordering-bug incident.
 
-#### ADR authoring — deferred to PRD implementation
-
-Same rationale as Finding #8. The recipe authority reframe and Framing C's mechanism will be
-formalized as an Architecture Decision Record during implementation of the PRD derived from this
-plan doc, not authored now. The ADR belongs alongside the code change it documents. Creating it
-now would lock in decisions that have not been validated through the full planning pipeline.
-
-The PRD will surface ADR authoring for Framing C as an explicit task deliverable alongside the
-Finding #8 mechanism ADR. The two findings likely share a single combined ADR since they are
-mechanism siblings under the same "recipe as authoritative install-time specification" umbrella;
-the PRD decides single vs combined ADR based on writing economy.
+**ADR authoring:** Deferred to PRD implementation per the sequencing discipline in
+[Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) § ADR authoring. Likely
+combines with Finding #8's mechanism ADR under a shared "recipe as authoritative install-time
+specification" umbrella; the PRD decides single vs combined based on writing economy.
 
 ### Lite Config Template Mechanism
 
@@ -1273,17 +1266,11 @@ generation or execution.
   English but requires either extending the regex or renaming it from `.template.<ext>` to
   something that matches both. Not worth the cost — adopt `.template.yml` for consistency.
 
-#### ADR authoring — deferred to PRD implementation
-
-Same rationale as Findings #8 and #9. The mechanism decision recorded here will be formalized as an
-Architecture Decision Record during implementation of the PRD derived from this plan doc, **not
-authored now**. The ADR belongs alongside the code change it documents, not as a pre-PRD artifact.
-
-The PRD will surface "author ADR for arc-config template mechanism" as an explicit task deliverable.
-The ADR likely combines with Findings #8 and #9's ADR under the "recipe as authoritative install-time
+**ADR authoring:** Deferred to PRD implementation per the sequencing discipline in
+[Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) § ADR authoring. Likely
+combines with Findings #8 and #9's ADR under the "recipe as authoritative install-time
 specification" umbrella — three mechanism siblings covering whole-file installation, prompt
-orchestration, and within-file content rendering. The PRD decides single vs combined ADR based on
-writing economy.
+orchestration, and within-file content rendering.
 
 ### Solo-Dev Blind Spot Audit (Gating Pre-PRD) — **Complete**
 
@@ -2199,9 +2186,9 @@ keep a cache trustworthy exceeds the UX benefit it provides. Task list headers a
 state.
 
 **Mid-session multi-WU awareness is on-demand via `/arc-status` skill.** See
-[Skill Shape](#skill-shape) below. The skill reads headers and composes a current-state view
-only when invoked. This keeps multi-WU reporting out of session-init orientation entirely,
-aligned with the reframe above.
+[Mid-Session Orientation](#mid-session-orientation) below. The skill reads headers and composes
+a current-state view only when invoked. This keeps multi-WU reporting out of session-init
+orientation entirely, aligned with the reframe above.
 
 **How this resolves the scenario battery's findings:**
 
@@ -2365,7 +2352,7 @@ session-init concern. Per the reframe that drove the
 [State Lives in Task List Headers](#state-lives-in-task-list-headers-pure-option-c) decision,
 paused and waiting-for WU information is not load-bearing for every session orientation — the
 developer already knows what they paused, and if they need a reminder they can invoke
-`/arc-status` (see [Skill Shape](#skill-shape)).
+`/arc-status` (see [Mid-Session Orientation](#mid-session-orientation)).
 
 Session-init continues to read `WORK-STATUS.md` as the branch-local WU pointer and reports that
 single WU's state (branch, current task, next action, blockers). It does not scan `active/` for
@@ -2818,17 +2805,17 @@ Lite+tracked ──────▶ Full+tracked
 Lite+local  ──────▶ Full+local
 ```
 
-**Four axis movements:**
+**Four axis movements** (see [Graduation / Downgrade Paths](#graduation--downgrade-paths) for the
+full specification of Lite↔Full transitions):
 
-1. **Lite → Full (tracked):** `arc init --reconfigure` adds work unit lifecycle, relocates task
-   list into `active/feature/`, Lite PRD is relocated and gains the previously-cut template sections
-   (see [Graduation / Downgrade Paths](#graduation--downgrade-paths) step 4), backlog infrastructure
-   installed if `pm.mode: arc-pm` selected
+1. **Lite → Full (tracked):** `arc mode switch --to full`. Adds work unit lifecycle, relocates
+   task list and Lite PRD into `active/feature/`, backlog infrastructure installed if
+   `pm.mode: arc-pm` selected
 2. **Local → tracked (Lite variant):** remove exclusion entry, `git add .arc/`, standard commit;
    role concept becomes available (reconfigure may prompt for it)
 3. **Local → tracked (Full variant):** same as above, plus lifecycle artifacts already present
-4. **Lite → Full (local variant):** reconfigure adds lifecycle workflows while keeping exclusion
-   and backing store
+4. **Lite → Full (local variant):** `arc mode switch --to full` while keeping exclusion and
+   backing store
 
 Diagonal graduations (e.g., Lite+local → Full+tracked) are compositions of two axis moves, done
 sequentially, not as a single composite operation. The CLI does not ship a diagonal-graduation

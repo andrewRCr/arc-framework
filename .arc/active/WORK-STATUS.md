@@ -17,52 +17,44 @@
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
-**Last Completed**: Finding #7 (Guardrail firing mechanism) resolved via **categorical
-rejection**, and Finding #19 (Mode fit communication) architectural scoping lifted pre-PRD
-in the same pass. Framework principle established: **ARC does not police users**. No runtime
-mode-fit detection under any firing mechanism. Symmetric kill of the Full-mode WIP growth
-nudge in `shift-work-unit.md` under the same principle (YAGNI + paternalism risk; scaled
-response deferred to real observed evidence). Mode-fit concern handled instead through
-upfront clarity + easy transitions. Plan doc changes: deleted § Guardrails and Graduation
-Triggers entirely; created new `## Mid-Session Orientation` section (promoted `/arc-status`
-out of § Shift Lifecycle where it was nested inside a Full-only section despite being
-mode-universal); created new `## Mode Fit Communication` section enumerating the six
-coordinated touchpoints (arc init prompt, light-touch AGENT-BRIEFING.ARC awareness, Lite PRD
-template intro, Lite task list template header, Lite README, docs-site mode overview + docs-
-site troubleshooting section) and articulating the "passive agent knowledge, not active
-detection" shape; rewrote `/arc-status` "Why this skill exists" paragraph (warm-orient
-primary, multi-WU complementary); made `/arc-status` output shape and input sources
-mode-conditional rather than count-conditional; rewrote § Shift Lifecycle → ### Skill Shape
-to cover only `/arc-shift`; deleted the Growth nudge paragraph in § Workflow Shape and its
-companion paragraph in § Session-Init Integration; added 8 new Resolved Decisions rows
-(guardrails rejected, `/arc-status` primary rationale, structural placement, mode-aware
-output, mode-fit detection rejected framework-wide, mode-fit communication mechanism, agent
-mode awareness passive not active, Finding #19 scope upgrade) + updated 2 existing rows +
-replaced 1 (growth nudge now carries rejection); marked OQ8 (Guardrail thresholds) and OQ11
-(Multi-paused limit policy) resolved via strikethrough pattern (moot). Working doc: removed
-Finding #7 (~28 lines) and Finding #19 (~48 lines); updated Sequencing § Tier 2 to reflect
-the joint resolution; removed OQ8/OQ11 from the Parking lot; added substantial session log
-entry in the #13/#16 style. **Tier 2 is now genuinely drained — no ⚪ parked residue.**
-**Drift discovery during this session:** my first-pass analysis of `/arc-status`'s existing
-framing in the plan doc undercounted how much of the "warm orient primary, multi-WU
-complementary" refinement had already landed in prior sessions; a careful re-read (prompted
-by user challenge) revealed partial drift — the refinement landed in the Use cases block and
-slot-in-lifecycle diagram, but not in the "Why this skill exists" intro paragraph or the
-structural nesting under § Shift Lifecycle. **Drift-check-before-rewrite** pattern added to
-session discipline alongside the established code-read-first pattern. Sixth consecutive
-direct-to-plan-doc resolution.
+**Last Completed**: Two-part planning session cleanup on the modes WU surfaces — no
+finding resolved, but substantial consolidation and drift fixes. **(1) Working doc audit**:
+walked each entry in `working-modes-gap-resolution.md`'s 725-line Work log section and
+confirmed every entry was redundant with plan doc Resolved Decisions + section rationale +
+commit history. Deleted the Work log section entirely. Operational patterns worth preserving
+(code-read-first, drift-check-before-rewrite, direct-to-plan-doc) harvested into
+SESSION-NOTES Persistent Context under "Planning session discipline for modes WU" (removal
+trigger: when modes WU PRD is formalized). Working doc intro and Sequencing compressed to
+factual state only. Net: 1244 → 490 lines (−60%). Fragmentation concern explicitly addressed
+by deleting rather than extracting to a companion doc — no new surfaces created. **(2) Plan
+doc targeted tightening**: fixed a real drift point at Mode Combinations § Graduation Grid
+items 1 and 4 (stale `arc init --reconfigure` → `arc mode switch --to full` per Finding
+#16's resolved CLI surface — same class of drift as the two `/arc-status` cross-references
+fixed in this session's earlier pass). Collapsed three
+`#### ADR authoring — deferred to PRD implementation` subsections (Findings #8/#9/#10) to a
+single canonical statement in Finding #8 + short cross-references in Findings #9 and #10.
+Scenario-battery compression from move 3 reconsidered and rejected on closer read — each
+scenario is verification evidence for a distinct edge case, not padding. Net: 3296 → 3283
+(−13). Drift fix was the real value; line savings modest by design. Markdown lint clean on
+all three files (plan doc, working doc, SESSION-NOTES). **Session arc**: evaluate → audit →
+tighten. User's "spread out / maybe a mess" intuition validated for drift (one concrete
+drift found and fixed) but **rejected** for structural reorganization (plan doc is
+load-bearing, not bloated; the 1270-line Design Investigations section is decision rationale
+that will collapse into ADRs at implementation time).
 **Blockers**: [none]
-**Next Action**: **Tier 3 begins.** With Tier 2 genuinely drained, the highest-leverage next
-target is **Finding #6** (strategy applicability mapping for Lite) — unchanged from prior
-handoffs. It scopes what "Lite" means at the strategy level and unblocks #2/#4/#5 (Lite
-workflow shape findings). Likely needs a focused session of its own, larger than #7/#13/#16
-because the analysis requires walking every strategy in `.arc/reference/strategies/arc/`
-through a Full/Lite applicability triage (applies-as-is / needs-variant / Full-only).
-Starting move: enumerate the strategy files, then walk each one. Post-#6 sketch unchanged:
-Tier 3 remainder (#2, #4, #5 — Lite workflow shape; #12/R6 — OQ15 initial-setup) gates on #6
-and may bundle into 1-2 sessions if they compose. Tier 4 (#11, A1, A4, R4) is validation +
+**Next Action**: **Tier 3 begins.** **Finding #6** (strategy applicability mapping for Lite)
+remains the highest-leverage next target — unchanged from prior handoff. Scopes what "Lite"
+means at the strategy level and unblocks #2/#4/#5 (Lite workflow shape findings). Larger
+than recent resolutions because the analysis requires walking every strategy in
+`.arc/reference/strategies/arc/` through a Full/Lite applicability triage (applies-as-is /
+needs-variant / Full-only). Starting move: read Finding #6 in the working doc, enumerate
+strategies, then walk the triage. Consider whether a `temp-*` scratch space earns its keep
+— the direct-to-plan-doc pattern has worked for six consecutive findings but Finding #6 may
+be at its scale limit (10 strategies × 3 triage categories is wide enough that an
+intermediate table may be worth its weight). Post-#6 sketch unchanged: Tier 3 remainder
+(#2, #4, #5; #12/R6) gates on #6 and may bundle. Tier 4 (#11, A1, A4, R4) is validation +
 cleanup. Rough estimate: 3-4 more sessions to PRD-ready `plan-arc-modes.md`.
 
 ---
 
-**Last Updated**: 2026-04-11
+**Last Updated**: 2026-04-11 (planning session cleanup — audit + tightening pass)
