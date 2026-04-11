@@ -38,17 +38,30 @@ Tier determines what unblocks what.
   architecture). See [`plan-arc-modes.md`][plan-doc] § The Lite PRD and § Installation Type
   Recipe Mechanism.
 
-**Tier 2 — independent, manageable:**
+**Tier 2 — drained (all resolved and migrated):**
 
+- *#3 (Ship step) resolved and migrated with the Tier 1 batch (2026-04-10).*
 - *#13 (Integrate × non-complete states) resolved and migrated 2026-04-10. See
   [`plan-arc-modes.md`][plan-doc] § Integration Interaction with Shift States.*
 - *#16 (Full → Lite downgrade) resolved and migrated 2026-04-11. See
   [`plan-arc-modes.md`][plan-doc] § Graduation / Downgrade Paths. Scope composition: key
   renames `pm.mode` → `pm.layer` and `team.mode` → `team.enabled` absorbed into ARCd Rebrand
   WU; `arc mode switch` CLI + `supplemental/switch-mode.md` workflow landing both specified.*
-- **#7** — Guardrails. Orthogonal, can run in parallel. **Currently ⚪ parked — out of scope
-  for pre-PRD.**
-- *#3 (Ship step) resolved and migrated with the Tier 1 batch.*
+- *#7 (Guardrail firing mechanism) resolved 2026-04-11 as a categorical rejection — framework
+  does not ship runtime mode-fit detection. Scope absorbed into Finding #19 (upgraded) +
+  existing `arc mode switch` transition paths. Growth nudge (WIP pressure) in
+  `shift-work-unit.md` rejected under the same principle. `/arc-status` structural drift
+  corrected as a side-effect (promoted to its own mode-universal Mid-Session Orientation
+  section). See [`plan-arc-modes.md`][plan-doc] § Mid-Session Orientation, § Mode Fit
+  Communication, and Resolved Decisions rows for guardrails, WIP nudge, and Finding #19
+  scope.*
+- *#19 (Lite framing and graduation expectations) architectural scoping lifted pre-PRD and
+  resolved 2026-04-11 alongside #7. Originally marked implementation-phase-only; under the
+  #7 kill reframe, mode-fit framing became the sole mechanism for mode-fit communication and
+  warranted architectural treatment. Touchpoint enumeration, consistency principle, and
+  passive-agent-awareness shape migrated to plan doc § Mode Fit Communication. Actual
+  copywriting remains implementation-phase (one cross-cutting PRD requirement unpacking into
+  per-touchpoint tasks).*
 
 **Tier 3 — detail once Tier 1 lands:**
 
@@ -67,9 +80,8 @@ Tier determines what unblocks what.
 - **R4** — Consolidated deliverable inventory. Once Tier 1–3 decisions have landed.
 
 **Parking lot (revisit when touched, not blocking formalization):** Lite + external PM (plan
-OQ10), guardrail threshold numbers (OQ8), waiting-for taxonomy finalization (OQ12), long-pause
-staleness threshold (OQ13), `/arc-status` drift detection threshold (OQ14), multi-paused
-limit policy (OQ11).
+OQ10), waiting-for taxonomy finalization (OQ12), long-pause staleness threshold (OQ13),
+`/arc-status` drift detection threshold (OQ14).
 
 ---
 
@@ -168,34 +180,6 @@ innards) matter more for getting things watertight first.
   partial), team-coordination (if Lite always forces solo, does not apply), adr-methodology
   (applies universally? or Full-only?).
 - Feeds content audit scope sizing.
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
-
----
-
-### Finding 7 — Guardrail firing mechanism · ⚪
-
-**Original:** Plan says guardrails live "in session-init" and "in process-task-loop" but doesn't
-specify how they read thresholds, where thresholds are stored, or what triggers the nudge prose.
-
-**User position (2026-04-10):** Wary of nagging. "Go light." Value exists but needs focused
-analysis, orthogonal to most other concerns. Park but don't dismiss — "if they're hitting walls
-that Full ARC would solve, they should know."
-
-**Outstanding analysis (deferred to dedicated session):**
-
-- Dedicated guardrail evaluation pass — thresholds, firing cadence, nudge vocabulary, signal
-  specificity, false-positive management.
-- Storage: config-file keys vs hardcoded defaults vs per-project override.
-- Firing point: session-init orientation, process-task-loop, or both.
-- Relationship to `/arc-status` skill — could guardrails live inside `/arc-status` and only fire
-  on explicit invocation?
-
-**Parking note:** Orthogonal to mode architecture decisions. Can resolve in parallel or even
-post-PRD without blocking the rest of the plan. Review before PRD lock-in to confirm it doesn't
-impose new architectural requirements.
 
 **Resolution:** *pending*
 
@@ -377,53 +361,6 @@ something they have to think about."
 - Graduation handling: what happens when the repo later gets a remote or a first commit? Does
   the project ID transition to the new primary mechanism, or stay on the fallback?
 - Precedent: does any existing ARC CLI code store similar project-local identifiers?
-
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
-
----
-
-### Finding 19 — Lite framing and graduation expectations · 🟡
-
-**Origin (2026-04-10):** Raised during Finding #1 step-through. User concern: users may try to
-fit longer projects into Lite and then blame ARC for not working well when the actual issue is
-they're using the wrong mode. Framing needs to make Lite's bounded-effort-only nature
-unmistakable at first contact, and needs to make the graduation signal visible *before* the
-project gets painful, not after.
-
-**User position (2026-04-10):** "This means one evolving task list, and if it gets long, that's
-a signal to graduate to full ARC." Noted as a broader concern for the WU (presentation/docs)
-than the immediate pre-PRD design focus, but crucial — captured to avoid losing it.
-
-**Touchpoints that need coordinated framing:**
-
-- `arc init` Lite mode selection prompt — wording sets expectations up front
-- Lite `AGENT-BRIEFING.ARC.md` (if a Lite variant exists) — agent's first-session framing
-- Lite `README.md` if Lite ships one — user-facing first impression
-- Lite PRD template Introduction guidance — reinforces "bounded effort" framing at plan time
-- Lite task list template header/overview — reinforces at task time
-- Documentation / docs site page for Lite — long-form explanation of bounded nature and
-  graduation path
-- Graduation nudges from Finding #7 guardrails — enforcement mechanism for the framing promise
-
-**Relationship to Finding #7 (guardrails):** Framing is upstream communication; guardrails are
-the downstream enforcement mechanism. Clear framing → guardrails fire less often and feel like
-confirmation rather than nagging. Weak framing → guardrails do the heavy lifting and feel naggy.
-
-**Outstanding analysis:**
-
-- Enumerate all user-facing surfaces where Lite first presents (CLI prompts, docs, templates,
-  agent briefings).
-- Define the consistent framing message: "Lite is for projects you can hold in one task list
-  and one scope brief. If your project outgrows that, ARC will tell you — graduate to Full."
-- Audit existing Full-ARC framing language in the same surfaces to identify coordination needs.
-- Coordinate with Finding #7 guardrail analysis so framing expectations and guardrail firing
-  are consistent.
-
-**Scope note:** This is implementation-phase work (content + UX), not pre-PRD architecture.
-Should be captured in the PRD's Requirements section as a cross-cutting deliverable. Does not
-gate formalization readiness.
 
 **Resolution:** *pending*
 
@@ -1168,6 +1105,139 @@ discussion, absorbed cleanly into the rebrand WU without derailing the Finding #
 for Lite) flagged as highest-leverage next target because it scopes what "Lite" means at
 the strategy level and unblocks #2/#4/#5 (Lite workflow shape findings). Likely needs a
 focused session of its own.
+
+### 2026-04-11 — Finding #7 resolved via categorical rejection + Finding #19 lifted pre-PRD
+
+**Resolution:** Finding #7 (Guardrail firing mechanism) resolved as a **categorical
+rejection**, not a scope-split. Framework does not ship runtime mode-fit detection under any
+firing mechanism, storage model, or invocation shape. The "wary of nagging, go light"
+instinct from 2026-04-10 sharpened in this session into a framework-level principle: **ARC
+does not police users**. If they want to use the "wrong" mode for what they're doing, that's
+their choice. The mode-fit concern is handled instead through upfront clarity (touchpoints
+that make mode fit cases highly discoverable) + easy transitions (`arc mode switch`, already
+resolved via Finding #16).
+
+Finding #19 (Lite framing and graduation expectations) was previously marked
+implementation-phase-only. Under the #7 kill reframe, it became the **sole mechanism for
+mode-fit communication** — no longer "coordinate with guardrails," but "replace guardrails."
+That warranted architectural treatment, and its scoping was lifted pre-PRD in the same pass
+(touchpoint enumeration, consistency principle, passive-agent-awareness shape). Actual
+copywriting remains implementation-phase.
+
+**Symmetric kill of the Full-mode WIP growth nudge:** The user explicitly extended the
+principle: the "Shift lifecycle — growth nudge" spec in `shift-work-unit.md` (count paused
+WUs at pause-transition time, nudge at ≥3) was also rejected under the same "no
+detect-and-advise" logic. Same philosophical shape as the Lite guardrails, different target
+(WIP pressure vs. mode fit) but same paternalism risk. YAGNI for now; if WIP pressure
+becomes a real observed problem in practice, design a scaled response against evidence.
+
+**Drift check surfaced during evaluation:** My first-pass analysis of `/arc-status`'s
+current framing in the plan doc undercounted how much of the "warm orient primary, multi-WU
+complementary" refinement had already landed in prior sessions. A careful re-read — prompted
+by user challenge — revealed the refinement had landed in the **Use cases block** and the
+**slot-in-lifecycle diagram**, but NOT in the **"Why this skill exists" intro paragraph**
+(still led structurally with multi-WU) or the **structural nesting** (still placed inside
+`## Shift Lifecycle` → `### Skill Shape`, a Full-only section, even though the skill is
+mode-universal). The structural nesting was the larger issue — placing a mode-universal
+skill inside a Full-only section forces readers to find its mode-universal nature by reading
+past the framing. This is the kind of drift that accumulates when a feature's rationale
+evolves across sessions but the original framing text isn't force-rewritten.
+
+**Key reframe from user challenge:** The user's instinct flagged that any "detect-and-advise"
+attempt — no matter the specific firing mechanism — was too paternalistic. The original
+parking rationale (2026-04-10, "wary of nagging, go light") sharpened into the stronger
+principle that framework surveillance of user choices is itself the anti-pattern, not just
+the risk of doing it poorly. This retrospectively validates everything in ARC that already
+operates on "suggest, don't enforce" footing (pre-stage review, integration review, task
+completion reporting) and closes the one place the plan doc was leaning paternalistic.
+
+**Composition with prior findings:**
+
+- **Finding #16's `arc mode switch` CLI** supplies the transition half of the mode-fit
+  concern. Finding #7 kill + Finding #19 upgrade supply the discoverability half. Together
+  they constitute ARC's full answer to "how do users land in the right mode and navigate
+  when needed."
+- **Finding #14's "shift lifecycle is Full-only" decision** is load-bearing for the
+  `/arc-status` structural promotion — it is precisely what made the prior nesting wrong.
+- **Finding #1's Lite PRD landing** is where several Mode Fit Communication touchpoints
+  live (PRD template intro guidance, task list template header). The upgraded Finding #19
+  coordinates with #1 without rewriting #1's outputs.
+
+**Plan doc landing points:**
+
+- **§ Guardrails and Graduation Triggers** — **deleted entirely** (~38 lines removed).
+  Replaced with nothing. The "Where guardrails live" / "Response model" / observable signals
+  content is gone.
+- **§ Mid-Session Orientation** — **new top-level section** created between § Shift
+  Lifecycle and § Mode Combinations. Hosts the full `/arc-status` specification (moved out
+  of § Shift Lifecycle → ### Skill Shape): intro paragraph leads with warm-orient primary
+  and multi-WU complementary, output shape mode-conditional (In flight block structurally
+  absent in Lite), input sources mode-conditional (active/ scan Full-only), use cases
+  reordered to match, explicit "mode-fit detection or graduation prompting" line added to
+  Out of Scope. Promotes the sub-headings from `####` to section-level content under the
+  new `##` parent.
+- **§ Mode Fit Communication** — **new top-level section** created after § Mid-Session
+  Orientation, before § Mode Combinations. Articulates the "upfront clarity, not runtime
+  detection" principle, explicitly rejects the earlier-sketched WIP nudge, enumerates the
+  six communication surfaces (arc init prompt, light-touch AGENT-BRIEFING.ARC, Lite PRD
+  template intro, Lite task list template header, Lite README, docs-site mode overview page,
+  docs-site troubleshooting section), specifies passive-agent-awareness shape, and marks
+  the scope boundary between pre-PRD architecture and implementation-phase copywriting.
+- **§ Shift Lifecycle → ### Skill Shape** — **rewritten** to cover only `/arc-shift`.
+  Intro changed from "Two skills ship with the shift lifecycle" to "`/arc-shift` ships with
+  the shift lifecycle," with a forward reference to the Mid-Session Orientation section for
+  `/arc-status`. The `#### /arc-shift` sub-sub-header is dropped (flattened — only one
+  skill now).
+- **§ Shift Lifecycle → ### Workflow Shape** — **"Growth nudge" paragraph deleted**
+  (~6 lines). Resume-side additions follow directly from state-update steps.
+- **§ Shift Lifecycle → ### Session-Init Integration** — **"Growth nudge is not a
+  session-init concern" paragraph deleted** (was negating a feature that no longer exists).
+- **§ State Lives in Task List Headers → scope-reduction list** — **"Growth-nudge count
+  aggregation across branches" bullet deleted** (feature no longer exists).
+- **§ Out of Scope (under Shift Lifecycle)** — **"Multi-paused limit policy" bullet
+  deleted** (moot; no nudge).
+- **Resolved Decisions table** — added 8 new rows: Lite graduation guardrails rejected,
+  `/arc-status` primary rationale, `/arc-status` structural placement, `/arc-status` output
+  mode-conditional, mode-fit detection rejected (framework-wide principle), mode-fit
+  communication mechanism, agent mode awareness passive-not-active, Finding #19 scope
+  upgrade. Updated 2 existing rows: "Shift lifecycle — multi-WU awareness" (clarified
+  Full-mode supplemental framing) and "Shift lifecycle — skill" (singular, with forward
+  reference to Mid-Session Orientation). Replaced 1 existing row: "Shift lifecycle — growth
+  nudge" now carries the rejection, not the prior spec.
+- **§ Open Questions → ARC Lite** — OQ8 (Guardrail thresholds) marked resolved via the
+  established `~~strikethrough~~` + "Resolved" pattern. Moot — no thresholds to calibrate.
+- **§ Open Questions → Shift lifecycle (detail design)** — OQ11 (Multi-paused limit
+  policy) marked resolved via the same pattern. Moot — no nudge.
+
+**Scope boundary held:** The copywriting for each Mode Fit Communication touchpoint was
+explicitly deferred. Plan doc carries the architectural scoping (what surfaces exist, what
+the consistency principle is, what shape the agent awareness takes); the PRD will carry a
+single cross-cutting "Mode fit communication surfaces" requirement that unpacks into
+per-touchpoint tasks during task generation. This preserves the "ADRs are implementation-
+phase deliverables" discipline and matches the working-doc convention of "architecture
+here, content there."
+
+**Working doc shrinkage:** Removed Finding #7 section (~28 lines) and Finding #19 section
+(~48 lines). Sequencing § Tier 2 updated to reflect the joint resolution. Parking lot list
+updated to remove OQ8 and OQ11 (they are no longer "revisit when touched" — they are
+moot). Tier 2 is now genuinely drained in its entirety; there are no ⚪ parked items left.
+
+**Session velocity:** Medium — roughly comparable to #16. Drift-check pass ~30 min
+(careful re-read of `/arc-status` framing across the plan doc, prompted by user challenge);
+design discussion on scope (categorical kill vs. scope split, WIP nudge symmetric kill,
+structural placement options, Finding #19 pre-PRD lift) ~45 min; plan-doc edits ~50 min
+(larger structural move than prior resolutions because /arc-status got promoted out of its
+parent section, plus two new top-level sections); working-doc cleanup ~15 min. **Sixth
+consecutive session using the direct-to-plan-doc pattern.** The drift-check pattern itself
+is a reusable artifact — "when a finding touches content that has evolved across sessions,
+do a careful re-read before proposing a rewrite, prompted by or answering user challenge."
+
+**Next:** Tier 2 drained (genuinely, this time — no ⚪ parked residue). Tier 3 begins.
+**Finding #6** (strategy applicability mapping for Lite) remains the highest-leverage next
+target — unchanged from the prior handoff. Scopes what "Lite" means at the strategy level
+and unblocks #2/#4/#5 (Lite workflow shape findings). Likely needs a focused session of its
+own; larger scope than #13/#16/#7 because the analysis requires walking every strategy in
+`.arc/reference/strategies/arc/` through a Full/Lite applicability triage.
 
 ---
 

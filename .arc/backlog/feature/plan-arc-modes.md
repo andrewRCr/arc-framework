@@ -1700,43 +1700,6 @@ flight:
 - **Initial-setup workflows** (Open Question 15): strong lean toward the same unified-with-mode-
   conditionals shape as `create-prd`. Not yet decided.
 
-### Guardrails and Graduation Triggers
-
-Lite doesn't have lifecycle workflows to manage complexity — so it needs a different mechanism to keep
-you honest. The system should detect when a project is outgrowing Lite and surface that clearly, without
-hard-blocking the user.
-
-**Observable signals that suggest graduation:**
-
-- **Task list size** — past a threshold, a single evolving task list becomes unwieldy. Research suggests
-  working memory is ~3-5 concurrent concerns.
-- **Scope drift** — user describing work that doesn't connect back to the Lite PRD. The Lite PRD's
-  Non-Goals section exists precisely so this is detectable (see [The Lite PRD](#the-lite-prd) § SQ5).
-- **Multiple efforts emerging** — "let's also do X" where X is clearly a separate concern, not a task
-  within the current scope.
-- **Duration** — the ~2 week boundary from research. Session count is a rough proxy.
-- **Branch pressure** — user wanting to separate work onto different branches, which signals multiple
-  concurrent concerns that Lite isn't built to manage.
-
-**Response model:** Not "you can't do that" — transparent, honest communication:
-
-> This project is showing signs of outgrowing Lite mode — [specific signal]. Lite is designed for
-> projects you can hold in a single task list and Lite PRD. Consider graduating to Full ARC
-> (`arc init --reconfigure`) where you can manage separate work units with their own PRDs, task
-> lists, and lifecycle. Continuing in Lite is fine, but the framework can't help you manage this
-> complexity.
-
-**Where guardrails live:**
-
-- **Session init** — the natural checkpoint. Already reads the task list and WORK-STATUS. A Lite-specific
-  assessment step checks for signals and surfaces them in the orientation summary. Persistent — it keeps
-  noting the signal until the user graduates or the signal subsides.
-- **Process-task-loop** — agent awareness during execution. If the user starts describing a second effort,
-  the agent flags it in the moment rather than waiting for the next session.
-
-Exact thresholds and language are detail-design concerns. The architectural decision is: Lite has active
-guardrails that detect complexity growth and nudge toward graduation.
-
 ### Graduation / Downgrade Paths
 
 **Lite --> Full:** When a project outgrows Lite — scope expands, multiple work streams emerge, the single
@@ -2270,8 +2233,6 @@ aligned with the reframe above.
 - Per-dev cache file and its rebuild/self-healing logic (none needed)
 - Template redesign for `WORK-STATUS.md` (unchanged from today)
 - Session-init integration work for multi-WU reporting (unchanged — session-init stays lean)
-- Growth-nudge count aggregation across branches (nudge runs at shift-add time on current
-  branch only; see Workflow Shape)
 - Cross-file atomicity discipline between registry and task list headers (single source of
   truth means no sync concern)
 
@@ -2386,13 +2347,6 @@ discoverability. There is no registry file or cache to keep in sync — task lis
 single source of truth per the
 [State Lives in Task List Headers](#state-lives-in-task-list-headers-pure-option-c) decision.
 
-**Growth nudge:** On pause transitions (not resume), after updating the task list header, the
-workflow counts current-branch task lists with `Status: Paused` (excluding `Waiting-For`
-categories per Finding B). If the count is ≥3, surface a soft nudge: "N paused WUs — consider
-`/arc-status` to review whether any should be archived or resumed." Advisory, not blocking.
-Current-branch-only count may undercount in multi-branch tracked Full juggling scenarios; the
-nudge is intentionally advisory, and the cost of an occasional false-negative is accepted.
-
 **Resume-side additions:**
 
 On resume transitions, the workflow additionally:
@@ -2426,15 +2380,12 @@ the orientation surfaces the mismatch ("WORK-STATUS says active, but the task li
 did you shift in another session and forget to commit `WORK-STATUS.md`?"). This is a safety
 check, not a multi-WU report.
 
-**Growth nudge is not a session-init concern.** It fires at pause-transition time inside the
-shift workflow, not at every session start. See Workflow Shape above.
-
 ### Skill Shape
 
-Two skills ship with the shift lifecycle, both following the established thin-skill pattern
-(skill file is a short pointer; the workflow carries the logic).
-
-#### `/arc-shift` — pause/resume/rotate transitions
+`/arc-shift` ships with the shift lifecycle, following the established thin-skill pattern
+(skill file is a short pointer; the workflow carries the logic). The complementary `/arc-status`
+skill lives in its own [Mid-Session Orientation](#mid-session-orientation) section — it is
+mode-universal rather than Full-only, and the structural placement reflects that.
 
 Backed by `shift-work-unit.md`. Handles the state transitions described in
 [Workflow Shape](#workflow-shape) above.
@@ -2445,105 +2396,6 @@ User invocations that naturally route through `/arc-shift`:
 - "Shift to feature-y"
 - "Let's shift back to feature-x now that review landed"
 - "Shift this and start the auth refactor incidental WU"
-
-#### `/arc-status` — mid-session work orientation ("toggle HUD")
-
-Backed by `mid-session-status.md` (new workflow in `session-lifecycle/`). Provides on-demand
-warm orientation — a concise snapshot of current work state composed from a small targeted set
-of reads, distinct from the cold orientation session-init performs.
-
-**Why this skill exists:** It is the answer to the "how do I see paused/in-flight WUs?" question
-that the [State Lives in Task List Headers](#state-lives-in-task-list-headers-pure-option-c)
-decision deferred out of session-init. But it earns its keep well beyond the multi-WU case —
-the most common use is a mid-session refresher when the developer has stepped away, switched
-contexts, or simply wants a quick "where am I?" bookmark without restarting the session.
-
-**Slot in the session lifecycle:**
-
-```text
-/arc-resume    — cold orient at session start  (workflow: session-init.md)
-/arc-status    — warm orient mid-session       (workflow: mid-session-status.md)
-/arc-handoff   — close session at end          (workflow: session-handoff.md)
-```
-
-Three skills, three workflows, three lifecycle points. Symmetric and cleanly namespaced.
-
-**Naming note:** This name becomes available during the ARCd rebrand WU, which renames the
-existing `arc status` CLI command (framework installation health) to `arcd health`, freeing
-the `arc-status` name for this skill. The skill is a slash-command invocation (`/arc-status`)
-and occupies a different namespace from CLI binaries anyway, but the rename resolves the
-naming ambiguity at its root. See
-[`plan-arcd-rebrand.md`][arcd-rebrand] § Implementation Scope → CLI command surface cleanup.
-
-**Output shape:**
-
-```markdown
-**Current focus** · `branch-name` · clean|dirty
-
-- **Working on**: feature-x, Task 4.2 — Implement token validation
-- **Since session start**: 3 tasks completed (Tasks 3.5, 4.0, 4.1), 2 commits landed
-- **Uncommitted**: [files, if any] | none
-
-**In flight** · [only shown if >1 WU, otherwise omitted entirely]
-
-- **Paused**: incidental-auth-refactor (paused 2d ago — blocked on session token decision)
-- **Waiting for**: feature-y (review from Alice, 1d ago)
-
-**Next action**: Resume token validation in Task 4.2.b — schema check for malformed tokens
-
-**Flags**: [blockers, quality gate state, stale assumptions, etc. — or omitted]
-```
-
-**Composition rules:**
-
-- **Conditional sections.** Single-WU sessions do not see the "In flight" block. No blockers
-  means no "Flags" block. Only show what is load-bearing right now. The output is
-  length-variable by design — a clean single-WU session might be three lines; a multi-WU
-  session with blockers might be ten. Either way, no noise.
-- **Do not duplicate session-init.** If a line would repeat what `/arc-resume` already told
-  the user, omit it. The skill's value is **what has changed or emerged since session-init** —
-  completed tasks, new commits, shifts, drift, uncommitted mid-implementation state. If
-  nothing has changed, say so tersely and suggest the next action without re-recapping.
-- **Suggest, do not re-quote.** "Next action" in session-init comes from `WORK-STATUS.md`
-  verbatim. "Next action" in `/arc-status` is composed from mid-session state — reflects what
-  was just done, what is uncommitted, what the task list checkbox state implies next. Often
-  the same as `WORK-STATUS.md`'s Next Action, often not.
-- **Cheap enough to invoke freely.** Tens of milliseconds of reads, no heavy workflow
-  machinery. Should feel lightweight enough that "let me just check" is reflexive.
-
-**Input sources** (all targeted, none expensive):
-
-1. `git status` + `git log HEAD@{session-start}..HEAD` — working-tree state, commits since
-   session start
-2. `WORK-STATUS.md` — current WU pointer (with drift detection against the task list header
-   per the Session-Init Integration note)
-3. **Current task list** (path from `WORK-STATUS.md`) — checkbox state of current phase, used
-   to compute "what has been completed this session" by cross-referencing the checkbox
-   transitions with the git log since session start
-4. **Scan of current-branch `active/`** for task list Status headers — only included in output
-   if any show `Paused` or `Waiting-For`; completely omitted otherwise (the "In flight" block
-   does not appear for single-WU sessions)
-5. `SESSION-NOTES.md` Persistent Context section — for active constraints worth restating if
-   relevant to the current state
-
-**Use cases:**
-
-- "I stepped out for lunch — what was I doing?" (post-context-switch bookmark)
-- "I've been working for a while, quick check on where I am" (mid-session refresh)
-- "What's next after this?" (looking ahead when the current unit lands)
-- "What else do I have in flight?" (multi-WU visibility on demand — the original driver)
-- "I suspect my WORK-STATUS.md is stale — what does the world actually look like?" (drift
-  detection)
-
-**Out of scope for this skill:**
-
-- Installation/framework health (that is `arcd health` post-rebrand)
-- Team-aggregate view across developers (requires cross-identity git notes aggregation,
-  deferred to external tooling or a future WU)
-- Cross-branch paused-WU enumeration in tracked Full — by default the skill only sees
-  current-branch state. A `--all-branches` opt-in flag (or equivalent agent behavior) can
-  perform an on-demand git query for task lists with paused Status headers across all
-  branches when the user explicitly asks. Pay-for-what-you-request.
 
 ### Integration Interaction with Shift States
 
@@ -2665,8 +2517,6 @@ It's universal.
 
 ### Out of Scope (For This Plan Doc Iteration)
 
-- **Multi-paused limit policy** — hard cap, soft nudge, or configurable? Leaning toward soft nudge at
-  ~3 with no hard cap, but this is detail design.
 - **Pause-reason taxonomy** — should reasons be freeform, or structured with categories (`awaiting-review`
   / `blocked-external` / `deferred` / `other`)? Freeform is simpler; structured enables better
   reporting. Revisit during detail design.
@@ -2675,6 +2525,209 @@ It's universal.
   branch-local for simplicity, revisit if team mode dogfooding says otherwise.
 - **Expected-resume-date field** — useful context ("expected back Thursday") but potentially stale.
   Consider during detail design.
+
+---
+
+## Mid-Session Orientation
+
+Cross-cutting section for `/arc-status`, the mid-session "warm orient" skill. Mode-universal
+(ships in both Lite and Full), complementary to the existing session-lifecycle skills
+`/arc-resume` (cold orient at session start) and `/arc-handoff` (close session at end).
+
+`/arc-status` is backed by `mid-session-status.md` (new workflow in `session-lifecycle/`). It
+provides on-demand warm orientation — a concise snapshot of current work state composed from a
+small targeted set of reads, distinct from the cold orientation session-init performs.
+
+**Why this skill exists:** The most common use is a mid-session refresher when the developer
+has stepped away, switched contexts, or wants a quick "where am I?" bookmark without restarting
+the session — post-lunch, post-meeting, post-interruption. This is mode-universal; every ARC
+project benefits from it. As a complementary use, the skill also hosts multi-WU visibility for
+Full-mode projects running the [Shift Lifecycle](#shift-lifecycle) — surfacing paused and
+`Waiting-For` WUs on demand. Multi-WU visibility was the original driver that justified creating
+the skill, but is no longer its primary value proposition; it is scoped to Full specifically,
+where the shift lifecycle applies at all.
+
+**Slot in the session lifecycle:**
+
+```text
+/arc-resume    — cold orient at session start  (workflow: session-init.md)
+/arc-status    — warm orient mid-session       (workflow: mid-session-status.md)
+/arc-handoff   — close session at end          (workflow: session-handoff.md)
+```
+
+Three skills, three workflows, three lifecycle points. Symmetric and cleanly namespaced.
+
+**Naming note:** This name becomes available during the ARCd rebrand WU, which renames the
+existing `arc status` CLI command (framework installation health) to `arcd health`, freeing
+the `arc-status` name for this skill. The skill is a slash-command invocation (`/arc-status`)
+and occupies a different namespace from CLI binaries anyway, but the rename resolves the
+naming ambiguity at its root. See
+[`plan-arcd-rebrand.md`][arcd-rebrand] § Implementation Scope → CLI command surface cleanup.
+
+**Output shape:**
+
+The output has a mode-universal core and a Full-only supplemental block. Lite sessions
+structurally never see the supplemental block; Full sessions see it only when paused or
+`Waiting-For` state exists on the current branch.
+
+```markdown
+**Current focus** · `branch-name` · clean|dirty
+
+- **Working on**: feature-x, Task 4.2 — Implement token validation
+- **Since session start**: 3 tasks completed (Tasks 3.5, 4.0, 4.1), 2 commits landed
+- **Uncommitted**: [files, if any] | none
+
+**In flight** · [Full mode only; appears only when paused/Waiting-For state is present]
+
+- **Paused**: incidental-auth-refactor (paused 2d ago — blocked on session token decision)
+- **Waiting for**: feature-y (review from Alice, 1d ago)
+
+**Next action**: Resume token validation in Task 4.2.b — schema check for malformed tokens
+
+**Flags**: [blockers, quality gate state, stale assumptions, etc. — or omitted]
+```
+
+**Composition rules:**
+
+- **Mode-conditional "In flight" block.** In Lite, the block is structurally absent — Lite has
+  no concept of multi-WU state, so there is nothing to surface. In Full, the block appears only
+  when paused or `Waiting-For` state is actually present on the current branch; single-WU Full
+  sessions see the mode-universal core output without the supplemental block.
+- **No blockers means no "Flags" block.** Only show what is load-bearing right now. The output
+  is length-variable by design — a clean single-WU Lite session might be three lines; a multi-WU
+  Full session with blockers might be ten. Either way, no noise.
+- **Do not duplicate session-init.** If a line would repeat what `/arc-resume` already told
+  the user, omit it. The skill's value is **what has changed or emerged since session-init** —
+  completed tasks, new commits, shifts, drift, uncommitted mid-implementation state. If
+  nothing has changed, say so tersely and suggest the next action without re-recapping.
+- **Suggest, do not re-quote.** "Next action" in session-init comes from `WORK-STATUS.md`
+  verbatim. "Next action" in `/arc-status` is composed from mid-session state — reflects what
+  was just done, what is uncommitted, what the task list checkbox state implies next. Often
+  the same as `WORK-STATUS.md`'s Next Action, often not.
+- **Cheap enough to invoke freely.** Tens of milliseconds of reads, no heavy workflow
+  machinery. Should feel lightweight enough that "let me just check" is reflexive.
+
+**Input sources** (all targeted, none expensive):
+
+Mode-universal:
+
+1. `git status` + `git log HEAD@{session-start}..HEAD` — working-tree state, commits since
+   session start
+2. `WORK-STATUS.md` — current WU pointer (with drift detection against the task list header
+   per the [Session-Init Integration](#session-init-integration) note)
+3. **Current task list** (path from `WORK-STATUS.md`) — checkbox state of current phase, used
+   to compute "what has been completed this session" by cross-referencing the checkbox
+   transitions with the git log since session start
+4. `SESSION-NOTES.md` Persistent Context section — for active constraints worth restating if
+   relevant to the current state
+
+Full mode only (feeds the supplemental "In flight" block):
+
+5. **Scan of current-branch `active/`** for task list Status headers — surfaces `Paused` and
+   `Waiting-For {category}` state for WUs other than the current focus. Lite does not scan;
+   there is no concept of multiple task lists in a single Lite project.
+
+**Use cases:**
+
+- "I stepped out for lunch — what was I doing?" (post-context-switch bookmark, mode-universal)
+- "I've been working for a while, quick check on where I am" (mid-session refresh, mode-universal)
+- "What's next after this?" (looking ahead when the current unit lands, mode-universal)
+- "I suspect my WORK-STATUS.md is stale — what does the world actually look like?" (drift
+  detection, mode-universal)
+- "What else do I have in flight?" (Full-mode multi-WU visibility on demand — the original
+  driver, still supported)
+
+**Out of scope for this skill:**
+
+- Installation/framework health (that is `arcd health` post-rebrand)
+- Team-aggregate view across developers (requires cross-identity git notes aggregation,
+  deferred to external tooling or a future WU)
+- Cross-branch paused-WU enumeration in tracked Full — by default the skill only sees
+  current-branch state. A `--all-branches` opt-in flag (or equivalent agent behavior) can
+  perform an on-demand git query for task lists with paused Status headers across all
+  branches when the user explicitly asks. Pay-for-what-you-request.
+- **Mode-fit detection or graduation prompting.** The skill reports current work state; it
+  does not assess whether the project is "outgrowing" its current mode. Mode-fit communication
+  lives in [Mode Fit Communication](#mode-fit-communication) below and is handled entirely
+  through upfront framing, not runtime detection.
+
+---
+
+## Mode Fit Communication
+
+ARC ships two installation types (Lite and Full) and two orthogonal infrastructure axes
+(Tracked/Local). Users need to land in the right mode for their work — and, when work evolves,
+find the transition path to a different mode without friction. This section specifies how mode
+fit is communicated.
+
+### Principle: upfront clarity, not runtime detection
+
+**The framework does not detect mode mismatch and does not prompt users to switch modes.** No
+guardrails, no growth nudges, no assessment steps baked into session-init or process-task-loop
+or any workflow. Users choose their mode; if the choice turns out to be wrong, the transition
+path is easy and well-documented. Paternalism is explicitly rejected.
+
+The framework's responsibility is to make mode fit cases, boundaries, and transition paths
+**highly discoverable** at the moments users naturally encounter the question — at install time,
+at docs-reading time, and in conversation with an AI agent that has basic mode awareness.
+Everything else is the user's call.
+
+This principle applies symmetrically to related design space. Specifically, it rules out the
+earlier-sketched WIP growth nudge for Full-mode paused-WU count (originally specified inside
+`shift-work-unit.md`): framework does not count-and-advise on WIP. If WIP pressure becomes a
+real observed problem in practice, an appropriately scaled response can be designed against
+actual evidence rather than sight unseen.
+
+### Communication surfaces
+
+Mode fit communication is distributed across a small set of coordinated touchpoints, each
+serving a different moment in the user's journey:
+
+- **`arc init` mode-selection prompt.** First contact. Prompt copy names the two installation
+  types, describes fit cases in one sentence each ("Lite: single bounded effort, up to ~2
+  weeks, one task list. Full: multiple work units, formal planning pipeline."), and points at
+  the docs page for more detail. Default is `full`; `arc init --lite` / `--install-type lite`
+  opts in explicitly.
+- **Lite `AGENT-BRIEFING.ARC.md` — light-touch mode awareness.** Short paragraph giving the
+  agent passive knowledge that Lite exists as a variant, what its boundaries are, and that
+  `arc mode switch --to full` is the transition path. **Passive knowledge, not active
+  detection.** The agent can answer "should I consider switching to Full?" _when the user
+  asks_, but does not proactively volunteer the suggestion or surface it in orientation.
+  Full's `AGENT-BRIEFING.ARC.md` carries a symmetric paragraph for the reverse direction.
+- **Lite PRD template Introduction guidance.** One-line note at the top of the template:
+  "Lite is designed for bounded efforts you can hold in a single PRD and task list. For
+  larger work, use Full (`arc mode switch --to full`)." Frames expectations at plan-writing
+  time, the moment when over-scoping is most likely to manifest.
+- **Lite task list template header / overview block.** A brief reinforcing note in the
+  template scaffolding, parallel to the PRD template note. Reinforces the boundary at the
+  moment the user is adding tasks.
+- **Lite `README.md`** (if a Lite-specific README ships). User-facing first impression of
+  what Lite is and isn't. Otherwise absorbed into the main README.
+- **Documentation site — mode overview page.** Long-form explanation of the two installation
+  types, their fit cases, how they differ structurally, and the transition paths in both
+  directions. The authoritative source the other surfaces link to.
+- **Documentation site — troubleshooting section.** Addresses the specific moments when users
+  most commonly ask "am I in the wrong mode?" — "my Lite project feels cramped", "I have too
+  many paused WUs in Full", "I keep wanting to separate concerns onto branches in Lite". Each
+  entry describes the symptom, names the relevant mode-fit question, and points at the
+  transition path. This is the concrete discovery surface users reach for when they suspect
+  something is wrong.
+
+### Consistency across surfaces
+
+All surfaces convey the same core message, tuned for the context: **Lite is for bounded
+efforts, Full is for larger work, transition in either direction is a single command away
+(`arc mode switch --to lite` / `--to full`, specified in [Graduation / Downgrade
+Paths](#graduation--downgrade-paths)), and the framework trusts you to judge the fit.** Wording
+variations across surfaces are expected and desirable — copy gets tuned to the surface's
+tone — but the substantive claims should not diverge.
+
+### Scope boundary: architecture here, content in implementation
+
+This section specifies the touchpoint list and the consistency principle. Actual copywriting
+— exact prompt wording, briefing paragraph text, docs page content, troubleshooting entries —
+is implementation-phase work. The PRD carries a single cross-cutting "Mode fit communication
+surfaces" Requirement that unpacks into tasks for each touchpoint during task generation.
 
 ---
 
@@ -3026,15 +3079,23 @@ decision and a brief rationale; the full reasoning is in the relevant section ab
 | Shift lifecycle — inclusion                                             | In-scope for this work unit (not deferred); universal, applies to all ARC modes                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Shift lifecycle — approach                                              | Metadata-in-place (no file moves); task list Status headers as single source of truth; no registry file, no per-dev cache                                                                                                                                                                                                                                                                                                                                                                             |
 | Shift lifecycle — state location                                        | Pure Option C (2026-04-09 decision after B-vs-C scenario walk). Task list headers carry Status, date, reason. `WORK-STATUS.md` stays single-slot                                                                                                                                                                                                                                                                                                                                                      |
-| Shift lifecycle — multi-WU awareness                                    | On-demand via `/arc-status` skill, not baked into session-init. Session-init orientation remains single-WU focused                                                                                                                                                                                                                                                                                                                                                                                    |
-| Shift lifecycle — skills                                                | Two skills: `/arc-shift` (transitions, workflow `shift-work-unit.md`) and `/arc-status` (mid-session HUD, workflow `mid-session-status.md`)                                                                                                                                                                                                                                                                                                                                                           |
+| Shift lifecycle — multi-WU awareness                                    | On-demand via `/arc-status` skill (Full-mode supplemental output block), not baked into session-init. Session-init orientation remains single-WU focused                                                                                                                                                                                                                                                                                                                                              |
+| Shift lifecycle — skill                                                 | Ships `/arc-shift` (transitions, workflow `shift-work-unit.md`). The `/arc-status` skill is not part of the shift lifecycle — it is mode-universal and lives in its own [Mid-Session Orientation](#mid-session-orientation) section (see row below)                                                                                                                                                                                                                                                   |
 | Shift lifecycle — uncommitted work                                      | Workflow surfaces state, recommends commit, allows stash or leave-as-is                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Shift lifecycle — document status headers                               | PRDs and task lists updated in sync via the Status header (inline date + reason format); supplementary docs deferred to implementation                                                                                                                                                                                                                                                                                                                                                                |
 | Shift lifecycle — vocabulary (Finding B)                                | Two-state split: `Paused` (dev is next mover, counts toward WIP nudge) vs `Waiting-For {category}` (external is next mover, excluded from nudge)                                                                                                                                                                                                                                                                                                                                                      |
-| Shift lifecycle — growth nudge                                          | Fires at pause-transition time inside shift workflow, not at session-init. Current-branch count; ≥3 paused is advisory                                                                                                                                                                                                                                                                                                                                                                                |
+| Shift lifecycle — growth nudge (WIP pressure)                           | **Rejected** (2026-04-11, Finding #7 resolution). No WIP growth nudge. Framework does not count paused WUs and surface unsolicited advice. Same "no detect-and-advise" principle that kills Lite graduation guardrails applies symmetrically here. YAGNI + paternalism risk; if WIP pressure becomes a real observed problem in practice, design a scaled response against evidence                                                                                                                   |
 | Shift lifecycle — Finding C (pause pointers)                            | No rename needed. The `Paused:` pointer field in `clean-work-unit.md` and the new Status header vocabulary do not collide (different field shapes, different semantics). Formalizing the four pointer fields is an independent doc sweep, not shift-blocking                                                                                                                                                                                                                                          |
 | Shift lifecycle — `PROJECT-STATUS.md`                                   | Stays project-focus oriented. Updated at activate/archive only, not at personal shift operations. Paused WUs still appear as project focus until archived (ownership-of-tracked-state framing)                                                                                                                                                                                                                                                                                                        |
 | Shift lifecycle — CLI naming coordination                               | `arc status` (framework health CLI) rename to `arcd health` absorbed into [ARCd Rebrand][arcd-rebrand] WU, freeing `/arc-status` for the mid-session skill                                                                                                                                                                                                                                                                                                                                            |
+| Lite graduation guardrails                                              | **Rejected** (2026-04-11, Finding #7 resolution). Framework does not detect-and-advise on mode fit. No runtime signals, no session-init assessment step, no process-task-loop awareness nudge, no persistent orientation flags. Users choose their mode; paternalism is explicitly rejected. Mode-fit concern instead handled via [Mode Fit Communication](#mode-fit-communication) (upfront clarity) and [Graduation / Downgrade Paths](#graduation--downgrade-paths) (easy transition)              |
+| `/arc-status` primary rationale                                         | Mid-session warm re-orientation after interruption (post-lunch, post-meeting, post-context-switch). Mode-universal; every ARC project benefits. Multi-WU visibility in Full mode is a complementary secondary use — the original driver that justified creating the skill, but no longer its primary value proposition                                                                                                                                                                                |
+| `/arc-status` structural placement                                      | Lives in its own top-level [Mid-Session Orientation](#mid-session-orientation) section, not nested under [Shift Lifecycle](#shift-lifecycle). Reflects mode-universal scope vs. shift lifecycle's Full-only scope. Skill trio `/arc-resume` (cold), `/arc-status` (warm), `/arc-handoff` (close) is mode-universal; `/arc-shift` stays nested under Shift Lifecycle and is Full-only                                                                                                                  |
+| `/arc-status` output and input sources                                  | Mode-conditional, not count-conditional. In Lite, the "In flight" block and the `active/` scan for paused/Waiting-For task list headers are structurally absent (Lite has no concept of multi-WU state). In Full, the supplemental block appears only when such state is actually present; single-WU Full sessions see the universal core output                                                                                                                                                      |
+| Mode-fit detection or nagging (framework-wide principle)                | **Rejected** (2026-04-11, Finding #7 resolution). Framework does not count-and-advise on WIP, complexity, duration, or any other signal. Applies symmetrically across Lite (graduation guardrails) and Full (WIP growth nudge). YAGNI + paternalism risk; evidence-based scaled response is the fallback path if real problems emerge                                                                                                                                                                 |
+| Mode-fit communication mechanism                                        | Upfront clarity, not runtime detection. Distributed across coordinated surfaces: `arc init` mode prompt, `AGENT-BRIEFING.ARC.md` light-touch passive awareness, Lite PRD and task list template intros, Lite README, docs-site mode overview page, docs-site troubleshooting section. All link to `arc mode switch --to <target>` as the transition path. See [Mode Fit Communication](#mode-fit-communication)                                                                                       |
+| Agent mode awareness                                                    | **Passive**, not active. Agent has basic knowledge that multiple modes exist, their fit cases, and the transition command. Can answer "should I consider switching modes?" when the user asks. Does not proactively volunteer the suggestion, flag it in orientation, or detect signals that might indicate mode mismatch. Consistent with "no detect-and-advise" principle                                                                                                                           |
+| Finding #19 scope                                                       | Upgraded from "coordinate with Finding #7 guardrails" to "sole mechanism for mode-fit communication." Architectural scoping (touchpoint enumeration, consistency principle, agent-awareness shape) lifted pre-PRD and captured in [Mode Fit Communication](#mode-fit-communication). Actual copywriting remains implementation-phase (one cross-cutting PRD requirement unpacking into per-touchpoint tasks)                                                                                          |
 | Integrate × shift states — entry contract                               | `integrate-work-unit` accepts `In Progress`, `Complete`, and all `Waiting-For {category}` values. `Paused` triggers an inline warn-and-confirm prompt. Entry check inserted at top of Step 1; transition to `Complete` remains in `clean-work-unit.md` Mode 2                                                                                                                                                                                                                                         |
 | Invocation-as-assertion semantic for `Waiting-For`                      | Running integrate on a `Waiting-For` WU is the user's assertion that the wait is over. Workflow does not validate what was waited for; the invocation itself carries the signal, and the transition proceeds through the standard path                                                                                                                                                                                                                                                                |
 | `Paused` handling at integrate                                          | Warn-and-confirm inline (default no), not hard refuse with a `--force` flag. Matches ARC's warn-and-confirm idiom elsewhere. User confirmation proceeds through standard path; transition to `Complete` happens in `clean-work-unit.md` Mode 2 like any other accepted state                                                                                                                                                                                                                          |
@@ -3124,9 +3185,10 @@ decision and a brief rationale; the full reasoning is in the relevant section ab
    operations, quality gates, task list formatting — yes. Work organization, planning module — no.
    Need a clear mapping for the content audit.
 
-8. **Guardrail thresholds**: What are the specific trigger thresholds for graduation nudges? Task list
-   size, session count, scope drift detection — these need calibration. Too sensitive is annoying;
-   too lax defeats the purpose.
+8. ~~**Guardrail thresholds**~~: **Resolved** (2026-04-11, Finding #7) — moot. Framework does not
+   ship runtime graduation guardrails, so there are no thresholds to calibrate. Mode-fit concern
+   handled via [Mode Fit Communication](#mode-fit-communication) instead. See [Resolved
+   Decisions](#resolved-decisions) → "Lite graduation guardrails".
 
 9. **Default mode question**: Should `arc init` default to Lite (on-ramp argument) or always ask
    (informed choice argument)? Affects adoption story.
@@ -3140,9 +3202,10 @@ Most registry / multi-WU / vocabulary questions were resolved on 2026-04-09 (see
 Resolved Decisions table). These remaining items are narrower detail-design questions that can
 be settled at PRD time or implementation time.
 
-11. **Multi-paused limit policy**: Hard cap, soft nudge only, or configurable? Current direction
-    (Resolved Decisions) is soft nudge at ~3 with no hard cap. Still open: is the threshold
-    itself configurable, or hardcoded at 3? Research supports 2–3 as the natural range.
+11. ~~**Multi-paused limit policy**~~: **Resolved** (2026-04-11, Finding #7) — moot. Framework
+    does not ship a WIP growth nudge for paused WU count. Same "no detect-and-advise" principle
+    that kills Lite graduation guardrails applies symmetrically. See [Resolved
+    Decisions](#resolved-decisions) → "Shift lifecycle — growth nudge (WIP pressure)".
 
 12. **Waiting-For category taxonomy finalization**: Initial set is `Review` / `Approval` /
     `Delivery` / `Decision` / `Other`. Is this exhaustive enough? Should any categories be
