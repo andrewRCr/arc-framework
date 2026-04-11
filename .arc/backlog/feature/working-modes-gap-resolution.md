@@ -42,8 +42,12 @@ Tier determines what unblocks what.
 
 - *#13 (Integrate × non-complete states) resolved and migrated 2026-04-10. See
   [`plan-arc-modes.md`][plan-doc] § Integration Interaction with Shift States.*
-- **#7** — Guardrails. Orthogonal, can run in parallel.
-- **#16** — Full → Lite downgrade. Small, user's framing already mostly resolves it.
+- *#16 (Full → Lite downgrade) resolved and migrated 2026-04-11. See
+  [`plan-arc-modes.md`][plan-doc] § Graduation / Downgrade Paths. Scope composition: key
+  renames `pm.mode` → `pm.layer` and `team.mode` → `team.enabled` absorbed into ARCd Rebrand
+  WU; `arc mode switch` CLI + `supplemental/switch-mode.md` workflow landing both specified.*
+- **#7** — Guardrails. Orthogonal, can run in parallel. **Currently ⚪ parked — out of scope
+  for pre-PRD.**
 - *#3 (Ship step) resolved and migrated with the Tier 1 batch.*
 
 **Tier 3 — detail once Tier 1 lands:**
@@ -313,40 +317,6 @@ implementation. Not shift-blocking but not deferred.
 
 ---
 
-### Finding 16 — Full → Lite downgrade with history · 🟢
-
-**Original:** Plan says "only possible when a single WU is active" but doesn't address archived
-WUs, backlog directory, PROJECT-STATUS, ROADMAP when collapsing to Lite. Delete? Preserve
-orphaned? Migrate?
-
-**User position (2026-04-10):** Full → Lite is nice-to-have, not a hard requirement. Lite → Full
-*has* to be supported. Full → Lite preferred out-of-the-gate if reasonable; drop if too tricky.
-On the history question: lean toward "framework now ignores these files, user is advised via
-clear CLI prompt, and it's their call." Precedent: existing CLI orphan-file handling during
-update flow.
-
-**Proposed shape (pending confirmation):** On Full → Lite reconfigure, CLI:
-
-1. Detects orphaned files (backlog/, archived WUs, PROJECT-STATUS, ROADMAP, etc.).
-2. Reports them clearly: "These files exist but Lite mode does not manage them: {list}."
-3. Prompts: keep in place (ignored), delete, or cancel reconfigure.
-4. Proceeds based on user choice. No automatic cleanup without confirmation.
-
-**Outstanding analysis:**
-
-- Read existing `commands/reconfigure.ts` + `update.ts` orphan-handling to confirm precedent
-  shape.
-- Enumerate orphan categories (directories, tracked files, templates) that differ Full → Lite.
-- Define the "reasonable" boundary — if implementation complexity on Full → Lite turns out
-  material, descope to "Lite → Full only" with a clear error on the reverse path.
-
-**Resolution:** Full → Lite supported if reasonable; shape is "detect orphans, inform user,
-defer to user's choice." Descope only if implementation proves material.
-
-**Migrated to plan doc:** *pending*
-
----
-
 ### Finding 17 — Backing store sync protocol · 🟢
 
 **Original:** "Auto-populated from `.arc/` on each handoff" stated; mechanism and firing policy
@@ -542,8 +512,9 @@ scope boundary note already anticipates scope escape.
 
 ### B3 — Full → Lite downgrade scope · 🟢
 
-**Resolved by Finding 16.** Supported if reasonable; descope only if implementation proves
-material.
+**Resolved by Finding 16, migrated 2026-04-11.** See [`plan-arc-modes.md`][plan-doc]
+§ Graduation / Downgrade Paths. Supported via `arc mode switch --to lite` + advisory
+workflow; descope guard retained but analysis did not surface material complexity.
 
 ---
 
@@ -1088,6 +1059,115 @@ default for crisp-from-analysis findings.
 \#16 (Full → Lite downgrade) mostly 🟢 and just needs a confirmation pass. Either is a
 reasonable next target. After Tier 2 drains, Tier 3 (#2, #4, #5, #6, #12/R6) becomes the
 focus.
+
+### 2026-04-11 — Finding #16 resolved and migrated (Tier 2 drained)
+
+**Resolution:** Full → Lite downgrade supported via a new `arc mode switch --to lite` CLI
+command symmetric with `--to full` for the upgrade direction. Shape γ adopted — CLI handles
+deterministic mechanics, advisory workflow `supplemental/switch-mode.md` handles
+non-deterministic judgment (Cat C2 semantic decay in surviving user content). Three-category
+orphan taxonomy (A/B/C) with a C1/C2 split inside Cat C. Entry-state gate refuses on `>1`
+active WU; user must shift extras first. Descope guard retained from the working doc but
+analysis did not surface material complexity that would trigger it.
+
+**Key reframe from the code read:** The handoff lean pointed at "existing CLI orphan-file
+handling during update flow." A read of `commands/reconfigure.ts`, `commands/update.ts`, and
+`prompts/removal-prompts.ts` showed the interactive orphan-handling precedent lives
+specifically in `reconfigure.ts` (via the injected `resolveRemovals` callback), not in
+`update.ts` (which uses classification defaults silently). The `resolveRemovalsInteractive`
+two-stage UX — summary + bulk-or-per-file choice with a bulk "Keep all, remove from ARC
+tracking only" option — is not just a similar pattern; it's the exact affordance Finding #16
+needed for Cat A. **Fourth consecutive session where a targeted code read partially
+overturned the handoff lean.** Pattern is now structurally baked into session discipline.
+
+**Also confirmed via code read:** `install.type` / `install_type` does not yet exist in code
+(grep across `packages/arc-framework/src` returned zero hits). Finding #16's resolution is a
+planning decision for future consumption of Finding #8's mechanism and Finding #10's rename,
+not a code change today.
+
+**Composition with prior findings:**
+
+- **Finding #10's boundary holds:** `arc init --reconfigure` does NOT mutate `install.type`.
+  Finding #16 inherits this as a hard constraint — `arc mode switch` is a distinct command
+  module that reuses the reconfigure pipeline internally without sharing the prompt loop.
+- **Finding #8's symmetric-additive mechanism** supplies the `install.type` condition the
+  command flips in the manifest.
+- **Finding #9's `shouldShowPrompt` spine** is reusable for any pre-switch confirmation
+  prompts if needed (current shape doesn't require it, but the spine is there).
+- **Finding #13's invocation-as-assertion semantic** generalizes: the entry-state gate is
+  the "assertion with pre-condition" variant — invocation carries the assertion, but the
+  CLI verifies the pre-condition (single active WU) first.
+
+**Scope composition — cross-cutting naming concern surfaced and absorbed:** Finding #16's
+naming analysis surfaced that promoting "mode" to a load-bearing top-level term
+(`install_config.install_type` = Lite/Full; Local/Tracked future axis) collides with
+pre-existing `pm.mode` and `team.mode` keys at different semantic levels. The collision is
+cross-cutting — not Finding #16's concern in isolation, and not a clean fit for the Modes
+WU scope either. Resolution: absorbed into the ARCd Rebrand WU (`plan-arcd-rebrand.md`
+§ Scope expansion item 4, Implementation Scope item 6). Rebrand is scheduled before Modes WU,
+so Modes inherits the clean namespace. Key renames: `pm.mode` → `pm.layer` (matches
+existing "Planning Module" vocabulary, differentiates layer-within-ARC from ARC-wide shape)
+and `team.mode` → `team.enabled` (natural noun for a bool, drops "mode" entirely). Marginal
+scope addition to the rebrand since it's already renaming keys in the same file in the same
+editorial pass.
+
+**Plan doc landing points:**
+
+- **Finding #16** → expanded `### Graduation / Downgrade Paths` § Full → Lite from four
+  thin bullets to a mechanism-depth subsection with named Category A/B/C sub-paragraphs,
+  entry-state gate, CLI + workflow split specification, and pipeline-reuse note.
+- **Lite → Full drift fix (Finding #10 cascade):** Plan doc previously said "Mechanically:
+  `arc init --reconfigure`" for Lite → Full, which contradicted the Reconfigure boundary
+  row Finding #10 had already established. Updated to "`arc mode switch --to full`" with
+  the pipeline-reuse explanation. Symmetric with the new downgrade path.
+- **Resolved Decisions table** — added 8 new rows: key-rename absorption into rebrand
+  (separate row for traceability), Lite↔Full CLI surface, CLI + workflow split (shape γ),
+  entry-state gate, orphan taxonomy, workflow landing (`supplemental/switch-mode.md`),
+  descope guard. Updated existing Reconfigure boundary row to reflect the new CLI name
+  instead of "Finding #16 for downgrade."
+- **Scope boundary paragraph** (top of plan doc) — expanded the 2026-04-09 note to mention
+  the 2026-04-11 key-rename absorption, so the rebrand dependency is visible at the top of
+  the plan doc, not buried in the Resolved Decisions table.
+- **Open Questions** — no entries to resolve (Finding #16 did not have a parallel OQ in the
+  plan doc; the existing OQ on Lite + `pm.mode: external` is a separate concern).
+
+**Rebrand plan doc landing points:**
+
+- **Status line** — updated review date to 2026-04-11, added note about second scope
+  expansion.
+- **Scope expansion section** (top of rebrand doc) — added item 4 describing the key
+  renames with full motivation, pointing forward to Implementation Scope item 6.
+- **Implementation Scope item 6** — expanded from "value rename only" to three-bullet
+  "schema renames" covering the 2026-04-09 value rename, the 2026-04-11 `pm.mode` key
+  rename, and the 2026-04-11 `team.mode` key rename. Added runner-up naming rejections
+  and indicative files-touched list for task generation.
+
+**Workflow landing decision:** `supplemental/switch-mode.md` rather than a new
+`mode-lifecycle/` subdirectory. `supplemental/` already houses a framework-level
+contingent (`add-agent.md`, `integrate-external-content.md`, `verify-arc-integrity.md`)
+mixed with session-adjacent helpers. `switch-mode.md` fits the implicit framework-level
+category without requiring new structure. "lifecycle" would be the wrong label (these
+aren't lifecycle operations in the WU sense), and a subdir for one or two files is
+premature. A potential future cleanup — splitting `supplemental/` into session-adjacent vs
+installation-level groupings — captured in ATOMIC-INBOX, explicitly decoupled from Modes
+WU scope.
+
+**Working doc shrinkage:** Removed Finding #16 section entirely (~30 lines). Updated
+Sequencing § Tier 2 to mark #16 resolved and migrated. Tier 2 is now fully drained —
+only #7 remains and is ⚪ parked (out of scope for pre-PRD). Attention now shifts to
+Tier 3 (#2, #4, #5, #6, #12/R6).
+
+**Session velocity:** Medium — longer than #13, shorter than #9/#10. Analysis + code read
+~1 hour; design discussion (CLI shape, workflow vs CLI-only, entry-state gate, command
+naming, word-collision concern, workflow directory) ~45 minutes; migration ~40 minutes.
+**Fifth consecutive session using the direct-to-plan-doc pattern.** The word-collision
+concern was the surprise — not planned into the session, surfaced during command-naming
+discussion, absorbed cleanly into the rebrand WU without derailing the Finding #16 scope.
+
+**Next:** Tier 2 drained. Tier 3 begins — **Finding #6** (strategy applicability mapping
+for Lite) flagged as highest-leverage next target because it scopes what "Lite" means at
+the strategy level and unblocks #2/#4/#5 (Lite workflow shape findings). Likely needs a
+focused session of its own.
 
 ---
 
