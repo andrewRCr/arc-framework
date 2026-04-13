@@ -3225,6 +3225,25 @@ formal attention, not about what the developer can do in git. The developer can 
 What the developer cannot do under single-active alone: have two work units both formally tracked by
 ARC (task lists, lifecycle, scope) simultaneously in in-progress state.
 
+**Enforcement.** The activation workflow (`activate-work-unit.md`) scans `active/` for any task list
+whose header reads `Status: In Progress` before proceeding with a new activation. If another
+in-progress work unit is found, activation halts with an error of the shape:
+
+> Cannot activate `{target}`: work unit `{active-name}` is already in progress
+> (`active/{active-path}`). Use `/arc-shift` to pause it and activate `{target}` in one coordinated
+> step — the shift workflow dispatches to `shift-with-activation` when the target is new or in
+> backlog (see [Workflow Shape](#workflow-shape)). Alternatively, complete or archive the current
+> work unit first.
+
+Enforcement lives at the workflow layer, not a specific CLI command, so every invocation surface
+that reaches activation — CLI, skill, direct workflow execution — inherits the check uniformly.
+Task list `Status` headers are the single source of truth for the scan, per [State Lives in Task
+List Headers](#state-lives-in-task-list-headers-pure-option-c); no registry file, no cache.
+**The same check applies to tracked Full:** single-active is mode-universal; shift lifecycle is the
+mechanism that makes it livable, and both modes share the enforcement locus. Users who prefer
+explicit sequencing can pause via `/arc-shift` first and invoke activation afterwards — the
+shift-with-activation dispatch is a convenience wrapper, not the only supported recovery.
+
 ### Shift Lifecycle Makes Local Full Viable
 
 The single-active invariant on its own would be too restrictive for the motivating Local mode use case
@@ -3767,6 +3786,13 @@ default), but allows override:
 
 The workflow presents commit as the default; the user is in charge of the final choice. This preserves
 reliability bias without being dogmatic.
+
+**Local-mode scope.** The three options apply to tracked project-repo files; `.arc/` content is
+untracked in Local mode and outside `git stash`'s reach, so uncommitted `.arc/` edits structurally
+follow **leave as-is** regardless of which option is chosen for tracked code. They remain in the
+working tree and are captured by the next `arcd backing sync` at session handoff. A Local-mode user
+pausing with both project-code changes and `.arc/` edits can commit or stash the former via the
+normal options while the latter takes leave-as-is automatically.
 
 **State-update steps (common to all transitions):**
 
@@ -5725,7 +5751,14 @@ otherwise the constraint is aspirational rather than operational.
 enforces, what the error message looks like, and how the user recovers (shift the existing WU to paused
 first).
 
-**Status:** Open. Small resolution; part of a consolidation pass.
+**Status:** **Resolved 2026-04-13.** Added **Enforcement** subsection to § Single-Active-Unit
+Invariant specifying (a) enforcement locus at the activation workflow (`activate-work-unit.md`),
+which scans `active/` task list `Status` headers before proceeding — not a specific CLI command, so
+every invocation surface inherits the check; (b) error message naming the active WU and pointing at
+`/arc-shift` (conversationally invoked skill) as the primary recovery via `shift-with-activation`
+dispatch; (c) fallback recovery via manual pause-then-activate for users who prefer explicit
+sequencing. Also explicitly generalizes the check to tracked Full, closing the mode-scope ambiguity
+that the section's § Mode 2 placement created. See § Single-Active-Unit Invariant § Enforcement.
 
 #### M5. Research Findings section has no Local entries · MEDIUM
 
@@ -5780,7 +5813,14 @@ files (standard `git stash`); uncommitted `.arc/` edits follow the "leave-as-is"
 by the next backing store sync. Add to § Mode 2 / What Changes vs. Tracked Full or as an annotation on
 the Resolved Decision row.
 
-**Status:** Open. Folds into final polish pass.
+**Status:** **Resolved 2026-04-13.** Added **Local-mode scope** paragraph to § Shift lifecycle (detail
+design) § Uncommitted work handling (two sentences) clarifying that `git stash` covers only tracked
+project-repo files and that uncommitted `.arc/` edits structurally ride **leave as-is** regardless of
+which option is chosen for tracked code — they remain in the working tree and are captured by the
+next `arcd backing sync` at session handoff. Placed at the shift-workflow semantics layer rather than
+§ Mode 2 § What Changes vs. Tracked Full (the original proposed location) because the clarification
+is about shift-workflow behavior across modes, not a Mode-2 feature change: the decision itself is
+unchanged; Local just has a wider scope of "uncommitted work" that includes untracked `.arc/` state.
 
 #### L3. Backing store privacy model is unspecified · LOW
 
@@ -5831,14 +5871,20 @@ three-way-merged Configurable-file decisions. See § Backing Store § More frequ
    folded into existing sections), and side-effect resolutions for L1, L3, L4, M2, and M3. Two
    external research passes ran during the walk (editor `@`-mention precedent, CLI state-dir
    idiomatic practice). Durable capture at § Mode 2 § Local Infrastructure Scenario Battery.
-4. **M4 + M5 + L2 consolidation pass** — remaining open items after H3. M4 (single-active enforcement
-   mechanism), M5 (Research Findings Local entries), L2 (pause + stash interaction in Local mode).
-   None were touched by H3 scenarios — they need a dedicated session, likely short. M5 can be
+4. **L2** — Resolved 2026-04-13. Local-mode scope paragraph added to § Shift lifecycle (detail
+   design) § Uncommitted work handling clarifying `git stash` coverage and leave-as-is structural
+   default for untracked `.arc/` edits.
+5. **M4** — Resolved 2026-04-13. Enforcement subsection added to § Single-Active-Unit Invariant:
+   activation workflow scans task list `Status` headers, error points at `/arc-shift` for
+   `shift-with-activation` recovery, check generalized to tracked Full.
+6. **M5** — remaining open item after H3, L2, and M4. M5 (Research Findings Local entries) can be
    partially filled by transcribing the two external research passes from the H3 walk into
-   § Research Findings new subsections.
-5. **Audit B — Content drift sweep** — final pre-PRD pass. Runs AFTER the M4 + M5 + L2 consolidation
-   pass fully drains. Do not start early; Audit B's scope depends on the final shape of the
-   already-resolved content.
+   § Research Findings new subsections (editor `@`-mention precedent, CLI state-dir idiomatic
+   practice), plus a brief note on `.git/info/exclude` clone-reset behavior if not already
+   covered. Likely short, but the research transcription is the substantive portion of the
+   consolidation pass.
+7. **Audit B — Content drift sweep** — final pre-PRD pass. Runs AFTER M5 fully drains. Do not
+   start early; Audit B's scope depends on the final shape of the already-resolved content.
 
 **Estimated remaining:** 1–2 sessions (consolidation pass + Audit B). Audit A section drains entirely
 when consolidation completes; only the Findings blocks with Resolved status remain as audit-tracking

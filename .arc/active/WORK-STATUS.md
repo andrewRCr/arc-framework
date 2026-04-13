@@ -16,78 +16,69 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Audit A H3 resolved — completed 2026-04-13.** Eleven-scenario Local
-infrastructure battery walked and integrated across four commits this session. Walk produced
-five new sub-findings (H3-N1 re-clone recovery command assignment, H3-N2 backing store health
-/ rebuild surface, H3-N4 fallback-chain / stickiness contradiction — HIGH, H3-N6 CI/dev tooling
-asymmetry, H3-N7 non-git directory handling), two tightenings to previously resolved content
-(H3-N3 cross-machine divergence power-user framing, H3-N5 sync failure three-class enumeration),
-and side-effect resolutions for L1, L3, L4, M2, and M3. Two external research passes informed
-the walk — editor `@`-mention precedent survey (confirmed intrinsic tradeoff; Zed's
-`file_scan_inclusions` is the sole clean path-scoped mitigation) and CLI state-directory
-idiomatic-practice survey (validated `chmod 700` on creation, warn-not-refuse semantics,
-docs-only remote privacy, and disk-level encryption delegation against OpenSSH, GnuPG, AWS CLI,
-restic, borg, chezmoi, pass, Obsidian). Durable walk capture lives at § Mode 2 § Local
-Infrastructure Scenario Battery.
+**Last Completed**: **Audit A L2 and M4 resolved.** One-commit consolidation-pass closure on
+`plan-arc-modes.md`. L2 landed as a Local-mode scope paragraph in § Shift lifecycle (detail
+design) § Uncommitted work handling clarifying that `git stash` covers only tracked project-repo
+files and that untracked `.arc/` edits structurally ride **leave as-is** regardless of which
+option the user chooses for tracked code — they remain in the working tree and are captured by
+the next `arcd backing sync` at session handoff. Placed at the shift-workflow semantics layer
+rather than § Mode 2 § What Changes vs. Tracked Full because the clarification is about
+shift-workflow behavior, not a Mode-2 feature change. M4 landed as a new **Enforcement**
+subsection under § Single-Active-Unit Invariant specifying (a) enforcement locus at the
+activation workflow (`activate-work-unit.md`), which scans `active/` task list `Status` headers
+before proceeding — not any specific CLI command, so every invocation surface inherits the check
+uniformly; (b) error message naming the active WU and pointing at `/arc-shift` (conversationally
+invoked skill) as the primary recovery via `shift-with-activation` dispatch; (c) fallback
+recovery via manual pause-then-activate for users who prefer explicit sequencing. Explicitly
+generalized the check to tracked Full, closing the mode-scope ambiguity that the section's
+§ Mode 2 placement created. Sequencing Plan updated: L2 and M4 promoted to their own rows; only
+M5 remains from Audit A before Audit B can begin.
 
-**Four-commit structural integration this session:**
+**Key design corrections during the pass:**
 
-+ **Commit 1** (`1485800`) — scenario walk and new finding blocks captured as § Audit A
-  workspace.
-+ **Commit 2a** (`39195b1`) — small structural edits: § Init Flow Implications non-git
-  preconditions (H3-N7); § Agent and Editor Discoverability full rewrite with minor-disruption
-  framing, per-editor mitigation table, session-init scaffolding context, and tooling-asymmetry
-  note (L1, H3-N6); § Backing Store three-class failure enumeration (H3-N5); `arc update` added
-  as sync firing point (L4); § Cross-machine conflict story power-user manual framing (H3-N3).
-+ **Commit 2b** (`9dfdba9`) — § Re-Clone UX § Project identity rewritten. File-first precedence,
-  pinned-ID-file generalization, resolver-time auto-detect, three-way migration prompt
-  (`[M]igrate / [S]tay / [L]ater`), and `arc project-id migrate` command shape all landed.
-  H3-N4 resolved; closes M2 and M3. No mirror needed in § Configuration Identity — Local Axis.
-+ **Commit 2c** (`8a61fd1`) — § Durability-Layer Commands `arcd backing status` health check
-  expansion, new `arcd backing sync --rebuild` bullet, and new § Session-init Local-axis
-  pre-check subsection (H3-N1, H3-N2); § Backing Store § Privacy model grounded in external
-  research (L3).
-+ **Commit 3a** (this commit) — migrated scenario walk from § Audit A workspace to § Mode 2
-  durable content; marked H3 and sub-findings Resolved; closed L1 / L3 / L4 / M2 / M3 with
-  Resolved status pointing at their structural sections; updated Sequencing Plan. Workspace
-  cleanup netted −64 lines despite durable content being the same material — the compact
-  Resolved H3 block replaced ~300 lines of working-process framing.
++ **L2 placement decision** — chose § Shift lifecycle (detail design) § Uncommitted work
+  handling over the handoff's proposed § Mode 2 § What Changes vs. Tracked Full. The
+  clarification is about shift-workflow semantics across modes, not a Mode-2 feature change:
+  the underlying decision is unchanged; Local just has a wider scope of "uncommitted work"
+  that includes untracked `.arc/` state.
++ **M4 enforcement locus** — named the activation workflow rather than "the CLI" per
+  user-confirmed framing. The workflow is the behavioral contract; the CLI is just an
+  invocation surface. Every entrypoint that reaches activation (CLI, skill, direct workflow
+  execution) inherits the check uniformly.
++ **M4 recovery path corrected** — handoff proposed a two-step manual path
+  (`arc-shift {wu} --pause --reason "{r}"` then re-run activation). Corrected to invoke
+  `/arc-shift` as a conversationally-invoked skill (per L3559, L3853 — `/arc-shift` is a
+  thin skill backed by `shift-work-unit.md`, not a CLI command with flags) and use the
+  `shift-with-activation` dispatch that already exists in the workflow design (L3753). The
+  shift-with-activation transition handles pause + activation in one coordinated walk, which
+  is cleaner UX than a two-step manual path. The manual pause-then-activate remains available
+  as a fallback for users who prefer explicit sequencing.
++ **M4 scope generalization** — added explicit "same check applies to tracked Full" sentence
+  closing the mode-scope ambiguity created by § Single-Active-Unit Invariant's placement under
+  § Mode 2. The invariant and enforcement are mode-universal; shift lifecycle is the mechanism
+  that makes the constraint livable, and both modes share the same enforcement locus.
 
-**Key design-level outputs (not just findings closed):**
-
-+ **Pinned project ID file** generalizes the UUID file concept: format-agnostic (any ID
-  string), file-first precedence in the fallback chain is the stickiness mechanism, auto-write
-  on UUID case, user-written on [S]tay migration, present-means-sticky universally.
-+ **Session-init Local-axis pre-check** — new subsection under § Durability-Layer Commands that
-  queries `arcd backing status` at orientation time, halts on missing `.arc/`, warns on
-  degraded state. Converges H3-N1, H3-N2, and H3-N5 into one feature.
-+ **`arcd backing status` as canonical degraded-state source** — health, staleness, and
-  permission checks all in one command. Replaces the pre-H3 "failure recorded in SESSION-NOTES"
-  dual-source framing.
-
-**Still open from Audit A:** M4 (single-active enforcement mechanism — which layer enforces,
-error text, recovery path), M5 (Research Findings section has no Local entries — partially
-fillable from this session's two research passes), L2 (pause + stash interaction in Local mode —
-untracked `.arc/` edits vs. `git stash` semantics). None were touched by H3 scenarios; they
-need a dedicated consolidation session. After consolidation: Audit B (content drift sweep) as
-the final pre-PRD pass.
+**Still open from Audit A:** M5 (Research Findings section has no Local entries) — can be
+partially filled by transcribing this session's two prior-handoff-noted external research passes
+(editor `@`-mention precedent survey from H3 walk scenario 7; CLI state-directory idiomatic
+practice survey from H3 walk scenario 10) into new § Research Findings subsections, plus a brief
+note on `.git/info/exclude` clone-reset behavior if not already covered. After M5 drains, Audit
+A section deletes entirely (only the Findings blocks with Resolved status remain as
+audit-tracking artifacts), and Audit B (content drift sweep) becomes the final pre-PRD pass.
 
 **Blockers**: [none]
 
-**Next Action**: **M4 + M5 + L2 consolidation pass** — one short session closing the remaining
-three Audit A items. M4 needs a one-paragraph addition to § Single-Active-Unit Invariant naming
-the enforcement layer (likely CLI at activation time), the error text, and the recovery path
-(shift the existing WU to paused first). M5 can be partially filled by transcribing this
-session's editor-`@`-mention survey and CLI-state-dir idiomatic-practice survey into new
-§ Research Findings subsections. L2 needs a one-sentence carve-out in § What Changes vs. Tracked
-Full distinguishing `git stash` (tracked-only) from untracked `.arc/` edits (preserved via next
-backing store sync). Estimated: one short session. **Do not skip to Audit B early** — the
-consolidation pass may surface small additions that change what Audit B looks for.
+**Next Action**: **M5 consolidation** — transcribe H3 walk's editor `@`-mention precedent
+survey and CLI state-directory idiomatic practice survey into new § Research Findings
+subsections (the tool list + findings + sources format used by existing subsections fits
+cleanly). Also verify whether the existing `.git/info/exclude` re-clone behavior claim is
+already covered; if not, add a brief note. Scope: two new subsections (~30-50 lines each)
+plus possible third mini-note. Substantive content transcription, not fresh design work.
+After M5 drains, Audit A § Working deletes entirely and Audit B (content drift sweep) begins
+as the final pre-PRD pass — do NOT start Audit B early, its scope depends on M5's final shape.
 
-Plan doc size: 5314 → 5921 lines (+607 net across the session; −64 net on commit 3a from the
-workspace cleanup). Markdown lint clean across all four commits.
+Plan doc size: 5921 → 5967 lines (+46 net this commit). Markdown lint clean.
 
 ---
 
-**Last Updated**: 2026-04-13 (Audit A H3 resolved across four commits this session; M4 + M5 + L2
-consolidation pass remains before Audit B)
+**Last Updated**: 2026-04-13 (Audit A L2 and M4 resolved in one commit; M5 remains before Audit B)
