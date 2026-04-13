@@ -46,10 +46,16 @@ WU. See [`plan-arc-modes.md`][plan-doc] § Resolved Decisions rows for specific 
 
 **Tier 4 — validation + inventory:**
 
-- **#11** — install_config precision. Quick now that #8 is migrated.
-- **A1, A4** — Remaining unvalidated assumptions. Correct directly in the plan doc. (A2 and
-  A3 resolved and migrated in the 2026-04-10 Tier 1 batch.)
-- **R4** — Consolidated deliverable inventory. Once Tier 1–3 decisions have landed.
+- *#11 (install_config precision) resolved and migrated 2026-04-13. See [`plan-arc-modes.md`][plan-doc]
+  § Configuration Identity (Consumer read paths block).*
+- *A1 (hooks-already-local claim) confirmed via full githooks + arc-lib.sh read 2026-04-13. No plan
+  doc edit required; claim upgraded from unvalidated to verified. Co-verified with Finding #11.*
+- *A4 (template `arc:if` mechanism) fully subsumed by Findings #4/#5/#10/#12/R6 2026-04-13. No plan
+  doc edit required; plan already exercises the template render layer extensively.*
+- **R4** — Consolidated deliverables inventory. Once Tier 1–3 decisions have landed.
+- **Formal strategy audit pass** — newly promoted at Finding #12/R6 resolution on 3-of-4 drift-check
+  hit rate. Single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc
+  surfaces before closing pre-PRD.
 
 **Parking lot (revisit when touched, not blocking formalization):** Lite + external PM (plan
 OQ10), waiting-for taxonomy finalization (OQ12), long-pause staleness threshold (OQ13),
@@ -304,7 +310,7 @@ updated to point at the new subsection.
 
 ---
 
-### Finding 11 — `install_config` precision · 🟡
+### Finding 11 — `install_config` precision · ✅
 
 **Original:** Plan's "stored in the manifest's `install_config` (like `pm.mode` is now)" is
 imprecise. `InstallConfig` exists in `types.ts` with `project_name`, `pm_mode`, `tools`,
@@ -312,24 +318,36 @@ imprecise. `InstallConfig` exists in `types.ts` with `project_name`, `pm_mode`, 
 sync. Lite's install_type: does it live only in the manifest, only in `arc-config.yml`, or both?
 If only manifest, how do tools not invoking the CLI (hooks, session-init workflow) read it?
 
-**User position (2026-04-10):** Not sure. Needs deeper analysis and pro/con weighing.
+**Resolution (2026-04-13):** **Subsumed by Findings #8/#9/#10/#12 with one residual prose insertion.**
+Storage, plumbing, legacy migration, and naming questions were all resolved across the recipe-authority
+finding sequence. Plan § Configuration Identity L100-108 commits manifest-only storage
+(`install_config.install_type`); § Installation Type Recipe Mechanism L397-406 specifies
+`buildConfigMap()` flattening (`install_type → install.type`) as the in-memory plumbing parallel to
+existing `pm_mode → pm.mode` handling; L385/L401 specify legacy manifest migration
+(`install_type: "full"` default); L396-399 locks the naming convention (`install.type` dotted form as
+config-map key, `install_type` snake as manifest field). Final naming coordination with ARCd Rebrand
+WU remains a verify-during-implementation item.
 
-**Outstanding analysis (gates on #8):**
+**The consumer-enumeration question (hooks, workflows, agents read paths)** was answered implicitly
+across findings but not in a single explicit paragraph. Migration adds a new "Consumer read paths"
+prose block at the end of § Configuration Identity's resolved bullets, explicitly walking through all
+four consumer categories: CLI reads manifest directly; hooks do not need `install.type` directly and
+branch on other config keys with `arc_config_get`'s fallback handling missing sections cleanly;
+workflows/agents do not read `install.type` at runtime because template render at install time
+resolves mode-specific content (Mechanism B for session-lifecycle/process-task-loop, Mechanism A for
+initial-setup); recipe condition evaluation happens in-memory at CLI time via `buildConfigMap()`.
+Manifest-only storage is sufficient because the non-CLI consumers see `install.type` effects via
+already-resolved config keys and pre-rendered file content rather than a direct read surface.
 
-- Enumerate consumers of install mode: CLI (init, reconfigure, update), hooks (pre-commit,
-  commit-msg), workflows (session-init, process-task-loop, etc.), agents (document loading),
-  recipe (condition evaluation).
-- For each consumer, identify read path: can it read the manifest, or does it need
-  `arc-config.yml`?
-- Precedent: `pm.mode` is in both because hooks read `arc-config.yml` and the CLI reads the
-  manifest. If install mode has the same consumers, same pattern; if it only affects CLI, manifest
-  alone.
-- Naming: `install_type`, `install_mode`, `mode`, `arc_mode`? Coordinate with rebrand WU's
-  config naming work.
+**Verification basis:** Full read of `.arc/system/githooks/pre-commit` (343 lines),
+`.arc/system/githooks/commit-msg` (401 lines), and `.arc/system/scripts/arc-lib.sh` (78 lines, exposes
+`arc_config_get` via grep/cut/sed on `.arc/system/arc-config.yml`). Hook behavior branches on
+`branch.protection`, `team.mode`, `pm.mode`, `hooks.*` — none of which requires `install.type` visibility.
+Missing sections in Lite's rendered `arc-config.yml` (PM/team blocks stripped) default to
+Lite-appropriate values via `arc_config_get`'s second-argument fallback. Co-verified with A1.
 
-**Resolution:** *pending*
-
-**Migrated to plan doc:** *pending*
+**Migrated to plan doc:** ✅ "Consumer read paths" block inserted in § Configuration Identity (between
+the three resolved bullets and the "Still open" subsection) 2026-04-13.
 
 ---
 
@@ -551,48 +569,104 @@ something they have to think about."
 
 ## Unvalidated Assumptions
 
-### A1 — "Hooks (already local in nature)" in Local Unchanged list · 🔴
+### A1 — "Hooks (already local in nature)" in Local Unchanged list · ✅
 
 **Finding:** Plan's Local mode Unchanged list says "Hooks (already local in nature)." Directly
 contradicted by `analysis-conditional-content-architecture.md` § Local Mode: "Commit hooks — May
 be absent or drastically simplified (no task list co-staging if `.arc/` isn't tracked). 3-5
 shell conditionals or a mode-aware hook installation."
 
-**Outstanding analysis:**
+**Resolution (2026-04-13):** **Plan's claim is correct; analysis-file projection was wrong.** Full
+read of `.arc/system/githooks/pre-commit` (343 lines), `.arc/system/githooks/commit-msg` (401 lines),
+and `.arc/system/scripts/arc-lib.sh` (78 lines) confirms zero tracked-mode assumptions in hook logic.
 
-- Read the current pre-commit hook's task-list co-staging logic — what does it do, does it
-  actually break in Local mode?
-- Reconcile: either the plan's Unchanged claim is wrong, or the analysis is wrong, or both are
-  partially right.
-- Fix: update plan's Local mode section to accurately describe which hook behaviors change in
-  Local mode and which truly are unchanged.
+**Read surfaces used by hooks (enumerated):**
 
-**Resolution:** *pending*
+- `.arc/system/arc-config.yml` via `arc_config_get()` (grep/cut/sed on a local file) — path-based,
+  works identically under Local mode since `.arc/` stays in the working tree per Local mode design
+- `git config arc.role` — local git config, not tracked state
+- `git symbolic-ref --short HEAD` — branch name (local git)
+- `git diff --cached --name-only` / `git show ":$file"` — staged index contents (operates on whatever
+  git sees)
+- `.arc/active/*/tasks-*.md` glob and `.arc/active/WORK-STATUS.md` path check — filesystem operations
+  on local paths
 
-**Migrated to plan doc:** *pending*
+**Local mode behavior:** Under `.git/info/exclude` exclusion of `.arc/`, staged-file scans
+(`git diff --cached --name-only`) silently return empty for `.arc/*` paths because those files are
+never staged in the first place. CHECK 7 (modified task lists staged), CHECK 8 (task numbering format),
+CHECK 10 (WORK-STATUS co-staging), and CHECK 6 (contributor protected paths) degrade to vacuous no-ops
+— silently correct behavior, not incorrect. CHECK 1 (branch protection via `branch.protection`),
+CHECK 9 (meta-project refs in production code, which explicitly grep-excludes `^\.arc/`), and all
+`commit-msg` checks (format, context footer, subject length, body length) operate identically
+regardless of mode. Setup dependency `git config core.hooksPath .arc/system/githooks` is itself a
+local git config, not tracked.
+
+**Contradicted projection:** The analysis-file's "3-5 shell conditionals or mode-aware hook
+installation" projection assumed the hooks would need Local-mode-specific branching. They do not.
+The hooks need nothing — the graceful degradation of staged-file scans to vacuous no-ops under
+untracked `.arc/` provides correct behavior with zero code changes. Plan doc L2753-2756 already
+states this under Local Mode § Technical Approach; no additional plan-doc edit required beyond the
+eventual phrasing sweep if Local Mode's Unchanged list wants an explicit "verified 2026-04-13"
+provenance note.
+
+**Co-verified with Finding #11** (same full-read pass covered arc-lib.sh's `arc_config_get` fallback
+semantics, which are load-bearing for Lite's stripped-config degradation).
+
+**Migrated to plan doc:** Not required. Plan doc wording is already accurate. Claim upgraded from
+unvalidated to verified.
 
 ---
 
-### A4 — Template `arc:if` mechanism not discussed · 🟡
+### A4 — Template `arc:if` mechanism not discussed · ✅
 
 **Finding:** `analysis-conditional-content-architecture.md` projects "+4-8 template `arc:if`
 blocks for Lite" but the plan doesn't discuss template-render conditionals at all. Either the
 plan implicitly assumes template-variant files only (in which case the analysis's projection is
 off), or the plan should acknowledge the template-render layer.
 
-**Outstanding analysis:**
+**Resolution (2026-04-13):** **Fully subsumed by Findings #4, #5, #10, and #12/R6.** The plan-doc
+migration of those four findings not only acknowledges the template-render layer — it centers it as
+the primary mechanism for content-level mode differentiation (Mechanism B) with explicit code-path
+walkthroughs and composition analysis.
 
-- Read `src/lib/template/render.ts` — understand the `arc:if` template mechanism and its
-  operator set (`==`, `!=` per earlier code read).
-- Determine: does the plan's "template variant" preference (per Finding #5) subsume the template
-  `arc:if` use case, or are they complementary?
-- If complementary, enumerate where `arc:if` earns its keep (likely: individual config file
-  comment blocks, single-file docs with one or two mode-specific callouts).
-- Update plan to acknowledge both tools with guidance on when to use which.
+**Template pipeline references in the plan doc** (grep-verified 2026-04-13):
 
-**Resolution:** *pending*
+- **`needsRendering()`** at L1033, L1140, L1922, L2124, L2291, L2550, L3941 — confirmed as the
+  `.template.*` extension-matching gate in `lib/classification.ts`.
+- **`renderConditionals()`** at 13+ sites including L1019, L1039-1060 (direct read of
+  `lib/template/render.ts`), L1129-1141 (composition order
+  `renderConfigOverrides(renderConditionals(renderTokens(...)))`), L1731, L2125, L2171, L2292, L2551.
+- **`toOutputPath()`** at L1035, L2126, L2551 — confirmed as the `.template` segment stripper.
+- **Operator set and behavior verified** (`==`, `!=`, HTML-comment directives, YAML-safe blank-line
+  collapse) at L1039-1060.
 
-**Migrated to plan doc:** *pending*
+**Mechanism applications across findings:**
+
+- **Finding #4** (session-lifecycle) chose Mechanism B — `.template.md` rename for `session-init.md`
+  and `session-handoff.md`, 4 inline `arc:if` blocks in session-init.
+- **Finding #5** (process-task-loop) chose Mechanism B — `3_process-task-loop.template.md` already on
+  the template pipeline via pre-existing `team.mode`/`pm.mode` gates; Finding #5 adds `install.type`
+  axis gates at 4 regions, composing orthogonally.
+- **Finding #10** (arc-config.yml) chose Mechanism B — rename to `arc-config.template.yml`, 2
+  contiguous `arc:if` blocks gating `pm.mode` and `team.mode` sections.
+- **Finding #12/R6** (initial-setup) chose Mechanism A (purpose-built files in recipe buckets) based
+  on overlap-ratio inversion at ~35-40% retention. Mechanism A composes orthogonally with Mechanism B
+  — recipe buckets determine whole-file installation, template render determines within-file content
+  gating; both mechanisms coexist without conflict.
+
+**Three-way composition verified** at plan L2299-2300: `pm.mode` gates (pre-existing) + `team.mode`
+gates (pre-existing) + `install.type` gates (new) compose on the same file in
+`3_process-task-loop.template.md` without conflict or new code paths.
+
+**Projected block count:** Analysis file's "+4-8 blocks" projection was conservatively low. Current
+count across Findings #4/#5/#10 is ~10-11 blocks with multi-gate nesting — within the right order of
+magnitude; upside variance came from Finding #5's process-task-loop having higher Lite/Full overlap
+than the original analysis expected. Zero render-pipeline code changes required across all four
+mechanism applications.
+
+**Migrated to plan doc:** Not required. Plan doc already acknowledges and exercises the template
+render layer extensively. Assumption upgraded from unvalidated to verified via code and plan
+cross-reference.
 
 ---
 

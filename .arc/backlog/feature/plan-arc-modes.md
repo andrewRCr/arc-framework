@@ -119,6 +119,27 @@ even exist. The decisions:
   different content per install type via `arc:if` directives — is specified in [Lite Config Template
   Mechanism](#lite-config-template-mechanism) below.
 
+**Consumer read paths.** The `install_type` value has one authoritative storage location (the manifest)
+but consumers learn about it through different paths based on what they actually need:
+
+- **CLI (`init`, `update`, `reconfigure`)** reads the manifest directly. `buildConfigMap()` flattens
+  `install_type → install.type` for in-memory recipe condition evaluation and template rendering.
+- **Hooks (`pre-commit`, `commit-msg`)** do not read `install.type` directly. Hook behavior branches on
+  other config keys (`branch.protection`, `team.mode`, `pm.mode`, `hooks.*`) already present in
+  `arc-config.yml`. In Lite, the rendered config strips the PM and team sections — missing keys default
+  to Lite-appropriate values (`"none"`, `"false"`) via `arc_config_get`'s fallback argument in
+  `arc-lib.sh`. No hook logic change required.
+- **Workflows and agents** do not read `install.type` at runtime. The template render pass resolves
+  mode-specific content at install time (Mechanism B for session-lifecycle and process-task-loop per
+  [Lite Session Management](#lite-session-management) and [Lite
+  Process-Task-Loop](#lite-process-task-loop); Mechanism A purpose-built files for initial-setup per
+  [Lite Initial Setup](#lite-initial-setup)). The agent never sees `arc:if` markers in installed content.
+- **Recipe condition evaluation** happens in-memory at CLI time through `buildConfigMap()`. Not a
+  runtime consumer.
+
+Manifest-only storage is sufficient because hooks, workflows, and agents do not need a read surface for
+`install.type` — they see its effects via already-resolved config keys and pre-rendered file content.
+
 **Still open:** Lite + `pm.mode: external` interaction. There's no reason you couldn't use Lite execution
 discipline with an external tracker — but what concrete value does `external` mode provide in Lite, given
 there's no integration workflow or lifecycle to hook into? May reduce to "different context footer
