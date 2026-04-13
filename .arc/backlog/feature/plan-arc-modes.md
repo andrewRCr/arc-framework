@@ -3169,6 +3169,44 @@ only if the developer loses their home directory (at which point much else is al
 `backlog/` (if `pm.mode` is `arc-pm`), archived work, and configuration. Backup is comprehensive;
 restoration is exact.
 
+**Privacy model.** The backing store contains the full `.arc/` snapshot — PRDs, design docs, session
+notes, and potentially in-progress work that has not been committed to the project repo. ARC's
+privacy posture follows idiomatic CLI-tool practice rather than inventing new mechanisms. Three
+surfaces:
+
+- **Local filesystem permissions.** `arc init --local` creates `~/.arc-state/{project-id}/` with
+  mode 700 on Linux and macOS at creation time, matching OpenSSH, GnuPG, and AWS CLI (the last after
+  [Issue #7369][aws-7369]). `arcd backing status` includes a permission check — if the directory
+  is more permissive than 700 (Linux/macOS only), status reports a warning but does not refuse to
+  run. Hard-refuse on permissive perms is reserved for security-critical tools (SSH, GnuPG) where
+  the state is key material; for a methodology tool, warn-but-run is proportionate — GnuPG's
+  pattern for non-critical operations. Windows inherits user-only ACLs from the home directory;
+  ARC does not set ACLs explicitly, which is not the idiomatic pattern on Windows.
+- **Remote backing store privacy.** A configured git remote on the backing store **MUST be a
+  private repository**. ARC does not verify this programmatically — no comparable CLI tool does. A
+  2026-04-13 survey of [restic], [borg], [git-crypt], [chezmoi-encryption], [pass], and yadm found
+  zero tools that programmatically check remote repo visibility; all defer to user responsibility
+  with documentation-only guidance. Programmatic verification would require host-specific API
+  calls (GitHub/GitLab only, auth tokens, network dependency, no self-hosted support) and has no
+  ecosystem precedent. `arcd backing push` prints a loud one-line reminder on first invocation
+  against a new remote, then trusts the user thereafter.
+- **At-rest encryption.** Not provided by ARC. Methodology documentation is not a secret in the
+  [pass] / [restic] / [borg] sense — those tools encrypt because they handle credentials or backup
+  data destined for untrusted storage. ARC's content model is closer to [Obsidian][obsidian-enc],
+  Logseq, and git itself, all of which store plaintext on disk and delegate encryption to the disk
+  layer (FileVault, LUKS, BitLocker, dm-crypt). This is the boundary every mainstream note-taking
+  and documentation tool draws; encrypt-by-default is overreach for ARC's threat model.
+
+**Power-user option: `git-crypt` on the backing store.** Because `~/.arc-state/{project-id}/` is a
+standard git repository, users with elevated threat models (e.g., remote backing store on shared or
+semi-trusted infrastructure) can wire [`git-crypt`][git-crypt] manually for per-file encryption of
+sensitive content. ARC does not ship this integration — setup is standard `git-crypt` procedure
+inside the backing store repo, unaffected by ARC's operations. [chezmoi's optional encryption
+model][chezmoi-encryption] is the closest reference for how ARC could later integrate opt-in
+encryption as a follow-on feature; this is out of scope for the modes WU.
+
+Resolves finding L3 (privacy model unspecified).
+
 ### Single-Active-Unit Invariant
 
 Local Full (and Local Lite, trivially) is constrained to a single in-progress work unit at a time. The
@@ -4291,9 +4329,25 @@ introduced by the [ARCd Rebrand][arcd-rebrand] WU:
   configured remote. `pull` is ref-only (non-destructive fetch into remote-tracking refs);
   `restore` is the separate replay step, kept distinct so fetching and overwriting are two
   deliberate actions.
-- `arcd backing status` — reports last sync time, dirty/clean state relative to `.arc/`, and
-  remote configuration. Useful for orientation but not load-bearing for session-handoff or
-  recovery. Full behavior spec deferred to implementation.
+- `arcd backing status` — **canonical source of backing store degraded-state information.**
+  Reports existence and git-repo validity of the backing store directory, HEAD resolution and a
+  cheap integrity check (`git fsck --connectivity-only` or equivalent), last sync time,
+  dirty/clean state relative to `.arc/`, staleness (sessions since last successful sync), sync
+  class if the last sync was a failure (see § Backing Store § Failure handling), and remote
+  configuration. Reports one of `healthy`, `degraded`, `missing`, or `corrupt` as a summary
+  verdict. Includes a permission sanity check on Linux/macOS (warns if directory mode is more
+  permissive than 700 — see § Backing Store § Privacy model). Load-bearing for session-init
+  Local-axis pre-check — see § Session-init Local-axis pre-check below. Full spec deferred to
+  implementation; the enumerated surfaces above are the minimum required contract. Resolves
+  Audit A sub-finding H3-N2 (health and corruption surface).
+- `arcd backing sync --rebuild` — re-initializes the backing store from current `.arc/`
+  content when the store is destroyed, corrupted, or missing but source is intact. Creates a
+  fresh store at the project ID key with current `.arc/` as its first commit, printing a loud
+  warning that prior backing store history is lost. Command shape (flag vs. dedicated
+  subcommand) is implementation-phase work; the operation itself is required. Asymmetric
+  recovery rule: `.arc/` intact + store broken → rebuild from `.arc/`; store intact + `.arc/`
+  broken → `arcd backing restore`; both broken → remote only, else data loss. Resolves Audit A
+  sub-finding H3-N2 (rebuild path).
 
 **What is not installed in Local mode.** `arc user save/load/push/pull` and `arc sync` are not
 installed at all in Local mode. Typing one errors with "this command is not available in Local
@@ -4358,9 +4412,48 @@ cost at graduation; no lookup burden during normal use.
 
 **Coordination with ARCd Rebrand WU.** The `arcd` namespace (and the `arcd backing *` commands
 specifically) lands in the rebrand WU's CLI-surface work. The Modes WU commits to the
-namespace decision and to the five verbs that session-handoff, recovery, and orientation
-require (`sync`, `restore`, `push`, `pull`, `status`). Full spec (help text, exit codes, flag
-surfaces, error message copy) is implementation-phase work coordinated with the rebrand WU.
+namespace decision and to the verb set that session-handoff, recovery, and orientation
+require (`sync`, `restore`, `push`, `pull`, `status`, and a rebuild path whose exact shape —
+`sync --rebuild` flag vs. dedicated subcommand — is implementation-phase work). Full spec
+(help text, exit codes, flag surfaces, error message copy) is implementation-phase work
+coordinated with the rebrand WU.
+
+**Session-init Local-axis pre-check.** Session-init's counterpart to
+`session-handoff.template.md`'s mode-gated persist step (Consolidated Deliverables Inventory
+item #24). Where handoff writes to the durability layer, init reads from it — both branch on
+`backing.type` and invoke the mode-appropriate surface.
+
+The pre-check runs before standard document loading in `session-init.md`, gated on
+`arc:if backing.type == local`:
+
+1. **Check `.arc/` presence.** If absent or empty, halt with "Local-mode install detected but
+   `.arc/` is missing. Run `arc init --local` to restore from backing store before resuming."
+   Exits cleanly without attempting to load any ARC document set — the docs do not exist yet.
+   Pairs with the idempotent `arc init --local` recovery command path specified in § Re-Clone
+   UX § Recovery command.
+2. **Query `arcd backing status`.** Captures the backing store's current state (`healthy`,
+   `degraded`, `missing`, `corrupt`) plus staleness (sessions since last successful sync).
+   Non-fatal: a degraded status does not halt session-init.
+3. **Surface degraded state in the orientation summary.** If status is anything other than
+   `healthy` with zero staleness, the orientation includes a line naming the condition and the
+   recommended recovery command. Examples:
+    - "Backing store status: degraded — last sync failed (class C, non-FF push). Run
+      `arcd backing pull` then resolve divergence before next handoff."
+    - "Backing store status: stale by 3 sessions — run `arcd backing sync` to catch up."
+    - "Backing store status: corrupt — run `arcd backing sync --rebuild` to re-initialize
+      from current `.arc/` state."
+4. **Continue with normal session-init** (document set loading, work state reporting, next
+   action) unless step 1 halted.
+
+The split between step 1 (halts) and step 3 (warns) is deliberate: missing `.arc/` means
+session context cannot be loaded at all, so proceeding is impossible; degraded backing store
+means session context exists but durability is compromised, which the user should know about
+but should not block continued work. `arcd backing status` is the single query point — no
+duplicate state markers in SESSION-NOTES or elsewhere.
+
+Resolves Audit A sub-finding H3-N1 (session-init pre-check companion path) and consumes
+tightening H3-N5's three-class failure model from § Backing Store § Failure handling as the
+content this pre-check surfaces in step 3.
 
 ### Forbidden Combinations
 
@@ -5883,3 +5976,10 @@ Lite keeps and what it drops.
 [conditional-content-analysis]: ../../reference/analysis/analysis-conditional-content-architecture.md
 [vscode-103570]: https://github.com/microsoft/vscode/issues/103570
 [vscode-43505]: https://github.com/microsoft/vscode/issues/43505
+[aws-7369]: https://github.com/aws/aws-cli/issues/7369
+[pass]: https://www.passwordstore.org/
+[restic]: https://restic.net/
+[borg]: https://www.borgbackup.org/
+[obsidian-enc]: https://forum.obsidian.md/t/can-i-encrypt-a-vault/33645
+[git-crypt]: https://github.com/AGWA/git-crypt
+[chezmoi-encryption]: https://www.chezmoi.io/user-guide/encryption/
