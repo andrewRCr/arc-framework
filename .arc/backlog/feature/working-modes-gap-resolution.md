@@ -52,10 +52,13 @@ WU. See [`plan-arc-modes.md`][plan-doc] § Resolved Decisions rows for specific 
   doc edit required; claim upgraded from unvalidated to verified. Co-verified with Finding #11.*
 - *A4 (template `arc:if` mechanism) fully subsumed by Findings #4/#5/#10/#12/R6 2026-04-13. No plan
   doc edit required; plan already exercises the template render layer extensively.*
-- **R4** — Consolidated deliverables inventory. Once Tier 1–3 decisions have landed.
-- **Formal strategy audit pass** — newly promoted at Finding #12/R6 resolution on 3-of-4 drift-check
-  hit rate. Single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc
-  surfaces before closing pre-PRD.
+- *R4 (consolidated deliverables inventory) resolved and migrated 2026-04-13. See
+  [`plan-arc-modes.md`][plan-doc] § Consolidated Deliverables Inventory. ~56 deliverables across
+  10 domains. ADR grouping commitment absorbed as sub-resolution (two ADRs, not four).*
+- **Formal strategy audit pass** — promoted at Finding #12/R6 resolution on 3-of-4 drift-check hit
+  rate. Single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc surfaces
+  before closing pre-PRD. **Sole remaining pre-PRD item.** Deferred to next session per user
+  direction on 2026-04-13.
 
 **Parking lot (revisit when touched, not blocking formalization):** Lite + external PM (plan
 OQ10), waiting-for taxonomy finalization (OQ12), long-pause staleness threshold (OQ13),
@@ -710,7 +713,7 @@ workflow; descope guard retained but analysis did not surface material complexit
 
 ---
 
-### B4 — Absent consolidated deliverable inventory · 🟡
+### B4 — Absent consolidated deliverable inventory · ✅
 
 **Finding:** Scanning the plan I count ~18–20 discrete deliverables (scope template, Lite/Local
 config templates, two new workflows, two new skills, Lite session-init variant, Lite
@@ -719,12 +722,48 @@ task-list-formatting strategy, manifest schema extension, recipe schema extensio
 mechanism, re-clone detection, forbidden-combinations validation, content audit, phrasing sweep,
 etc.). No consolidated list exists.
 
-**Resolution:** Build the list once Tier 1–3 decisions have landed. Format: flat list grouped by
-Lite / Local / Shift / Cross-cutting / CLI+manifest / Content sweep. Sized roughly per item
-where possible. Insert as new section near the end of `plan-arc-modes.md` — gates formalization
-readiness.
+**Resolution (2026-04-13):** **Migrated to plan doc as new § Consolidated Deliverables Inventory.**
+Final item count is **~56 deliverables**, meaningfully higher than B4's original ~18-20 estimate.
+The gap is because Tier 1-3 resolution (especially Findings #8/#9/#10 recipe-authority mechanisms
+and Finding #6 strategy applicability mapping) decomposed mechanism decisions into per-file,
+per-surface work items that didn't appear in the original scan. Framework content files (workflow
+`.template.md` renames, strategy classifications, skill surfaces, CLI command structures) that were
+single line-items in B4's estimate became multi-item entries with explicit mechanism citations.
 
-**Migrated to plan doc:** *pending*
+**Grouping:** 10 domains instead of B4's proposed 6 — CLI and schema, workflows (new), workflows
+(modified), templates, config, strategies, skills, shift lifecycle, cross-cutting, ADRs, content
+sweep. Adopted this structure because it surfaces implementation structure (which team/task
+categories own which deliverables) rather than mode-ownership. B4's "Lite / Local / Shift /
+Cross-cutting / CLI+manifest / Content sweep" structure would group by which mode introduces the
+work, but that mode ownership is already captured per-item in the cross-references. The
+implementation-structure grouping is more useful for PRD task generation.
+
+**Sizing:** Intentionally out of scope for R4 per B4's own scope boundary. Content audit and
+phrasing sweep sizing remain owned by Finding B1 above (unresolved, Tier 4 close-out item).
+
+**ADR grouping decision absorbed as sub-resolution.** During R4 migration, decided pre-PRD on the
+ADR grouping question that plan doc had been hedging ("likely combined … PRD decides based on
+writing economy"). Committed to **two ADRs, not four**: ADR 1 umbrella covering Findings #8/#9/#10
+mechanism siblings (with Findings #12/R6, #4, #5 as applied examples documented inline), ADR 2
+separate for shift lifecycle. Motivation: committing pre-PRD avoids a second PRD-time design pass
+and lets the PRD task structure pin down cleanly (two ADR tasks, not four). Plan doc Resolved
+Decisions table updated accordingly — new "ADR grouping for modes WU deliverables" row added,
+L4400 "ADR authoring for Framing C" and L4410 "ADR authoring for Lite config template mechanism"
+updated to point at the committed grouping, L4357 "ADR authoring for integrate × shift states"
+drift fix (previously cross-referenced Findings #8/#9/#10 which was semantic drift — shift
+lifecycle is separate from recipe-authority).
+
+**New reasoning pattern surfaced — first occurrence, watch for second:** *"lift a PRD-deferred
+design question back into pre-PRD when an adjacent work item's migration makes the cost of
+leaving it deferred higher than the cost of resolving it now."* In this case: R4 inventory
+migration surfaced four ADR deliverables, and resolving the grouping question during inventory
+authoring was trivial (one decision pass) while leaving it to PRD time would have forced the PRD
+to rewrite the inventory's ADR section. Similar patterns may exist in Tier 4 (formal strategy
+audit pass — may surface drift questions that fold into the audit rather than deferring).
+
+**Migrated to plan doc:** ✅ New § Consolidated Deliverables Inventory inserted between § Content
+Audit and § Resolved Decisions 2026-04-13. Resolved Decisions table updated with the committed ADR
+grouping row and R4 migration row.
 
 ---
 

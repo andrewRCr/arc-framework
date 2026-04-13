@@ -16,44 +16,74 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Tier 4 validation batch 1 — Findings #11 / A1 / A4 resolved.** Full
-githooks + `arc-lib.sh` read (pre-commit 343 lines, commit-msg 401 lines, arc-lib.sh 78 lines)
-verified zero tracked-mode assumptions in hook logic — degradation mode for `.arc/active/*`
-staged-file scans under Local mode (`.git/info/exclude` applied) is graceful silent no-op via
-`git diff --cached` returning empty for untracked paths. Plan doc cross-reference verified that
-the template render layer (`needsRendering()` / `renderConditionals()` / `toOutputPath()`) is
-exercised across Findings #4/#5/#10/#12/R6 with 13+ citation sites and direct reads of
-`lib/template/render.ts` at L1039-1060. **Finding #11 closes subsumed with one plan-doc prose
-insertion:** new "Consumer read paths" block added between § Configuration Identity's resolved
-bullets and the "Still open" subsection, explicitly walking through CLI / hooks / workflows /
-recipe consumer read paths. Manifest-only storage sufficient because hooks branch on other config
-keys with `arc_config_get` fallback handling missing Lite sections cleanly, and workflows/agents
-see install.type effects via pre-rendered content rather than a direct read surface. **A1 closes
-confirmed with no plan-doc edit** — plan L2753-2756 already states Local Mode hook behavior
-accurately. **A4 closes fully subsumed with no plan-doc edit** — plan doc centers the template
-render layer as the primary mechanism for content-level mode differentiation (Mechanism B),
-complementary to Mechanism A's recipe-bucket approach for structurally-distinct files. **Co-
-verification pattern:** the same full-read pass resolved both #11 and A1, which is why the two
-close together — they both hinge on `arc_config_get`'s fallback semantics for Lite's stripped
-config. Three Tier 4 items resolved in a single atomic commit; two remain (R4, formal strategy
-audit pass) plus the pending second commit for R4 migration and ADR grouping commitments.
+**Last Completed**: **Tier 4 validation batch 2 — R4 consolidated deliverables inventory migrated,
+ADR grouping committed, working doc B4 resolved.** New plan-doc § Consolidated Deliverables
+Inventory inserted between § Content Audit and § Resolved Decisions, containing ~56 discrete
+deliverables organized into 10 domains: CLI and schema, workflows (new files), workflows
+(modified via `.template.*` rename + inline `arc:if`), templates, config, strategies, skills,
+shift lifecycle, cross-cutting, ADRs, content sweep. Item count meaningfully higher than working
+doc B4's original ~18-20 estimate because Tier 1-3 mechanism resolutions (Findings #8/#9/#10 and
+Finding #6 strategy mapping) decomposed into per-file, per-surface work items that didn't appear
+in the original scan. Grouping structure (10 domains) adopts implementation-focus over B4's
+proposed mode-ownership axis because mode ownership is already captured per-item via section
+cross-references, and implementation-structure groups map more directly onto PRD task generation.
+**Sizing intentionally out of scope** — remains owned by Finding B1 (content audit and phrasing
+sweep sizing), still unresolved.
+
+**ADR grouping committed pre-PRD — two ADRs, not four.** Absorbed as a sub-resolution during R4
+migration because leaving the grouping question deferred would have forced the PRD to rewrite
+R4's ADR section. **ADR 1 "Recipe as Authoritative Install-Time Specification"** umbrella covers
+three mechanism siblings (Findings #8 whole-file installation, #9 prompt orchestration, #10
+within-file content rendering). Findings #12/R6 (initial-setup Mechanism A), #4 (session-lifecycle
+Mechanism B), and #5 (process-task-loop Mechanism B) documented inline in ADR 1's Decision
+section as applied examples, not separate ADRs — shared Context, sequential build-on-each-other,
+shared code paths, supersede-together. **ADR 2 "Shift Lifecycle"** separate — state model, Pure
+Option C, vocabulary, metadata-in-place approach; integrate × shift states as behavioral
+extension in Decision section. Plan doc Resolved Decisions table updated: two new rows added (ADR
+grouping commitment + R4 migration), three existing rows updated (L4382 ADR sequencing, L4400
+Framing C ADR, L4410 Lite config template ADR all point at committed grouping), one drift fix
+(L4357 integrate × shift states ADR previously cross-referenced Findings #8/#9/#10 which was
+semantic drift — shift lifecycle is semantically separate from recipe-authority).
+
+**Session arc:** Three session segments today. Segment 1 (pre-departure) evaluated Findings #11,
+A1, A4, R4 in one batch. Segment 2 (post-return) confirmed leans, discussed ADR grouping, and
+committed to two-ADR umbrella structure pre-PRD. Segment 3 (migration) landed Commit A (#11 prose
+insertion + A1/A4 working-doc closes) and Commit B (R4 inventory + ADR grouping + B4 close).
+**Tier 4 state: four of five items resolved.** Sole remaining: formal strategy audit pass
+(single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc surfaces),
+deferred to next session per user direction.
+
+**New reasoning pattern surfaced this session — first occurrence, watch for second:** _"lift a
+PRD-deferred design question back into pre-PRD when an adjacent work item's migration makes the
+cost of leaving it deferred higher than the cost of resolving it now."_ R4 inventory migration
+surfaced four ADR deliverables; resolving the grouping question during inventory authoring was
+trivial (one decision pass) while deferring to PRD time would have forced a rewrite. Captured in
+working doc B4 resolution. Watch for second occurrence during formal strategy audit pass (may
+surface drift questions that fold into the audit rather than deferring).
+
+Two earlier unpromoted observations from Finding #12/R6 session
+(content-audit-first-vs-mechanism-first reframe, opt-in as light-reopening pattern) still at one
+occurrence each — no second occurrence this session, but the session's work was not mechanism-
+selection or commitment-refinement in shape, so neither had a natural opportunity to recur.
 **Blockers**: [none]
-**Next Action**: **Commit B of this session's Tier 4 batch** — migrate R4 consolidated
-deliverables inventory (~58 items grouped by CLI/workflows/templates/config/strategies/skills/
-shift/cross-cutting/ADRs/content-sweep) as new plan-doc § Consolidated Deliverables Inventory
-between § Content Audit and § Resolved Decisions; commit ADR grouping decisions (two ADRs, not four:
-**ADR 1** "Recipe as Authoritative Install-Time Specification" umbrella covering the three
-mechanism-sibling findings (#8, #9, #10) plus applied examples from #12/R6, #4, and #5; **ADR 2**
-"Shift Lifecycle" covering state model, vocabulary, metadata-in-place with integrate × shift states
-as behavioral
-extension); update Resolved Decisions table (remove L4122 Framing C ADR row and L4132 Lite config
-template ADR row as superseded, add two committed rows for the grouping decision + R4 migration,
-update L4079 drift fix on shift-lifecycle ADR cross-reference); close working doc B4. Then the
-remaining Tier 4 item is the **formal strategy audit pass** (single comprehensive sweep of all 10
-framework strategies), deferred to next session per user direction. Estimate unchanged: one more
-session after Commit B to reach PRD-ready `plan-arc-modes.md` depending on audit surface size.
+**Next Action**: **Formal strategy audit pass (Tier 4 close-out).** Single comprehensive sweep of
+all 10 framework strategies for Full-coupled in-doc surfaces before closing pre-PRD. Priority
+order: **needs-variant strategies first** (`strategy-session-operations`,
+`strategy-task-list-formatting`, `strategy-work-organization`, `strategy-work-planning`) — known
+drift surfaces already documented, verify no additional surfaces; then **applies-as-is strategies
+second** (`strategy-adr-methodology`, `strategy-configurability-architecture`,
+`strategy-file-classification`, `strategy-quality-gates`) — scan for unknown drift; **excluded
+strategies skipped** (`strategy-team-coordination`, `strategy-planning-module`). Per-strategy
+decision: fix inline (dual-value prose like L87 fix) or mark needs-variant (escalate to
+finding-level drift fix). Expected surface based on 3-of-4 drift-check hit rate: ~5-10 additional
+drift points total. Apply `/arc-task-audit`-adjacent discipline: read end-to-end, grep for
+`META-PRD`, `TECHNICAL-OVERVIEW`, `work-unit-lifecycle`, `integrate-work-unit`, `archive-work-unit`,
+`backlog`, `ROADMAP`, `PROJECT-STATUS`, `team coordination`, `rotate-branch`, `shift`, `Paused`,
+`Integrated` — flag each hit for classification. Update § Strategy Applicability Mapping table
+with any reclassifications. **Estimate:** 1 session if audit surface is small (≤3 drift points),
+2 sessions if larger. After this pass, `plan-arc-modes.md` is PRD-ready.
 
 ---
 
-**Last Updated**: 2026-04-13 (Tier 4 batch 1: Findings #11 / A1 / A4 resolved, prose insertion at
-§ Configuration Identity Consumer read paths)
+**Last Updated**: 2026-04-13 (Tier 4 batch 2: R4 migrated + ADR grouping committed + B4 resolved;
+4-of-5 Tier 4 items done; formal strategy audit pass remaining)
