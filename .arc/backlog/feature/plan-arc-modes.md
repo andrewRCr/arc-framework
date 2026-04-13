@@ -3277,6 +3277,157 @@ Local Full: `arc-shift` feature-X (pause, reason "awaiting review from Alice, ex
 Activate feature-Y. When review lands, `arc-shift` back. Feature-Y resumes later. This is the scenario
 that single-active alone couldn't handle. Shift resolves it cleanly.
 
+### Local Infrastructure Scenario Battery
+
+Real scenarios tested against Local mode's infrastructure surface (durability, recovery, multi-machine
+coordination, and mode-specific edge cases). Parallels § Scenario Walk-Through above but covers a
+different concern: § Scenario Walk-Through exercises shift lifecycle over Local Full, this battery
+exercises the storage / identity / durability machinery. Each scenario lists the situation and the
+designed response, with forward references to the plan-doc section where the resolution lives.
+
+**Scenario 1 — Re-clone recovery.**
+
+_Situation._ Fresh clone of a previously Local-initialized repo on the same machine. `.arc/` is absent,
+`.git/info/exclude` is empty (reset on clone), hooks are gone from `.git/hooks/`, and the backing store
+at `~/.arc-state/{project-id}/` is intact.
+
+_Designed response._ Run `arc init --local` — it is idempotent and owns the full four-step recovery
+sequence (restore `.git/info/exclude`, replay backing store content via `arcd backing restore`,
+re-install hooks, report). Session-init's Local-axis pre-check detects missing `.arc/` on session start
+and surfaces this recovery path in the orientation summary before attempting to load any ARC document
+set. See § Re-Clone UX § Recovery command and § Durability-Layer Commands § Session-init Local-axis
+pre-check.
+
+**Scenario 2 — Backing store corruption.**
+
+_Situation._ `~/.arc-state/{project-id}/` exists but is damaged. Variants: git metadata broken
+(index/HEAD/objects partial), working-dir snapshot partial, whole directory missing, crashed lock file.
+
+_Designed response._ `arcd backing status` includes a health check that reports one of `healthy`,
+`degraded`, `missing`, or `corrupt` as a summary verdict, plus specific integrity surfaces (existence,
+HEAD resolution, `git fsck --connectivity-only`). When `.arc/` is intact but the backing store is
+broken, `arcd backing sync --rebuild` re-initializes the store from current `.arc/` content, losing
+prior history. Asymmetric recovery rule: `.arc/` intact + store broken → rebuild from `.arc/`; store
+intact + `.arc/` broken → `arcd backing restore`; both broken → remote only, else data loss. See
+§ Durability-Layer Commands § Local-mode surface.
+
+**Scenario 3 — Remote backing store conflict.**
+
+_Situation._ Machines A and B share a remote backing store; both push divergent local snapshots.
+
+_Designed response._ `arcd backing push` non-FF → prompts `arcd backing pull` → ref-only fetch →
+`arcd backing sync` refuses in the divergent state. Divergence resolution is deliberately power-user
+manual: `cd ~/.arc-state/{project-id}/` and use standard git tooling directly (`git reset --hard
+origin/{branch}` to prefer remote, `git push --force` to prefer local, or manual merge via standard
+git workflows). The backing store's git-repo nature makes dedicated ARC-specific resolution verbs
+redundant — they would cover strictly fewer cases than `git` does in the same directory. See
+§ Durability-Layer Commands § Cross-machine conflict story.
+
+**Scenario 4 — Project ID migration (UUID-keyed project acquires a remote).**
+
+_Situation._ Zero-commit repo with tertiary UUID project ID at `~/.arc-state/{uuid}/`. Repo later
+acquires a remote; developer wants migration to a remote-URL-keyed store for cross-machine sync.
+
+_Designed response._ UUID-case stickiness is automatic — the pinned-ID file at
+`.arc/system/.internal/project-id` was written at init time, so file-first precedence keeps the project
+on the UUID even after a remote is added. No silent re-keying, no data loss. To migrate proactively,
+run `arc project-id migrate`: computes old and new keys, refuses if a store already exists at the new
+key, copies old store content to the new-key location (does not move — orphan warning is louder than
+silent loss), rewrites or clears the pinned-ID file, reports the orphan for manual cleanup. See
+§ Re-Clone UX § Project identity.
+
+**Scenario 5 — Backing store sync failure → next-session recovery.**
+
+_Situation._ Session handoff fires `arcd backing sync`; the sync fails somewhere in the pipeline
+(before commit, after commit but before push, or with a non-fast-forward push conflict).
+
+_Designed response._ Three failure classes with distinct recovery characteristics. **Class A** (fail
+before local commit — disk full, permissions, lock contention): store stays clean, next sync rolls
+forward automatically. **Class B** (local commit succeeded, push failed transiently): next successful
+push catches up automatically. **Class C** (non-fast-forward push failure): requires manual resolution
+via the cross-machine conflict flow; does NOT recover automatically. `arcd backing status` is the
+canonical source of degraded-state information; session-init's Local-axis pre-check surfaces the class
+or staleness in the orientation summary. See § Backing Store § Failure handling and § Durability-Layer
+Commands § Session-init Local-axis pre-check.
+
+**Scenario 6 — `arc update` in Local mode.**
+
+_Situation._ Developer runs `arc update`. Framework files pull from the package, three-way-merge onto
+Configurable files. Writes land in the working-tree `.arc/`, untracked in Local mode.
+
+_Designed response._ `arc update` is a backing store sync firing point — successful updates (including
+three-way-merged Configurable files) sync the store before the command returns, ensuring the store
+captures the new framework state before the next session-handoff window. Prevents a home-dir-loss
+window from losing the user's merge decisions. See § Backing Store § More frequent sync.
+
+**Scenario 7 — Editor UX under agent use.**
+
+_Situation._ Developer working in an agent-enabled editor, wanting to reference `.arc/` files in agent
+chat via `@`-mention pickers or navigate `.arc/` via editor UI.
+
+_Designed response._ Agent file-reading machinery (Read/Grep/Glob) bypasses editor indexing entirely —
+core ARC operations work unchanged. Editor explorer views show untracked files by default in every
+mainstream editor (Zed, VS Code, JetBrains, Cursor). Session-init scaffolding gives the agent full path
+discoverability from STRATEGY-INDEX + filename conventions, so natural-language references ("check the
+plan doc for X") resolve to Glob/Grep without touching any editor picker. The only affected surface is
+quick-open / `@`-picker in editors that respect gitignore (notably VS Code); per-editor mitigations
+exist for users who want to eliminate the residual friction. See § Agent and Editor Discoverability.
+
+**Scenario 8 — CI pipeline cloning a Local-mode repo.**
+
+_Situation._ CI clones the project repo and runs build / test / lint. `.arc/` is absent (untracked);
+the backing store does not exist on CI runners.
+
+_Designed response._ By design, CI sees zero ARC content — the Local mode invariant. Commit-msg hook
+enforcement is local-only (same as tracked mode, not a Local regression), `git add -A` does not stage
+gitignored files, and CI does not install ARC in normal usage. One subtle asymmetry: project tooling
+that globs files may see `.arc/` on dev machines but not on CI, creating a lint / test surface
+asymmetry that confuses developers. Configure project linters / tests to explicitly exclude untracked
+ARC paths if symmetric behavior matters. Do not install Local mode in repos where CI depends on ARC
+operations. See § Agent and Editor Discoverability § Tooling asymmetry note.
+
+**Scenario 9 — Non-git repository handling.**
+
+_Situation._ Developer runs `arc init --local` (or `arc init` in tracked mode) in a directory with no
+`.git/` at all.
+
+_Designed response._ `arc init` (both modes) detects missing `.git/` and prompts: "This directory is
+not a git repository. ARC requires git for hooks and related setup. Initialize git now? [Y/n]" —
+default yes. On yes, runs `git init` and proceeds with the normal init flow (tertiary UUID fires
+because no commits exist yet in Local mode). On no, exits cleanly with a remediation message. See
+§ Init Flow Implications § Init preconditions.
+
+**Scenario 10 — Multi-user machine privacy.**
+
+_Situation._ Backing store at `~/.arc-state/{project-id}/` contains sensitive `.arc/` snapshots —
+PRDs, design docs, session notes, and in-progress uncommitted work. Visibility to other users on
+shared machines and to public / private remote git hosting are both in scope.
+
+_Designed response._ `arc init --local` creates the backing store with mode 700 on Linux / macOS
+(matching OpenSSH, GnuPG, AWS CLI). `arcd backing status` warns if perms drift above 700 but does not
+refuse to run — that discipline is reserved for security-critical tools. Remote backing store MUST be
+a private repository; ARC does not verify programmatically, matching industry norms across `restic`,
+`borg`, `git-crypt`, `chezmoi`, and `pass` (none of which verify remote visibility either). At-rest
+encryption is not provided — methodology documentation delegates to disk-layer encryption (FileVault,
+LUKS, BitLocker), matching Obsidian, Logseq, and git itself. Power users with elevated threat models
+can wire `git-crypt` manually inside the backing store repo. See § Backing Store § Privacy model.
+
+**Scenario 11 — Zero-commit → first-commit → remote transition.**
+
+_Situation._ Repo keyed on first-commit-hash (secondary fallback case — `arc init --local` ran when
+the repo had commits but no remote, so the pinned-ID file was not auto-written). Developer later runs
+`git remote add origin ...`.
+
+_Designed response._ The resolver auto-detects the transition on every project ID computation: it
+checks whether a backing store exists at any prior-resolvable key. If an old store is found at the
+first-commit-hash key but the current fallback chain would return the remote-URL hash, a three-way
+migration prompt fires before proceeding: **[M]igrate** (copy old content to new key), **[S]tay** (pin
+the old key permanently by writing it to the pinned-ID file), or **[L]ater** (use old key for this
+session, ask again next session). The [S]tay option converts an auto-detected transition into a
+permanent stickiness pin via file-first precedence — the secondary case acquires stickiness as a
+one-time user-confirmed operation rather than automatically at init time. See § Re-Clone UX § Project
+identity.
+
 ### What Changes vs. Tracked Full
 
 **Changed:**
@@ -5341,303 +5492,37 @@ No new findings spawned. Cross-machine conflict story folded directly into the D
 Commands section rather than tracked as H2.1 — resolution is git-semantic-preserving and
 doesn't require a separate design pass.
 
-#### H3. No scenario battery for Local infrastructure · HIGH
-
-**Question.** § Scenario Walk-Through L2952 runs 5 scenarios, all exercising shift lifecycle over Local
-Full (cross-cutting validation, not Local infrastructure). None exercise Local's actual failure/recovery
-surface. Scenarios with no coverage: re-clone recovery walk, backing store sync failure → second-sync
-recovery, remote backing store conflict (two machines diverged), project ID migration walk, backing
-store corruption, `arc update` in Local mode, editor UX friction under actual agent use, CI pipeline
-cloning a Local-mode repo, non-git repository handling, multi-user machine privacy, zero-commit →
-first-commit transition for secondary-case project IDs.
-
-**What's needed.** Run a deliberate scenario battery on Local mode's infrastructure. Expect some
-scenarios to dissolve on contact ("same as tracked, no issue"); others will surface real OQs that spawn
-additional work. Captures at § Scenario Walk-Through append or new subsection § Local Infrastructure
-Scenario Battery.
-
-**Status:** Walk complete 2026-04-13 — sub-findings captured below. Five new sub-findings (H3-N1, H3-N2,
-H3-N4, H3-N6, H3-N7), two tightenings to existing resolved content (H3-N3, H3-N5), and side-effect
-resolutions for L1, L3, L4, M2, and M3. H3 itself remains open until structural integration folds the walk
-outputs into plan-doc sections outside § Audit A; that integration is a follow-on commit.
-
-##### Scenario Walk-Through (H3 resolution workspace)
-
-Walk completed 2026-04-13 against the eleven-scenario list in H3. Each scenario: setup, walk (key technical
-insight), verdict (clean / tightening / new sub-finding / existing finding resolved). Compact capture — full
-discussion context is not reproduced here; the sub-finding blocks below carry the durable detail.
-
-**Scenario 1 — Re-clone recovery walk.**
-
-_Setup._ Fresh clone of a previously Local-initialized repo on the same machine. `.arc/` absent,
-`.git/info/exclude` empty (reset on clone), hooks gone from `.git/hooks/`, backing store at
-`~/.arc-state/{project-id}/` intact.
-
-_Walk._ § Re-Clone UX specifies detection "on any `arc` command" via the three-signal check and a
-one-prompt restore with four recovery steps (exclude, backing pull, hooks, done). Two gaps surface.
-First, `/arc-resume` is an agent skill that reads files directly — it never invokes the `arc` CLI, so
-detection never fires on the agent-driven entry path; the agent hits file-not-found and errors out.
-Second, the plan lists the four recovery steps but does not name a command that owns them end-to-end.
-`arcd backing restore` replays backing store content into `.arc/` but does not set up `.git/info/exclude`
-or re-install hooks — those are init-time operations.
-
-_Verdict._ New sub-finding **H3-N1** (re-clone recovery command assignment and session-init Local-axis
-pre-check unspecified).
-
-**Scenario 2 — Backing store corruption.**
-
-_Setup._ `~/.arc-state/{project-id}/` exists but is damaged. Variants: git metadata broken
-(index/HEAD/objects partial), working-dir snapshot partial, whole directory missing, crashed lock file.
-
-_Walk._ `arcd backing status` per plan reports "last sync time, dirty/clean state relative to `.arc/`,
-remote configuration." No integrity surface. `arcd backing sync` against a damaged store yields raw git
-errors ("fatal: bad object HEAD") not ARC-shaped recovery messages. Directory-missing is ambiguous between
-corruption and re-init opportunity. No named command rebuilds a backing store from `.arc/` when the store
-is destroyed but the source is intact — `arcd backing restore` only moves content in the opposite
-direction.
-
-_Verdict._ New sub-finding **H3-N2** (backing store health/corruption surface and rebuild path
-unspecified).
-
-**Scenario 3 — Remote backing store conflict.**
-
-_Setup._ Machines A and B share a remote backing store, both push divergent local snapshots.
-
-_Walk._ § Cross-machine conflict story resolves the main flow cleanly: non-FF push error → pull → sync
-refuses on divergence → surface resolution options. Stress-testing "surface options" exposes one gap:
-`arcd backing restore` has no target-ref argument, so "restore to remote HEAD and re-apply" is
-underspecified — restore could replay local HEAD or `origin/{branch}` and the plan text does not say which.
-Two resolution options: add `--from <ref>` to restore (new CLI surface) or explicitly declare divergence
-resolution as power-user manual (`cd` into the store, `git reset --hard origin/main`, then
-`arcd backing restore`). The plan's "File-level three-way merge is not attempted" framing supports the
-latter; one-sentence tightening, no new CLI surface.
-
-_Verdict._ Tightening **H3-N3** (not a new finding) — declare divergence resolution as power-user manual
-explicitly in § Cross-machine conflict story. Folds in at structural-integration commit.
-
-**Scenario 4 — Project ID migration (forces M2 and M3).**
-
-_Setup._ Zero-commit repo with tertiary UUID project ID at `~/.arc-state/{uuid}/`. Repo later acquires a
-remote; developer wants migration to a remote-URL-keyed store for cross-machine sync.
-
-_Walk._ Exposes a structural contradiction in the fallback-chain resolution algorithm that neither M2 nor
-M3 captured. § Re-Clone UX says "walks the fallback chain top-down and uses the first source that
-resolves" — i.e., `remote URL → first-commit → UUID`. § Stickiness at graduation says "once a project
-adopts a UUID, it stays on the UUID even after the repo later acquires a remote or first commit." These
-contradict directly. Top-down resolution means adding a remote silently flips the project ID off the UUID,
-the opposite of stickiness. Stickiness can only hold if the algorithm is **pinned-ID-file-first, then
-fallback chain** — i.e., `.arc/system/.internal/project-id` wins when present, and the fallback chain only
-runs when that file is absent.
-
-This reframes the UUID file conceptually as a **pinned project ID file** — not specifically for the UUID
-case, but the explicit override for "use this ID, don't recompute." The tertiary UUID case happens to be
-where the file is auto-written; the file itself is format-agnostic beyond "one ID string."
-
-_Verdict._ New sub-finding **H3-N4** (fallback-chain algorithm and stickiness contradict). Closes **M2**
-(stickiness mechanism = file presence) and **M3** (migrate command's job is to rewrite or remove the
-pinned-ID file and rebuild the store at the new key) as side effects.
-
-**Scenario 5 — Backing store sync failure → next-session recovery.**
-
-_Setup._ Session handoff fires `arcd backing sync`; the sync fails somewhere in the pipeline.
-
-_Walk._ Three failure classes with distinct recovery characteristics:
-
-- **Class A** — fail before local commit (disk full, permissions). Store stays clean. Next sync picks up
-  current `.arc/` state. Automatic recovery.
-- **Class B** — local commit succeeded, push failed (transient network). Local store is one commit ahead
-  of remote. Next successful push catches up. Automatic recovery.
-- **Class C** — non-FF push failure. Local has a commit the remote doesn't AND remote has commits local
-  doesn't. Next sync **also** fails with non-FF until manually resolved via scenario 3's divergence flow.
-  No automatic recovery.
-
-Plan's "next successful sync recovers the lag" language holds for A/B and is quietly wrong for C.
-§ Failure handling needs to enumerate the three classes explicitly and cite the divergence flow for C.
-Separately: the plan's "failure recorded in SESSION-NOTES" framing creates dual state sources.
-`arcd backing status` already knows staleness and divergence — it should be the canonical source, with
-session-init Local-axis pre-check surfacing `stale-by-N-sessions` or `divergent` in the orientation
-summary and the SESSION-NOTES marker dropped.
-
-_Verdict._ Tightening **H3-N5** (not a new finding) — enumerate three failure classes in § Failure
-handling, make `arcd backing status` the canonical degraded-state source, add Local-axis pre-check to
-session-init. Folds in at structural-integration commit. **Converges with H3-N1 and H3-N2** on a single
-session-init Local-axis pre-check step that queries `arcd backing status`.
-
-**Scenario 6 — `arc update` in Local mode (forces L4).**
-
-_Setup._ Developer runs `arc update`. Framework files pulled from the package, three-way-merged onto
-Configurable files. Writes land in the working-tree `.arc/`, untracked in Local mode.
-
-_Walk._ Update itself is mode-transparent — pulled files are written by path. The real question is
-whether `arc update` fires a backing store sync afterward. Without post-update sync, the store lags by
-one update cycle and a home-dir loss before next handoff loses the updated Configurable merges (annoying,
-but `arc update` is re-runnable so no actual work loss — the merge prompts just re-fire). With
-post-update sync, the store captures new framework state immediately. Also exercises H3-N2 cleanly: a
-broken store encountered during post-update sync surfaces the same recovery path scenario 2 defines. No
-new surface.
-
-_Verdict._ **L4 resolves** — specify `arc update` as a backing store sync firing point in § Backing Store,
-joining session handoff and shift transitions. One sentence. Also worth noting in § Upgrade Path (Local →
-Tracked) that after the 4-step manual upgrade, subsequent `arc update` runs no longer fire a backing store
-sync because there isn't one.
-
-**Scenario 7 — Editor UX under agent use (forces L1).**
-
-_Setup._ Developer working in an agent-enabled editor. Agent workflow involves `@`-mentioning files in
-conversation and navigating `.arc/` content via editor UI.
-
-_Walk._ Three surfaces behave differently, and the impact is narrower than L1 originally framed it:
-
-- **Agent's own file-reading machinery is unaffected.** Read/Grep/Glob bypass editor indexing. Core ARC
-  operations work unchanged.
-- **Editor explorer/file-browser views show untracked files by default** in every mainstream editor (Zed,
-  VS Code, JetBrains, Cursor). `.arc/` is visible in the sidebar — not a hidden surface.
-- **Quick-open and `@`-mention pickers** are the only affected surface. Zed shows untracked files by
-  default via `file_scan_inclusions`. VS Code's `Ctrl+P` respects gitignore, and the `@`-picker inherits
-  that. Other editors vary.
-
-Crucially, **session-init scaffolding gives the agent full path discoverability**. The agent knows
-STRATEGY-INDEX, directory conventions, and filename patterns (`plan-*`, `tasks-*`, `prd-*`) from its
-loaded context. Natural-language references ("check the plan doc for H3") resolve to Glob/Grep without
-touching an editor picker. Explicit `@`-tagging is rarely load-bearing in ARC workflows.
-
-External research (2026-04-13 survey of Cursor, SpecStory, Aider, Continue, JetBrains AI Assistant,
-Dendron/Obsidian) confirms no adjacent tool solves the gitignore-respecting picker case cleanly — it is
-an intrinsic property of the "gitignored personal tooling" category, not an ARC-specific gap. Zed's
-`file_scan_inclusions` is the sole clean path-scoped mitigation; Cursor/Continue/VS Code offer partial
-workarounds (see per-editor mitigation table, integration commit).
-
-_Verdict._ **L1 resolves** with minor-disruption framing (not "primary ergonomic cost") and a per-editor
-mitigation table. Full text folds into § Agent and Editor Discoverability at structural-integration commit.
-
-**Scenario 8 — CI pipeline cloning a Local-mode repo.**
-
-_Setup._ CI clones the project repo and runs build/test/lint. `.arc/` absent (untracked). Backing store
-does not exist on CI runners.
-
-_Walk._ By design, CI sees zero ARC content — the Local mode invariant. Failure modes walked cleanly:
-commit-msg hook enforcement is local-only (same as tracked mode, not a Local regression); `git add -A` /
-`git commit -a` do not stage gitignored files so there is no accidental leak path; CI does not install
-ARC in normal usage. One subtle issue surfaces: project tooling that globs files (markdown linter, test
-runner) may pick up untracked `.arc/` content on developer machines but not on CI. Running
-`npm run lint:md` locally may hit violations in `.arc/` content that CI sees zero of because the files do
-not exist there. Confusing when it happens. ARC cannot force-modify project lint configs without
-violating the "no repo footprint" guarantee, so the mitigation is doc-only.
-
-_Verdict._ Minor new sub-finding **H3-N6** (CI/dev tooling asymmetry unspecified). Low severity,
-documentation-only resolution.
-
-**Scenario 9 — Non-git repository handling.**
-
-_Setup._ Developer runs `arc init --local` in a directory with no `.git/` at all.
-
-_Walk._ `arc init --local` needs `.git/info/exclude` (requires `.git/info/`), hooks installation (requires
-`.git/hooks/`), `.arc/` creation, backing store creation, project ID computation. The first two fail
-without `.git/`. The "zero-commit repo" tertiary UUID case in § Re-Clone UX assumes `git init` already ran
-but no commits exist yet; it does not cover "no git at all." Three handling options: refuse outright,
-auto-init git silently, prompt to init. Auto-init is too aggressive (modifies user's directory beyond
-stated intent). Refuse is simplest but user-hostile on quick-start paths. Prompt-to-init respects agency
-and matches ARC's "asks before acting" ethos. **Applies to both tracked and local modes** — not
-Local-specific — since tracked `arc init` has the same implicit assumption.
-
-_Verdict._ New sub-finding **H3-N7** (non-git directory handling for `arc init`, both modes, unspecified).
-Low-medium severity.
-
-**Scenario 10 — Multi-user machine privacy (forces L3).**
-
-_Setup._ Backing store at `~/.arc-state/{project-id}/` contains full `.arc/` snapshots including sensitive
-in-progress content. Visibility to other users on shared machines and to public/private remote git hosting
-are both in scope.
-
-_Walk._ Three surfaces: local filesystem permissions, remote backing store privacy, at-rest encryption.
-External research (2026-04-13 survey of OpenSSH, GnuPG, AWS CLI, kubectl, gh, Docker, npm, rclone, restic,
-borg, pass, git-crypt, chezmoi, Obsidian) validates three design decisions against idiomatic CLI-tool
-practice rather than gut intuition:
-
-1. **`chmod 700` on creation** is the established norm (OpenSSH, GnuPG, AWS CLI after issue #7369).
-   Warn-but-don't-refuse on permissive perms at read is proportionate for a methodology tool — hard-refuse
-   is reserved for security-critical tools (SSH, GnuPG). GnuPG's warn-but-run pattern is the closest
-   analog.
-2. **No programmatic remote-privacy verification.** Zero adjacent tools (restic, borg, git-crypt,
-   chezmoi, pass, yadm) check remote repo visibility. All defer to user responsibility with
-   documentation-only guidance. API detection has no ecosystem precedent and is overreach.
-3. **At-rest encryption is not idiomatic for documentation tools.** Obsidian, Logseq, git, and chezmoi
-   (default) all ship plaintext with disk encryption (FileVault/LUKS/BitLocker) as the boundary.
-   Encrypt-by-default is reserved for backup/credentials tools with untrusted-remote threat models
-   (restic, borg, pass). Power-user hint surfaced by the research: `git-crypt` can be wired manually
-   inside the backing store repo for per-file encryption since the store is a standard git repo; ARC does
-   not ship the integration.
-
-_Verdict._ **L3 resolves** with grounded § Privacy Model subsection at structural-integration commit. No
-new findings. Also contributes a small extension to H3-N2: `arcd backing status` health check includes a
-permission sanity check on Linux/macOS (`mode > 700` → warn).
-
-**Scenario 11 — Zero-commit → first-commit transition (forces M2).**
-
-_Setup._ Two distinct transitions, walked separately.
-
-_Walk._ **Transition A (UUID → first-commit-hash):** Zero-commit repo → tertiary UUID fires → UUID file
-written → work happens → first commit lands. Per H3-N4's file-first precedence: pinned-ID file wins when
-present, fallback chain never progresses past the file. UUID-initialized projects stay on UUID forever.
-Clean — stickiness is automatic, built into precedence.
-
-**Transition B (first-commit-hash → remote URL hash):** Repo has commits but no remote → secondary case
-fires → backing store keyed on first-commit-hash → no pinned-ID file written → developer later runs
-`git remote add origin ...`. Next `arc` command computes project ID: pinned-ID file absent, remote URL
-present → returns remote URL hash. **Project ID silently changes.** Old backing store orphaned, next sync
-creates a fresh store at the new key, losing all prior history. This is **actual data loss** without
-detection — and it happens automatically the first time any `arc` command runs after `git remote add`.
-
-Resolution: on project ID computation, the resolver also checks whether a backing store exists at any key
-the fallback chain _would_ have resolved to under a prior repo state. If found, offer migration via
-three-way prompt:
-
-```text
-Project identity changed: this repo now has a remote, and the backing store
-key would move from first-commit-hash ({old-key}) to remote-URL-hash
-({new-key}). An existing backing store is present at {old-key}.
-
-  [M]igrate — copy backing store content to new key (old becomes orphan)
-  [S]tay    — pin the old key permanently (writes pinned-ID file)
-  [L]ater   — use old key for this session; ask again next session
-```
-
-The **[S]tay** option writes the old key to `.arc/system/.internal/project-id`. Via file-first precedence,
-the old key then sticks permanently — no re-prompting. This is what generalizes the UUID file to a
-**pinned project ID file**: its content is any ID string (UUID, first-commit-hash, remote URL hash), its
-role is "suppress fallback chain recomputation." The tertiary UUID case is simply where the file is
-auto-written; the file itself is format-agnostic.
-
-_Verdict._ **M2 resolves** via file-first precedence (Transition A) + auto-detect + three-way migration
-prompt (Transition B). Reinforces H3-N4's migrate command shape; not a separate finding.
-
-##### H3 Walk Summary
-
-- **New sub-findings** (5): H3-N1, H3-N2, H3-N4, H3-N6, H3-N7 (captured below)
-- **Tightenings** (2, not new findings): H3-N3 (divergence resolution framing), H3-N5 (sync failure
-  classes + session-init pre-check) — fold into structural sections at next commit
-- **Existing findings resolved via side effect**: L1 (scenario 7), L3 (scenario 10), L4 (scenario 6),
-  M2 (scenario 4 + 11), M3 (scenario 4)
-- **Still open after H3 walk** (untouched by scenarios): M4 (single-active enforcement), M5 (Research
-  Findings Local entries), L2 (pause+stash in Local mode) — consolidation pass remains per § Sequencing
-  Plan
-
-##### Convergent patterns for structural integration
-
-Three patterns emerged across multiple scenarios and belong in structural plan-doc sections rather than
-scattered finding resolutions (folded in at the next commit, not this one):
-
-1. **Session-Init Integration (Local axis)** — H3-N1 + H3-N2 + H3-N5 all converge on a single pre-check
-   step that queries `arcd backing status`, detects re-clone/missing/stale/divergent state, and surfaces
-   coherent recovery in the orientation. One feature serves three findings. Lands as a new subsection
-   under § Durability-Layer Commands.
-2. **`arcd backing status` as canonical degraded-state source** — health check + staleness check + perm
-   check. All status-querying in the plan routes through this one command. Lands as an expansion of the
-   existing `arcd backing status` bullet in § Durability-Layer Commands.
-3. **Pinned project ID file** — generalization of the UUID file concept. File-first precedence in the
-   fallback chain, content is any ID string, role is "suppress fallback chain recomputation." Lands as a
-   rewrite of § Re-Clone UX § Project identity + stickiness paragraphs and the corresponding
-   § Configuration Identity — Local Axis language.
+#### H3. No scenario battery for Local infrastructure · HIGH · RESOLVED 2026-04-13
+
+**Question.** The original § Scenario Walk-Through (five shift-lifecycle scenarios) exercises Local
+Full + shift (cross-cutting validation, not Local infrastructure). None of the original scenarios
+exercise Local's actual failure / recovery surface. Coverage gaps enumerated at H3 time included
+re-clone recovery, backing store sync failure, remote backing store conflict, project ID migration,
+backing store corruption, `arc update` in Local mode, editor UX friction under actual agent use, CI
+pipeline cloning a Local-mode repo, non-git repository handling, multi-user machine privacy, and the
+zero-commit → first-commit transition for secondary-case project IDs.
+
+**Resolution.** Eleven-scenario walk completed 2026-04-13; durable walk capture lives at
+[§ Mode 2 § Local Infrastructure Scenario Battery](#local-infrastructure-scenario-battery). The walk
+produced five new sub-findings (H3-N1, H3-N2, H3-N4, H3-N6, H3-N7 — Resolved blocks below), two
+tightenings to previously resolved content (H3-N3 folded into § Durability-Layer Commands
+§ Cross-machine conflict story; H3-N5 folded into § Backing Store § Failure handling), and
+side-effect resolutions for five existing findings (L1, L3, L4, M2, M3 — Resolved in their own
+blocks below).
+
+Structural integration shipped across three commits: small structural tightenings and L1 / L3 / L4
+absorptions (commit 2a, landing § Init preconditions + § Agent and Editor Discoverability rewrite +
+§ Failure handling three-class enumeration + § Cross-machine conflict story power-user manual
+framing + `arc update` as sync firing point); § Re-Clone UX § Project identity rewrite for file-first
+precedence and pinned-ID-file generalization (commit 2b, closing M2 and M3 as H3-N4 side effects);
+§ Durability-Layer Commands health-check expansion + new § Session-init Local-axis pre-check
+subsection + § Backing Store § Privacy model (commit 2c, grounded in two external research passes on
+editor `@`-mention precedent and CLI state-directory idiomatic practice). Commit 3a migrated the
+scenario walk from § Audit A workspace to § Mode 2 durable content and closed the findings.
+
+**Status.** Resolved 2026-04-13. Walk output fully integrated across structural plan-doc sections.
+Sub-findings below carry Resolved status for audit-tracking granularity; existing findings resolved
+via side effect (L1, L3, L4, M2, M3) carry Resolved status in their respective blocks below.
 
 #### H3-N1. Re-clone recovery command unassigned · MEDIUM
 
@@ -5658,8 +5543,10 @@ directly; it never invokes the `arc` CLI, so detection never fires on the agent-
    restore from backing store before resuming." Symmetric with Consolidated Deliverables Inventory
    item #24 (persist-step mode gates) — init-side pre-check is the companion piece.
 
-**Status.** Open. Resolution shape captured; structural integration into § Durability-Layer Commands
-(new § Session-Init Integration subsection) and § Re-Clone UX deferred to next commit.
+**Status.** Resolved 2026-04-13. Idempotent `arc init --local` recovery command path landed in
+§ Re-Clone UX § Recovery command (commit 2b); session-init Local-axis pre-check companion landed in
+§ Durability-Layer Commands § Session-init Local-axis pre-check (commit 2c). See § Mode 2 § Local
+Infrastructure Scenario Battery § Scenario 1 — Re-clone recovery for the walk.
 
 #### H3-N2. Backing store health and rebuild path unspecified · MEDIUM
 
@@ -5683,8 +5570,11 @@ is intact.
 Command-shape detail (flag vs. subcommand) is implementation-phase work; the design gap closes once
 health and rebuild semantics are named in the plan doc.
 
-**Status.** Open. Resolution shape captured; structural integration into § Durability-Layer Commands
-deferred to next commit.
+**Status.** Resolved 2026-04-13. `arcd backing status` health check surface and
+`arcd backing sync --rebuild` both landed in § Durability-Layer Commands § Local-mode surface
+(commit 2c). Permission sanity check contribution from scenario 10 also landed in the same block.
+See § Mode 2 § Local Infrastructure Scenario Battery § Scenario 2 — Backing store corruption for
+the walk.
 
 #### H3-N4. Fallback-chain precedence and stickiness contradict · HIGH
 
@@ -5718,9 +5608,14 @@ command would trigger the silent re-key under the current plan text, absent expl
    auto-detect + three-way prompt) and **M3** (migrate command's job is rewrite-or-remove the pinned-ID
    file + create store at new key + copy content from old key + warn about orphan).
 
-**Status.** Open. Resolution shape captured; structural integration into § Re-Clone UX (algorithm
-rewrite, pinned-ID-file language) and § Configuration Identity — Local Axis (pinned-ID-file manifest
-treatment) deferred to next commit. M2 and M3 close in the same pass.
+**Status.** Resolved 2026-04-13. § Re-Clone UX § Project identity rewritten for file-first
+precedence + pinned-ID-file generalization + auto-detect + three-way migration prompt + `arc
+project-id migrate` command shape (commit 2b). No update needed in § Configuration Identity —
+Local Axis (the section discusses `backing.type` manifest treatment, not project identity, so
+H3-N4's content lives entirely in § Re-Clone UX). Closes dependent findings M2 and M3 — see their
+Resolved blocks below. See § Mode 2 § Local Infrastructure Scenario Battery § Scenario 4 —
+Project ID migration and § Scenario 11 — Zero-commit → first-commit → remote transition for the
+walks.
 
 #### H3-N6. CI/dev tooling asymmetry in Local mode · LOW
 
@@ -5739,7 +5634,10 @@ design — do not install Local mode in repos where CI depends on ARC operations
 ARC cannot force-modify project lint configs without violating the repo-footprint-zero guarantee, so
 resolution is documentation-only.
 
-**Status.** Open. Resolution shape captured; structural integration deferred to next commit.
+**Status.** Resolved 2026-04-13. Tooling-asymmetry note folded into § Agent and Editor
+Discoverability (commit 2a) as a trailing paragraph under the editor-discoverability rewrite. See
+§ Mode 2 § Local Infrastructure Scenario Battery § Scenario 8 — CI pipeline cloning a Local-mode
+repo for the walk.
 
 #### H3-N7. Non-git directory handling for `arc init` · LOW-MEDIUM
 
@@ -5760,8 +5658,10 @@ Auto-init without prompt is too aggressive (modifies the user's directory beyond
 Hard-refuse is simplest but user-hostile on quick-start paths. Prompt-to-init respects agency and matches
 ARC's "asks before acting" ethos.
 
-**Status.** Open. Resolution shape captured; structural integration into § Configuration and Installation
-deferred to next commit.
+**Status.** Resolved 2026-04-13. Prompt-to-init paragraph landed in § Init Flow Implications
+§ Init preconditions (commit 2a). Applies to both tracked and local modes — not Local-specific.
+See § Mode 2 § Local Infrastructure Scenario Battery § Scenario 9 — Non-git repository handling
+for the walk.
 
 #### M1. Context footer format enforcement mechanism · MEDIUM
 
@@ -5790,7 +5690,11 @@ automatically when a remote is added later, which the plan implies we explicitly
 stickiness applies universally (once a project is keyed, it stays keyed; explicit
 `arc project-id migrate` is the only rekey path). Confirmation needed.
 
-**Status:** Open. Small resolution; part of a consolidation pass.
+**Status:** Resolved 2026-04-13 via H3-N4. File-first precedence in the fallback chain plus
+pinned-ID-file generalization is the stickiness mechanism. UUID case is automatically sticky (file
+auto-written at init); first-commit case acquires stickiness via auto-detect + three-way migration
+prompt ([M]igrate / [S]tay / [L]ater), with [S]tay writing the old key to the pinned-ID file for
+permanent stickiness. See § Re-Clone UX § Project identity.
 
 #### M3. `arc project-id migrate` escape hatch is named but undefined · MEDIUM
 
@@ -5804,7 +5708,10 @@ defensible only if the shape is unambiguous; currently it's not.
 (leaves orphan), or refuse (asks user which). Likely answer: copy + warn about orphan, leave cleanup to
 user. Decision needed.
 
-**Status:** Open. Small resolution; part of a consolidation pass.
+**Status:** Resolved 2026-04-13 via H3-N4. `arc project-id migrate` shape specified: compute
+old/new keys, refuse if new-key store exists, copy (not move) content, rewrite or clear the
+pinned-ID file, report orphan for manual cleanup, does not touch remote backing store
+configuration. See § Re-Clone UX § Project identity.
 
 #### M4. Single-active-unit invariant enforcement mechanism · MEDIUM
 
@@ -5848,7 +5755,18 @@ ergonomic cost of Local mode; currently it's framed as a minor secondary concess
 mode's primary ergonomic cost. Possibly add a docs-site mode-overview page callout ("here's what you
 give up in Local"). H3's scenario battery may exercise this in practice and sharpen the framing.
 
-**Status:** Open. Folds into final polish pass. Reframing + one-sentence docs note.
+**Status:** Resolved 2026-04-13 via scenario 7 (H3 walk). § Agent and Editor Discoverability
+rewritten with minor-disruption framing (not "primary ergonomic cost"), three-surface decomposition
+(agent file-reading machinery unaffected, editor explorer views show untracked by default,
+quick-open / `@`-picker is the narrow residual surface), and session-init scaffolding context (the
+agent knows STRATEGY-INDEX + directory / filename conventions, so natural-language references
+resolve via Glob / Grep without touching editor pickers — explicit `@`-tagging is rarely
+load-bearing in ARC workflows). Per-editor mitigation table included (Zed's `file_scan_inclusions`
+as the sole clean path-scoped option; Cursor / Continue / VS Code / JetBrains as partial
+workarounds). External survey of Cursor, SpecStory, Aider, Continue, JetBrains AI Assistant, and
+Dendron / Obsidian confirms the tradeoff as intrinsic to the "gitignored personal tooling"
+category with no adjacent-tool precedent for a universal solution. See § Agent and Editor
+Discoverability.
 
 #### L2. Pause+stash interaction in Local mode is unspecified · LOW
 
@@ -5876,7 +5794,14 @@ repo (and do we say so)? Currently: unspecified.
 permissions. Remote backing store should use a private repo — ARC does not enforce this but documents
 the expectation." Single paragraph.
 
-**Status:** Open. Folds into final polish pass.
+**Status:** Resolved 2026-04-13 via scenario 10 (H3 walk). § Backing Store § Privacy model landed
+grounded in external research (2026-04-13 survey of OpenSSH, GnuPG, AWS CLI, restic, borg, chezmoi,
+pass, Obsidian). Three surfaces covered: local filesystem permissions (`chmod 700` on creation on
+Linux / macOS, warn-but-don't-refuse at read, no explicit ACLs on Windows), remote repo privacy
+(documentation-only, zero ecosystem precedent for programmatic verification), at-rest encryption
+(delegated to disk-layer encryption — FileVault, LUKS, BitLocker — matching Obsidian, Logseq, and
+git itself). Power-user `git-crypt` option noted but not shipped. See § Backing Store § Privacy
+model.
 
 #### L4. `arc update` interaction with backing store · LOW
 
@@ -5889,7 +5814,10 @@ sync, the backing store lags by one update cycle.
 **What's needed.** Specify `arc update` as a backing store sync firing point in § Backing Store, same
 category as session handoff and shift transitions. One sentence.
 
-**Status:** Open. Folds into final polish pass.
+**Status:** Resolved 2026-04-13 via scenario 6 (H3 walk). `arc update` added as a backing store sync
+firing point in § Backing Store § More frequent sync (commit 2a), joining shift transitions as
+secondary firing points beyond session handoff. Prevents the home-dir-loss window from losing
+three-way-merged Configurable-file decisions. See § Backing Store § More frequent sync.
 
 ### Sequencing Plan
 
@@ -5898,15 +5826,23 @@ category as session handoff and shift transitions. One sentence.
    "transparent redirect" principle itself was hand-waving over a real concern-boundary.
    Purpose-built `arcd backing *` family replaces redirect-from-`arc user *`. Cross-machine
    conflict story folded in rather than spun out as H2.1. No new findings.
-3. **H3** — Dedicated session for the scenario battery. May surface additional findings; expect some to
-   resolve L1 (editor UX in practice) and M2 (stickiness edge case if walked deliberately).
-4. **M2–M5 consolidation pass** — After H3 clarity, close the remaining mediums. Several interact
-   (M2/M3 on project ID, M5 on research base); group them into one pass.
-5. **L1–L4 polish pass** — Folded into final pre-PRD cleanup. All are one-sentence or one-paragraph
-   additions.
+3. **H3** — Resolved 2026-04-13 across four commits. Eleven-scenario walk produced five new
+   sub-findings (H3-N1, H3-N2, H3-N4, H3-N6, H3-N7 — all Resolved), two tightenings (H3-N3, H3-N5 —
+   folded into existing sections), and side-effect resolutions for L1, L3, L4, M2, and M3. Two
+   external research passes ran during the walk (editor `@`-mention precedent, CLI state-dir
+   idiomatic practice). Durable capture at § Mode 2 § Local Infrastructure Scenario Battery.
+4. **M4 + M5 + L2 consolidation pass** — remaining open items after H3. M4 (single-active enforcement
+   mechanism), M5 (Research Findings Local entries), L2 (pause + stash interaction in Local mode).
+   None were touched by H3 scenarios — they need a dedicated session, likely short. M5 can be
+   partially filled by transcribing the two external research passes from the H3 walk into
+   § Research Findings new subsections.
+5. **Audit B — Content drift sweep** — final pre-PRD pass. Runs AFTER the M4 + M5 + L2 consolidation
+   pass fully drains. Do not start early; Audit B's scope depends on the final shape of the
+   already-resolved content.
 
-**Estimated total:** 2–4 remaining sessions depending on H3 scenario depth. Audit B (content
-drift sweep) runs after all of this lands, as the closing pass before PRD authoring.
+**Estimated remaining:** 1–2 sessions (consolidation pass + Audit B). Audit A section drains entirely
+when consolidation completes; only the Findings blocks with Resolved status remain as audit-tracking
+artifacts.
 
 ---
 
