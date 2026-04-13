@@ -408,8 +408,18 @@ against a realistic usage scenario; no trace surfaced an unhandled case.
 **Anchor file bucket assignments confirmed now** (nothing else contradicts):
 
 - `work-unit-lifecycle/*` (8 files) → `install.type == full`.
-- META-PRD template (`reference/META-PRD.template.md`) → `install.type == full`. Confirmed by
-  [The Lite PRD](#the-lite-prd) § SQ1 (META-PRD not installed in Lite).
+- META-PRD template (`reference/META-PRD.template.md`) → `install.type == full`. Default Lite
+  install has no META-PRD; Finding #12/R6 adds an opt-in Lite variant
+  (`reference/META-PRD.lite.template.md`) combining product direction and technical overview
+  content, installed agent-led during `01_setup-lite.md` (not via recipe). See [The Lite
+  PRD](#the-lite-prd) § SQ1 and [Lite Initial Setup](#lite-initial-setup) § Optional Lite
+  META-PRD for the opt-in mechanism and graduation content migration.
+- Initial-setup workflows (`system/workflows/arc/initial-setup/01_verify-and-configure.md`,
+  `02_define-project.md`) → `install.type == full`. Resolved 2026-04-13 (Finding #12/R6);
+  reassigned from Finding #8's implicit unconditional baseline after strip analysis surfaced
+  ~35-40% Lite-Full overlap across the two files. Purpose-built Lite replacement
+  (`01_setup-lite.md`) lands under `install.type == lite`. See [Lite Initial
+  Setup](#lite-initial-setup).
 
 Other bucket assignments are pending resolution of dependent design decisions — see Feedforward
 below.
@@ -1660,13 +1670,25 @@ enumerated above.
 
 #### Sub-decisions
 
-**SQ1 — META-PRD in Lite: not installed.** Project vision in Lite is captured in the Lite PRD itself.
-A separate META-PRD exists to coordinate multi-PRD efforts and track long-running project vision
-across many work units. Lite has one PRD by construction, so there is nothing to coordinate.
-Installing META-PRD in Lite would violate the "does less, just as reliably" philosophy by adding an
-artifact that serves no Lite-relevant purpose. The META-PRD template is assigned to the
-`install.type == full` bucket in the recipe (see [Installation Type Recipe
+**SQ1 — META-PRD in Lite: not installed by default; opt-in available.** Project vision in Lite is
+captured in the Lite PRD itself. A separate Full META-PRD exists to coordinate multi-PRD efforts
+and track long-running project vision across many work units; Lite has one PRD by construction, so
+Full's multi-PRD coordination role has nothing to coordinate. Installing the Full META-PRD template
+in Lite would violate the "does less, just as reliably" philosophy by adding an artifact that
+serves no Lite-relevant purpose. The Full META-PRD template (`reference/META-PRD.template.md`) is
+assigned to the `install.type == full` bucket in the recipe (see [Installation Type Recipe
 Mechanism](#installation-type-recipe-mechanism)).
+
+**Finding #12/R6 refinement (2026-04-13):** Lite gains an **opt-in** combined template
+(`META-PRD.lite.template.md`) that covers both product direction and technical overview content
+in a single Lite-scoped ~80-120 line document. The opt-in lightly reopens the "not installed in
+Lite" commitment — default Lite install still has no META-PRD, but users who want an ARC-native
+place for structured high-level project context can opt in during `01_setup-lite.md`'s Step 3
+(agent-led, not CLI prompt). Motivation: solo developers who want a big-picture doc otherwise
+create ad-hoc notes files outside ARC's scaffolding; offering an ARC-native opt-in surface that
+graduation recognizes prevents that pattern without forcing the ceremony on users who don't want
+it. See [Lite Initial Setup § Optional Lite META-PRD](#lite-initial-setup) for the full opt-in
+mechanism, template shape, and graduation content migration.
 
 **SQ2 — `plan-*` doc location in Lite: `.arc/active/plan-{name}.md`.** Sibling to `prd.md` and
 `tasks.md` in the flat `active/` directory. Matches Lite's overall flat structure (no category
@@ -2283,6 +2305,262 @@ the source file stays single.
 
 Closes [Open Question 6](#arc-lite) (process-task-loop adjustments).
 
+### Lite Initial Setup
+
+Full ARC's initial-setup pipeline is two workflow files: `01_verify-and-configure.md` (verify
+install, walk through config, introduce customization surfaces) and `02_define-project.md`
+(seven-step document-creation walkthrough covering META-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEFING.PROJECT,
+QUICK-REFERENCE, DEV-RULES.PROJECT, ROADMAP, PROJECT-STATUS). The pipeline is designed around the
+Full ARC ceremony budget — verify everything, review every config section, fill in seven documents
+before starting work.
+
+Lite's design philosophy is "near-zero setup time" (see [Research Findings](#research-findings) —
+PSP ceremony threshold, solo-dev adoption patterns). Porting the Full pipeline to Lite via inline
+`arc:if` gating would preserve the ceremony structure at the cost of Lite's value proposition.
+Section-by-section strip analysis surfaced that Lite retains only ~20-25% of `01_verify-and-configure.md`
+and ~45-55% of `02_define-project.md` — combined ~35-40% overlap. Most of the Full pipeline is
+ceremony that Lite actively wants to shed: directory-structure verification, WORK-STATUS example
+blocks, 8-section config walkthroughs, customization-surface orientations, 7-step document
+walkthroughs with META-PRD / TECHNICAL-OVERVIEW / ROADMAP / PROJECT-STATUS.
+
+At ~35-40% overlap, Mechanism B (single template with inline `arc:if`) produces brittle files —
+60-75% of content wrapped in whole-section `arc:if` blocks is hard to read, hard to maintain, and
+prone to gate-boundary errors. The overlap-ratio heuristic established during Finding #5 (higher
+overlap favors B more strongly) inverts at this level: low overlap favors **Mechanism A** —
+purpose-built distinct files for each mode. Finding #2's precedent applies (`verify-work.md` /
+`verify-work-unit.md` — two files under different recipe buckets when the Lite variant is
+structurally distinct from Full, not a trimmed-down Full).
+
+**Mechanism A at both the workflow layer and the template layer:**
+
+- **Workflow layer:** Full's two-file pipeline (`01_verify-and-configure.md`,
+  `02_define-project.md`) moves out of the Finding #8 unconditional baseline into the
+  `install.type == full` recipe bucket. Lite adds one new purpose-built file `01_setup-lite.md`
+  under the `install.type == lite` recipe bucket, collapsing 01's and 02's Lite-relevant scopes
+  into one shorter document. The `01_` prefix preserves the initial-setup ordering convention
+  relative to the core workflows `1_create-prd.md` / `2_generate-tasks.md` / `3_process-task-loop.md`.
+- **Template layer:** Full's `META-PRD.template.md` stays in `install.type == full` bucket
+  (Finding #8 L411 commitment holds for Full). Lite adds a new `META-PRD.lite.template.md`
+  combining product direction and technical overview content in a single Lite-scoped template.
+  The Lite variant is **opt-in, not default** — agent-led during `01_setup-lite.md` rather
+  than installed automatically. This lightly reopens Finding #8's "META-PRD not installed in
+  Lite" commitment: the default Lite install still has no META-PRD, but an opt-in path now
+  exists.
+
+#### Functional requirements — what Lite setup carries
+
+Strictly what's load-bearing for a working Lite install:
+
+1. **Agent configuration check** — confirm `system/agent/{AGENT}.ARC.md` exists. Without an
+   agent-specific file, session-init has no agent-specific guidance. Create from
+   `template-agent.md` if missing.
+2. **Identity resolution** — confirm `git config arc.identity` returns a value. Session state path
+   resolution (`user/{identity}/` subtree) breaks without this.
+3. **Session-loaded doc population** — AGENT-BRIEFING.PROJECT, QUICK-REFERENCE, DEV-RULES.PROJECT.
+   These three are loaded at the start of every session; the agent operates on whatever they say.
+   Without them sessions cannot orient reliably — this is non-negotiable for ARC's core value prop.
+4. **Optional high-level project doc** — agent-led opt-in step introducing the combined Lite
+   META-PRD (see below). User can accept, decline, or defer.
+5. **Light customization awareness** — one-paragraph pointer to `arc-methods.md`,
+   `arc-extensions.md`, project strategies, and DEV-RULES splitting. Not a walkthrough — just
+   enough to signal the surfaces exist for when the user wants to customize.
+6. **Optional health check** — `/arc-verify` pointer.
+7. **Next action** — start the first session with `/arc-resume`.
+
+Deliberately absent from Lite setup:
+
+- Directory structure verification (post-init, if `arc init` succeeded, dirs exist)
+- WORK-STATUS initial-state example block (same reason)
+- 8-section Configuration Walkthrough (defaults work; Lite's config template is already
+  pre-trimmed via `arc-config.template.yml` `install.type` gates — see [Lite Config Template
+  Mechanism](#lite-config-template-mechanism))
+- Customization Beyond Config walkthrough section (becomes one-line pointer)
+- META-PRD creation walkthrough (replaced by optional combined Lite variant)
+- TECHNICAL-OVERVIEW creation walkthrough (absorbed into optional combined Lite META-PRD;
+  absent entirely if user declines opt-in)
+- ROADMAP creation walkthrough (excluded by composition — `pm.layer: arc-pm` only)
+- PROJECT-STATUS creation walkthrough (same — `pm.layer: arc-pm` only)
+- Path 2: Join Existing (narrow scenario; new maintainer in Lite+tracked can read existing docs
+  and run `/arc-verify` without a dedicated join flow)
+
+Target file size: ~100-130 lines for `01_setup-lite.md`, versus Full's ~172 + ~192 = ~364
+combined lines across `01_verify-and-configure.md` and `02_define-project.md`.
+
+#### `01_setup-lite.md` content structure
+
+Single workflow file, four steps plus optional META-PRD offer:
+
+1. **Step 1: Verify Your Install** — agent configuration check, identity check, optional
+   `/arc-verify` pointer. One short step folding three small checks, not three separate verify
+   subsections.
+2. **Step 2: Populate Session-Loaded Docs** — three short subsections (AGENT-BRIEFING.PROJECT,
+   QUICK-REFERENCE, DEV-RULES.PROJECT) each introducing what the doc is for with Lite-scoped
+   "think through" prompts. Replaces Full's 7-step Define Project walkthrough.
+3. **Step 3: Optional — High-Level Project Doc** — agent-led opt-in introducing the combined
+   Lite META-PRD. Agent explains what it is, when it's useful, when to skip. User decides
+   during the setup session. If accepted, agent runs the install command (exact CLI surface
+   decided at implementation). Decline or defer is fine; user can opt in later.
+4. **Step 4: Light Customization Awareness** — one-paragraph pointer to the customization
+   surfaces (`arc-methods.md`, `arc-extensions.md`, project strategies, DEV-RULES splitting)
+   with a link to `strategy-configurability-architecture.md` for users who want the full model.
+5. **Next Step:** `/arc-resume` to start the first session.
+
+Location: `system/workflows/arc/initial-setup/01_setup-lite.md`. Package source:
+`system/workflows/arc/initial-setup/01_setup-lite.template.md` (preemptively a template to
+absorb the optional-META-PRD gating and the future Local/Tracked axis gating without rename
+churn).
+
+#### Optional Lite META-PRD — `META-PRD.lite.template.md`
+
+**Shape:** Single combined template covering product direction and technical overview content in
+~80-120 lines (inline guidance included). Deliberate omissions from Full META-PRD (user personas,
+metrics tables, detailed roadmap sections) and from Full TECHNICAL-OVERVIEW (subsystem decomposition,
+deployment topology, integration surface detail). Deliberately retained: project overview, goals
+and success criteria, non-goals / explicit scope limits, technology stack, key architectural
+decisions, critical infrastructure constraints, freeform notes section.
+
+**Same value proposition as Full's two separate docs**, Lite-scoped and scaled. Users who want an
+ARC-native, workflow-recognized place for structured high-level project context get one. Users
+who prefer to start working immediately without the ceremony can skip it entirely. Prevents the
+"solo dev creates an ad-hoc notes file outside ARC's scaffolding" pattern by offering an ARC-native
+surface that graduation recognizes.
+
+**Opt-in mechanism:** Agent-led step inside `01_setup-lite.md`'s Step 3. The setup workflow
+introduces the option with enough context for the user to decide (what the doc is for, when it's
+useful, when to skip). If the user accepts, the agent runs the install command; if declined,
+setup proceeds without installing the template. Three mechanism options were considered:
+
+- **Install-time prompt** (`arc init --lite` asks interactively) — rejected on "user doesn't
+  yet know whether they want it before seeing what it is" grounds, and adding a prompt erodes
+  "near-zero setup time."
+- **CLI flag** (`arc init --lite --with-meta-prd`) — rejected on discoverability (users who
+  don't read `--help` never find it).
+- **Agent-led in-workflow step** — adopted. Discoverable at the right moment (during setup, with
+  the agent in-loop to explain), zero CLI prompt erosion, zero ceremony for users who decline.
+
+The exact CLI surface the agent invokes to install the opt-in template (`arc add meta-prd`,
+`arc init --add meta-prd`, or similar) is a detail-design question deferred to implementation.
+The plan-doc-level decision is the mechanism (agent-led) and the template shape (combined
+product + technical).
+
+**Recipe bucket assignment:** `META-PRD.lite.template.md` is **not** in any recipe bucket by
+default. Opt-in installation is a separate code path from the recipe mechanism — it appends to
+the installed-files manifest without re-running `resolveFileList()`. The recipe-layer
+infrastructure from Finding #8 is not extended to cover opt-in templates; a new "add template"
+operation is introduced in the CLI alongside existing recipe-driven operations.
+
+**Graduation content migration:** CLI + agent-led workflow split mirroring the Lite↔Full mode
+switch pattern established in [Graduation / Downgrade Paths](#graduation--downgrade-paths)
+(§ CLI + workflow split, Shape γ). The CLI handles deterministic parts — installing/removing
+Full's separate META-PRD and TECHNICAL-OVERVIEW templates vs. Lite's combined one, updating the
+manifest, re-rendering from the recipe. The agent-led `switch-mode.md` workflow handles judgment
+calls — reconciling Lite's combined shape to Full's two-file shape (Lite → Full) or merging
+Full's two files into Lite's combined shape (Full → Lite). Content-mapping edge cases (freeform
+Notes sections that don't fit either target, subsystem detail that Lite can't absorb, user
+personas that have no Lite home) get resolved interactively during the workflow pass, not by CLI
+heuristic.
+
+Lite → Full content extraction sketch:
+
+- Lite META-PRD's product-direction sections (Project Overview, Goals, Non-Goals, Success
+  Criteria) → stay in a new Full `META-PRD.md` created from Full's template during the migration.
+- Lite META-PRD's technology sections (Technology Stack, Key Architectural Decisions, Critical
+  Infrastructure Constraints) → extract to a new `TECHNICAL-OVERVIEW.md` created from Full's
+  template.
+- Lite META-PRD's Notes section → agent-led triage (may map to either target or neither).
+- Full META-PRD stub sections that have no Lite content to seed them (user personas, metrics
+  tables, roadmap cross-refs) → left empty with a "fill in post-graduation" marker for the
+  user to populate.
+
+Full → Lite content merge sketch:
+
+- Full META-PRD sections that map to the Lite shape → merged into a new Lite `META-PRD.md`
+  created from `META-PRD.lite.template.md`.
+- Full TECHNICAL-OVERVIEW sections that map to the Lite shape → merged alongside the product
+  content in the new Lite META-PRD.
+- Full content that doesn't fit Lite's compact shape (detailed user personas, subsystem
+  decomposition, deployment topology) → landed in a `--- merged from Full, review and trim ---`
+  section for the user to reconcile.
+
+The workflow pass surfaces the decisions; the user makes the final call on what stays, what
+trims, and what moves to a supplementary location. Same "CLI does mechanical, agent does
+judgment" division as Lite↔Full mode switching itself.
+
+#### `strategy-configurability-architecture` drift fix — L87 convention inventory row
+
+Targeted drift-check during Finding #12/R6 resolution surfaced two drift points in
+`strategy-configurability-architecture.md`:
+
+1. **L87 (in-scope for Finding #12/R6)** — Convention inventory row: "Document hierarchy
+   (META-PRD → PRD → tasks)" asserts Full's hierarchy as universal. Lite has no META-PRD by
+   default (optional combined variant only); hierarchy is PRD → tasks. **Row reframed to
+   dual-value entry:** "Full: META-PRD → PRD → tasks. Lite: PRD → tasks (optional combined
+   META-PRD)." Single row, no `arc:if` gating — the strategy is on-demand reference content,
+   not per-session load, so mode-aware prose handles it inline. Mirrors Finding #4's
+   `strategy-session-operations` Method Classification by Trigger row reclassification pattern
+   (dual-value, no gate).
+2. **L104 (out of scope for Finding #12/R6)** — Context footer row: "Context: tasks-*.md
+   (Task X.Y)" references the tracked-mode context footer pattern. Local mode uses freeform
+   `Context: <description>`. **Real drift on the Local/Tracked axis**, deferred to the future
+   Local-axis work alongside other Local-mode content sweeps.
+
+Classification holds at **applies-as-is** for `strategy-configurability-architecture`. The L87
+drift is a single-row mode-aware rewording, not a structural reclassification. Strategy count
+stays **4 applies-as-is / 4 needs-variant / 2 excluded**.
+
+**Drift-check pattern update:** Finding #12/R6 is the **third** drift hit on an applies-as-is
+strategy across four targeted drift-checks (Finding #2 on `strategy-task-list-formatting`,
+Finding #4 on `strategy-session-operations`, Finding #5 on `strategy-quality-gates` clean,
+Finding #12 on `strategy-configurability-architecture`). Hit rate: 3-of-4, ~75%. Above the 2-of-3
+threshold from Finding #4's resolution criterion. Promoted to **formal strategy audit pass in
+Tier 4** — single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc
+surfaces before closing the pre-PRD phase. Rationale: targeted-per-finding checks have caught
+most drift but the pattern is frequent enough that one sweep is cheap insurance against missed
+surfaces that no single finding's drift-check covers.
+
+#### Recipe bucket reassignments
+
+Finding #12/R6 reassigns two initial-setup workflow files from Finding #8's implicit unconditional
+baseline to the `install.type == full` bucket, and adds one new file to the `install.type == lite`
+bucket. Updates to [Installation Type Recipe
+Mechanism](#installation-type-recipe-mechanism) § Anchor file bucket assignments:
+
+- `system/workflows/arc/initial-setup/01_verify-and-configure.md` → `install.type == full`
+- `system/workflows/arc/initial-setup/02_define-project.md` → `install.type == full`
+- `system/workflows/arc/initial-setup/01_setup-lite.md` → `install.type == lite`
+
+Template layer (separate from workflow layer, but related):
+
+- `reference/META-PRD.template.md` → `install.type == full` (unchanged from Finding #8 L411)
+- `reference/META-PRD.lite.template.md` → **no recipe bucket** (opt-in installation via
+  agent-led step in `01_setup-lite.md`, not via recipe at install time)
+
+#### Full `01_verify-and-configure.md` drift fix — fold-in
+
+Finding #4 uniformly removed `Following Task List: No` from the WORK-STATUS field set across
+both modes. `01_verify-and-configure.md` L38's "Verify Session State" example block still shows
+the removed field — residual drift missed by the Finding #4 sweep. **Fold-in**: remove the
+`**Following Task List**: No` line from the example block as part of Finding #12/R6's Full-side
+cleanup. The same block is cut entirely from Lite's `01_setup-lite.md` (no example-block
+ceremony), so the drift fix applies only to Full's retained file.
+
+#### Template delivery mechanism
+
+`01_setup-lite.template.md` and `META-PRD.lite.template.md` flow through the standard render
+pipeline: `needsRendering()` matches the `.template.*` extension, `renderConditionals()` strips
+blocks whose gate condition is false for the current install, `toOutputPath()` strips the
+`.template` segment. Package source files are templates; installed files have no `.template.`
+infix.
+
+`01_verify-and-configure.md` and `02_define-project.md` stay mechanically unchanged. Full's
+existing files remain plain `.md` (and `.template.md` for 02, already a template for the
+`pm.mode` axis via Finding #8 precedent). The only change to Full's files is the drift-fix line
+removal in `01_verify-and-configure.md`. `02_define-project.md` stays untouched because the
+file is entirely Full-only now via its recipe bucket assignment — no new `install.type` gates
+needed inside the file.
+
+Closes [Open Question 15](#cross-cutting) (initial-setup workflow impact).
+
 ### Graduation / Downgrade Paths
 
 **Lite --> Full:** When a project outgrows Lite — scope expands, multiple work streams emerge, the single
@@ -2376,6 +2654,29 @@ prompts. Descope guard from the working doc stays in force: if implementation co
 material, descope to "Lite → Full only" with a clear error on the reverse path. Current analysis
 does not suggest it will — Cat A is free, Cat B is one filesystem walk, C1 is one grep, C2 is a
 warning string plus the workflow's review pass.
+
+**META-PRD content migration across the boundary (Finding #12/R6 follow-on).** When Lite has
+opted in to `META-PRD.lite.template.md` (the combined product + technical content variant from
+[Lite Initial Setup](#lite-initial-setup) § Optional Lite META-PRD), graduation and downgrade
+both need to reshape the high-level project doc:
+
+- **Lite → Full:** The CLI installs Full's separate `META-PRD.template.md` and
+  `TECHNICAL-OVERVIEW.template.md` (both rendered from the recipe under `install.type == full`).
+  The `switch-mode.md` workflow then walks the user through extracting technology content from
+  the existing Lite META-PRD into the new TECHNICAL-OVERVIEW and reshaping the product content
+  into Full's META-PRD structure. Stub sections in Full's META-PRD that have no Lite content to
+  seed them (user personas, metrics tables, roadmap cross-references) are left empty with a
+  "fill in post-graduation" marker.
+- **Full → Lite:** The CLI removes Full's `META-PRD.md` and `TECHNICAL-OVERVIEW.md` from the
+  manifest and installs `META-PRD.lite.template.md` (opt-in is implicit during downgrade since
+  the user already has the Full docs). The `switch-mode.md` workflow walks the user through
+  merging both Full files into the new Lite combined shape, landing content that doesn't fit
+  Lite's compact form in a `--- merged from Full, review and trim ---` section for the user to
+  reconcile.
+
+Both directions follow the same "CLI does mechanical, agent does judgment" division as the rest
+of mode switching — the migration logic is not a new pipeline, just new content-mapping rules
+surfaced through the existing advisory workflow pass.
 
 ### Configuration and Installation
 
@@ -3623,7 +3924,7 @@ Three categories:
 | Strategy                                | Category               | Rationale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 |-----------------------------------------|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `strategy-adr-methodology`              | applies-as-is          | ADRs are methodology-level and work at any project size. `reference/adr/` ships in both modes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `strategy-configurability-architecture` | applies-as-is          | Config + methods + extensions model is universal. Both modes ship an `arc-config.yml` (Lite via `arc:if`-gated template).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `strategy-configurability-architecture` | applies-as-is          | Config + methods + extensions model is universal. Both modes ship an `arc-config.yml` (Lite via `arc:if`-gated template). Single-row drift fix landed via Finding #12/R6 (2026-04-13): Convention inventory Document hierarchy row reframed to dual-value entry (Full: META-PRD → PRD → tasks; Lite: PRD → tasks, optional combined META-PRD). Mode-aware prose, no `arc:if` gate — strategy is on-demand reference content, not per-session load. L104 Context footer row drift on the Local/Tracked axis is deferred to the future Local-axis work.                                                                                                                                                                                                                                                                                                                    |
 | `strategy-file-classification`          | applies-as-is          | Taxonomy (Framework / Configurable / Scaffolded / Project-Owned) and naming conventions are universal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `strategy-planning-module`              | excluded (composition) | Installs only under `pm.layer: arc-pm`. Lite forces `pm.layer: none` via the `install.type == full` prompt gate. Structurally absent in Lite regardless of recipe bucket.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `strategy-quality-gates`                | applies-as-is          | Tier 1/2/3 model is universal. Coherent-unit checkpoints may degrade toward Tier 1 in single-phase Lite lists; strategy still applies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -3675,6 +3976,25 @@ source — no divergent Lite strategy variant to maintain.
   example blocks referencing Full-only workflows. The concept-not-content drift pattern did not hit
   three-of-three. Strategy count stays **4 / 4 / 2**. See
   [Lite Process-Task-Loop](#lite-process-task-loop).
+- **Finding #12/R6 (Lite initial-setup workflows):** Resolved 2026-04-13. Mechanism A (purpose-built
+  distinct files per mode) adopted over Mechanism B after strip analysis surfaced ~35-40% Lite-Full
+  overlap — inverse of Finding #5's ~85-90% and Finding #4's ~60%. Low overlap flips the overlap-ratio
+  heuristic: at this level, B produces brittle files with 60-75% content in whole-section `arc:if`
+  blocks, and A is structurally honest about the different intent. Full's `01_verify-and-configure.md`
+  and `02_define-project.md` move out of Finding #8's implicit unconditional baseline into the
+  `install.type == full` recipe bucket; new purpose-built `01_setup-lite.md` lands under
+  `install.type == lite`. Template layer also applies Mechanism A: Full's `META-PRD.template.md`
+  unchanged; new `META-PRD.lite.template.md` combines product direction and technical overview content
+  as an **opt-in** template (agent-led during setup, not in any recipe bucket). Lightly reopens
+  Finding #8 L411 META-PRD commitment — default Lite install still has no META-PRD; opt-in path
+  available. `strategy-configurability-architecture` classification holds at applies-as-is with a
+  single-row drift fix (L87 Convention inventory Document hierarchy reframed to dual-value). L104
+  Context footer row drift belongs to the future Local/Tracked axis work. Strategy count stays
+  **4 / 4 / 2**. **Drift-check pattern update:** 3-of-4 hit rate (~75%) across targeted drift-checks
+  promotes a formal strategy audit pass to Tier 4 — single comprehensive sweep before closing pre-PRD.
+  Folded-in drift fix on Full's `01_verify-and-configure.md` L38: remove residual `Following Task List: No`
+  line from the Verify Session State example block (missed by Finding #4's FTL removal sweep). See
+  [Lite Initial Setup](#lite-initial-setup).
 
 ### Phrasing Sweep (Mode-Aware Content Updates)
 
@@ -3822,6 +4142,11 @@ decision and a brief rationale; the full reasoning is in the relevant section ab
 | `Following Task List` field removal (Finding #4)                        | Removed from **both** Lite and Full WORK-STATUS uniformly. The Yes/No meta-flag is redundant with the Next Task + Next Action pair — off-task-list detour, on-task-list preparation, and mid-task resume are all readable from the relationship between those two fields' content. Removing simplifies handoff (one less field to write), session-init orientation (one less field to parse), and eliminates a decision point at handoff time. Scope expansion from Lite-only to cross-mode folded into Finding #4 after the redundancy surfaced during Lite WORK-STATUS design and applied symmetrically on the same reasoning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Lite session-init Step 5 discovery gate (Finding #4)                    | Gates on "skip if WORK-STATUS Next Action is concrete AND `tasks.md` exists with incomplete tasks," parallel to Full's "skip if task list is active." Sessions with a clear resume target skip discovery in both modes regardless of mode. When discovery fires in Lite, it checks for `prd.md` / `plan-*.md` in `.arc/active/` — no backlog, no ROADMAP, no category-path lookup. Consistent with L1695-1707 cascade forward-pointer from The Lite PRD § Cascades                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `strategy-session-operations` classification correction (Finding #4)    | Reclassified applies-as-is → **needs-variant**, correcting Finding #6's migration (2026-04-11). Two in-doc tables embed Full-only surface references: **State-Conditional Promotion** trigger (`Following Task List: Yes` — becomes universally-phrased after Finding #4's uniform FTL removal, no per-row gating) and **Method Classification by Trigger** row for pre-merge-review / review-triage (Full: `integrate-work-unit`; Lite: `verify-work.md` ship step — dual-value table entry). Mechanism: mode-aware prose + dual-value rows, **not** `.template.md` rename (strategy is on-demand reference content; templating scope doesn't expand to reference tier for two-row edits). Strategy count corrects 5/3/2 → **4 applies-as-is / 4 needs-variant / 2 excluded**. Second instance of Finding #6's classification-by-concept-not-by-content drift pattern — first instance was Finding #2's `strategy-task-list-formatting` correction                                                                                                                                                                                                                                                                                                    |
+| Lite initial-setup workflow mechanism (Finding #12/R6)                  | Mechanism A — purpose-built distinct files per mode. Full's `01_verify-and-configure.md` and `02_define-project.md` reassigned from Finding #8's implicit unconditional baseline to `install.type == full` recipe bucket. New `01_setup-lite.md` under `install.type == lite` bucket, collapsing 01's and 02's Lite-relevant scopes into one ~100-130 line purpose-built file (Step 1 Verify Install, Step 2 Populate Session-Loaded Docs, Step 3 Optional META-PRD, Step 4 Light Customization Awareness). The `01_` prefix preserves initial-setup ordering convention. **Rejected:** Mechanism B (single template with inline `arc:if`) — strip analysis surfaced ~20-25% retained for 01 / ~45-55% for 02 / ~35-40% combined, inverting Finding #5's overlap-ratio heuristic: low overlap favors A, not B. Finding #2's `verify-work.md` / `verify-work-unit.md` precedent applies. See [Lite Initial Setup](#lite-initial-setup)                                                                                                                                                                                                                                                                                                                  |
+| Opt-in Lite META-PRD template (Finding #12/R6)                          | New `META-PRD.lite.template.md` combines product direction and technical overview content in a single Lite-scoped ~80-120 line template. **Opt-in, not default** — lightly reopens Finding #8 L411 "META-PRD not installed in Lite" commitment without reversing it: default Lite install still has no META-PRD; users who want an ARC-native place for structured high-level project context can opt in during `01_setup-lite.md`'s Step 3 (agent-led during setup, not CLI prompt, not CLI flag). **Recipe bucket:** none — opt-in installation is a separate CLI operation from the recipe mechanism, appending to the installed-files manifest without re-running `resolveFileList()`. Graduation content migration via CLI + `switch-mode.md` workflow split (Shape γ); agent handles judgment calls on content reshape between Lite's combined shape and Full's two-file shape. Motivation: solo devs who want a big-picture doc otherwise create ad-hoc notes files outside ARC's scaffolding — offering an ARC-native opt-in surface that graduation recognizes prevents that pattern without forcing the ceremony on users who don't want it. See [Lite Initial Setup § Optional Lite META-PRD](#lite-initial-setup)                          |
+| `strategy-configurability-architecture` drift fix (Finding #12/R6)      | Single-row drift fix on L87 Convention inventory Document hierarchy row: "META-PRD → PRD → tasks" reframed to dual-value entry "Full: META-PRD → PRD → tasks. Lite: PRD → tasks (optional combined META-PRD)." Mode-aware prose, no `arc:if` gate — strategy is on-demand reference content, not per-session load. Mirrors Finding #4's `strategy-session-operations` Method Classification by Trigger dual-value row pattern. Classification holds at applies-as-is — not a reclassification. L104 Context footer row drift on the Local/Tracked axis deferred to future Local-axis work. Strategy count stays **4 / 4 / 2**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Formal strategy audit pass promoted to Tier 4 (Finding #12/R6)          | Drift-check hit rate across four targeted per-finding checks: Finding #2 `strategy-task-list-formatting` (hit), Finding #4 `strategy-session-operations` (hit), Finding #5 `strategy-quality-gates` (clean), Finding #12 `strategy-configurability-architecture` (hit). 3-of-4 = ~75% hit rate, above the 2-of-3 threshold established during Finding #4's resolution. Promoted to **formal strategy audit pass in Tier 4** — single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc surfaces before closing pre-PRD. Rationale: targeted checks catch most drift but the pattern is frequent enough that one sweep is cheap insurance against missed surfaces that no single finding's drift-check covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `01_verify-and-configure.md` FTL drift fold-in (Finding #12/R6)         | Residual drift from Finding #4's uniform `Following Task List` field removal: Full's `01_verify-and-configure.md` L38 Verify Session State example block still shows `**Following Task List**: No`. Fold-in: remove the line as part of Finding #12/R6's Full-side cleanup. The same block is cut entirely from Lite's `01_setup-lite.md`, so the drift fix applies only to Full's retained file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Lite process-task-loop mechanism (Finding #5)                           | Single-file-with-`arc:if` (Mechanism B), layered onto the existing `3_process-task-loop.template.md` in the package source. The file is **already** a template via pre-existing `team.mode` / `pm.mode` gates; Finding #5 adds `install.type` axis gates orthogonally. No rename, no mechanism change, no new render code. **Reverses 2026-04-10 "variant over conditional" decision** — the original "noise in core operating doc" argument applied to Mechanism C (runtime gates preserved in installed content), not B (install-time stripping via `renderConditionals()`). Process-task-loop overlap is ~85-90% universal across 295 lines; two-file variant duplication cost is _higher_ than Finding #4's session-init (~60% overlap). Same rejection reasoning as Approach 1 for `arc-config.yml`. See [Lite Process-Task-Loop](#lite-process-task-loop)                                                                                                                                                                                                                                                                                                                                                                                        |
 | Lite process-task-loop gated surfaces (Finding #5)                      | Four `install.type` gated regions: **(1)** Branch/task list coupling bullet — Full references stacked PRs, team sub-branches, archival, `rotate-branch`; Lite replaces with one-sentence "single task list on project branch until ship." **(2)** Verification Phase pointer — Full loads `work-unit-lifecycle/verify-work-unit.md`; Lite loads `verify-work.md` (downstream from Finding #2). **(3)** Next Step section — Full-only; Lite's verification phase is terminal (ship step happens inside `verify-work.md`). **(4)** Incidental Work Management section — multi-gate within: Quick Decision Guide two-way gate (Full's incidental-task-list-vs-atomic tree / Lite's atomic-or-phase-insertion routing), Where to Capture Atomic Tasks Full-only (Lite collapses to single destination `atomic-tasks.md` because `pm.layer: none` excludes `ATOMIC-INBOX`), Atomic Task Completion protocol **universal** (not gated), Complete Workflow pointer Full-only (`manage-incidental-work.md` doesn't exist in Lite). Retained universally: ~85-90% of the file by line count (completion protocol, Tier 1/2 gates, test-first, issue triage, pre-report checklists, WORK-STATUS update, Verification Phase heading/intro, Task List Maintenance) |
 | `strategy-quality-gates` drift-check (Finding #5)                       | Classification stays **applies-as-is**. Targeted drift-check during Finding #5's code-read surfaced no in-doc classification tables, no Full-coupled example blocks, no references to `verify-work-unit` / `integrate-work-unit` / archival / shift lifecycle / team coordination / backlog. `### Phase 3` / `### Phase N: Testing & Quality Gates` example blocks are generic task-list skeletons (both modes have phases per Finding #2). "Coherent unit completion" mentions are about parent-task completion within a task list (valid in Lite). Cross-references to `process-task-loop` / `2_generate-tasks` / `DEV-RULES.PROJECT` / `QUICK-REFERENCE` resolve in both modes. **Concept-not-content drift pattern did NOT hit three-of-three** — two consecutive hits (Finding #2, Finding #4) but not this one. Per Finding #4's threshold criterion, no formal Finding #6 audit pass needed before Tier 4. Strategy count stays **4 / 4 / 2**                                                                                                                                                                                                                                                                                                   |
@@ -3912,9 +4237,15 @@ be settled at PRD time or implementation time.
 
 ### Cross-cutting
 
-15. **Initial setup workflow impact**: The current `01_verify-and-configure.md` and
-    `02_define-project.md` assume Full ARC tracked. Lite and Local each need different setup paths.
-    Separate workflows per mode, or a unified workflow with mode-conditional sections?
+15. **Initial setup workflow impact**: ~~The current `01_verify-and-configure.md` and
+    `02_define-project.md` assume Full ARC tracked. Lite and Local each need different setup
+    paths. Separate workflows per mode, or a unified workflow with mode-conditional sections?~~
+    **Resolved 2026-04-13 (Finding #12/R6)** for the `install.type` axis (Lite/Full). Mechanism A:
+    purpose-built `01_setup-lite.md` for Lite, Full's existing two-file pipeline reassigned to
+    `install.type == full` bucket. Opt-in Lite META-PRD adds combined product + technical content
+    variant. See [Lite Initial Setup](#lite-initial-setup). Local/Tracked axis content impact
+    (exclusion mechanism verification, backing store setup, Path 2 inapplicability, portability
+    redirect) deferred to the future Local-axis work.
 
 ---
 

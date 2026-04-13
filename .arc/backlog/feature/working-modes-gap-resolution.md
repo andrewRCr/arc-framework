@@ -41,7 +41,8 @@ WU. See [`plan-arc-modes.md`][plan-doc] § Resolved Decisions rows for specific 
 - *#9 (Conditional prompts orchestration) and #10 (Lite `arc-config.yml` reduction mechanism)
   resolved and migrated 2026-04-10. See [`plan-arc-modes.md`][plan-doc] § Prompt Orchestration
   and Recipe Authority, § Lite Config Template Mechanism.*
-- **#12, R6** (OQ15 initial-setup workflows) — gate on #8 (now resolved and migrated).
+- *#12, R6 (OQ15 initial-setup workflows) resolved and migrated 2026-04-13. See
+  [`plan-arc-modes.md`][plan-doc] § Lite Initial Setup.*
 
 **Tier 4 — validation + inventory:**
 
@@ -332,28 +333,92 @@ If only manifest, how do tools not invoking the CLI (hooks, session-init workflo
 
 ---
 
-### Finding 12 — Initial-setup workflows (OQ15) · 🟡
+### Finding 12 — Initial-setup workflows (OQ15) · ✅
 
-**Original:** `01_verify-and-configure.md` and `02_define-project.md` assume Full ARC tracked.
-Lite and Local each need different setup paths. Separate workflows per mode, or unified with
-mode-conditional sections?
+**Resolution (2026-04-13):** **Mechanism A** — purpose-built distinct files per mode. Full's
+two-file pipeline (`01_verify-and-configure.md` + `02_define-project.md`) moves out of Finding #8's
+implicit unconditional baseline into the `install.type == full` recipe bucket. Lite gets one
+purpose-built file `01_setup-lite.md` under the `install.type == lite` bucket, collapsing 01's
+and 02's Lite-relevant scopes into ~100-130 lines (Step 1 Verify Install, Step 2 Populate
+Session-Loaded Docs, Step 3 Optional META-PRD, Step 4 Light Customization Awareness). Four gated
+surfaces become zero gated surfaces in the Lite file because the file is purpose-built, not a
+trimmed-down Full.
 
-**User position (2026-04-10):** Depends on where Lite/Full boundaries are drawn. Park until #1
-and #8 land.
+**First-cut lean → flip.** Initial lean (session opening) was Mechanism B (install-time stripped
+template with inline `arc:if`), following Finding #4 and Finding #5 precedents and leveraging
+the overlap-ratio heuristic from Finding #5 (higher overlap favors B more strongly). User
+pushback reframed the question: "what does Lite actually NEED from these vs. don't" — the
+ceremony-preservation framing of Mechanism B assumed the content was universal-enough to be
+worth mirroring. Strip analysis surfaced that Lite retains only ~20-25% of 01 and ~45-55% of 02
+— combined ~35-40% overlap. Below Finding #4's ~60% and well below Finding #5's ~85-90%. At this
+overlap ratio, the heuristic **inverts**: B produces ugly files (60-75% content wrapped in
+whole-section `arc:if` blocks, hard to read, hard to maintain), and A is structurally honest
+about the different intent. Finding #2's precedent (`verify-work.md` / `verify-work-unit.md` —
+two files under different recipe buckets when the Lite variant is genuinely different, not a
+trimmed Full) applies directly.
 
-**Outstanding analysis (gates on #1, #8):**
+**Opt-in Lite META-PRD absorbed as sub-decision.** User surfaced a second insight: the strip
+analysis zeroed out META-PRD and TECHNICAL-OVERVIEW in Lite (Finding #8 L411 + "TECHNICAL-OVERVIEW
+is orphaned without META-PRD"), but solo devs who want a high-level project doc otherwise create
+ad-hoc notes files outside ARC's scaffolding. Offering an ARC-native opt-in surface that
+graduation recognizes prevents that pattern without forcing ceremony on users who don't want it.
+New `META-PRD.lite.template.md` combines product direction and technical overview content in a
+single Lite-scoped ~80-120 line template. Opt-in via agent-led Step 3 in `01_setup-lite.md`
+(rejected: install-time prompt — user doesn't know yet whether they want it; CLI flag — zero
+discoverability). Not in any recipe bucket; opt-in installation is a separate CLI operation that
+appends to the manifest. Lightly reopens Finding #8 L411 commitment: default Lite install still
+has no META-PRD; opt-in path available. Graduation content migration via CLI + `switch-mode.md`
+workflow split (Shape γ); CLI handles mechanical operations, agent handles judgment calls on
+content reshape between Lite's combined shape and Full's two-file shape.
 
-- Read current `01_verify-and-configure.md` and `02_define-project.md` — identify mode-specific
-  vs mode-neutral content.
-- If recipe architecture (#8) lands on "two recipes" or "invert baseline," initial-setup workflows
-  likely fork per mode. If "extend schema" or "bucket + gate," unified with conditionals may be
-  viable.
-- Density threshold from conditional content analysis applies (5+ conditionals on same axis →
-  variant).
+**`strategy-configurability-architecture` drift-check — 3-of-4 hit, audit promoted.** Targeted
+drift-check surfaced two drift points: L87 Convention inventory Document hierarchy row
+("META-PRD → PRD → tasks" as universal) — in-scope for #12/R6, fold-in as dual-value row;
+L104 Context footer row ("Context: tasks-*.md (Task X.Y)" as tracked-mode specific) — out of
+scope, deferred to future Local/Tracked axis work. Classification holds at applies-as-is
+(single-row rewording, not a reclassification). Strategy count stays **4 / 4 / 2**. Drift-check
+pattern across four targeted checks: #2 hit, #4 hit, #5 clean, #12 hit — 3-of-4 = ~75% hit
+rate, above the 2-of-3 threshold from Finding #4's resolution criterion. **Promoted to formal
+strategy audit pass in Tier 4** — single comprehensive sweep of all 10 framework strategies
+before closing pre-PRD. Cheap insurance against missed surfaces that no single finding's
+drift-check covers.
 
-**Resolution:** *pending*
+**Full FTL drift fold-in.** `01_verify-and-configure.md` L38 Verify Session State example block
+still shows `**Following Task List**: No` — residual drift from Finding #4's uniform FTL
+removal. Remove the line as part of Finding #12/R6's Full-side cleanup. Same block cut entirely
+from Lite's `01_setup-lite.md`, so fix applies to Full only.
 
-**Migrated to plan doc:** *pending*
+**Local/Tracked axis deferred.** OQ15's original phrasing covers both Lite/Full and Tracked/Local.
+Finding #12/R6 scopes to `install.type` axis only — Local-axis content impact (exclusion
+mechanism verification, backing store setup, Path 2 inapplicability, portability redirect) plus
+the Local-axis config key naming/mechanism itself are deferred to future Local-axis work.
+Working doc gate note (line 44) listed only #8 as a gate; this scoping matches.
+
+**Session arc:** re-read Finding #12 + plan doc § Installation Type Recipe Mechanism §
+Feedforward + § Strategy Applicability Mapping → code-read-first on `01_verify-and-configure.md`
+(live + package source both plain `.md`, no template infrastructure) and `02_define-project.md`
+(live plain, package source already `02_define-project.template.md` with three `pm.mode` gates)
+→ initial lean Mechanism B following Finding #5 precedent + gate enumeration → **user pushback
+on content-is-universal assumption** → section-by-section strip analysis revealed ~35-40%
+combined overlap → mechanism flipped B → A based on overlap-ratio inversion and structural
+distinction → user proposed optional Lite META-PRD combining product + technical content with
+graduation content migration → absorbed as Finding #12/R6 sub-decision → drift-check on
+`strategy-configurability-architecture` surfaced two drift points (L87 in-scope fold-in;
+L104 deferred) → drift-check hit rate 3-of-4 prompted Tier 4 audit-pass promotion → consolidated
+scope: #12/R6 folds in mechanism decision + opt-in META-PRD + drift fixes + audit promotion +
+FTL drift fold-in → direct-to-plan-doc migration at ~240-line scale (eleventh consecutive
+pre-PRD finding this way).
+
+**Migrated to plan doc:** ✅ 2026-04-13. New § Lite Initial Setup subsection (~240 lines) between
+§ Lite Process-Task-Loop and § Graduation / Downgrade Paths, parallel structure to § Lite
+Session Management and § Lite Process-Task-Loop. Plus: § Installation Type Recipe Mechanism
+§ Feedforward entry added for initial-setup workflows, META-PRD bucket assignment reframed to
+note Lite opt-in variant. § The Lite PRD § SQ1 softened to "not installed by default; opt-in
+available." § Strategy Applicability Mapping `strategy-configurability-architecture` row updated
+with L87 drift fix note. § Follow-on implications expanded with Finding #12/R6 paragraph.
+§ Graduation / Downgrade Paths gains META-PRD content migration paragraph. § Open Questions OQ15
+marked resolved with scope note. Six new Resolved Decisions rows. Working doc Finding 12 →
+✅ Resolved (this entry).
 
 ---
 
