@@ -3047,15 +3047,43 @@ history, supports the opt-in remote push path below with no additional tooling, 
 plan's stated durability and portability properties exactly.
 
 **More frequent sync** (beyond handoff) is acceptable only if it remains fast, seamless, and
-invisible. Shift transitions are the obvious candidate — parking a WU to durable storage before
-rotating focus is load-bearing for Local Full viability. Implementation-phase decision whether
-to fire on every shift or only on "long pause" transitions.
+invisible. Additional firing points beyond session handoff:
 
-**Failure handling:** Handoff proceeds even if the backing store sync fails — the user is
-notified, the failure is recorded in SESSION-NOTES, and the next successful sync recovers the
-lag. Refusing handoff on sync failure would leave the user unable to close a session over a
-durability system they didn't ask to opt into; the guarantee is "best-effort durability, visible
-when degraded," not "atomic two-phase commit."
+- **Shift transitions** — parking a WU to durable storage before rotating focus is load-bearing
+  for Local Full viability. Implementation-phase decision whether to fire on every shift or only
+  on "long pause" transitions.
+- **`arc update`** — successful framework updates (including three-way-merged Configurable
+  files) sync the backing store before the update command returns, ensuring the store captures
+  the new framework state. Prevents a home-dir-loss window from losing the user's merge
+  decisions. Resolves finding L4.
+
+All firing points are subject to the same "fast, seamless, invisible" constraint.
+
+**Failure handling.** Handoff proceeds even if the backing store sync fails — the user is
+notified, the next session's session-init pre-check queries `arcd backing status` and surfaces
+degraded state in the orientation summary, and recovery happens automatically or manually
+depending on failure class. Refusing handoff on sync failure would leave the user unable to
+close a session over a durability system they didn't ask to opt into; the guarantee is
+"best-effort durability, visible when degraded," not "atomic two-phase commit."
+
+Three failure classes with distinct recovery characteristics:
+
+- **Class A — fail before local commit** (disk full, permission errors, git metadata lock
+  contention). The local store stays clean. The next `arcd backing sync` picks up current
+  `.arc/` state and rolls forward. Recovery is automatic.
+- **Class B — local commit succeeded, push failed** (transient network, auth refresh needed,
+  remote temporarily unreachable). The local store is one commit ahead of the remote. The next
+  successful push catches up. Recovery is automatic.
+- **Class C — non-fast-forward push failure** (another machine pushed divergent commits to the
+  same remote). The local store has a commit the remote does not AND the remote has commits
+  local does not. The next `arcd backing sync` also fails with non-FF until manually resolved
+  via the cross-machine conflict flow — see [Durability-Layer
+  Commands](#durability-layer-commands) § Cross-machine conflict story. Recovery is **not**
+  automatic.
+
+`arcd backing status` is the canonical source of degraded-state information; session-init
+queries it at orientation time and surfaces class or staleness in the summary. Resolves Audit A
+tightening H3-N5.
 
 **Durability:** Survives project repo re-clone, accidental `rm -rf .arc/`, branch switching. Lost
 only if the developer loses their home directory (at which point much else is also gone).
@@ -3188,18 +3216,60 @@ step adds structure without rewriting what exists.
 
 ### Agent and Editor Discoverability
 
-Editor UI features that respect gitignore rules (e.g., `@` file mentions, default editor search) will
-hide `.arc/` contents from the developer's interactive surface. This affects the human's UX, not ARC's
-reliability — agents load files by explicit path and workflows reference hardcoded paths, so core ARC
-operations work unchanged.
+Local mode makes `.arc/` invisible to editor surfaces that respect gitignore. In practice this is a
+**minor disruption, not a primary ergonomic cost** — the effective impact is much narrower than the
+"gitignored by default" framing suggests.
 
-**Mitigation posture:** document the friction honestly, provide `arc open <path>` CLI helpers for
-direct access, and accept that we can't fix editor UI from outside the editor. Some editors expose
-configuration to include gitignored files in search (`search.useIgnoreFiles: false` in VS Code, etc.);
-Local mode docs mention these as developer-side options without ARC modifying editor settings.
+**Three surfaces behave differently:**
 
-This is a "does less where it has to" concession. The reliability of ARC's operation is not affected,
-only the ergonomics of ad-hoc human navigation.
+- **Agent file-reading machinery is unaffected.** Read/Grep/Glob tools take absolute paths and bypass
+  editor indexing entirely. Core ARC operations — session-init, process-task-loop, workflow execution —
+  work unchanged.
+- **Session-init scaffolding gives the agent full path discoverability.** The agent already knows
+  STRATEGY-INDEX, directory conventions, and filename patterns (`plan-*`, `tasks-*`, `prd-*`) from its
+  loaded context. Natural-language references ("check the plan doc for H3," "pull up the modes task
+  list") resolve to Glob/Grep without ever touching an editor picker. Explicit `@`-tagging is rarely the
+  load-bearing path in ARC workflows.
+- **Editor explorer/file-browser views show untracked files by default** in every mainstream editor
+  (Zed, VS Code, JetBrains, Cursor). `.arc/` is visible in the sidebar — not a hidden surface.
+
+**The residual affected surface** is quick-open and `@`-mention pickers in editors that respect
+gitignore — notably VS Code's `Ctrl+P` and the agent chat `@`-picker that inherits its index. A developer
+typing `@tasks-feature-x.md` in a chat turn may not get autocomplete and has to type the path manually.
+When session-init scaffolding covers the reference implicitly (most of the time), this is invisible;
+when explicit `@`-tagging is genuinely needed (rare), it costs a few extra keystrokes.
+
+**External survey confirms this as an intrinsic tradeoff, not an ARC-specific gap.** A 2026-04-13
+research pass over adjacent tools (Cursor rules files, SpecStory `.specstory/`, Aider `.aider.*`,
+Continue `.continue/`, JetBrains AI Assistant, Dendron/Obsidian in-repo vaults) found no clean universal
+solution — every surveyed tool accepts the gitignored-picker cost as a consequence of the category. VS
+Code issues [#103570][vscode-103570] (support opening ignored files) and [#43505][vscode-43505] (allow
+extensions to contribute to quick-open) both closed without resolution. Zed's `file_scan_inclusions` is
+the sole clean path-scoped mitigation.
+
+**Per-editor mitigation guidance** (for users who want to eliminate even the residual friction):
+
+| Editor           | Mitigation                                                                                           | Friction |
+|------------------|------------------------------------------------------------------------------------------------------|----------|
+| **Zed**          | `"file_scan_inclusions": [".arc/**"]` in `settings.json`. Path-scoped, clean. Solves it completely.  | Low      |
+| **Cursor**       | `.cursorignore` with `!.arc/**` negation. Affects codebase indexing scope.                           | Medium   |
+| **Continue.dev** | Custom context provider pointing at `.arc/` (documented pattern).                                    | Medium   |
+| **VS Code**      | `search.useIgnoreFiles: false` in workspace `.vscode/settings.json` (repo-scoped, not global).       | Medium   |
+| **JetBrains**    | Scopes feature including `.arc/` explicitly in search and navigation.                                | Medium   |
+
+**Users choosing Local mode accept this narrow tradeoff in exchange for repo-footprint-zero operation.**
+The practical daily impact is minimal because ARC's agent scaffolding does most of the discoverability
+work the `@`-picker would otherwise handle. Local mode is best suited to developers whose agent workflow
+relies on natural-language file references and CLI-driven operations more than explicit editor-hosted
+`@`-tagging. Resolves finding L1.
+
+**Tooling asymmetry note.** Project tooling that globs files (markdown linters, test runners, quality
+gate commands) may see `.arc/` content on developer machines but not on CI or fresh clones, because the
+files do not exist there. Running `npm run lint:md` locally may hit violations in untracked `.arc/`
+content that CI sees zero of. This is a consequence of the "no repo footprint" guarantee, not a defect.
+Configure project linters and test runners to explicitly exclude untracked ARC paths if symmetric
+behavior matters across dev machines and CI. Do not install Local mode in repos where CI depends on
+ARC operations. Resolves Audit A sub-finding H3-N6.
 
 ---
 
@@ -4007,6 +4077,16 @@ Flags for non-interactive use:
 - `--local` / `--tracked` (default: tracked, the common case)
 - `--shared-gitignore` (Local only, opt-in for teams that welcome tool-specific tracked entries)
 
+**Init preconditions (both modes).** `arc init` requires a git repository to operate. The CLI installs
+hooks in `.git/hooks/` and (in Local mode) writes `.git/info/exclude`; both paths assume `.git/` exists.
+When `arc init` runs in a directory with no `.git/`, the CLI prompts "This directory is not a git
+repository. ARC requires git for hooks and related setup. Initialize git now? [Y/n]" — default yes. On
+yes, the CLI runs `git init` and proceeds with the normal init flow (in Local mode, tertiary UUID fires
+because no commits exist yet). On no, the CLI exits cleanly with "ARC requires a git repository. Run
+`git init` first." Auto-init-without-prompt is rejected as too aggressive (modifies the user's directory
+beyond their stated intent); hard-refuse is rejected as user-hostile on quick-start paths. Prompt-to-init
+respects agency and matches ARC's "asks before acting" ethos. Resolves Audit A sub-finding H3-N7.
+
 ---
 
 ## Configurability Architecture Cleanup
@@ -4177,14 +4257,33 @@ a shared remote:
 2. `arcd backing pull` fetches the remote into remote-tracking refs (non-destructive — no
    working-tree files change yet).
 3. `arcd backing sync` in a divergent state (local HEAD does not descend from remote HEAD) →
-   refuses, surfaces the divergence, and points the user at resolution options: force-push
-   the local version, or `arcd backing restore` to the remote HEAD and re-sync local edits on
-   top.
+   refuses, surfaces the divergence, and directs the user at the power-user manual resolution
+   path below.
 
-File-level three-way merge of WORK-STATUS.md, task lists, or SESSION-NOTES is not attempted —
-the contents aren't typically mergeable without human review. The backing store remains a
-standard git repo, so power users can resolve manually by `cd`-ing into
-`~/.arc-state/{project-id}/` and running standard git commands.
+**Divergence resolution is power-user manual, deliberately.** File-level three-way merge of
+WORK-STATUS.md, task lists, or SESSION-NOTES is not attempted — the contents are not typically
+mergeable without human review. The backing store remains a standard git repo, so conflict
+resolution uses standard git tooling directly, operating on `~/.arc-state/{project-id}/`:
+
+- **Prefer the remote version:** `cd ~/.arc-state/{project-id}/` and
+  `git reset --hard origin/{branch}` (replace `{branch}` with the appropriate remote-tracking
+  ref). Then run `arcd backing restore` to replay the remote version into `.arc/`, overwriting
+  local state.
+- **Prefer the local version:** `cd ~/.arc-state/{project-id}/` and `git push --force`. Use
+  with care — overwrites the remote version for other machines on the next
+  `arcd backing pull`.
+- **Manual merge:** `cd ~/.arc-state/{project-id}/`, resolve conflicts using standard git
+  tooling (merge commits, cherry-pick, reflog recovery, whatever the situation calls for),
+  then `arcd backing restore` to replay the resolved content into `.arc/`.
+
+The CLI surface deliberately does not expose a dedicated divergence-resolution verb. The
+backing store's git-repo nature makes standard git tooling directly applicable, and building
+ARC-specific resolution commands would duplicate git's semantics without adding value — the
+user who hits cross-machine divergence is by definition a multi-machine user comfortable with
+standard git workflows, and a dedicated verb would cover strictly fewer cases than `git` does
+in the same directory. Users who hit divergence frequently should consider whether their
+multi-machine workflow would benefit from more frequent `arcd backing push` invocations (via
+`user.sync_push: always`) to reduce the divergence window. Resolves Audit A tightening H3-N3.
 
 **Graduation banner.** `arc mode switch --to tracked` prints a one-time message at the end of
 the switch: "The `arcd backing *` commands go away with your backing store. `arc user *` and
@@ -5716,3 +5815,5 @@ Lite keeps and what it drops.
 [create-prd]: ../../system/workflows/arc/1_create-prd.md
 [work-planning]: ../../reference/strategies/arc/strategy-work-planning.md
 [conditional-content-analysis]: ../../reference/analysis/analysis-conditional-content-architecture.md
+[vscode-103570]: https://github.com/microsoft/vscode/issues/103570
+[vscode-43505]: https://github.com/microsoft/vscode/issues/43505
