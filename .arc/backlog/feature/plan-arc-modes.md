@@ -2979,48 +2979,114 @@ across clones; see Research Findings). Without automation this would be friction
 Local mode. **The backing store (see next subsection) doubles as the re-clone detection signal**,
 making recovery a one-prompt operation.
 
-**Project identity** — stable across clones, resolved via a three-step fallback chain:
+**Project identity** — stable within a keying epoch. The CLI resolves the project ID via
+**pinned-ID-file-first precedence**, with a fallback chain as a secondary step.
 
-1. **Git remote URL** (primary) — if `origin` is set, hash it.
-2. **First-commit hash** (secondary) — if no remote but the repo has any commit history.
-3. **Generated UUID stored at `.arc/system/.internal/project-id`** (tertiary) — created on
-   first `arc init --local` in a zero-commit repo with no remote. This covers the Lite+Local
-   "try ARC in five minutes" scenario where the developer has nothing to clone from and
-   nothing to key off of yet. The UUID is written to an untracked file under the untracked
-   `.arc/` tree and survives directory moves as long as `.arc/` moves with them.
+1. **Pinned project ID file** (primary, sticky). If `.arc/system/.internal/project-id` exists, its
+   contents ARE the project ID, full stop. Fallback chain is skipped. The file contents are a single
+   ID string (UUID, first-commit-hash, or remote-URL-hash — format-agnostic beyond "one ID string").
+   File presence is the stickiness mechanism — a project with a pinned ID stays on that ID
+   permanently, regardless of later git state changes (remote added, first commit, etc.).
+2. **Fallback chain** (runs only when the pinned-ID file is absent), walked top-down, first match
+   wins:
+    - **Git remote URL** — if `origin` is set, hash it.
+    - **First-commit hash** — if no remote but the repo has commit history.
+    - **Generated UUID** — no remote, no commits. Written to the pinned-ID file at creation so
+      subsequent resolutions short-circuit at step 1. Covers the Lite+Local "try ARC in five minutes"
+      scenario where the developer has nothing to key off of yet.
 
-The CLI computes the project ID by walking the fallback chain top-down and using the first
-source that resolves. The computed ID keys the backing store location and persists across
-clones of the same repo.
+The pinned-ID file lives at `.arc/system/.internal/project-id` as an untracked file under the
+untracked `.arc/` tree; it survives directory moves as long as `.arc/` moves with it.
 
-**Stickiness at graduation:** Once a project adopts a UUID (because it started zero-commit), it
-**stays on the UUID** even after the repo later acquires a remote or first commit. Migrating the
-backing store key on git-state change would invalidate the existing backing store and force
-manual recovery, and the zero-commit → real-repo transition is infrequent enough that the
-one-time friction isn't worth the complexity of an auto-migration path. If a developer wants
-to migrate (e.g., to share a backing store across machines keyed on the new remote URL), an
-explicit `arc project-id migrate` command is available — implementation-phase detail, not
-pre-PRD scope.
+**UUID-case stickiness is automatic.** The generated-UUID path writes the pinned-ID file at init time,
+so the project is sticky on the UUID from the first resolution onward. Adding a remote or making the
+first commit later does not re-key the project — file-first precedence short-circuits the fallback
+chain.
+
+**First-commit-case stickiness uses auto-detect.** When a repo keyed on first-commit-hash later
+acquires a remote, fallback-chain walking would silently return the remote-URL hash instead of the
+first-commit hash (the pinned-ID file is NOT written in this case by design — the absence is what
+enables auto-detection to fire). Left unhandled, the silent re-keying would orphan the existing
+backing store and next sync would create an empty store at the new key, losing prior history. Handled
+via auto-detect: on every project ID computation, the resolver ALSO checks whether a backing store
+exists at any key the fallback chain _would_ have resolved to under a prior repo state. If such a
+store is found, the CLI offers a three-way migration prompt before proceeding:
+
+```text
+Project identity changed: this repo now has a remote, and the backing store
+key would move from first-commit-hash ({old-key}) to remote-URL-hash
+({new-key}). An existing backing store is present at {old-key}.
+
+  [M]igrate — copy backing store content to new key (old becomes orphan)
+  [S]tay    — pin the old key permanently (writes pinned-ID file)
+  [L]ater   — use old key for this session; ask again next session
+```
+
+The **[S]tay** option writes the current old key to `.arc/system/.internal/project-id`, converting an
+auto-detected transition into a permanent stickiness pin. File-first precedence then makes the old key
+permanent — no re-prompting on future resolutions. This is how the secondary case acquires stickiness:
+not automatically, but as a one-time user-confirmed operation.
+
+**`arc project-id migrate` command** — the explicit verb for user-initiated migration outside the
+auto-detect path. Useful when the user wants to migrate proactively (e.g., adopting a remote URL as the
+new key for cross-machine sync) rather than waiting for the next resolution to fire the prompt.
+Behavior:
+
+1. Compute old key (resolver with current state) and new key (resolver under the intended new state;
+   the command accepts a `--to <key-source>` flag or walks the chain with overrides to determine the
+   new key).
+2. Refuse if a backing store already exists at the new key (concurrent migration from another
+   machine). Message: "backing store already exists at new key; use `arcd backing pull` to adopt it
+   or specify a different key."
+3. Copy old store content to the new-key location. Does NOT move — orphan warning is louder than
+   silent loss.
+4. Rewrite or clear the pinned-ID file as appropriate: clear it (letting fallback chain re-resolve
+   to the new key naturally at next invocation) or write the new key explicitly (pin on the new
+   key).
+5. Report: "migrated. Old store at `~/.arc-state/{old-key}/` is orphaned; remove when confident.
+   Configure remote on new store with standard git if you want cross-machine sync."
+6. Does NOT touch remote backing store configuration — user sets that up separately with standard
+   git commands in the new store.
+
+Resolves Audit A sub-finding H3-N4 (fallback-chain precedence and stickiness contradiction) and
+dependent findings M2 (stickiness mechanism, now file-first precedence) and M3 (migrate command
+shape, now specified above).
 
 **Re-clone detection flow:**
 
-When any `arc` command runs in a repo where:
+When any `arc` or `arcd` command runs in a repo where:
 
 1. The computed project ID matches an existing backing store location, AND
 2. The `.arc/` directory is absent or empty, AND
 3. `.git/info/exclude` lacks the expected `.arc/` entry
 
-...ARC concludes this is a fresh clone of a previously-initialized Local mode repo and offers restoration.
-If all three signals align unambiguously, restoration can proceed with a single confirmation — no need
-for the developer to remember the setup command exists.
+...ARC concludes this is a fresh clone of a previously-initialized Local mode repo. Commands other
+than `arc init --local` exit immediately with the message "Re-clone of a Local-mode repo detected.
+Run `arc init --local` to restore from backing store before continuing." `arc init --local` itself
+performs detection and then offers single-confirmation restoration via the recovery command path
+below.
 
-**Recovery steps:**
+This deliberate split — detection on any command, restoration only on `arc init --local` — keeps
+substantial filesystem operations out of read-only-feeling commands (`arc status`, `arcd backing
+status`) while ensuring no invocation proceeds against incomplete state.
 
-1. Re-populate `.git/info/exclude` with the `.arc/` entry (or restore the tracked `.gitignore` line if
-   that was the original setup)
-2. Pull backing store contents into `.arc/`
-3. Re-install hooks (local by nature; re-applied)
-4. Report restoration complete; developer resumes work
+**Recovery command.** `arc init --local` is idempotent and is the command that performs recovery.
+When the computed project ID matches an existing backing store and `.arc/` is absent, `arc init
+--local` detects re-clone state and prompts for a single confirmation before performing the four
+recovery steps as a sequence:
+
+1. Re-populate `.git/info/exclude` with the `.arc/` entry (or restore the tracked `.gitignore` line
+   if that was the original setup).
+2. Replay backing store contents into `.arc/` via `arcd backing restore`.
+3. Re-install hooks in `.git/hooks/` (local by nature; re-applied from the package source).
+4. Report restoration complete; developer resumes work.
+
+**Idempotent re-entry** means re-running `arc init --local` is always safe — on a fresh install it
+sets up everything, on re-clone it restores, and on an already-initialized install it is a no-op.
+Re-clone recovery is therefore a re-run of the original command rather than a separate named verb,
+matching the "init is the setup entry" intuition. Resolves Audit A sub-finding H3-N1 (idempotent
+re-entry path); the companion session-init Local-axis pre-check that surfaces this state before
+document loading is specified in § Durability-Layer Commands § Session-Init Integration.
 
 ### Backing Store
 
