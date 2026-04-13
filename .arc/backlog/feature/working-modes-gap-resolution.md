@@ -184,36 +184,92 @@ OQ5 marked resolved.
 
 ---
 
-### Finding 5 — Lite process-task-loop · 🟢
+### Finding 5 — Lite process-task-loop · ✅
 
 **Original:** Variant-vs-conditional hedged in plan.
 
-**User decision (2026-04-10):** **Variant over conditional, committed.** Process-task-loop is a
+**First-cut decision (2026-04-10):** **Variant over conditional, committed.** Process-task-loop is a
 core agent operating doc referenced constantly during task execution — noise in that document is
-expensive. Cuts should be minimal to zero: only remove "wrong info" (references to ARC docs or
-processes that don't exist in Lite — ~~atomic companion files~~, incidental work routing to
-backlog, coherent unit protocol referencing lifecycle). Underlying loop is identical.
+expensive. Cuts should be minimal: only remove "wrong info" (references to ARC docs or processes
+that don't exist in Lite).
 
-**Cut list narrowed (2026-04-11, Finding #2 interaction):** Atomic companion files are retained
-in Lite as `atomic-tasks.md` (see Finding #2 resolution). The earlier "atomic companion files"
-entry in the cut list was premised on atomic being Full-only; with the concept retained, those
-references stay in the Lite process-task-loop variant. Final cut list: **incidental work routing
-to backlog** (no backlog in Lite) and **coherent-unit protocol's WU-lifecycle framing**
-(no lifecycle in Lite). Tier 1/2/3 quality gate structure retained. `atomic-tasks.md` references
-stay.
+**Cut list narrowed (2026-04-11, Finding #2 interaction):** Atomic companion files retained in Lite
+as `atomic-tasks.md`; the earlier "atomic companion files" entry in the cut list was premised on
+atomic being Full-only. Narrowed cut list: incidental work routing to backlog, coherent-unit
+protocol's WU-lifecycle framing.
 
-**Outstanding analysis:**
+**Resolution (2026-04-13, Finding #4 mechanism taxonomy application):** **Mechanism flipped
+A → B.** Single-file-with-`arc:if` via the existing `3_process-task-loop.template.md` in the package
+source. The file already exists as a template in `packages/arc-framework/arc/system/workflows/arc/`
+(with pre-existing `team.mode` and `pm.mode` `arc:if` gates); Finding #5's implementation adds an
+orthogonal `install.type` axis without rename, mechanism change, or new render code.
 
-- Exact list of "wrong info" references in current `3_process-task-loop.md` — produces the diff
-  for the Lite variant. Runs after Finding #1 lands (since some cuts depend on Lite scope
-  around incidental work routing, etc.).
+**Key reasoning — reversal of 2026-04-10 decision:** The original "noise in core operating doc"
+argument applied to Mechanism C (runtime in-prose conditionals preserved in installed content),
+not Mechanism B (install-time stripping via `renderConditionals()`). Under B, the adopter's installed
+`3_process-task-loop.md` contains zero `arc:if` markers regardless of mode — runtime cognitive load
+is zero. Two-file variant rejected: process-task-loop overlap is ~85-90% universal across 295 source
+lines (higher than Finding #4's session-init at ~60%), so duplication cost and silent-divergence
+risk are *more* severe, not less. Same rejection reasoning as arc-config Approach 1 and Finding #4.
 
-**Resolution:** Variant over conditional. Minimal cuts. Underlying loop identical across modes.
-Cut list: incidental routing to backlog, coherent-unit WU-lifecycle framing.
+**Key reasoning — mechanism-class awareness (Finding #4 generalization):** When arguing about how
+the agent reads a file ("noise in core operating doc"), verify whether the file is runtime-read
+(Mechanism C) or install-time-processed (Mechanism B). Finding #4 established this pattern;
+Finding #5 is the second consecutive confirmation. Both findings' first-cut proposals implicitly
+assumed Mechanism C and argued against conditionals on runtime-cost grounds; both reversed to
+Mechanism B once the install-time-processed distinction was made explicit.
 
-**Migrated to plan doc:** *pending* (cut list narrowing absorbed into Finding #2 migration
-2026-04-11 via Finding #2/#5 follow-on bullet update in § Strategy Applicability Mapping; full
-variant contents still pending as part of Finding #5's own migration).
+**Cut list (final, four gated surfaces):**
+
+1. **Branch/task list coupling bullet** (L36-41 of package source). Full's text (stacked PRs, team
+   sub-branches, archival, `rotate-branch` intermediate merges) replaced in Lite with one-sentence
+   "single task list on project branch until ship."
+2. **Verification Phase pointer** (L198). Full `work-unit-lifecycle/verify-work-unit.md` → Lite
+   `verify-work.md` (downstream from Finding #2).
+3. **Next Step section** (L200-205). Full-only. Lite's verification phase is terminal — the ship
+   step happens inside `verify-work.md`.
+4. **Incidental Work Management section** (L207-264). Multi-gate within:
+    - Quick Decision Guide two-way gate (Full's incidental-task-list-vs-atomic tree / Lite's
+      atomic-or-phase-insertion routing — "atomic → `atomic-tasks.md`; multi-step → new phase or
+      insertion into existing `tasks.md`").
+    - Where to Capture Atomic Tasks Full-only (Lite collapses to single destination `atomic-tasks.md`
+      because `pm.layer: none` excludes `strategy-planning-module` → no `ATOMIC-INBOX.md`).
+    - Atomic Task Completion protocol **universal** (not gated; applies to `atomic-{name}.md` in Full
+      and `atomic-tasks.md` in Lite).
+    - Complete Workflow pointer Full-only (`manage-incidental-work.md` doesn't exist in Lite).
+
+**Retained universally (~85-90% of file):** Purpose, method dependencies, one-task-at-a-time,
+test-first execution, issue triage, completion protocol (Tier 1 gates, task marking, pre-report
+checklist, mandatory stop, implied permission, deferred review), coherent unit completion protocol
+(Tier 2 gates, parent task marking), commit guide integration, WORK-STATUS update at commit time,
+atomicity check, Verification Phase section heading/intro, Atomic Task Completion protocol, Task
+List Maintenance section, existing `team.mode` / `pm.mode` `arc:if` blocks (compose orthogonally
+with `install.type`).
+
+**Drift-check result: `strategy-quality-gates` stays applies-as-is (clean).** Targeted re-audit
+per Finding #2 / Finding #4 pattern surfaced no in-doc classification tables, no Full-coupled
+example blocks, no references to `verify-work-unit` / `integrate-work-unit` / archival / shift /
+team coordination / backlog. The `### Phase 3` / `### Phase N: Testing & Quality Gates` example
+blocks are generic task-list skeletons (both modes have phases per Finding #2). "Coherent unit
+completion" mentions are about parent-task completion within a task list (valid in Lite).
+Cross-references to `process-task-loop`, `2_generate-tasks`, `DEV-RULES.PROJECT`, `QUICK-REFERENCE`
+resolve in both modes. **Concept-not-content drift pattern did NOT hit three-of-three** — two
+consecutive hits (Finding #2 `strategy-task-list-formatting`, Finding #4 `strategy-session-operations`)
+but not this one. Per Finding #4's threshold criterion, no formal Finding #6 audit pass needed
+before Tier 4. Strategy count stays **4 applies-as-is / 4 needs-variant / 2 excluded**.
+
+**Migrated to plan doc:** New § Lite Process-Task-Loop subsection (~180 lines) between § Lite
+Session Management and § Graduation / Downgrade Paths, parallel structure to § Lite Session
+Management. Drift fixes: L1477 § What Stays Identical "Process-task-loop" bullet reframed (was
+overstated identity); L1344-1346 § Conditional Content Architecture density threshold bullet
+updated (variant-vs-conditional framing collapsed into install-time-vs-runtime gating); L1614-1622
+§ The Lite PRD workflow shape inverse reference reframed (process-task-loop no longer "splits into
+variants"); L1844-1852 § Atomic Companion Finding #5 interaction paragraph updated with final
+cut list and forward-pointer. L339-347 Feedforward recipe bucket assignments cleaned (process-task-loop
+drops from install.type buckets); L419-424 Feedforward Process-task-loop variant contents bullet
+marked resolved; L3478-3489 § Strategy Applicability Mapping Finding #5 follow-on updated with
+mechanism flip note and drift-check result. OQ6 marked resolved. Three new Resolved Decisions rows:
+mechanism, gated surfaces, `strategy-quality-gates` drift-check.
 
 ---
 
