@@ -16,65 +16,63 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **OQ 9 resolved + Audit A first pass on `plan-arc-modes.md` — completed
-2026-04-13.** Two pre-PRD decisions landed in the plan doc this session.
+**Last Completed**: **Audit A H2 resolved — completed 2026-04-13.** Purpose-built
+`arcd backing sync/restore/push/pull/status` command family (in the new `arcd` namespace from
+the ARCd Rebrand WU) replaces the earlier "transparent redirect" framing, which was itself
+hand-waving over a real concern-boundary (git-notes transport for a gitignored subtree vs.
+whole-`.arc/` shadow-copy durability substrate — different scopes, anchors, failure modes,
+and audiences). The two command families coexist; each install mode installs one; the
+asymmetry is named, not hidden.
 
-**OQ 9 (default mode for `arc init`) — resolved.** `arc init` presents install type as a
-concise education-first prompt with both modes as equal peers — **ARC** (canonical, listed
-first) and **ARC Lite** (variant) — no pre-selection. Primer (~10–15 lines) carries
-work-shape discriminator hints (concurrent concerns / PM / team → ARC; single focused effort
-/ trial → ARC Lite) and points at the docs mode-overview page. Non-interactive
-`arc init --yes` without `--install-type` / `--lite` / `--full` errors out rather than
-silently picking. New Resolved Decisions row "Default mode for `arc init` (OQ 9)"; OQ 9
-struck through; § Mode Fit Communication § Communication surfaces `arc init` bullet and
-§ Init Flow Implications § Flags both updated; existing "install.type prompt default"
-Resolved Decisions row rewritten to drop the stale `"full"` default claim.
+**Design shape landed:** Tracked installs keep `arc user save/load/push/pull` + `arc sync`
+unchanged. Local installs get `arcd backing *` in a separate family; `arc user *` / `arc sync`
+error with a pointer to `arcd backing --help`. Unifier lives at the workflow layer —
+session-handoff's persist step branches on `backing.type` and invokes the mode-appropriate
+family. `arcd backing restore` carries a divergence guard (refuses without `--force` when
+`.arc/` has unsynced changes). Cross-machine conflict story (non-fast-forward push → pull →
+refuse sync until resolved) folded into § Durability-Layer Commands rather than spun out as
+H2.1 — git's conflict semantics at the backing-store-repo layer are sufficient.
 
-**Audit A first pass — design-completeness audit for Local mode.** User flagged that Local
-mode hasn't been stress-tested at Lite's depth. Audit surfaced 12 findings (1 meta, 3 HIGH,
-5 MEDIUM, 4 LOW) confirming the gap. All findings captured in new **§ Audit A:
-Local-Axis Design Completeness (Working)** temp workspace section in the plan doc (placed
-between § Open Questions and § Research Findings). Section self-describes as working and
-drains as findings migrate to permanent locations.
+**Sweep of 9 plan-doc surfaces:** new § Durability-Layer Commands replaces old § Portability
+Layer Redirect (Transparent); Resolved Decisions rows rewritten (umbrella "Durability-layer
+commands (Audit A H2)" + `user.sync_push` consumer-changes-not-semantics-changes refinement);
+Deliverables items #24 (`session-handoff.template.md` now needs persist-step mode gates, was
+pre-H2 "rename only"), #34 (Local mode config wording), #35 (durability-layer command family
+deliverable) all rewritten; § Backing Store `arc sync` bullet, § What Changes vs. Tracked
+Full bullet, § Content Audit CLI bullet, § Phrasing Sweep QUICK-REFERENCE bullet, and
+`strategy-session-operations` Strategy Applicability cell all updated; H2 finding itself
+carries a full Resolution block; Sequencing Plan shows H2 resolved with 2–4 remaining
+sessions estimated.
 
-**H1 (Configuration Identity for Local axis) — resolved.** New § Configuration Identity —
-Local Axis subsection under § Design Investigations, parallel in depth to the existing
-§ Configuration Identity for Lite/Full. Manifest field `install_config.backing_type`,
-flattened key `backing.type`, legacy migration to `"tracked"`, single schema bump covering
-both axes, recipe bucket architecture (single-key buckets, no combinatorial pair-specific
-buckets, no grammar extension), CLI flags (`--backing-type`, `--local` / `--tracked`
-shorthand), **asymmetric non-interactive default** (backing.type → `tracked` for
-back-compat, install.type errors without flag per OQ 9), interactive equal-peers prompt
-shape, gated prompts (new `shared-gitignore` on `backing.type == local`; `team.mode` stays
-single-gated on install.type with Local-layer render-time forcing), reconfigure boundary,
-`BACKING_TYPE` token, drift mitigation. Three new Resolved Decisions rows: umbrella "Local
-axis configuration identity (Audit A H1)", "`backing.type` prompt default (asymmetric with
-`install.type`)", "Hooks read downstream keys in Local mode (Audit A H1 + M1)". **Finding
-M1 (context footer enforcement mechanism) resolved as a side effect** — Local layer sets
-`commit.context_footer: custom` with a preset pattern at install time, hooks stay
-mode-agnostic.
+**Course correction mid-flight.** Initial pass started editing `session-handoff.md`
+directly to add `arc:if backing.type == *` gates — caught and reverted: that file is
+Framework-layer (should go through the package source per Package-Project Sync), and
+`backing.type` is a config key the modes WU introduces so adding a gate on it now is
+premature implementation. Design intent captured in deliverable #24 and § Durability-Layer
+Commands; actual workflow edit deferred to modes WU implementation.
 
-**Still open from Audit A:** H2 (portability redirect semantics), H3 (Local scenario
-battery), M2-M5 (project-ID stickiness edge case, `arc project-id migrate` shape, single-
-active enforcement mechanism, Research Findings Local entries), L1-L4 (agent/editor UX
-framing, pause+stash interaction, backing store privacy model, `arc update` sync point).
-Captured in the Audit A workspace section with status and sequencing plan.
+**Still open from Audit A:** H3 (portability scenario battery), M2-M5 (project-ID stickiness
+edge case, `arc project-id migrate` shape, single-active enforcement mechanism, Research
+Findings Local entries), L1-L4 (agent/editor UX framing, pause+stash interaction, backing
+store privacy model, `arc update` sync point). Captured in the Audit A workspace section
+with status and sequencing plan.
 
 **Blockers**: [none]
 
-**Next Action**: **Audit A resolution sequence — H2 next.** Portability layer redirect
-semantics (§ Portability Layer Redirect at L3939). Need a scope-mapping decision for the
-5-command `arc user save/load/push/pull` + `arc sync` redirect to backing store operations —
-tracked mode is user/{identity}/-scoped, backing store is whole-.arc/-scoped. After H2:
-H3 (Local infrastructure scenario battery, dedicated session), then M2-M5 consolidation
-pass, then L1-L4 polish pass. Estimated 3–5 sessions total before PRD-ready. Audit B
-(content drift sweep) runs after Audit A closes, as the final pre-PRD pass. **Do not skip
-to Audit B early** — H3 in particular may surface new findings that change what Audit B
-looks for.
+**Next Action**: **Audit A H3 — Local infrastructure scenario battery.** Dedicated session.
+Scenario list in § Audit A / H3: re-clone recovery walk, backing store corruption, remote
+conflict, project ID migration, `arc update` in Local, editor UX under agent use, CI cloning
+a Local-mode repo, non-git repo, multi-user machine, zero-commit → first-commit transition.
+Expect some to dissolve on contact ("same as tracked, no issue"); expect others to surface
+real OQs. Some will exercise L1 (editor UX) and M2 (stickiness edge case) in practice and
+may resolve them as side effects. After H3: M2-M5 consolidation pass, then L1-L4 polish
+pass, then Audit B (content drift sweep) as the closing pre-PRD pass. Estimated 2–4 total
+remaining sessions depending on H3 scenario depth. **Do not skip to Audit B early** — H3 may
+surface new findings that change what Audit B looks for.
 
-Plan doc current size: 5156 lines. Markdown lint clean across 168 files.
+Plan doc current size: 5314 lines (+158 net this session). Markdown lint clean.
 
 ---
 
-**Last Updated**: 2026-04-13 (OQ 9 resolution + Audit A first pass; H1 and M1 resolved,
-H2/H3/M2-M5/L1-L4 captured in temp workspace section for next-session work)
+**Last Updated**: 2026-04-13 (Audit A H2 resolved — purpose-built backing command family,
+9 surfaces swept, no sub-findings spawned)
