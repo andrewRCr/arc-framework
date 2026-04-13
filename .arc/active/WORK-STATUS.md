@@ -16,66 +16,65 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Pre-PRD cleanup pass on `plan-arc-modes.md` — completed 2026-04-13.**
-Three-pass cleanup session after user flagged plan doc focus concerns and SESSION-NOTES bloat.
+**Last Completed**: **OQ 9 resolved + Audit A first pass on `plan-arc-modes.md` — completed
+2026-04-13.** Two pre-PRD decisions landed in the plan doc this session.
 
-**Pass 1 — working doc drained and deleted.** `working-modes-gap-resolution.md` (813 lines)
-removed after migrating the three remaining design findings into the plan doc: Finding #14
-(shift-with-activation coordination — prompt-after-pause with sequential walk, pause is clean
-failure boundary), Finding #17 (backing store mechanism — non-bare git clone at
-`~/.arc-state/{project-id}/`, handoff-time sync, best-effort durability), Finding #18 (project
-ID fallback chain — git remote → first-commit hash → UUID at
-`.arc/system/.internal/project-id`, sticky once adopted). Four new captured-deliverables
-added to the plan doc: pause-pointer field formalization (item 49a), Local-axis content sweep
-(item 57), docs/ site mode-awareness pass (item 58), and content-audit-produces-its-own-sizing
-(item 56 reframed).
+**OQ 9 (default mode for `arc init`) — resolved.** `arc init` presents install type as a
+concise education-first prompt with both modes as equal peers — **ARC** (canonical, listed
+first) and **ARC Lite** (variant) — no pre-selection. Primer (~10–15 lines) carries
+work-shape discriminator hints (concurrent concerns / PM / team → ARC; single focused effort
+/ trial → ARC Lite) and points at the docs mode-overview page. Non-interactive
+`arc init --yes` without `--install-type` / `--lite` / `--full` errors out rather than
+silently picking. New Resolved Decisions row "Default mode for `arc init` (OQ 9)"; OQ 9
+struck through; § Mode Fit Communication § Communication surfaces `arc init` bullet and
+§ Init Flow Implications § Flags both updated; existing "install.type prompt default"
+Resolved Decisions row rewritten to drop the stale `"full"` default claim.
 
-**Pass 2 — plan doc focus audit.** Four Open Questions resolved and migrated: OQ 10 (Lite
-forces `pm.layer: none`, both `arc-pm` and `external` forbidden), OQ 12 (five Waiting-For
-categories committed final), OQ 13 (1-week staleness threshold, not configurable), OQ 14 (no
-second-order drift check on `/arc-status`). Stale ADR-deferral language swept in three spots
-(§ Installation Type Recipe Mechanism, § Prompt Orchestration, § Lite Config Template
-Mechanism) — all updated to reflect the committed Tier 4 ADR 1 umbrella grouping. Seven stale
-working-doc references swept across the plan doc. Item count corrected ~56 → ~59, typo
-"working doc working doc" fixed.
+**Audit A first pass — design-completeness audit for Local mode.** User flagged that Local
+mode hasn't been stress-tested at Lite's depth. Audit surfaced 12 findings (1 meta, 3 HIGH,
+5 MEDIUM, 4 LOW) confirming the gap. All findings captured in new **§ Audit A:
+Local-Axis Design Completeness (Working)** temp workspace section in the plan doc (placed
+between § Open Questions and § Research Findings). Section self-describes as working and
+drains as findings migrate to permanent locations.
 
-**Pass 2.5 — inventory orphan audit.** Three items fixed: item 14 (bare repo → non-bare
-clone mechanism reflecting Finding #17), item 20 (shift-work-unit.md surfaces the coordination
-shape lock from Finding #14), item 37 (trimmed redundancy with § Strategy Applicability
-Mapping rationale cells to prevent silent drift).
+**H1 (Configuration Identity for Local axis) — resolved.** New § Configuration Identity —
+Local Axis subsection under § Design Investigations, parallel in depth to the existing
+§ Configuration Identity for Lite/Full. Manifest field `install_config.backing_type`,
+flattened key `backing.type`, legacy migration to `"tracked"`, single schema bump covering
+both axes, recipe bucket architecture (single-key buckets, no combinatorial pair-specific
+buckets, no grammar extension), CLI flags (`--backing-type`, `--local` / `--tracked`
+shorthand), **asymmetric non-interactive default** (backing.type → `tracked` for
+back-compat, install.type errors without flag per OQ 9), interactive equal-peers prompt
+shape, gated prompts (new `shared-gitignore` on `backing.type == local`; `team.mode` stays
+single-gated on install.type with Local-layer render-time forcing), reconfigure boundary,
+`BACKING_TYPE` token, drift mitigation. Three new Resolved Decisions rows: umbrella "Local
+axis configuration identity (Audit A H1)", "`backing.type` prompt default (asymmetric with
+`install.type`)", "Hooks read downstream keys in Local mode (Audit A H1 + M1)". **Finding
+M1 (context footer enforcement mechanism) resolved as a side effect** — Local layer sets
+`commit.context_footer: custom` with a preset pattern at install time, hooks stay
+mode-agnostic.
 
-**Pass 3 — SESSION-NOTES reset.** Stripped `user/andrew/SESSION-NOTES.md` from 522 → 85 lines
-by removing agent-accumulated meta-pattern commentary (planning session discipline lists,
-observed-once pattern parks, reinforcement counters, session-arc retrospectives). Retained
-only the operationally load-bearing ARCd rebrand forward-looking terminology entry. Two
-feedback memories saved to `.claude/projects/.../memory/` to prevent re-accumulation in
-future sessions: "SESSION-NOTES content discipline" and "No parking design decisions to
-post-PRD."
-
-**Post-hoc fix:** user caught that the pre-PRD Local-axis audit pass (planning-phase
-discovery work, parallel to the 2026-04-13 Tier 4 install.type audit) had been conflated with
-the impl-phase Local content sweep when captured as inventory item 57. Three fixes applied:
-SESSION-NOTES updated with the Local-axis audit as a second pending pre-PRD item; inventory
-item 57 updated to clarify it's impl-phase and a pre-PRD audit precedes it; Tier 4 Resolved
-Decisions row updated to distinguish pre-PRD audit (pending) from impl-phase sweep (item 57).
-
-**OQ 9 (default mode for `arc init`) stays open** per user direction — defaulting to Lite,
-or even presenting it as recommended, undervalues the framework. Needs a third option or
-reframing of the question. Captured inline at the OQ entry with user's 2026-04-13 concern.
+**Still open from Audit A:** H2 (portability redirect semantics), H3 (Local scenario
+battery), M2-M5 (project-ID stickiness edge case, `arc project-id migrate` shape, single-
+active enforcement mechanism, Research Findings Local entries), L1-L4 (agent/editor UX
+framing, pause+stash interaction, backing store privacy model, `arc update` sync point).
+Captured in the Audit A workspace section with status and sequencing plan.
 
 **Blockers**: [none]
 
-**Next Action**: **Two pre-PRD items pending before PRD authoring** — (1) OQ 9 resolution
-(default mode question; small decision pass), (2) Pre-PRD Local-axis audit pass (parallel to
-Tier 4 install.type audit; likely one comprehensive session). See
-`user/andrew/SESSION-NOTES.md` § Context for Next Session for method, scope, and known starting
-drift surfaces. Sequencing: OQ 9 first likely, then Local-axis audit. Both fit one session if
-audit findings are narrow; two sessions if broader. **After both close, plan doc is
-unconditionally PRD-ready.**
+**Next Action**: **Audit A resolution sequence — H2 next.** Portability layer redirect
+semantics (§ Portability Layer Redirect at L3939). Need a scope-mapping decision for the
+5-command `arc user save/load/push/pull` + `arc sync` redirect to backing store operations —
+tracked mode is user/{identity}/-scoped, backing store is whole-.arc/-scoped. After H2:
+H3 (Local infrastructure scenario battery, dedicated session), then M2-M5 consolidation
+pass, then L1-L4 polish pass. Estimated 3–5 sessions total before PRD-ready. Audit B
+(content drift sweep) runs after Audit A closes, as the final pre-PRD pass. **Do not skip
+to Audit B early** — H3 in particular may surface new findings that change what Audit B
+looks for.
 
-Plan doc current size: 4753 lines. Markdown lint clean across 168 files.
+Plan doc current size: 5156 lines. Markdown lint clean across 168 files.
 
 ---
 
-**Last Updated**: 2026-04-13 (pre-PRD cleanup pass — working doc drained, findings/OQs
-closed, drift swept, SESSION-NOTES reset, Local-axis audit surfaced as pending)
+**Last Updated**: 2026-04-13 (OQ 9 resolution + Audit A first pass; H1 and M1 resolved,
+H2/H3/M2-M5/L1-L4 captured in temp workspace section for next-session work)
