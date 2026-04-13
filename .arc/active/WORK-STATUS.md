@@ -16,84 +16,66 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Tier 4 formal strategy audit pass — completed 2026-04-13. Tier 4 closed;
-`plan-arc-modes.md` is PRD-ready.** Single comprehensive sweep of 8 in-scope strategies (2
-excluded from audit: `strategy-team-coordination`, `strategy-planning-module`). Audit method:
-end-to-end read + grep for Full-coupled terms + comparison against Finding #2/#4/#6/#12 resolution
-commitments, covering both install.type (Lite/Full) and Local (Tracked/Local) axes.
+**Last Completed**: **Pre-PRD cleanup pass on `plan-arc-modes.md` — completed 2026-04-13.**
+Three-pass cleanup session after user flagged plan doc focus concerns and SESSION-NOTES bloat.
 
-**Results:** 2 clean (`strategy-adr-methodology`, `strategy-quality-gates`), 6 with drift. **No
-reclassifications** — all existing Finding classifications stand. Audit-surfaced additional scope
-captured in § Strategy Applicability Mapping rationale cells and § Consolidated Deliverables
-Inventory items 36/37/39, plus new Resolved Decisions row "Formal strategy audit pass completed
-(Tier 4)". Mechanism decisions deferred to implementation time per audit-captures-shape-not-
-mechanism discipline.
+**Pass 1 — working doc drained and deleted.** `working-modes-gap-resolution.md` (813 lines)
+removed after migrating the three remaining design findings into the plan doc: Finding #14
+(shift-with-activation coordination — prompt-after-pause with sequential walk, pause is clean
+failure boundary), Finding #17 (backing store mechanism — non-bare git clone at
+`~/.arc-state/{project-id}/`, handoff-time sync, best-effort durability), Finding #18 (project
+ID fallback chain — git remote → first-commit hash → UUID at
+`.arc/system/.internal/project-id`, sticky once adopted). Four new captured-deliverables
+added to the plan doc: pause-pointer field formalization (item 49a), Local-axis content sweep
+(item 57), docs/ site mode-awareness pass (item 58), and content-audit-produces-its-own-sizing
+(item 56 reframed).
 
-**Biggest finding:** `strategy-work-organization` is **~72% Full-coupled by line count** (six
-affected sections: Work Categories, Decision Rules, Task Lists and Branches partial, Incidental
-Work Model, Planning Branch Workflow, Directory Structure; Branch Protection Modes retained as
-universal). Finding #6's original narrow "Branch Protection Modes is universal" framing massively
-understated the drift scope. Rationale cell expanded accordingly.
+**Pass 2 — plan doc focus audit.** Four Open Questions resolved and migrated: OQ 10 (Lite
+forces `pm.layer: none`, both `arc-pm` and `external` forbidden), OQ 12 (five Waiting-For
+categories committed final), OQ 13 (1-week staleness threshold, not configurable), OQ 14 (no
+second-order drift check on `/arc-status`). Stale ADR-deferral language swept in three spots
+(§ Installation Type Recipe Mechanism, § Prompt Orchestration, § Lite Config Template
+Mechanism) — all updated to reflect the committed Tier 4 ADR 1 umbrella grouping. Seven stale
+working-doc references swept across the plan doc. Item count corrected ~56 → ~59, typo
+"working doc working doc" fixed.
 
-**Secondary finding:** `strategy-task-list-formatting` has ~90 additional lines of Full-only
-content beyond Finding #2's 4 surgical surfaces: (a) Incidental Task Lists subsection (L107-197)
-entirely Full-only — Lite has no incidental task list concept per Finding #5; (b) partial Feature/
-Technical Task Lists subsection (title prefix, branch format, PRD path, stacked-PRs rule). Task
-Ownership Markers stays universal (team.mode prose gating suffices per audit policy).
+**Pass 2.5 — inventory orphan audit.** Three items fixed: item 14 (bare repo → non-bare
+clone mechanism reflecting Finding #17), item 20 (shift-work-unit.md surfaces the coordination
+shape lock from Finding #14), item 37 (trimmed redundancy with § Strategy Applicability
+Mapping rationale cells to prevent silent drift).
 
-**Minor findings:** (1) `strategy-configurability-architecture` L229-231 Structural settings list
-missing `install.type` and `backing.type` entries; (2) `strategy-file-classification` example
-lists at L47/L73 and § Directory naming at L168-173 have minor Full/arc-in-git-only content;
-(3) `strategy-session-operations` 2 supporting `integrate-work-unit` example references at L59
-and L170 (same mechanism-of-drift as known Method Classification row) plus Local-axis drift in
-§ Session State Portability (~35 lines describing git notes mechanism; Local mode redirects to
-backing store).
+**Pass 3 — SESSION-NOTES reset.** Stripped `user/andrew/SESSION-NOTES.md` from 522 → 85 lines
+by removing agent-accumulated meta-pattern commentary (planning session discipline lists,
+observed-once pattern parks, reinforcement counters, session-arc retrospectives). Retained
+only the operationally load-bearing ARCd rebrand forward-looking terminology entry. Two
+feedback memories saved to `.claude/projects/.../memory/` to prevent re-accumulation in
+future sessions: "SESSION-NOTES content discipline" and "No parking design decisions to
+post-PRD."
 
-**Local-axis gap confirmed:** Audit surfaced only one strategy with Local-axis drift
-(`strategy-session-operations` § Session State Portability). User's broader observation held —
-the plan doc has captured Lite drift more thoroughly than Local drift. Follow-up Local-axis
-sweep pass scheduled post-PRD for strategies AND docs/ pages.
+**Post-hoc fix:** user caught that the pre-PRD Local-axis audit pass (planning-phase
+discovery work, parallel to the 2026-04-13 Tier 4 install.type audit) had been conflated with
+the impl-phase Local content sweep when captured as inventory item 57. Three fixes applied:
+SESSION-NOTES updated with the Local-axis audit as a second pending pre-PRD item; inventory
+item 57 updated to clarify it's impl-phase and a pre-PRD audit precedes it; Tier 4 Resolved
+Decisions row updated to distinguish pre-PRD audit (pending) from impl-phase sweep (item 57).
 
-**Strategy audit mechanism policy note:** Strategies feed the docs/ site content pipeline, so
-maintaining multi-variant strategy files creates drift risk both locally and in docs/ site
-rendering. Conditional-callout / mode-aware-prose approaches are generally favored over
-`.template.md` rename for strategies unless bulk scope requires template-time stripping.
-Finding #2's existing `.template.md` rename commitment for `strategy-task-list-formatting`
-stands (pre-committed mechanism).
-
-**Session arc:** Two segments. Segment 1: audit cadence discussion — agreed "audit first, batch
-second" with no strategy-file edits (pre-PRD planning work only, all edits go to planning docs).
-Segment 2: lighter shape per user reframe — capture **identification + rough shape + scale** for
-each strategy, defer mechanism decisions to implementation time. Executed 8-strategy audit in
-this lighter shape. Segment 3: plan doc edits applied — 6 § Strategy Applicability Mapping rows
-updated, 3 Consolidated Deliverables Inventory items expanded (36/37/39), 1 new Resolved
-Decisions row added. Markdown lint clean after one round of fixes (MD056 table-column-count from
-unescaped `|` inside code spans, fixed via `\|` escape; MD060 table alignment, fixed via
-`markdown-table-prettify`).
+**OQ 9 (default mode for `arc init`) stays open** per user direction — defaulting to Lite,
+or even presenting it as recommended, undervalues the framework. Needs a third option or
+reframing of the question. Captured inline at the OQ entry with user's 2026-04-13 concern.
 
 **Blockers**: [none]
 
-**Next Action**: **Pre-PRD planning phase complete for modes WU — begin formal PRD authoring
-next session (new session, different skill invocation: `/arc-plan` for final plan review or
-directly into `/create-prd` workflow depending on state).** `plan-arc-modes.md` is PRD-ready.
-Tier 4 is closed. Immediate pre-PRD outstanding work:
+**Next Action**: **Two pre-PRD items pending before PRD authoring** — (1) OQ 9 resolution
+(default mode question; small decision pass), (2) Pre-PRD Local-axis audit pass (parallel to
+Tier 4 install.type audit; likely one comprehensive session). See
+`user/andrew/SESSION-NOTES.md` § Context for Next Session for method, scope, and known starting
+drift surfaces. Sequencing: OQ 9 first likely, then Local-axis audit. Both fit one session if
+audit findings are narrow; two sessions if broader. **After both close, plan doc is
+unconditionally PRD-ready.**
 
-1. **None that blocks PRD authoring.** Tier 4 is closed; plan doc is complete.
-
-Deferred / post-PRD follow-ups tracked for future sessions:
-
-1. **Docs/ pages mode-awareness audit** — the docs/ site pages are generally built from the
-   strategies (albeit adapted) and need their own mode-awareness audit. Same approach as the
-   strategy audit: capture shape + scale, defer mechanism decisions to implementation time.
-   Sequencing: likely after implementation of the modes themselves, at the end of the work unit,
-   for accuracy. **Noted for next session per user direction 2026-04-13.**
-2. **Local-axis sweep pass** — broader follow-up sweep for Local-axis completeness across
-   strategies AND docs/ pages. Lite has received more planning attention than Local. **Noted
-   for future session per user observation 2026-04-13.**
-3. **Finding B1 (content audit and phrasing sweep sizing)** — still unresolved, remains the
-   owner of sizing estimation for the implementation-phase content audit and phrasing sweep.
+Plan doc current size: 4753 lines. Markdown lint clean across 168 files.
 
 ---
 
-**Last Updated**: 2026-04-13 (Tier 4 close-out: formal strategy audit pass completed;
-plan-arc-modes.md is PRD-ready)
+**Last Updated**: 2026-04-13 (pre-PRD cleanup pass — working doc drained, findings/OQs
+closed, drift swept, SESSION-NOTES reset, Local-axis audit surfaced as pending)
