@@ -2939,13 +2939,12 @@ load files by hardcoded paths, so nothing in ARC's core machinery needs to chang
 
 ### Exclusion Mechanism
 
-Research into industry norms (see [Research Findings](#research-findings) below) established that personal
-tooling entries in project-level `.gitignore` are **not** the norm for methodology tools — the prevailing
-guidance is "shared team patterns go in project `.gitignore`, user-specific tooling goes in
-`~/.gitignore_global`." Global gitignore is unusable as a default (machine-wide blast radius — adding
-`.arc/` there would break tracked ARC on every other repo on the same machine). That leaves
-`.git/info/exclude` as the primary path, with the tracked `.gitignore` line as an opt-in for teams that
-explicitly welcome tool-specific entries.
+Standard git guidance distinguishes shared team patterns (project `.gitignore`) from user-specific
+tooling, which belongs in global gitignore or repo-local `.git/info/exclude`. Methodology tools fit
+the latter category — personal entries in project `.gitignore` are not the norm. Global gitignore is
+unusable as a default (machine-wide blast radius — adding `.arc/` there would break tracked ARC on
+every other repo on the same machine). That leaves `.git/info/exclude` as the primary path, with the
+tracked `.gitignore` line as an opt-in for teams that explicitly welcome tool-specific entries.
 
 **Primary: `.git/info/exclude` (automated via CLI)**
 
@@ -2974,10 +2973,10 @@ on environmental constraint, and the CLI guides them.
 
 ### Re-Clone UX
 
-`.git/info/exclude` is reset on re-clone (confirmed — no native git mechanism preserves per-repo excludes
-across clones; see Research Findings). Without automation this would be friction enough to undermine
-Local mode. **The backing store (see next subsection) doubles as the re-clone detection signal**,
-making recovery a one-prompt operation.
+`.git/info/exclude` is reset on re-clone (no native git mechanism preserves per-repo excludes across
+clones — see § Research Findings § `.git/info/exclude` behavior on re-clone). Without automation this
+would be friction enough to undermine Local mode. **The backing store (see next subsection) doubles
+as the re-clone detection signal**, making recovery a one-prompt operation.
 
 **Project identity** — stable within a keying epoch. The CLI resolves the project ID via
 **pinned-ID-file-first precedence**, with a fallback chain as a secondary step.
@@ -5773,8 +5772,18 @@ commit history confirms the research was done; the plan document itself just doe
 on re-clone. Alternatively, drop the "see Research Findings" back-references if consolidation isn't
 feasible.
 
-**Status:** Open. Small resolution; part of a consolidation pass. Preference: consolidate the research
-since the evidence base is load-bearing.
+**Status:** **Resolved 2026-04-13.** Three new subsections added to § Research Findings transcribing
+the H3 walk's research evidence base into durable content: (1) **Editor `@`-mention precedent for
+gitignored personal tooling** — Cursor/SpecStory/Aider/Continue/Zed/VS Code/JetBrains/Dendron/Obsidian
+survey confirming the gitignored-picker cost as an intrinsic tradeoff; (2) **CLI state-directory
+idiomatic practice** — 14-tool survey validating the three Local-mode privacy design decisions
+(`chmod 700` on creation, documentation-only remote privacy, at-rest encryption delegated to disk
+layer); (3) **`.git/info/exclude` behavior on re-clone** — short factual entry confirming no native
+git mechanism preserves per-repo excludes across clones, framing re-clone as a routine recovery event.
+The L2942 back-reference was rephrased inline rather than written as a fourth subsection — the
+"industry norms for `.gitignore` placement" claim is conventional git guidance (not research-surfacing
+content) and belongs inline in § Exclusion Mechanism. § Sources updated with Lite/Local groupings.
+See § Research Findings and § Exclusion Mechanism.
 
 #### L1. Agent/editor UX cost in Local mode may be understated · LOW
 
@@ -5877,24 +5886,27 @@ three-way-merged Configurable-file decisions. See § Backing Store § More frequ
 5. **M4** — Resolved 2026-04-13. Enforcement subsection added to § Single-Active-Unit Invariant:
    activation workflow scans task list `Status` headers, error points at `/arc-shift` for
    `shift-with-activation` recovery, check generalized to tracked Full.
-6. **M5** — remaining open item after H3, L2, and M4. M5 (Research Findings Local entries) can be
-   partially filled by transcribing the two external research passes from the H3 walk into
-   § Research Findings new subsections (editor `@`-mention precedent, CLI state-dir idiomatic
-   practice), plus a brief note on `.git/info/exclude` clone-reset behavior if not already
-   covered. Likely short, but the research transcription is the substantive portion of the
-   consolidation pass.
-7. **Audit B — Content drift sweep** — final pre-PRD pass. Runs AFTER M5 fully drains. Do not
-   start early; Audit B's scope depends on the final shape of the already-resolved content.
+6. **M5** — Resolved 2026-04-13. Three new subsections added to § Research Findings (editor
+   `@`-mention precedent, CLI state-directory idiomatic practice, `.git/info/exclude` clone-reset
+   behavior). L2942 back-reference rephrased inline rather than written as a fourth subsection
+   (conventional git guidance, not research-surfacing content). § Sources updated with Lite/Local
+   groupings.
+7. **Audit B — Content drift sweep** — final pre-PRD pass. Audit A is now fully drained; all M/L
+   findings are Resolved. Audit B can begin in a fresh session. Scope: full plan doc read for
+   terminology inconsistencies (notably `pm.mode` vs `pm.layer` — some pre-existing text still
+   uses the old key name), cross-reference rot, outdated line-number pointers, and any other
+   drift that accumulated across the H1-H3 resolution sessions and this consolidation pass.
 
-**Estimated remaining:** 1–2 sessions (consolidation pass + Audit B). Audit A section drains entirely
-when consolidation completes; only the Findings blocks with Resolved status remain as audit-tracking
-artifacts.
+**Estimated remaining:** 1 session (Audit B). Audit A section drains entirely with M5's closure;
+only the Findings blocks with Resolved status remain as audit-tracking artifacts.
 
 ---
 
 ## Research Findings
 
-External research conducted 2026-04-01. Key findings organized by relevance to design decisions.
+External research organized by relevance to design decisions. Lite-mode subsections capture
+foundational research from 2026-04-01; Local-mode subsections capture 2026-04-13 research
+conducted during the H3 scenario walk.
 
 ### Execution discipline is scale-independent (PSP evidence)
 
@@ -5937,13 +5949,80 @@ solo work, automated testing, structured commit messages. Practitioners consiste
 documents, formal review ceremonies, lifecycle phases. This directly matches the split between what
 Lite keeps and what it drops.
 
+### Editor `@`-mention precedent for gitignored personal tooling
+
+Local mode gitignores `.arc/`, making it invisible to editor `@`-mention and quick-open pickers that
+respect gitignore. A 2026-04-13 survey of adjacent tools (Cursor, SpecStory, Aider, Continue, Zed,
+VS Code, JetBrains AI Assistant, Dendron, Obsidian in-repo vaults) confirmed this as an intrinsic
+tradeoff of the "gitignored personal tooling" category — every surveyed tool accepts the picker
+cost, and no universal mitigation exists at the editor layer. **Zed's `file_scan_inclusions`** is
+the sole clean path-scoped option, a settings array that explicitly adds gitignored paths back into
+the file scanner scope. VS Code issues [#103570][vscode-103570] ("support opening ignored files")
+and [#43505][vscode-43505] ("allow extensions to contribute to quick-open") were both **closed
+without resolution**, confirming the absence of a VS Code path. Per-editor mitigation guidance and
+the three-surface decomposition live in § Agent and Editor Discoverability. Grounds the "minor
+disruption, not primary ergonomic cost" framing for finding L1.
+
+### CLI state-directory idiomatic practice
+
+`~/.arc-state/{project-id}/` is a per-user state directory containing methodology content (PRDs,
+design docs, session notes). A 2026-04-13 survey of 14 CLI tools (OpenSSH, GnuPG, AWS CLI, kubectl,
+`gh`, Docker, npm, rclone, [restic], [borg], [pass], [git-crypt], chezmoi, Obsidian) validated three
+Local-mode privacy design decisions:
+
+- **`chmod 700` on creation is idiomatic** for per-user state with any sensitivity. OpenSSH and
+  GnuPG have enforced this for decades; AWS CLI adopted the pattern after [Issue #7369][aws-7369].
+  Warn-but-run at read time is proportionate for methodology-tool sensitivity — GnuPG's pattern for
+  non-critical operations. Hard-refuse on permissive perms is reserved for key-material tools (SSH,
+  GnuPG) where state is credential material.
+- **Remote repo privacy is documentation-only across the ecosystem.** Zero tools surveyed
+  programmatically verify remote repository visibility. restic, borg, chezmoi, pass, and yadm all
+  defer to user responsibility via documentation-only guidance. Programmatic verification would
+  require host-specific API calls (GitHub/GitLab-only, auth tokens, network dependency, no
+  self-hosted support) with no ecosystem precedent.
+- **At-rest encryption is tool-category dependent.** Credential-handling and backup-data tools
+  (pass, restic, borg, git-crypt) encrypt by default because they store material destined for
+  untrusted storage. Note-taking and documentation tools ([Obsidian][obsidian-enc], Logseq, git
+  itself) store plaintext and delegate to disk-layer encryption (FileVault, LUKS, BitLocker,
+  dm-crypt). ARC's content model fits the latter category; encrypt-by-default is overreach for the
+  threat model.
+
+**Bonus finding.** [chezmoi's optional encryption model][chezmoi-encryption] — per-file encryption
+via age or GPG, user-configurable — is the closest reference for how ARC could later integrate
+opt-in encryption as a follow-on feature if demand emerges. [`git-crypt`][git-crypt] remains
+available as a power-user option wired manually inside the backing store repo. Grounds § Backing
+Store § Privacy model and resolves finding L3.
+
+### `.git/info/exclude` behavior on re-clone
+
+Local mode's primary exclusion mechanism (`.git/info/exclude`) lives inside `.git/info/`, which is
+not part of the repository's tracked content. `git clone` initializes `.git/` fresh from the remote
+pack data, and `.git/info/exclude` starts empty (a stub comment block). **No native git mechanism
+preserves per-repo excludes across clones.** Re-clone is therefore a routine recovery event for
+Local mode, not a degraded state — the backing store doubles as durability substrate and re-clone
+detection signal, and `arc init --local` is idempotent, handling the four-step recovery sequence
+(restore `.git/info/exclude`, replay backing store content via `arcd backing restore`, re-install
+hooks, report). See § Re-Clone UX § Recovery command and § Durability-Layer Commands §
+Session-init Local-axis pre-check.
+
 ### Sources
+
+**Lite-mode foundations (2026-04-01):**
 
 - PSP empirical studies (Humphrey; IEEE TSE)
 - Crystal agile methodology variants (Cockburn — methodology scaling by team/project size)
 - Lean software development (waste identification in process overhead)
 - PMI project complexity research (37 complexity indicators, 23 attributes)
 - Solo developer workflow practitioner surveys (2024-2025)
+
+**Local-mode foundations (2026-04-13):**
+
+- Editor gitignore-handling survey across Cursor, SpecStory, Aider, Continue, Zed, VS Code,
+  JetBrains AI Assistant, Dendron, Obsidian (editor `@`-mention precedent)
+- CLI state-directory idiomatic practice survey across OpenSSH, GnuPG, AWS CLI, kubectl, `gh`,
+  Docker, npm, rclone, restic, borg, pass, git-crypt, chezmoi, Obsidian (filesystem permissions,
+  remote privacy, at-rest encryption)
+- git-scm.com gitignore(5) documentation (`.git/info/exclude` clone behavior)
 
 ---
 

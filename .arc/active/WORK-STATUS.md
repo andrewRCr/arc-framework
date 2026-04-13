@@ -16,69 +16,63 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Audit A L2 and M4 resolved.** One-commit consolidation-pass closure on
-`plan-arc-modes.md`. L2 landed as a Local-mode scope paragraph in § Shift lifecycle (detail
-design) § Uncommitted work handling clarifying that `git stash` covers only tracked project-repo
-files and that untracked `.arc/` edits structurally ride **leave as-is** regardless of which
-option the user chooses for tracked code — they remain in the working tree and are captured by
-the next `arcd backing sync` at session handoff. Placed at the shift-workflow semantics layer
-rather than § Mode 2 § What Changes vs. Tracked Full because the clarification is about
-shift-workflow behavior, not a Mode-2 feature change. M4 landed as a new **Enforcement**
-subsection under § Single-Active-Unit Invariant specifying (a) enforcement locus at the
-activation workflow (`activate-work-unit.md`), which scans `active/` task list `Status` headers
-before proceeding — not any specific CLI command, so every invocation surface inherits the check
-uniformly; (b) error message naming the active WU and pointing at `/arc-shift` (conversationally
-invoked skill) as the primary recovery via `shift-with-activation` dispatch; (c) fallback
-recovery via manual pause-then-activate for users who prefer explicit sequencing. Explicitly
-generalized the check to tracked Full, closing the mode-scope ambiguity that the section's
-§ Mode 2 placement created. Sequencing Plan updated: L2 and M4 promoted to their own rows; only
-M5 remains from Audit A before Audit B can begin.
+**Last Completed**: **Audit A fully drained — completed 2026-04-13.** Two-commit consolidation
+pass closed the remaining M4 + M5 + L2 items on `plan-arc-modes.md`, following this session's
+earlier H3 resolution (commits `1485800`, `39195b1`, `9dfdba9`, `8a61fd1`, `1d33cdc`). All Audit
+A findings (H1, H2, H3, H3-N1 through H3-N7, M1, M2, M3, M4, M5, L1, L2, L3, L4) are now
+Resolved with pointers into their durable structural sections.
 
-**Key design corrections during the pass:**
+**This session's consolidation pass (two commits):**
 
-+ **L2 placement decision** — chose § Shift lifecycle (detail design) § Uncommitted work
-  handling over the handoff's proposed § Mode 2 § What Changes vs. Tracked Full. The
-  clarification is about shift-workflow semantics across modes, not a Mode-2 feature change:
-  the underlying decision is unchanged; Local just has a wider scope of "uncommitted work"
-  that includes untracked `.arc/` state.
-+ **M4 enforcement locus** — named the activation workflow rather than "the CLI" per
-  user-confirmed framing. The workflow is the behavioral contract; the CLI is just an
-  invocation surface. Every entrypoint that reaches activation (CLI, skill, direct workflow
-  execution) inherits the check uniformly.
-+ **M4 recovery path corrected** — handoff proposed a two-step manual path
-  (`arc-shift {wu} --pause --reason "{r}"` then re-run activation). Corrected to invoke
-  `/arc-shift` as a conversationally-invoked skill (per L3559, L3853 — `/arc-shift` is a
-  thin skill backed by `shift-work-unit.md`, not a CLI command with flags) and use the
-  `shift-with-activation` dispatch that already exists in the workflow design (L3753). The
-  shift-with-activation transition handles pause + activation in one coordinated walk, which
-  is cleaner UX than a two-step manual path. The manual pause-then-activate remains available
-  as a fallback for users who prefer explicit sequencing.
-+ **M4 scope generalization** — added explicit "same check applies to tracked Full" sentence
-  closing the mode-scope ambiguity created by § Single-Active-Unit Invariant's placement under
-  § Mode 2. The invariant and enforcement are mode-universal; shift lifecycle is the mechanism
-  that makes the constraint livable, and both modes share the same enforcement locus.
++ **Commit 1** (`5d63071`) — `docs(arc): close Audit A L2 and M4 consolidation items`. L2 landed
+  as a Local-mode scope paragraph in § Shift lifecycle (detail design) § Uncommitted work
+  handling clarifying `git stash` covers only tracked project-repo files and untracked `.arc/`
+  edits structurally ride leave-as-is regardless of the option chosen for tracked code. M4
+  landed as a new Enforcement subsection under § Single-Active-Unit Invariant specifying the
+  activation-workflow locus (scans task list `Status` headers), error shape pointing at
+  `/arc-shift` for `shift-with-activation` recovery, and explicit generalization to tracked
+  Full. Placement-decision rationale: shift-workflow semantics layer for L2 (not § Mode 2) since
+  the decision is unchanged and only the scope of "uncommitted work" widens in Local; activation
+  workflow layer for M4 (not "the CLI") since every invocation surface inherits the check. The
+  handoff-suggested recovery path was corrected from a two-step manual pause-then-activate to
+  `/arc-shift` conversational invocation via `shift-with-activation` dispatch, because
+  `/arc-shift` is a thin skill (L3559, L3853), not a CLI with flags.
++ **Commit 2** (this commit) — `docs(arc): close Audit A M5 research consolidation`. Three new
+  subsections added to § Research Findings transcribing the H3 walk's research evidence base:
+  (1) **Editor `@`-mention precedent for gitignored personal tooling** — the
+  Cursor/SpecStory/Aider/Continue/Zed/VS Code/JetBrains/Dendron/Obsidian survey confirming
+  gitignored-picker cost as intrinsic tradeoff, Zed's `file_scan_inclusions` as sole clean
+  mitigation, VS Code issues #103570 and #43505 closed without resolution; (2) **CLI
+  state-directory idiomatic practice** — the 14-tool survey validating `chmod 700` on creation,
+  documentation-only remote privacy, and tool-category-dependent at-rest encryption (note-taking
+  tools delegate to disk layer, credential tools encrypt by default); (3) **`.git/info/exclude`
+  behavior on re-clone** — short factual entry confirming no native git mechanism preserves
+  per-repo excludes across clones, framing re-clone as a routine recovery event. The L2942
+  "industry norms for `.gitignore` placement" back-reference was rephrased inline rather than
+  written as a fourth subsection — that claim is conventional git guidance, not
+  research-surfacing content. § Sources updated with Lite/Local groupings (2026-04-01 vs
+  2026-04-13 research dates).
 
-**Still open from Audit A:** M5 (Research Findings section has no Local entries) — can be
-partially filled by transcribing this session's two prior-handoff-noted external research passes
-(editor `@`-mention precedent survey from H3 walk scenario 7; CLI state-directory idiomatic
-practice survey from H3 walk scenario 10) into new § Research Findings subsections, plus a brief
-note on `.git/info/exclude` clone-reset behavior if not already covered. After M5 drains, Audit
-A section deletes entirely (only the Findings blocks with Resolved status remain as
-audit-tracking artifacts), and Audit B (content drift sweep) becomes the final pre-PRD pass.
+**Plan doc growth:** 5921 → 6046 lines across the two commits (+125 net). Session-wide growth
+(including earlier H3 work): 5314 → 6046 lines (+732 net). Markdown lint clean on every commit.
+
+**Audit A is now fully drained.** § Audit A § Working section's purpose is complete — all
+findings have Resolved status lines with pointers into durable structural sections. The only
+pre-PRD work remaining is Audit B.
 
 **Blockers**: [none]
 
-**Next Action**: **M5 consolidation** — transcribe H3 walk's editor `@`-mention precedent
-survey and CLI state-directory idiomatic practice survey into new § Research Findings
-subsections (the tool list + findings + sources format used by existing subsections fits
-cleanly). Also verify whether the existing `.git/info/exclude` re-clone behavior claim is
-already covered; if not, add a brief note. Scope: two new subsections (~30-50 lines each)
-plus possible third mini-note. Substantive content transcription, not fresh design work.
-After M5 drains, Audit A § Working deletes entirely and Audit B (content drift sweep) begins
-as the final pre-PRD pass — do NOT start Audit B early, its scope depends on M5's final shape.
-
-Plan doc size: 5921 → 5967 lines (+46 net this commit). Markdown lint clean.
+**Next Action**: **Audit B — Content drift sweep** (final pre-PRD pass). Fresh session
+recommended — Audit B is a full plan-doc read pass, and starting with clean context maximizes
+coverage quality. Scope: full plan-doc read for (a) terminology inconsistencies (notably
+`pm.mode` vs `pm.layer` — some pre-existing text still uses the old key name, flagged in last
+session's handoff); (b) cross-reference rot (section references pointing at renamed or moved
+content); (c) outdated line-number pointers that drifted during H1-H3 resolution and this
+consolidation pass; (d) any other drift that accumulated across the resolution sessions.
+Estimated: one moderate session. After Audit B completes, the plan doc is ready for PRD
+authoring.
 
 ---
 
-**Last Updated**: 2026-04-13 (Audit A L2 and M4 resolved in one commit; M5 remains before Audit B)
+**Last Updated**: 2026-04-13 (Audit A fully drained — M4, M5, L2 resolved in two commits this
+consolidation pass; Audit B is the sole remaining pre-PRD pass)
