@@ -16,53 +16,36 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Audit B Layers 1 + 3 landed** on `plan-arc-modes.md`. Single-commit
-cleanup + structural reorg pass. Doc: 6046 → 5525 lines (−521, −8.6%). Markdown lint clean.
+**Last Completed**: **Audit B Layer 2 — terminology sweep landed** on `plan-arc-modes.md`.
+Single-commit pass fixing forward-looking terminology drift across 5 term patterns.
+Edits-in-place: 149+/149− diff, line count unchanged at 5525. Markdown lint clean (MD060
+table alignment re-normalized via `markdown-table-prettify` after cell-content edits).
 
-**Layer 1 (cleanup):**
+**Terms swept (forward-looking per ARCd rebrand Persistent Context):**
 
-- Front-matter Status line updated to reflect Audit A drained / Audit B in progress; Last
-  Updated 2026-04-09 → 2026-04-14.
-- Deleted § Open Questions wholesale (~115 lines — all 15 items were struck-through Resolved
-  with pointers to durable content).
-- Deleted § Audit A Working section + Sequencing Plan (~493 lines — every finding had a
-  Resolved status line duplicating content in its pointer target).
-- Cross-references into deleted sections updated before removal (6 in-prose/standalone refs
-  plus stale parentheticals like "threshold TBD" and "L1695-1707 cascade pointer").
-- In-plan-doc L-citation fixes in § Configuration Identity — Local Axis (the H1-affected
-  section) converted to named-anchor references. "Finding #8 L411" → "Finding #8" globally.
+- `arc status` → `arcd health` (1 drift fix; 2 historical-framing hits left alone).
+- `arc-in-git` → `arc-pm` (7 drift fixes; 5 historical / code-identifier hits left alone).
+- `team.mode` → `team.enabled` (~50 drift fixes; 5 LEAVE — scope boundary at L37/L40/L42,
+  `CONFIG_KEY_TEAM_MODE` code context at L661, rename row at L5300).
+- `pm.mode` → `pm.layer` (~60 drift fixes; LEAVE cases — scope boundary, "Original options
+  considered" section, `pm_mode → pm.mode` code-flattening descriptions, rename rows).
+- `arc-config.yml` → `ARCd-config.yml` (~48 drift fixes; 2 LEAVE — rebrand rename descriptions
+  at L1644 and L5299, protected via placeholder during bulk replace).
 
-**Layer 3 (structural):**
-
-- § Design Investigations (Pre-PRD) → § **Design Decisions** (contents are authoritative
-  mechanism specs, not open investigations).
-- § Configurability Architecture Cleanup **moved up** to between § Design Decisions and
-  § Mode 1, renamed to § **Shared Infrastructure** (foundational cross-mode machinery, not
-  cleanup). Cross-refs to `#configurability-architecture-cleanup` → `#shared-infrastructure`.
-- New § **Reference Material** H2 parent nesting Content Audit, Consolidated Deliverables
-  Inventory, Resolved Decisions, Research Findings (cascade-demoted from H2 → H3,
-  sub-subsections demoted one level). § Content Audit moved into this back-matter cluster.
-- Generated **TOC** (H2 + H3 coverage, ~75 lines) inserted after front-matter. Duplicate-slug
-  collisions handled for three "Design Philosophy" headings via `-1` / `-2` suffixes.
-
-**Final top-level structure:**
-
-1. Problem Statement · 2. Design Decisions · 3. Shared Infrastructure · 4. Mode 1: ARC Lite
-· 5. Mode 2: Local Mode · 6. Shift Lifecycle · 7. Mid-Session Orientation · 8. Mode Fit
-Communication · 9. Mode Combinations · 10. Reference Material
-
-**Audit B Layer 2 deferred to next session** — see Next Action below for the full deferred
-scope and starting guidance.
+**Method:** Bucket 1/2/3 classification per SESSION-NOTES. Drift fixes executed via targeted
+`replace_all` on phrase fragments proven unique to drift contexts, plus a few individual
+edits for isolated hits. Resolved Decisions and Strategy Applicability Mapping table rows
+got cell-content edits re-aligned by `markdown-table-prettify`. Front-matter Status line
+updated to `Draft (design phase complete — Audits A + B drained; PRD-ready)`.
 
 **Blockers**: [none]
 
-**Next Action**: **Audit B Layer 2 — terminology sweep**. Final pre-PRD pass before PRD
-authoring. Scope: case-by-case review and surgical edits for forward-looking terminology
-drift on `plan-arc-modes.md`. Estimated one moderate session. See SESSION-NOTES § Primary
-task for counts, drift-bucket classification, and recommended approach. After Layer 2
-completes, the plan doc is ready for PRD authoring.
+**Next Action**: **PRD authoring** for the Operating Modes work unit. `plan-arc-modes.md` is
+PRD-ready — design decisions, shared infrastructure, both modes, shift lifecycle, and
+mid-session orientation are all resolved. Start a fresh session for PRD authoring (mode
+transition). Use the standard `1_create-prd.md` workflow; plan doc is authoritative source
+for deliverable specifications.
 
 ---
 
-**Last Updated**: 2026-04-14 (Audit B Layers 1+3 landed; Layer 2 terminology sweep deferred
-to next session)
+**Last Updated**: 2026-04-14 (Audit B Layer 2 terminology sweep landed; plan doc PRD-ready)
