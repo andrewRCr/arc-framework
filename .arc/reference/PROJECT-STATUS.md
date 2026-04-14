@@ -21,7 +21,10 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Next Priority:**
 
-- ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
+- ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology), with
+  absorbed config-key renames and CLI command cleanup
+- Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
+- Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle
 
 ## Completed Major Work
 

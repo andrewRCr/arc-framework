@@ -16,36 +16,32 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Audit B Layer 2 — terminology sweep landed** on `plan-arc-modes.md`.
-Single-commit pass fixing forward-looking terminology drift across 5 term patterns.
-Edits-in-place: 149+/149− diff, line count unchanged at 5525. Markdown lint clean (MD060
-table alignment re-normalized via `markdown-table-prettify` after cell-content edits).
+**Last Completed**: **Phase C re-sequenced in `ROADMAP.md` and `PROJECT-STATUS.md`.** Inserted
+ARCd Rebrand and Expanded Planning Path as new WU entries between Methodology Maturation and
+Operating Modes; updated Methodology Maturation's Downstream pointer; rewrote the Operating
+Modes entry with new upstreams, shift-lifecycle framing, and a pre-approved foundation →
+Lite+Local split fallback (Lite-vs-Local split explicitly rejected per plan-doc design). Extended
+the dependency diagram with two new nodes. `PROJECT-STATUS.md` Next Priority block now reflects
+the three-step queue.
 
-**Terms swept (forward-looking per ARCd rebrand Persistent Context):**
-
-- `arc status` → `arcd health` (1 drift fix; 2 historical-framing hits left alone).
-- `arc-in-git` → `arc-pm` (7 drift fixes; 5 historical / code-identifier hits left alone).
-- `team.mode` → `team.enabled` (~50 drift fixes; 5 LEAVE — scope boundary at L37/L40/L42,
-  `CONFIG_KEY_TEAM_MODE` code context at L661, rename row at L5300).
-- `pm.mode` → `pm.layer` (~60 drift fixes; LEAVE cases — scope boundary, "Original options
-  considered" section, `pm_mode → pm.mode` code-flattening descriptions, rename rows).
-- `arc-config.yml` → `ARCd-config.yml` (~48 drift fixes; 2 LEAVE — rebrand rename descriptions
-  at L1644 and L5299, protected via placeholder during bulk replace).
-
-**Method:** Bucket 1/2/3 classification per SESSION-NOTES. Drift fixes executed via targeted
-`replace_all` on phrase fragments proven unique to drift contexts, plus a few individual
-edits for isolated hits. Resolved Decisions and Strategy Applicability Mapping table rows
-got cell-content edits re-aligned by `markdown-table-prettify`. Front-matter Status line
-updated to `Draft (design phase complete — Audits A + B drained; PRD-ready)`.
+Driven by an explicit park decision on the Operating Modes plan doc. `plan-arc-modes.md` passes
+the `strategy-work-planning.md` § PRD Readiness checklist cleanly — problem clear, alternatives
+explored, unknowns identified, scope bounded, dependencies named. Two residual items flagged as
+PRD-phase concerns rather than parking blockers: (a) Lite + `pm.layer: external` interaction,
+(b) pre-PRD Local-axis content-sweep audit (item 57 in Consolidated Deliverables Inventory) —
+agreed to defer both to impl-time, with the Local-axis audit absorbed into the impl-phase content
+audit activity rather than a pre-PRD gate.
 
 **Blockers**: [none]
 
-**Next Action**: **PRD authoring** for the Operating Modes work unit. `plan-arc-modes.md` is
-PRD-ready — design decisions, shared infrastructure, both modes, shift lifecycle, and
-mid-session orientation are all resolved. Start a fresh session for PRD authoring (mode
-transition). Use the standard `1_create-prd.md` workflow; plan doc is authoritative source
-for deliverable specifications.
+**Next Action**: **Integrate this planning branch** via
+`work-unit-lifecycle/planning/integrate-planning-branch.md` — PR + merge `technical/plan-operating-modes`
+to `main`, delete branch. Brings the ~5-week `plan-arc-modes.md` refinement stream plus this
+re-sequencing commit to `main`. After integration, session-boundary per § Step 5: run
+session-handoff if activation doesn't immediately follow. Next session (on `main`):
+`activate-planning-branch` for ARCd Rebrand (`technical/plan-arcd-rebrand`), then PRD authoring
+from `plan-arcd-rebrand.md`.
 
 ---
 
-**Last Updated**: 2026-04-14 (Audit B Layer 2 terminology sweep landed; plan doc PRD-ready)
+**Last Updated**: 2026-04-14 (Phase C re-sequenced; ready to integrate planning branch)
