@@ -4,9 +4,9 @@
 can be used. Two modes: a lightweight mode that preserves execution discipline without lifecycle ceremony,
 and a local mode that enables ARC in repositories the developer doesn't control.
 
-**Status:** Draft (design phase — Lite, Local, and shift lifecycle resolved; pending pre-PRD audit)
+**Status:** Draft (design phase — Lite, Local, and shift lifecycle resolved; Audit A drained, Audit B in progress)
 **Created:** 2026-04-01
-**Last Updated:** 2026-04-09
+**Last Updated:** 2026-04-14
 **Origin:** Developer experience gaps at both ends of the adoption spectrum — small projects need less
 ceremony, and constrained environments need ARC without repo footprint.
 
@@ -55,6 +55,84 @@ modes. This is not just "coherent to keep together" but "separating would be act
 
 ---
 
+## Contents
+
+- [Problem Statement](#problem-statement)
+- [Design Decisions](#design-decisions)
+    - [Configuration Identity](#configuration-identity)
+    - [Installation Type Recipe Mechanism](#installation-type-recipe-mechanism)
+    - [Prompt Orchestration and Recipe Authority](#prompt-orchestration-and-recipe-authority)
+    - [Lite Config Template Mechanism](#lite-config-template-mechanism)
+    - [Solo-Dev Blind Spot Audit (Gating Pre-PRD) — **Complete**](#solo-dev-blind-spot-audit-gating-pre-prd--complete)
+    - [Conditional Content Architecture](#conditional-content-architecture)
+    - [Configuration Identity — Local Axis](#configuration-identity--local-axis)
+- [Shared Infrastructure](#shared-infrastructure)
+    - [Mode-Aware Config Template Mechanism](#mode-aware-config-template-mechanism)
+    - [Role Is a Tracked Concept](#role-is-a-tracked-concept)
+    - [Context Footer Format (Local Mode)](#context-footer-format-local-mode)
+    - [Durability-Layer Commands](#durability-layer-commands)
+    - [Forbidden Combinations](#forbidden-combinations)
+    - [Audit as Part of Modes Work](#audit-as-part-of-modes-work)
+- [Mode 1: ARC Lite (Primary Deliverable)](#mode-1-arc-lite-primary-deliverable)
+    - [Design Philosophy](#design-philosophy)
+    - [Core Boundary Hypothesis (Confirmed)](#core-boundary-hypothesis-confirmed)
+    - [Enforced Sequence](#enforced-sequence)
+    - [What Stays Identical](#what-stays-identical)
+    - [What Changes](#what-changes)
+    - [The Lite PRD](#the-lite-prd)
+    - [The Lite Task List](#the-lite-task-list)
+    - [Lite Session Management](#lite-session-management)
+    - [Lite Process-Task-Loop](#lite-process-task-loop)
+    - [Lite Initial Setup](#lite-initial-setup)
+    - [Graduation / Downgrade Paths](#graduation--downgrade-paths)
+    - [Configuration and Installation](#configuration-and-installation)
+    - [Quick-Start / On-Ramp Angle](#quick-start--on-ramp-angle)
+- [Mode 2: Local Mode](#mode-2-local-mode)
+    - [Purpose](#purpose)
+    - [Design Philosophy](#design-philosophy-1)
+    - [Technical Approach](#technical-approach)
+    - [Exclusion Mechanism](#exclusion-mechanism)
+    - [Re-Clone UX](#re-clone-ux)
+    - [Backing Store](#backing-store)
+    - [Single-Active-Unit Invariant](#single-active-unit-invariant)
+    - [Shift Lifecycle Makes Local Full Viable](#shift-lifecycle-makes-local-full-viable)
+    - [Scenario Walk-Through](#scenario-walk-through)
+    - [Local Infrastructure Scenario Battery](#local-infrastructure-scenario-battery)
+    - [What Changes vs. Tracked Full](#what-changes-vs-tracked-full)
+    - [Upgrade Path (Local → Tracked)](#upgrade-path-local--tracked)
+    - [Agent and Editor Discoverability](#agent-and-editor-discoverability)
+- [Shift Lifecycle](#shift-lifecycle)
+    - [The Gap This Fills](#the-gap-this-fills)
+    - [Design Philosophy](#design-philosophy-2)
+    - [State Model](#state-model)
+    - [State Lives in Task List Headers (Pure Option C)](#state-lives-in-task-list-headers-pure-option-c)
+    - [Document Status Headers](#document-status-headers)
+    - [Workflow Shape](#workflow-shape)
+    - [Session-Init Integration](#session-init-integration)
+    - [Skill Shape](#skill-shape)
+    - [Integration Interaction with Shift States](#integration-interaction-with-shift-states)
+    - [Why This Lives in Its Own Cross-Cutting Section](#why-this-lives-in-its-own-cross-cutting-section)
+    - [Out of Scope (For This Plan Doc Iteration)](#out-of-scope-for-this-plan-doc-iteration)
+- [Mid-Session Orientation](#mid-session-orientation)
+- [Mode Fit Communication](#mode-fit-communication)
+    - [Principle: upfront clarity, not runtime detection](#principle-upfront-clarity-not-runtime-detection)
+    - [Communication surfaces](#communication-surfaces)
+    - [Consistency across surfaces](#consistency-across-surfaces)
+    - [Scope boundary: architecture here, content in implementation](#scope-boundary-architecture-here-content-in-implementation)
+- [Mode Combinations](#mode-combinations)
+    - [Collision-Free Composition](#collision-free-composition)
+    - [Local Mode and Contributor Mode Are Alternatives, Not Compositions](#local-mode-and-contributor-mode-are-alternatives-not-compositions)
+    - [Walk-Through: Lite+Local](#walk-through-litelocal)
+    - [Graduation Grid](#graduation-grid)
+    - [Init Flow Implications](#init-flow-implications)
+- [Reference Material](#reference-material)
+    - [Content Audit](#content-audit)
+    - [Consolidated Deliverables Inventory](#consolidated-deliverables-inventory)
+    - [Resolved Decisions](#resolved-decisions)
+    - [Research Findings](#research-findings)
+
+---
+
 ## Problem Statement
 
 ARC's value splits into two separable layers:
@@ -86,7 +164,7 @@ repo-owned project) and provides no way to adapt to others.
 
 ---
 
-## Design Investigations (Pre-PRD)
+## Design Decisions
 
 These are upstream of both modes — decisions here inform the PRD's deliverable specifications. The
 methodology/implementation boundary and content architecture are resolved in the upstream Methodology
@@ -475,10 +553,9 @@ decisions. Final bucket confirmation happens as each dependent decision lands.
   `strategy-team-coordination.md` (excluded; Lite forces solo) and `strategy-planning-module.md`
   (excluded by composition via the `pm.layer` gate).
 - **Session-lifecycle workflow variants** (`session-init.template.md`,
-  `session-handoff.template.md`) — if the Lite session-lifecycle decision lands on "variant
-  needed," two files go under respective `install.type` conditions. If "unified with minor cuts,"
-  they stay in the baseline with template `arc:if` directives. Pending [Open Question
-  5](#arc-lite).
+  `session-handoff.template.md`) — stay in the unconditional baseline with inline `arc:if`
+  directives for install.type gating per [Lite Session Management](#lite-session-management).
+  Single-file-with-`arc:if` (Mechanism B) resolved 2026-04-11 via Finding #4.
 - **`arc-config.yml` treatment** — resolved by [Lite Config Template
   Mechanism](#lite-config-template-mechanism) below. The file stays in the unconditional baseline
   and is renamed to `system/arc-config.template.yml` with `<!-- arc:if install.type == full -->`
@@ -1428,8 +1505,9 @@ but consumers learn about it through different paths based on what they actually
   side effect of H1** — the mechanism for Local's context footer enforcement is the same
   downstream-key-set-at-install-time pattern that Lite uses for `pm.mode` / `team.mode`, no new hook
   branches and no new enum values on `commit.context_footer`.
-- **L127-131 claim preserved.** The existing § Configuration Identity § Consumer read paths section states
-  hooks do not read `install.type`; the same claim holds for `backing.type`. Hooks continue to branch only
+- **Consumer-read-paths claim preserved.** The existing [Configuration Identity](#configuration-identity)
+  § Consumer read paths section states hooks do not read `install.type`; the same claim holds for
+  `backing.type`. Hooks continue to branch only
   on already-resolved downstream keys (`commit.*`, `branch.*`, `team.mode`, etc.), never on the axis fields
   directly. The Local layer's contribution is to set downstream keys to Local-appropriate values at install
   time, identical in shape to how the Lite layer contributes different `pm.mode` and `team.mode` defaults.
@@ -1471,8 +1549,9 @@ single file. **No recipe grammar extension needed.**
 **Manifest schema extension.** `InstallConfig` adds `backing_type: string` as a second required field,
 joining `install_type: string` added for the Lite/Full axis. The manifest schema version bumps once for
 both fields (the modes WU lands a single schema bump covering both axes, not two sequential bumps). Pristine
-reconstruction during `arc update` feeds `backing_type` through the same path as `install_type` per §
-Installation Type Recipe Mechanism L257. Legacy manifest migration fills in `backing_type: "tracked"`
+reconstruction during `arc update` feeds `backing_type` through the same path as `install_type` per
+[Installation Type Recipe Mechanism](#installation-type-recipe-mechanism) § Current state (pristine
+store dependency). Legacy manifest migration fills in `backing_type: "tracked"`
 alongside `install_type: "full"`.
 
 **CLI flags and init behavior.** Two axes, two flag pairs, one init flow:
@@ -1482,7 +1561,8 @@ alongside `install_type: "full"`.
   mutually exclusive within their axis.
 - **Prompt position in recipe array:** `backing_type` enters at position 3 (after `install_type` at
   position 2, before `tools`). Install type comes first because it establishes the bigger structural
-  decision (lifecycle or not); tracking is the overlay applied on top per § Init Flow Implications L3826.
+  decision (lifecycle or not); tracking is the overlay applied on top per
+  [Init Flow Implications](#init-flow-implications).
 - **Non-interactive default — `backing.type` defaults to `tracked`.** **Asymmetric with `install.type`,
   which errors without an explicit flag (OQ 9 resolution).** Justification: `install.type` has no
   back-compat default because Lite is newly introduced, and the failure mode to guard is
@@ -1499,14 +1579,15 @@ alongside `install_type: "full"`.
   is implementation-phase work.
 - **Forbidden combination enforcement at init time:** `arc init --local --role=contributor` refused with
   explanatory error; `arc init --local` with `team.mode: true` prevented via the `team.mode` render-time
-  forcing described below. Full enumeration at § Forbidden Combinations L3946.
+  forcing described below. Full enumeration at [Forbidden Combinations](#forbidden-combinations).
 
 **Gated prompts.** The `backing.type` value interacts with other prompts:
 
 - **`shared-gitignore` prompt:** New prompt with `show_when: backing.type == local`. Asks whether to use
   the tracked `.gitignore` line (opt-in, `--shared-gitignore` flag) versus the default `.git/info/exclude`
   path. Skipped entirely in tracked mode. Mechanism is the existing single-key `show_when` condition from
-  § Prompt Orchestration L516; no grammar extension.
+  [Prompt Orchestration and Recipe Authority](#prompt-orchestration-and-recipe-authority); no grammar
+  extension.
 - **`team.mode` prompt:** Currently gated on `install.type == full`. Local mode also forces
   `team.mode: false` per § Forbidden Combinations. **Decision: keep the single-gate `show_when:
   install.type == full` on the prompt, and force `team.mode: false` at render time via the Local layer of
@@ -1515,14 +1596,16 @@ alongside `install_type: "full"`.
   The render-time forcing approach preserves grammar simplicity and composes cleanly with the existing Lite
   layer's forcing behavior. If other prompts surface the AND-gating need later, revisit.
 - **`arc.role` is not an init prompt.** Role is set via `arc join` (personal workspace setup) using
-  `git config arc.role`, not in `arc init`. In Local mode, role is structurally absent per § Role Is a
-  Tracked Concept L3892 — `arc join` in a Local install skips the role step entirely. No recipe-level
-  gating needed since the prompt doesn't exist at init.
+  `git config arc.role`, not in `arc init`. In Local mode, role is structurally absent per
+  [Role Is a Tracked Concept](#role-is-a-tracked-concept) — `arc join` in a Local install skips the role
+  step entirely. No recipe-level gating needed since the prompt doesn't exist at init.
 
 **Reconfigure boundary.** `arc init --reconfigure` does NOT mutate `backing.type`, same rule as
-`install.type` (L4529). Tracked↔Local transitions are lateral shifts, not settings tweaks. Two directions:
+`install.type` (see [Prompt Orchestration and Recipe Authority](#prompt-orchestration-and-recipe-authority)
+§ Reconfigure boundary). Tracked↔Local transitions are lateral shifts, not settings tweaks. Two directions:
 
-- **Local → Tracked** transition is specified at § Upgrade Path (Local → Tracked) L3014 as a manual
+- **Local → Tracked** transition is specified at [Upgrade Path (Local → Tracked)](#upgrade-path-local--tracked)
+  as a manual
   4-step git operation (remove exclusion, `git add .arc/`, switch context footer format, commit). No CLI
   mode-switch command ships for this direction in the modes WU.
 - **Tracked → Local** transition is not specified as a CLI surface. The use case (existing tracked project
@@ -1530,7 +1613,8 @@ alongside `install_type: "full"`.
   non-trivial). Users who need this do it manually with standard git tools; ARC does not claim support.
 
 **Future `arc mode switch --backing <target>`.** Not shipped in the modes WU. The `arc mode switch`
-command namespace (established for Lite↔Full transitions at L4530) is extensible to a second axis but the
+command namespace (established for Lite↔Full transitions at
+[Graduation / Downgrade Paths](#graduation--downgrade-paths)) is extensible to a second axis but the
 Tracked↔Local shift command is deferred as unscheduled future work. The namespace is reserved so that if
 a switch command lands later, it fits cleanly.
 
@@ -1539,8 +1623,10 @@ Parallel to the `INSTALL_TYPE` token added for the Lite/Full axis. Used by withi
 `<!-- arc:if backing.type == local -->` blocks at render time. Mechanism-level detail.
 
 **Drift mitigation.** Unit tests compare recipe prompt IDs to exported `INIT_PROMPT_IDS` /
-`RECONFIGURE_PROMPT_IDS` constants, same pattern as install.type drift mitigation at L4528. The test set
-expands by two prompt IDs (`backing_type`, `shared_gitignore`); no new test infrastructure. The
+`RECONFIGURE_PROMPT_IDS` constants, same pattern as the install.type drift mitigation established in
+[Prompt Orchestration and Recipe Authority](#prompt-orchestration-and-recipe-authority) § Drift mitigation.
+The test set expands by two prompt IDs (`backing_type`, `shared_gitignore`); no new test infrastructure.
+The
 `RECONFIGURE_PROMPT_IDS` constant excludes both `backing_type` and `shared_gitignore` since reconfigure
 does not mutate `backing.type` or its downstream gated prompts.
 
@@ -1548,6 +1634,302 @@ does not mutate `backing.type` or its downstream gated prompts.
 Mechanism details (exact regex for the Local-mode context footer pattern, exact primer copy, which files
 if any land in the `backing.type == local` recipe bucket) are implementation-phase work, not pre-PRD gaps.
 
+---
+
+## Shared Infrastructure
+
+**In-scope for modes WU.** Covers the mode-specific config surface and orthogonal-axis enforcement.
+The mechanical `pm.mode: arc-in-git` → `pm.mode: arc-pm` rename and its associated doc sweep have
+been extracted into the [ARCd Rebrand][arcd-rebrand] work unit — they compose naturally with the
+rebrand's own config file rename (`arc-config.yml` → `ARCd-config.yml`) and content sweep, and
+modes WU depends on landing the renamed foundation first. This section covers what remains in
+modes WU.
+
+### Mode-Aware Config Template Mechanism
+
+**Delivery mechanism:** [Lite Config Template Mechanism](#lite-config-template-mechanism) in the
+Design Decisions section above specifies the install-time delivery mechanism — a single
+`arc-config.template.yml` file processed through the existing render pipeline, with `<!-- arc:if
+... -->` directives gating mode-specific sections. This section describes the **conceptual** layer
+composition (what each axis contributes); the mechanism is flat per-axis `arc:if` directives
+testing each axis independently, not a code-level "layer" construct.
+
+Each mode axis (Lite/Full, Tracked/Local) contributes its own deletions and overrides to the
+`ARCd-config.yml` template. The two axes compose orthogonally: each layer applies independently,
+and when combined, both layers' changes are applied.
+
+**Lite layer (contributes when install type is Lite):**
+
+- Omits `pm.mode: arc-pm` option (Lite has no work unit stream for the planning module)
+- Forces `team.mode: false` (Lite is solo-bounded methodology)
+- Does not touch `arc.role` (neutral on the tracked/local axis)
+- Omits lifecycle-related settings if any exist
+
+**Local layer (contributes when install type is Local):**
+
+- Omits `arc.role` (role is a Tracked concept — see below)
+- Forces `team.mode: false` (Local is solo-ARC by definition)
+- Redirects `user.sync_push` semantics (controls backing store push behavior instead of git notes push)
+- Customizes `commit.context_footer` to enforce descriptive freeform pattern (see below)
+- Does not touch lifecycle settings (neutral on the lite/full axis)
+
+**Combining layers:** When a developer picks Lite+local, both layers apply. Each layer's concerns
+are independent, so the combination is just the union of their changes. No special-case logic for
+the combination itself — the mode-template machinery supports N mode axes without needing to
+enumerate every combination.
+
+### Role Is a Tracked Concept
+
+The role values (`maintainer` / `contributor` from ADR-014) exist to differentiate ARC artifact
+ownership from code contribution on projects where `.arc/` is visible in the tracked repo. Whenever
+ARC is tracked, teammates or external contributors can see the planning artifacts, and the
+maintainer/contributor distinction has meaning — the maintainer owns them, contributors avoid
+touching them and use a different commit footer.
+
+**Role applies in:**
+
+- **Full+tracked** — original case. Maintainer owns backlog, PRDs, task lists; contributors submit
+  code without touching ARC planning artifacts.
+- **Lite+tracked** — OSS solo-developed scenario. The solo maintainer owns the Lite PRD and
+  single task list; external contributors submit patches without touching them. Every
+  contributor-role concern applies unchanged: reduced session-init document set, `contribution`
+  commit footer, contributor-protected-paths warning for `active/`.
+
+**Role is dropped in:**
+
+- **Full+local** — ARC isn't visible in the tracked repo, so there's no visible artifact ownership
+  to differentiate around.
+- **Lite+local** — same reason.
+
+**The rule:** role is meaningful when `.arc/` is tracked in the repo, regardless of Lite vs Full.
+When tracked, others can see ARC content, so the maintainer/contributor distinction matters. When
+untracked (Local mode), nobody else sees ARC at all, and the distinction is moot.
+
+**Implementation:** The Local layer of the config template omits `arc.role`. The Lite layer does
+not touch it — Lite keeps role intact when the install is tracked. In Local mode, session-init
+skips role resolution and workflows that branch on role default to the non-contributor path.
+
+### Context Footer Format (Local Mode)
+
+Local mode enforces a descriptive freeform footer via the commit-msg hook, with pattern distinct
+from tracked mode's task-reference format. This preserves the discipline (every commit explains
+its context) in a form that leaves zero ARC fingerprint in the commit history visible to teammates.
+
+Examples of valid Local mode footers:
+
+- `Context: auth middleware refactor`
+- `Context: token validation cleanup`
+- `Context: investigating CORS handling`
+
+The hook runs locally in the developer's clone, so ARC can enforce this format without teammates
+seeing any ARC-specific content. The form is not configurable by the user within Local mode — it's
+a mode-level enforcement.
+
+### Durability-Layer Commands
+
+**Resolved 2026-04-13 (Audit A H2).** Local mode does not redirect `arc user save/load/push/pull`
+or `arc sync` — and there is no "transparent redirect" layer at all. Local installs install a
+separate, purpose-built command family, `arcd backing *`, for durability-layer operations against
+the backing store. The two command families coexist across install modes; each install mode
+installs one. Commands are not aliased, cross-mapped, or silently redirected.
+
+**Why not transparent redirect.** The tracked-mode `arc user *` family and the Local-mode
+durability concern solve different problems:
+
+- `arc user *` is a transport layer for a gitignored subtree (`user/{identity}/`) anchored on
+  HEAD via git notes. It exists because tracked mode has a private personal layer that does not
+  travel with `git push`.
+- The backing store is a whole-`.arc/` shadow-copy durability substrate keyed on project ID,
+  with no HEAD anchoring. It exists because Local mode has no durability at all without it —
+  `.arc/` is untracked and one `rm -rf` from gone.
+
+Different scopes, different anchors, different failure modes, different audiences. The only
+thing the two share is the firing point (session handoff), and that commonality belongs one
+level up — at the workflow layer, not at the CLI verb layer. Forcing one vocabulary to mean
+both obscures the boundary and produced the unspecifiable 5-command mapping that surfaced H2
+in the first place.
+
+**Tracked-mode surface (unchanged).** Installed under `backing.type == tracked`:
+
+- `arc user save` — serialize `user/{identity}/` to `refs/notes/arc/user/{identity}` on HEAD
+- `arc user load` — restore `user/{identity}/` from the note (walks ancestors if needed)
+- `arc user push` / `arc user pull` — transport the notes ref to/from the configured remote
+- `arc sync` — `arc user save` + `arc user push`, gated by `user.sync_push`
+
+**Local-mode surface (new).** Installed under `backing.type == local`, in the `arcd` namespace
+introduced by the [ARCd Rebrand][arcd-rebrand] WU:
+
+- `arcd backing sync` — stage `.arc/` into `~/.arc-state/{project-id}/`, commit with an
+  auto-generated message tying the snapshot to the source commit hash (or timestamp in
+  zero-commit repos), push per `user.sync_push`. This is what session-handoff's persist step
+  invokes automatically; also available for manual invocation when the user wants to force a
+  sync outside handoff.
+- `arcd backing restore` — replay backing store HEAD contents into `.arc/`. Manual recovery
+  path after data loss (e.g., `rm -rf .arc/`) or after pulling a newer snapshot from a shared
+  remote. **Divergence guard**: refuses to run when `.arc/` has changes not yet captured by
+  `arcd backing sync`, without `--force`. Prevents silent overwrite of unsynced local work.
+- `arcd backing push` / `arcd backing pull` — transport the backing store git repo to/from its
+  configured remote. `pull` is ref-only (non-destructive fetch into remote-tracking refs);
+  `restore` is the separate replay step, kept distinct so fetching and overwriting are two
+  deliberate actions.
+- `arcd backing status` — **canonical source of backing store degraded-state information.**
+  Reports existence and git-repo validity of the backing store directory, HEAD resolution and a
+  cheap integrity check (`git fsck --connectivity-only` or equivalent), last sync time,
+  dirty/clean state relative to `.arc/`, staleness (sessions since last successful sync), sync
+  class if the last sync was a failure (see § Backing Store § Failure handling), and remote
+  configuration. Reports one of `healthy`, `degraded`, `missing`, or `corrupt` as a summary
+  verdict. Includes a permission sanity check on Linux/macOS (warns if directory mode is more
+  permissive than 700 — see § Backing Store § Privacy model). Load-bearing for session-init
+  Local-axis pre-check — see § Session-init Local-axis pre-check below. Full spec deferred to
+  implementation; the enumerated surfaces above are the minimum required contract. Resolves
+  Audit A sub-finding H3-N2 (health and corruption surface).
+- `arcd backing sync --rebuild` — re-initializes the backing store from current `.arc/`
+  content when the store is destroyed, corrupted, or missing but source is intact. Creates a
+  fresh store at the project ID key with current `.arc/` as its first commit, printing a loud
+  warning that prior backing store history is lost. Command shape (flag vs. dedicated
+  subcommand) is implementation-phase work; the operation itself is required. Asymmetric
+  recovery rule: `.arc/` intact + store broken → rebuild from `.arc/`; store intact + `.arc/`
+  broken → `arcd backing restore`; both broken → remote only, else data loss. Resolves Audit A
+  sub-finding H3-N2 (rebuild path).
+
+**What is not installed in Local mode.** `arc user save/load/push/pull` and `arc sync` are not
+installed at all in Local mode. Typing one errors with "this command is not available in Local
+mode; see `arcd backing --help`." No aliasing, no silent redirect. The asymmetry is named, not
+hidden.
+
+**The unifier lives at the workflow layer.** Session-handoff's persist step branches on
+`backing.type` and invokes the mode-appropriate family. The workflow reads one way in both
+modes ("persist session state to the durability layer"); the CLI verbs underneath are honest
+about what they actually do. This reshapes `session-handoff.md` § Save to Git Notes — the
+section is renamed § Save to Durability Layer and gains an `arc:if backing.type == tracked` /
+`arc:if backing.type == local` block pair for the two command families. The package-source
+template at `session-handoff.template.md` picks up the same gate. (This updates Consolidated
+Deliverables Inventory item #24: the handoff template now _does_ need block-level mode gates,
+contrary to the earlier pre-H2 claim.)
+
+**Config key consumers.** `user.sync_push` keeps its three-value semantics
+(`always` / `prompt` / `manual`) in both modes. In tracked mode, `arc sync` / `arc user save` /
+`arc user push` read it. In Local mode, `arcd backing sync` / `arcd backing push` read it. The
+key is mode-agnostic; only its consumers change per install mode.
+
+**Cross-machine conflict story.** When two machines push divergent backing store snapshots to
+a shared remote:
+
+1. `arcd backing push` with non-fast-forward remote → errors, prompts the user to
+   `arcd backing pull` first.
+2. `arcd backing pull` fetches the remote into remote-tracking refs (non-destructive — no
+   working-tree files change yet).
+3. `arcd backing sync` in a divergent state (local HEAD does not descend from remote HEAD) →
+   refuses, surfaces the divergence, and directs the user at the power-user manual resolution
+   path below.
+
+**Divergence resolution is power-user manual, deliberately.** File-level three-way merge of
+WORK-STATUS.md, task lists, or SESSION-NOTES is not attempted — the contents are not typically
+mergeable without human review. The backing store remains a standard git repo, so conflict
+resolution uses standard git tooling directly, operating on `~/.arc-state/{project-id}/`:
+
+- **Prefer the remote version:** `cd ~/.arc-state/{project-id}/` and
+  `git reset --hard origin/{branch}` (replace `{branch}` with the appropriate remote-tracking
+  ref). Then run `arcd backing restore` to replay the remote version into `.arc/`, overwriting
+  local state.
+- **Prefer the local version:** `cd ~/.arc-state/{project-id}/` and `git push --force`. Use
+  with care — overwrites the remote version for other machines on the next
+  `arcd backing pull`.
+- **Manual merge:** `cd ~/.arc-state/{project-id}/`, resolve conflicts using standard git
+  tooling (merge commits, cherry-pick, reflog recovery, whatever the situation calls for),
+  then `arcd backing restore` to replay the resolved content into `.arc/`.
+
+The CLI surface deliberately does not expose a dedicated divergence-resolution verb. The
+backing store's git-repo nature makes standard git tooling directly applicable, and building
+ARC-specific resolution commands would duplicate git's semantics without adding value — the
+user who hits cross-machine divergence is by definition a multi-machine user comfortable with
+standard git workflows, and a dedicated verb would cover strictly fewer cases than `git` does
+in the same directory. Users who hit divergence frequently should consider whether their
+multi-machine workflow would benefit from more frequent `arcd backing push` invocations (via
+`user.sync_push: always`) to reduce the divergence window. Resolves Audit A tightening H3-N3.
+
+**Graduation banner.** `arc mode switch --to tracked` prints a one-time message at the end of
+the switch: "The `arcd backing *` commands go away with your backing store. `arc user *` and
+`arc sync` become available — these operate on `user/{identity}/` via git notes." One-time
+cost at graduation; no lookup burden during normal use.
+
+**Coordination with ARCd Rebrand WU.** The `arcd` namespace (and the `arcd backing *` commands
+specifically) lands in the rebrand WU's CLI-surface work. The Modes WU commits to the
+namespace decision and to the verb set that session-handoff, recovery, and orientation
+require (`sync`, `restore`, `push`, `pull`, `status`, and a rebuild path whose exact shape —
+`sync --rebuild` flag vs. dedicated subcommand — is implementation-phase work). Full spec
+(help text, exit codes, flag surfaces, error message copy) is implementation-phase work
+coordinated with the rebrand WU.
+
+**Session-init Local-axis pre-check.** Session-init's counterpart to
+`session-handoff.template.md`'s mode-gated persist step (Consolidated Deliverables Inventory
+item #24). Where handoff writes to the durability layer, init reads from it — both branch on
+`backing.type` and invoke the mode-appropriate surface.
+
+The pre-check runs before standard document loading in `session-init.md`, gated on
+`arc:if backing.type == local`:
+
+1. **Check `.arc/` presence.** If absent or empty, halt with "Local-mode install detected but
+   `.arc/` is missing. Run `arc init --local` to restore from backing store before resuming."
+   Exits cleanly without attempting to load any ARC document set — the docs do not exist yet.
+   Pairs with the idempotent `arc init --local` recovery command path specified in § Re-Clone
+   UX § Recovery command.
+2. **Query `arcd backing status`.** Captures the backing store's current state (`healthy`,
+   `degraded`, `missing`, `corrupt`) plus staleness (sessions since last successful sync).
+   Non-fatal: a degraded status does not halt session-init.
+3. **Surface degraded state in the orientation summary.** If status is anything other than
+   `healthy` with zero staleness, the orientation includes a line naming the condition and the
+   recommended recovery command. Examples:
+    - "Backing store status: degraded — last sync failed (class C, non-FF push). Run
+      `arcd backing pull` then resolve divergence before next handoff."
+    - "Backing store status: stale by 3 sessions — run `arcd backing sync` to catch up."
+    - "Backing store status: corrupt — run `arcd backing sync --rebuild` to re-initialize
+      from current `.arc/` state."
+4. **Continue with normal session-init** (document set loading, work state reporting, next
+   action) unless step 1 halted.
+
+The split between step 1 (halts) and step 3 (warns) is deliberate: missing `.arc/` means
+session context cannot be loaded at all, so proceeding is impossible; degraded backing store
+means session context exists but durability is compromised, which the user should know about
+but should not block continued work. `arcd backing status` is the single query point — no
+duplicate state markers in SESSION-NOTES or elsewhere.
+
+Resolves Audit A sub-finding H3-N1 (session-init pre-check companion path) and consumes
+tightening H3-N5's three-class failure model from § Backing Store § Failure handling as the
+content this pre-check surfaces in step 3.
+
+### Forbidden Combinations
+
+- **Local + `team.mode: true`** — forbidden. Local is solo-ARC by definition; team mode requires
+  shared state that Local's exclusion mechanism prevents.
+- **Local + `arc.role` set to any value** — forbidden. Role is a tracked concept; Local installs
+  omit the setting entirely. CLI refuses `arc init --local --role=contributor` with an
+  explanatory error.
+- **Lite + `pm.layer: arc-pm`** — forbidden. Lite has no work unit stream for the planning
+  module to manage.
+- **Lite + `pm.layer: external`** — forbidden (resolved pre-PRD, OQ 10). External PM integration
+  adds machinery that conflicts with Lite's "less ceremony" design philosophy. Developers who
+  need external PM integration graduate to Full with `pm.layer: external` via
+  `arc mode switch --to full` — graduation is the escape hatch, not config-space sprawl.
+- **Lite** therefore forces `pm.layer: none` unconditionally. Both `arc-pm` and `external` are
+  excluded at init time with explanatory errors.
+
+The CLI refuses these combinations at `arc init` time with explanatory error messages pointing to
+the correct path.
+
+### Audit as Part of Modes Work
+
+The mode-aware configurability audit is part of this work unit's scope. The content audit (see
+[Content Audit](#content-audit) below) is expanded to include configurability architecture as a
+domain — not just docs and workflows. The goal is a complete inventory of which settings apply in
+which modes, which are forced, which are omitted, and which semantics shift per mode. This inventory
+feeds the Lite and Local config templates and the CLI's init-time validation logic.
+
+Note: the `pm.mode` rename's doc sweep is handled in the ARCd rebrand WU as part of its unified
+content audit pass. The modes WU's configurability audit picks up where the rebrand leaves off —
+classifying the (already-renamed) settings by mode applicability.
+
+---
 ---
 
 ## Mode 1: ARC Lite (Primary Deliverable)
@@ -1929,11 +2311,12 @@ flight:
   discovery (when it fires) checks `prd.md` / `plan-*.md` in `.arc/active/` — no backlog scan,
   no category-path lookup, no PRD-file discovery. `strategy-session-operations` reclassified
   applies-as-is → needs-variant (two in-doc tables, mode-aware prose edits).
-- **Strategy applicability mapping for Lite** (Open Question 7): `strategy-work-planning.md`
-  partially applies in Lite (the discovery checklist is used by Lite `create-prd` Step 3; the
-  work-unit-lifecycle sections do not apply).
-- **Initial-setup workflows** (Open Question 15): strong lean toward the same unified-with-mode-
-  conditionals shape as `create-prd`. Not yet decided.
+- **Strategy applicability mapping for Lite**: `strategy-work-planning.md` partially applies in
+  Lite (the discovery checklist is used by Lite `create-prd` Step 3; the work-unit-lifecycle
+  sections do not apply). See [Strategy Applicability Mapping](#strategy-applicability-mapping).
+- **Initial-setup workflows**: resolved via Finding #12/R6 — purpose-built `01_setup-lite.md` for
+  Lite; Full's existing two-file pipeline reassigned to the `install.type == full` bucket. See
+  [Lite Initial Setup](#lite-initial-setup).
 
 ### The Lite Task List
 
@@ -1966,8 +2349,6 @@ graduation would require adding a phase retroactively, violating the "graduation
 content rewrite" principle ([Graduation / Downgrade Paths](#graduation--downgrade-paths)). Users with
 truly minimal work generate one work phase plus the verification phase and the structure essentially
 disappears; the constraint costs nothing and preserves graduation.
-
-Closes [Open Question 4](#arc-lite) (task list simplifications).
 
 #### Header field trims
 
@@ -2315,8 +2696,6 @@ handled via mode-aware prose and dual-value row entries, not `arc:if` gates. Tem
 stays bounded to content that genuinely needs block-level gating; two-row table edits within a
 ~254-line strategy doc don't cross that threshold.
 
-Closes [Open Question 5](#arc-lite) (session management simplifications).
-
 ### Lite Process-Task-Loop
 
 **Lite runs the same task processing loop as Full, with narrow cuts to branch coupling, verification phase
@@ -2485,8 +2864,6 @@ so the rendered Lite file will have all `team.mode` and `pm.mode == arc-in-git |
 stripped. The final installed Lite file is substantially shorter than the Full + arc-in-git variant, while
 the source file stays single.
 
-Closes [Open Question 6](#arc-lite) (process-task-loop adjustments).
-
 ### Lite Initial Setup
 
 Full ARC's initial-setup pipeline is two workflow files: `01_verify-and-configure.md` (verify
@@ -2522,7 +2899,7 @@ structurally distinct from Full, not a trimmed-down Full).
   into one shorter document. The `01_` prefix preserves the initial-setup ordering convention
   relative to the core workflows `1_create-prd.md` / `2_generate-tasks.md` / `3_process-task-loop.md`.
 - **Template layer:** Full's `META-PRD.template.md` stays in `install.type == full` bucket
-  (Finding #8 L411 commitment holds for Full). Lite adds a new `META-PRD.lite.template.md`
+  (Finding #8 commitment holds for Full). Lite adds a new `META-PRD.lite.template.md`
   combining product direction and technical overview content in a single Lite-scoped template.
   The Lite variant is **opt-in, not default** — agent-led during `01_setup-lite.md` rather
   than installed automatically. This lightly reopens Finding #8's "META-PRD not installed in
@@ -2713,7 +3090,7 @@ Mechanism](#installation-type-recipe-mechanism) § Anchor file bucket assignment
 
 Template layer (separate from workflow layer, but related):
 
-- `reference/META-PRD.template.md` → `install.type == full` (unchanged from Finding #8 L411)
+- `reference/META-PRD.template.md` → `install.type == full` (unchanged from Finding #8)
 - `reference/META-PRD.lite.template.md` → **no recipe bucket** (opt-in installation via
   agent-led step in `01_setup-lite.md`, not via recipe at install time)
 
@@ -2740,8 +3117,6 @@ existing files remain plain `.md` (and `.template.md` for 02, already a template
 removal in `01_verify-and-configure.md`. `02_define-project.md` stays untouched because the
 file is entirely Full-only now via its recipe bucket assignment — no new `install.type` gates
 needed inside the file.
-
-Closes [Open Question 15](#cross-cutting) (initial-setup workflow impact).
 
 ### Graduation / Downgrade Paths
 
@@ -3459,7 +3834,7 @@ identity.
   family, not transparent redirect. See
   [Durability-Layer Commands](#durability-layer-commands).
 - Role concept dropped (Local drops role regardless of Lite/Full — see
-  [Configurability Architecture Cleanup](#configurability-architecture-cleanup))
+  [Shared Infrastructure](#shared-infrastructure))
 - `team.mode` forced to `false` (solo-ARC by definition)
 - `pm.mode` either `arc-pm` (ARC's built-in PM, artifacts untracked like everything else) or
   `external` / `none`
@@ -3674,8 +4049,9 @@ orientation entirely, aligned with the reframe above.
   `WORK-STATUS.md` Active Focus (single-slot pointer to current branch's WU). Atomicity is
   local to three file writes.
 - **Scenario 8 (resume after long pause):** Pause timestamp lives inline in the Status header.
-  Shift reads the header on resume and surfaces a staleness warning if the interval exceeds a
-  threshold (threshold TBD in detail design, see Open Questions).
+  Shift reads the header on resume and surfaces a staleness warning if the interval exceeds one
+  week (fixed, not configurable — see [Resolved Decisions](#resolved-decisions) → "Staleness
+  threshold").
 - **Scenario 9 (waiting-for-review distinction):** Encoded as a specific `Status:` value. See
   Finding B resolution.
 
@@ -4369,302 +4745,15 @@ respects agency and matches ARC's "asks before acting" ethos. Resolves Audit A s
 
 ---
 
-## Configurability Architecture Cleanup
+## Reference Material
 
-**In-scope for modes WU.** Covers the mode-specific config surface and orthogonal-axis enforcement.
-The mechanical `pm.mode: arc-in-git` → `pm.mode: arc-pm` rename and its associated doc sweep have
-been extracted into the [ARCd Rebrand][arcd-rebrand] work unit — they compose naturally with the
-rebrand's own config file rename (`arc-config.yml` → `ARCd-config.yml`) and content sweep, and
-modes WU depends on landing the renamed foundation first. This section covers what remains in
-modes WU.
-
-### Mode-Aware Config Template Mechanism
-
-**Delivery mechanism:** [Lite Config Template Mechanism](#lite-config-template-mechanism) in the
-Design Investigations section above specifies the install-time delivery mechanism — a single
-`arc-config.template.yml` file processed through the existing render pipeline, with `<!-- arc:if
-... -->` directives gating mode-specific sections. This section describes the **conceptual** layer
-composition (what each axis contributes); the mechanism is flat per-axis `arc:if` directives
-testing each axis independently, not a code-level "layer" construct.
-
-Each mode axis (Lite/Full, Tracked/Local) contributes its own deletions and overrides to the
-`ARCd-config.yml` template. The two axes compose orthogonally: each layer applies independently,
-and when combined, both layers' changes are applied.
-
-**Lite layer (contributes when install type is Lite):**
-
-- Omits `pm.mode: arc-pm` option (Lite has no work unit stream for the planning module)
-- Forces `team.mode: false` (Lite is solo-bounded methodology)
-- Does not touch `arc.role` (neutral on the tracked/local axis)
-- Omits lifecycle-related settings if any exist
-
-**Local layer (contributes when install type is Local):**
-
-- Omits `arc.role` (role is a Tracked concept — see below)
-- Forces `team.mode: false` (Local is solo-ARC by definition)
-- Redirects `user.sync_push` semantics (controls backing store push behavior instead of git notes push)
-- Customizes `commit.context_footer` to enforce descriptive freeform pattern (see below)
-- Does not touch lifecycle settings (neutral on the lite/full axis)
-
-**Combining layers:** When a developer picks Lite+local, both layers apply. Each layer's concerns
-are independent, so the combination is just the union of their changes. No special-case logic for
-the combination itself — the mode-template machinery supports N mode axes without needing to
-enumerate every combination.
-
-### Role Is a Tracked Concept
-
-The role values (`maintainer` / `contributor` from ADR-014) exist to differentiate ARC artifact
-ownership from code contribution on projects where `.arc/` is visible in the tracked repo. Whenever
-ARC is tracked, teammates or external contributors can see the planning artifacts, and the
-maintainer/contributor distinction has meaning — the maintainer owns them, contributors avoid
-touching them and use a different commit footer.
-
-**Role applies in:**
-
-- **Full+tracked** — original case. Maintainer owns backlog, PRDs, task lists; contributors submit
-  code without touching ARC planning artifacts.
-- **Lite+tracked** — OSS solo-developed scenario. The solo maintainer owns the Lite PRD and
-  single task list; external contributors submit patches without touching them. Every
-  contributor-role concern applies unchanged: reduced session-init document set, `contribution`
-  commit footer, contributor-protected-paths warning for `active/`.
-
-**Role is dropped in:**
-
-- **Full+local** — ARC isn't visible in the tracked repo, so there's no visible artifact ownership
-  to differentiate around.
-- **Lite+local** — same reason.
-
-**The rule:** role is meaningful when `.arc/` is tracked in the repo, regardless of Lite vs Full.
-When tracked, others can see ARC content, so the maintainer/contributor distinction matters. When
-untracked (Local mode), nobody else sees ARC at all, and the distinction is moot.
-
-**Implementation:** The Local layer of the config template omits `arc.role`. The Lite layer does
-not touch it — Lite keeps role intact when the install is tracked. In Local mode, session-init
-skips role resolution and workflows that branch on role default to the non-contributor path.
-
-### Context Footer Format (Local Mode)
-
-Local mode enforces a descriptive freeform footer via the commit-msg hook, with pattern distinct
-from tracked mode's task-reference format. This preserves the discipline (every commit explains
-its context) in a form that leaves zero ARC fingerprint in the commit history visible to teammates.
-
-Examples of valid Local mode footers:
-
-- `Context: auth middleware refactor`
-- `Context: token validation cleanup`
-- `Context: investigating CORS handling`
-
-The hook runs locally in the developer's clone, so ARC can enforce this format without teammates
-seeing any ARC-specific content. The form is not configurable by the user within Local mode — it's
-a mode-level enforcement.
-
-### Durability-Layer Commands
-
-**Resolved 2026-04-13 (Audit A H2).** Local mode does not redirect `arc user save/load/push/pull`
-or `arc sync` — and there is no "transparent redirect" layer at all. Local installs install a
-separate, purpose-built command family, `arcd backing *`, for durability-layer operations against
-the backing store. The two command families coexist across install modes; each install mode
-installs one. Commands are not aliased, cross-mapped, or silently redirected.
-
-**Why not transparent redirect.** The tracked-mode `arc user *` family and the Local-mode
-durability concern solve different problems:
-
-- `arc user *` is a transport layer for a gitignored subtree (`user/{identity}/`) anchored on
-  HEAD via git notes. It exists because tracked mode has a private personal layer that does not
-  travel with `git push`.
-- The backing store is a whole-`.arc/` shadow-copy durability substrate keyed on project ID,
-  with no HEAD anchoring. It exists because Local mode has no durability at all without it —
-  `.arc/` is untracked and one `rm -rf` from gone.
-
-Different scopes, different anchors, different failure modes, different audiences. The only
-thing the two share is the firing point (session handoff), and that commonality belongs one
-level up — at the workflow layer, not at the CLI verb layer. Forcing one vocabulary to mean
-both obscures the boundary and produced the unspecifiable 5-command mapping that surfaced H2
-in the first place.
-
-**Tracked-mode surface (unchanged).** Installed under `backing.type == tracked`:
-
-- `arc user save` — serialize `user/{identity}/` to `refs/notes/arc/user/{identity}` on HEAD
-- `arc user load` — restore `user/{identity}/` from the note (walks ancestors if needed)
-- `arc user push` / `arc user pull` — transport the notes ref to/from the configured remote
-- `arc sync` — `arc user save` + `arc user push`, gated by `user.sync_push`
-
-**Local-mode surface (new).** Installed under `backing.type == local`, in the `arcd` namespace
-introduced by the [ARCd Rebrand][arcd-rebrand] WU:
-
-- `arcd backing sync` — stage `.arc/` into `~/.arc-state/{project-id}/`, commit with an
-  auto-generated message tying the snapshot to the source commit hash (or timestamp in
-  zero-commit repos), push per `user.sync_push`. This is what session-handoff's persist step
-  invokes automatically; also available for manual invocation when the user wants to force a
-  sync outside handoff.
-- `arcd backing restore` — replay backing store HEAD contents into `.arc/`. Manual recovery
-  path after data loss (e.g., `rm -rf .arc/`) or after pulling a newer snapshot from a shared
-  remote. **Divergence guard**: refuses to run when `.arc/` has changes not yet captured by
-  `arcd backing sync`, without `--force`. Prevents silent overwrite of unsynced local work.
-- `arcd backing push` / `arcd backing pull` — transport the backing store git repo to/from its
-  configured remote. `pull` is ref-only (non-destructive fetch into remote-tracking refs);
-  `restore` is the separate replay step, kept distinct so fetching and overwriting are two
-  deliberate actions.
-- `arcd backing status` — **canonical source of backing store degraded-state information.**
-  Reports existence and git-repo validity of the backing store directory, HEAD resolution and a
-  cheap integrity check (`git fsck --connectivity-only` or equivalent), last sync time,
-  dirty/clean state relative to `.arc/`, staleness (sessions since last successful sync), sync
-  class if the last sync was a failure (see § Backing Store § Failure handling), and remote
-  configuration. Reports one of `healthy`, `degraded`, `missing`, or `corrupt` as a summary
-  verdict. Includes a permission sanity check on Linux/macOS (warns if directory mode is more
-  permissive than 700 — see § Backing Store § Privacy model). Load-bearing for session-init
-  Local-axis pre-check — see § Session-init Local-axis pre-check below. Full spec deferred to
-  implementation; the enumerated surfaces above are the minimum required contract. Resolves
-  Audit A sub-finding H3-N2 (health and corruption surface).
-- `arcd backing sync --rebuild` — re-initializes the backing store from current `.arc/`
-  content when the store is destroyed, corrupted, or missing but source is intact. Creates a
-  fresh store at the project ID key with current `.arc/` as its first commit, printing a loud
-  warning that prior backing store history is lost. Command shape (flag vs. dedicated
-  subcommand) is implementation-phase work; the operation itself is required. Asymmetric
-  recovery rule: `.arc/` intact + store broken → rebuild from `.arc/`; store intact + `.arc/`
-  broken → `arcd backing restore`; both broken → remote only, else data loss. Resolves Audit A
-  sub-finding H3-N2 (rebuild path).
-
-**What is not installed in Local mode.** `arc user save/load/push/pull` and `arc sync` are not
-installed at all in Local mode. Typing one errors with "this command is not available in Local
-mode; see `arcd backing --help`." No aliasing, no silent redirect. The asymmetry is named, not
-hidden.
-
-**The unifier lives at the workflow layer.** Session-handoff's persist step branches on
-`backing.type` and invokes the mode-appropriate family. The workflow reads one way in both
-modes ("persist session state to the durability layer"); the CLI verbs underneath are honest
-about what they actually do. This reshapes `session-handoff.md` § Save to Git Notes — the
-section is renamed § Save to Durability Layer and gains an `arc:if backing.type == tracked` /
-`arc:if backing.type == local` block pair for the two command families. The package-source
-template at `session-handoff.template.md` picks up the same gate. (This updates Consolidated
-Deliverables Inventory item #24: the handoff template now _does_ need block-level mode gates,
-contrary to the earlier pre-H2 claim.)
-
-**Config key consumers.** `user.sync_push` keeps its three-value semantics
-(`always` / `prompt` / `manual`) in both modes. In tracked mode, `arc sync` / `arc user save` /
-`arc user push` read it. In Local mode, `arcd backing sync` / `arcd backing push` read it. The
-key is mode-agnostic; only its consumers change per install mode.
-
-**Cross-machine conflict story.** When two machines push divergent backing store snapshots to
-a shared remote:
-
-1. `arcd backing push` with non-fast-forward remote → errors, prompts the user to
-   `arcd backing pull` first.
-2. `arcd backing pull` fetches the remote into remote-tracking refs (non-destructive — no
-   working-tree files change yet).
-3. `arcd backing sync` in a divergent state (local HEAD does not descend from remote HEAD) →
-   refuses, surfaces the divergence, and directs the user at the power-user manual resolution
-   path below.
-
-**Divergence resolution is power-user manual, deliberately.** File-level three-way merge of
-WORK-STATUS.md, task lists, or SESSION-NOTES is not attempted — the contents are not typically
-mergeable without human review. The backing store remains a standard git repo, so conflict
-resolution uses standard git tooling directly, operating on `~/.arc-state/{project-id}/`:
-
-- **Prefer the remote version:** `cd ~/.arc-state/{project-id}/` and
-  `git reset --hard origin/{branch}` (replace `{branch}` with the appropriate remote-tracking
-  ref). Then run `arcd backing restore` to replay the remote version into `.arc/`, overwriting
-  local state.
-- **Prefer the local version:** `cd ~/.arc-state/{project-id}/` and `git push --force`. Use
-  with care — overwrites the remote version for other machines on the next
-  `arcd backing pull`.
-- **Manual merge:** `cd ~/.arc-state/{project-id}/`, resolve conflicts using standard git
-  tooling (merge commits, cherry-pick, reflog recovery, whatever the situation calls for),
-  then `arcd backing restore` to replay the resolved content into `.arc/`.
-
-The CLI surface deliberately does not expose a dedicated divergence-resolution verb. The
-backing store's git-repo nature makes standard git tooling directly applicable, and building
-ARC-specific resolution commands would duplicate git's semantics without adding value — the
-user who hits cross-machine divergence is by definition a multi-machine user comfortable with
-standard git workflows, and a dedicated verb would cover strictly fewer cases than `git` does
-in the same directory. Users who hit divergence frequently should consider whether their
-multi-machine workflow would benefit from more frequent `arcd backing push` invocations (via
-`user.sync_push: always`) to reduce the divergence window. Resolves Audit A tightening H3-N3.
-
-**Graduation banner.** `arc mode switch --to tracked` prints a one-time message at the end of
-the switch: "The `arcd backing *` commands go away with your backing store. `arc user *` and
-`arc sync` become available — these operate on `user/{identity}/` via git notes." One-time
-cost at graduation; no lookup burden during normal use.
-
-**Coordination with ARCd Rebrand WU.** The `arcd` namespace (and the `arcd backing *` commands
-specifically) lands in the rebrand WU's CLI-surface work. The Modes WU commits to the
-namespace decision and to the verb set that session-handoff, recovery, and orientation
-require (`sync`, `restore`, `push`, `pull`, `status`, and a rebuild path whose exact shape —
-`sync --rebuild` flag vs. dedicated subcommand — is implementation-phase work). Full spec
-(help text, exit codes, flag surfaces, error message copy) is implementation-phase work
-coordinated with the rebrand WU.
-
-**Session-init Local-axis pre-check.** Session-init's counterpart to
-`session-handoff.template.md`'s mode-gated persist step (Consolidated Deliverables Inventory
-item #24). Where handoff writes to the durability layer, init reads from it — both branch on
-`backing.type` and invoke the mode-appropriate surface.
-
-The pre-check runs before standard document loading in `session-init.md`, gated on
-`arc:if backing.type == local`:
-
-1. **Check `.arc/` presence.** If absent or empty, halt with "Local-mode install detected but
-   `.arc/` is missing. Run `arc init --local` to restore from backing store before resuming."
-   Exits cleanly without attempting to load any ARC document set — the docs do not exist yet.
-   Pairs with the idempotent `arc init --local` recovery command path specified in § Re-Clone
-   UX § Recovery command.
-2. **Query `arcd backing status`.** Captures the backing store's current state (`healthy`,
-   `degraded`, `missing`, `corrupt`) plus staleness (sessions since last successful sync).
-   Non-fatal: a degraded status does not halt session-init.
-3. **Surface degraded state in the orientation summary.** If status is anything other than
-   `healthy` with zero staleness, the orientation includes a line naming the condition and the
-   recommended recovery command. Examples:
-    - "Backing store status: degraded — last sync failed (class C, non-FF push). Run
-      `arcd backing pull` then resolve divergence before next handoff."
-    - "Backing store status: stale by 3 sessions — run `arcd backing sync` to catch up."
-    - "Backing store status: corrupt — run `arcd backing sync --rebuild` to re-initialize
-      from current `.arc/` state."
-4. **Continue with normal session-init** (document set loading, work state reporting, next
-   action) unless step 1 halted.
-
-The split between step 1 (halts) and step 3 (warns) is deliberate: missing `.arc/` means
-session context cannot be loaded at all, so proceeding is impossible; degraded backing store
-means session context exists but durability is compromised, which the user should know about
-but should not block continued work. `arcd backing status` is the single query point — no
-duplicate state markers in SESSION-NOTES or elsewhere.
-
-Resolves Audit A sub-finding H3-N1 (session-init pre-check companion path) and consumes
-tightening H3-N5's three-class failure model from § Backing Store § Failure handling as the
-content this pre-check surfaces in step 3.
-
-### Forbidden Combinations
-
-- **Local + `team.mode: true`** — forbidden. Local is solo-ARC by definition; team mode requires
-  shared state that Local's exclusion mechanism prevents.
-- **Local + `arc.role` set to any value** — forbidden. Role is a tracked concept; Local installs
-  omit the setting entirely. CLI refuses `arc init --local --role=contributor` with an
-  explanatory error.
-- **Lite + `pm.layer: arc-pm`** — forbidden. Lite has no work unit stream for the planning
-  module to manage.
-- **Lite + `pm.layer: external`** — forbidden (resolved pre-PRD, OQ 10). External PM integration
-  adds machinery that conflicts with Lite's "less ceremony" design philosophy. Developers who
-  need external PM integration graduate to Full with `pm.layer: external` via
-  `arc mode switch --to full` — graduation is the escape hatch, not config-space sprawl.
-- **Lite** therefore forces `pm.layer: none` unconditionally. Both `arc-pm` and `external` are
-  excluded at init time with explanatory errors.
-
-The CLI refuses these combinations at `arc init` time with explanatory error messages pointing to
-the correct path.
-
-### Audit as Part of Modes Work
-
-The mode-aware configurability audit is part of this work unit's scope. The content audit (see
-[Content Audit](#content-audit) below) is expanded to include configurability architecture as a
-domain — not just docs and workflows. The goal is a complete inventory of which settings apply in
-which modes, which are forced, which are omitted, and which semantics shift per mode. This inventory
-feeds the Lite and Local config templates and the CLI's init-time validation logic.
-
-Note: the `pm.mode` rename's doc sweep is handled in the ARCd rebrand WU as part of its unified
-content audit pass. The modes WU's configurability audit picks up where the rebrand leaves off —
-classifying the (already-renamed) settings by mode applicability.
+Planning reference material — content audit, deliverables inventory, resolved decisions,
+and research findings. Loaded on demand during PRD authoring and implementation planning
+rather than read front-to-back.
 
 ---
 
-## Content Audit
+### Content Audit
 
 Once detail design begins, audit all framework domains to classify each file, concept, and setting
 by mode applicability. Uses the methodology/implementation classification from the Methodology
@@ -4697,11 +4786,11 @@ Maturation work unit and the conditional content analysis
 - **Lifecycle transitions** — shift workflow, status header updates across PRDs and task lists,
   WORK-STATUS In Flight registry, session-init reporting changes
 
-### Strategy Applicability Mapping
+#### Strategy Applicability Mapping
 
-Resolves [Open Question 7](#arc-lite). Each of the 10 framework strategies in
-`.arc/reference/strategies/arc/` is classified by applicability in Lite. Full mode is the
-baseline — every strategy applies in Full unless explicitly noted.
+Each of the 10 framework strategies in `.arc/reference/strategies/arc/` is classified by
+applicability in Lite. Full mode is the baseline — every strategy applies in Full unless
+explicitly noted.
 
 Three categories:
 
@@ -4779,7 +4868,7 @@ source — no divergent Lite strategy variant to maintain.
   `install.type == lite`. Template layer also applies Mechanism A: Full's `META-PRD.template.md`
   unchanged; new `META-PRD.lite.template.md` combines product direction and technical overview content
   as an **opt-in** template (agent-led during setup, not in any recipe bucket). Lightly reopens
-  Finding #8 L411 META-PRD commitment — default Lite install still has no META-PRD; opt-in path
+  Finding #8 META-PRD commitment — default Lite install still has no META-PRD; opt-in path
   available. `strategy-configurability-architecture` classification holds at applies-as-is with a
   single-row drift fix (L87 Convention inventory Document hierarchy reframed to dual-value). L104
   Context footer row drift belongs to the future Local/Tracked axis work. Strategy count stays
@@ -4789,7 +4878,7 @@ source — no divergent Lite strategy variant to maintain.
   line from the Verify Session State example block (missed by Finding #4's FTL removal sweep). See
   [Lite Initial Setup](#lite-initial-setup).
 
-### Phrasing Sweep (Mode-Aware Content Updates)
+#### Phrasing Sweep (Mode-Aware Content Updates)
 
 Classification is one activity; phrasing sweep is a distinct activity. Classification answers
 "does this apply to Lite?" — phrasing sweep answers "does this sentence need rewording even where
@@ -4831,7 +4920,7 @@ what changes each needs.
 
 ---
 
-## Consolidated Deliverables Inventory
+### Consolidated Deliverables Inventory
 
 Rolled-up reference surface for what the PRD derived from this plan doc will deliver. Grouped by
 domain for PRD structuring convenience, not by Finding number. Each group names the deliverables
@@ -4847,7 +4936,7 @@ inventory — the content audit classification (§ Content sweep item 56) produc
 in-flight output at implementation time, not as a pre-PRD estimate. Scope boundary B4 (the
 earlier "no consolidated deliverable inventory" gap) is resolved by this section.
 
-### CLI and schema
+#### CLI and schema
 
 1. **Manifest schema bump** — add required `install_type: string` field on `InstallConfig`. Legacy
    migration: pre-`install_type` manifests default to `"full"`. See [Installation Type Recipe
@@ -4900,7 +4989,7 @@ earlier "no consolidated deliverable inventory" gap) is resolved by this section
 16. **Forbidden-combinations validation** — CLI-enforced at init and mode switch. See [Forbidden
     Combinations](#forbidden-combinations).
 
-### Workflows (new files)
+#### Workflows (new files)
 
 17. **`system/workflows/arc/initial-setup/01_setup-lite.md`** — purpose-built Lite initial setup
     (~100-130 lines). Four-step structure: Verify Install, Populate Session-Loaded Docs, Optional
@@ -4922,7 +5011,7 @@ earlier "no consolidated deliverable inventory" gap) is resolved by this section
     Also includes the **1-week staleness advisory** (OQ 13) on the resume side. See [Shift
     Lifecycle](#shift-lifecycle) § Workflow Shape.
 
-### Workflows (modified files, all via `.template.*` rename + inline `arc:if` gates)
+#### Workflows (modified files, all via `.template.*` rename + inline `arc:if` gates)
 
 21. **`system/workflows/arc/initial-setup/01_verify-and-configure.md`** → `install.type == full`
     recipe bucket (reassigned from implicit baseline). Fold-in: remove residual
@@ -4953,7 +5042,7 @@ earlier "no consolidated deliverable inventory" gap) is resolved by this section
     `clean-work-unit.md` Mode 2. See [Integration Interaction with Shift
     States](#integration-interaction-with-shift-states).
 
-### Templates
+#### Templates
 
 28. **`reference/META-PRD.template.md`** → `install.type == full` recipe bucket (default Lite
     install has no META-PRD).
@@ -4974,7 +5063,7 @@ earlier "no consolidated deliverable inventory" gap) is resolved by this section
     `Document History` section. Retains User Stories, Functional Requirements, Non-Goals with
     softened guidance. Non-Goals elevated as explicit scope guardrail with template note.
 
-### Config
+#### Config
 
 33. **`arc-config.yml` gated section set** — `pm.mode` and `team.mode` sections gated on
     `install.type == full`. All other sections (branch, commit, merge, hooks, review, platform,
@@ -4983,8 +5072,7 @@ earlier "no consolidated deliverable inventory" gap) is resolved by this section
     `arcd backing sync` / `arcd backing push` (key semantics unchanged, mode-agnostic — see
     Resolved Decisions row "`user.sync_push` in Local mode"); context footer enforced
     descriptive freeform pattern via commit-msg hook; role concept dropped (role is
-    Tracked-only). See [Configurability Architecture
-    Cleanup](#configurability-architecture-cleanup).
+    Tracked-only). See [Shared Infrastructure](#shared-infrastructure).
 35. **Durability-layer command family (Local)** — separate purpose-built `arcd backing *`
     command family (`sync`, `restore`, `push`, `pull`, `status`) installed under
     `backing.type == local`, in the `arcd` namespace from the [ARCd Rebrand][arcd-rebrand] WU.
@@ -4994,7 +5082,7 @@ earlier "no consolidated deliverable inventory" gap) is resolved by this section
     (remote transport), `status` (orientation). Full spec coordinated with rebrand WU at
     implementation time. See [Durability-Layer Commands](#durability-layer-commands).
 
-### Strategies
+#### Strategies
 
 Classification: **4 applies-as-is / 4 needs-variant / 2 excluded** per Finding #2 and Finding #4
 corrections. See [Strategy Applicability Mapping](#strategy-applicability-mapping).
@@ -5036,7 +5124,7 @@ corrections. See [Strategy Applicability Mapping](#strategy-applicability-mappin
     implementation time per audit-captures-shape-not-mechanism discipline. See [Resolved
     Decisions](#resolved-decisions) row "Formal strategy audit pass completed (Tier 4)".
 
-### Skills
+#### Skills
 
 40. **`/arc-resume`** — cold orientation. Mode-universal. Existing; contributor path already
     shipped.
@@ -5048,7 +5136,7 @@ corrections. See [Strategy Applicability Mapping](#strategy-applicability-mappin
 43. **`/arc-shift`** (NEW) — Full-only. Transitions (pause/resume/rotate) in the shift lifecycle;
     never writes `Status: Complete`. See [Shift Lifecycle](#shift-lifecycle) § Skill Shape.
 
-### Shift lifecycle (Full-only unless noted)
+#### Shift lifecycle (Full-only unless noted)
 
 44. **Task list Status headers** — state lives in `Status: {value} (date — reason)` inline header
     format. Pure Option C: no registry file, no per-dev cache, no file moves. See [State Lives in
@@ -5073,7 +5161,7 @@ corrections. See [Strategy Applicability Mapping](#strategy-applicability-mappin
     inventory and exact edits happen at implementation time; this item fixes only that the sweep
     is owned by the modes WU.
 
-### Cross-cutting
+#### Cross-cutting
 
 50. **Mode Fit Communication** — distributed across coordinated surfaces: `arc init` mode prompt,
     `AGENT-BRIEFING.ARC.md` light-touch passive awareness, Lite PRD + task list template intros,
@@ -5088,7 +5176,7 @@ corrections. See [Strategy Applicability Mapping](#strategy-applicability-mappin
     integration graduate to Full with `pm.layer: external` via `arc mode switch --to full`.
     Skipped in init prompts in Lite mode. See [Forbidden Combinations](#forbidden-combinations).
 
-### ADRs (deferred to PRD implementation; committed to two, not four)
+#### ADRs (deferred to PRD implementation; committed to two, not four)
 
 53. **ADR 1: Recipe as Authoritative Install-Time Specification** — umbrella ADR covering three
     mechanism siblings. Decision sections document:
@@ -5120,7 +5208,7 @@ corrections. See [Strategy Applicability Mapping](#strategy-applicability-mappin
     - **Rationale for separation:** semantically distinct from ADR 1 (work-unit state transitions,
       not installation mechanics). No shared Context, no shared code paths.
 
-### Content sweep (implementation-phase, scheduled late)
+#### Content sweep (implementation-phase, scheduled late)
 
 The four items below are all late-WU implementation activities. Sizing and concrete per-file
 scope are intentionally deferred to implementation time — the content audit classification (56)
@@ -5162,7 +5250,7 @@ not parked.
 
 ---
 
-## Resolved Decisions
+### Resolved Decisions
 
 Decisions settled during the 2026-04-09 and 2026-04-10 design iterations. Each entry names the
 decision and a brief rationale; the full reasoning is in the relevant section above.
@@ -5259,17 +5347,17 @@ decision and a brief rationale; the full reasoning is in the relevant section ab
 | Strategy applicability mapping (Finding #6)                             | Resolved (2026-04-11). All 10 framework strategies classified: 6 applies-as-is (adr-methodology, configurability-architecture, file-classification, quality-gates, session-operations, task-list-formatting), 2 needs-variant via inline `arc:if` (work-organization retains Branch Protection Modes as universal; work-planning retains Discovery Checklist + PRD sections), 2 excluded (team-coordination forced solo in Lite; planning-module gated by `pm.layer`). See [Strategy Applicability Mapping](#strategy-applicability-mapping)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | work-organization scope refinement                                      | Upgraded from "pure Excluded in Lite" to needs-variant. Branch Protection Modes section is a universal git convention (not WU-coupled) — retained in Lite via `arc:if` inside the same file. Prevents pure-excluding a generally-useful section on a WU-lifecycle technicality                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | team-coordination Lite treatment                                        | Excluded from Lite (`install.type == full` bucket) rather than shipped in baseline. Rationale: Lite forces `team.enabled: false`, so the content has zero operational relevance. Breaks slightly with current Full+solo precedent (file ships to solo projects today) but composes with the "Lite doesn't install what it doesn't use" principle. Graduation via `arc mode switch --to full` installs it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Lite task list phases (Finding #2)                                      | Phases required in Lite task lists. Minimum two: one or more work phases plus a final verification phase. Multi-phase is normal, not unusual. Same format as Full — no single-phase simplification. Reason: graduation is relocation, not content rewrite ([Graduation / Downgrade Paths](#graduation--downgrade-paths)); allowing single-phase Lite would require retroactive phase addition on graduation. Closes [Open Question 4](#arc-lite). See [The Lite Task List](#the-lite-task-list) § Phase structure                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Lite task list phases (Finding #2)                                      | Phases required in Lite task lists. Minimum two: one or more work phases plus a final verification phase. Multi-phase is normal, not unusual. Same format as Full — no single-phase simplification. Reason: graduation is relocation, not content rewrite ([Graduation / Downgrade Paths](#graduation--downgrade-paths)); allowing single-phase Lite would require retroactive phase addition on graduation. See [The Lite Task List](#the-lite-task-list) § Phase structure                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Lite verification workflow `verify-work.md` (Finding #2)                | Two dedicated workflow files (E3 over E2 — mixing mode responsibilities in one file rejected). Full retains `work-unit-lifecycle/verify-work-unit.md`; Lite ships `verify-work.md` at `system/workflows/arc/verify-work.md` under the `install.type == lite` recipe bucket. Lite task list verification phase task points to `verify-work.md`; Full's points to `verify-work-unit.md`. Naming parallelism: Full keeps `-unit` (WU-lifecycle scaffolding), Lite drops it (no WU concept). Graduation flips the task pointer via CLI — zero structural task-list change. Activity content: Lite performs the three-step ship protocol (Success Criteria check → Tier 3 gates → aggregate diff review); Full performs verification then hands off to integrate. See [The Lite Task List](#the-lite-task-list) § Verification phase                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Lite atomic companion file `atomic-tasks.md` (Finding #2)               | Atomic companion file concept retained in Lite (not Full-only). Named `atomic-tasks.md` as the explicit companion to `tasks.md` — "tasks" fills the `{wu-name}` slot of Full's `atomic-{wu-name}.md` convention. Mode-aware prose update to `strategy-task-list-formatting.md` naming rule, no `arc:if` gate for naming itself. Revises Finding #5's 2026-04-10 cut list: atomic companion references stay in Lite's process-task-loop variant; only incidental routing to backlog and coherent-unit protocol's WU-lifecycle framing get cut. See [The Lite Task List](#the-lite-task-list) § Atomic companion file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `strategy-task-list-formatting` classification correction (Finding #2)  | Reclassified applies-as-is → **needs-variant**, correcting Finding #6's migration (2026-04-11). Four Full-coupled surfaces surfaced during Lite task list spec design: Verification Phase example block pointer, Atomic Companion File archival sub-rule and "all work unit types" phrasing, Status value `Paused`, Status value `Integrated`. Same `arc:if` gating mechanism as `strategy-work-organization` / `strategy-work-planning`: file renames to `strategy-task-list-formatting.template.md`, inline blocks carve out Full-only content, render pipeline unchanged. Atomic companion filename (`atomic-tasks.md` Lite vs `atomic-{wu-name}.md` Full) handled via mode-aware prose, no gate. Strategy count corrects to 5 applies-as-is / 3 needs-variant / 2 excluded. Finding #6 row (above) reflects the earlier state and is superseded for `strategy-task-list-formatting` only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Lite session management mechanism (Finding #4)                          | Single-file-with-`arc:if`. `session-init.md` and `session-handoff.md` rename to `session-init.template.md` and `session-handoff.template.md` in the package source; inline `<!-- arc:if install.type == full -->` blocks gate four surfaces in session-init (Step 2 Item 8 WORK-STATUS field enumeration, Step 2 Item 10 task list path resolution, Step 5 work-unit-discovery subsection, contributor role branch + team-mode trust hierarchy example). session-handoff has no block-level mode gates — mechanically identical across modes except for the WORK-STATUS field set. Render pipeline unchanged (reuses `needsRendering()` / `renderConditionals()` / `toOutputPath()` as they exist). **Rejected:** two-file variant (silent-divergence risk on ~40-60% universal content); runtime in-prose conditionals (compounds per-session-read cost forever). See [Lite Session Management](#lite-session-management)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Lite WORK-STATUS field set (Finding #4)                                 | Five fields: `Branch`, `Next Task`, `Last Completed`, `Blockers`, `Next Action`. Drops `Task List` (path fixed at `.arc/active/tasks.md`, nothing to track). `Branch` retained as lightweight informational — Lite users may still branch per effort without ARC's branch-protection model enforcing it, and ARC does not police git usage in Lite. Full retains `Task List` (multi-WU pipeline) — field set otherwise identical                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `Following Task List` field removal (Finding #4)                        | Removed from **both** Lite and Full WORK-STATUS uniformly. The Yes/No meta-flag is redundant with the Next Task + Next Action pair — off-task-list detour, on-task-list preparation, and mid-task resume are all readable from the relationship between those two fields' content. Removing simplifies handoff (one less field to write), session-init orientation (one less field to parse), and eliminates a decision point at handoff time. Scope expansion from Lite-only to cross-mode folded into Finding #4 after the redundancy surfaced during Lite WORK-STATUS design and applied symmetrically on the same reasoning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Lite session-init Step 5 discovery gate (Finding #4)                    | Gates on "skip if WORK-STATUS Next Action is concrete AND `tasks.md` exists with incomplete tasks," parallel to Full's "skip if task list is active." Sessions with a clear resume target skip discovery in both modes regardless of mode. When discovery fires in Lite, it checks for `prd.md` / `plan-*.md` in `.arc/active/` — no backlog, no ROADMAP, no category-path lookup. Consistent with L1695-1707 cascade forward-pointer from The Lite PRD § Cascades                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Lite session-init Step 5 discovery gate (Finding #4)                    | Gates on "skip if WORK-STATUS Next Action is concrete AND `tasks.md` exists with incomplete tasks," parallel to Full's "skip if task list is active." Sessions with a clear resume target skip discovery in both modes regardless of mode. When discovery fires in Lite, it checks for `prd.md` / `plan-*.md` in `.arc/active/` — no backlog, no ROADMAP, no category-path lookup. Consistent with the cascade forward-pointer from [The Lite PRD](#the-lite-prd) § Cascades into other Lite surfaces                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `strategy-session-operations` classification correction (Finding #4)    | Reclassified applies-as-is → **needs-variant**, correcting Finding #6's migration (2026-04-11). Two in-doc tables embed Full-only surface references: **State-Conditional Promotion** trigger (`Following Task List: Yes` — becomes universally-phrased after Finding #4's uniform FTL removal, no per-row gating) and **Method Classification by Trigger** row for pre-merge-review / review-triage (Full: `integrate-work-unit`; Lite: `verify-work.md` ship step — dual-value table entry). Mechanism: mode-aware prose + dual-value rows, **not** `.template.md` rename (strategy is on-demand reference content; templating scope doesn't expand to reference tier for two-row edits). Strategy count corrects 5/3/2 → **4 applies-as-is / 4 needs-variant / 2 excluded**. Second instance of Finding #6's classification-by-concept-not-by-content drift pattern — first instance was Finding #2's `strategy-task-list-formatting` correction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Lite initial-setup workflow mechanism (Finding #12/R6)                  | Mechanism A — purpose-built distinct files per mode. Full's `01_verify-and-configure.md` and `02_define-project.md` reassigned from Finding #8's implicit unconditional baseline to `install.type == full` recipe bucket. New `01_setup-lite.md` under `install.type == lite` bucket, collapsing 01's and 02's Lite-relevant scopes into one ~100-130 line purpose-built file (Step 1 Verify Install, Step 2 Populate Session-Loaded Docs, Step 3 Optional META-PRD, Step 4 Light Customization Awareness). The `01_` prefix preserves initial-setup ordering convention. **Rejected:** Mechanism B (single template with inline `arc:if`) — strip analysis surfaced ~20-25% retained for 01 / ~45-55% for 02 / ~35-40% combined, inverting Finding #5's overlap-ratio heuristic: low overlap favors A, not B. Finding #2's `verify-work.md` / `verify-work-unit.md` precedent applies. See [Lite Initial Setup](#lite-initial-setup)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Opt-in Lite META-PRD template (Finding #12/R6)                          | New `META-PRD.lite.template.md` combines product direction and technical overview content in a single Lite-scoped ~80-120 line template. **Opt-in, not default** — lightly reopens Finding #8 L411 "META-PRD not installed in Lite" commitment without reversing it: default Lite install still has no META-PRD; users who want an ARC-native place for structured high-level project context can opt in during `01_setup-lite.md`'s Step 3 (agent-led during setup, not CLI prompt, not CLI flag). **Recipe bucket:** none — opt-in installation is a separate CLI operation from the recipe mechanism, appending to the installed-files manifest without re-running `resolveFileList()`. Graduation content migration via CLI + `switch-mode.md` workflow split (Shape γ); agent handles judgment calls on content reshape between Lite's combined shape and Full's two-file shape. Motivation: solo devs who want a big-picture doc otherwise create ad-hoc notes files outside ARC's scaffolding — offering an ARC-native opt-in surface that graduation recognizes prevents that pattern without forcing the ceremony on users who don't want it. See [Lite Initial Setup § Optional Lite META-PRD](#lite-initial-setup)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Opt-in Lite META-PRD template (Finding #12/R6)                          | New `META-PRD.lite.template.md` combines product direction and technical overview content in a single Lite-scoped ~80-120 line template. **Opt-in, not default** — lightly reopens Finding #8 "META-PRD not installed in Lite" commitment without reversing it: default Lite install still has no META-PRD; users who want an ARC-native place for structured high-level project context can opt in during `01_setup-lite.md`'s Step 3 (agent-led during setup, not CLI prompt, not CLI flag). **Recipe bucket:** none — opt-in installation is a separate CLI operation from the recipe mechanism, appending to the installed-files manifest without re-running `resolveFileList()`. Graduation content migration via CLI + `switch-mode.md` workflow split (Shape γ); agent handles judgment calls on content reshape between Lite's combined shape and Full's two-file shape. Motivation: solo devs who want a big-picture doc otherwise create ad-hoc notes files outside ARC's scaffolding — offering an ARC-native opt-in surface that graduation recognizes prevents that pattern without forcing the ceremony on users who don't want it. See [Lite Initial Setup § Optional Lite META-PRD](#lite-initial-setup)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `strategy-configurability-architecture` drift fix (Finding #12/R6)      | Single-row drift fix on L87 Convention inventory Document hierarchy row: "META-PRD → PRD → tasks" reframed to dual-value entry "Full: META-PRD → PRD → tasks. Lite: PRD → tasks (optional combined META-PRD)." Mode-aware prose, no `arc:if` gate — strategy is on-demand reference content, not per-session load. Mirrors Finding #4's `strategy-session-operations` Method Classification by Trigger dual-value row pattern. Classification holds at applies-as-is — not a reclassification. L104 Context footer row drift on the Local/Tracked axis deferred to future Local-axis work. Strategy count stays **4 / 4 / 2**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Formal strategy audit pass promoted to Tier 4 (Finding #12/R6)          | Drift-check hit rate across four targeted per-finding checks: Finding #2 `strategy-task-list-formatting` (hit), Finding #4 `strategy-session-operations` (hit), Finding #5 `strategy-quality-gates` (clean), Finding #12 `strategy-configurability-architecture` (hit). 3-of-4 = ~75% hit rate, above the 2-of-3 threshold established during Finding #4's resolution. Promoted to **formal strategy audit pass in Tier 4** — single comprehensive sweep of all 10 framework strategies for Full-coupled in-doc surfaces before closing pre-PRD. Rationale: targeted checks catch most drift but the pattern is frequent enough that one sweep is cheap insurance against missed surfaces that no single finding's drift-check covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `01_verify-and-configure.md` FTL drift fold-in (Finding #12/R6)         | Residual drift from Finding #4's uniform `Following Task List` field removal: Full's `01_verify-and-configure.md` L38 Verify Session State example block still shows `**Following Task List**: No`. Fold-in: remove the line as part of Finding #12/R6's Full-side cleanup. The same block is cut entirely from Lite's `01_setup-lite.md`, so the drift fix applies only to Full's retained file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -5291,624 +5379,15 @@ decision and a brief rationale; the full reasoning is in the relevant section ab
 | `backing.type` prompt default (asymmetric with `install.type`)          | **Resolved 2026-04-13 (Audit A H1).** `backing.type` **defaults to `tracked`** in non-interactive mode (`arc init --yes` without `--backing-type` / `--local` / `--tracked` produces a tracked install). **Asymmetric with `install.type`**, which errors without an explicit flag per OQ 9 resolution. Justification: `install.type` has no back-compat default because Lite is newly introduced and the failure mode to guard is mispredict-from-unclear-framing. `backing.type` has a clear back-compat default — Tracked is the existing behavior and the overwhelming-majority case, and "no implicit default" would force every CI pipeline, automation script, and `arc init --yes` caller to add `--tracked` just to preserve existing behavior. The asymmetry is principled: presentation neutrality in interactive mode (both axes use equal-peers prompts with no pre-selection per OQ 9 shape), back-compat safety in non-interactive mode (install.type errors without flag; backing.type defaults to tracked). **Interactive prompt** follows the OQ 9 equal-peers shape — tracking prompt lists both modes as peers, no pre-selection, concise primer (~5-10 lines) with work-shape discriminator hints (I control the repo and `.arc/` belongs in it → Tracked; work project with strict tooling policies / OSS contribution / trying ARC on a repo I don't own → Local). Exact primer copy is implementation-phase work. See § [Configuration Identity — Local Axis](#configuration-identity--local-axis) § CLI flags and init behavior for full rationale.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Hooks read downstream keys in Local mode (Audit A H1 + M1)              | **Resolved 2026-04-13.** Hooks (`pre-commit`, `commit-msg`) do not read `backing.type` directly, preserving the existing L127-131 consumer-read-paths claim that hooks do not read axis-level manifest fields. Local-mode context footer enforcement uses the **downstream-keys-set-at-install-time pattern**: the Local layer of the `arc-config.yml` template sets `commit.context_footer: custom` with `commit.context_pattern: "^Context: .+$"` (or similar freeform pattern) at install time, and hooks read these already-resolved keys at runtime exactly as they would for any user-authored `custom` context footer. No new enum value on `commit.context_footer` (such as a hypothetical `local` / `freeform` value), no new hook branch, no new config key. The mechanism is identical in shape to how the Lite layer sets `pm.mode: "none"` and `team.mode: false` at install time without introducing Lite-specific hook logic. **This row simultaneously resolves Audit A finding M1** (context footer format enforcement mechanism). Exact regex for the Local-mode context footer pattern is implementation-phase work. See § [Configuration Identity — Local Axis](#configuration-identity--local-axis) § Consumer read paths for full rationale.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
-## Open Questions
-
-### ARC Lite
-
-1. ~~**Naming**~~: **Resolved** — ARC Lite (will become ARCd Lite after rebrand).
-
-2. ~~**Scope artifact design**~~: **Resolved** (2026-04-10) — it's still a PRD, with a reduced template
-   and a unified `create-prd` workflow carrying mode-conditional edges. See [The Lite PRD](#the-lite-prd)
-   for template cuts, workflow shape, and sub-decisions.
-
-3. ~~**"Ship" step specifics**~~: **Resolved** (2026-04-10) — three-step protocol reusing Full's
-   Success Criteria section convention: Success Criteria all `[x]` or `[~]`, Tier 3 quality gates,
-   aggregate diff review. See [Enforced Sequence](#enforced-sequence) § Ship step.
-
-4. ~~**Task list simplifications**~~: **Resolved** (2026-04-11, Finding #2) — phases required in Lite
-   task lists, minimum two (work + verification), multi-phase normal. Same format as Full — no
-   single-phase simplification. Verification phase points to Lite-only `verify-work.md` workflow
-   instead of Full's `verify-work-unit.md`. Atomic companion file retained, named `atomic-tasks.md`.
-   Header `Status:` values trim to `{Pending | In Progress | Complete}`. See
-   [The Lite Task List](#the-lite-task-list) for the full template spec and the
-   `strategy-task-list-formatting` reclassification (applies-as-is → needs-variant) this triggers.
-
-5. ~~**Session management simplifications**~~: **Resolved** (2026-04-11, Finding #4) —
-   session-init and session-handoff use single-file-with-`arc:if` mechanism via `.template.md`
-   rename. Four gated surfaces in session-init; session-handoff is mechanically identical
-   across modes except for the WORK-STATUS field set. Lite WORK-STATUS tracks five fields
-   (`Branch`, `Next Task`, `Last Completed`, `Blockers`, `Next Action`); `Following Task List`
-   drops from both Lite and Full uniformly. Discovery gates on "state is unclear" parallel to
-   Full. `strategy-session-operations` reclassified applies-as-is → needs-variant via
-   mode-aware prose edits (not templating). See [Lite Session Management](#lite-session-management).
-
-6. ~~**Process-task-loop adjustments**~~: **Resolved** (2026-04-13, Finding #5) —
-   single-file-with-`arc:if` via the existing `3_process-task-loop.template.md` in the package source.
-   Four `install.type` gated surfaces layered onto the existing `team.mode` / `pm.mode` gates:
-   branch/task-list coupling bullet, Verification Phase pointer, Next Step section, Incidental Work
-   Management section. Core completion protocol, Tier 1/2 coherent-unit sequence, test-first execution,
-   issue triage, Atomic Task Completion protocol, pre-report checklists, and WORK-STATUS update
-   protocol retained in the unconditional baseline. `strategy-quality-gates` stays applies-as-is after
-   drift-check. Reverses 2026-04-10 "variant over conditional" decision — the "noise in core operating
-   doc" concern applied to Mechanism C (runtime gates), not B (install-time strip). See
-   [Lite Process-Task-Loop](#lite-process-task-loop).
-
-7. ~~**Strategy applicability mapping**~~: **Resolved** (2026-04-11, Finding #6) — all 10 framework
-   strategies classified as applies-as-is / needs-variant / excluded. See
-   [Strategy Applicability Mapping](#strategy-applicability-mapping) for the full table,
-   mechanism per category, and follow-on implications for Findings #2/#4/#5.
-
-8. ~~**Guardrail thresholds**~~: **Resolved** (2026-04-11, Finding #7) — moot. Framework does not
-   ship runtime graduation guardrails, so there are no thresholds to calibrate. Mode-fit concern
-   handled via [Mode Fit Communication](#mode-fit-communication) instead. See [Resolved
-   Decisions](#resolved-decisions) → "Lite graduation guardrails".
-
-9. ~~**Default mode question**~~: **Resolved 2026-04-13.** `arc init` presents install type as
-   a concise education-first prompt with both modes as equal peers — **ARC** (canonical, listed
-   first) and **ARC Lite** (variant) — no pre-selected option. Primer carries work-shape
-   decision hints (concurrent concerns / PM needs / team coordination → ARC; single focused
-   effort / trial or evaluation → ARC Lite) and links to the authoritative mode-overview docs
-   page. Non-interactive `arc init --yes` without `--install-type` / `--lite` / `--full` errors
-   out rather than silently picking. See [Resolved Decisions](#resolved-decisions) → "Default
-   mode for `arc init` (OQ 9)" and § [Mode Fit Communication](#mode-fit-communication)
-   § Communication surfaces.
-
-10. ~~**Lite + external PM**~~: **Resolved** (2026-04-13) — Lite forces `pm.layer: none`
-    unconditionally. Both `arc-pm` and `external` are forbidden. Rationale: Lite's design
-    philosophy is less ceremony; external PM integration adds machinery that conflicts with
-    that. Developers needing external PM graduate to Full with `pm.layer: external` via
-    `arc mode switch --to full` — graduation is the escape hatch, not config-space sprawl. See
-    [Forbidden Combinations](#forbidden-combinations) and [Resolved Decisions](#resolved-decisions)
-    → "Lite + external PM (OQ 10)".
-
-### Shift lifecycle (detail design)
-
-Most registry / multi-WU / vocabulary questions were resolved on 2026-04-09 (see
-Resolved Decisions table). These remaining items are narrower detail-design questions that can
-be settled at PRD time or implementation time.
-
-11. ~~**Multi-paused limit policy**~~: **Resolved** (2026-04-11, Finding #7) — moot. Framework
-    does not ship a WIP growth nudge for paused WU count. Same "no detect-and-advise" principle
-    that kills Lite graduation guardrails applies symmetrically. See [Resolved
-    Decisions](#resolved-decisions) → "Shift lifecycle — growth nudge (WIP pressure)".
-
-12. ~~**Waiting-For category taxonomy finalization**~~: **Resolved** (2026-04-13) — the five
-    initial categories (`Review` / `Approval` / `Delivery` / `Decision` / `Other`) are the final
-    set, committed pre-PRD. Each implies a distinct follow-up action (reviewer vs.
-    decision-maker vs. external party vs. architect vs. freeform), which is what the category is
-    for; freeform reason string handles detail beyond the category. See [State Lives in Task List
-    Headers](#state-lives-in-task-list-headers-pure-option-c) § Waiting-For categories and
-    [Resolved Decisions](#resolved-decisions) → "Waiting-For categories finalized (OQ 12)".
-
-13. ~~**Staleness threshold for long-pause resume prompt**~~: **Resolved** (2026-04-13) — fixed
-    at **1 week**, not configurable. 1 week fits common-case memory loss for detailed project
-    context; configurability rejected as premature flexibility. The prompt is advisory, not
-    gating — cheap to show, easy to dismiss. See [Workflow Shape](#workflow-shape) § Resume-side
-    additions and [Resolved Decisions](#resolved-decisions) → "Staleness threshold (OQ 13)".
-
-14. ~~**`/arc-status` drift detection threshold**~~: **Resolved** (2026-04-13) — no second-order
-    check added. The skill checks `WORK-STATUS.md` vs task list header drift (primary case);
-    paused-at vs last-commit date drift is not added. That second-order drift is only relevant
-    if someone edits Status headers manually without `/arc-shift`, which is a contract
-    violation. YAGNI until a real case surfaces. See [Resolved Decisions](#resolved-decisions)
-    → "/arc-status second-order drift check (OQ 14)".
-
-### Cross-cutting
-
-15. **Initial setup workflow impact**: ~~The current `01_verify-and-configure.md` and
-    `02_define-project.md` assume Full ARC tracked. Lite and Local each need different setup
-    paths. Separate workflows per mode, or a unified workflow with mode-conditional sections?~~
-    **Resolved 2026-04-13 (Finding #12/R6)** for the `install.type` axis (Lite/Full). Mechanism A:
-    purpose-built `01_setup-lite.md` for Lite, Full's existing two-file pipeline reassigned to
-    `install.type == full` bucket. Opt-in Lite META-PRD adds combined product + technical content
-    variant. See [Lite Initial Setup](#lite-initial-setup). Local/Tracked axis content impact
-    (exclusion mechanism verification, backing store setup, Path 2 inapplicability, portability
-    redirect) is owned by the [Local-axis content sweep](#content-sweep-implementation-phase-scheduled-late)
-    deliverable — captured pre-PRD, executed at implementation time.
-
 ---
 
-## Audit A: Local-Axis Design Completeness (Working)
-
-**Status:** Working — this section drains as findings resolve and migrate to permanent locations. Delete
-entirely once all findings are drained. No parking to post-PRD.
-
-**Purpose.** Audit A ran on 2026-04-13 as a stress-test pass comparing Local mode's design coverage to
-Lite's. Motivation: Lite accumulated ~18 findings across iterative sessions, a Solo-Dev Blind Spot Audit
-with ~60 scenarios (§ [Solo-Dev Blind Spot Audit](#solo-dev-blind-spot-audit-gating-pre-prd--complete)),
-and 14 OQs through repeated stress-testing. Local mode got **2 findings** (Finding #17 backing store
-mechanism, Finding #18 project ID fallback) from a single late session on 2026-04-13, both on narrow
-mechanism questions
-that surfaced only because a Lite investigation brushed against them. No Local-mode scenario battery
-ever ran. No equivalent blind-spot walk. Audit A's job is to surface where that asymmetry has
-operational cost and organize the gaps for resolution before PRD authoring.
-
-**Drainage rule.** Each finding moves to its permanent location when resolved — a Resolved Decisions row,
-a new Design Investigation subsection, updated § Mode 2: Local Mode content, or (if still open after
-investigation) a properly-numbered Open Question. The audit section itself deletes when empty.
-
-### Top-Level Finding (Meta) — Confirmed
-
-**Local mode has not had an equivalent-depth hidden-assumption surfacing pass.** The asymmetry is real
-and the specific findings below are what that asymmetry costs. § Mode 2: Local Mode (L2752) reads as a
-confident set of claims, not a set of worked-through resolutions of explicit OQs. This meta finding is
-resolved via the individual findings below — closing them all closes the meta finding, and the set below
-is the concrete work-list.
-
-### Findings
-
-#### H1. Configuration Identity for Local axis was unspecified · HIGH
-
-**Question.** What is the authoritative configuration representation of the Tracked/Local choice?
-Manifest field, config key, consumer read paths (CLI / hooks / workflows / agents), recipe bucket
-architecture, CLI flag semantics, prompt orchestration, reconfigure boundary, drift mitigation. § Configuration
-Identity (L96) resolved all of these for the Lite/Full axis; there was no parallel for Local/Tracked, and
-`backing.type` was referenced only as a missing entry in the Tier 4 audit drift notes (L4030, L4305, L4584)
-without a canonical definition.
-
-**Status:** ~~Open~~ **Resolved 2026-04-13.** See § [Configuration Identity — Local
-Axis](#configuration-identity--local-axis) (new Design Investigation subsection) for full design
-resolution. Three new Resolved Decisions rows land the load-bearing decisions: "Local axis configuration
-identity (Audit A H1)" umbrella row pointing at the new subsection; "`backing.type` prompt default
-(asymmetric with `install.type`)" for the back-compat-safe non-interactive default; "Hooks read downstream
-keys in Local mode (Audit A H1 + M1)" for the hook-mode-agnosticism preservation. **As a side effect,
-finding M1 resolves here** — Local mode's context footer enforcement uses the
-downstream-keys-set-at-install-time pattern, not a new hook branch or enum value.
-
-#### H2. Portability layer redirect semantics are hand-waved · HIGH
-
-**Question.** § Portability Layer Redirect (Transparent) L3939 claims the CLI "does the right thing" for
-`arc user save/load/push/pull` and `arc sync` when mode is Local, but the 5-command mapping to backing store
-operations is not specified. **Scope mismatch:** tracked-mode commands operate on user/{identity}/ scope
-(git notes attached to `refs/notes/arc/user/{identity}`), while the backing store operates on whole-`.arc/`
-scope. How is each command actually redirected? Does `arc user save` in Local mode operate on the user
-subtree only, or fire a whole-`.arc/` backing sync? Does `arc user push` push the entire backing store
-to its remote, or scope to user subtree? Five commands × two possible scopes = ten specification slots;
-current plan has zero filled.
-
-**What's needed.** Design decision on scope-mapping (whole-`.arc/` everywhere / user-subtree always / dual
-surface with distinct scopes), then short specification of each of the 5 commands' Local-mode behavior.
-Updates § Portability Layer Redirect (Transparent) with the concrete mapping.
-
-**Status:** **Resolved 2026-04-13.** The "transparent redirect" framing was itself hand-waving over
-a real concern-boundary. The scope-mismatch signal surfaced during spec attempts is the tell: we were
-trying to force one CLI vocabulary to mean two mechanically different things (git-notes transport
-for a gitignored subtree vs. whole-`.arc/` shadow-copy durability substrate). Purpose-built
-command families resolve this honestly:
-
-- **Tracked installs**: keep `arc user save/load/push/pull` + `arc sync` (unchanged).
-- **Local installs**: install a new `arcd backing sync/restore/push/pull/status` family in the
-  `arcd` namespace introduced by the [ARCd Rebrand][arcd-rebrand] WU.
-- **No cross-mapping.** In Local mode, `arc user *` and `arc sync` error with a pointer to
-  `arcd backing --help`. The asymmetry is named, not hidden.
-- **Unifier**: session-handoff's persist step branches on `backing.type` and invokes the
-  mode-appropriate family. Workflow reads one way in both modes; CLI verbs are honest about
-  what they do.
-- **Guardrails**: divergence guard on `arcd backing restore` prevents silent overwrite of
-  unsynced local work; cross-machine conflict story (non-fast-forward push → pull → refuse sync
-  until resolved) preserves git's conflict semantics at the backing-store-repo layer.
-
-Full design lands in § [Durability-Layer Commands](#durability-layer-commands) (which replaces
-the old § Portability Layer Redirect (Transparent)). New Resolved Decisions row
-"Durability-layer commands (Audit A H2)" captures the umbrella decision; existing
-"`user.sync_push` in Local mode" row refined to reflect consumer-changes-not-semantics-changes
-framing. Sweep of 9 pre-H2 surfaces in the plan doc complete. **M1's side-effect closure
-held**: context footer enforcement still rides on the hooks-read-downstream-keys pattern from
-H1, unaffected by this reframe.
-
-**Side effects and follow-ups captured during resolution:**
-
-- Consolidated Deliverables Inventory item #24 (`session-handoff.template.md` gates) was
-  pre-H2 "rename only; no block-level mode gates" — now requires the persist-step mode gate.
-  Item rewritten.
-- Strategy Applicability Mapping cell for `strategy-session-operations` Local-axis paragraph:
-  mechanism changed from "inline dual-value explanation" to "dual-gated section swap"
-  (git-notes section gates out, new backing-store durability section gates in). Cell updated.
-- `session-handoff.md` § Save to Git Notes renames to § Save to Durability Layer. Tracked and
-  Local branches live under `arc:if backing.type == *` gates. The workflow file itself is
-  **not edited as part of this resolution** — it uses a config key (`backing.type`) that does
-  not exist pre-implementation, and the edit belongs in modes WU implementation through the
-  package source (`session-handoff.template.md`) per Package-Project Sync. Captured as
-  deliverable #24; exact block content to be drafted at implementation time.
-- Graduation banner on `arc mode switch --to tracked` gains a one-line message about command
-  family swap. Implementation-phase copy; decision captured here.
-
-No new findings spawned. Cross-machine conflict story folded directly into the Durability-Layer
-Commands section rather than tracked as H2.1 — resolution is git-semantic-preserving and
-doesn't require a separate design pass.
-
-#### H3. No scenario battery for Local infrastructure · HIGH · RESOLVED 2026-04-13
-
-**Question.** The original § Scenario Walk-Through (five shift-lifecycle scenarios) exercises Local
-Full + shift (cross-cutting validation, not Local infrastructure). None of the original scenarios
-exercise Local's actual failure / recovery surface. Coverage gaps enumerated at H3 time included
-re-clone recovery, backing store sync failure, remote backing store conflict, project ID migration,
-backing store corruption, `arc update` in Local mode, editor UX friction under actual agent use, CI
-pipeline cloning a Local-mode repo, non-git repository handling, multi-user machine privacy, and the
-zero-commit → first-commit transition for secondary-case project IDs.
-
-**Resolution.** Eleven-scenario walk completed 2026-04-13; durable walk capture lives at
-[§ Mode 2 § Local Infrastructure Scenario Battery](#local-infrastructure-scenario-battery). The walk
-produced five new sub-findings (H3-N1, H3-N2, H3-N4, H3-N6, H3-N7 — Resolved blocks below), two
-tightenings to previously resolved content (H3-N3 folded into § Durability-Layer Commands
-§ Cross-machine conflict story; H3-N5 folded into § Backing Store § Failure handling), and
-side-effect resolutions for five existing findings (L1, L3, L4, M2, M3 — Resolved in their own
-blocks below).
-
-Structural integration shipped across three commits: small structural tightenings and L1 / L3 / L4
-absorptions (commit 2a, landing § Init preconditions + § Agent and Editor Discoverability rewrite +
-§ Failure handling three-class enumeration + § Cross-machine conflict story power-user manual
-framing + `arc update` as sync firing point); § Re-Clone UX § Project identity rewrite for file-first
-precedence and pinned-ID-file generalization (commit 2b, closing M2 and M3 as H3-N4 side effects);
-§ Durability-Layer Commands health-check expansion + new § Session-init Local-axis pre-check
-subsection + § Backing Store § Privacy model (commit 2c, grounded in two external research passes on
-editor `@`-mention precedent and CLI state-directory idiomatic practice). Commit 3a migrated the
-scenario walk from § Audit A workspace to § Mode 2 durable content and closed the findings.
-
-**Status.** Resolved 2026-04-13. Walk output fully integrated across structural plan-doc sections.
-Sub-findings below carry Resolved status for audit-tracking granularity; existing findings resolved
-via side effect (L1, L3, L4, M2, M3) carry Resolved status in their respective blocks below.
-
-#### H3-N1. Re-clone recovery command unassigned · MEDIUM
-
-**Question.** § Re-Clone UX specifies detection "on any `arc` command" and lists four recovery steps
-(exclude, backing pull, hooks, done), but does not name a command that owns the end-to-end recovery flow.
-`arcd backing restore` replays content into `.arc/` but does not set up `.git/info/exclude` or re-install
-hooks — those are init-time operations. Additionally, `/arc-resume` is an agent skill that reads files
-directly; it never invokes the `arc` CLI, so detection never fires on the agent-driven entry path.
-
-**What's needed.** Two surfaces:
-
-1. **`arc init --local` idempotent re-entry.** When the project ID matches an existing backing store and
-   `.arc/` is absent, `arc init --local` performs detection + exclude + hooks + `arcd backing restore` as
-   a single confirmed flow. Matches the "init is the setup entry" intuition; makes re-clone recovery a
-   re-run of the original command rather than a separate named verb.
-2. **Session-init Local-axis pre-check.** `session-init.template.md` gains a pre-check step under
-   `arc:if backing.type == local`: if `.arc/` is absent or empty, halt with "Run `arc init --local` to
-   restore from backing store before resuming." Symmetric with Consolidated Deliverables Inventory
-   item #24 (persist-step mode gates) — init-side pre-check is the companion piece.
-
-**Status.** Resolved 2026-04-13. Idempotent `arc init --local` recovery command path landed in
-§ Re-Clone UX § Recovery command (commit 2b); session-init Local-axis pre-check companion landed in
-§ Durability-Layer Commands § Session-init Local-axis pre-check (commit 2c). See § Mode 2 § Local
-Infrastructure Scenario Battery § Scenario 1 — Re-clone recovery for the walk.
-
-#### H3-N2. Backing store health and rebuild path unspecified · MEDIUM
-
-**Question.** `arcd backing status` per plan reports "last sync time, dirty/clean relative to `.arc/`,
-remote configuration." No integrity surface. `arcd backing sync` against a damaged store surfaces raw git
-errors not ARC-shaped recovery messages. Directory-missing is ambiguous between corruption and re-init
-opportunity. No named command rebuilds a backing store from `.arc/` when the store is destroyed but source
-is intact.
-
-**What's needed.** Two additions to § Durability-Layer Commands:
-
-1. **Health check in `arcd backing status`.** Gains existence check (is `~/.arc-state/{project-id}/` a
-   valid git repo?), HEAD-resolves check, cheap `git fsck --connectivity-only` or equivalent. Reports one
-   of `healthy | degraded | missing | corrupt`. Also includes permission sanity check on Linux/macOS
-   (contributes from scenario 10): warn if dir perms > 700.
-2. **Rebuild path.** Either `arcd backing sync --rebuild` flag or dedicated `arcd backing init`
-   subcommand re-initializes the store from current `.arc/`, with a loud warning that history is lost.
-   Asymmetric recovery rule: `.arc/` intact + store broken → rebuild from `.arc/`; store intact + `.arc/`
-   broken → `arcd backing restore`; both broken → remote only, else data loss.
-
-Command-shape detail (flag vs. subcommand) is implementation-phase work; the design gap closes once
-health and rebuild semantics are named in the plan doc.
-
-**Status.** Resolved 2026-04-13. `arcd backing status` health check surface and
-`arcd backing sync --rebuild` both landed in § Durability-Layer Commands § Local-mode surface
-(commit 2c). Permission sanity check contribution from scenario 10 also landed in the same block.
-See § Mode 2 § Local Infrastructure Scenario Battery § Scenario 2 — Backing store corruption for
-the walk.
-
-#### H3-N4. Fallback-chain precedence and stickiness contradict · HIGH
-
-**Question.** § Re-Clone UX § Project identity states two things that directly contradict. First: "The
-CLI computes the project ID by walking the fallback chain top-down and using the first source that
-resolves" — top-down meaning `remote URL → first-commit → UUID`. Second: "Once a project adopts a UUID,
-it stays on the UUID even after the repo later acquires a remote or first commit." Top-down resolution
-means adding a remote silently flips the project ID off the UUID, the opposite of stickiness. One of the
-two texts is wrong, and the ambiguity has a data-loss consequence: under the top-down-without-stickiness
-reading, adding a remote to a first-commit-keyed repo silently orphans the backing store and next sync
-creates a fresh empty store at the new key (see scenario 11, Transition B).
-
-**Severity is HIGH** because the contradiction has a concrete data-loss path, not just a doc gap. Any
-developer on a first-commit-keyed Local install who runs `git remote add origin ...` and then any `arc`
-command would trigger the silent re-key under the current plan text, absent explicit resolution.
-
-**What's needed.** Resolve via **file-first precedence**:
-
-1. Rewrite § Project identity resolution algorithm: "check `.arc/system/.internal/project-id` first — if
-   present, use that ID, full stop. Otherwise, walk the fallback chain: remote URL → first-commit →
-   generate-new-UUID." File-first precedence is the stickiness mechanism; file presence is the control.
-2. Generalize the UUID file conceptually to a **pinned project ID file**. Its content is any ID string
-   (UUID, first-commit-hash, remote URL hash), not specifically a UUID. Its role is "suppress fallback
-   chain recomputation." The tertiary UUID case happens to be where it is auto-written on first init;
-   the file itself is format-agnostic beyond "one ID string."
-3. Scenario 11's auto-detect-transition flow (the resolver checks whether a backing store exists at any
-   prior-resolvable key and offers a three-way migration prompt) is part of H3-N4's resolution surface,
-   not a separate finding. The three-way prompt's **[S]tay** option writes the old key to the pinned-ID
-   file, making the file-first mechanism user-accessible as a post-hoc pin.
-4. Resolves **M2** (stickiness mechanism = file presence; Transition A is automatic, Transition B uses
-   auto-detect + three-way prompt) and **M3** (migrate command's job is rewrite-or-remove the pinned-ID
-   file + create store at new key + copy content from old key + warn about orphan).
-
-**Status.** Resolved 2026-04-13. § Re-Clone UX § Project identity rewritten for file-first
-precedence + pinned-ID-file generalization + auto-detect + three-way migration prompt + `arc
-project-id migrate` command shape (commit 2b). No update needed in § Configuration Identity —
-Local Axis (the section discusses `backing.type` manifest treatment, not project identity, so
-H3-N4's content lives entirely in § Re-Clone UX). Closes dependent findings M2 and M3 — see their
-Resolved blocks below. See § Mode 2 § Local Infrastructure Scenario Battery § Scenario 4 —
-Project ID migration and § Scenario 11 — Zero-commit → first-commit → remote transition for the
-walks.
-
-#### H3-N6. CI/dev tooling asymmetry in Local mode · LOW
-
-**Question.** Project tooling that globs files (markdown linter, test runner, quality gate commands)
-sees `.arc/` content on developer machines but not on CI or fresh clones. Running `npm run lint:md`
-locally may hit violations in untracked `.arc/` content that CI sees zero of because the files do not
-exist there. Confusing when it happens; not covered by existing plan text.
-
-**What's needed.** One-paragraph documentation note, likely folded into § Agent and Editor
-Discoverability or a new § Tooling Asymmetry subsection: "Project tooling that globs files may see
-`.arc/` content on developer machines but not on CI or fresh clones. Configure project linters/tests to
-explicitly exclude untracked ARC paths if symmetric behavior matters. This is a consequence of the 'no
-repo footprint' guarantee, not a defect." Adoption guidance companion: "CI sees zero ARC content by
-design — do not install Local mode in repos where CI depends on ARC operations."
-
-ARC cannot force-modify project lint configs without violating the repo-footprint-zero guarantee, so
-resolution is documentation-only.
-
-**Status.** Resolved 2026-04-13. Tooling-asymmetry note folded into § Agent and Editor
-Discoverability (commit 2a) as a trailing paragraph under the editor-discoverability rewrite. See
-§ Mode 2 § Local Infrastructure Scenario Battery § Scenario 8 — CI pipeline cloning a Local-mode
-repo for the walk.
-
-#### H3-N7. Non-git directory handling for `arc init` · LOW-MEDIUM
-
-**Question.** `arc init --local` needs `.git/info/exclude` (requires `.git/info/`) and hooks installation
-(requires `.git/hooks/`). Both fail if the target directory has no `.git/` at all. The "zero-commit repo"
-tertiary UUID case in § Re-Clone UX assumes `git init` already ran but no commits exist yet; it does not
-cover "no git at all." Applies symmetrically to `arc init` in tracked mode — both modes have the same
-implicit assumption, so resolution is mode-agnostic.
-
-**What's needed.** `arc init` (both modes) detects missing `.git/` at the start of the init flow and
-prompts: "This directory is not a git repository. ARC requires git for hooks and related setup.
-Initialize git now? [Y/n]" — default yes. On yes, run `git init`, proceed with normal init flow (tertiary
-UUID fires in Local mode because no commits exist yet). On no, exit cleanly with "ARC requires a git
-repository. Run `git init` first." One-paragraph addition to § Configuration and Installation or
-equivalent section.
-
-Auto-init without prompt is too aggressive (modifies the user's directory beyond their stated intent).
-Hard-refuse is simplest but user-hostile on quick-start paths. Prompt-to-init respects agency and matches
-ARC's "asks before acting" ethos.
-
-**Status.** Resolved 2026-04-13. Prompt-to-init paragraph landed in § Init Flow Implications
-§ Init preconditions (commit 2a). Applies to both tracked and local modes — not Local-specific.
-See § Mode 2 § Local Infrastructure Scenario Battery § Scenario 9 — Non-git repository handling
-for the walk.
-
-#### M1. Context footer format enforcement mechanism · MEDIUM
-
-**Question.** Plan asserts Local mode enforces a descriptive freeform footer via the commit-msg hook
-(L2994, L3884, L3925-3937) but doesn't specify the config-key mechanism. Current `arc-config.yml` has
-`commit.context_footer: required | recommended | custom | disabled` with associated
-`commit.context_pattern`. Which path does Local use — a new enum value (`local` / `freeform`), `custom`
-with a preset pattern, or a different key entirely?
-
-**Status:** ~~Open~~ **Resolved as a side effect of H1.** Local layer of the config template sets
-`commit.context_footer: custom` with `commit.context_pattern: "^Context: .+$"` (or similar freeform
-pattern) at install time. Hooks stay mode-agnostic at runtime — the mechanism is the same
-downstream-keys-set-at-install-time pattern that Lite uses. No new enum value, no new hook branch, no
-new config key. Exact regex is implementation-phase work. Full rationale in § [Configuration Identity —
-Local Axis](#configuration-identity--local-axis) § Consumer read paths.
-
-#### M2. Project ID stickiness rule covers only tertiary case · MEDIUM
-
-**Question.** Finding #18 (L2837-2844) specifies stickiness for the tertiary UUID case ("once a project
-adopts a UUID, it stays on the UUID even after the repo later acquires a remote or first commit"). The
-**secondary case** — first-commit-hash primary ID later acquiring a git remote — isn't addressed. Does
-stickiness apply? If yes, the rule should say so explicitly. If no, the backing store key migrates
-automatically when a remote is added later, which the plan implies we explicitly do not want.
-
-**What's needed.** One-sentence rule clarification in § Re-Clone UX § Project identity. Likely answer:
-stickiness applies universally (once a project is keyed, it stays keyed; explicit
-`arc project-id migrate` is the only rekey path). Confirmation needed.
-
-**Status:** Resolved 2026-04-13 via H3-N4. File-first precedence in the fallback chain plus
-pinned-ID-file generalization is the stickiness mechanism. UUID case is automatically sticky (file
-auto-written at init); first-commit case acquires stickiness via auto-detect + three-way migration
-prompt ([M]igrate / [S]tay / [L]ater), with [S]tay writing the old key to the pinned-ID file for
-permanent stickiness. See § Re-Clone UX § Project identity.
-
-#### M3. `arc project-id migrate` escape hatch is named but undefined · MEDIUM
-
-**Question.** Finding #18 mentions `arc project-id migrate` as an impl-phase detail, but the command has
-real design decisions embedded: (a) creating a new backing store at the new key, (b) moving or copying
-content from old key to new key (which wins on conflict?), (c) updating any remote backing store
-configuration, (d) disposition of the old backing store after migration. "Impl-phase detail" is
-defensible only if the shape is unambiguous; currently it's not.
-
-**What's needed.** Brief specification of the command's behavior: does it move (destructive), copy
-(leaves orphan), or refuse (asks user which). Likely answer: copy + warn about orphan, leave cleanup to
-user. Decision needed.
-
-**Status:** Resolved 2026-04-13 via H3-N4. `arc project-id migrate` shape specified: compute
-old/new keys, refuse if new-key store exists, copy (not move) content, rewrite or clear the
-pinned-ID file, report orphan for manual cleanup, does not touch remote backing store
-configuration. See § Re-Clone UX § Project identity.
-
-#### M4. Single-active-unit invariant enforcement mechanism · MEDIUM
-
-**Question.** § Single-Active-Unit Invariant (L2918-2934) states the constraint clearly but never says
-which layer enforces it. Candidates: CLI refuses activation when another WU is active, session-init
-detects and errors, task-list creation workflow checks, shift workflow enforces at activation time, hook
-detects and warns. Probably CLI at activation is the right answer, but this should be explicit —
-otherwise the constraint is aspirational rather than operational.
-
-**What's needed.** One-paragraph addition to § Single-Active-Unit Invariant specifying which layer
-enforces, what the error message looks like, and how the user recovers (shift the existing WU to paused
-first).
-
-**Status:** **Resolved 2026-04-13.** Added **Enforcement** subsection to § Single-Active-Unit
-Invariant specifying (a) enforcement locus at the activation workflow (`activate-work-unit.md`),
-which scans `active/` task list `Status` headers before proceeding — not a specific CLI command, so
-every invocation surface inherits the check; (b) error message naming the active WU and pointing at
-`/arc-shift` (conversationally invoked skill) as the primary recovery via `shift-with-activation`
-dispatch; (c) fallback recovery via manual pause-then-activate for users who prefer explicit
-sequencing. Also explicitly generalizes the check to tracked Full, closing the mode-scope ambiguity
-that the section's § Mode 2 placement created. See § Single-Active-Unit Invariant § Enforcement.
-
-#### M5. Research Findings section has no Local entries · MEDIUM
-
-**Question.** § Research Findings L4704 contains five Lite-focused subsections and zero Local content.
-But § Exclusion Mechanism L2783 and § Re-Clone UX L2819 explicitly cite "see Research Findings below"
-for industry-norm and `.git/info/exclude` re-clone behavior claims. Readers following the hyperlink
-arrive at content that doesn't answer the claim. The research decisions are plausible and Finding #17's
-commit history confirms the research was done; the plan document itself just doesn't consolidate it.
-
-**What's needed.** Add two subsections to § Research Findings: one on industry norms for per-user tooling
-(sources: what Finding #17 was based on), one on `.git/info/exclude` clone behavior and why it's reset
-on re-clone. Alternatively, drop the "see Research Findings" back-references if consolidation isn't
-feasible.
-
-**Status:** **Resolved 2026-04-13.** Three new subsections added to § Research Findings transcribing
-the H3 walk's research evidence base into durable content: (1) **Editor `@`-mention precedent for
-gitignored personal tooling** — Cursor/SpecStory/Aider/Continue/Zed/VS Code/JetBrains/Dendron/Obsidian
-survey confirming the gitignored-picker cost as an intrinsic tradeoff; (2) **CLI state-directory
-idiomatic practice** — 14-tool survey validating the three Local-mode privacy design decisions
-(`chmod 700` on creation, documentation-only remote privacy, at-rest encryption delegated to disk
-layer); (3) **`.git/info/exclude` behavior on re-clone** — short factual entry confirming no native
-git mechanism preserves per-repo excludes across clones, framing re-clone as a routine recovery event.
-The L2942 back-reference was rephrased inline rather than written as a fourth subsection — the
-"industry norms for `.gitignore` placement" claim is conventional git guidance (not research-surfacing
-content) and belongs inline in § Exclusion Mechanism. § Sources updated with Lite/Local groupings.
-See § Research Findings and § Exclusion Mechanism.
-
-#### L1. Agent/editor UX cost in Local mode may be understated · LOW
-
-**Question.** § Agent and Editor Discoverability L3027-3040 acknowledges editor @-mention and search
-friction and concludes "document, provide `arc open` helpers, accept we can't fix editor UI." But for
-AI-agent-based development (a major ARC use case), the agent's @-mention surface is load-bearing for
-daily UX and is gated by editor gitignore behavior we don't control. Arguably this is the worst
-ergonomic cost of Local mode; currently it's framed as a minor secondary concession.
-
-**What's needed.** Reframe § Agent and Editor Discoverability to explicitly name editor UX as Local
-mode's primary ergonomic cost. Possibly add a docs-site mode-overview page callout ("here's what you
-give up in Local"). H3's scenario battery may exercise this in practice and sharpen the framing.
-
-**Status:** Resolved 2026-04-13 via scenario 7 (H3 walk). § Agent and Editor Discoverability
-rewritten with minor-disruption framing (not "primary ergonomic cost"), three-surface decomposition
-(agent file-reading machinery unaffected, editor explorer views show untracked by default,
-quick-open / `@`-picker is the narrow residual surface), and session-init scaffolding context (the
-agent knows STRATEGY-INDEX + directory / filename conventions, so natural-language references
-resolve via Glob / Grep without touching editor pickers — explicit `@`-tagging is rarely
-load-bearing in ARC workflows). Per-editor mitigation table included (Zed's `file_scan_inclusions`
-as the sole clean path-scoped option; Cursor / Continue / VS Code / JetBrains as partial
-workarounds). External survey of Cursor, SpecStory, Aider, Continue, JetBrains AI Assistant, and
-Dendron / Obsidian confirms the tradeoff as intrinsic to the "gitignored personal tooling"
-category with no adjacent-tool precedent for a universal solution. See § Agent and Editor
-Discoverability.
-
-#### L2. Pause+stash interaction in Local mode is unspecified · LOW
-
-**Question.** Resolved Decision "Shift lifecycle — uncommitted work" L4490 says the shift workflow
-"recommends commit, allows stash or leave-as-is." `git stash` is a tracked-files concept; in Local mode,
-uncommitted ARC state (e.g., SESSION-NOTES edits) lives in untracked files that `git stash` won't touch.
-What does "stash" mean for a user pausing in Local mode with `.arc/` edits outstanding?
-
-**What's needed.** One-sentence carve-out: in Local mode, `stash` applies only to tracked project-repo
-files (standard `git stash`); uncommitted `.arc/` edits follow the "leave-as-is" path and get preserved
-by the next backing store sync. Add to § Mode 2 / What Changes vs. Tracked Full or as an annotation on
-the Resolved Decision row.
-
-**Status:** **Resolved 2026-04-13.** Added **Local-mode scope** paragraph to § Shift lifecycle (detail
-design) § Uncommitted work handling (two sentences) clarifying that `git stash` covers only tracked
-project-repo files and that uncommitted `.arc/` edits structurally ride **leave as-is** regardless of
-which option is chosen for tracked code — they remain in the working tree and are captured by the
-next `arcd backing sync` at session handoff. Placed at the shift-workflow semantics layer rather than
-§ Mode 2 § What Changes vs. Tracked Full (the original proposed location) because the clarification
-is about shift-workflow behavior across modes, not a Mode-2 feature change: the decision itself is
-unchanged; Local just has a wider scope of "uncommitted work" that includes untracked `.arc/` state.
-
-#### L3. Backing store privacy model is unspecified · LOW
-
-**Question.** `~/.arc-state/{project-id}/` contains a full snapshot of `.arc/` — PRDs, design docs,
-SESSION-NOTES, ATOMIC-INBOX. On a multi-user machine, is this visible to other users via default home
-directory permissions? Is encryption at rest expected? Does the remote backing store require a private
-repo (and do we say so)? Currently: unspecified.
-
-**What's needed.** Brief note in § Backing Store: "Backing store inherits home directory permissions
-(typically 700 on Linux/Mac, NTFS ACLs on Windows). For shared machines, ensure appropriate directory
-permissions. Remote backing store should use a private repo — ARC does not enforce this but documents
-the expectation." Single paragraph.
-
-**Status:** Resolved 2026-04-13 via scenario 10 (H3 walk). § Backing Store § Privacy model landed
-grounded in external research (2026-04-13 survey of OpenSSH, GnuPG, AWS CLI, restic, borg, chezmoi,
-pass, Obsidian). Three surfaces covered: local filesystem permissions (`chmod 700` on creation on
-Linux / macOS, warn-but-don't-refuse at read, no explicit ACLs on Windows), remote repo privacy
-(documentation-only, zero ecosystem precedent for programmatic verification), at-rest encryption
-(delegated to disk-layer encryption — FileVault, LUKS, BitLocker — matching Obsidian, Logseq, and
-git itself). Power-user `git-crypt` option noted but not shipped. See § Backing Store § Privacy
-model.
-
-#### L4. `arc update` interaction with backing store · LOW
-
-**Question.** `arc update` pulls fresh framework files from the package and three-way-merges Configurable
-files. In Local mode, targets are untracked but still present in the working tree, so the merge works
-fine. But does `arc update` fire a backing store sync on successful update? § Backing Store L2890-2893
-gestures at "more frequent sync beyond handoff" without enumerating firing points. Without a post-update
-sync, the backing store lags by one update cycle.
-
-**What's needed.** Specify `arc update` as a backing store sync firing point in § Backing Store, same
-category as session handoff and shift transitions. One sentence.
-
-**Status:** Resolved 2026-04-13 via scenario 6 (H3 walk). `arc update` added as a backing store sync
-firing point in § Backing Store § More frequent sync (commit 2a), joining shift transitions as
-secondary firing points beyond session handoff. Prevents the home-dir-loss window from losing
-three-way-merged Configurable-file decisions. See § Backing Store § More frequent sync.
-
-### Sequencing Plan
-
-1. **H1** — Resolved 2026-04-13. M1 closes as a side effect.
-2. **H2** — Resolved 2026-04-13. Scope-mismatch sub-question dissolved into a reframe: the
-   "transparent redirect" principle itself was hand-waving over a real concern-boundary.
-   Purpose-built `arcd backing *` family replaces redirect-from-`arc user *`. Cross-machine
-   conflict story folded in rather than spun out as H2.1. No new findings.
-3. **H3** — Resolved 2026-04-13 across four commits. Eleven-scenario walk produced five new
-   sub-findings (H3-N1, H3-N2, H3-N4, H3-N6, H3-N7 — all Resolved), two tightenings (H3-N3, H3-N5 —
-   folded into existing sections), and side-effect resolutions for L1, L3, L4, M2, and M3. Two
-   external research passes ran during the walk (editor `@`-mention precedent, CLI state-dir
-   idiomatic practice). Durable capture at § Mode 2 § Local Infrastructure Scenario Battery.
-4. **L2** — Resolved 2026-04-13. Local-mode scope paragraph added to § Shift lifecycle (detail
-   design) § Uncommitted work handling clarifying `git stash` coverage and leave-as-is structural
-   default for untracked `.arc/` edits.
-5. **M4** — Resolved 2026-04-13. Enforcement subsection added to § Single-Active-Unit Invariant:
-   activation workflow scans task list `Status` headers, error points at `/arc-shift` for
-   `shift-with-activation` recovery, check generalized to tracked Full.
-6. **M5** — Resolved 2026-04-13. Three new subsections added to § Research Findings (editor
-   `@`-mention precedent, CLI state-directory idiomatic practice, `.git/info/exclude` clone-reset
-   behavior). L2942 back-reference rephrased inline rather than written as a fourth subsection
-   (conventional git guidance, not research-surfacing content). § Sources updated with Lite/Local
-   groupings.
-7. **Audit B — Content drift sweep** — final pre-PRD pass. Audit A is now fully drained; all M/L
-   findings are Resolved. Audit B can begin in a fresh session. Scope: full plan doc read for
-   terminology inconsistencies (notably `pm.mode` vs `pm.layer` — some pre-existing text still
-   uses the old key name), cross-reference rot, outdated line-number pointers, and any other
-   drift that accumulated across the H1-H3 resolution sessions and this consolidation pass.
-
-**Estimated remaining:** 1 session (Audit B). Audit A section drains entirely with M5's closure;
-only the Findings blocks with Resolved status remain as audit-tracking artifacts.
-
----
-
-## Research Findings
+### Research Findings
 
 External research organized by relevance to design decisions. Lite-mode subsections capture
 foundational research from 2026-04-01; Local-mode subsections capture 2026-04-13 research
 conducted during the H3 scenario walk.
 
-### Execution discipline is scale-independent (PSP evidence)
+#### Execution discipline is scale-independent (PSP evidence)
 
 Humphrey's Personal Software Process research demonstrates that structured execution practices — task-level
 discipline, commit standards, code review at ~200 LOC/hour — reduce defect density with statistical
@@ -5916,7 +5395,7 @@ significance, independent of project size. TSP implementations showed 94% on-tim
 India. The discipline itself drives quality, not the planning ceremony around it. This validates the core
 hypothesis: execution discipline (what Lite keeps) is the high-value layer.
 
-### Duration boundary: ~2 weeks
+#### Duration boundary: ~2 weeks
 
 Research points to a natural breakpoint around project duration:
 
@@ -5925,13 +5404,13 @@ Research points to a natural breakpoint around project duration:
 - **2-8 weeks**: Lightweight planning has value (optional PRD, some scope documentation).
 - **> 8 weeks or high integration complexity**: Full planning pipeline justified.
 
-### Ceremony proportionality: 15-20% threshold
+#### Ceremony proportionality: 15-20% threshold
 
 Process overhead becomes counterproductive when ceremony time exceeds 15-20% of total project time. For a
 2-hour project, even 20 minutes of setup is ~17% — right at the threshold. For a 2-week project, 30
 minutes of ceremony is trivial (~0.6%). This suggests Lite should target near-zero setup time.
 
-### Graduation triggers should be signal-based
+#### Graduation triggers should be signal-based
 
 Rather than time-based thresholds, introduce planning ceremony when:
 
@@ -5942,14 +5421,14 @@ Rather than time-based thresholds, introduce planning ceremony when:
 
 These are more actionable than arbitrary duration cutoffs and could inform the graduation CLI experience.
 
-### Solo developer adoption patterns
+#### Solo developer adoption patterns
 
 Practitioners consistently adopt: frequent commits (traceability + recovery), feature branches even for
 solo work, automated testing, structured commit messages. Practitioners consistently abandon: planning
 documents, formal review ceremonies, lifecycle phases. This directly matches the split between what
 Lite keeps and what it drops.
 
-### Editor `@`-mention precedent for gitignored personal tooling
+#### Editor `@`-mention precedent for gitignored personal tooling
 
 Local mode gitignores `.arc/`, making it invisible to editor `@`-mention and quick-open pickers that
 respect gitignore. A 2026-04-13 survey of adjacent tools (Cursor, SpecStory, Aider, Continue, Zed,
@@ -5963,7 +5442,7 @@ without resolution**, confirming the absence of a VS Code path. Per-editor mitig
 the three-surface decomposition live in § Agent and Editor Discoverability. Grounds the "minor
 disruption, not primary ergonomic cost" framing for finding L1.
 
-### CLI state-directory idiomatic practice
+#### CLI state-directory idiomatic practice
 
 `~/.arc-state/{project-id}/` is a per-user state directory containing methodology content (PRDs,
 design docs, session notes). A 2026-04-13 survey of 14 CLI tools (OpenSSH, GnuPG, AWS CLI, kubectl,
@@ -5993,7 +5472,7 @@ opt-in encryption as a follow-on feature if demand emerges. [`git-crypt`][git-cr
 available as a power-user option wired manually inside the backing store repo. Grounds § Backing
 Store § Privacy model and resolves finding L3.
 
-### `.git/info/exclude` behavior on re-clone
+#### `.git/info/exclude` behavior on re-clone
 
 Local mode's primary exclusion mechanism (`.git/info/exclude`) lives inside `.git/info/`, which is
 not part of the repository's tracked content. `git clone` initializes `.git/` fresh from the remote
@@ -6005,7 +5484,7 @@ detection signal, and `arc init --local` is idempotent, handling the four-step r
 hooks, report). See § Re-Clone UX § Recovery command and § Durability-Layer Commands §
 Session-init Local-axis pre-check.
 
-### Sources
+#### Sources
 
 **Lite-mode foundations (2026-04-01):**
 

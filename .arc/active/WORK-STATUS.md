@@ -16,63 +16,53 @@
 **Branch**: `technical/plan-operating-modes`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Audit A fully drained — completed 2026-04-13.** Two-commit consolidation
-pass closed the remaining M4 + M5 + L2 items on `plan-arc-modes.md`, following this session's
-earlier H3 resolution (commits `1485800`, `39195b1`, `9dfdba9`, `8a61fd1`, `1d33cdc`). All Audit
-A findings (H1, H2, H3, H3-N1 through H3-N7, M1, M2, M3, M4, M5, L1, L2, L3, L4) are now
-Resolved with pointers into their durable structural sections.
+**Last Completed**: **Audit B Layers 1 + 3 landed** on `plan-arc-modes.md`. Single-commit
+cleanup + structural reorg pass. Doc: 6046 → 5525 lines (−521, −8.6%). Markdown lint clean.
 
-**This session's consolidation pass (two commits):**
+**Layer 1 (cleanup):**
 
-+ **Commit 1** (`5d63071`) — `docs(arc): close Audit A L2 and M4 consolidation items`. L2 landed
-  as a Local-mode scope paragraph in § Shift lifecycle (detail design) § Uncommitted work
-  handling clarifying `git stash` covers only tracked project-repo files and untracked `.arc/`
-  edits structurally ride leave-as-is regardless of the option chosen for tracked code. M4
-  landed as a new Enforcement subsection under § Single-Active-Unit Invariant specifying the
-  activation-workflow locus (scans task list `Status` headers), error shape pointing at
-  `/arc-shift` for `shift-with-activation` recovery, and explicit generalization to tracked
-  Full. Placement-decision rationale: shift-workflow semantics layer for L2 (not § Mode 2) since
-  the decision is unchanged and only the scope of "uncommitted work" widens in Local; activation
-  workflow layer for M4 (not "the CLI") since every invocation surface inherits the check. The
-  handoff-suggested recovery path was corrected from a two-step manual pause-then-activate to
-  `/arc-shift` conversational invocation via `shift-with-activation` dispatch, because
-  `/arc-shift` is a thin skill (L3559, L3853), not a CLI with flags.
-+ **Commit 2** (this commit) — `docs(arc): close Audit A M5 research consolidation`. Three new
-  subsections added to § Research Findings transcribing the H3 walk's research evidence base:
-  (1) **Editor `@`-mention precedent for gitignored personal tooling** — the
-  Cursor/SpecStory/Aider/Continue/Zed/VS Code/JetBrains/Dendron/Obsidian survey confirming
-  gitignored-picker cost as intrinsic tradeoff, Zed's `file_scan_inclusions` as sole clean
-  mitigation, VS Code issues #103570 and #43505 closed without resolution; (2) **CLI
-  state-directory idiomatic practice** — the 14-tool survey validating `chmod 700` on creation,
-  documentation-only remote privacy, and tool-category-dependent at-rest encryption (note-taking
-  tools delegate to disk layer, credential tools encrypt by default); (3) **`.git/info/exclude`
-  behavior on re-clone** — short factual entry confirming no native git mechanism preserves
-  per-repo excludes across clones, framing re-clone as a routine recovery event. The L2942
-  "industry norms for `.gitignore` placement" back-reference was rephrased inline rather than
-  written as a fourth subsection — that claim is conventional git guidance, not
-  research-surfacing content. § Sources updated with Lite/Local groupings (2026-04-01 vs
-  2026-04-13 research dates).
+- Front-matter Status line updated to reflect Audit A drained / Audit B in progress; Last
+  Updated 2026-04-09 → 2026-04-14.
+- Deleted § Open Questions wholesale (~115 lines — all 15 items were struck-through Resolved
+  with pointers to durable content).
+- Deleted § Audit A Working section + Sequencing Plan (~493 lines — every finding had a
+  Resolved status line duplicating content in its pointer target).
+- Cross-references into deleted sections updated before removal (6 in-prose/standalone refs
+  plus stale parentheticals like "threshold TBD" and "L1695-1707 cascade pointer").
+- In-plan-doc L-citation fixes in § Configuration Identity — Local Axis (the H1-affected
+  section) converted to named-anchor references. "Finding #8 L411" → "Finding #8" globally.
 
-**Plan doc growth:** 5921 → 6046 lines across the two commits (+125 net). Session-wide growth
-(including earlier H3 work): 5314 → 6046 lines (+732 net). Markdown lint clean on every commit.
+**Layer 3 (structural):**
 
-**Audit A is now fully drained.** § Audit A § Working section's purpose is complete — all
-findings have Resolved status lines with pointers into durable structural sections. The only
-pre-PRD work remaining is Audit B.
+- § Design Investigations (Pre-PRD) → § **Design Decisions** (contents are authoritative
+  mechanism specs, not open investigations).
+- § Configurability Architecture Cleanup **moved up** to between § Design Decisions and
+  § Mode 1, renamed to § **Shared Infrastructure** (foundational cross-mode machinery, not
+  cleanup). Cross-refs to `#configurability-architecture-cleanup` → `#shared-infrastructure`.
+- New § **Reference Material** H2 parent nesting Content Audit, Consolidated Deliverables
+  Inventory, Resolved Decisions, Research Findings (cascade-demoted from H2 → H3,
+  sub-subsections demoted one level). § Content Audit moved into this back-matter cluster.
+- Generated **TOC** (H2 + H3 coverage, ~75 lines) inserted after front-matter. Duplicate-slug
+  collisions handled for three "Design Philosophy" headings via `-1` / `-2` suffixes.
+
+**Final top-level structure:**
+
+1. Problem Statement · 2. Design Decisions · 3. Shared Infrastructure · 4. Mode 1: ARC Lite
+· 5. Mode 2: Local Mode · 6. Shift Lifecycle · 7. Mid-Session Orientation · 8. Mode Fit
+Communication · 9. Mode Combinations · 10. Reference Material
+
+**Audit B Layer 2 deferred to next session** — see Next Action below for the full deferred
+scope and starting guidance.
 
 **Blockers**: [none]
 
-**Next Action**: **Audit B — Content drift sweep** (final pre-PRD pass). Fresh session
-recommended — Audit B is a full plan-doc read pass, and starting with clean context maximizes
-coverage quality. Scope: full plan-doc read for (a) terminology inconsistencies (notably
-`pm.mode` vs `pm.layer` — some pre-existing text still uses the old key name, flagged in last
-session's handoff); (b) cross-reference rot (section references pointing at renamed or moved
-content); (c) outdated line-number pointers that drifted during H1-H3 resolution and this
-consolidation pass; (d) any other drift that accumulated across the resolution sessions.
-Estimated: one moderate session. After Audit B completes, the plan doc is ready for PRD
-authoring.
+**Next Action**: **Audit B Layer 2 — terminology sweep**. Final pre-PRD pass before PRD
+authoring. Scope: case-by-case review and surgical edits for forward-looking terminology
+drift on `plan-arc-modes.md`. Estimated one moderate session. See SESSION-NOTES § Primary
+task for counts, drift-bucket classification, and recommended approach. After Layer 2
+completes, the plan doc is ready for PRD authoring.
 
 ---
 
-**Last Updated**: 2026-04-13 (Audit A fully drained — M4, M5, L2 resolved in two commits this
-consolidation pass; Audit B is the sole remaining pre-PRD pass)
+**Last Updated**: 2026-04-14 (Audit B Layers 1+3 landed; Layer 2 terminology sweep deferred
+to next session)
