@@ -49,6 +49,33 @@ during task generation.
 4. **Leave the deprecated package in place indefinitely.** npm explicitly discourages unpublishing, and the
    pre-public zero-adoption framing makes scrubbing unnecessary. No cleanup task, ever.
 
+## Release Automation Deferred to WU5
+
+This WU publishes `@arcd/cli` and the `@arc-framework/cli@0.1.1` deprecation release **manually** via
+session boundaries — no automated release pipeline. The rationale:
+
+- **Zero-adoption framing** (PRD § Zero-adoption assumption). Building a semantic-release / changesets /
+  release-please pipeline to support two publishes in this WU is YAGNI. The pipeline's value is in
+  sustained release cadence, not one-time rename events.
+- **External research precedent.** Idiomatic open-source practice for branch-protected repositories is
+  to automate publishes via CI with a bot account holding bypass permissions (semantic-release,
+  changesets), OR to use a temporary protection-disable window (pragmatic practice cited in several
+  mid-size projects). For a solo-developer pre-public framework with two one-time publishes, building
+  CI automation upfront costs more than it saves.
+- **Already scoped in WU5.** `plan-wu5-public-release.md` § Release Automation explicitly queues:
+  npm trusted publishing (OIDC), release workflow (tag push → build → npm publish → GitHub Release).
+  That work unit is the right home for the pipeline.
+
+**Execution model for this WU's publishes:** Each publish runs on its own dedicated branch
+(`technical/arcd-rebrand-publish`, `technical/arcd-rebrand-deprecate`) with a clean commit boundary
+before the `npm publish` command runs. The publish itself is an external action — the branch merges
+to main via standard `rotate-branch.md` after the publish is verified. This preserves `branch.protection:
+full` policy consistency without requiring bot accounts or pipeline setup.
+
+The deprecation release of `@arc-framework/cli@0.1.1` runs from an **ephemeral directory outside the
+tracked repo tree**, since `packages/arcd/package.json` no longer bears the `@arc-framework/cli` name
+after the Phase 1 rename. This is captured in task list Phase 5.
+
 ## Self-Hosted Migration Rationale
 
 Why this repository's `.arc/` migration bypasses `arc update`'s three-way merge — context for task generation
