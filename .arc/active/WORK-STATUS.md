@@ -16,35 +16,40 @@
 **Branch**: `technical/plan-arcd-rebrand`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **`plan-arcd-rebrand.md` iteration on the rebrand planning branch.**
-Expanded the plan doc with three-tier naming rationale (ARC methodology / ARCd implementation
-/ ARCd Framework project-as-a-whole) anchoring the repo-name decision
-(`andrewRCr/ARCd-framework`); full npm deprecation sequence with pre-public zero-adoption
-framing; repo rename with private-repo blast-radius and session-boundary execution protocol;
-self-hosted `.arc/` migration approach bypassing `arc update`'s three-way merge; and a
-docs-site dimension placeholder covering custom-domain migration, landing page, SSG evaluation,
-and feature enhancements. Open Questions section replaced with Resolved Decisions (license
-Apache 2.0 already in-repo, repo name settled, relationship explanation reframed as PRD-phase
-content deliverable). Scope estimate bumped from small-to-medium to medium at minimum pending
-docs-site SSG evaluation outcome.
+**Last Completed**: **Second `plan-arcd-rebrand.md` iteration — docs-site dimension
+resolved.** § 11 moves from "evaluation pending pre-PRD" to decided state with full
+architectural capture: Astro Starlight as SSG (over heavily-customized mkdocs-material);
+Cloudflare Pages hosting with direct Git integration (monorepo support, Wrangler fallback);
+`arcd.dev` / `docs.arcd.dev` subdomain split (cleaner than path-based routing);
+`apps/landing/` and `apps/docs/` monorepo structure as npm workspaces alongside the existing
+`packages/arc-framework/`; minimal-polish landing page scope with time-boxed visual spike;
+Starlight theming estimate (50–150 lines CSS); content migration audit (5 admonitions across
+5 files, no mermaid/content tabs/snippets/Jinja — clean surface, `docs/` confirmed as single
+source of truth); glightbox drop-by-default at impl time. Timing section resolves to the
+planned two-WU split with concrete scope for each WU.
 
-Earlier on this branch: mkdocs strict-mode CI fix (`0d6551a`, atomic) + planning branch
-activation from `main`.
+Earlier on this branch: first plan-arcd-rebrand iteration (`1a0d3d9` — three-tier naming,
+Resolved Decisions, npm deprecation, self-migration, docs-site dimension placeholder); mkdocs
+strict-mode CI fix (`0d6551a`, atomic); planning branch activation from `main`.
 
-Driven by the planning-branch iteration objective: iterate until watertight before invoking
-`1_create-prd.md`. One residual pre-PRD item queued — docs-site SSG evaluation on this branch.
+All pre-PRD decisions now resolved. Plan doc is watertight and ready to drive PRD creation.
 
 **Blockers**: [none]
 
-**Next Action**: **Execute docs-site SSG evaluation** as the final pre-PRD activity on this
-planning branch. Evaluate alternatives to mkdocs-material — candidates include mintlify,
-astro/starlight, docusaurus, and other well-maintained options. Output: decision on whether
-to migrate away from mkdocs-material or stay, with concrete rationale. The evaluation outcome
-gates the WU-split decision (stay on mkdocs-material → single WU, migrate to another SSG →
-planned two-WU split per `strategy-work-planning.md`'s one-plan-to-multiple-PRDs pattern).
-After evaluation completes: invoke `1_create-prd.md` (possibly twice, depending on split
-decision).
+**Next Action**: **Invoke `1_create-prd.md` for both PRDs in parallel.** Per
+`strategy-work-planning.md`'s one-plan-to-multiple-PRDs pattern: `plan-arcd-rebrand.md`
+feeds two PRDs. First PRD: `prd-arcd-rebrand` (critical-path core rename). Second PRD:
+`prd-arcd-docs-site` (sequenced immediately after WU 1; Starlight migration, landing page,
+CF Pages deploy). Both authored in parallel on this planning branch. Plan-doc retirement
+(§ Step 5 of create-prd) distributes reference content across `notes-arcd-rebrand.md` and/or
+`notes-arcd-docs-site.md` as appropriate, then deletes the plan doc as part of the PRD
+commits.
+
+Session boundary deferred to next session per mode-transition rationale (planning discussion
+→ structured PRD writing is a natural context-quality boundary). Next session: session-init
+loads plan doc in decided state, then proceed directly to PRD creation without further
+pre-PRD activity.
 
 ---
 
-**Last Updated**: 2026-04-14 (plan doc iteration landed on rebrand branch; SSG evaluation next)
+**Last Updated**: 2026-04-14 (docs-site decisions resolved; next session starts PRD creation)

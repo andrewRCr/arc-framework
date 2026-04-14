@@ -5,9 +5,11 @@ and day-to-day workflow vocabulary where that remains the clearest fit. This doc
 problem, alternatives considered, the chosen naming boundary, and the implementation scope.
 
 **Status:** Draft (direction settled; scope expanded 2026-04-09, 2026-04-11, and 2026-04-14
-to absorb related config cleanup from Operating Modes WU, capture three-tier naming rationale,
-resolve decisions previously flagged as open, and add npm deprecation, self-migration, and
-docs-site dimensions)
+across two 2026-04-14 revisions. First 2026-04-14 revision: absorbed config cleanup from
+Operating Modes WU, captured three-tier naming rationale, resolved previously-open decisions,
+and added npm deprecation, self-migration, and docs-site dimensions. Second 2026-04-14
+revision: resolved docs-site dimension — Starlight as SSG, Cloudflare Pages with subdomain
+split, `apps/` monorepo structure, planned two-WU split)
 **Created:** 2026-04-07
 **Last reviewed:** 2026-04-14
 **Origin:** Adding docs site links to shipped `.arc/` documents exposed a branding problem: the
@@ -544,32 +546,125 @@ Claimed during planning (2026-04-07):
       zero adoption of the deprecated package this is costless and avoids polluting the
       rebrand WU with migration machinery that nothing real would use
 
-### Docs site dimension (evaluation pending pre-PRD)
+### Docs site dimension (decisions resolved 2026-04-14)
 
-11. **Custom-domain migration, landing page, SSG evaluation, and feature enhancements**
-    - **Custom-domain migration** (non-negotiable). `arcd.dev` → GitHub Pages CNAME wiring,
-      docs-site `site_url` update, any absolute-URL references in content swept. Currently
-      the docs site publishes to a GitHub Pages URL; migration to the purchased custom
-      domain is overdue
-    - **Landing page** (non-negotiable). Polished but simple, distinct from the docs index.
-      `arcd.dev/` lands on a product page that introduces ARCd Framework and routes
-      visitors to docs, repo, and getting-started. `arcd.dev/docs/` (or equivalent path)
-      houses the existing docs content
-    - **SSG evaluation** (to resolve on this planning branch, pre-PRD). Evaluate
-      alternatives to mkdocs-material — candidates include mintlify, astro/starlight,
-      docusaurus, and any other well-maintained options that surface during research.
-      Output: a decision on whether to migrate away from mkdocs-material or stay, with
-      concrete rationale
-    - **Feature enhancements** (depends on SSG outcome). Whatever the chosen SSG supports
-      and serves the docs — search improvements, versioned docs, social cards, analytics,
-      redirects, etc. Scope: "evaluate available features on the chosen SSG and land
-      meaningful improvements" as a bounded task, not an open-ended shopping list
-    - **Open WU-shape question.** Whether this dimension fits inside one WU with the core
-      rename or warrants a separate `prd-arcd-docs-site.md` sequenced immediately after
-      depends on the SSG evaluation outcome. If we stay on mkdocs-material the docs-site
-      work is small enough to fit in one WU. If we migrate to another SSG the scope grows
-      enough to warrant a planned split — one plan → two PRDs → two WUs per
-      `strategy-work-planning.md`. Decision deferred until the evaluation completes
+11. **Custom-domain migration, subdomain split, Starlight migration, landing page, and
+    content port**
+
+    All pre-PRD evaluation items resolved in this planning session (2026-04-14). This
+    section captures the architectural decisions that carry into `prd-arcd-docs-site.md`.
+
+    **SSG choice: Astro Starlight.** Selected over heavily-customized mkdocs-material after
+    comparing: (a) default aesthetic polish, (b) built-in component library (tabs, cards,
+    asides, steps, link cards, file trees), (c) built-in static-site search via Pagefind,
+    (d) customization ergonomics (CSS variables + component overrides vs. Jinja + SCSS),
+    (e) toolchain consolidation (Node-native, eliminates Python from the repo).
+    mkdocs-material customization is a viable fallback, but non-insiders edition has a
+    lower ceiling for component-style UI, and reaching a TUI-flavored aesthetic from
+    Material Design's default vocabulary is more effort than building up from Starlight's
+    cleaner baseline.
+
+    **Hosting: Cloudflare Pages with direct Git integration.** Domain is registered with
+    Cloudflare, so DNS integration is native. CF Pages has official monorepo support as
+    of 2024-2026: two separate Pages projects, each scoped to a monorepo subdirectory via
+    the project's root-directory build config, with build watch paths to skip unrelated
+    changes. Fallback if direct Git integration has friction in practice: run
+    `wrangler pages deploy` from GitHub Actions. Private-repo restrictions are no longer
+    a concern on CF Pages free tier, and the repo is going public soon regardless.
+
+    **Subdomain split: `arcd.dev` + `docs.arcd.dev`.** Two deployment targets instead of
+    one. Cleaner separation of concerns than path-based routing (`arcd.dev/docs/`): the
+    landing page doesn't need to fight Starlight's docs-first assumptions, and the docs
+    site isn't asked to host marketing copy. Also scales to future subdomains
+    (`blog.arcd.dev`, `api.arcd.dev`, etc.) without rearchitecting.
+
+    **Monorepo structure: `apps/` container for deployable sites.** Established convention
+    from the Astro/Starlight ecosystem: `packages/` for npm-publishable libraries
+    (existing `packages/arc-framework/` stays put), `apps/` for deployable sites.
+
+    ```text
+    apps/
+    ├── landing/          # arcd.dev  (bare Astro, no Starlight)
+    └── docs/             # docs.arcd.dev  (Astro + Starlight)
+    packages/
+    └── arc-framework/    # existing CLI, unchanged
+    ```
+
+    Both `apps/landing` and `apps/docs` become npm workspaces alongside
+    `packages/arc-framework`. Root-level `npm run build`/`dev`/`test` orchestrates all
+    three via workspaces. No Turborepo/Nx needed at this scale.
+
+    **Landing page scope: minimal-polish, not a marketing site.** Explicit targets: brief
+    hero with tagline, short "what is this" explainer, one or two feature cards, CTAs to
+    docs + repo + getting-started. Visual aesthetic consistent with the TUI direction —
+    monospace-forward typography, constrained palette, restrained flourishes. Time-box the
+    visual-direction spike in the PRD (~2 hours) so it doesn't drift into open-ended
+    design. If the landing page later needs to grow into a richer marketing site, that's
+    a future WU — explicitly out of scope here.
+
+    **Starlight theming: ~50–150 lines of custom CSS** for the TUI aesthetic (palette,
+    typography, spacing rhythm). Starlight exposes CSS variables cleanly, and component
+    overrides via the `components` config provide an escape hatch for any default component
+    that doesn't fit the aesthetic. Less work than equivalent mkdocs-material customization
+    (200–500 lines plus Jinja templates plus fighting Material's design vocabulary).
+
+    **Content migration: clean surface.** Audit of `docs/*.md` (2026-04-14) found only 5
+    mkdocs-specific syntax instances — all admonitions (`!!! note/tip "Title"`) in
+    `the-framework.md`, `getting-started.md`, `customization/configuration.md`,
+    `methodology/rationale.md`, `customization/hooks.md`. A one-line sed script converts
+    them to Starlight's `:::note[Title]` syntax. No mermaid diagrams, no content tabs, no
+    snippets, no Jinja in content. Navigation restructures from `mkdocs.yml`'s `nav` tree
+    to Starlight's sidebar config (mechanical). `docs/` confirmed as single source of truth
+    with no generation scripts feeding it.
+
+    **Features to drop or replace at impl time (not scope-gating):**
+
+    - **Glightbox (image lightbox).** Currently active via mkdocs-material plugin config
+      (`auto_themed`, `auto_caption`, `touchNavigation`, `effect: zoom`) — applies
+      globally to all images without per-image syntax. Starlight has no direct
+      equivalent. Resolve at impl time: default lean is drop; re-add via an Astro
+      integration (`astro-lightbox` or similar) or a small custom component only if the
+      content visibly benefits.
+    - **Python/mkdocs toolchain.** Remove `mkdocs.yml`, `docs/` (after content port),
+      `.github/workflows/docs.yml`, any Python CI setup. Consolidates to Node-only.
+
+    **Features gained from Starlight (effectively free):**
+
+    - **Pagefind search.** Built-in static-site search, higher quality than mkdocs's
+      lunr-based default.
+    - **Component library.** `<Card>`, `<CardGrid>`, `<Tabs>`, `<Steps>`, `<Aside>`,
+      `<LinkCard>`, `<FileTree>` — all themed consistently, usable inline in MDX. This
+      is the area where mkdocs-material non-insiders falls shortest.
+    - **Dark/light mode** with properly tuned contrast.
+
+    **Post-migration cleanup items (not scope-gating):**
+
+    - `.arc/system/arc-config.yml` line 91: `hooks.test_patterns` currently includes
+      `docs/demos/` as an excluded path. Update or remove post-migration depending on
+      whether demos move into `apps/docs/` or elsewhere.
+    - `.arc/system/.internal/pristine.json`: framework-file manifest auto-regenerates via
+      the CLI's update machinery; no manual intervention needed.
+    - Any framework files referencing `mkdocs` or the old `docs/` path — sweep during
+      the unified content sweep in WU 1.
+
+    **WU shape: planned two-WU split (resolved).** Per `strategy-work-planning.md`'s
+    one-plan-to-multiple-PRDs pattern:
+
+    - **WU 1: `prd-arcd-rebrand`** — core rename, config seam, pm.mode/team.mode schema
+      renames, CLI command cleanup, unified content sweep (using forward-looking
+      `docs.arcd.dev` URLs even though the subdomain isn't live yet — brief broken-link
+      window acceptable pre-public), npm deprecation sequence, repo rename with
+      session-boundary protocol, self-hosted migration. Unblocks Operating Modes WU's
+      config work. Critical-path.
+    - **WU 2: `prd-arcd-docs-site`** — `apps/landing/` and `apps/docs/` scaffolding,
+      Starlight content port, landing page authoring, CF Pages deploy wiring, DNS
+      cutover, glightbox handling at impl time, removal of old mkdocs toolchain.
+      Sequenced immediately after WU 1. Not critical-path.
+
+    Both PRDs authored in parallel on this planning branch. Plan doc retirement and
+    reference-content migration to `notes-*.md` follow `1_create-prd.md` § Step 5 — this
+    plan feeds two PRDs, so Step 5 distributes reference content across
+    `notes-arcd-rebrand.md` and/or `notes-arcd-docs-site.md` as appropriate.
 
 ---
 
@@ -611,17 +706,17 @@ This is best done before public release:
 - Cleaner public launch story
 - Fewer downstream docs and compatibility burdens
 
-**Estimated scope:** Medium work unit at minimum, with potential to grow depending on the
-pre-PRD docs-site SSG evaluation outcome.
+**Estimated scope: planned two-WU split (resolved 2026-04-14).**
 
-- **Core rebrand (§§ 1–10)** is bounded and medium-sized: public-facing renames, config-seam
-  migration, pm.mode/team.mode schema renames, CLI command surface cleanup, unified content
-  sweep, npm deprecation, repo rename with session-boundary handling, and self-hosted
-  one-time migration.
-- **Docs site dimension (§ 11)** sizing depends on the SSG decision. Staying on
-  mkdocs-material keeps this WU in medium territory and suggests a single WU. Migrating to
-  a different SSG grows scope enough to warrant splitting into a planned follow-up WU
-  (`prd-arcd-docs-site.md`) sequenced immediately after the core rebrand.
+- **WU 1 (`prd-arcd-rebrand`)**: core rename, config seam, pm.mode/team.mode schema
+  renames, CLI command surface cleanup, unified content sweep with forward-looking docs
+  URLs, npm deprecation, repo rename with session-boundary handling, self-hosted
+  migration. Medium work unit. Critical-path — unblocks Operating Modes WU's config work.
+- **WU 2 (`prd-arcd-docs-site`)**: `apps/landing/` and `apps/docs/` scaffolding, Starlight
+  content port, minimal-polish landing page, Cloudflare Pages deploy via direct Git
+  integration (Wrangler fallback), DNS cutover, glightbox handling, mkdocs toolchain
+  removal. Medium work unit. Sequenced immediately after WU 1. Not critical-path.
 
-Final sizing and WU-split decision resolve after the docs-site SSG evaluation completes on
-this planning branch, pre-PRD.
+Both PRDs to be authored in parallel on this planning branch (one plan → two PRDs per
+`strategy-work-planning.md`). Next action after this plan-doc revision: invoke
+`1_create-prd.md` for both PRDs.
