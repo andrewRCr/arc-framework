@@ -58,17 +58,21 @@ project overrides session-state, follow the override instead):
 **When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
 
 **Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
-cross-session constraints (naming conventions, architectural decisions, deferred items) that survive
-across handoffs. Each entry has an explicit removal trigger. During handoff,
-rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context) but preserve
-persistent context entries whose triggers haven't been met. Remove entries whose triggers are met.
+cross-session constraints that tracked state does not yet carry (forward-looking constraints,
+un-codified meta-conventions, parking references). Each entry has an explicit removal trigger.
+During handoff, rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context)
+but preserve persistent context entries whose triggers haven't been met AND which still satisfy
+the criterion (see **Persistent Context** under "What to include" below). Remove entries whose
+triggers are met OR whose information is now carried in tracked state.
 
 ### Comprehensive Handoff Format
 
 Update session state files before ending session:
 
-1. **First**: Review `## Persistent Context` — preserve entries whose triggers aren't met, remove entries
-   whose triggers are met
+1. **First**: Review `## Persistent Context` — apply the criterion in the Persistent Context entry
+   below. Remove entries whose triggers are met, AND entries whose information is now carried in
+   tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
+   the handoff summary; do not silently rewrite
 2. **Second**: Check if working directory context changed and update paths in WORK-STATUS.md if needed
 3. **Then**: Update both files with work progress:
 
@@ -183,9 +187,24 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
     - Constraints: User preferences, technical limitations
     - Goal: Don't repeat work, don't lose insights
 - **Persistent Context** - Context that must survive across multiple handoffs
+    - **Criterion:** Persistent context is for information the **tracked state does not carry
+      yet**. If the information lives in any tracked document — plan, strategy, constitution,
+      recipe, or code — it does not belong here. The tracked doc is authoritative; duplicating
+      it in persistent context creates a shadow source that can drift.
     - Each entry needs an explicit removal trigger (not tied to full work unit completion)
-    - Examples: design decisions to apply consistently, parked work items, naming conventions
-    - Review at each handoff: remove entries whose triggers are met
+    - Passes the criterion: forward-looking constraints (terminology for a rename that hasn't
+      landed), un-codified meta-conventions (rules not yet in a strategy doc), parking references
+      (to uncommitted work visible in `git status`)
+    - Fails the criterion: mechanism decisions already in a plan doc's § Resolved Decisions
+      table, architecture rules already in a strategy doc, behavioral guidance already in
+      DEV-RULES
+    - **Anti-pattern (common during pre-PRD planning work):** Writing a persistent-context entry
+      for every mechanism decision resolved in the plan doc. Persistent context is not a
+      substitute for the plan doc's § Resolved Decisions section — the plan doc is authoritative
+      and a future session working in the relevant area should read it per ARC's
+      "verify before assuming" discipline
+    - Review at each handoff: remove entries whose triggers are met, AND entries whose
+      information is now carried in tracked state
 
 **What NOT to include:**
 

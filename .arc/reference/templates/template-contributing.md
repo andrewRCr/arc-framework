@@ -67,6 +67,15 @@ tests, and build verification all apply equally. CI enforces these on every PR.
 **Branch from the base branch** (typically `main`) for your work. Check
 `.arc/system/arc-config.yml` → `branch.base` for the project's integration branch.
 
+**Personal planning is supported, optionally.** The boundary is ownership of tracked state, not
+the presence of planning concepts. If your contribution is substantial enough to benefit from
+ARC's full planning pipeline — plan docs, PRDs, task lists, shift lifecycle, handoffs — you can
+run it entirely in your personal workspace at `.arc/user/{identity}/`, which is gitignored and
+invisible to upstream. The contributor briefing (`.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`,
+loaded automatically for contributor-role sessions) explains the layout, framework read
+contract, and lifecycle in detail. For casual contributions, personal planning is optional —
+most contributors never need it.
+
 ## Pull Request Guidelines
 
 <!-- Customize for your project's PR conventions, review SLA, etc. -->

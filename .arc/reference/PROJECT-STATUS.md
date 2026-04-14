@@ -11,22 +11,33 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Beta Readiness (feature) — Migrated dev repo to real ARC installation, contributor role
-  support (ADR-014), docs site skeleton, npm beta publish, public-facing scaffolding
-    - Archive: `archive/2026-q2/feature/01_beta-readiness/`
+- Methodology Maturation (technical) — Foundational clarity: methodology/implementation boundary,
+  content architecture, update semantics, human co-development posture, skill infrastructure
+    - Archive: `archive/2026-q2/technical/02_methodology-maturation/`
 
 **Currently Active:**
 
-- Methodology Maturation (technical) — Foundational clarity: methodology/implementation boundary,
-  package-project sync safeguards, content placement, human co-development posture, skill expansion
-    - Task list: `tasks-methodology-maturation.md`
-    - Branch: `technical/methodology-maturation`
+- [none — between work units]
 
 **Next Priority:**
 
-- ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode
+- ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology), with
+  absorbed config-key renames and CLI command cleanup
+- Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
+- Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle
 
 ## Completed Major Work
+
+### Methodology Maturation (April 2026)
+
+Settled methodology/implementation boundary, content architecture, and update behavior.
+
+- Standalone methodology summary with 10 grey area resolutions (methodology vs convention)
+- CLI update fix: Framework files wholesale-replaced, eliminating merge conflicts
+- Strategy docs split: ~5,350 → ~2,970 local / ~2,380 docs site. 13 strategies consolidated to 9
+- Two new skills: arc-task-review (post-task structured review), arc-plan (collaborative exploration)
+- Package-project sync safeguard: dependency map, pre-commit hook, DEV-RULES.PROJECT guard
+- Docs site restructured: Methodology/Framework/Customization nav split
 
 ### Beta Readiness (April 2026)
 

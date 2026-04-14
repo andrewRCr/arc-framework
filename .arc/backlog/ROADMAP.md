@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-06
+**Last Updated:** 2026-04-14
 
 ---
 
@@ -89,7 +89,7 @@ Prepares the framework for multi-week beta testing on an external project.
 - Upstream: WU3 (functional CLI for `arc init` / `arc join`)
 - Downstream: Methodology Maturation, Operating Modes, Dogfooding, WU5
 
-**Methodology Maturation** — In Progress (April 2026)
+**Methodology Maturation** — ✅ Complete (April 2026)
 
 Settle ARC's foundational clarity before expanding the framework. Package–project sync audit
 and dev safeguard, methodology/implementation boundary definition, human co-development
@@ -98,17 +98,53 @@ and update behavior, conditional content architecture, ARC skill expansion.
 
 - PRD: `technical/prd-methodology-maturation.md`
 - Upstream: WU4 (beta-ready repo, stable methodology surface to audit)
-- Downstream: Operating Modes
+- Downstream: ARCd Rebrand
 
-**ARC Operating Modes** — After Methodology Maturation
+**ARCd Rebrand** — After Methodology Maturation
+
+Rebrand ARC → ARCd as the public product brand while preserving ARC as the methodology and
+workflow vocabulary. Split architecture: ARCd names the public implementation surface
+(`arcd.dev`, `@arcd/cli`, `arcd` binary, `ARCd-config.yml`) while ARC remains the methodology
+substrate (`.arc/`, `arc-*` skills, `arc-methods.md`). Absorbs config-key renames (`pm.mode`
+→ `pm.layer`, `team.mode` → `team.enabled`, `pm.mode: arc-in-git` value → `arc-pm`) and CLI
+command cleanup (`arc status` → `arcd health`, explicit `arcd version`) extracted from the
+Operating Modes WU scope — same-surface editorial pass avoids a second churn event. Must land
+before Operating Modes and public release.
+
+- Plan: `technical/plan-arcd-rebrand.md`
+- Upstream: Methodology Maturation (same-surface churn avoidance)
+- Downstream: Expanded Planning Path, Operating Modes, WU5
+
+**Expanded Planning Path** — After ARCd Rebrand
+
+Optional pre-PRD planning path for high-novelty, high-coupling work that needs more structure
+than ARC's default freeform plan stage without making ordinary planning heavier. Adds a
+`refine-plan-loop` workflow (planning-side analogue to process-task-loop) conditionally loaded
+by session-init, expanded-planning detection in `arc-plan`, promoted-plan template structure
+for bounded refinement units, and plan-splitting guidance distinct from PRD decomposition.
+Codifies lessons from Operating Modes plan-shaping work where default freeform exploration
+proved insufficient.
+
+- Plan: `feature/plan-expanded-planning-path.md`
+- Upstream: ARCd Rebrand (rebrand-ready terminology in new content)
+- Downstream: Operating Modes (planning workflow support available for PRD drafting)
+
+**ARC Operating Modes** — After Expanded Planning Path
 
 Establish ARC's mode architecture — a lightweight mode (ARC Lite) for small projects preserving
 execution discipline without lifecycle ceremony, and a local/untracked mode for constrained
-environments where ARC can't be committed to the repo.
+environments where ARC can't be committed to the repo. Shift lifecycle (Paused / Waiting-For
+state transitions) ships as a cross-cutting subsystem enabling multi-WU interleave, filling a
+team-mode gap in Full ARC and making Local Full viable.
 
-- Plan: `feature/plan-arc-modes.md`
-- Upstream: Methodology Maturation (settled boundary, content architecture, conditional patterns)
+- Plan: `feature/plan-arc-modes.md` (PRD-ready, 59-item deliverables inventory)
+- Upstream: ARCd Rebrand (settled naming and key renames), Expanded Planning Path (planning
+  workflow tooling for PRD drafting)
 - Downstream: Dogfooding, WU5
+- **Scope note:** Single WU by default. Pre-approved split at PRD-drafting time if scope proves
+  unmanageable: foundation (installation-type mechanism + shift lifecycle + strategy audit) →
+  Lite+Local (mode-specific content, workflows, templates). Splitting Lite from Local is
+  explicitly rejected — shared infrastructure dominates unique per-mode work.
 
 **Dogfooding Phase** — After Operating Modes
 
@@ -150,19 +186,23 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │
    │     │     │     │     ├──► WU4 (Beta Readiness) ✅
    │     │     │     │     │     │
-   │     │     │     │     │     ├──► Methodology Maturation
+   │     │     │     │     │     ├──► Methodology Maturation ✅
    │     │     │     │     │     │     │
-   │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     ├──► ARCd Rebrand
    │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
-   │     │     │     │     │     │     │     │           ▲
-   │     │     └─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
-   │     │                                              ▲
-   │     └──────────────────────────────────────────────┘ (philosophy informs docs + README)
-   │                                                    ▲
-   └────────────────────────────────────────────────────┘
+   │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
+   │     │     │     │     │     │     │     │     │     │           ▲
+   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
+   │     │                                                          ▲
+   │     └──────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
+   │                                                                ▲
+   └────────────────────────────────────────────────────────────────┘
 ```
 
 **Parallelism:** WU5 docs site content and README drafts can begin after WU1+WU2 without
@@ -214,6 +254,9 @@ site structure.
 
 ## Change Log
 
+- **2026-04-14**: Phase C re-sequenced — ARCd Rebrand and Expanded Planning Path inserted before
+  Operating Modes; modes plan doc parked PRD-ready with pre-approved foundation → Lite+Local split
+  fallback
 - **2026-04-06**: Methodology Maturation PRD and task list complete, ARC Operating Modes plan added
 - **2026-04-01**: WU4 complete, planning branch created for next work units
 - **2026-03-24**: Migrated to `.arc/` — adapted to canonical ROADMAP structure

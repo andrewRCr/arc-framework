@@ -20,8 +20,12 @@ what you need to know to contribute.
     ```
 
     Select the **contributor** role when prompted. This sets your identity, configures git hooks,
-    and generates agent skill files. The contributor role scopes your workspace to project code —
-    you work on the codebase, not ARC planning artifacts.
+    and generates agent skill files. The contributor role has a firm boundary — you don't modify
+    upstream's tracked planning state (`.arc/active/`, `.arc/backlog/`, project `WORK-STATUS.md`)
+    — but you're welcome to run ARC's full planning pipeline for your own contribution work
+    inside your personal workspace at `.arc/user/{identity}/`. For most contributions this is
+    unnecessary; for multi-week features or anything that benefits from explicit planning, it's
+    available. See § Personal Planning (Optional) below.
 
 4. **Verify your setup** — all checks should pass on a clean checkout:
 
@@ -140,5 +144,22 @@ cross-references, not fuzzy-find.
 
 Files in `.arc/active/` and `.arc/backlog/` are managed by project maintainers: task lists,
 work status, and planning artifacts. The pre-commit hook warns (soft, non-blocking) if you
-stage changes in these directories. This is expected; contributors work on project code, not
-the development pipeline.
+stage changes in these directories. This is expected — the boundary is ownership of tracked
+planning state, not the presence of planning concepts in your own work.
+
+## Personal Planning (Optional)
+
+For substantial contributions — multi-week features, anything that benefits from explicit
+planning — you can run ARC's full planning pipeline (plan docs, PRDs, task lists, shift
+lifecycle, session handoffs) scoped to your personal workspace at `.arc/user/{identity}/`,
+which is gitignored and invisible to upstream.
+
+The contributor briefing (`.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`) is loaded
+automatically when you join as a contributor. It documents the layout, the framework read
+contract (which paths ARC loads from your workspace), and the mirror-structure recommendation
+for organizing beyond the read contract. The
+[personal workspace README](../.arc/user/README.md) covers the same concepts for human reference.
+
+This is optional. Most contributions are small enough that no personal planning is needed —
+open an issue, write the code, submit the PR, done. Personal planning exists for the cases
+where it genuinely helps.

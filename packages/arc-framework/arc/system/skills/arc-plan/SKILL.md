@@ -1,26 +1,31 @@
 ---
 name: arc-plan
 description: >-
-  Collaborative exploration for new or in-progress work — gathers project
-  context, surfaces framing questions, then steps back for freeform
-  conversation. Use when starting to think about new work, or when revisiting
-  a rough plan document to refine it toward PRD readiness.
+  Collaborative elicitation for pre-PRD planning exploration — helps when
+  no plan-* document exists yet, or one exists but is still being refined
+  toward formalization. Iterative facilitation, not plan generation. Not
+  for use during task execution; invoke only when the user explicitly
+  requests planning help.
 disable-model-invocation: false
 ---
 
 # ARC Plan
 
-Collaborative exploration for work planning. Sets up the conversation with
-project context and framing questions, then gets out of the way. Works for
-two scenarios: starting from a vague idea (no plan doc yet), or revisiting
-an existing rough plan document to refine it.
+Works for two common scenarios:
 
-The value is in assembling context the human would otherwise gather manually
-or skip — not in structuring the exploration itself.
+- starting from a vague idea with no planning artifact yet
+- resuming or refining an existing `plan-*` document that is still rough
 
-Not a "plan mode" where the agent produces a plan for approval. The human
-formulates and explores _with_ the agent. The skill front-loads context so
-the conversation starts informed.
+The agent should help surface ambiguity, assumptions, alternatives, risks,
+trade-offs, and scope boundaries while the human works through the problem.
+
+Not a "plan mode" where the agent produces a finished plan for approval. The
+human formulates and explores _with_ the agent.
+
+**Non-goals:** This skill is not a PRD gate, not a task generator, and not a
+dispatcher into downstream workflows by default. Not for use during active
+work unit execution — task-execution questions belong in the task loop, not
+in a planning facilitation pass.
 
 **Scope guard:** Context gathering should be targeted, not exhaustive. Read
 document titles and summaries to assess relevance before reading full
@@ -31,16 +36,32 @@ comprehensive research report.
 1. Determine starting point.
 
    - **If a plan document exists** (`plan-*.md` referenced by the user or
-     found in the expected directory): Read it first. This is primary
-     context — the exploration builds on what's already captured. Note
-     what's well-developed versus rough, and what gaps would need filling
-     before PRD creation.
+     found in the expected directory): Read it first. This is the primary
+     continuity artifact. Do **not** perform broad rediscovery by default.
    - **If no plan document exists**: The user has an idea or direction.
-     Proceed to context gathering with whatever the user has described.
+     Proceed to broader context gathering with whatever the user has
+     described.
 
-2. Gather project context.
+2. Choose discovery depth.
 
-   Read available sources to understand the landscape around the work.
+   Use the lightest tier that will move the conversation forward:
+
+   - **Artifact-only** — default when an existing plan is present. Work
+     directly from the artifact and continue the planning conversation
+     without re-scanning the broader project.
+   - **Targeted refresh** — use when the existing plan appears stale,
+     assumption-heavy, or clearly incomplete. Check only the specific
+     files, prior work, or strategy docs needed to test those assumptions.
+   - **Broad discovery** — use for a fresh idea with no planning artifact,
+     or when the user explicitly wants a landscape-mapping pass.
+
+   If additional discovery beyond the artifact looks useful, surface that
+   choice explicitly rather than silently spending time and tokens.
+
+3. Gather project context.
+
+   When the chosen discovery tier calls for additional context, read only
+   the sources needed to understand the landscape around the work.
    Summarize what's relevant — don't dump raw content. Skip any source
    that doesn't exist or isn't relevant.
 
@@ -62,43 +83,54 @@ comprehensive research report.
      constraints. Focus on what would influence the approach, not
      exhaustive inventory.
 
-3. Present context and framing questions.
+4. Facilitate elicitation.
 
-   Share what you found — relevant project direction, related prior work,
-   design constraints, codebase state. Keep the summary concise: the
-   human needs orientation, not a literature review.
+   Share the minimum context needed to orient the conversation. Then help
+   the human refine their thinking through iterative elicitation. Treat
+   the following as prompt material, not a rigid questionnaire.
 
-   Then ask framing questions to help the human articulate their thinking.
-   Adapt these based on the starting point:
+   Revisit these areas as needed:
 
-   **Starting fresh (no plan doc):**
+   - **Problem and motivation** — what problem are we solving, and why now?
+   - **Success and boundaries** — what does success look like, and what is
+     explicitly out of scope?
+   - **Alternatives** — what approaches were considered, and why lean
+     toward or away from them?
+   - **Assumptions and unknowns** — what are we assuming, and what could
+     still change the approach materially?
+   - **Risks and dependencies** — what could cause this to fail, block, or
+     grow unexpectedly?
+   - **Minimum viable version** — what is the smallest useful increment?
 
-   - What problem or opportunity is driving this?
-   - What does success look like — what's different when this is done?
-   - What's the rough scope — is this a focused change or a broad effort?
-   - Are there approaches you're already leaning toward or away from?
-   - What constraints or dependencies should shape the approach?
+   Follow ambiguity rather than forcing sequence. If the user says
+   something underspecified, contradictory, or assumption-heavy, pause
+   there and work it through before moving on.
 
-   **Refining an existing plan:**
+5. Synthesize the current state.
 
-   - What feels unresolved or underspecified in the current plan?
-   - Have any assumptions changed since this was written?
-   - Are there alternatives that weren't explored?
-   - What would need to be clearer before this could become a PRD?
+   At natural stopping points, produce a structured synthesis so the plan's
+   progression toward PRD readiness is visible.
 
-   These are starting points, not a checklist. Skip questions the user
-   has already answered. Add questions specific to what you found in the
-   codebase or prior work.
+   - **State** — where the plan sits on the progression:
+       - **fresh** — no `plan-*` document yet, shaping the idea
+       - **rough** — `plan-*` exists but has significant gaps or
+         unresolved direction
+       - **maturing** — scope known, open items are detail-design rather
+         than fundamentals
+       - **formalization-ready** — exploration stable, suitable input for
+         create-prd
+   - **Resolved** — what now seems settled
+   - **Open — masked design decisions** — choices implementation will
+     force that the plan does not yet acknowledge
+   - **Open — unvalidated assumptions** — claims the plan leans on that
+     have not been tested against code, prior work, or external sources
+   - **Open — scope boundaries** — where in-scope / out-of-scope is still
+     soft and could shift under pressure
+   - **Next** — continue exploring, update the `plan-*` document, or
+     propose moving to create-prd
 
-4. Step back.
-
-   After presenting context and initial framing, the conversation becomes
-   freeform. Follow the human's lead. The exploration may go in any
-   direction — that's the point. Contribute analysis, surface trade-offs,
-   and ask clarifying questions as the conversation develops, but don't
-   impose structure.
-
-   When the exploration has enough shape to write down, suggest creating
-   or updating a plan document. See the work-planning strategy for plan
-   document conventions and the discovery checklist for PRD-readiness
-   signals.
+   Empty categories are fine — say so explicitly rather than manufacturing
+   findings. If the state reads formalization-ready, suggest create-prd as
+   the next step; create-prd remains the authoritative readiness gate. If
+   earlier, name what would need to land for the plan to advance to the
+   next state.

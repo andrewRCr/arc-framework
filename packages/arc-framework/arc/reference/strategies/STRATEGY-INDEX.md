@@ -22,7 +22,7 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: working on config, extensions, or methods infrastructure
 - `arc/strategy-planning-module.md` **(arc-in-git)** - What arc-in-git installs, routing/graduation, scaling boundaries
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
-- `arc/strategy-file-classification.md` - File taxonomy, naming conventions, merge strategies, complete inventory
+- `arc/strategy-file-classification.md` - File taxonomy and naming conventions
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
 - `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
     - Consult when: creating PRDs, setting up discovery phases, planning work units

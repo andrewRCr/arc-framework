@@ -140,12 +140,15 @@ git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quart
 
 Update `.arc/active/WORK-STATUS.md` to reflect the post-archival state.
 
-**Archiving to base branch** (normal case — work unit complete):
+**Archiving to base branch** (normal case — work unit complete, on base branch or batch
+planning branch):
 
-Reset to "no active work" defaults:
+Reset to "no active work" defaults. Use the current branch — `git branch --show-current` —
+which is the base branch for direct archival, or the batch planning branch under full
+protection.
 
 ```markdown
-**Branch**: `main`
+**Branch**: `{current branch}`
 **Task List**: [none]
 **Following Task List**: No
 **Next Task**: —
