@@ -1,0 +1,87 @@
+# Notes: ARCd Rebrand
+
+**Purpose:** Execution-useful reference content extracted from `plan-arcd-rebrand.md` before the plan retires.
+Preserves context that didn't fit naturally into `prd-arcd-rebrand.md`'s spec shape but is valuable during task
+generation and execution. Intended lifespan: until the rebrand work unit is archived.
+
+---
+
+## Secured Namespaces
+
+Claimed during planning (2026-04-07). Factual reference for the npm publish and repo rename tasks.
+
+- `arcd.dev` — domain purchased
+- `@arcd` — npm org created
+- `arcd-framework` — GitHub org created (display name: ARCd)
+- GitHub `arcd` username — blocked by dormant account (created 2016, no visible activity); not pursued
+- X/Twitter — `@ARCdFramework` claimed (`@arcd` taken)
+- Bluesky — `@arcdframework.bsky.social` claimed (`@arcd` taken)
+
+## Deprecation Sequence (Ordered Walk)
+
+The PRD has the individual requirements (R3, R4, R5); this is the ordering narrative to prevent re-derivation
+during task generation.
+
+1. **Publish `@arcd/cli`** as the renamed package. Version per the open question in the PRD (lean: `v0.1.0`
+   to match the plan's "stay on the current v0.1.x line" intent). Smoke-test install from a clean machine
+   before proceeding.
+2. **Publish `@arc-framework/cli@0.1.1`** as a final deprecation-only release. README replaced with a pointer
+   at `@arcd/cli` and the renamed repository. `package.json` description carries a deprecation notice. The
+   source for this release is whatever commit on the rebrand branch has the deprecation README prepared —
+   does not need to be the same code as the first publish.
+3. **Apply `npm deprecate` wildcard** once the deprecation release is live:
+
+   ```text
+   npm deprecate "@arc-framework/cli@*" "Package renamed to @arcd/cli — see github.com/andrewRCr/ARCd-framework"
+   ```
+
+   The wildcard marks every published version (including historical `0.1.0`) as deprecated in the npm
+   registry, so any `npm install @arc-framework/cli` at any version emits the deprecation warning.
+4. **Leave the deprecated package in place indefinitely.** npm explicitly discourages unpublishing, and the
+   pre-public zero-adoption framing makes scrubbing unnecessary. No cleanup task, ever.
+
+## Self-Hosted Migration Rationale
+
+Why this repository's `.arc/` migration bypasses `arc update`'s three-way merge — context for task generation
+to prevent "should we add the migration anyway?" questions.
+
+**Zero adopters exist.** This repository is the only install of the framework anywhere. No other `.arc/`
+directory in the world needs to be migrated from the pre-rebrand schema to the post-rebrand schema. The
+hypothetical adopter served by a three-way merge migration path does not exist.
+
+**Three-way merge can't handle it cheaply.** The rebrand introduces simultaneous key-and-value renames
+(`pm.mode: arc-in-git` → `pm.layer: arc-pm`, plus `team.mode` → `team.enabled`, plus the config filename
+change from `arc-config.yml` to `ARCd-config.yml`). Teaching the existing three-way merge machinery to
+recognize these as a structured transition, rather than treating them as arbitrary line-level conflicts, is
+non-trivial implementation work. It would require a schema migration framework the current codebase doesn't
+have.
+
+**The self-migration can be done by hand in one commit.** Since only one install exists, a manual sync from
+the rebranded `packages/arcd/arc/` template source is fast, reviewable, and low-risk. Single atomic commit.
+No machinery to design, test, or maintain.
+
+**Retroactive addition is possible if needed later.** If real adopters ever land on the pre-rebrand package
+version and want to upgrade, a migration can be written retroactively. The manifest schema version is
+bumped in this work unit so the pathway exists if needed. Until someone shows up needing it, the feature
+is YAGNI.
+
+## Three-Tier Naming: Repo Name Variants Rejected
+
+The PRD non-goals list rejects `ARCdFramework` and `arcd-framework` without the reasoning. Captured here in
+case the content sweep hits a tool or reviewer wanting to "normalize" the case.
+
+- **`ARCdFramework` (camelcase)** — rejected. Camelcase blurs the `ARCd` + `framework` boundary into one
+  compound word that reads as "ARCDf Ramework" on first parse. Hyphenation is GitHub-conventional and
+  preserves the visual product-name boundary.
+- **`arcd-framework` (lowercase)** — rejected. Drops the brand capitalization from the URL itself. For a
+  domain this matters less (URLs with domains rarely propagate as prose), but for a repo name it matters
+  more: repo names propagate to diff stats, cross-repo link text, GitHub page titles, and casual prose
+  references where capitalization cues meaning.
+- **`ARCd-framework` (chosen)** — keeps brand capitalization without breaking readability. The inner
+  `framework` doing real disambiguation work because bare `ARCd` doesn't yet have enough standalone brand
+  strength to carry bare-word contexts unaided.
+
+The repo is project-tier per the three-tier model, which is why the `-framework` suffix is present at all.
+`arcd.dev` and `@arcd/cli` live in containered contexts (a TLD, a scope prefix) that supply semantic lift;
+a bare `ARCd` works there. Repo names live in bare-word contexts (diff stats, cross-repo links), where the
+short brand doesn't yet have enough strength on its own — so the project-tier form wins.

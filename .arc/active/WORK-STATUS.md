@@ -16,40 +16,46 @@
 **Branch**: `technical/plan-arcd-rebrand`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Second `plan-arcd-rebrand.md` iteration — docs-site dimension
-resolved.** § 11 moves from "evaluation pending pre-PRD" to decided state with full
-architectural capture: Astro Starlight as SSG (over heavily-customized mkdocs-material);
-Cloudflare Pages hosting with direct Git integration (monorepo support, Wrangler fallback);
-`arcd.dev` / `docs.arcd.dev` subdomain split (cleaner than path-based routing);
-`apps/landing/` and `apps/docs/` monorepo structure as npm workspaces alongside the existing
-`packages/arc-framework/`; minimal-polish landing page scope with time-boxed visual spike;
-Starlight theming estimate (50–150 lines CSS); content migration audit (5 admonitions across
-5 files, no mermaid/content tabs/snippets/Jinja — clean surface, `docs/` confirmed as single
-source of truth); glightbox drop-by-default at impl time. Timing section resolves to the
-planned two-WU split with concrete scope for each WU.
+**Last Completed**: **Both PRDs drafted, notes file extracted, plan doc retired.**
+Single atomic planning commit: `prd-arcd-rebrand.md` (critical-path rename — package/CLI,
+config seam, pm.mode/team.mode schema renames, CLI command cleanup, unified content
+sweep, npm deprecation, repo rename, self-hosted migration) + `prd-arcd-docs-site.md`
+(follow-up — `apps/` monorepo scaffold, Starlight docs site, bare-Astro landing page,
+Remedy theme ported from `arc-portfolio`, CF Pages with Wrangler fallback, DNS cutover,
+lightbox, old mkdocs toolchain retirement) + `notes-arcd-rebrand.md` (secured namespaces,
+deprecation sequence walk, self-migration rationale, repo name variant rationale) +
+`git rm plan-arcd-rebrand.md`. PRD 1 Success Criteria excepts `docs/**` from sweep
+(handled inline in PRD 2 content port, avoiding double-work on files scheduled for
+deletion). Both PRDs lint-clean.
 
-Earlier on this branch: first plan-arcd-rebrand iteration (`1a0d3d9` — three-tier naming,
-Resolved Decisions, npm deprecation, self-migration, docs-site dimension placeholder); mkdocs
-strict-mode CI fix (`0d6551a`, atomic); planning branch activation from `main`.
-
-All pre-PRD decisions now resolved. Plan doc is watertight and ready to drive PRD creation.
+Discovery pass surfaced concrete decisions beyond the plan: package dir →
+`packages/arcd/`; deprecation release = `@arc-framework/cli@0.1.1`; four mandatory
+session-boundary stops (repo rename, `@arcd/cli` publish, deprecation publish,
+self-migration); manifest schema version bump with no migration function (zero-adoption
+YAGNI); six sweep discipline guardrails A–F (common-noun framework vs brand; ARC
+session/workspace/project stay ARC; ARCd install vs ARC install context-sensitive; CLI
+chrome ARCd vs methodology-teaching ARC; AGENT-BRIEFING content drift; hook messages
+tier-split). For the docs-site follow-up: `docs/` artifact disposition mapped file-by-file
+(README banners → `/assets/`, demos → `/demos/`, frame-screenshot → `/scripts/`, logos
+duplicated into both `apps/*/src/assets/`); Remedy palette adaptation strategy mapping to
+Starlight `--sl-color-*` surface; SSL-before-records DNS cutover; no-zero-downtime
+keep-alive guarantee; CF Web Analytics enabled.
 
 **Blockers**: [none]
 
-**Next Action**: **Invoke `1_create-prd.md` for both PRDs in parallel.** Per
-`strategy-work-planning.md`'s one-plan-to-multiple-PRDs pattern: `plan-arcd-rebrand.md`
-feeds two PRDs. First PRD: `prd-arcd-rebrand` (critical-path core rename). Second PRD:
-`prd-arcd-docs-site` (sequenced immediately after WU 1; Starlight migration, landing page,
-CF Pages deploy). Both authored in parallel on this planning branch. Plan-doc retirement
-(§ Step 5 of create-prd) distributes reference content across `notes-arcd-rebrand.md` and/or
-`notes-arcd-docs-site.md` as appropriate, then deletes the plan doc as part of the PRD
-commits.
+**Next Action**: **Review PRDs, then activate the rebrand WU.** Both PRDs stand ready
+in `.arc/backlog/technical/`. Per `1_create-prd.md` § Step 5 ("Stop here — do not
+proceed to task generation. The PRD should be reviewed first."), the next step is
+reviewer pass on both PRDs. After review, sequence: invoke `activate-work-unit.md` for
+`prd-arcd-rebrand.md` first (critical-path), then `2_generate-tasks.md` to populate the
+task list. The `prd-arcd-docs-site` PRD stays in backlog until the rebrand WU completes;
+it activates only after the rebrand lands and post-rebrand namespace is stable.
 
-Session boundary deferred to next session per mode-transition rationale (planning discussion
-→ structured PRD writing is a natural context-quality boundary). Next session: session-init
-loads plan doc in decided state, then proceed directly to PRD creation without further
-pre-PRD activity.
+Planning phase of the rebrand WU is complete. Next session: fresh session boundary,
+session-init loads both PRDs + notes file (plan is gone), then proceeds to PRD review
+and activation.
 
 ---
 
-**Last Updated**: 2026-04-14 (docs-site decisions resolved; next session starts PRD creation)
+**Last Updated**: 2026-04-14 (both PRDs drafted, plan retired; awaiting PRD review then
+rebrand WU activation)
