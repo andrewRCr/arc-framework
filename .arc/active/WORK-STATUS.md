@@ -43,19 +43,32 @@ keep-alive guarantee; CF Web Analytics enabled.
 
 **Blockers**: [none]
 
-**Next Action**: **Review PRDs, then activate the rebrand WU.** Both PRDs stand ready
-in `.arc/backlog/technical/`. Per `1_create-prd.md` § Step 5 ("Stop here — do not
-proceed to task generation. The PRD should be reviewed first."), the next step is
-reviewer pass on both PRDs. After review, sequence: invoke `activate-work-unit.md` for
-`prd-arcd-rebrand.md` first (critical-path), then `2_generate-tasks.md` to populate the
-task list. The `prd-arcd-docs-site` PRD stays in backlog until the rebrand WU completes;
-it activates only after the rebrand lands and post-rebrand namespace is stable.
+**Next Action**: **Generate tasks for `prd-arcd-rebrand` (this planning branch),
+integrate, then activate in a new session from base.** Both PRDs were reviewed and
+approved in this session. Under `branch.protection: full` the correct sequence is:
 
-Planning phase of the rebrand WU is complete. Next session: fresh session boundary,
-session-init loads both PRDs + notes file (plan is gone), then proceeds to PRD review
-and activation.
+1. **This planning branch:** invoke `2_generate-tasks.md` for `prd-arcd-rebrand` only
+   — docs-site PRD is pending-dependencies and its task list waits until post-rebrand
+   reality is knowable (separate later planning cycle). Task list saves to
+   `.arc/backlog/technical/tasks-arcd-rebrand.md` alongside the existing PRD and notes;
+   create empty `atomic-arcd-rebrand.md` companion at the same time.
+2. **This planning branch:** invoke `integrate-planning-branch.md` — push, create PR,
+   merge to main (planning PR includes both PRDs, notes file, rebrand task list).
+3. **Session boundary** after integration per `integrate-planning-branch.md` § Step 5
+   (WORK-STATUS on base will be stale after merge; SESSION-NOTES carries forward state).
+4. **New session from base:** invoke `activate-work-unit.md` for `prd-arcd-rebrand` —
+   creates feature branch, moves PRD + tasks + notes from `backlog/` to `active/`,
+   updates tracking.
+5. **Execute rebrand WU** via `3_process-task-loop.md` on the feature branch.
+
+The `prd-arcd-docs-site` PRD stays in backlog throughout rebrand execution. After the
+rebrand integrates to main, a separate planning cycle generates its task list against
+post-rebrand reality.
+
+Planning phase of the rebrand WU is complete. Next session proceeds directly to task
+generation for the rebrand PRD — no further PRD work or review gate before that step.
 
 ---
 
-**Last Updated**: 2026-04-14 (both PRDs drafted, plan retired; awaiting PRD review then
-rebrand WU activation)
+**Last Updated**: 2026-04-14 (both PRDs drafted and approved, plan retired; next action
+is task generation for rebrand PRD on this planning branch)

@@ -1,8 +1,17 @@
 # Notes: ARCd Rebrand
 
-**Purpose:** Execution-useful reference content extracted from `plan-arcd-rebrand.md` before the plan retires.
-Preserves context that didn't fit naturally into `prd-arcd-rebrand.md`'s spec shape but is valuable during task
-generation and execution. Intended lifespan: until the rebrand work unit is archived.
+**Purpose:** Two-fold.
+
+1. **Reference material.** Execution-useful content extracted from `plan-arcd-rebrand.md` before the plan
+   retired — preserves context that didn't fit naturally into `prd-arcd-rebrand.md`'s spec shape but is
+   valuable during task generation and execution.
+2. **Scratch space.** Durable capture surface for implementation observations, open questions, in-flight
+   decision notes, and working context discovered during the rebrand WU's execution that doesn't belong in
+   task completion notes or the PRD itself. Use freely during implementation — the notes file is the right
+   home for "I noticed X while working on task Y" content that would otherwise bloat task descriptions or
+   session notes.
+
+**Intended lifespan:** Until the rebrand work unit is archived.
 
 ---
 
