@@ -13,35 +13,38 @@
 
 ## Active Work
 
-**Branch**: `technical/plan-operating-modes`
+**Branch**: `technical/plan-arcd-rebrand`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Phase C re-sequenced in `ROADMAP.md` and `PROJECT-STATUS.md`.** Inserted
-ARCd Rebrand and Expanded Planning Path as new WU entries between Methodology Maturation and
-Operating Modes; updated Methodology Maturation's Downstream pointer; rewrote the Operating
-Modes entry with new upstreams, shift-lifecycle framing, and a pre-approved foundation →
-Lite+Local split fallback (Lite-vs-Local split explicitly rejected per plan-doc design). Extended
-the dependency diagram with two new nodes. `PROJECT-STATUS.md` Next Priority block now reflects
-the three-step queue.
+**Last Completed**: **`plan-arcd-rebrand.md` iteration on the rebrand planning branch.**
+Expanded the plan doc with three-tier naming rationale (ARC methodology / ARCd implementation
+/ ARCd Framework project-as-a-whole) anchoring the repo-name decision
+(`andrewRCr/ARCd-framework`); full npm deprecation sequence with pre-public zero-adoption
+framing; repo rename with private-repo blast-radius and session-boundary execution protocol;
+self-hosted `.arc/` migration approach bypassing `arc update`'s three-way merge; and a
+docs-site dimension placeholder covering custom-domain migration, landing page, SSG evaluation,
+and feature enhancements. Open Questions section replaced with Resolved Decisions (license
+Apache 2.0 already in-repo, repo name settled, relationship explanation reframed as PRD-phase
+content deliverable). Scope estimate bumped from small-to-medium to medium at minimum pending
+docs-site SSG evaluation outcome.
 
-Driven by an explicit park decision on the Operating Modes plan doc. `plan-arc-modes.md` passes
-the `strategy-work-planning.md` § PRD Readiness checklist cleanly — problem clear, alternatives
-explored, unknowns identified, scope bounded, dependencies named. Two residual items flagged as
-PRD-phase concerns rather than parking blockers: (a) Lite + `pm.layer: external` interaction,
-(b) pre-PRD Local-axis content-sweep audit (item 57 in Consolidated Deliverables Inventory) —
-agreed to defer both to impl-time, with the Local-axis audit absorbed into the impl-phase content
-audit activity rather than a pre-PRD gate.
+Earlier on this branch: mkdocs strict-mode CI fix (`0d6551a`, atomic) + planning branch
+activation from `main`.
+
+Driven by the planning-branch iteration objective: iterate until watertight before invoking
+`1_create-prd.md`. One residual pre-PRD item queued — docs-site SSG evaluation on this branch.
 
 **Blockers**: [none]
 
-**Next Action**: **Integrate this planning branch** via
-`work-unit-lifecycle/planning/integrate-planning-branch.md` — PR + merge `technical/plan-operating-modes`
-to `main`, delete branch. Brings the ~5-week `plan-arc-modes.md` refinement stream plus this
-re-sequencing commit to `main`. After integration, session-boundary per § Step 5: run
-session-handoff if activation doesn't immediately follow. Next session (on `main`):
-`activate-planning-branch` for ARCd Rebrand (`technical/plan-arcd-rebrand`), then PRD authoring
-from `plan-arcd-rebrand.md`.
+**Next Action**: **Execute docs-site SSG evaluation** as the final pre-PRD activity on this
+planning branch. Evaluate alternatives to mkdocs-material — candidates include mintlify,
+astro/starlight, docusaurus, and other well-maintained options. Output: decision on whether
+to migrate away from mkdocs-material or stay, with concrete rationale. The evaluation outcome
+gates the WU-split decision (stay on mkdocs-material → single WU, migrate to another SSG →
+planned two-WU split per `strategy-work-planning.md`'s one-plan-to-multiple-PRDs pattern).
+After evaluation completes: invoke `1_create-prd.md` (possibly twice, depending on split
+decision).
 
 ---
 
-**Last Updated**: 2026-04-14 (Phase C re-sequenced; ready to integrate planning branch)
+**Last Updated**: 2026-04-14 (plan doc iteration landed on rebrand branch; SSG evaluation next)

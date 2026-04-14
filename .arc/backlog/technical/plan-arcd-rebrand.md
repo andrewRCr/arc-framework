@@ -4,10 +4,12 @@
 and day-to-day workflow vocabulary where that remains the clearest fit. This document captures the
 problem, alternatives considered, the chosen naming boundary, and the implementation scope.
 
-**Status:** Draft (direction settled; scope expanded 2026-04-09 and again 2026-04-11 to absorb
-related config cleanup from Operating Modes WU)
+**Status:** Draft (direction settled; scope expanded 2026-04-09, 2026-04-11, and 2026-04-14
+to absorb related config cleanup from Operating Modes WU, capture three-tier naming rationale,
+resolve decisions previously flagged as open, and add npm deprecation, self-migration, and
+docs-site dimensions)
 **Created:** 2026-04-07
-**Last reviewed:** 2026-04-11
+**Last reviewed:** 2026-04-14
 **Origin:** Adding docs site links to shipped `.arc/` documents exposed a branding problem: the
 ideal domain (`arc.dev`) and obvious alternatives (`arcframework.dev`) are unavailable or occupied
 by adjacent software/AI projects. That forced a re-examination of whether "ARC Framework" can work
@@ -203,7 +205,7 @@ branding everywhere.
 
 **ARCd** is the public product and reference implementation brand.
 
-- The docs site, domain, package, org/repo branding, and public recommendation surface
+- The docs site, domain, package, and public branding surfaces
 - The install/update entry points
 - The implementation identity that should be memorable and searchable in the wider world
 
@@ -212,6 +214,42 @@ surface semantics:
 
 - **Methodology/workflow surface** → ARC
 - **Implementation/public product surface** → ARCd
+
+A third tier — **ARCd Framework** — covers project-as-a-whole surfaces (the repository, public
+prose references to the whole project). See § Project-as-a-whole: ARCd Framework below.
+
+### Project-as-a-whole: ARCd Framework
+
+A third tier sits above ARC and ARCd when referring to the *whole project* — methodology,
+implementation, docs, reference material, and everything in this repository taken together.
+That tier uses **ARCd Framework** (or `ARCd-framework` in typographic contexts).
+
+The three tiers resolve cleanly by asking what each surface represents:
+
+- **Methodology** → ARC — principles, workflow vocabulary, daily practice
+- **Implementation** → ARCd / `arcd` — CLI binary, package, public domain, anything that runs
+  or installs
+- **Project-as-a-whole** → ARCd Framework / `ARCd-framework` — containers that hold both
+  methodology and implementation
+
+**The repo is project-tier, not implementation-tier.** It contains `.arc/` (methodology),
+`packages/arc-framework/` (implementation), ADRs, strategies, and the roadmap — the full
+project surface, not just the implementation. `arcd.dev` and `@arcd/cli` can use the short
+brand because they live in *containered* contexts (a TLD, a scope prefix) that supply
+semantic lift. Repo names propagate to bare-word contexts (diff stats, cross-repo links,
+page titles) where that lift isn't there, and bare `ARCd` doesn't yet have enough standalone
+brand strength to carry those contexts unaided. The extra `-framework` does real
+disambiguation work without undermining the short-brand surfaces.
+
+**Why not `ARCdFramework` (camelcase) or `arcd-framework` (lowercase)?** Hyphenation is
+GitHub-conventional and preserves the visual product-name boundary (`ARCd` + `framework`),
+whereas camelcase blurs it into one compound word that reads as "ARCDf Ramework" on first
+parse. Lowercase `arcd-framework` drops the brand capitalization from the URL itself, which
+matters more for a repo name than for a domain because URLs with repo names propagate to
+prose references where capitalization cues meaning. `ARCd-framework` keeps brand
+capitalization without breaking readability.
+
+See Usage Conventions below for the at-a-glance summary of what goes where.
 
 ### What stays ARC
 
@@ -228,14 +266,16 @@ These remain ARC because they read naturally as methodology or workflow vocabula
 
 ### What becomes ARCd
 
-These become ARCd because they are public product or implementation identity surfaces:
+These become ARCd because they are implementation or public product identity surfaces:
 
 - **Domain:** `arcd.dev`
 - **npm scope and package:** `@arcd/cli`
 - **CLI binary:** `arcd`
-- **GitHub org / public branding:** ARCd
 - **Docs site / README / release language:** ARCd
 - **Project configuration file:** `ARCd-config.yml`
+
+(The GitHub repository name is project-tier, not implementation-tier — see § Project-as-a-whole
+above.)
 
 ### Why config is ARCd while methods/extensions remain ARC
 
@@ -270,17 +310,33 @@ Rationale:
 
 ## Usage Conventions
 
-- **Domain, npm, CLI, GitHub, docs brand:** ARCd / `arcd` — public product identity
+**Methodology tier (ARC):**
+
 - **Methodology prose and principles:** ARC — most natural conceptual language
 - **Daily workflow skills:** `arc-*` — "do this the ARC way" reads cleanly
 - **Installed workspace directory:** `.arc/` — ARC workspace model remains intact
-- **Project configuration:** `ARCd-config.yml` — explicit implementation seam
 - **Workflow customization:** `arc-methods.md`, `arc-extensions.md` — ARC behavioral model, not
   product veneer
 
-**Editorial rule:** When referring to the public project, site, package, CLI, or implementation,
-use ARCd / `arcd`. When referring to the methodology, principles, workflow, or daily practice, use
-ARC. Do not force one name into contexts where the other reads more naturally.
+**Implementation tier (ARCd / `arcd`):**
+
+- **Domain:** `arcd.dev`
+- **npm scope and package:** `@arcd/cli`
+- **CLI binary:** `arcd`
+- **Docs-site and README branding:** ARCd
+- **Project configuration file:** `ARCd-config.yml` — explicit implementation seam
+
+**Project-as-a-whole tier (ARCd Framework / `ARCd-framework`):**
+
+- **GitHub repository:** `andrewRCr/ARCd-framework`
+- **Public prose references to the whole project:** "ARCd Framework" (when the phrase names
+  the containing thing — methodology + implementation together — rather than the brand)
+
+**Editorial rule:** Three tiers. Use **ARC** when referring to the methodology, principles,
+workflow, or daily practice. Use **ARCd** when referring to the CLI, package, domain, or
+anything that runs or installs. Use **ARCd Framework** when referring to the whole project as
+a containing thing. Do not force one tier's form into contexts where another reads more
+naturally.
 
 ---
 
@@ -339,6 +395,10 @@ Claimed during planning (2026-04-07):
 1. **CLI package rename**
     - `@arc-framework/cli` → `@arcd/cli`
     - Binary name `arc` → `arcd`
+    - **Version:** stay on the current v0.1.x line under the new name; no increment on the
+      rename itself. Version continuity from the deprecated package is not meaningful (zero
+      adoption, internal dev moment), and preserving the v0.2.x jump for the Operating Modes
+      WU's post-rebrand completion gives that work a cleaner version boundary
 
 2. **Docs site and public brand**
     - Configure `arcd.dev`
@@ -346,11 +406,37 @@ Claimed during planning (2026-04-07):
     - Explain the relationship between ARCd and ARC clearly in onboarding/getting-started
 
 3. **Repository / org / links**
-    - Rename repo and update links as needed
-    - Use ARCd consistently as the public-facing name
+    - Rename `andrewRCr/arc-framework` → `andrewRCr/ARCd-framework` on GitHub
+    - Update hardcoded repository URLs in docs, scripts, README, and framework files
+      referencing the old name
+    - Verify CI continues to run post-rename; verify GitHub Pages custom-domain wiring (see
+      § 11 docs-site dimension)
+    - **Blast radius is small.** Repo is private with no contributors — no external git
+      remotes to update outside this developer's local clone, no contributor-facing
+      communication, no broken links in third-party documentation
+    - **Session-boundary execution.** The GitHub rename cannot be performed mid-session —
+      the local working tree's origin URL becomes stale the moment the rename happens on
+      GitHub, and in-flight operations break. The task list must mark the rename as an
+      explicit mandatory stop: complete pre-rename code/doc work → merge PR → session
+      handoff → manual GitHub UI rename → new session resumes with `git remote set-url
+      origin`, stale reference cleanup, CI verification, and Pages wiring verification
+    - Use ARCd consistently as the public-facing name across renamed surfaces
 
-4. **npm transition**
-    - If `@arc-framework/cli` has published versions, deprecate cleanly toward `@arcd/cli`
+4. **npm transition and deprecation**
+    - `@arc-framework/cli` has a published v0.1.0 (pre-public internal dev — zero adoption
+      assumed). npm's 72-hour unpublish window has long since passed, so deprecation plus a
+      redirect release is the only hygienic path
+    - **Deprecation sequence:**
+        1. Publish `@arcd/cli` as the renamed package (version per § 1 above)
+        2. Publish one final `@arc-framework/cli` version whose README points at `@arcd/cli`
+           and whose `package.json` description carries a deprecation notice
+        3. Run `npm deprecate "@arc-framework/cli@*" "Package renamed to @arcd/cli — see
+           github.com/andrewRCr/ARCd-framework"`
+        4. Leave the deprecated package in place indefinitely. npm explicitly discourages
+           unpublishing, and the pre-public zero-adoption framing makes scrubbing unnecessary
+    - **Scope framing.** The old package is pre-public internal dev. No adopter communication,
+      no changelog, no release notes — the deprecation path is pure hygiene for any stray
+      stumbler, not a managed migration
 
 ### Installed-system naming changes
 
@@ -430,33 +516,94 @@ Claimed during planning (2026-04-07):
     - Update docs so public/product references say ARCd where appropriate
     - Keep methodology/workflow references as ARC where that reads more naturally
     - Remove wording that implies an accidental or inconsistent split
+    - Apply three-tier naming (ARC / ARCd / ARCd Framework) consistently — see § Naming
+      Architecture for the tier rules
     - **Absorbed from Operating Modes WU:** sweep all existing references to `arc-in-git`,
       `(arc-in-git only)`, and similar notations, replacing with `arc-pm` / `(arc-pm only)` as
-      appropriate. Single editorial pass covering ARCd/ARC language AND pm.mode references.
+      appropriate. Single editorial pass covering ARCd/ARC/ARCd-Framework language AND
+      pm.mode references.
+
+### Migration strategy
+
+10. **Self-hosted `.arc/` migration**
+    - **Context.** This repository is the only existing ARCd installation (self-hosting
+      during framework development). No other installs exist anywhere.
+    - **Approach: manual one-time sync from package source.** After the package source
+      rename lands (`packages/arc-framework/arc/` → `packages/arcd-framework/arc/` or
+      equivalent path, fully rebranded), sync the installed `.arc/` directly from the
+      package source as a one-time operation. Do not route the self-migration through
+      `arc update`'s three-way merge.
+    - **Why bypass three-way merge.** The three-way merge machinery in `arc update` would
+      need to learn simultaneous key-and-value renames (`pm.mode: arc-in-git` →
+      `pm.layer: arc-pm`) to handle this transition. Teaching it is out of scope for this
+      WU — the only installation is self-hosted and can be migrated by hand. The three-way
+      merge enhancement is a separately scheduled improvement if and when real adopters
+      need an upgrade path
+    - **Explicit no-upgrade-path position.** First post-rebrand adopters install fresh from
+      `@arcd/cli`. There is no supported upgrade from `@arc-framework/cli` v0.1.x. Given
+      zero adoption of the deprecated package this is costless and avoids polluting the
+      rebrand WU with migration machinery that nothing real would use
+
+### Docs site dimension (evaluation pending pre-PRD)
+
+11. **Custom-domain migration, landing page, SSG evaluation, and feature enhancements**
+    - **Custom-domain migration** (non-negotiable). `arcd.dev` → GitHub Pages CNAME wiring,
+      docs-site `site_url` update, any absolute-URL references in content swept. Currently
+      the docs site publishes to a GitHub Pages URL; migration to the purchased custom
+      domain is overdue
+    - **Landing page** (non-negotiable). Polished but simple, distinct from the docs index.
+      `arcd.dev/` lands on a product page that introduces ARCd Framework and routes
+      visitors to docs, repo, and getting-started. `arcd.dev/docs/` (or equivalent path)
+      houses the existing docs content
+    - **SSG evaluation** (to resolve on this planning branch, pre-PRD). Evaluate
+      alternatives to mkdocs-material — candidates include mintlify, astro/starlight,
+      docusaurus, and any other well-maintained options that surface during research.
+      Output: a decision on whether to migrate away from mkdocs-material or stay, with
+      concrete rationale
+    - **Feature enhancements** (depends on SSG outcome). Whatever the chosen SSG supports
+      and serves the docs — search improvements, versioned docs, social cards, analytics,
+      redirects, etc. Scope: "evaluate available features on the chosen SSG and land
+      meaningful improvements" as a bounded task, not an open-ended shopping list
+    - **Open WU-shape question.** Whether this dimension fits inside one WU with the core
+      rename or warrants a separate `prd-arcd-docs-site.md` sequenced immediately after
+      depends on the SSG evaluation outcome. If we stay on mkdocs-material the docs-site
+      work is small enough to fit in one WU. If we migrate to another SSG the scope grows
+      enough to warrant a planned split — one plan → two PRDs → two WUs per
+      `strategy-work-planning.md`. Decision deferred until the evaluation completes
 
 ---
 
-## Open Questions
+## Resolved Decisions
 
-These do not block the naming direction, but should be resolved before implementation:
+These were Open Questions in earlier drafts; all are now decided (2026-04-14).
 
-1. **License decision**
-    - Formalize the license for the open-source implementation (MIT vs Apache 2.0)
+1. **License: Apache 2.0.** Already adopted in-repo (`/LICENSE`) — predates this plan doc.
+   The open question was stale; no action needed beyond removing it from this document.
 
-2. **Repository naming**
-    - Final public repo shape under the org/personal namespace
+2. **Repository name: `andrewRCr/ARCd-framework`.** Stays under the personal profile (no
+   migration to the `arcd-framework` GitHub org, which was created for brand protection but
+   is not hosting the repo). The name is project-tier per § Naming Architecture →
+   Project-as-a-whole — `ARCd-framework` over bare `ARCd` because repo names propagate to
+   bare-word contexts where the short brand doesn't yet have enough standalone strength, and
+   the hyphenated form is more readable than `ARCdFramework` while preserving the brand
+   capitalization that `arcd-framework` would drop.
 
-3. **Public explanation wording**
-    - Finalize the one-sentence relationship explanation for homepage, README, and onboarding
+3. **Relationship explanation: canonical wording + surface-adapted variants.** Not strictly
+   a single sentence — the concept needs to appear on the docs-site landing page, README
+   hero, getting-started, FAQ, and `the-framework.md`, each with different constraints.
+   PRD-phase content deliverable: author the canonical wording once (probably rooted on the
+   docs-site landing page under § 11), then adapt for each target surface. Treat as authoring
+   work, not a blocking open question.
 
 ---
 
 ## Timing
 
-**After Methodology Maturation, before Operating Modes / public release.**
+**After Methodology Maturation (✓ complete), before Operating Modes / public release.**
 
-The current work unit is actively editing many of the same docs and framework surfaces the rebrand
-would touch. Complete that work first, then execute the rename on a cleaner baseline.
+Methodology Maturation shipped via PR #16 (2026-04-14). The rebrand is the immediate next
+WU on the roadmap, sequenced ahead of Expanded Planning Path and Operating Modes so the
+namespace and config-seam work lands before downstream work units touch the same files.
 
 This is best done before public release:
 
@@ -464,6 +611,17 @@ This is best done before public release:
 - Cleaner public launch story
 - Fewer downstream docs and compatibility burdens
 
-**Estimated scope:** Small-to-medium work unit. The split architecture avoids a full lower-case
-`arcd` rename of the installed methodology substrate while still requiring a meaningful public
-rebrand and a bounded internal config-seam migration.
+**Estimated scope:** Medium work unit at minimum, with potential to grow depending on the
+pre-PRD docs-site SSG evaluation outcome.
+
+- **Core rebrand (§§ 1–10)** is bounded and medium-sized: public-facing renames, config-seam
+  migration, pm.mode/team.mode schema renames, CLI command surface cleanup, unified content
+  sweep, npm deprecation, repo rename with session-boundary handling, and self-hosted
+  one-time migration.
+- **Docs site dimension (§ 11)** sizing depends on the SSG decision. Staying on
+  mkdocs-material keeps this WU in medium territory and suggests a single WU. Migrating to
+  a different SSG grows scope enough to warrant splitting into a planned follow-up WU
+  (`prd-arcd-docs-site.md`) sequenced immediately after the core rebrand.
+
+Final sizing and WU-split decision resolve after the docs-site SSG evaluation completes on
+this planning branch, pre-PRD.
