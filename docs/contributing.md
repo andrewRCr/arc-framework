@@ -157,8 +157,8 @@ which is gitignored and invisible to upstream.
 The contributor briefing (`.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`) is loaded
 automatically when you join as a contributor. It documents the layout, the framework read
 contract (which paths ARC loads from your workspace), and the mirror-structure recommendation
-for organizing beyond the read contract. The
-[personal workspace README](../.arc/user/README.md) covers the same concepts for human reference.
+for organizing beyond the read contract. The personal workspace README
+(`.arc/user/README.md`) covers the same concepts for human reference.
 
 This is optional. Most contributions are small enough that no personal planning is needed —
 open an issue, write the code, submit the PR, done. Personal planning exists for the cases
