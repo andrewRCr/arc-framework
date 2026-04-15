@@ -15,36 +15,41 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 1.2 — `strategy-session-operations.md` update WORK-STATUS references (line ~97)
-**Last Completed**: Task 1.1 — ADR-007 Tier 2 Amendment. Appended a new
-`**Amendment (2026-04-15):** ...` block to the existing `### Amendments`
-subsection inside `## Consequences` of
-`adr-007-design-session-state-portability-and-team-transfer.md`, directly
-below the 2026-03-05 "Current Task → Next Task" amendment (H3 format,
-matching existing ADR-007/ADR-012 precedent per `strategy-adr-methodology.md`
-Tier 2 convention). Amendment documents the project-pointer/session-state
-conflation that neither ADR-007 nor ADR-012 named explicitly — ADR-012
-refined Parts 1–3 for the unified `user/{identity}/` model but preserved
-the singular `active/WORK-STATUS.md` path; this amendment records the
-per-WU restructure as the refinement. Decision / Context / Consequences
-prose unchanged. ADR-007 is `.arc/`-only (no package sync).
+**Next Task**: Task 2.1 — Write Persistent Context entry to SESSION-NOTES (line ~300)
+**Last Completed**: Phase 1 complete. Tasks 1.2–1.7 landed the foundation
+docs and machinery for the per-WU status file model: `strategy-session-operations.md`
+T2 State bullet (1.2); `strategy-team-coordination.md` shipping-clean
+full-file rewrite including § Session State Merge Behavior retirement and
+§ Concurrent Sessions two-axis rewrite (1.3); `strategy-work-organization.md`
+shipping-clean full-file sweep (1.4); `DEV-RULES.ARC.md` reference updates
+across § Commit Discipline, § Session state control, § Documentation
+Boundaries, and § When to Load Additional Guidance (1.5); `arc-methods.md`
+§ session-state.default per option (b) — path + explicit `**State:**` +
+template pointer, no 7-field enumeration (1.6); root `.gitattributes`
+`merge=ours` rule retirement plus pre-commit hook CHECK 10 rewrite with
+sibling-derivation logic and a pre-activation guard (1.7). Task 1.8 Tier 2
+gates: markdown lint 0/176 errors, shell lint clean, 6-file sync verified
+via `diff -q`, integration suite 104/104. Phase 1 was widened mid-batch
+after discovering 16 unscoped WORK-STATUS references in
+`strategy-team-coordination.md`, 7 more in `strategy-work-organization.md`,
+and `.gitattributes`/pre-commit hook machinery pointing at the retired
+path — user approved the expansion. Design decisions (`merge=ours`
+retirement vs. repath, CHECK 10 rewrite vs. retire, YAGNI on opt-in
+documentation) recorded in `notes-work-status-restructure.md` § Consequences
+surfaced during execution.
 
 **Blockers**: [none]
 
-**Next Action**: Execute Phase 1 Task 1.2 (`strategy-session-operations.md`
-— update WORK-STATUS references). Edit scope is narrow: the only
-WORK-STATUS reference in the file is the T2 State bullet near line 50
-(`- WORK-STATUS.md (branch, task list, next task, blockers)`). Update it
-to describe the per-WU status file pattern. Leave the
-`### Session State Portability` section unchanged (covers `user/{identity}/`
-and git notes, not WORK-STATUS). **Open question to resolve before
-editing:** whether this strategy doc owns Full/Lite mode variance prose
-or defers it to Task 1.5 (`arc-methods.md`) and Phase 2 workflow edits
-— default interpretation in the task bullets is mode-agnostic here,
-defer to 1.5. Framework file — edit package source first, then sync to
-`.arc/`; `framework-sync.test.ts` will catch any missed mirroring.
+**Next Action**: Execute Phase 2 Task 2.1 — write the Persistent Context
+entry to `.arc/user/andrew/SESSION-NOTES.md` § Persistent Context warning
+future sessions to trust the old-path `.arc/active/WORK-STATUS.md` live
+state over Phase 2 workflow edit instructions until the Phase 3 cutover
+commit lands. Entry text is specified verbatim in the task bullet — not a
+design decision. Must be committed before Task 2.2 begins so the guard is
+in place when workflow edits start describing the new model.
 
 ---
 
-**Last Updated**: 2026-04-15 (Task 1.1 ADR-007 amendment complete; Task 1.2
-is next — open question on Full/Lite mode variance scope)
+**Last Updated**: 2026-04-15 (Phase 1 complete — foundation docs and
+machinery for the per-WU status file model; Tasks 1.2–1.7 batched with
+scope expansion mid-execution; Task 1.8 Tier 2 gates clean)

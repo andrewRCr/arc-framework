@@ -65,12 +65,33 @@ Phase 2 reference established guidance.
 **Classification and sync discipline:** Task 1.1 edits ADR-007, which is `.arc/`-scoped
 — ADR files have no package counterpart per `strategy-package-project-sync.md` § File
 Inventory (the inventory lists only `reference/adr/README.md` as Framework; individual
-ADRs are project-owned historical record). Tasks 1.2–1.5 edit Framework and Configurable
-files — edit package source first, then sync to `.arc/`. Task 1.6 runs the
-framework-sync integration test to enforce the sync claim for 1.2–1.5.
+ADRs are project-owned historical record). Tasks 1.2–1.6 edit Framework and Configurable
+files — edit package source first, then sync to `.arc/`. Task 1.7 edits machinery:
+root `.gitattributes` (project-owned, no package source) and the pre-commit hook
+(Framework file, dual-copy). Task 1.8 runs the framework-sync integration test to
+enforce the sync claim for Framework/Configurable files edited in 1.2–1.7.
+
+**Phase 1 scope expansion (2026-04-15, mid-batch):** Task 1.3 was originally scoped to
+rewrite only § Concurrent Sessions of `strategy-team-coordination.md`. Mid-batch
+discovery surfaced 16 WORK-STATUS references spread through the file (intro prose,
+shared resources table, § Session State Merge Behavior documenting `.gitattributes`
+`merge=ours`, § Concurrent Sessions, and others), plus 7 more in
+`strategy-work-organization.md` (completely unscoped in the original plan), plus the
+pre-commit hook CHECK 10 hard-coded path and root `.gitattributes`
+`merge=ours` rule on the retired singular path. Phase 1 widened to cover all four
+surfaces: 1.3 rewrites `strategy-team-coordination.md` shipping-clean (full file),
+new 1.4 does `strategy-work-organization.md` shipping-clean (full file), and new 1.7
+retires the `merge=ours` rule entirely and rewrites CHECK 10 to derive the sibling
+status file from the staged task list's directory. Design rationale for the retirement
+(not a repath) is documented in the notes file § Consequences subsection, landed as
+the first bullet of 1.3. Decisions made during scope expansion: retire `merge=ours`
+rather than repath it (silent-discard behavior is a footgun under the new model; see
+notes file); rewrite CHECK 10 rather than retire (commit-time feedback loop is
+load-bearing under the new model and derivation from task list directory is trivial).
 
 **Strategies:** `strategy-adr-methodology.md`, `strategy-session-operations.md`,
-`strategy-team-coordination.md`, `strategy-package-project-sync.md`.
+`strategy-team-coordination.md`, `strategy-work-organization.md`,
+`strategy-package-project-sync.md`.
 
 - [x] **1.1 ADR-007 Tier 2 Amendment**
 
@@ -94,74 +115,171 @@ framework-sync integration test to enforce the sync claim for 1.2–1.5.
     — no package source sync. Tier 1 lint passed (one inline fix: `*emphasis*` →
     `_emphasis_` per MD049 project style).
 
-- [ ] **1.2 `strategy-session-operations.md` — update WORK-STATUS references**
+- [x] **1.2 `strategy-session-operations.md` — update WORK-STATUS references**
 
-    **Edit scope is narrow:** grep surfaced exactly one WORK-STATUS reference in this
-    file, at the T2 State content bullet near line 50
-    (`- WORK-STATUS.md (branch, task list, next task, blockers)`). That line is the
-    primary edit target. If additional references have appeared by execution time,
-    update them in place.
+    Replaced the single T2 State bullet at line 50 (`- WORK-STATUS.md (branch, task
+    list, next task, blockers)`) with `- status-{name}.md (per-WU tracked project
+    pointer in active/{category}/; holds State, Branch, Task List, Next Task, Last
+    Completed, Blockers, Next Action)`, wrapped at a natural phrase boundary for the
+    120-char line limit. No other WORK-STATUS references existed in the file
+    (pre-execution grep confirmed, re-grep at edit time confirmed). Left
+    `### Session State Portability` unchanged — it covers `user/{identity}/` and git
+    notes, out of scope for this WU.
 
-    - Update the T2 State bullet to describe the per-WU status file pattern. Suggested
-      phrasing: `status-{name}.md (per-WU tracked project pointer in active/{category}/;
-      holds State, Branch, Task List, Next Task, Last Completed, Blockers, Next Action)`
-    - Leave the `### Session State Portability` section unchanged — it covers the
-      `user/{identity}/` directory and git notes, which this WU does not touch
-    - **Open question (resolve before editing):** Full/Lite mode variance prose. The
-      original task wording referenced it, but `strategy-session-operations.md` does not
-      currently mention Full/Lite anywhere and mode machinery lives in `plan-arc-modes.md`
-      (not yet implemented). Default unless user says otherwise: keep this file
-      mode-agnostic; defer mode variance to Task 1.5 (`arc-methods.md`) and Phase 2
-      workflow edits (`session-init.template.md`) where mode logic has a natural home
-    - Both copies (Framework file — edit package source first, then sync to `.arc/`)
+    **Full/Lite mode variance scope:** Resolved per default interpretation (user
+    confirmed at session start). File stays mode-agnostic; Full/Lite mode variance
+    prose is deferred to Task 1.6 (`arc-methods.md` § session-state.default) and
+    Phase 2 workflow edits (`session-init.template.md`) where mode logic has a
+    natural home. `strategy-session-operations.md` does not mention Full/Lite and
+    should not start here.
 
-- [ ] **1.3 `strategy-team-coordination.md` — § Concurrent Sessions rewrite**
+    **Sync:** Framework file — edited package source
+    (`packages/arc-framework/arc/reference/strategies/arc/strategy-session-operations.md`)
+    first, then mirrored to `.arc/`. Tier 1 lint clean on `.arc/` copy (package
+    source is excluded from project lint scope by design, not double-linted).
+    `framework-sync.test.ts` at Task 1.8 will enforce the mirror.
 
-    **Goal:** Narrow rewrite addressing two axes — parallel WUs on independent branches
-    (isolated by per-WU files, no coordination at the status-file layer) and within-WU
-    team sub-branches (shared state on one `status-{name}.md`, coordinated via `(@name)`
-    markers / last-committer-wins).
+- [x] **1.3 `strategy-team-coordination.md` — shipping-clean full-file sweep**
 
-    - Rewrite the § Concurrent Sessions section shipping-clean: no references to the
-      retired singular-file model (adopters see the strategy doc fresh with no "before"
-      to contextualize)
-    - Source material: `notes-work-status-restructure.md` § Resolved decisions #3
-    - Historical context belongs in the commit message and ADR-007 amendment, not here
-    - Both copies (Framework file)
+    Full-file rewrite. 16 WORK-STATUS references removed or replaced across intro
+    prose, § Workflow Adaptations table, § Key distinction callout,
+    § Person-to-Person Task Handoff (incoming bootstrap + async conventions),
+    § Session State Merge Behavior, and § Concurrent Sessions. Table rebuilt with
+    wider data cells (36/50 internal widths, 115-char row total) to fit
+    `active/{category}/status-{name}.md` paths.
 
-- [ ] **1.4 `DEV-RULES.ARC.md` § Session state — update two-file model description**
+    § Session State Merge Behavior retired: the subsection documenting
+    `.gitattributes` `merge=ours`, sub-branch caveats, and the platform note
+    replaced with a 7-line forward-clean paragraph describing per-WU merge
+    behavior under normal git conflict resolution, cross-referencing `(@name)`
+    marker discipline for the within-WU sub-branch case.
 
-    - Reflect the per-WU status file pattern in the two-file model prose
-    - Update path references (`active/{category}/status-{name}.md` in place of the old
-      fixed path)
-    - Keep the rule substance unchanged — only the reference updates
-    - Both copies (Framework file)
+    § Concurrent Sessions rewritten per notes § Resolved decisions #3, now
+    addressing two axes explicitly: (a) parallel WUs on independent branches —
+    different files, no coordination at the status-file layer, dominant pattern;
+    (b) within-WU team sub-branches sharing one `status-{name}.md` with three
+    coordination mechanisms (task list, status file, SESSION-NOTES).
 
-- [ ] **1.5 `arc-methods.md` § session-state default — path references and field set**
+    Notes file § Consequences subsection landed as part of this task (first
+    edit, before the strategy doc) — rationale surface for the `merge=ours`
+    retirement and CHECK 10 rewrite, referenced implicitly by this task and by
+    Tasks 1.4 / 1.7.
 
-    - Update the `.default` section to replace `WORK-STATUS.md (active/)` with the
-      per-WU pattern (`status-{name}.md (active/{category}/)`) and name `**State:**`
-      explicitly as the load-bearing field for disambiguation
-    - Leave the `.override` section untouched (empty placeholder preserved)
-    - **Open question (resolve before editing):** field enumeration depth. The current
-      `.default` is deliberately terse (~8 lines, no field enumeration — fields live
-      in the status file template). A full 7-field enumeration would roughly double
-      the section and duplicate the template. Options: (a) full enumeration,
-      (b) path + explicit `**State:**` only + point to template, (c) no fields
-      mentioned. Default unless user says otherwise: **(b)**
-    - Both copies (Configurable file — edit framework section only)
+    Framework file dual-copy sync via `cp` after package source edit. Grep
+    sweep for `WORK-STATUS|merge=ours|gitattributes` returns zero hits in both
+    copies.
 
-- [ ] **1.6 Phase 1 Tier 2 quality gates**
-    - [ ] 1.6.a Run `npm run -s lint:md` (full markdown lint)
-    - [ ] 1.6.b Verify package/project sync — `.arc/` copies match package source edits
-          for the 4 Framework/Configurable files edited in Tasks 1.2–1.5
-          (`strategy-session-operations.md`, `strategy-team-coordination.md`,
-          `DEV-RULES.ARC.md`, `arc-methods.md`). ADR-007 excluded — project-owned,
-          no package counterpart
-    - [ ] 1.6.c Run `npm run test:integration` — the `framework-sync.test.ts` check
-          fails if any Framework file edit in 1.2–1.5 has drift between package
-          source and `.arc/`. This is the enforcement-level check for the sync claim
-          in 1.6.b
+- [x] **1.4 `strategy-work-organization.md` — shipping-clean full-file sweep**
+
+    Seven WORK-STATUS references rewritten or retired. § Task Lists and
+    Branches: dropped the redundant "WORK-STATUS reflects whichever WU is
+    currently active" sentence; rewrote the merge-behavior paragraph as "Per-WU
+    status file behavior on branches" (6 lines — file lifecycle via
+    activate/archive-work-unit, no cross-branch collision by construction,
+    cross-reference to strategy-team-coordination § Session State Merge Behavior
+    for within-WU sub-branches). § Planning Branches: Delivery bullet and Batch
+    transitions parenthetical updated to name `status-{name}.md` creation in
+    place of WORK-STATUS updates. § Directory Structure: rewrote the `active/`
+    ASCII tree — removed the top-level `WORK-STATUS.md` line, added
+    `status-<name>.md` to each category's file list, wrapped long lists across
+    two lines for readability. Removed the now-orphaned `[rotate-branch]:` link
+    definition (MD053 flagged it after the merge-behavior paragraph retirement
+    removed its inline reference).
+
+    Framework file dual-copy sync. Grep sweep returns zero hits in both copies.
+
+- [x] **1.5 `DEV-RULES.ARC.md` § Session state — per-WU model update**
+
+    Four reference updates across Commit Discipline, Session Management,
+    Documentation Boundaries, and When to Load Additional Guidance:
+
+    1. **§ Commit Discipline — Work status accuracy bullet** rewritten to name
+       the active WU's `status-{name}.md` (at `active/{category}/`) as the
+       update target. Contributor override rephrased to "project-level status
+       files" (model-agnostic).
+    2. **§ Session state control — two-file model first bullet** rewritten:
+       `status-{name}.md` at `active/{category}/` as the active WU's project
+       pointer, with commit-time and next-session-recovery sub-bullets updated
+       to match. Rule substance unchanged.
+    3. **§ Documentation Boundaries — "Also applies to communication
+       artifacts"** paragraph: "belongs in WORK-STATUS and SESSION-NOTES"
+       replaced with "belongs in the active WU's `status-{name}.md` and
+       SESSION-NOTES".
+    4. **§ When to Load Additional Guidance — process-task-loop promotion
+       signal** now keyed on the active `status-{name}.md` instead of
+       fixed-path WORK-STATUS.
+
+    Framework file dual-copy sync. Grep sweep returns zero hits in both copies.
+
+- [x] **1.6 `arc-methods.md` § session-state default — per-WU pattern, option (b)**
+
+    Replaced the single-line `.default` bullet `**WORK-STATUS.md** (`active/`)
+    — tracked project state, updated at commit time and handoff` with a
+    three-line bullet naming `` `status-{name}.md` `` at `active/{category}/`
+    as the tracked per-WU project pointer, calling out `**State:**` as the
+    load-bearing lifecycle field, and pointing at the status file template for
+    the full field set. No inline 7-field enumeration (per option (b)).
+
+    `.override` empty placeholder, method dependencies table, contract, and
+    workflow references all preserved unchanged. Method stays mode-agnostic —
+    Full/Lite mode variance prose deferred to Phase 2 workflow edits where
+    session-init templates have a natural home.
+
+    Template pointer is template-generic ("the status file template" with no
+    specific path) since the new template lands at Task 2.2. Interim dangling
+    reference absorbed by the Phase 2 SESSION-NOTES Persistent Context guard
+    installed at Task 2.1.
+
+    Configurable file dual-copy sync (framework section only). Grep sweep
+    returns zero hits in both copies.
+
+- [x] **1.7 Retire `merge=ours` and rewrite pre-commit hook CHECK 10**
+
+    Root `.gitattributes`: deleted the `.arc/active/WORK-STATUS.md merge=ours`
+    line. No replacement rule added — retirement, not repath, per notes
+    § Consequences rationale. Project-owned file, no package source counterpart.
+
+    Pre-commit hook CHECK 10 rewritten from hard-coded singular path to
+    sibling-derivation: for each staged `active/{category}/tasks-{name}.md`
+    with checkbox completions, derive `active/{category}/status-{name}.md` and
+    check whether it's also staged. Task list regex tightened from
+    `^\.arc/active/.*/tasks-.*\.md$` to `^\.arc/active/[^/]+/tasks-[^/]+\.md$`
+    — strict single-depth match, explicitly excludes backlog and atomic edits.
+
+    Added a **pre-activation guard** (not in the original task bullet): only
+    warn when the derived `expected_status` exists in the working tree
+    (`[ -f "$expected_status" ]`). Skips false positives during pre-activation,
+    mid-restructure, and early-planning states where the file legitimately
+    doesn't exist yet. Refinement added after a derivation-logic walkthrough
+    predicted false positives on this batch's own commits.
+
+    Staged-file lookup rewritten to use
+    `printf '%s\n' "$staged_files" | grep -qxF "$expected_status"` — cleaner
+    shell, single `SC2086` directive retained for the intentional
+    newline-separated iteration on `$staged_task_lists_for_ws`. Updated the
+    CHECK 10 header comment and the line-34 contributor-mode-notice comment to
+    name "status file co-staging" in place of "WORK-STATUS co-staging".
+
+    Framework file dual-copy sync via `cp`. `chmod +x` preserved on both
+    copies. `npm run lint:sh` clean. Derivation walkthrough against the
+    current task list confirms the pre-activation guard skips the warning as
+    designed. Full end-to-end hook validation deferred to Phase 3 cutover when
+    the new status file first exists.
+
+- [x] **1.8 Phase 1 Tier 2 quality gates**
+    - [x] 1.8.a `npm run -s lint:md` — **0 errors across 176 files**
+    - [x] 1.8.b `npm run lint:sh` — **clean** (pre-commit hook rewrite in 1.7.b
+          passes shellcheck with existing SC2086 directive for newline-separated
+          iteration)
+    - [x] 1.8.c Package/project sync verification — `diff -q` across the 6
+          Framework/Configurable files returned no differences:
+          `strategy-session-operations.md`, `strategy-team-coordination.md`,
+          `strategy-work-organization.md`, `DEV-RULES.ARC.md`, `arc-methods.md`,
+          `system/githooks/pre-commit`. ADR-007 and root `.gitattributes` excluded
+          — project-owned, no package counterpart.
+    - [x] 1.8.d `npm run test:integration` — **104/104 tests passed** across 7
+          test files. `framework-sync.test.ts` specifically passed (confirms
+          package source ↔ `.arc/` mirror for all Framework files).
 
 ### **Phase 2:** Templates and Workflows
 
