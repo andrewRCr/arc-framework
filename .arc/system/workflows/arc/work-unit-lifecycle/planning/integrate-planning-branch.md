@@ -81,6 +81,12 @@ gh pr create --base {base-branch} --head {planning-branch}
 - **Batch branch:** Summarize both transitions. Archival section: completed WU name, key outcomes.
   Planning section: new WU name, scope, phase/task count.
 
+**Scope of the PR body:** Describe what this PR delivers, not what happens next. Workflow
+continuity (post-merge activation, session boundaries, "next action after merge" style
+sections) belongs in WORK-STATUS and SESSION-NOTES, not the PR body. The reader is reviewing
+a change set — keep the body scoped to what they need to evaluate it. See
+[DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
+
 ### 3) Address Review Feedback
 
 If reviewers raise concerns about scope, requirements, or task breakdown:
@@ -143,3 +149,4 @@ to proceed even if WORK-STATUS hasn't caught up yet.
 [arc-config]: ../../../../arc-config.yml
 [arc-ext-post-archive]: ../../../arc-extensions.md#post-work-unit-archive
 [session-handoff]: ../../session-lifecycle/session-handoff.md
+[dev-rules-arc]: ../../../../../reference/constitution/DEV-RULES.ARC.md
