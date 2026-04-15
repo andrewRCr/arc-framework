@@ -13,45 +13,32 @@
 
 ## Active Work
 
-**Branch**: `technical/plan-work-status-restructure`
-**Task List**: [none]
-**Next Task**: —
-**Last Completed**: **Generated `tasks-work-status-restructure.md` from the
-PRD.** 42 subtasks across 7 phases (Foundation docs → Templates + workflows
-→ Live migration cutover → `deactivate-work-unit.md` → Plan-\* doc updates
-→ Reference cleanup → Verification). R17 `Following Task List` removal
-carries explicit "do NOT re-include" prohibitions in Task 2.2 (status
-template) and Task 5.1 (`plan-arc-modes.md` Finding #4 carve-out). Phase 2
-kickoff writes a SESSION-NOTES Persistent Context entry guarding against
-mid-Phase-2 sessions following edited workflow instructions against
-old-path live state; Phase 3 cutover removes it. Atomic companion file
-created alongside. Separately: incidental fix to `1_create-prd.md` Step 5
-broadening the `notes-*.md` framing guidance (notes file is a living
-scratchpad, not a closed plan-extracted archive).
+**Branch**: `technical/work-status-restructure`
+**Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
+**Next Task**: Task 1.1 — ADR-007 Tier 2 Amendment (line ~69)
+**Last Completed**: Planning arc for Work-Status Restructure WU — PRD,
+notes, task list, atomic companion, and 2 incidental methodology fixes
+merged via PR #18 (`0d23b23`).
 
 **Blockers**: [none]
 
-**Next Action**: **Invoke `integrate-planning-branch.md`** — push this
-planning branch, open PR, merge to main. The planning PR carries: PRD,
-notes, task list, atomic companion, plan doc retirement, the incidental
-`1_create-prd.md` framing fix, and WORK-STATUS.md advances. Under
-`branch.protection: full`:
+**Next Action**: Execute Phase 1 of the restructure WU, starting with
+Task 1.1 (ADR-007 Tier 2 Amendment). Source material for the amendment
+lives in `notes-work-status-restructure.md` § Historical context +
+§ Amendment framing — do not re-derive the conflation analysis.
 
-1. **This planning branch:** invoke `integrate-planning-branch.md` — push,
-   PR, merge to main
-2. **Session boundary** after merge per `integrate-planning-branch.md`
-   § Step 5
-3. **New session from base:** invoke `activate-work-unit.md` for
-   `prd-work-status-restructure` — creates `technical/work-status-restructure`
-   implementation branch, moves artifacts from `backlog/` to `active/`
-4. **Execute restructure WU** via `3_process-task-loop.md` starting with
-   Phase 1 (ADR-007 amendment + strategy updates). Phase 3 (live migration)
-   dogfoods the WU's own output at the cutover point
+Before Phase 1 begins, two incidental items need handling on this branch:
 
-Post-restructure merge: reactivate rebrand WU as first real exercise of the
-per-WU status file model across rotating branches.
+1. **Pre-commit hook exit-code bug** — direct commits to main under
+   `branch.protection: full` print a failure message but exit 0, so
+   protection is currently advisory only. Fix to be captured in
+   `atomic-work-status-restructure.md` as the first atomic task. Source
+   of truth: `packages/arc-framework/arc/system/githooks/pre-commit`.
+2. **ATOMIC-INBOX audit** — 7 open items; 3 known subsumed by this WU
+   (R14, Phase 7). Walk the remaining 4 against the task list and remove
+   any that the restructure scope covers; keep residual in the inbox.
 
 ---
 
-**Last Updated**: 2026-04-15 (task list + atomic companion generated; next
-action is integrate-planning-branch.md)
+**Last Updated**: 2026-04-15 (work unit activated; first task is 1.1,
+ADR-007 amendment)

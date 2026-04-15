@@ -1,10 +1,10 @@
 # Task List: Work-Status Restructure
 
-**PRD:** `.arc/backlog/technical/prd-work-status-restructure.md`
+**PRD:** `.arc/active/technical/prd-work-status-restructure.md`
 **Created:** 2026-04-15
 **Branch(es):** `technical/work-status-restructure`
-**Base Branch:** base branch per `arc-config.yml` (typically `main`)
-**Status:** Pending
+**Base Branch:** `main`
+**Status:** In Progress
 
 ## Overview
 

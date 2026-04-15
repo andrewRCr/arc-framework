@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-15
 
 ---
 
@@ -98,9 +98,23 @@ and update behavior, conditional content architecture, ARC skill expansion.
 
 - PRD: `technical/prd-methodology-maturation.md`
 - Upstream: WU4 (beta-ready repo, stable methodology surface to audit)
-- Downstream: ARCd Rebrand
+- Downstream: Work-Status Restructure
 
-**ARCd Rebrand** — After Methodology Maturation
+**Work-Status Restructure** — In Progress (April 2026)
+
+Replace the singular tracked `.arc/active/WORK-STATUS.md` with a per-work-unit status file
+pattern (`.arc/active/{category}/status-{name}.md`), disentangling the project pointer from
+the session pointer. Eliminates the parallel-WU concurrency flaw and base-branch staleness
+dead-ends under full protection. Lands a new `deactivate-work-unit.md` workflow, drops
+`**Following Task List**` from the status template (R17), and dogfoods its own output at the
+Phase 3 live-migration cutover point.
+
+- PRD: `technical/prd-work-status-restructure.md`
+- Upstream: Methodology Maturation (stable methodology surface, dual-copy sync discipline)
+- Downstream: ARCd Rebrand (first real exercise of the per-WU status file model across
+  rotating branches)
+
+**ARCd Rebrand** — After Work-Status Restructure
 
 Rebrand ARC → ARCd as the public product brand while preserving ARC as the methodology and
 workflow vocabulary. Split architecture: ARCd names the public implementation surface
@@ -254,6 +268,9 @@ site structure.
 
 ## Change Log
 
+- **2026-04-15**: Work-Status Restructure inserted between Methodology Maturation and ARCd Rebrand;
+  activated on `technical/work-status-restructure`. Structural fix for WORK-STATUS.md so the rebrand
+  WU can be the first real exercise of the per-WU status file model across rotating branches
 - **2026-04-14**: Phase C re-sequenced — ARCd Rebrand and Expanded Planning Path inserted before
   Operating Modes; modes plan doc parked PRD-ready with pre-approved foundation → Lite+Local split
   fallback
