@@ -47,11 +47,11 @@ minimal by design — there's more value in having complete context upfront than
 mid-session.
 
 **Execution strategy:** Items 1–8, identity resolution, and configuration reads (Step 4) are independent —
-batch them into a single parallel read. SESSION-NOTES (needs identity), the task list (needs WORK-STATUS
-path), and conditionally the task execution workflow (item 11, needs WORK-STATUS) form a second batch after
-the first completes. Within batches, `.ARC` files are listed before their `.PROJECT` counterparts for
-comprehension order. Sequential execution (follow item numbers) is fine if your platform doesn't support
-parallel reads.
+batch them into a single parallel read. SESSION-NOTES (needs identity), the task list (needs the resolved
+active status file), and conditionally the task execution workflow (item 11, needs the resolved active
+status file) form a second batch after the first completes. Within batches, `.ARC` files are listed before
+their `.PROJECT` counterparts for comprehension order. Sequential execution (follow item numbers) is fine if
+your platform doesn't support parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
@@ -88,26 +88,56 @@ session-state, follow the override instead.
 
 **Active work context:**
 
-8. `.arc/active/WORK-STATUS.md` - **MUST READ IN FULL**
-   - Project state: branch, task list path, next task, blockers, and next action
-   - **"No active work" detection**: If Task List shows `[none]`, there is no active work unit.
-     Skip item 10 (task list loading). Session orientation will report this state and surface
-     the Next Action from WORK-STATUS.md (typically: create a PRD or plan new work).
-   - **Task reference format**: Next Task uses triple-anchor format —
+8. **Active work status file** - **MUST RESOLVE, THEN READ IN FULL**
+   - Project state: state, branch, task list path, next task, blockers, and next action
+   - **Full mode**: Scan `.arc/active/**/status-*.md`
+       - **Zero-file case**: No active work unit. Skip item 10 (task list loading). Session
+         orientation will report this state and surface the next work-unit discovery result in
+         Step 5.
+       - **One-file case**: Load it directly — this is the active status file for the session.
+       - **Many-file case**: Apply disambiguation precedence in order:
+           1. SESSION-NOTES `**Working On:**` value matches a candidate filename
+           2. Candidate `**Branch:**` matches the current git branch
+           3. Candidate `**State:** In Progress`
+           4. Prompt the user
+       - **Prompt format** (if disambiguation reaches step 4):
+
+         ```text
+         Multiple status files matched. Select one:
+           [1] status-work-status-restructure.md · technical/work-status-restructure
+               Next Task: 2.2 — Status file template (new) — retire the old
+               State:    In Progress
+           [2] status-arcd-rebrand.md · feature/arcd-rebrand
+               Next Task: 1.3 — Rename CLI package
+               State:    Paused (2026-04-12) — waiting for restructure
+           [q] Abort session-init
+         Your choice:
+         ```
+
+       - Each candidate shows filename, `**Branch:**`, truncated `**Next Task:**`, and
+         `**State:**`
+       - If the user aborts or dismisses the prompt, abort session-init and surface the
+         candidate list so they can resolve it manually
+   - **Lite mode**: Fixed path `.arc/active/status.md`
+       - **Zero-file case**: No active work unit. Skip item 10 and proceed to next work-unit
+         discovery in Step 5
+       - **One-file case**: Load it directly
+       - No many-file case exists under Lite mode
+   - **Task reference format**: `**Next Task:**` uses triple-anchor format —
      `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
      All three anchors should be present; any two are sufficient for reliable lookup.
 
 <!-- arc:if team.mode == true -->
-**Team mode — resolve personal next task** (after loading WORK-STATUS and task list):
+**Team mode — resolve personal next task** (after resolving the active status file and loading the task list):
 
-WORK-STATUS.md shows branch-level state (one "Next Task" for the branch). In team mode,
+The active status file shows work-unit state (one "Next Task" for the active work unit). In team mode,
 your personal next task may differ. After loading the task list (item 10), scan it for
 `(@name)` markers matching your `{identity}`:
 
 1. Find incomplete tasks (`[ ]`) with your `(@identity)` marker
 2. If found, your next task is the first incomplete owned task — this overrides the
-   WORK-STATUS "Next Task" for your session orientation
-3. If no `(@name)` markers exist, fall back to WORK-STATUS "Next Task" (ownership not
+   active status file `**Next Task:**` for your session orientation
+3. If no `(@name)` markers exist, fall back to the active status file `**Next Task:**` (ownership not
    yet assigned for this task list)
 4. If markers exist but none match your identity, note this in orientation — you may
    need to claim a task or check with the team
@@ -124,7 +154,7 @@ convention.
    git notes all depend on identity for path resolution. A wrong identity silently points at
    the wrong directory. Surface a warning in the orientation summary: `arc.identity` is
    configured during initial setup — if absent, the developer may be on a new machine or setup
-   was incomplete. Proceed with tracked state only (WORK-STATUS.md + task list).
+   was incomplete. Proceed with tracked state only (active status file + task list).
    **Note:** Sessions without identity cannot perform handoff — SESSION-NOTES.md and git notes
    both require identity for path resolution. Flag this in the orientation if work is underway.
 
@@ -148,7 +178,7 @@ convention.
 > - **Check** `.arc/user/{identity}/WORK-STATUS.md` if identity resolved — optional local
 >   planning state. If present, note it in the orientation; if absent, that's normal
 >   (contributors often don't maintain one)
-> - **Skip** items 8, 10–11 (project-level WORK-STATUS, task list, task execution workflow)
+> - **Skip** items 8, 10–11 (project-level active status file, task list, task execution workflow)
 > - **Skip** Step 5 (next work unit discovery — maintainer concern)
 > - **Proceed to** Step 3 (extensions), Step 4 (configuration), then Step 6 with contributor
 >   orientation format:
@@ -174,11 +204,11 @@ convention.
      check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
      exist either, fall back to `git log --oneline -10` for recent commit context — commit
      messages and context footers provide a lightweight record of recent work. The session
-     starts with tracked state (WORK-STATUS.md + task list) supplemented by git history.
+     starts with tracked state (active status file + task list) supplemented by git history.
    - **Load error handling:**
        - **No note found** (null result): Normal on first session, after repo re-clone without
          pulling notes, or when the noted commit is beyond the shallow clone boundary. Proceed
-         with tracked state only — WORK-STATUS.md and task list are sufficient.
+         with tracked state only — active status file and task list are sufficient.
        - **Corrupt note** (JSON parse error): The note was manually edited or partially written.
          Run `arc user save` to overwrite with current local state, or try loading from a
          different ancestor by inspecting `git notes --ref arc/user/{identity} list`.
@@ -197,15 +227,16 @@ convention.
 
 10. **Active task list** - **STRATEGIC PARTIAL READ** (Batch 2 — often 500+ lines)
 
-    **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task list to load.
+    **Skip if**: The resolved active status file shows `**Task List:** [none]`, or no active status file
+    was resolved — no task list to load.
 
-    - Path referenced in WORK-STATUS.md
+    - Path referenced in the active status file
     - Example: `.arc/active/feature/tasks-[work-unit-name].md`
     - **Reading strategy**:
         - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
-        - **ALWAYS read**: Current task section identified in WORK-STATUS.md (the specific task
+        - **ALWAYS read**: Current task section identified in the active status file (the specific task
           being worked on)
-            - **Graduated lookup** using the triple-anchor reference from WORK-STATUS.md:
+            - **Graduated lookup** using the triple-anchor reference from `**Next Task:**`:
                 1. Jump to line hint (`line ~N`) — if task number matches at that location, done
                 2. Search for task number (e.g., `**4.2`) if line hint is stale
                 3. Search for title fragment if task was renumbered
@@ -223,16 +254,17 @@ convention.
 
 11. **Task execution workflow** - **READ IN FULL** (Batch 2 — conditional)
 
-    **Skip if**: WORK-STATUS.md shows `Task List: [none]` — no task execution expected.
+    **Skip if**: The resolved active status file shows `**Task List:** [none]`, or no active
+    status file was resolved — no task execution expected.
 
     - Path: `.arc/system/workflows/arc/3_process-task-loop.md`
     - Contains: completion protocol, quality gate checkpoints, mandatory stops, deferred review,
       incidental work routing, and method dependency triggers (issue-triage, quality-gate-commands,
       test-first)
     - **Why conditional**: This is procedural content (T3) that promotes to session-init when
-      WORK-STATUS confirms active task work. Without it, the agent skips completion protocol and
-      quality gates. Sessions without an active task list (planning, exploratory) skip this —
-      if the session pivots to task execution later, load it then.
+      the active status file confirms active task work. Without it, the agent skips completion
+      protocol and quality gates. Sessions without an active task list (planning, exploratory)
+      skip this — if the session pivots to task execution later, load it then.
 
 ### 3. Post-Context-Load Extensions · `#post-context-load`
 
@@ -286,12 +318,12 @@ git log -1 --format=%h
 
 # Count commits since SESSION-NOTES handoff (substitute the actual hash)
 # Skip this command if no handoff hash exists — there's no baseline to compare against.
-# Instead, rely on WORK-STATUS freshness check below.
+# Instead, rely on the active status file freshness check below.
 git log --oneline <handoff-hash>..HEAD
 
-# Check WORK-STATUS freshness
-git log -1 --format=%h -- .arc/active/WORK-STATUS.md
-# If this differs from HEAD, WORK-STATUS hasn't been updated across recent commits
+# Check active status file freshness
+git log -1 --format=%h -- <resolved-status-file-path>
+# If this differs from HEAD, the active status file hasn't been updated across recent commits
 ```
 
 A freshness gap doesn't mean state is wrong — it means verify more carefully before trusting
@@ -300,7 +332,7 @@ produces no output.
 
 <!-- arc:if team.mode == true -->
 **Concurrent activity:** In team mode, freshness gaps may also indicate concurrent developer
-activity rather than stale session state. If WORK-STATUS.md was updated by a different author
+activity rather than stale session state. If the active status file was updated by a different author
 since your last session, note this in orientation — another developer may be actively working
 on the same branch.
 <!-- arc:endif -->
@@ -316,9 +348,11 @@ at session start prevents items from accumulating unnoticed across many small wo
 
 #### Next work unit discovery
 
-**Skip if** WORK-STATUS.md shows an active task list — discovery only applies between work units.
+**Skip if** an active status file was resolved and its `**Task List:**` field is not `[none]` —
+discovery only applies between work units.
 
-When WORK-STATUS.md shows `Task List: [none]`, assess readiness for the next work unit:
+When no active status file was resolved, or the resolved active status file shows `**Task List:** [none]`,
+assess readiness for the next work unit:
 
 <!-- arc:if pm.mode == arc-in-git -->
 1. Read ROADMAP.md — identify the next queued or suggested item
@@ -360,10 +394,10 @@ focused on what matters and suppress anything that resolved cleanly.
 **Active work state:**
 
 - **Last completed**: What was finished and its current state (committed, uncommitted, etc.)
-- **Current task**: Task being worked on per WORK-STATUS.md (or "none" between work units)
+- **Current task**: Task being worked on per the active status file (or "none" between work units)
 - **Blockers**: Any blockers or mismatches detected during initialization, or "none"
 
-**Next action:** What comes next per WORK-STATUS.md
+**Next action:** What comes next per the active status file (or next-work discovery when between work units)
 
 Awaiting direction — proceed to Next Action?
 
@@ -388,7 +422,7 @@ determine the correct response.
 
 1. **Git state** — `git status`, `git log`, file contents on disk
 2. **Task list** — checkbox state, task descriptions
-3. **WORK-STATUS.md** — tracked project pointer
+3. **Active status file** — tracked project pointer
 4. **SESSION-NOTES.md** — personal session context (gitignored, most volatile)
 
 **Tier 1 — Auto-recover with notice:**
@@ -396,17 +430,17 @@ determine the correct response.
 When higher-trust sources agree and a lower-trust source is the outlier, proceed with the
 ground truth and report the discrepancy in the orientation summary.
 
-Report format: "WORK-STATUS said X. Git/task list show Y. Proceeding with Y."
+Report format: "Active status file said X. Git/task list show Y. Proceeding with Y."
 
 Examples:
 
-- WORK-STATUS says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log
+- Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log
   confirms the commit → proceed with Task 3.4 as current
 - SESSION-NOTES describes uncommitted work but `git status` is clean and git log shows
   the work committed → proceed with committed state
-- WORK-STATUS says "Last Completed: Task 3.2" but task list shows 3.3 also marked `[x]` →
+- Active status file says "Last Completed: Task 3.2" but task list shows 3.3 also marked `[x]` →
   proceed with 3.3 as last completed
-- (Team mode) WORK-STATUS shows "Next Task: 3.4" but task list shows 3.4 marked `[x]` by
+- (Team mode) Active status file shows "Next Task: 3.4" but task list shows 3.4 marked `[x]` by
   a teammate's commit → another developer completed it; proceed with 3.5 as current
 
 **Tier 2 — Stop and ask:**
@@ -423,8 +457,8 @@ Examples:
 
 - Git shows uncommitted changes to files not mentioned in any session doc — could be
   co-development work, a partial task, or an interrupted session
-- WORK-STATUS references a task that doesn't exist in the task list — task may have been
-  renumbered, removed, or WORK-STATUS points to wrong task list
+- The active status file references a task that doesn't exist in the task list — task may have
+  been renumbered, removed, or the status file points to the wrong task list
 - Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
   conflicting signals at the same trust tier
 

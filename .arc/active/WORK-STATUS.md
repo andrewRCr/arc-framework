@@ -15,36 +15,36 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 2.5 — session-init.template.md scan strategy and
-disambiguation precedence (line ~475)
-**Last Completed**: Task 2.4 — WU-lifecycle state removed from task list
-templates across all 7 surfaces in `strategy-task-list-formatting.md`
-(Feature/Technical Status header + rules bullet; Incidental Status header +
-Interrupts field + rules cluster including pause/resume; Worked Incidental
-example Status + Interrupts lines; entire `### Status Field Values` H3
-section). Synced to `.arc/` via file copy; post-sync diff empty.
-Judgment call: the orphaned Interrupts rules bullet (not explicitly listed
-in the 2.4 spec) was removed alongside pause/resume since the field itself
-was being removed — keeping a rule describing a non-existent field would
-create internal inconsistency. Task 2.13 scope expanded to add a matched
-back-pointer from the strategy doc to `manage-incidental-work.md` once the
-latter is rewritten — defers the pointer to a task where the target is
-accurate rather than pointing at stale content mid-phase.
+**Next Task**: Task 2.6 — session-handoff.template.md dead-end removal,
+Working On write, R18 guard (line ~543)
+**Last Completed**: Task 2.5 — session-init template rewritten around
+resolved status-file loading instead of the retired singular
+`WORK-STATUS.md` path. Item 8 now defines Full-mode scan semantics
+(`.arc/active/**/status-*.md`) with zero/one/many-file handling, the
+pinned disambiguation precedence (SESSION-NOTES `**Working On:**` →
+`**Branch:**` match → `**State:** In Progress` → prompt), the exact prompt
+block, and the Lite-mode fixed-path variant (`.arc/active/status.md`).
+Downstream language updated to consume the resolved active status file
+consistently across batching, task-list/workflow gating, freshness checks,
+next-work discovery, orientation wording, and mismatch handling. The 6
+existing conditional blocks were preserved in the package template; rendered
+output synced to `.arc/` with this project's config (`team.mode: false`,
+`pm.mode: arc-in-git`). Tier 1 markdown lint clean on the edited `.arc`
+workflow file.
 
 **Blockers**: [none]
 
-**Next Action**: Execute Phase 2 Task 2.5 — rewrite
-`session-init.template.md` for Full mode directory scan
-(`.arc/active/**/status-*.md`) with disambiguation precedence (Working On
-→ Branch match → State filter → user prompt). Lite mode variant uses fixed
-path `.arc/active/status.md`. Preserve the 6 existing conditional blocks
-(`arc:if team.mode`, `arc:if pm.mode`) and sync rendered output to
-`.arc/` with this project's config (`team.mode: false`, `pm.mode: arc-in-git`).
+**Next Action**: Execute Phase 2 Task 2.6 — rewrite
+`session-handoff.template.md` to remove the base-branch dead-end, add the
+explicit SESSION-NOTES `**Working On:**` write step using Task 2.3's marker
+vocabulary, and extend the existing Anti-patterns section with the R18
+anti-duplication / minimum-viable SESSION-NOTES guard bullets. Preserve the
+existing `team.mode` conditional block and sync rendered output to `.arc/`.
 Live `.arc/active/WORK-STATUS.md` remains untouched until Phase 3 per Task
 2.1's interim guard.
 
 ---
 
-**Last Updated**: 2026-04-15 (Task 2.4 complete — task list templates
-stripped of WU-lifecycle state across 7 surfaces; Task 2.13 scope expanded
-to carry a paired strategy-doc back-pointer)
+**Last Updated**: 2026-04-15 (Task 2.5 complete — session-init now resolves
+active status files via Full-mode scan / Lite-mode fixed path; Next Task
+advanced to 2.6)

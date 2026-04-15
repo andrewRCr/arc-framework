@@ -487,7 +487,7 @@ at cutover.
     (471 tests green). Scope honored: `tasks-arcd-rebrand.md` and archived task
     lists untouched.
 
-- [ ] **2.5 `session-init.template.md` — scan strategy and disambiguation precedence**
+- [x] **2.5 `session-init.template.md` — scan strategy and disambiguation precedence**
 
     **Goal:** Replace fixed-path loading with directory scan + disambiguation.
 
@@ -539,6 +539,21 @@ at cutover.
 
     Sync rendered output to `.arc/system/workflows/arc/session-lifecycle/session-init.md`
     with this project's config (`team.mode: false`, `pm.mode: arc-in-git`).
+
+    **Completion:** Rewrote the package template's active-work loading model around a
+    resolved status file instead of the retired singular `WORK-STATUS.md` path.
+    Item 8 now defines Full-mode scan semantics (`.arc/active/**/status-*.md`) with
+    zero/one/many-file handling, the pinned four-step disambiguation precedence
+    (SESSION-NOTES `**Working On:**` → `**Branch:**` match → `**State:** In Progress`
+    → user prompt), the exact ambiguous-selection prompt block, and the Lite-mode
+    fixed-path variant (`.arc/active/status.md`). Downstream workflow language was
+    updated to consume the resolved active status file consistently: batching notes,
+    task-list/task-workflow gating, freshness-check example command, next-work
+    discovery skip condition, orientation wording, trust hierarchy, and mismatch
+    examples. The existing 6 conditional blocks were preserved in the template.
+    Rendered output synced to `.arc/` in this project's current config shape
+    (`team.mode: false`, `pm.mode: arc-in-git`). Tier 1 quality gate: markdown lint
+    clean on the edited `.arc` workflow file.
 
 - [ ] **2.6 `session-handoff.template.md` — dead-end removal, Working On: write, R18 guard**
 
