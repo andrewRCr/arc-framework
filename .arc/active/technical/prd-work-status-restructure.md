@@ -149,12 +149,18 @@ means undo-activation of a WU that didn't meaningfully start.* See
 [notes-work-status-restructure.md](notes-work-status-restructure.md) § Deactivation
 reshape for the full case matrix rationale.
 
-**R7. ADR-007 Tier 2 Amendment.** Add a new `## Amendments` section at the bottom of
-`adr-007-session-state-portability-and-team-transfer.md` documenting the conflation
-refinement: personal session context stays per-developer via git notes (unchanged);
-project pointer splits out to per-WU files (new). No modification to the original
-Decision / Context / Consequences sections. Amendment follows the Tier 2 convention
-in `strategy-adr-methodology.md`.
+**R7. ADR-007 Tier 2 Amendment.** Append a new dated amendment block to the existing
+`### Amendments` subsection inside `## Consequences` of
+`adr-007-design-session-state-portability-and-team-transfer.md` documenting the
+conflation refinement: personal session context stays per-developer via git notes
+(unchanged — ADR-012 already refined this scope for the unified `user/{identity}/`
+model); project pointer splits out from singular `.arc/active/WORK-STATUS.md` to
+per-WU `.arc/active/{category}/status-{name}.md` files (new — neither ADR-007 nor
+ADR-012 named this conflation explicitly). No rewriting of original Decision /
+Context / Consequences prose. Amendment follows the Tier 2 convention in
+`strategy-adr-methodology.md` — H3 inside Consequences, matching existing ADR-007
+and ADR-012 precedent, not a new top-level section. ADR-007 is `.arc/`-only per
+`strategy-package-project-sync.md` § File Inventory — no package source sync.
 
 **R8. Strategy updates:**
 
@@ -431,3 +437,4 @@ actually shipped. -->
 | Date       | Change                                                            |
 | ---------- | ----------------------------------------------------------------- |
 | 2026-04-15 | Initial draft — formalized from `plan-work-status-restructure.md` |
+| 2026-04-15 | R7 refined — ADR-007 filename, placement, scope (see R7 prose)    |

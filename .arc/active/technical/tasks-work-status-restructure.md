@@ -60,8 +60,14 @@ sync), `strategy-task-list-formatting.md` (Phase 2 task list template edit),
 ### **Phase 1:** Foundation Docs
 
 **Purpose:** "What the model is" documents land first so subsequent workflow edits in
-Phase 2 reference established guidance. All files here are Framework classification —
-edit package source first, then sync to `.arc/`.
+Phase 2 reference established guidance.
+
+**Classification and sync discipline:** Task 1.1 edits ADR-007, which is `.arc/`-scoped
+— ADR files have no package counterpart per `strategy-package-project-sync.md` § File
+Inventory (the inventory lists only `reference/adr/README.md` as Framework; individual
+ADRs are project-owned historical record). Tasks 1.2–1.5 edit Framework and Configurable
+files — edit package source first, then sync to `.arc/`. Task 1.6 runs the
+framework-sync integration test to enforce the sync claim for 1.2–1.5.
 
 **Strategies:** `strategy-adr-methodology.md`, `strategy-session-operations.md`,
 `strategy-team-coordination.md`, `strategy-package-project-sync.md`.
@@ -69,27 +75,61 @@ edit package source first, then sync to `.arc/`.
 - [ ] **1.1 ADR-007 Tier 2 Amendment**
 
     **Goal:** Disentangle the per-developer session-state-portability decision from the
-    singular WORK-STATUS assumption that was conflated with it, without contradicting
-    the original Decision / Context / Consequences.
+    singular WORK-STATUS assumption that was conflated with it, without rewriting the
+    original Decision / Context / Consequences prose.
 
-    - Add a new `## Amendments` section at the bottom of
-      `adr-007-session-state-portability-and-team-transfer.md`
-    - Document the refinement: session state identity stays per-developer (unchanged);
-      project pointer splits out to per-WU files (new). Reference the restructure WU's
-      PRD and notes file
-    - Do **not** modify Decision, Context, or Consequences sections
+    - Edit `.arc/reference/adr/adr-007-design-session-state-portability-and-team-transfer.md`.
+      ADR files are `.arc/`-only per `strategy-package-project-sync.md` § File Inventory —
+      no package-source counterpart exists, no dual-copy sync applies to this task
+    - **Amendment placement:** append a new `**Amendment (2026-04-15):** …` block to the
+      **existing** `### Amendments` subsection at the bottom of `## Consequences`, directly
+      after the 2026-03-05 "Current Task → Next Task" amendment and above the `---` +
+      `Context:` footer. H3 inside Consequences, matching existing ADR-007 and ADR-012
+      precedent. **Not** a new top-level `## Amendments` section — the `strategy-adr-methodology.md`
+      Tier 2 convention is "amendments go in the Consequences section (or a dedicated
+      Amendments section if multiple accumulate)", and the dedicated subsection already
+      exists
+    - **Content:** document the refinement in two parts.
+        1. **Unchanged:** personal session context stays per-developer via git notes.
+           ADR-012 already refined ADR-007 Parts 1–3 for the unified `user/{identity}/`
+           model and identity consolidation — this amendment does not re-open that
+           territory
+        2. **New:** the project pointer splits out from singular `.arc/active/WORK-STATUS.md`
+           to per-WU `.arc/active/{category}/status-{name}.md` files. Neither ADR-007 nor
+           ADR-012 named this conflation explicitly; the singular pattern was carried as an
+           unexamined assumption
+    - Reference `prd-work-status-restructure.md` and `notes-work-status-restructure.md`
+      (§ Historical context) from the amendment body for the full rationale
+    - Do NOT rewrite existing Decision / Context / Consequences prose. The append-only
+      amendment inside the existing `### Amendments` subsection is permitted by the Tier
+      2 convention and does not count as rewriting original sections
     - Source material: `notes-work-status-restructure.md` § Historical context +
-      § Amendment framing
+      § Amendment framing (do not re-derive the conflation analysis — it's captured)
     - Note amendment in the commit message per `strategy-adr-methodology.md` Tier 2
-      Amendment convention
+      convention (e.g., "amend ADR-007 with per-WU project-pointer refinement")
+    - **Stop for review after 1.1** before proceeding to 1.2 (per pre-execution audit —
+      1.1 is the foundation every downstream Phase 1 task references)
 
-- [ ] **1.2 `strategy-session-operations.md` — update WORK-STATUS section**
+- [ ] **1.2 `strategy-session-operations.md` — update WORK-STATUS references**
 
-    - Replace the fixed-path description with per-WU status file semantics
-    - Reference the new field set (7 fields per PRD R2) and the Full/Lite mode variance
-    - Keep the section scoped to session operations; defer discovery precedence detail
-      to session-init workflow content
-    - Both copies (Framework file)
+    **Edit scope is narrow:** grep surfaced exactly one WORK-STATUS reference in this
+    file, at the T2 State content bullet near line 50
+    (`- WORK-STATUS.md (branch, task list, next task, blockers)`). That line is the
+    primary edit target. If additional references have appeared by execution time,
+    update them in place.
+
+    - Update the T2 State bullet to describe the per-WU status file pattern. Suggested
+      phrasing: `status-{name}.md (per-WU tracked project pointer in active/{category}/;
+      holds State, Branch, Task List, Next Task, Last Completed, Blockers, Next Action)`
+    - Leave the `### Session State Portability` section unchanged — it covers the
+      `user/{identity}/` directory and git notes, which this WU does not touch
+    - **Open question (resolve before editing):** Full/Lite mode variance prose. The
+      original task wording referenced it, but `strategy-session-operations.md` does not
+      currently mention Full/Lite anywhere and mode machinery lives in `plan-arc-modes.md`
+      (not yet implemented). Default unless user says otherwise: keep this file
+      mode-agnostic; defer mode variance to Task 1.5 (`arc-methods.md`) and Phase 2
+      workflow edits (`session-init.template.md`) where mode logic has a natural home
+    - Both copies (Framework file — edit package source first, then sync to `.arc/`)
 
 - [ ] **1.3 `strategy-team-coordination.md` — § Concurrent Sessions rewrite**
 
@@ -115,14 +155,29 @@ edit package source first, then sync to `.arc/`.
 
 - [ ] **1.5 `arc-methods.md` § session-state default — path references and field set**
 
-    - Update the `.default` section to reference the new path pattern and field set
+    - Update the `.default` section to replace `WORK-STATUS.md (active/)` with the
+      per-WU pattern (`status-{name}.md (active/{category}/)`) and name `**State:**`
+      explicitly as the load-bearing field for disambiguation
     - Leave the `.override` section untouched (empty placeholder preserved)
+    - **Open question (resolve before editing):** field enumeration depth. The current
+      `.default` is deliberately terse (~8 lines, no field enumeration — fields live
+      in the status file template). A full 7-field enumeration would roughly double
+      the section and duplicate the template. Options: (a) full enumeration,
+      (b) path + explicit `**State:**` only + point to template, (c) no fields
+      mentioned. Default unless user says otherwise: **(b)**
     - Both copies (Configurable file — edit framework section only)
 
 - [ ] **1.6 Phase 1 Tier 2 quality gates**
     - [ ] 1.6.a Run `npm run -s lint:md` (full markdown lint)
     - [ ] 1.6.b Verify package/project sync — `.arc/` copies match package source edits
-          for all 5 Framework files edited in this phase
+          for the 4 Framework/Configurable files edited in Tasks 1.2–1.5
+          (`strategy-session-operations.md`, `strategy-team-coordination.md`,
+          `DEV-RULES.ARC.md`, `arc-methods.md`). ADR-007 excluded — project-owned,
+          no package counterpart
+    - [ ] 1.6.c Run `npm run test:integration` — the `framework-sync.test.ts` check
+          fails if any Framework file edit in 1.2–1.5 has drift between package
+          source and `.arc/`. This is the enforcement-level check for the sync claim
+          in 1.6.b
 
 ### **Phase 2:** Templates and Workflows
 
