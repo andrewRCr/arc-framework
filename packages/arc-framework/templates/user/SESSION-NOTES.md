@@ -15,6 +15,18 @@
 > **Writing guide:** See `session-handoff.md` for detailed content guidance, examples, and
 > what to include vs. omit.
 
+**Working On:** [none]
+<!--
+Markers:
+  [none]                        — no active work
+  [planning: {category}/{name}] — planning cycle, no WU yet
+  [between work units]          — between activation and archive of adjacent WUs
+  status-{name}.md              — normal case, file reference
+-->
+
+**Commit at Handoff:** `{{short-hash}}`
+<!-- Record via: git rev-parse --short HEAD. Session-init uses this to detect staleness. -->
+
 ## Completed Work
 
 **For uncommitted work**, use commit-level granularity — the next session needs enough detail
@@ -44,10 +56,3 @@ _Remove when: initial-setup sequence complete._
 - First session after `arc init`. Work through the initial-setup sequence,
   starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
   The workflow guides onward steps.
-
----
-
-**Commit at Handoff**: `{{short-hash}}`
-<!-- Record via: git rev-parse --short HEAD. Session-init uses this to detect staleness. -->
-
-**Last Updated**: {{YYYY-MM-DD}}

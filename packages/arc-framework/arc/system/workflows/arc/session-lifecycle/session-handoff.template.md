@@ -148,6 +148,17 @@ signal.
 **Template skeleton:**
 
 ```markdown
+**Working On:** status-{name}.md
+<!--
+Markers:
+  [none]                        — no active work
+  [planning: {category}/{name}] — planning cycle, no WU yet
+  [between work units]          — between activation and archive of adjacent WUs
+  status-{name}.md              — normal case, file reference
+-->
+
+**Commit at Handoff:** `{{short-hash}}`
+
 ### Completed Work
 
 [Committed work — one line per commit: hash + outcome. See "Committed work" below.]
@@ -170,12 +181,6 @@ signal.
 _Remove when: [explicit trigger condition]_
 
 - [Context that must persist until trigger is met]
-
----
-
-**Commit at Handoff**: `{{short-hash}}`
-
-**Last Updated**: {{YYYY-MM-DD}}
 ```
 
 **Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.

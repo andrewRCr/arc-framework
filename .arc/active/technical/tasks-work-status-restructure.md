@@ -369,7 +369,7 @@ at cutover.
     e2e, including `framework-sync.test.ts` which verifies package source ↔
     `.arc/` mirror parity for the new template). tsup build succeeds.
 
-- [ ] **2.3 SESSION-NOTES — add `**Working On:**` field across both surfaces**
+- [x] **2.3 SESSION-NOTES — add `**Working On:**` field across both surfaces**
 
     **Goal:** Install the session-pointer field that session-init reads as the primary
     disambiguation signal. Two surfaces must be updated.
@@ -417,6 +417,21 @@ at cutover.
 
     Sync Surface 2 to `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
     Surface 1 has no `.arc/` mirror (scaffolding-only).
+
+    **Completion:** Both surfaces updated identically. `**Working On:**` and
+    `**Commit at Handoff:**` now sit as a paired metadata block at the top of the
+    template (after the About callout on Surface 1; before `### Completed Work` in
+    Surface 2's fenced skeleton). Marker vocabulary documented as a multi-line HTML
+    comment block directly below `**Working On:**` — identical text on both surfaces
+    to satisfy the three-surface contract. `**Last Updated**` dropped from both
+    surfaces (git log is source of truth, consistent with Task 2.2 status template).
+    The trailing `---` separator was removed alongside the bottom metadata block —
+    SESSION-NOTES carries no reference-link definitions, so the horizontal rule was
+    purely separating the footer fields that no longer exist. Surface 1's
+    Persistent Context bootstrap entry (Task 2.2) preserved as-is. Surface 2 synced
+    to `.arc/` mirror. Tier 1 quality gates: markdown lint clean on all three edited
+    files; framework-sync integration test passes (package source ↔ `.arc/` mirror
+    parity verified for session-handoff.md).
 
 - [ ] **2.4 Task list template — remove WU-lifecycle state across all 7 surfaces**
 
