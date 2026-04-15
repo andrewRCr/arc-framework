@@ -120,44 +120,46 @@ checkbox state is the pointer._
 
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
 
+**Audience:** The reader is the next session's agent loading from cold context. They already have
+tracked state — git log, task list, WORK-STATUS.md, commit bodies, `notes-*.md`, PRD, constitution,
+strategies. Write only what they can't derive from any of that. The goal is signal, not length. A
+genuinely rich session may produce a longer note; a routine session produces a shorter one. Volume
+is a side effect, not a target.
+
+**The filter — include only if all three hold:**
+
+1. **Not carried in any tracked source.** If the fact lives in a commit body, task list,
+   `notes-*.md`, PRD, strategy, or constitution, that source is authoritative. Duplicating it here
+   creates a shadow copy that drifts.
+2. **The next session will act on it at step 0.** Orientation-relevant — it changes what the next
+   session does or checks when it loads. Not a retrospective observation you "want on record."
+3. **Missing or wrong would cost real rework.** Re-deriving from tracked state in 30 seconds is
+   not rework; a mis-interpretation costing an hour of re-debugging is.
+
+If any of the three fails, omit. This is the same criterion Persistent Context enforces — it
+applies to every ephemeral section too.
+
+**Long-session bias — resist it.** The pattern this filter exists to catch: long sessions
+accumulate rich context, the agent reaches handoff, and an "I don't want to lose this" impulse
+drives verbose preservation. Re-read the filter. Tracked state catches more than it feels like it
+does at end-of-session. Duplication here adds startup noise for the next session without adding
+signal.
+
+**Template skeleton:**
+
 ```markdown
 ### Completed Work
 
-**CRITICAL: When documenting UNCOMMITTED work, use commit-level granularity.**
-
-Next session needs enough detail to recreate proper atomic commits from `git diff`:
-- Map accomplishments to logical commits (what changed, which files/components)
-- Include task numbers/references for `Context:` footer
-- Note any incidental work separate from task list work
-- Provide specificity: component names, file paths, what was changed
-
-**Good examples (uncommitted work):**
-
-- ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) - rejects malformed YAML
-- ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45-67) - added nullable fields for partial updates
-- ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md) - corrected template path
-
-**Bad examples (too vague for commit reconstruction):**
-
-- ❌ "Worked on the parser" (no file mapping, no commit grouping)
-- ❌ "Updated several files" (which? for what commits?)
-- ❌ "Fixed bugs" (what bugs? which files? separate commits?)
-
-**For committed work:** Simple list with commit hashes is sufficient (commit messages already documented details).
+[Committed work — one line per commit: hash + outcome. See "Committed work" below.]
+[Uncommitted work — commit-level detail. See "Uncommitted work" below.]
 
 ### Remaining Work Before Returning to Task List
 
-_(Only for off-task-list work, only if path is known. Otherwise state "Path unclear - will return to Task X.Y when resolved.")_
-
-1. [Step 1]
-2. [Step 2]
-3. Return to Task X.Y — Title (line ~XXX in tasks-file.md)
+[Off-task-list work with known path back. Otherwise: [none] or "Path unclear".]
 
 ### Additional Context
 
-[Supplemental information not in task list: debugging insights, decisions made, things tried/ruled out, constraints discovered]
-
-[OR: [none] if task list has all needed context]
+[Only if the filter passes. Otherwise: [none].]
 
 ### Persistent Context
 
@@ -176,42 +178,71 @@ _(Only for off-task-list work, only if path is known. Otherwise state "Path uncl
 **Last Updated**: {{YYYY-MM-DD}}
 ```
 
-**What to include:**
+**Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.
 
-- **Remaining Work** - Only for off-task-list work when path back is known
-    - List ALL steps if known, not just immediate next
-    - Critical: Captures full path back to task list (use triple-anchor format: task number + title + line hint)
-- **Additional Context** - Supplemental info not in task list
-    - Debugging: What tried, what ruled out, what suspected
-    - Decisions: Choices made that inform approach
-    - Constraints: User preferences, technical limitations
-    - Goal: Don't repeat work, don't lose insights
-- **Persistent Context** - Context that must survive across multiple handoffs
-    - **Criterion:** Persistent context is for information the **tracked state does not carry
-      yet**. If the information lives in any tracked document — plan, strategy, constitution,
-      recipe, or code — it does not belong here. The tracked doc is authoritative; duplicating
-      it in persistent context creates a shadow source that can drift.
-    - Each entry needs an explicit removal trigger (not tied to full work unit completion)
-    - Passes the criterion: forward-looking constraints (terminology for a rename that hasn't
-      landed), un-codified meta-conventions (rules not yet in a strategy doc), parking references
-      (to uncommitted work visible in `git status`)
-    - Fails the criterion: mechanism decisions already in a plan doc's § Resolved Decisions
-      table, architecture rules already in a strategy doc, behavioral guidance already in
-      DEV-RULES
-    - **Anti-pattern (common during pre-PRD planning work):** Writing a persistent-context entry
-      for every mechanism decision resolved in the plan doc. Persistent context is not a
-      substitute for the plan doc's § Resolved Decisions section — the plan doc is authoritative
-      and a future session working in the relevant area should read it per ARC's
-      "verify before assuming" discipline
-    - Review at each handoff: remove entries whose triggers are met, AND entries whose
-      information is now carried in tracked state
+- ✅ `a1b2c3d` — Task 3.5: Schema validation for input records
+- ✅ `e4f5g6h` — Tasks 3.6–3.7: Batch ingestion error handling
 
-**What NOT to include:**
+The commit body already documents what changed, why, and the design decisions — that's what
+`git log` is for. Restating it in SESSION-NOTES is the most common noise pattern. Trust the
+commit body.
 
-- ❌ Summaries of entire task list (that's in the task list file)
-- ❌ Future work beyond path back to task list
-- ❌ Project status updates (that's in git commits)
-- ❌ Task descriptions already in task list (redundant)
+**Completed Work — uncommitted work (exception):** When documenting uncommitted work, use
+commit-level granularity — the next session needs enough detail to recreate proper atomic
+commits from `git diff`:
+
+- ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
+  rejects malformed YAML
+- ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45–67) — added nullable fields
+- ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
+
+Map accomplishments to logical commits (what changed, which files), include task numbers for
+`Context:` footers, note incidental work separately from task list work.
+
+**Remaining Work Before Returning to Task List:** Only for off-task-list work when the path
+back is known. List all steps, not just the next one. Use triple-anchor format (task number +
+title + line hint) for the return target. When the path is unknown, state it: "Path unclear —
+will return to Task X.Y when resolved."
+
+**Additional Context:** Supplemental information that passes the filter — debugging insights,
+decisions not in commit bodies, things tried and ruled out, constraints discovered. If nothing
+passes the filter, write `[none]`. Empty is the normal case for routine sessions.
+
+**Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
+trigger (not tied to full work unit completion). Same criterion as the filter above — tracked
+state is authoritative.
+
+- **Passes:** forward-looking constraints (terminology for a rename that hasn't landed),
+  un-codified meta-conventions (rules not yet in a strategy doc), parking references (to
+  uncommitted work visible in `git status`).
+- **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, architecture
+  rules already in a strategy doc, behavioral guidance already in DEV-RULES.
+- **Anti-pattern** (common during pre-PRD planning): writing a persistent-context entry for
+  every mechanism decision resolved in the plan doc. Persistent context is not a substitute
+  for the plan doc's § Resolved Decisions section.
+
+Review at each handoff: remove entries whose triggers are met, AND entries whose information
+is now carried in tracked state.
+
+**Anti-patterns — omit by name.** When you notice yourself writing one of these, delete it and
+trust the tracked source:
+
+- ❌ **Commit-by-commit retrospective narration.** "Commit `abc123` delivered Task 1.3 as a
+  full-file sweep because mid-batch discovery surfaced 16 references…" The commit body is
+  exactly this. Leave it there.
+- ❌ **Phase preview describing upcoming tasks.** "Task 2.2 creates the template, 2.3 adds the
+  Working On field, 2.4 removes the Status header…" The task list is exactly this. The next
+  session reads it when they get there, not at step 0.
+- ❌ **Design-decision retrospective already in a commit body or notes file.** If the decision
+  is in a commit or `notes-*.md § Consequences`, cross-reference it at most — don't restate it.
+- ❌ **Session-retrospective incidentals.** "Table-width math was tight; commit body length
+  warnings fired twice; markdown-table-prettify has a stdout gotcha." Process observations,
+  not next-session context. If one becomes a durable lesson, codify it in a strategy or
+  QUICK-REFERENCE — not SESSION-NOTES.
+- ❌ **"Things NOT to re-do" lists** mirroring decisions already captured elsewhere. Defensive
+  duplication. Tracked state will surface what the next session needs.
+- ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
+  Context section is fine as empty. Don't write prose explaining why it's empty.
 
 ### Handoff Examples
 

@@ -130,3 +130,72 @@ Atomic Task Completion for the full protocol.
     scale, but the current CI check covers the hard-gate concern without
     constraining iterative edit flows locally. Re-evaluate when contributor
     activity picks up during/after the rebrand WU.
+
+- [x] **Restructure `session-handoff.md` SESSION-NOTES guidance for signal discipline**
+
+    **Problem:** `.arc/user/andrew/SESSION-NOTES.md` at 2026-04-15 handoff (`993d90d`)
+    carried ~250 lines for the Phase 1 closeout with ~5–10 lines of actionable
+    carry-over — roughly 3% signal ratio. Session-init consumption confirmed the
+    pattern: commit-by-commit retrospective narration, phase preview duplicating the
+    task list, design-decision retrospective already in commit bodies and notes file
+    § Consequences, session-retrospective incidentals (table-width math,
+    markdown-table-prettify gotcha), "Things NOT to re-do" defensive mirroring, and a
+    7-line prose paragraph where Persistent Context expected whitespace. Pattern
+    correlates with longer sessions — end-of-session context depth drives an "I don't
+    want to lose this" preservation impulse the existing workflow didn't resist.
+
+    **Root cause in workflow:** `session-handoff.md` § Comprehensive Handoff Format
+    had structural gaps, not just missing guidance. (1) The only `CRITICAL` callout
+    pushed toward MORE detail for the rarer uncommitted case; the committed-work
+    default ("Simple list with commit hashes is sufficient") was a single
+    unemphasized line. (2) The Persistent Context criterion ("if it's in tracked
+    state, it doesn't belong here") was sharp but scoped only to Persistent Context,
+    not extended to Completed Work or Additional Context. (3) Guidance order put the
+    prescriptive template and "CRITICAL include more" callout first, restraint
+    guidance last — agents anchored on the verbose default before reaching the
+    filter. (4) No reader framing and no signal-vs-length framing — workflow never
+    invoked DEV-RULES.ARC § "Write for the reader, not the author." (5) The
+    long-session failure mode wasn't named, so no forcing function resisted
+    preservation bias.
+
+    **Fix applied:** Restructured the SESSION-NOTES.md portion of § Comprehensive
+    Handoff Format in both `session-handoff.template.md` and the rendered `.arc/`
+    copy. Surrounding sections untouched — Pre-Update Verification, WORK-STATUS.md
+    block (with `team.mode` conditional), Handoff Examples 1 & 2, Save to Git Notes,
+    Conditional WORK-STATUS.md Commit, Confirm Handoff.
+
+    Structural changes: reader-framing lead ("The reader is the next session's agent
+    loading from cold context"); hoisted three-criterion filter applied to all
+    ephemeral sections — (a) not carried in any tracked source, (b) next session
+    will act on it at step 0, (c) missing/wrong costs real rework — if any fails,
+    omit; long-session bias note naming the failure mode directly; inverted
+    `### Completed Work` defaults so committed = hash + one-liner is the labeled
+    default and uncommitted commit-level detail is the labeled exception (examples
+    preserved); five anti-patterns by name ("commit-by-commit retrospective
+    narration", "phase preview describing upcoming tasks", "design-decision
+    retrospective already in a commit body or notes file", "session-retrospective
+    incidentals", "'Things NOT to re-do' lists") plus one for
+    prose-where-whitespace-belongs in Persistent Context; Persistent Context
+    criterion preserved and cross-referenced to the hoisted filter as "the same
+    criterion"; dropped the parallel "What to include" / "What NOT to include" lists
+    (absorbed into the filter + anti-patterns — the four original ❌ bullets are
+    all subsumed). Net size: ~116 lines replacing ~94 lines (+22). Additive
+    structure lands filter + bias note BEFORE the template, so agents read restraint
+    guidance first instead of last.
+
+    **Verification:**
+
+    - Tier 1 markdown lint on `.arc/` copy: 0 errors.
+    - Package template excluded from standard lint glob by repo convention
+      (`.markdownlint-cli2.jsonc` ignores `packages/arc-framework/arc/**`);
+      framework-sync integration test is the authoritative validator.
+    - Full package test suite: 575/575 passing including
+      `__tests__/integration/framework-sync.test.ts` (160ms) — confirms the template
+      renders to valid `.arc/` content matching what's on disk.
+    - `diff -q` between template and `.arc/` copy: differs only by the expected
+      `team.mode` conditional block (10 lines), no unexpected drift.
+
+    **Scope guard:** One subsection of one workflow file. Did NOT touch the Handoff
+    Examples (already correctly brief — they anchor the new defaults), the
+    `arc-handoff` skill prose (already minimal), or any other session-lifecycle file.
+    Surgical incidental, not a workflow overhaul.
