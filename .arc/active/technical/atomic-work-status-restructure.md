@@ -13,6 +13,49 @@ Atomic Task Completion for the full protocol.
 
 ---
 
+- [ ] **Add CI drift check for Framework files**
+
+    **Motivation:** `scripts/check-package-sync.sh` stays a warning locally
+    (ergonomic for iterative edit flows, solo-maintainer scale). Defense-in-depth
+    calls for a hard gate at the integration boundary where drift compounds —
+    once it lands on main, adopters get it. CI is the right layer for that.
+
+    **Scope:** Add a CI step (new job or step in existing workflow under
+    `.github/workflows/`) that fails when Framework-classified files in `.arc/`
+    diverge from their package-source counterparts. Reuse the classification logic
+    from `scripts/check-package-sync.sh` where possible — same manifest lookup,
+    same `Framework` filter — but instead of warning on staged-but-unsynced,
+    error on committed-but-unsynced.
+
+    **Design considerations:**
+
+    - **Trigger scope:** Run on PRs targeting `main` and on push to `main`. Skip
+      feature branches (noisy — mid-WU work legitimately has unsynced state).
+    - **Template-vs-rendered comparison:** The check can't do a raw `diff` because
+      package sources contain `arc:if` conditionals and `{{REPO_ROOT}}` placeholders
+      that render-strip / substitute into `.arc/`. Options: (a) render the template
+      using the same logic the CLI uses during `arc init` / `arc update`, then
+      compare; (b) strip known conditional blocks and placeholders before diff;
+      (c) check the manifest's content hash instead of file content. Option (a) is
+      cleanest but needs access to the rendering code. Option (c) is simplest if
+      the manifest records hashes. Verify before choosing.
+    - **Error output:** When drift is detected, surface the specific files and a
+      direction-of-edit hint (which copy is newer, based on git blame or mtime).
+      Match the warning output shape for consistency.
+    - **False positive budget:** Zero. If the check fires, it should be a real
+      drift. Any known-benign case (template placeholders, conditionals) must be
+      normalized in the comparison.
+
+    **Verification:** Branch-push to trigger the workflow. Seed an intentional
+    drift on the test branch to confirm the check fails loudly. Revert the drift,
+    confirm the check passes. Do NOT merge the test branch — reset and clean up.
+
+    **Out of scope:**
+
+    - Changing `scripts/check-package-sync.sh` local behavior (stays warning)
+    - Adding sync automation (auto-propagating edits between copies)
+    - Anything that touches the manifest schema or `arc update` logic
+
 - [x] **Fix `.husky/pre-commit` exit-code propagation**
 
     **Problem:** Commits that should be blocked by the ARC pre-commit hook land
