@@ -16,43 +16,42 @@
 **Branch**: `technical/plan-work-status-restructure`
 **Task List**: [none]
 **Next Task**: —
-**Last Completed**: **Formalized `prd-work-status-restructure.md` from the plan doc.**
-PRD captures 18 requirements (16 P0 + 2 P1 fold-ins), success criteria as
-design-flaws-eliminated checklist plus post-migration invariants, and 5
-implementation-deferred questions with direction. Detailed rationale
-(historical ADR-007 conflation analysis, 6 considered alternatives, 8-scenario
-stress-test battery, harmony-with-shift-lifecycle walk, deactivation case
-matrix) carved into companion `notes-work-status-restructure.md`. Plan doc
-retired in the same commit.
+**Last Completed**: **Generated `tasks-work-status-restructure.md` from the
+PRD.** 42 subtasks across 7 phases (Foundation docs → Templates + workflows
+→ Live migration cutover → `deactivate-work-unit.md` → Plan-\* doc updates
+→ Reference cleanup → Verification). R17 `Following Task List` removal
+carries explicit "do NOT re-include" prohibitions in Task 2.2 (status
+template) and Task 5.1 (`plan-arc-modes.md` Finding #4 carve-out). Phase 2
+kickoff writes a SESSION-NOTES Persistent Context entry guarding against
+mid-Phase-2 sessions following edited workflow instructions against
+old-path live state; Phase 3 cutover removes it. Atomic companion file
+created alongside. Separately: incidental fix to `1_create-prd.md` Step 5
+broadening the `notes-*.md` framing guidance (notes file is a living
+scratchpad, not a closed plan-extracted archive).
 
 **Blockers**: [none]
 
-**Next Action**: **Invoke `2_generate-tasks.md`** on
-`prd-work-status-restructure.md` to produce the task list. Under
+**Next Action**: **Invoke `integrate-planning-branch.md`** — push this
+planning branch, open PR, merge to main. The planning PR carries: PRD,
+notes, task list, atomic companion, plan doc retirement, the incidental
+`1_create-prd.md` framing fix, and WORK-STATUS.md advances. Under
 `branch.protection: full`:
 
-1. **This planning branch:** run `2_generate-tasks.md` — 7 phases sketched in
-   PRD § Technical Considerations (Foundation docs → Core workflow edits →
-   Live migration → deactivate-work-unit → Plan-\* doc updates → Supporting
-   cleanup → Integration and archival). Task generation should fold in an
-   interim-state concern: Phase 2 first task writes a SESSION-NOTES
-   Persistent Context entry flagging mid-restructure state (workflow files
-   describe new model ahead of live state); Phase 3 cutover task removes it.
-2. **This planning branch:** invoke `integrate-planning-branch.md` after task
-   list approval — push, PR, merge to main. Planning PR carries the plan
-   doc retirement (already in place), PRD, notes, and task list.
-3. **Session boundary** after merge per `integrate-planning-branch.md` § Step 5.
-4. **New session from base:** invoke `activate-work-unit.md` for
+1. **This planning branch:** invoke `integrate-planning-branch.md` — push,
+   PR, merge to main
+2. **Session boundary** after merge per `integrate-planning-branch.md`
+   § Step 5
+3. **New session from base:** invoke `activate-work-unit.md` for
    `prd-work-status-restructure` — creates `technical/work-status-restructure`
-   implementation branch, moves artifacts from `backlog/` to `active/`.
-5. **Execute restructure WU** via `3_process-task-loop.md` starting with Phase 1
-   (ADR-007 amendment + strategy updates). Phase 3 (live migration) dogfoods
-   the WU's own output at the cutover point.
+   implementation branch, moves artifacts from `backlog/` to `active/`
+4. **Execute restructure WU** via `3_process-task-loop.md` starting with
+   Phase 1 (ADR-007 amendment + strategy updates). Phase 3 (live migration)
+   dogfoods the WU's own output at the cutover point
 
 Post-restructure merge: reactivate rebrand WU as first real exercise of the
 per-WU status file model across rotating branches.
 
 ---
 
-**Last Updated**: 2026-04-15 (PRD + notes formalized from plan doc; next
-action is task generation via 2_generate-tasks.md)
+**Last Updated**: 2026-04-15 (task list + atomic companion generated; next
+action is integrate-planning-branch.md)
