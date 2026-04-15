@@ -35,11 +35,11 @@ describe("lifecycle", () => {
     );
     expect(configContent).toContain("branch.base: main");
 
-    const workStatus = await readFile(
-      join(tmpDir, ".arc", "active", "WORK-STATUS.md"),
+    const statusTemplate = await readFile(
+      join(tmpDir, ".arc", "reference", "templates", "template-status.md"),
       "utf-8",
     );
-    expect(workStatus).toContain("Work Status");
+    expect(statusTemplate).toContain("Status: [Work Name]");
 
     // --- Status after clean init ---
     const cleanStatus = await runArc(["status"], tmpDir);

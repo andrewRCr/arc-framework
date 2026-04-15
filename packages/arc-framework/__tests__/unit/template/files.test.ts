@@ -4,7 +4,6 @@ import {
   copyWithRendering,
   writeArcManagedBlock,
   writeArcGitignoreBlock,
-  writeArcGitattributesBlock,
 } from "../../../src/lib/template/index.js";
 
 describe("ensureDir", () => {
@@ -109,14 +108,14 @@ describe("writeArcManagedBlock", () => {
     const mockWrite = vi.fn().mockResolvedValue(undefined);
     await writeArcManagedBlock(
       ".gitattributes",
-      [".arc/active/WORK-STATUS.md merge=ours"],
+      ["*.lock merge=ours"],
       mockRead,
       mockWrite,
     );
     expect(mockWrite).toHaveBeenCalledWith(
       ".gitattributes",
       "# ARC Framework (managed by arc cli)\n"
-      + ".arc/active/WORK-STATUS.md merge=ours\n"
+      + "*.lock merge=ours\n"
       + "# end ARC\n",
     );
   });
@@ -126,14 +125,14 @@ describe("writeArcManagedBlock", () => {
     const mockWrite = vi.fn().mockResolvedValue(undefined);
     await writeArcManagedBlock(
       ".gitattributes",
-      [".arc/active/WORK-STATUS.md merge=ours"],
+      ["*.lock merge=ours"],
       mockRead,
       mockWrite,
     );
     const written = mockWrite.mock.calls[0]?.[1] as string;
     expect(written).toContain("*.png binary");
     expect(written).toContain("# ARC Framework (managed by arc cli)");
-    expect(written).toContain(".arc/active/WORK-STATUS.md merge=ours");
+    expect(written).toContain("*.lock merge=ours");
     expect(written).toContain("# end ARC");
   });
 
@@ -150,12 +149,12 @@ describe("writeArcManagedBlock", () => {
     const mockWrite = vi.fn().mockResolvedValue(undefined);
     await writeArcManagedBlock(
       ".gitattributes",
-      [".arc/active/WORK-STATUS.md merge=ours"],
+      ["*.lock merge=ours"],
       mockRead,
       mockWrite,
     );
     const written = mockWrite.mock.calls[0]?.[1] as string;
-    expect(written).toContain(".arc/active/WORK-STATUS.md merge=ours");
+    expect(written).toContain("*.lock merge=ours");
     expect(written).not.toContain("old-entry");
     expect(written.match(/# ARC Framework/g)?.length).toBe(1);
     expect(written.match(/# end ARC/g)?.length).toBe(1);
@@ -180,7 +179,7 @@ describe("writeArcManagedBlock", () => {
   it("is idempotent on re-run with same entries", async () => {
     const blockContent = [
       "# ARC Framework (managed by arc cli)",
-      ".arc/active/WORK-STATUS.md merge=ours",
+      "*.lock merge=ours",
       "# end ARC",
       "",
     ].join("\n");
@@ -188,7 +187,7 @@ describe("writeArcManagedBlock", () => {
     const mockWrite = vi.fn().mockResolvedValue(undefined);
     await writeArcManagedBlock(
       ".gitattributes",
-      [".arc/active/WORK-STATUS.md merge=ours"],
+      ["*.lock merge=ours"],
       mockRead,
       mockWrite,
     );
@@ -284,21 +283,4 @@ describe("writeArcGitignoreBlock", () => {
     expect(written.match(/\.arc\/user\/\*\//g)?.length).toBe(1);
   });
 
-});
-
-describe("writeArcGitattributesBlock", () => {
-  it("delegates to writeArcManagedBlock", async () => {
-    const mockRead = vi.fn().mockResolvedValue("*.png binary\n");
-    const mockWrite = vi.fn().mockResolvedValue(undefined);
-    await writeArcGitattributesBlock(
-      ".gitattributes",
-      [".arc/active/WORK-STATUS.md merge=ours"],
-      mockRead,
-      mockWrite,
-    );
-    const written = mockWrite.mock.calls[0]?.[1] as string;
-    expect(written).toContain("# ARC Framework (managed by arc cli)");
-    expect(written).toContain(".arc/active/WORK-STATUS.md merge=ours");
-    expect(written).toContain("# end ARC");
-  });
 });

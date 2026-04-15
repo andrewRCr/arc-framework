@@ -1,16 +1,16 @@
 /**
  * Shared setup operations for `arc init` and `arc join`.
  *
- * Git integration (gitattributes, merge driver, hooks path) and post-init
- * user setup (identity, user directory, notes refspec). Extracted from
- * init.ts so both commands share the same setup sequence.
+ * Git integration (hooks path) and post-init user setup (identity, user
+ * directory, notes refspec). Extracted from init.ts so both commands share
+ * the same setup sequence.
  */
 
-import { join } from "node:path";
-import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
+import { ensureDir } from "./template/index.js";
 import { configureNotesRefspec } from "./git/index.js";
 import { detectHookManager } from "./hook-manager.js";
 import { integrateHooks } from "./hook-integration.js";
+import { join } from "node:path";
 import type { CoreIO } from "./types.js";
 import { PM_MODE_ARC_IN_GIT } from "./constants.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
@@ -28,8 +28,9 @@ export interface GitIntegrationOptions {
 /**
  * Configure git integration for an ARC project.
  *
- * Sets up the gitattributes merge strategy for WORK-STATUS.md, the custom
- * merge driver, and the hooks path. Both fresh init and join need this.
+ * Sets up the hooks path (integrating with an existing hook manager when
+ * present, otherwise falling back to native git hooks). Both fresh init
+ * and join need this.
  *
  * @param options - Git integration options with injectable I/O
  */
@@ -38,17 +39,6 @@ export async function configureGitIntegration(
 ): Promise<void> {
   const { cwd, exec, readFile, writeFile, access } = options;
 
-  const gitattrsPath = join(cwd, ".gitattributes");
-  await writeArcGitattributesBlock(
-    gitattrsPath,
-    [".arc/active/WORK-STATUS.md merge=ours"],
-    readFile,
-    writeFile,
-  );
-  await exec("git", ["config", "merge.ours.driver", "true"]);
-
-  // Hook setup: integrate into existing hook manager if detected,
-  // otherwise fall back to core.hooksPath (native git hooks).
   const hookManager = await detectHookManager(cwd, access);
   if (hookManager) {
     await integrateHooks(hookManager, readFile, writeFile);

@@ -311,57 +311,77 @@ at cutover.
     Persistence to git notes via `arc sync` runs at task commit time so the guard
     survives the SESSION-NOTES gitignore.
 
-- [ ] **2.2 Status file template (new) — retire the old**
+- [x] **2.2 Status file template (new) — retire the old**
 
-    **Goal:** Create the per-WU status file template at
-    `packages/arc-framework/arc/reference/templates/template-status.md` (matches the
-    existing `template-*.md` naming convention in this directory). Retire
-    `packages/arc-framework/arc/active/WORK-STATUS.template.md`.
+    Created `packages/arc-framework/arc/reference/templates/template-status.md`
+    with the pinned shape: `# Status: [Work Name]` heading (matching existing
+    `[Work Name]` placeholder convention), 7-line streamlined About callout, 7
+    required R2 fields (`State`, `Branch`, `Task List`, `Next Task`, `Last
+    Completed`, `Blockers`, `Next Action`), 3 optional pointer fields documented
+    in HTML comment (`Interrupts`, `Paused At`, `Paused To`), trailing State
+    enum comment. No `Last Updated`, no `Following Task List` per R17. Synced
+    to `.arc/reference/templates/template-status.md`.
 
-    **Template shape:**
+    **Retirement executed:** `git rm` on
+    `packages/arc-framework/arc/active/WORK-STATUS.template.md`. Pre-task grep
+    surfaced scaffolding references in `init-recipe.json`, `src/lib/classification.ts`
+    (`SCAFFOLDED_FILES`), `src/lib/setup.ts` (`.gitattributes` `merge=ours` write +
+    merge driver config — Task 1.7 had retired these from hooks/docs but left
+    the scaffolding code writing them for new adopters; retirement completed
+    here as explicitly anticipated in this task's scope), and 10 test files
+    asserting WORK-STATUS-specific behavior. All updated: swapped test fixtures
+    to `reference/META-PRD.template.md` for Scaffolded-file assertions,
+    removed `merge=ours` / merge-driver assertions entirely, replaced WORK-STATUS
+    content-presence test with a template-status presence test.
 
-    - Heading: `# Status: {name}` — "Status:" prefix is explicit, follows existing
-      file patterns, and works for Lite mode where `{name}` becomes the project name
-      or is simply dropped
-    - 7-line streamlined About-this-file callout (Per-WU state pointer + SESSION-NOTES
-      companion reference; drops the "Customization" line and condenses the companion
-      description relative to the retired `WORK-STATUS.template.md`)
-    - 7 required R2 fields: `**State:**`, `**Branch:**`, `**Task List:**`,
-      `**Next Task:**`, `**Last Completed:**`, `**Blockers:**`, `**Next Action:**`.
-      Empty values use `—`.
-    - `**Last Updated**` field is explicitly NOT present — removing by design (git log
-      is source of truth for timestamps; the field was brittle churn in the old
-      template and forced every commit to re-author a mini changelog annotation)
-    - 3 optional pointer fields documented in an HTML comment block (NOT in file body
-      by default): `**Interrupts:**` (on incidental WU status files),
-      `**Paused At:**` / `**Paused To:**` (on parent WU status files when interrupted
-      by an incidental). See Task 2.13 for the coordinated pause/resume protocol.
-    - Trailing HTML comment with `State:` enum values, including the Paused example
-      referencing the pointer fields for the incidental-interrupt case
-    - **Explicitly exclude `Following Task List` field (R17).** Re-inclusion would
-      undo R17's resolution; rationale is carved out of `plan-arc-modes.md` Finding #4
-      (Yes/No flag redundant with Next Task + Next Action alignment)
+    **Dead utility cleanup:** `writeArcGitattributesBlock` had no remaining
+    callers post-retirement — removed from `src/lib/template/files.ts`,
+    `src/lib/template/index.ts` barrel, and its direct unit test. Git history
+    preserves it if Lite mode ever reintroduces gitattributes management.
 
-    **Retirement of `WORK-STATUS.template.md`:**
+    **active/ directory lifecycle:** Init no longer creates `.arc/active/` —
+    the directory is lazily created by `activate-work-unit.md` at first WU
+    activation (`mkdir -p .arc/active/{category}/` is already in that workflow).
+    Pattern: filesystem mirrors state, empty = no work, populated = active work.
+    Removed `active` from the integration test's `expectedDirs` list and added
+    a positive-pin assertion that `.arc/active/` does NOT exist after a clean
+    init (regression guard for the intended state).
 
-    - **Pre-task grep** `packages/arc-framework/src/` and
-      `packages/arc-framework/__tests__/` for `WORK-STATUS.template.md` (and
-      `WORK-STATUS` generally to catch scaffolding references)
-    - **If grep hits exist:** update setup/init scaffolding code and test fixtures as
-      part of this task's scope. Expected hits are in `src/lib/setup.ts` or equivalent
-      init logic.
-    - **If no hits:** `git rm packages/arc-framework/arc/active/WORK-STATUS.template.md`
-    - **Scope boundary:** this task does NOT touch the LIVE file at
-      `.arc/active/WORK-STATUS.md` — the live file persists under Task 2.1's Phase 2
-      interim-state guard until Phase 3 cutover. Package source template retirement
-      and live file migration are independent concerns that happen to share a filename.
+    **Init → first-session bridge folded in:** The retired WORK-STATUS template
+    populated a `Next Action` pointing to `01_verify-and-configure.md`; that
+    bridge would otherwise be lost. Folded into
+    `packages/arc-framework/templates/user/SESSION-NOTES.md` (scaffolding template,
+    no `.arc/` mirror): (a) fixed the stale `[WORK-STATUS.md](../active/WORK-STATUS.md)`
+    link in the About callout to reference `status-{name}.md` in
+    `active/{category}/`; (b) dropped the Customization line to match the new
+    status template's streamlining; (c) pre-populated a Persistent Context
+    entry pointing at the initial-setup sequence ("starting at
+    `01_verify-and-configure.md`. The workflow guides onward steps.") with a
+    `Remove when: initial-setup sequence complete` trigger. Session-init already
+    reads Persistent Context and treats entries as active constraints, so the
+    first `/arc-resume` after init surfaces the pointer in orientation without
+    new machinery. Phrasing is mode-agnostic (01 is the universal entry; it
+    chains to 02 and optionally 03 internally). Task 2.3 will add
+    `**Working On:**` on top — see its pre-execution note for folding guidance.
 
-    - Sync new template to `.arc/reference/templates/template-status.md`
+    **Quality gates:** Tier 1 markdown lint clean, TypeScript lint/typecheck
+    clean, full test suite passes (616 tests: 470 unit + 102 integration + 43
+    e2e, including `framework-sync.test.ts` which verifies package source ↔
+    `.arc/` mirror parity for the new template). tsup build succeeds.
 
 - [ ] **2.3 SESSION-NOTES — add `**Working On:**` field across both surfaces**
 
     **Goal:** Install the session-pointer field that session-init reads as the primary
     disambiguation signal. Two surfaces must be updated.
+
+    **Prior-task folding (Task 2.2):** Task 2.2 already edited Surface 1 to (a) fix the
+    stale WORK-STATUS link in the About callout (now points to `status-{name}.md` in
+    `active/{category}/`), (b) drop the Customization line (streamlining consistent with
+    the new status template), and (c) pre-populate a Persistent Context entry for the
+    init → first-session bridge (post-install setup pointer with explicit removal
+    trigger). Task 2.3 adds `**Working On:**` on top of this baseline — the bootstrap
+    entry stays as-is (it's a runtime content concern, orthogonal to the field
+    structure). No re-work needed; just build on what 2.2 landed.
 
     **Surface 1 — Scaffolding template:**
     `packages/arc-framework/templates/user/SESSION-NOTES.md`

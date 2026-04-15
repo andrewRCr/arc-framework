@@ -15,28 +15,36 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 2.2 — Status file template (new) — retire the old (line ~314)
-**Last Completed**: Task 2.1 — Persistent Context interim-state guard
-installed in `.arc/user/andrew/SESSION-NOTES.md` (`edd1bd1`). Phase 2
-subsequently re-scoped from pre-execution audit (planning activity, not a
-task): Tasks 2.2–2.6 pinned up-front, new Task 2.13 added for R16 pointer
-field completion, old 2.13/2.14 renumbered to 2.14/2.15. Task 2.1 remains
-the last *executed* task.
+**Next Task**: Task 2.3 — SESSION-NOTES add `**Working On:**` field across both surfaces (line ~361)
+**Last Completed**: Task 2.2 — per-WU status template landed at
+`packages/arc-framework/arc/reference/templates/template-status.md` (+ sync
+to `.arc/`). Retired `WORK-STATUS.template.md` and its scaffolding footprint
+(init-recipe, SCAFFOLDED_FILES, setup.ts merge=ours + merge-driver writes —
+matching Task 1.7's hook/doc retirement). Deleted unused
+`writeArcGitattributesBlock` utility. Updated 10 test files. `active/` now
+created lazily at activation (dropped from init expected-dirs + positive-
+absence test added). SESSION-NOTES scaffolding: fixed stale WORK-STATUS
+link in About callout, dropped Customization line, pre-populated Persistent
+Context entry pointing at `initial-setup/01_verify-and-configure.md` so
+first-session-after-init still surfaces the setup bridge (mode-agnostic
+phrasing; Task 2.3 folds `**Working On:**` on top).
 
 **Blockers**: [none]
 
-**Next Action**: Execute Phase 2 Task 2.2 per its updated description — create
-`packages/arc-framework/arc/reference/templates/template-status.md` with the
-pinned template shape (streamlined 7-line About callout, 7 required R2 fields,
-3 optional pointer fields documented in an HTML comment, trailing `State:`
-enum comment, no `Last Updated`, no `Following Task List` per R17). Retire
-the old `WORK-STATUS.template.md`: pre-task grep
-`packages/arc-framework/src/` and `__tests__/` for scaffolding references
-first; update if found, otherwise `git rm`. Live `.arc/active/WORK-STATUS.md`
-is untouched until Phase 3 per Task 2.1's interim guard. Sync new template
-to `.arc/`.
+**Next Action**: Execute Phase 2 Task 2.3 per its updated description. The
+pre-execution note on Task 2.3 documents what Task 2.2 already landed on
+Surface 1 (`packages/arc-framework/templates/user/SESSION-NOTES.md`): About
+callout link fix, Customization line drop, pre-populated Persistent Context
+bootstrap entry. Task 2.3 adds `**Working On:**` field near the top alongside
+`**Commit at Handoff:**`, documents the marker vocabulary (`[none]`,
+`[planning: {category}/{name}]`, `[between work units]`, `status-{name}.md`),
+and drops `**Last Updated**`. Also update Surface 2 (the embedded template
+skeleton in `session-handoff.template.md`) and sync Surface 2 to `.arc/`.
+Live `.arc/active/WORK-STATUS.md` remains untouched until Phase 3 per Task
+2.1's interim guard.
 
 ---
 
-**Last Updated**: 2026-04-15 (Phase 2 re-scoped post-audit — pinned 2.2–2.6,
-added 2.13 for R16 pointer field completion, renumbered 2.13/2.14 → 2.14/2.15)
+**Last Updated**: 2026-04-15 (Task 2.2 complete — per-WU status template
+landed, scaffolding footprint retired, init→first-session bridge preserved
+via SESSION-NOTES Persistent Context)

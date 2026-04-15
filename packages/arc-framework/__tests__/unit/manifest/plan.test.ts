@@ -77,7 +77,7 @@ describe("buildChangePlan", () => {
       const manifest = makeManifest({
         "reference/README.md": frameworkEntry(),
         "system/arc-config.yml": configurableEntry(),
-        "active/WORK-STATUS.md": scaffoldedEntry(),
+        "reference/META-PRD.md": scaffoldedEntry(),
       });
 
       // New file list is empty — all files removed
@@ -90,7 +90,7 @@ describe("buildChangePlan", () => {
       );
       expect(byPath["reference/README.md"]!.classification).toBe("Framework");
       expect(byPath["system/arc-config.yml"]!.classification).toBe("Configurable");
-      expect(byPath["active/WORK-STATUS.md"]!.classification).toBe("Scaffolded");
+      expect(byPath["reference/META-PRD.md"]!.classification).toBe("Scaffolded");
     });
 
     test("skips removals for files not in old manifest", () => {
@@ -153,16 +153,16 @@ describe("buildChangePlan", () => {
     test("skips scaffolded files into the skipped list", () => {
       const existingEntry = scaffoldedEntry();
       const manifest = makeManifest({
-        "active/WORK-STATUS.md": existingEntry,
+        "reference/META-PRD.md": existingEntry,
       });
-      const templateFiles = ["active/WORK-STATUS.template.md"];
+      const templateFiles = ["reference/META-PRD.template.md"];
 
       const plan = buildChangePlan(manifest, templateFiles, {}, new Set());
 
       expect(plan.merges).toHaveLength(0);
       expect(plan.skipped).toHaveLength(1);
       expect(plan.skipped[0]).toEqual({
-        outputPath: "active/WORK-STATUS.md",
+        outputPath: "reference/META-PRD.md",
         existingEntry,
       });
     });
@@ -210,14 +210,14 @@ describe("buildChangePlan", () => {
       const manifest = makeManifest({});
       const templateFiles = [
         "reference/README.md",
-        "active/WORK-STATUS.template.md",
+        "reference/META-PRD.template.md",
       ];
 
       const plan = buildChangePlan(manifest, templateFiles, {}, new Set());
 
       expect(plan.outputToTemplate).toEqual({
         "reference/README.md": "reference/README.md",
-        "active/WORK-STATUS.md": "active/WORK-STATUS.template.md",
+        "reference/META-PRD.md": "reference/META-PRD.template.md",
       });
     });
   });
