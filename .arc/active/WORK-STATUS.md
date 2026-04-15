@@ -17,32 +17,26 @@
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
 **Next Task**: Task 2.2 — Status file template (new) — retire the old (line ~314)
 **Last Completed**: Task 2.1 — Persistent Context interim-state guard
-installed in `.arc/user/andrew/SESSION-NOTES.md`. Entry names the
-"Mid-restructure interim state (WORK-STATUS path)" condition, carries an
-explicit `*Remove when: Phase 3 cutover commit lands.*` trigger, and points
-future sessions at the old-path live state over Phase 2 workflow edit
-instructions. Preceded by incidental `4d11c1f` (session-handoff SESSION-NOTES
-signal discipline tightening) — one of the tightened anti-patterns
-("explanatory paragraphs where the template expects whitespace") was
-dogfooded immediately, replacing the prior `_(none — …)_` placeholder with
-the real entry.
+installed in `.arc/user/andrew/SESSION-NOTES.md` (`edd1bd1`). Phase 2
+subsequently re-scoped from pre-execution audit (planning activity, not a
+task): Tasks 2.2–2.6 pinned up-front, new Task 2.13 added for R16 pointer
+field completion, old 2.13/2.14 renumbered to 2.14/2.15. Task 2.1 remains
+the last *executed* task.
 
 **Blockers**: [none]
 
-**Next Action**: Execute Phase 2 Task 2.2 — create the per-WU status file
-template in package source (expected location
-`packages/arc-framework/arc/reference/templates/template-status.md` or the
-equivalent `activate-work-unit.md` can source from) with the 7 PRD R2 fields
-(`**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`, `**Last
-Completed:**`, `**Blockers:**`, `**Next Action:**`), the `State:` enum
-comment block (`In Progress` / `Paused (date) — reason` / `Waiting-For
-{category} (date) — reason` / `Complete`), and the explicit R17 exclusion of
-the `Following Task List` field. Retire the old
-`packages/arc-framework/arc/active/WORK-STATUS.template.md`. Sync to `.arc/`
-counterparts.
+**Next Action**: Execute Phase 2 Task 2.2 per its updated description — create
+`packages/arc-framework/arc/reference/templates/template-status.md` with the
+pinned template shape (streamlined 7-line About callout, 7 required R2 fields,
+3 optional pointer fields documented in an HTML comment, trailing `State:`
+enum comment, no `Last Updated`, no `Following Task List` per R17). Retire
+the old `WORK-STATUS.template.md`: pre-task grep
+`packages/arc-framework/src/` and `__tests__/` for scaffolding references
+first; update if found, otherwise `git rm`. Live `.arc/active/WORK-STATUS.md`
+is untouched until Phase 3 per Task 2.1's interim guard. Sync new template
+to `.arc/`.
 
 ---
 
-**Last Updated**: 2026-04-15 (Task 2.1 complete — interim-state guard
-installed in SESSION-NOTES § Persistent Context; preceded by incidental
-`4d11c1f` tightening session-handoff SESSION-NOTES signal discipline)
+**Last Updated**: 2026-04-15 (Phase 2 re-scoped post-audit — pinned 2.2–2.6,
+added 2.13 for R16 pointer field completion, renumbered 2.13/2.14 → 2.14/2.15)

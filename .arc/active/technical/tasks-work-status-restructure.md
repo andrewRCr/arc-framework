@@ -313,103 +313,222 @@ at cutover.
 
 - [ ] **2.2 Status file template (new) — retire the old**
 
-    **Goal:** Create the per-WU status file template and retire the singular
-    WORK-STATUS.md template scaffolding.
+    **Goal:** Create the per-WU status file template at
+    `packages/arc-framework/arc/reference/templates/template-status.md` (matches the
+    existing `template-*.md` naming convention in this directory). Retire
+    `packages/arc-framework/arc/active/WORK-STATUS.template.md`.
 
-    - Create new template file in package source (path TBD during execution — expected
-      location: `packages/arc-framework/arc/reference/templates/template-status.md`
-      or equivalent that `activate-work-unit.md` can source from during WU activation)
-    - Include 7 fields per PRD R2: `**State:**`, `**Branch:**`, `**Task List:**`,
-      `**Next Task:**`, `**Last Completed:**`, `**Blockers:**`, `**Next Action:**`
-    - Include template comment block documenting field purposes and `State:` enum
-      values (`In Progress` / `Paused (date) — reason` / `Waiting-For {category}
-      (date) — reason` / `Complete`)
-    - **Explicitly exclude `Following Task List` field (R17).** The old WORK-STATUS
-      template carried this field; the new template must NOT re-introduce it. Rationale
-      carved out of `plan-arc-modes.md` Finding #4: the Yes/No flag is redundant with
-      Next Task + Next Action alignment. Re-inclusion would undo R17's resolution.
-    - Retire `packages/arc-framework/arc/active/WORK-STATUS.template.md` (no longer
-      scaffolded at init — activation creates the status file from the new template)
-    - Sync to `.arc/` counterparts
+    **Template shape:**
 
-- [ ] **2.3 SESSION-NOTES template — add `**Working On:**` field**
+    - Heading: `# Status: {name}` — "Status:" prefix is explicit, follows existing
+      file patterns, and works for Lite mode where `{name}` becomes the project name
+      or is simply dropped
+    - 7-line streamlined About-this-file callout (Per-WU state pointer + SESSION-NOTES
+      companion reference; drops the "Customization" line and condenses the companion
+      description relative to the retired `WORK-STATUS.template.md`)
+    - 7 required R2 fields: `**State:**`, `**Branch:**`, `**Task List:**`,
+      `**Next Task:**`, `**Last Completed:**`, `**Blockers:**`, `**Next Action:**`.
+      Empty values use `—`.
+    - `**Last Updated**` field is explicitly NOT present — removing by design (git log
+      is source of truth for timestamps; the field was brittle churn in the old
+      template and forced every commit to re-author a mini changelog annotation)
+    - 3 optional pointer fields documented in an HTML comment block (NOT in file body
+      by default): `**Interrupts:**` (on incidental WU status files),
+      `**Paused At:**` / `**Paused To:**` (on parent WU status files when interrupted
+      by an incidental). See Task 2.13 for the coordinated pause/resume protocol.
+    - Trailing HTML comment with `State:` enum values, including the Paused example
+      referencing the pointer fields for the incidental-interrupt case
+    - **Explicitly exclude `Following Task List` field (R17).** Re-inclusion would
+      undo R17's resolution; rationale is carved out of `plan-arc-modes.md` Finding #4
+      (Yes/No flag redundant with Next Task + Next Action alignment)
+
+    **Retirement of `WORK-STATUS.template.md`:**
+
+    - **Pre-task grep** `packages/arc-framework/src/` and
+      `packages/arc-framework/__tests__/` for `WORK-STATUS.template.md` (and
+      `WORK-STATUS` generally to catch scaffolding references)
+    - **If grep hits exist:** update setup/init scaffolding code and test fixtures as
+      part of this task's scope. Expected hits are in `src/lib/setup.ts` or equivalent
+      init logic.
+    - **If no hits:** `git rm packages/arc-framework/arc/active/WORK-STATUS.template.md`
+    - **Scope boundary:** this task does NOT touch the LIVE file at
+      `.arc/active/WORK-STATUS.md` — the live file persists under Task 2.1's Phase 2
+      interim-state guard until Phase 3 cutover. Package source template retirement
+      and live file migration are independent concerns that happen to share a filename.
+
+    - Sync new template to `.arc/reference/templates/template-status.md`
+
+- [ ] **2.3 SESSION-NOTES — add `**Working On:**` field across both surfaces**
 
     **Goal:** Install the session-pointer field that session-init reads as the primary
-    disambiguation signal.
+    disambiguation signal. Two surfaces must be updated.
 
-    - Edit `packages/arc-framework/arc/user/SESSION-NOTES.template.md` (path TBD during
-      execution if different)
+    **Surface 1 — Scaffolding template:**
+    `packages/arc-framework/templates/user/SESSION-NOTES.md`
+
+    *Note on location:* This file lives in a sibling `templates/` tree at the package
+    root, OUTSIDE the `arc/` mirror. It has no `.template.md` suffix and uses
+    `{{short-hash}}` / `{{YYYY-MM-DD}}` moustache placeholders (populated at
+    `arc init` / `arc join` time). The scaffolding template has no `.arc/` mirror —
+    the live per-identity file at `.arc/user/{identity}/SESSION-NOTES.md` is created
+    once at join time and evolves independently.
+
+    **Surface 2 — Embedded template skeleton:** the "Template skeleton:" fenced code
+    block in
+    `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md`
+    (lines ~148–179 per current state — search for the fenced markdown block
+    containing `**Commit at Handoff**`).
+
+    **Edits at both surfaces:**
+
     - Add `**Working On:**` field near the top alongside `**Commit at Handoff:**`
     - Add comment block documenting the marker vocabulary (decided here per PRD Q1):
         - `[none]` — no active work
         - `[planning: {category}/{name}]` — in a planning cycle, no WU yet
         - `[between work units]` — between activation and archive of adjacent WUs
         - `status-{name}.md` — normal case, file reference
-    - This is the "definition" surface — `session-handoff.md` (Task 2.6) writes the
-      value per these markers; `session-init.md` (Task 2.5) reads and interprets them.
-      All three surfaces must agree
+    - Drop the `**Last Updated**` field (consistency with Task 2.2 status template —
+      git log is source of truth; removes brittle churn)
 
-- [ ] **2.4 Task list template — remove `**Status:**` header**
+    **Three-surface contract:** This is the "definition" surface. Task 2.6 writes the
+    value per these markers in `session-handoff.md`; Task 2.5 reads and interprets
+    them in `session-init.md`. All three surfaces must use **identical marker
+    strings** — Task 2.15.g (quality gates) verifies this.
 
-    - Edit `packages/arc-framework/arc/reference/templates/template-task-list.md` (path
-      TBD during execution; may be embedded in `strategy-task-list-formatting.md`)
-    - Remove the `**Status:**` header line from the template's example header block
-    - Update any prose in `strategy-task-list-formatting.md` § Task List Headers that
-      references the removed header (both the field definition and any example showing
-      it)
-    - WU lifecycle now lives in the status file `**State:**` field — task list
-      lifecycle is implicit (location-as-state: `backlog/` / `active/` / `archive/`)
-    - **Scope guard:** This subtask only edits templates. Existing task lists in
-      `.arc/backlog/` (`tasks-arcd-rebrand.md`) and `.arc/reference/archive/` are NOT
-      touched — rebrand absorbs the cleanup at reactivation; archives are immutable
-      historical record
+    Sync Surface 2 to `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
+    Surface 1 has no `.arc/` mirror (scaffolding-only).
+
+- [ ] **2.4 Task list template — remove WU-lifecycle state across all 7 surfaces**
+
+    **Goal:** Remove WU-lifecycle state from task list templates per R16; lifecycle
+    relocates to the status file `**State:**` field. Pause/resume coordination
+    (previously in task list headers) relocates to Task 2.13
+    (`manage-incidental-work.md`) + the Task 2.2 status template's optional pointer
+    fields.
+
+    **Note:** No separate `template-task-list.md` file exists. The task list template
+    is embedded as fenced code blocks inside `strategy-task-list-formatting.md`. This
+    task edits that strategy file exclusively.
+
+    File: `packages/arc-framework/arc/reference/strategies/arc/strategy-task-list-formatting.md`
+
+    **Seven surfaces to edit** (line numbers approximate; use graduated lookup):
+
+    - **Line ~68** — Feature/Technical template block: remove `**Status:**` header
+      line
+    - **Line ~99** — Feature/Technical Rules bullet describing Status values: remove
+      the bullet
+    - **Line ~119** — Incidental template block: remove `**Status:**` header line AND
+      `**Interrupts:**` field (Interrupts moves to status file per Task 2.13)
+    - **Line ~153** — Incidental Rules bullet describing Status values: remove the
+      bullet
+    - **Lines ~156–158** — Incidental "When pausing parent work" / "When resuming"
+      rules: remove entirely (pause/resume coordination moves to Task 2.13
+      `manage-incidental-work.md` + status file pointer fields)
+    - **Lines ~163–197** — Worked Incidental example: remove `**Status:** In Progress`
+      line and `**Interrupts:**` field
+    - **Lines ~199–204** — Entire `### Status Field Values` H3 section: remove (field
+      no longer exists on task lists)
+
+    **Scope guard:** This subtask only edits the strategy document. Existing task
+    lists in `.arc/backlog/` (`tasks-arcd-rebrand.md`) and `.arc/reference/archive/`
+    are NOT touched — rebrand absorbs the cleanup at reactivation; archives are
+    immutable historical record.
+
+    Sync to `.arc/` counterpart.
 
 - [ ] **2.5 `session-init.template.md` — scan strategy and disambiguation precedence**
 
     **Goal:** Replace fixed-path loading with directory scan + disambiguation.
 
-    - Edit `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/
-      session-init.template.md`
-    - **Preserve existing `team.mode` and `pm.mode` conditional blocks** (per
-      `strategy-package-project-sync.md` § Template Counterparts — 5 conditional blocks
-      in this file)
-    - Replace fixed-path `.arc/active/WORK-STATUS.md` load with Full mode scan:
-      `.arc/active/**/status-*.md`
-    - Implement disambiguation precedence for the many-file case:
-        1. SESSION-NOTES `**Working On:**` field (primary)
-        2. `Branch:` field match against current git branch
-        3. `State: In Progress` filter (rules out delayed-archive stragglers)
-        4. Prompt user (last resort)
-    - Handle zero-file case (no active work → consult ROADMAP) and one-file case
-      (load directly)
-    - Lite mode variant: fixed path `.arc/active/status.md`; same field set; no scan
-    - Document the prompt format for the ambiguous-discovery fallback (PRD Q2 decides
-      here — expected: list candidates with one-line summaries of Branch + Next Task;
-      exact shape pinned during this task)
-    - Sync rendered output to `.arc/system/workflows/arc/session-lifecycle/session-init.md`
-      with this project's config (`team.mode: false`, `pm.mode: arc-in-git`)
+    File: `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`
 
-- [ ] **2.6 `session-handoff.template.md` — dead-end removal, Working On: write, anti-duplication guard**
+    **Preserve existing conditional blocks (6 blocks in this file):**
 
-    **Goal:** Remove the base-branch dead-end, add the `**Working On:**` write step,
-    and install the R18 anti-duplication guard.
+    1. Lines ~100–117 — `arc:if team.mode == true`
+    2. Lines ~301–306 — `arc:if team.mode == true`
+    3. Lines ~308–315 — `arc:if pm.mode == arc-in-git`
+    4. Lines ~323–335 — `arc:if pm.mode == arc-in-git`
+    5. Lines ~337–344 — `arc:if pm.mode != arc-in-git`
+    6. Lines ~438–440 — `arc:if pm.mode == arc-in-git`
 
-    - Edit `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/
-      session-handoff.template.md`
-    - **Preserve existing `team.mode` conditional block** (1 block in this file)
-    - Remove the "commit WORK-STATUS update on main under full protection" dead-end
-      instruction (replaced by per-WU file semantics — no tracked file on main between
-      WUs)
-    - Add explicit step: write the SESSION-NOTES `**Working On:**` field per the marker
-      vocabulary established in Task 2.3 (status filename, or `[none]` / `[planning:
-      ...]` / `[between work units]` markers)
-    - Add anti-duplication guard block (R18): "if it's in a committed file, don't
-      restate it here." Include minimum-viable-SESSION-NOTES bullet set:
-        - Things tried that didn't work
-        - Decisions not captured in tracked state
-        - Observed risks
-        - "Currently mid-X with concrete next action Y"
-    - Sync rendered output
+    **Core edit:** Replace fixed-path `.arc/active/WORK-STATUS.md` load with Full mode
+    scan: `.arc/active/**/status-*.md`.
+
+    **Disambiguation precedence for the many-file case:**
+
+    1. SESSION-NOTES `**Working On:**` field (primary, per-session intent signal)
+    2. `**Branch:**` field match against current git branch
+    3. `**State:** In Progress` filter (rules out delayed-archive stragglers)
+    4. Prompt user (last resort — see pinned format below)
+
+    **Zero-file case:** no active work → consult ROADMAP (existing pattern, unchanged).
+    **One-file case:** load directly (no disambiguation needed).
+
+    **Lite mode variant:** fixed path `.arc/active/status.md`; same field set; no
+    scan. Zero/one-file cases only (many-file case doesn't exist under Lite).
+
+    **Q2 pinned — ambiguous-discovery prompt format:**
+
+    ```text
+    Multiple status files matched. Select one:
+      [1] status-work-status-restructure.md · technical/work-status-restructure
+          Next Task: 2.2 — Status file template (new) — retire the old
+          State:    In Progress
+      [2] status-arcd-rebrand.md · feature/arcd-rebrand
+          Next Task: 1.3 — Rename CLI package
+          State:    Paused (2026-04-12) — waiting for restructure
+      [q] Abort session-init
+    Your choice:
+    ```
+
+    Each candidate shows filename, Branch field, Next Task (truncated to ~60 chars),
+    and State. User types the number; `q` aborts cleanly. Fallback if user dismisses:
+    abort session-init with an error surfacing the candidate list in the terminal so
+    the user can resolve manually.
+
+    Sync rendered output to `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+    with this project's config (`team.mode: false`, `pm.mode: arc-in-git`).
+
+- [ ] **2.6 `session-handoff.template.md` — dead-end removal, Working On: write, R18 guard**
+
+    **Goal:** Remove the base-branch dead-end; add the `**Working On:**` write step;
+    extend the existing Anti-patterns section with the R18 anti-duplication guard.
+
+    File: `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md`
+
+    **Preserve existing `team.mode` conditional block** (1 block: lines ~81–89).
+
+    **Edits:**
+
+    - **Remove the dead-end instruction:** the "commit WORK-STATUS update on main
+      under full protection" step (replaced by per-WU file semantics — no tracked
+      file on main between WUs, nothing to commit)
+    - **Add explicit step:** write the SESSION-NOTES `**Working On:**` field per the
+      marker vocabulary established in Task 2.3 (status filename, or `[none]` /
+      `[planning: ...]` / `[between work units]` markers)
+    - **Extend the existing § Anti-patterns section** (lines ~227–245, currently 6
+      bullets) with the R18 guard bullet and minimum-viable-SESSION-NOTES bullet set.
+      This is an EXTENSION — do NOT create a new section. See details below.
+
+    **R18 bullet to add to the anti-pattern list:**
+
+    - ❌ **Restating committed content.** If it's in a committed file (WU status
+      file, task list, commit message, notes-\*.md), don't restate it here. The next
+      session reads tracked state first; SESSION-NOTES is the delta.
+
+    **Minimum-viable-SESSION-NOTES bullet set** (positive counterweight, placed
+    directly after the anti-patterns as a "what belongs here" list):
+
+    - Things tried that didn't work (not yet captured in a commit or notes file)
+    - Decisions not captured in tracked state
+    - Observed risks
+    - "Currently mid-X with concrete next action Y" when stopping mid-task
+
+    **Embedded SESSION-NOTES template skeleton** (lines ~148–179) is updated by
+    Task 2.3 (both-surfaces edit), not here. Do not duplicate that edit.
+
+    Sync rendered output to `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
 
 - [ ] **2.7 `activate-work-unit.md` — Step 5 creates status file from template**
 
@@ -422,6 +541,10 @@ at cutover.
       `Next Action` (e.g., "Begin Phase 1")
     - Step 8 commit references: stage the new status file alongside other activation
       artifacts; remove any references to updating a singular WORK-STATUS.md
+    - **Incidental activation routing:** add an explicit "For incidental activation
+      that interrupts active work, see `manage-incidental-work.md` § Coordinated
+      Pause/Resume" pointer at Step 5 (or earlier, wherever the activation entry
+      fork is most natural). Normal (non-incidental) activation flow is unchanged.
     - Sync to `.arc/`
 
 - [ ] **2.8 `archive-work-unit.md` — delete per-WU file, do not reset**
@@ -430,6 +553,12 @@ at cutover.
     - Replace any "reset WORK-STATUS content" language with "`git rm` the per-WU status
       file" — archive deletes, does not reset
     - Preserve archival of task list and atomic companion file (unchanged)
+    - **Incidental archive routing:** add a note that archiving an incidental WU
+      alone does not handle the parent WU state flip (State: Paused → In Progress,
+      Paused At / Paused To removal). Callers interrupting an active WU with an
+      incidental must route archival through `manage-incidental-work.md` §
+      Coordinated Pause/Resume, which orchestrates both status files in the same
+      commit.
 
 - [ ] **2.9 `clean-work-unit.md` — relocate terminal `State: Complete` write**
 
@@ -465,7 +594,64 @@ at cutover.
       rotation across sessions, the status file on the rotation branch carries state
       across the gap — session-init on the new session loads it by `Branch:` match
 
-- [ ] **2.13 `1_create-prd.md` and `2_generate-tasks.md` — reference updates**
+- [ ] **2.13 `manage-incidental-work.md` — paired status-file pause/resume**
+
+    **Goal:** Relocate pause/resume coordination from task list header fields to
+    coordinated updates across two status files (parent + incidental). Completes R16
+    pointer migration — the task list carries structural metadata only; all dynamic
+    state (including interrupt relationships) lives in status files.
+
+    File: `packages/arc-framework/arc/system/workflows/arc/supplemental/manage-incidental-work.md`
+
+    **Design principle** (lead of new § Coordinated Pause/Resume subsection):
+
+    > Interrupt coordination is symmetric — every pause has a corresponding resume,
+    > and both surfaces update in the same commit as the triggering lifecycle event.
+    > The task list carries structural metadata only; dynamic interrupt state lives
+    > in status files per R16.
+
+    **Activation-side (incidental interrupts active WU):**
+
+    - Create `.arc/active/incidental/status-{name}.md` from the Task 2.2 template
+    - Populate incidental status file with the optional `**Interrupts:**` pointer:
+      `**Interrupts:** tasks-{parent}.md — Task X.Y`
+    - Update parent status file:
+        - `**State:**` → `Paused (YYYY-MM-DD) — interrupted by incidental-{name}`
+        - Add `**Paused At:** Task X.Y`
+        - Add `**Paused To:** status-{incidental}.md`
+    - Commit: parent status file update + new incidental artifacts in ONE atomic
+      operation (the paired flip must not straddle commits)
+
+    **Completion-side (incidental archives cleanly):**
+
+    - Archive incidental via existing `archive-work-unit.md` → deletes
+      `status-{incidental}.md` per Task 2.8
+    - Update parent status file:
+        - `**State:**` → `In Progress`
+        - Remove `**Paused At:**` field entirely
+        - Remove `**Paused To:**` field entirely
+    - Commit: parent status file update alongside incidental archive in ONE atomic
+      operation
+
+    **Abandonment-side (incidental deactivates without work executed):**
+
+    - Deactivate via Phase 4 `deactivate-work-unit.md` Case A workflow
+    - If incidental status file was already created, it is deleted as part of
+      deactivation; if never created, nothing to delete
+    - Update parent status file: same flip as completion side (State → In Progress,
+      remove pointer fields)
+    - Same atomic-commit requirement
+
+    **Cross-references to update in this task:**
+
+    - Task 2.7 adds the routing pointer on `activate-work-unit.md`'s side
+    - Task 2.8 adds the routing note on `archive-work-unit.md`'s side
+    - This task ensures `manage-incidental-work.md` itself documents the full
+      coordination protocol that those other workflows reference
+
+    Sync to `.arc/` counterpart.
+
+- [ ] **2.14 `1_create-prd.md` and `2_generate-tasks.md` — reference updates**
 
     - Edit package source (both `2_generate-tasks.template.md` and the non-template
       `1_create-prd.md`) and sync to `.arc/`
@@ -473,15 +659,28 @@ at cutover.
     - These workflows don't directly write status files (activation does), so edits
       are reference-updates only
 
-- [ ] **2.14 Phase 2 Tier 2 quality gates**
-    - [ ] 2.14.a Run `npm run -s lint:md` (full markdown lint)
-    - [ ] 2.14.b Run `npm run lint:ts` (framework source may reference template paths)
-    - [ ] 2.14.c Run `npm run lint:sh` (githooks hygiene)
-    - [ ] 2.14.d Run `npm run typecheck`
-    - [ ] 2.14.e Run `npm test` (CLI tests may cover init scaffolding; expect some to
+- [ ] **2.15 Phase 2 Tier 2 quality gates**
+    - [ ] 2.15.a Run `npm run -s lint:md` (full markdown lint)
+    - [ ] 2.15.b Run `npm run lint:ts` (framework source may reference template paths)
+    - [ ] 2.15.c Run `npm run lint:sh` (githooks hygiene)
+    - [ ] 2.15.d Run `npm run typecheck`
+    - [ ] 2.15.e Run `npm test` (CLI tests may cover init scaffolding; expect some to
           require updating if they reference retired WORK-STATUS.template.md)
-    - [ ] 2.14.f Package-project sync verification across all 13 edited files (plus
-          the 3 templates and 1 retired template)
+    - [ ] 2.15.f Package-project sync verification across all edited files (including
+          the new template, renamed files, and retired templates)
+    - [ ] 2.15.g Marker vocabulary agreement check — grep the three SESSION-NOTES
+          `**Working On:**` surfaces (scaffolding template at
+          `packages/arc-framework/templates/user/SESSION-NOTES.md`, the embedded
+          skeleton in `session-handoff.template.md`, and the read logic in
+          `session-init.template.md`) and verify identical marker strings: `[none]`,
+          `[planning: {category}/{name}]`, `[between work units]`, and the
+          `status-{name}.md` filename reference pattern. Any drift in punctuation,
+          whitespace, or token shape → fix the outlier to match the other two.
+    - [ ] 2.15.h `Last Updated` field removal consistency check — grep the new status
+          file template and SESSION-NOTES scaffolding template for `Last Updated` →
+          expect zero hits. Grep the embedded SESSION-NOTES skeleton in
+          `session-handoff.template.md` → expect zero hits. Any hit → surface for
+          triage.
 
 ### **Phase 3:** Live Migration Cutover
 

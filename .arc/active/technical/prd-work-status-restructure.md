@@ -434,7 +434,8 @@ complete" and note any material deviations from the original plan. The PRD then
 serves as a historical record of what was planned, how it evolved, and what
 actually shipped. -->
 
-| Date       | Change                                                            |
-| ---------- | ----------------------------------------------------------------- |
-| 2026-04-15 | Initial draft — formalized from `plan-work-status-restructure.md` |
-| 2026-04-15 | R7 refined — ADR-007 filename, placement, scope (see R7 prose)    |
+| Date       | Change                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| 2026-04-15 | Initial draft — formalized from `plan-work-status-restructure.md`                            |
+| 2026-04-15 | R7 refined — ADR-007 filename, placement, scope (see R7 prose)                               |
+| 2026-04-15 | R16 scope refined — pointer fields move from task list to status file; Task 2.13 added       |
