@@ -433,7 +433,7 @@ at cutover.
     files; framework-sync integration test passes (package source ↔ `.arc/` mirror
     parity verified for session-handoff.md).
 
-- [ ] **2.4 Task list template — remove WU-lifecycle state across all 7 surfaces**
+- [x] **2.4 Task list template — remove WU-lifecycle state across all 7 surfaces**
 
     **Goal:** Remove WU-lifecycle state from task list templates per R16; lifecycle
     relocates to the status file `**State:**` field. Pause/resume coordination
@@ -471,6 +471,21 @@ at cutover.
     immutable historical record.
 
     Sync to `.arc/` counterpart.
+
+    **Completion:** All seven surfaces edited in the package source and synced
+    to `.arc/`. Feature/Technical template lost its `**Status:**` header (Surface
+    1) and rules bullet (Surface 2). Incidental template lost `**Status:**` and
+    `**Interrupts:**` fields (Surface 3); its rules block lost the Status bullet,
+    the Interrupts rule, and both pause/resume coordination rules (Surfaces 4–5
+    consolidated — the Interrupts rule was orphaned once the field was removed
+    from the template, so it went with the pause/resume cluster). Worked
+    Incidental example lost `**Status:** In Progress` and the `**Interrupts:**`
+    field (Surface 6). Entire `### Status Field Values` H3 section removed
+    (Surface 7). Sync executed via file copy (Framework file, package source
+    authoritative); post-sync diff returned empty. Quality gates: markdown lint
+    clean on the edited `.arc/` file; framework-sync integration test passes
+    (471 tests green). Scope honored: `tasks-arcd-rebrand.md` and archived task
+    lists untouched.
 
 - [ ] **2.5 `session-init.template.md` — scan strategy and disambiguation precedence**
 
@@ -683,6 +698,21 @@ at cutover.
     - Task 2.8 adds the routing note on `archive-work-unit.md`'s side
     - This task ensures `manage-incidental-work.md` itself documents the full
       coordination protocol that those other workflows reference
+
+    **Scope addition (2026-04-15, from Task 2.4 evaluation):** After Task 2.4
+    stripped Status/Interrupts/pause-resume rules from `strategy-task-list-formatting.md`
+    § Incidental Task Lists, standalone readers of that strategy doc have no
+    forward pointer indicating that lifecycle state now lives in the status file.
+    Add a one-line back-pointer to the Incidental Rules block there as part of
+    this task's scope (paired with the new coordination protocol here so the
+    pointer target is accurate on landing):
+
+    > "- Lifecycle state (Status, Interrupts, Paused At/Paused To) lives in
+    > the status file, not the task list — see `manage-incidental-work.md`
+    > for the pause/resume protocol"
+
+    Exact phrasing TBD during execution; sync the strategy file to `.arc/`
+    alongside the workflow sync.
 
     Sync to `.arc/` counterpart.
 
