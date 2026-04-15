@@ -202,6 +202,9 @@ gh pr create --base {parent-branch} --head {branch-name}
 ```
 
 Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
+When adapting, do not add new sections describing post-merge workflow continuity or next
+actions — those belong in WORK-STATUS and SESSION-NOTES, not the PR body. The reader is
+reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
 
 ### 8) Address PR Review Findings
 
@@ -317,3 +320,4 @@ architectural pivot, not abandoned work.
 [rotate-branch]: rotate-branch.md
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

@@ -309,11 +309,23 @@ it went — future readers have no context for the old state. Document what *is*
 Historical context belongs in commit messages and task list completion notes, not in the living
 document.
 
+**Also applies to communication artifacts** — PR descriptions, notes files, and documentation
+handoffs describe what the artifact delivers, not the author's workflow continuity. A PR
+reader is reviewing a change set; they don't need a map of which session comes next. Workflow
+continuity (post-merge activation, next actions, session boundaries, file-retirement metadata
+tied to specific commits) belongs in WORK-STATUS and SESSION-NOTES, not in the artifact body.
+
 **Examples of reader-hostile patterns:**
 
 - "Previously this section covered X, which has moved to Y" (reader never saw X here)
 - "Removed the FooBar handler" as a code comment (reader doesn't know FooBar)
 - Explaining why an item is absent from a list (reader only sees the list as it is)
+- "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side
+  workflow state, not reader-relevant for reviewing the change
+- "Plan doc retired with this PRD commit" in a notes file header — reader doesn't need the
+  workflow context; the file's existence and contents are self-explanatory
+- "Purpose: detailed rationale carved out to keep the PRD crisp" in a notes file header —
+  frames the file narrowly as author-side bookkeeping instead of the living scratchpad it is
 
 ---
 
