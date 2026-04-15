@@ -13,49 +13,6 @@ Atomic Task Completion for the full protocol.
 
 ---
 
-- [ ] **Add CI drift check for Framework files**
-
-    **Motivation:** `scripts/check-package-sync.sh` stays a warning locally
-    (ergonomic for iterative edit flows, solo-maintainer scale). Defense-in-depth
-    calls for a hard gate at the integration boundary where drift compounds —
-    once it lands on main, adopters get it. CI is the right layer for that.
-
-    **Scope:** Add a CI step (new job or step in existing workflow under
-    `.github/workflows/`) that fails when Framework-classified files in `.arc/`
-    diverge from their package-source counterparts. Reuse the classification logic
-    from `scripts/check-package-sync.sh` where possible — same manifest lookup,
-    same `Framework` filter — but instead of warning on staged-but-unsynced,
-    error on committed-but-unsynced.
-
-    **Design considerations:**
-
-    - **Trigger scope:** Run on PRs targeting `main` and on push to `main`. Skip
-      feature branches (noisy — mid-WU work legitimately has unsynced state).
-    - **Template-vs-rendered comparison:** The check can't do a raw `diff` because
-      package sources contain `arc:if` conditionals and `{{REPO_ROOT}}` placeholders
-      that render-strip / substitute into `.arc/`. Options: (a) render the template
-      using the same logic the CLI uses during `arc init` / `arc update`, then
-      compare; (b) strip known conditional blocks and placeholders before diff;
-      (c) check the manifest's content hash instead of file content. Option (a) is
-      cleanest but needs access to the rendering code. Option (c) is simplest if
-      the manifest records hashes. Verify before choosing.
-    - **Error output:** When drift is detected, surface the specific files and a
-      direction-of-edit hint (which copy is newer, based on git blame or mtime).
-      Match the warning output shape for consistency.
-    - **False positive budget:** Zero. If the check fires, it should be a real
-      drift. Any known-benign case (template placeholders, conditionals) must be
-      normalized in the comparison.
-
-    **Verification:** Branch-push to trigger the workflow. Seed an intentional
-    drift on the test branch to confirm the check fails loudly. Revert the drift,
-    confirm the check passes. Do NOT merge the test branch — reset and clean up.
-
-    **Out of scope:**
-
-    - Changing `scripts/check-package-sync.sh` local behavior (stays warning)
-    - Adding sync automation (auto-propagating edits between copies)
-    - Anything that touches the manifest schema or `arc update` logic
-
 - [x] **Fix `.husky/pre-commit` exit-code propagation**
 
     **Problem:** Commits that should be blocked by the ARC pre-commit hook land
@@ -112,3 +69,64 @@ Atomic Task Completion for the full protocol.
     **Related design question (out of scope, note only):** Whether
     `check-package-sync.sh` should be upgraded from warning to error is a separate
     design call. Not part of this atomic.
+
+- [x] **Add CI drift check for Framework files**
+
+    **Motivation:** `scripts/check-package-sync.sh` stays a warning locally
+    (ergonomic for iterative edit flows, solo-maintainer scale). Defense-in-depth
+    via CI — a hard gate at the integration boundary where drift compounds once
+    it lands on main and adopters get it.
+
+    **Implementation:** Added `__tests__/integration/framework-sync.test.ts` as a
+    vitest integration test rather than a standalone CI step. Rationale: the test
+    runner is already wired into CI (`npm run test:integration`), vitest imports
+    `render.ts` natively so no duplication of the render logic, assertion output
+    produces clean per-file drift reports, and local `npm test` surfaces drift
+    during development. The test reads the manifest, iterates Framework files,
+    renders package source using `renderTokens` + `renderConditionals` with the
+    stored `install_config`, and compares to `.arc/`. REPO_ROOT is extracted from
+    `.arc/reference/QUICK-REFERENCE.md` so the check is cwd-independent (CI and
+    local runs produce the same rendered output).
+
+    **Baseline drifts discovered and fixed in this atomic** (the check fired on
+    first run and surfaced 4 pre-existing drifts):
+
+    1. `.arc/system/workflows/arc/session-lifecycle/session-init.md` line 28 —
+       `<your-repo-root>` placeholder text replacing what should have been the
+       rendered `{{REPO_ROOT}} (repo root)` token. Synced `.arc/` to the rendered
+       template output.
+    2. `.arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md`
+       lines 98–100 — 4-space vs 3-space indentation on a code fence inside a
+       numbered list item. Package source (3-space, correct list-body alignment)
+       is authoritative per `strategy-package-project-sync.md`; synced `.arc/`.
+    3. `.arc/system/workflows/arc/3_process-task-loop.md` line 215 — `.arc/` had
+       a flat single-mode atomic capture bullet; the template had gained a
+       multi-PM-mode conditional structure (`arc-in-git` / `external` / `none`
+       branches) that never propagated down. Synced `.arc/` to the rendered
+       template output.
+    4. `packages/arc-framework/arc/system/workflows/arc/initial-setup/02_define-project.template.md`
+       — bidirectional drift. Template had an external-only bridge block outside
+       of any `## Next Step` section; `.arc/` had a full `## Next Step` section
+       with discovery prose that didn't exist in the template. Resolved by
+       restructuring the template: removed the standalone external bridge, added
+       a proper `## Next Step` section after `## Maintaining Project Documents`
+       with two conditional branches — `pm.mode != external` gets the prose
+       (clear context, `/arc-resume`, discovery mode); `pm.mode == external` gets
+       the bridge to `03_configure-external-integration.md`. `.arc/` already had
+       the correct rendered shape, so no `.arc/` edits needed.
+
+    **Verification:** Integration test suite ran all 104 tests green after
+    fixes, including `framework-sync.test.ts`. No regressions in the other 103
+    existing tests. Full markdown lint and typecheck also green.
+
+    **Scope note:** Finding 4 baseline drifts on first run blew my self-imposed
+    "≤2 drifts" scope guard, so I stopped and reported. User approved fixing all
+    4 inline as Option A, with explicit direction on the `02_define-project`
+    bidirectional case. The check's first run doubled as a baseline sweep — now
+    that it's green, subsequent drift is caught immediately.
+
+    **Follow-on observation (not acted on):** `scripts/check-package-sync.sh`
+    local warning hook could be reinforced by upgrading to error at a multi-dev
+    scale, but the current CI check covers the hard-gate concern without
+    constraining iterative edit flows locally. Re-evaluate when contributor
+    activity picks up during/after the rebrand WU.

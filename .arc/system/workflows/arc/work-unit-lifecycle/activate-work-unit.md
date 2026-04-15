@@ -95,9 +95,9 @@ Edit `.arc/active/{category}/tasks-{name}.md`:
 1. Change `Status: Not Started` → `Status: In Progress`
 2. **(arc-in-git only)** Update PRD path reference from `backlog` to `active`:
 
-    ```
-    **PRD:** `.arc/active/{category}/prd-{name}.md`
-    ```
+   ```
+   **PRD:** `.arc/active/{category}/prd-{name}.md`
+   ```
 
 ### Step 5: Update WORK-STATUS.md
 

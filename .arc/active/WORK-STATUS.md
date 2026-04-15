@@ -16,29 +16,27 @@
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
 **Next Task**: Task 1.1 — ADR-007 Tier 2 Amendment (line ~69)
-**Last Completed**: Planning arc for Work-Status Restructure WU — PRD,
-notes, task list, atomic companion, and 2 incidental methodology fixes
-merged via PR #18 (`0d23b23`).
+**Last Completed**: Pre-Phase-1 atomic work — fixed husky hook exit-code
+propagation, ported session-lifecycle error-handling to package source,
+added CI framework-sync drift check (surfaced 4 pre-existing Framework
+drifts, all fixed inline), cleaned ATOMIC-INBOX of items subsumed by this
+WU. Branch is 4 commits past main pre-atomic work and now carries the
+sync-discipline reinforcements needed to execute Phase 1 safely.
 
-**Blockers**: [none]
+**Blockers**: [none] — pre-Phase-1 incidentals cleared.
 
-**Next Action**: Execute Phase 1 of the restructure WU, starting with
-Task 1.1 (ADR-007 Tier 2 Amendment). Source material for the amendment
-lives in `notes-work-status-restructure.md` § Historical context +
-§ Amendment framing — do not re-derive the conflation analysis.
-
-Before Phase 1 begins, two incidental items need handling on this branch:
-
-1. **Pre-commit hook exit-code bug** — direct commits to main under
-   `branch.protection: full` print a failure message but exit 0, so
-   protection is currently advisory only. Fix to be captured in
-   `atomic-work-status-restructure.md` as the first atomic task. Source
-   of truth: `packages/arc-framework/arc/system/githooks/pre-commit`.
-2. **ATOMIC-INBOX audit** — 7 open items; 3 known subsumed by this WU
-   (R14, Phase 7). Walk the remaining 4 against the task list and remove
-   any that the restructure scope covers; keep residual in the inbox.
+**Next Action**: Execute Phase 1 Task 1.1 (ADR-007 Tier 2 Amendment).
+Source material lives in `notes-work-status-restructure.md` § Historical
+context + § Amendment framing — do not re-derive the conflation analysis.
+Add a new `## Amendments` section at the bottom of
+`adr-007-session-state-portability-and-team-transfer.md` documenting the
+refinement (session state identity stays per-developer; project pointer
+splits out to per-WU files). Do not modify Decision, Context, or
+Consequences. Note the amendment in the commit message per
+`strategy-adr-methodology.md` Tier 2 Amendment convention. Dual-copy sync
+required (Framework file).
 
 ---
 
-**Last Updated**: 2026-04-15 (work unit activated; first task is 1.1,
-ADR-007 amendment)
+**Last Updated**: 2026-04-15 (pre-Phase-1 atomic work complete; Phase 1
+Task 1.1 is next)

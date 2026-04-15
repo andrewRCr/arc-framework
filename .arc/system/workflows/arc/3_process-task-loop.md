@@ -212,8 +212,9 @@ on **lifecycle intent** — when you intend to handle it, not what domain it's i
 
 - **Will do during this work unit** → add to the **atomic companion file** (`atomic-{name}.md`
   in the same directory as the task list). All task lists have a companion file.
-- **For later** (won't do during this WU) → add to **ATOMIC-INBOX.md** in `user/{identity}/`
-  (personal, gitignored, branch-agnostic — persists across work unit boundaries)
+- **For later** (won't do during this WU) → depends on PM mode:
+    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal, gitignored,
+      branch-agnostic — persists across work unit boundaries)
 
 ### Atomic Task Completion
 

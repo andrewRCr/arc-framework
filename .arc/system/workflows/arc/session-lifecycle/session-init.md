@@ -25,7 +25,7 @@ be recoverable) still applies. The session state mechanism is overridable via
 
 ```bash
 pwd
-# Expected: <your-repo-root>
+# Expected: /home/andrew/dev/arc-framework (repo root)
 # Or: relevant subdirectories if working in specific context
 ```
 
