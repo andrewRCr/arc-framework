@@ -175,6 +175,20 @@ convention.
      exist either, fall back to `git log --oneline -10` for recent commit context — commit
      messages and context footers provide a lightweight record of recent work. The session
      starts with tracked state (WORK-STATUS.md + task list) supplemented by git history.
+   - **Load error handling:**
+       - **No note found** (null result): Normal on first session, after repo re-clone without
+         pulling notes, or when the noted commit is beyond the shallow clone boundary. Proceed
+         with tracked state only — WORK-STATUS.md and task list are sufficient.
+       - **Corrupt note** (JSON parse error): The note was manually edited or partially written.
+         Run `arc user save` to overwrite with current local state, or try loading from a
+         different ancestor by inspecting `git notes --ref arc/user/{identity} list`.
+       - **Pull failure** (remote ref not found): The identity may not have pushed notes, or the
+         identity name may be incorrect. Verify with `git ls-remote origin 'refs/notes/arc/user/*'`
+         to see which identities have pushed notes. Use `--identity` to pull another developer's
+         notes for bootstrapping.
+       - **Stale file warnings**: Load reports local files not present in the saved manifest. These
+         files are preserved in `.pre-load-backup.json` — review and either re-create them or
+         discard the backup.
 
 > **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their
 > git notes namespace (`refs/notes/arc/user/{their-identity}`). See

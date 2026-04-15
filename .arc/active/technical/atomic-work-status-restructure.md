@@ -13,34 +13,6 @@ Atomic Task Completion for the full protocol.
 
 ---
 
-- [ ] **Port `session-handoff.md` / `session-init.md` error-handling sections to package source**
-
-    **Drift:** Commit `fbcd5b8` (2026-03-27, "docs(arc): sync error guidance for
-    session workflows") added error-handling guidance to
-    `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` and
-    `session-init.md` only — did not mirror to the package template sources.
-    Sync discipline violation.
-
-    **Root cause (now known):** `scripts/check-package-sync.sh` did not exist in
-    2026-03-27. It was added 10 days later in `fc83af7` (2026-04-06). The drift
-    predates the warning hook; no missed enforcement at the time of drift.
-
-    **Fix direction:** `.arc/` → package (opposite of normal sync flow, but matches
-    the original commit's intent). Verify the package template filenames first —
-    session-handoff uses `.template.md`; confirm session-init's filename.
-
-    **Sweep:** Grep package source vs `.arc/` across the full
-    `system/workflows/arc/session-lifecycle/` directory. Compare diffs, excluding
-    expected `arc:if` conditionals that render-strip legitimately.
-
-    **Scope guard:** If the sweep surfaces ≤2 additional drift points, fix in the
-    same atomic. If >2, stop, write findings as a new entry in this file, raise
-    for discussion.
-
-    **Related design question (out of scope, note only):** Whether
-    `check-package-sync.sh` should be upgraded from warning to error is a separate
-    design call. Not part of this atomic.
-
 - [x] **Fix `.husky/pre-commit` exit-code propagation**
 
     **Problem:** Commits that should be blocked by the ARC pre-commit hook land
@@ -69,3 +41,31 @@ Atomic Task Completion for the full protocol.
     fix (commit landed despite simulated ARC hook error), then confirmed the fix
     blocks (commit rejected, second command did not even run due to early exit).
     Avoided touching real main.
+
+- [x] **Port `session-handoff.md` / `session-init.md` error-handling sections to package source**
+
+    **Drift:** Commit `fbcd5b8` (2026-03-27, "docs(arc): sync error guidance for
+    session workflows") added error-handling guidance to
+    `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` and
+    `session-init.md` only — did not mirror to the package template sources.
+    Sync discipline violation.
+
+    **Root cause (now known):** `scripts/check-package-sync.sh` did not exist in
+    2026-03-27. It was added 10 days later in `fc83af7` (2026-04-06). The drift
+    predated the warning hook; no missed enforcement at the time of drift.
+
+    **Fix applied:** Ported both error-handling blocks `.arc/` → package template.
+    `session-handoff.template.md` gained the `**Error handling:**` block after the
+    "arc user save" manual section, before `### Conditional WORK-STATUS.md Commit`.
+    `session-init.template.md` gained the `**Load error handling:**` nested list
+    after the "tracked state + git log" fallback guidance.
+
+    **Sweep:** Full diff of `.arc/system/workflows/arc/session-lifecycle/` vs
+    package counterparts. Session-loop identical. Session-handoff and session-init
+    differences reduce to expected `arc:if` conditionals (team.mode, pm.mode) and
+    the `{{REPO_ROOT}}` template placeholder. No additional drift — 2 drift points
+    total, both fixed.
+
+    **Related design question (out of scope, note only):** Whether
+    `check-package-sync.sh` should be upgraded from warning to error is a separate
+    design call. Not part of this atomic.

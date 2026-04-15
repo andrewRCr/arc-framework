@@ -337,6 +337,22 @@ precedence over `arc-config.yml` when set — check this first.
     arc user save
     ```
 
+**Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
+
+- **Push rejected (non-fast-forward):** Remote notes diverged from local. The CLI offers
+  force-push (overwrite remote) or pull-first (overwrite local). Choose based on which
+  version is authoritative. This commonly happens when the same developer works from two
+  machines without syncing, or in team mode when two developers share an identity by mistake.
+- **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
+  save` — push is a convenience for portability. The local save still happened; push later
+  when a remote is available.
+- **Pull warning (local changes):** When pulling would overwrite unsaved local notes, the CLI
+  confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
+  prior state if needed.
+
+If save itself fails (empty user directory, filesystem permissions), the session state is
+only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
+
 ### Conditional WORK-STATUS.md Commit (Maintainer Only)
 
 **Skip when `arc.role = contributor`** — contributors don't update project-level WORK-STATUS.md.
