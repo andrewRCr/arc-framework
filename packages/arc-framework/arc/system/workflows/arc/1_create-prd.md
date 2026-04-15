@@ -107,6 +107,16 @@ serve exploration and are deleted once the PRD captures the conclusions (see
 1. **Audit for reference content**: Scan the plan for implementation detail, design rationale, or
    context that the PRD doesn't capture but would be valuable during task generation or execution.
    Migrate this to a `notes-*.md` file alongside the PRD (same directory).
+
+   **Framing the notes file:** The `notes-*.md` file is a living scratchpad for the work unit —
+   not a closed archive of plan-extracted material. Place carved sections near the top with clear
+   headings, but do not frame the file header as being "only" plan-extracted content. Leave the
+   structure open for sections added during task execution (working notes, discovered context,
+   implementation scratch). Keep the file header minimal: title plus contents. No purpose block
+   describing how the file will be consumed, no provenance lines citing the plan doc, no
+   "retired with this commit" metadata, no explanations of the file's relationship to specific
+   commits. Write for the reader, not the author (see [DEV-RULES.ARC][dev-rules-arc]
+   § Documentation Boundaries).
 2. **Delete the plan**: `git rm` the `plan-*.md` file (and any supplemental files that fed into it,
    unless they have independent archival value — e.g., research files may belong in
    `reference/research/`).
@@ -125,3 +135,4 @@ continue with [2_generate-tasks.md](2_generate-tasks.md).
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [arc-config]: ../../arc-config.yml
+[dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md

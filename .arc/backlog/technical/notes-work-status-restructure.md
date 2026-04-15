@@ -1,17 +1,5 @@
 # Notes: Work-Status Restructure
 
-**Companion to:** `prd-work-status-restructure.md`
-
-**Purpose:** Detailed rationale and reference material carved out of the PRD to keep
-it crisp. Content here is primarily consumed during task generation and execution —
-not at PRD review time. Sections below correspond to decisions already reflected in
-the PRD; this file captures the depth behind them.
-
-**Provenance:** Distilled from `plan-work-status-restructure.md` (iterated
-2026-04-14 to formalization-ready). Plan doc retired with this PRD commit.
-
----
-
 ## Contents
 
 - [Historical context](#historical-context) — ADR-007 conflation analysis
