@@ -47,7 +47,8 @@ work. Always loaded at session start.
 **T2 — State.** Content that orients the agent — where work stands, what happened last session,
 what comes next. Always loaded at session start.
 
-- WORK-STATUS.md (branch, task list, next task, blockers)
+- status-{name}.md (per-WU tracked project pointer in active/{category}/; holds State, Branch,
+  Task List, Next Task, Last Completed, Blockers, Next Action)
 - SESSION-NOTES.md (personal session context from prior handoff)
 - Task list overview and current task section (strategic partial read)
 
