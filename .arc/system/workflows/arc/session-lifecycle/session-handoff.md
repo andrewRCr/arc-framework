@@ -29,20 +29,27 @@ configured.
 3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
 4. Task list file — verify marked checkboxes reflect actual completion (maintainer only — contributors
    skip this)
-5. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
+5. **Working directory** — if it changed during the session, update paths in the active status file
+   if one exists
 
 > **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
-> to git notes (same as maintainers), but skip project-level WORK-STATUS.md updates (items 4–5
-> above), the WORK-STATUS.md section below, and the Conditional WORK-STATUS.md Commit section.
+> to git notes (same as maintainers), but skip project-level active status-file updates
+> (items 4–5 above), the active status-file section below, and the Conditional Active Status
+> File Commit section.
 > Contributors don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md
 > update, git notes save, and confirmation.
 
 ### What to Update
 
-Session state is split across two files (per the [session-state method][arc-methods-session] default — if your
-project overrides session-state, follow the override instead):
+Session state is split across tracked project state and personal session state (per the
+[session-state method][arc-methods-session] default — if your project overrides session-state,
+follow the override instead):
 
-- **WORK-STATUS.md** (tracked, `.arc/active/`) — project state: branch, task list, next task, blockers, next action
+- **Active status file** (tracked) — project state for the active work unit:
+  `status-{name}.md` in `.arc/active/{category}/` for Full mode, `status.md` in `.arc/active/`
+  for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
+  `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
+  planning cycles with no active WU, no tracked status file exists.
 - **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/`) — personal context: completed work, decisions,
   debugging insights, things tried. Replaced each handoff (not appended). Created only when there's context
   worth preserving. Between work units, reset to persistent context only (if any exists) or a minimal
@@ -53,9 +60,11 @@ project overrides session-state, follow the override instead):
 > reassign task ownership via `(@name)` markers. See [Team Coordination
 > Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
 
-**Every handoff** — WORK-STATUS.md (state fields) and SESSION-NOTES.md (session context, if any)
+**Every handoff** — active status file (if an active WU exists) and SESSION-NOTES.md
+session context
 
-**When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
+**When context changes** — Working directory paths or environment expectations in the active
+status file (if one exists)
 
 **Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
 cross-session constraints that tracked state does not yet carry (forward-looking constraints,
@@ -73,19 +82,26 @@ Update session state files before ending session:
    below. Remove entries whose triggers are met, AND entries whose information is now carried in
    tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
    the handoff summary; do not silently rewrite
-2. **Second**: Check if working directory context changed and update paths in WORK-STATUS.md if needed
-3. **Then**: Update both files with work progress:
+2. **Second**: Check if working directory context changed and update paths in the active status
+   file if needed
+3. **Third**: Write SESSION-NOTES `**Working On:**` using the marker vocabulary established in the
+   SESSION-NOTES template:
+   - `status-{name}.md` — normal case, file reference
+   - `[none]` — no active work
+   - `[planning: {category}/{name}]` — planning cycle, no WU yet
+   - `[between work units]` — between activation and archive of adjacent WUs
+4. **Then**: Update tracked state (if an active status file exists) and SESSION-NOTES with work
+   progress:
 
-**Update `.arc/active/WORK-STATUS.md`** (tracked project state):
+**Update the active status file** (tracked project state, if an active WU exists):
 
 ```markdown
 ## Active Work
 
+**State:** In Progress
 **Branch**: [current branch name, e.g., feature/config-parser]
 **Task List**: [path to task list, e.g., .arc/active/feature/tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
-**Following Task List**: Yes
-  [OR: No - [brief context, e.g., "fixing connection timeout in batch processor (will return to Task 4.5)"]]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
   [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
   [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
@@ -111,7 +127,7 @@ checkbox state is the pointer._
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
 
 **Audience:** The reader is the next session's agent loading from cold context. They already have
-tracked state — git log, task list, WORK-STATUS.md, commit bodies, `notes-*.md`, PRD, constitution,
+tracked state — git log, task list, active status file, commit bodies, `notes-*.md`, PRD, constitution,
 strategies. Write only what they can't derive from any of that. The goal is signal, not length. A
 genuinely rich session may produce a longer note; a routine session produces a shorter one. Volume
 is a side effect, not a target.
@@ -238,19 +254,30 @@ trust the tracked source:
   duplication. Tracked state will surface what the next session needs.
 - ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
   Context section is fine as empty. Don't write prose explaining why it's empty.
+- ❌ **Restating committed content.** If it's in a committed file (WU status file, task list,
+  commit message, `notes-*.md`), don't restate it here. The next session reads tracked state
+  first; SESSION-NOTES is the delta.
+
+**Minimum viable SESSION-NOTES — what belongs here:** If it doesn't fit one of these, it
+probably doesn't belong:
+
+- Things tried that didn't work (not yet captured in a commit or notes file)
+- Decisions not captured in tracked state
+- Observed risks
+- "Currently mid-X with concrete next action Y" when stopping mid-task
 
 ### Handoff Examples
 
 **Example 1: Off-task-list with known path back**
 
-WORK-STATUS.md:
+status-data-pipeline.md:
 
 ```markdown
 ## Active Work
 
+**State:** In Progress
 **Branch**: feature/data-pipeline
 **Task List**: .arc/active/feature/tasks-data-pipeline.md
-**Following Task List**: No - fixing connection timeout in batch processor (will return to Task 4.1)
 **Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
 **Last Completed**: Task 3.5 — Schema validation for input records
 **Blockers**: [none]
@@ -285,14 +312,14 @@ SESSION-NOTES.md:
 
 **Example 2: Preparatory work before starting task**
 
-WORK-STATUS.md:
+status-api-documentation.md:
 
 ```markdown
 ## Active Work
 
+**State:** In Progress
 **Branch**: technical/api-documentation
 **Task List**: .arc/active/technical/tasks-api-documentation.md
-**Following Task List**: Yes
 **Next Task**: Task 3.1 — Document authentication endpoints (line ~203)
 **Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
 **Blockers**: [none]
@@ -319,18 +346,20 @@ SESSION-NOTES.md:
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
-WORK-STATUS.md:
+status-{name}.md while the WU is still active:
 
 ```markdown
 ## Active Work
 
+**State:** Complete
 **Last Completed**: [Task list name] (Tasks X-Y, archived)
 **Blockers**: [none]
-**Next Action**: Begin [new-task-list.md] starting with Task 1
+**Next Action:** archive-work-unit Step 1 — archive artifacts and retire the status file
 ```
 
-SESSION-NOTES.md at completion is minimal — accomplishment summary with commit hashes, archive
-path. Preserve any Persistent Context entries that span work units; reset ephemeral sections.
+If the work unit has already been archived, no active status file remains. SESSION-NOTES.md at
+completion is minimal — accomplishment summary with commit hashes, archive path. Preserve any
+Persistent Context entries that span work units; reset ephemeral sections.
 
 ### Post-Update Cleanup
 
@@ -379,33 +408,34 @@ precedence over `arc-config.yml` when set — check this first.
 If save itself fails (empty user directory, filesystem permissions), the session state is
 only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
-### Conditional WORK-STATUS.md Commit (Maintainer Only)
+### Conditional Active Status File Commit (Maintainer Only)
 
-**Skip when `arc.role = contributor`** — contributors don't update project-level WORK-STATUS.md.
+**Skip when `arc.role = contributor`** — contributors don't update project-level active status files.
 
-If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
-commit it as part of the handoff. This resolves the "dangling WORK-STATUS.md" gap during
-off-task-list sessions (evaluation, design discussions, pre-planning) where no task commit
-naturally includes it. The handoff invocation is the approval — do not ask separately.
+If the active status file is dirty after the handoff update and no task commit is pending to carry it,
+commit it as part of the handoff. This is only for standalone tracked-state changes during
+handoff itself. Skip this section entirely when no active WU exists and therefore no active status
+file exists. The handoff invocation is the approval — do not ask separately.
 
-**Trigger**: WORK-STATUS.md is dirty (`git diff --name-only` shows it) and no other
+**Trigger**: The active status file is dirty (`git diff --name-only` shows it) and no other
 staged/unstaged changes are pending that would form a task commit.
 
 **Action**: Commit standalone as part of the handoff:
 
 ```bash
-git add .arc/active/WORK-STATUS.md
-git commit -m "docs(arc): update WORK-STATUS.md
+git add <resolved-status-file-path>
+git commit -m "docs(arc): update work-unit status
 
 Context: maintenance (atomic / no associated task list)"
 ```
 
-**Skip when**: WORK-STATUS.md will ride with a pending task commit (the normal case — see
+**Skip when**: The active status file will ride with a pending task commit (the normal case — see
 DEV-RULES.ARC § Work status accuracy).
 
 ### Confirm Handoff
 
-After updating WORK-STATUS.md and SESSION-NOTES.md, deliver a verbal summary to the user. This is a quick
+After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to
+the user. This is a quick
 confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
@@ -419,7 +449,7 @@ confirmation for the human — the session state files are the durable artifacts
 
 - [Files/changes with logical commit grouping]
 
-**Next session:** [What comes next per WORK-STATUS.md]
+**Next session:** [What comes next per the active status file, or next-work discovery when between WUs]
 
 **Formatting guidance:**
 

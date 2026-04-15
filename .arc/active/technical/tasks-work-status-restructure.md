@@ -555,7 +555,7 @@ at cutover.
     (`team.mode: false`, `pm.mode: arc-in-git`). Tier 1 quality gate: markdown lint
     clean on the edited `.arc` workflow file.
 
-- [ ] **2.6 `session-handoff.template.md` — dead-end removal, Working On: write, R18 guard**
+- [x] **2.6 `session-handoff.template.md` — dead-end removal, Working On: write, R18 guard**
 
     **Goal:** Remove the base-branch dead-end; add the `**Working On:**` write step;
     extend the existing Anti-patterns section with the R18 anti-duplication guard.
@@ -594,6 +594,23 @@ at cutover.
     Task 2.3 (both-surfaces edit), not here. Do not duplicate that edit.
 
     Sync rendered output to `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`.
+
+    **Completion:** Rewrote the handoff workflow forward-clean around the new
+    active-status-file model without touching the Task 2.3-owned SESSION-NOTES
+    skeleton block. Broad singular `WORK-STATUS.md` framing was replaced with
+    active status file language throughout: What to Update, the tracked-state update
+    section, examples, completion/archival guidance, the conditional standalone
+    commit fallback, and the closing "Next session" pointer. The procedural step list
+    now includes an explicit `**Working On:**` write step with the four approved
+    marker shapes (`status-{name}.md`, `[none]`, `[planning: {category}/{name}]`,
+    `[between work units]`). The existing Anti-patterns section gained the pinned
+    R18 anti-duplication bullet ("Restating committed content") plus a short
+    positive "Minimum viable SESSION-NOTES" list immediately after it. Status-file
+    examples now use the Task 2.2 field set (`State`, `Branch`, `Task List`,
+    `Next Task`, `Last Completed`, `Blockers`, `Next Action`) rather than the
+    retired singular WORK-STATUS shape. Existing `team.mode` conditional preserved.
+    Rendered output synced to `.arc/`. Tier 1 quality gate: markdown lint clean on
+    the edited `.arc` handoff workflow.
 
 - [ ] **2.7 `activate-work-unit.md` — Step 5 creates status file from template**
 

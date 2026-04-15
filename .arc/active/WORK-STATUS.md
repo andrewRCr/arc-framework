@@ -15,36 +15,35 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 2.6 — session-handoff.template.md dead-end removal,
-Working On write, R18 guard (line ~543)
-**Last Completed**: Task 2.5 — session-init template rewritten around
-resolved status-file loading instead of the retired singular
-`WORK-STATUS.md` path. Item 8 now defines Full-mode scan semantics
-(`.arc/active/**/status-*.md`) with zero/one/many-file handling, the
-pinned disambiguation precedence (SESSION-NOTES `**Working On:**` →
-`**Branch:**` match → `**State:** In Progress` → prompt), the exact prompt
-block, and the Lite-mode fixed-path variant (`.arc/active/status.md`).
-Downstream language updated to consume the resolved active status file
-consistently across batching, task-list/workflow gating, freshness checks,
-next-work discovery, orientation wording, and mismatch handling. The 6
-existing conditional blocks were preserved in the package template; rendered
-output synced to `.arc/` with this project's config (`team.mode: false`,
-`pm.mode: arc-in-git`). Tier 1 markdown lint clean on the edited `.arc`
-workflow file.
+**Next Task**: Task 2.7 — activate-work-unit.md Step 5 creates status file
+from template (line ~584)
+**Last Completed**: Task 2.6 — session-handoff rewritten forward-clean
+around the active-status-file model rather than the retired singular
+`WORK-STATUS.md` path. Broad tracked-state references, examples, completion /
+archival guidance, the standalone commit fallback, and the closing
+"Next session" pointer now all speak in terms of the active status file
+(`status-{name}.md` Full / `status.md` Lite). Added an explicit
+`**Working On:**` write step with the four approved marker shapes, the
+pinned R18 anti-duplication bullet, and a short positive "Minimum viable
+SESSION-NOTES" list. The Task 2.3-owned SESSION-NOTES skeleton block was
+left untouched; existing `team.mode` conditional preserved. Rendered output
+synced to `.arc/`. Tier 1 markdown lint clean on the edited `.arc` handoff
+workflow.
 
 **Blockers**: [none]
 
-**Next Action**: Execute Phase 2 Task 2.6 — rewrite
-`session-handoff.template.md` to remove the base-branch dead-end, add the
-explicit SESSION-NOTES `**Working On:**` write step using Task 2.3's marker
-vocabulary, and extend the existing Anti-patterns section with the R18
-anti-duplication / minimum-viable SESSION-NOTES guard bullets. Preserve the
-existing `team.mode` conditional block and sync rendered output to `.arc/`.
-Live `.arc/active/WORK-STATUS.md` remains untouched until Phase 3 per Task
-2.1's interim guard.
+**Next Action**: Execute Phase 2 Task 2.7 — rewrite
+`activate-work-unit.md` so Step 5 creates `.arc/active/{category}/status-{name}.md`
+from the new status template with the initial field set, update staging /
+commit references to carry the new status file instead of a singular
+`WORK-STATUS.md`, and add the incidental-activation routing pointer to
+`manage-incidental-work.md` § Coordinated Pause/Resume. Sync rendered output
+to `.arc/`. Live `.arc/active/WORK-STATUS.md` remains untouched until Phase
+3 per Task 2.1's interim guard.
 
 ---
 
-**Last Updated**: 2026-04-15 (Task 2.5 complete — session-init now resolves
-active status files via Full-mode scan / Lite-mode fixed path; Next Task
-advanced to 2.6)
+**Last Updated**: 2026-04-15 (Task 2.6 complete — session-handoff now
+is forward-clean around active status files and includes explicit Working On
+write guidance plus the R18 anti-duplication guard; Next Task advanced to
+2.7)
