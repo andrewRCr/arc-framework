@@ -157,7 +157,7 @@ signal.
 <!-- Review at each handoff: remove entries whose triggers have been met. -->
 
 **[Entry name]:**
-*Remove when: [explicit trigger condition]*
+_Remove when: [explicit trigger condition]_
 
 - [Context that must persist until trigger is met]
 

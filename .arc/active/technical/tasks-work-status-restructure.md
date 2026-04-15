@@ -297,19 +297,19 @@ until Phase 3 cutover. Task 2.1 writes a SESSION-NOTES Persistent Context entry
 over edited workflow instructions until Phase 3 completes. Task 3.3 removes the entry
 at cutover.
 
-- [ ] **2.1 Write Persistent Context entry to SESSION-NOTES**
+- [x] **2.1 Write Persistent Context entry to SESSION-NOTES**
 
-    **Goal:** Install the interim-state guard before any workflow file is edited.
-    Protects sessions resuming mid-Phase-2 from following edited workflow instructions
-    against old-path live state.
-
-    - Add entry to `.arc/user/andrew/SESSION-NOTES.md` § Persistent Context
-    - Entry text: *"Mid-restructure WU — live session state still uses singular
-      `.arc/active/WORK-STATUS.md` at fixed path until Phase 3 cutover commit.
-      Workflow files on this branch describe the new model ahead of live state. When
-      resuming mid-Phase-2: trust the old-path state, not the edited workflow
-      instructions. **Removal trigger:** Phase 3 cutover commit lands."*
-    - Must be committed before Task 2.2 begins
+    Installed the interim-state guard. Added entry to
+    `.arc/user/andrew/SESSION-NOTES.md` § Persistent Context naming the
+    "Mid-restructure interim state (WORK-STATUS path)" condition and pointing
+    future sessions at the old-path live state (`.arc/active/WORK-STATUS.md`) over
+    Phase 2 workflow edit instructions. Explicit `*Remove when: Phase 3 cutover
+    commit lands.*` removal trigger. Replaces the prior `_(none — ...)_`
+    placeholder — which was the workflow anti-pattern *"explanatory paragraphs
+    where the template expects whitespace"* landed in the preceding incidental
+    (`4d11c1f` session-handoff signal tightening), dogfooded immediately.
+    Persistence to git notes via `arc sync` runs at task commit time so the guard
+    survives the SESSION-NOTES gitignore.
 
 - [ ] **2.2 Status file template (new) — retire the old**
 
