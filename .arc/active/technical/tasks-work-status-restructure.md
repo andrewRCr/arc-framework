@@ -72,43 +72,27 @@ framework-sync integration test to enforce the sync claim for 1.2–1.5.
 **Strategies:** `strategy-adr-methodology.md`, `strategy-session-operations.md`,
 `strategy-team-coordination.md`, `strategy-package-project-sync.md`.
 
-- [ ] **1.1 ADR-007 Tier 2 Amendment**
+- [x] **1.1 ADR-007 Tier 2 Amendment**
 
-    **Goal:** Disentangle the per-developer session-state-portability decision from the
-    singular WORK-STATUS assumption that was conflated with it, without rewriting the
-    original Decision / Context / Consequences prose.
+    Appended `**Amendment (2026-04-15):** …` block to the existing `### Amendments`
+    subsection inside `## Consequences` of
+    `adr-007-design-session-state-portability-and-team-transfer.md`, directly below the
+    2026-03-05 "Current Task → Next Task" amendment. Format matches existing ADR-007
+    and ADR-012 precedent per `strategy-adr-methodology.md` Tier 2 convention (H3 inside
+    Consequences, not a new top-level section).
 
-    - Edit `.arc/reference/adr/adr-007-design-session-state-portability-and-team-transfer.md`.
-      ADR files are `.arc/`-only per `strategy-package-project-sync.md` § File Inventory —
-      no package-source counterpart exists, no dual-copy sync applies to this task
-    - **Amendment placement:** append a new `**Amendment (2026-04-15):** …` block to the
-      **existing** `### Amendments` subsection at the bottom of `## Consequences`, directly
-      after the 2026-03-05 "Current Task → Next Task" amendment and above the `---` +
-      `Context:` footer. H3 inside Consequences, matching existing ADR-007 and ADR-012
-      precedent. **Not** a new top-level `## Amendments` section — the `strategy-adr-methodology.md`
-      Tier 2 convention is "amendments go in the Consequences section (or a dedicated
-      Amendments section if multiple accumulate)", and the dedicated subsection already
-      exists
-    - **Content:** document the refinement in two parts.
-        1. **Unchanged:** personal session context stays per-developer via git notes.
-           ADR-012 already refined ADR-007 Parts 1–3 for the unified `user/{identity}/`
-           model and identity consolidation — this amendment does not re-open that
-           territory
-        2. **New:** the project pointer splits out from singular `.arc/active/WORK-STATUS.md`
-           to per-WU `.arc/active/{category}/status-{name}.md` files. Neither ADR-007 nor
-           ADR-012 named this conflation explicitly; the singular pattern was carried as an
-           unexamined assumption
-    - Reference `prd-work-status-restructure.md` and `notes-work-status-restructure.md`
-      (§ Historical context) from the amendment body for the full rationale
-    - Do NOT rewrite existing Decision / Context / Consequences prose. The append-only
-      amendment inside the existing `### Amendments` subsection is permitted by the Tier
-      2 convention and does not count as rewriting original sections
-    - Source material: `notes-work-status-restructure.md` § Historical context +
-      § Amendment framing (do not re-derive the conflation analysis — it's captured)
-    - Note amendment in the commit message per `strategy-adr-methodology.md` Tier 2
-      convention (e.g., "amend ADR-007 with per-WU project-pointer refinement")
-    - **Stop for review after 1.1** before proceeding to 1.2 (per pre-execution audit —
-      1.1 is the foundation every downstream Phase 1 task references)
+    Amendment body documents the conflation in two parts: (1) ADR-012 already refined
+    Parts 1–3 for the unified `user/{identity}/` model but preserved the singular
+    `active/WORK-STATUS.md` path — the project-pointer scope question was never
+    re-examined; (2) the Work-Status Restructure WU splits the project pointer out to
+    per-WU `active/{category}/status-{name}.md` files, eliminating parallel-WU
+    integration conflict and base-branch staleness flaws by construction. Cross-references
+    `prd-work-status-restructure.md` and `notes-work-status-restructure.md` § Historical
+    context for the full analysis.
+
+    Original Decision / Context / Consequences prose unchanged. ADR-007 is `.arc/`-only
+    — no package source sync. Tier 1 lint passed (one inline fix: `*emphasis*` →
+    `_emphasis_` per MD049 project style).
 
 - [ ] **1.2 `strategy-session-operations.md` — update WORK-STATUS references**
 

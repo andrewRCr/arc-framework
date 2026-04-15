@@ -15,41 +15,36 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 1.1 — ADR-007 Tier 2 Amendment (line ~69)
-**Last Completed**: Pre-Task-1.1 audit (`arc-task-audit` on all Phase 1)
-surfaced issues that would have caused silent drift during execution —
-wrong ADR-007 classification ("Framework file, dual-copy sync required"
-but ADR files are `.arc/`-only per package-sync inventory), filename
-drift (refs dropped the `design-` verb-lead prefix), nonexistent
-"WORK-STATUS section" target in Task 1.2, ambiguous amendment format
-(H2 section vs. the existing H3-inside-Consequences precedent).
-Refined Task 1.1, 1.2, 1.5, 1.6, Phase 1 header, PRD R7, WORK-STATUS
-Next Action, and SESSION-NOTES key facts to correct each. Previous
-commit sequence: pre-Phase-1 atomic cleanup (husky exit-code fix,
-session-lifecycle template port, CI framework-sync drift check with 4
-baseline Framework drifts cleared inline).
+**Next Task**: Task 1.2 — `strategy-session-operations.md` update WORK-STATUS references (line ~97)
+**Last Completed**: Task 1.1 — ADR-007 Tier 2 Amendment. Appended a new
+`**Amendment (2026-04-15):** ...` block to the existing `### Amendments`
+subsection inside `## Consequences` of
+`adr-007-design-session-state-portability-and-team-transfer.md`, directly
+below the 2026-03-05 "Current Task → Next Task" amendment (H3 format,
+matching existing ADR-007/ADR-012 precedent per `strategy-adr-methodology.md`
+Tier 2 convention). Amendment documents the project-pointer/session-state
+conflation that neither ADR-007 nor ADR-012 named explicitly — ADR-012
+refined Parts 1–3 for the unified `user/{identity}/` model but preserved
+the singular `active/WORK-STATUS.md` path; this amendment records the
+per-WU restructure as the refinement. Decision / Context / Consequences
+prose unchanged. ADR-007 is `.arc/`-only (no package sync).
 
-**Blockers**: [none] — pre-Phase-1 incidentals cleared.
+**Blockers**: [none]
 
-**Next Action**: Execute Phase 1 Task 1.1 (ADR-007 Tier 2 Amendment).
-Source material lives in `notes-work-status-restructure.md` § Historical
-context + § Amendment framing — do not re-derive the conflation analysis.
-Append a new `**Amendment (2026-04-15):** ...` block to the existing
-`### Amendments` subsection inside `## Consequences` of
-`adr-007-design-session-state-portability-and-team-transfer.md` (H3
-inside Consequences, matching existing precedent — **not** a new top-level
-`## Amendments` section). Document the refinement: session state identity
-stays per-developer (unchanged — ADR-012 already handled this); project
-pointer splits out from singular `.arc/active/WORK-STATUS.md` to per-WU
-`.arc/active/{category}/status-{name}.md` (new). Do not rewrite existing
-Decision / Context / Consequences prose. Note the amendment in the commit
-message per `strategy-adr-methodology.md` Tier 2 convention.
-
-**ADR-007 is `.arc/`-only** — no package source sync applies (ADR files
-have no package counterpart per `strategy-package-project-sync.md` §
-File Inventory). Stop for review after 1.1 before proceeding to 1.2.
+**Next Action**: Execute Phase 1 Task 1.2 (`strategy-session-operations.md`
+— update WORK-STATUS references). Edit scope is narrow: the only
+WORK-STATUS reference in the file is the T2 State bullet near line 50
+(`- WORK-STATUS.md (branch, task list, next task, blockers)`). Update it
+to describe the per-WU status file pattern. Leave the
+`### Session State Portability` section unchanged (covers `user/{identity}/`
+and git notes, not WORK-STATUS). **Open question to resolve before
+editing:** whether this strategy doc owns Full/Lite mode variance prose
+or defers it to Task 1.5 (`arc-methods.md`) and Phase 2 workflow edits
+— default interpretation in the task bullets is mode-agnostic here,
+defer to 1.5. Framework file — edit package source first, then sync to
+`.arc/`; `framework-sync.test.ts` will catch any missed mirroring.
 
 ---
 
-**Last Updated**: 2026-04-15 (Phase 1 pre-execution audit complete —
-Task 1.1, 1.2, 1.5, 1.6 refined; PRD R7 refined; Task 1.1 is next)
+**Last Updated**: 2026-04-15 (Task 1.1 ADR-007 amendment complete; Task 1.2
+is next — open question on Full/Lite mode variance scope)
