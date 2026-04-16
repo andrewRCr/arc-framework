@@ -433,6 +433,22 @@ at cutover.
     files; framework-sync integration test passes (package source ↔ `.arc/` mirror
     parity verified for session-handoff.md).
 
+    **Post-review amendment (2026-04-16):** The bare `**Working On:**` / `**Commit at
+    Handoff:**` metadata block gave insufficient visual separation from the
+    bold-heavy About callout above it. Wrapped the pair in a `## Handoff Metadata`
+    H2 across all three surfaces (scaffolding template, embedded skeleton in
+    `session-handoff.template.md`, live `user/{identity}/SESSION-NOTES.md`). H2
+    gives the block a grep anchor (`## Handoff Metadata`), symmetric structure with
+    `## Completed Work` / `## Remaining Work Before Returning to Task List` /
+    `## Additional Context` / `## Persistent Context`, and top-of-document position
+    preserved for session-init ergonomics. Incidental leave-it-cleaner fix applied
+    during the same pass: the embedded skeleton in `session-handoff.template.md`
+    used H3 for `Remaining Work` / `Additional Context` / `Persistent Context`
+    while the scaffolding template uses H2 — normalized the embedded skeleton and
+    Handoff Examples blocks to H2 to match, eliminating pre-existing drift between
+    the three surfaces. Also normalized the live SESSION-NOTES `**Commit at
+    Handoff**:` punctuation (colon inside the bold) to match the template form.
+
 - [x] **2.4 Task list template — remove WU-lifecycle state across all 7 surfaces**
 
     **Goal:** Remove WU-lifecycle state from task list templates per R16; lifecycle
@@ -555,6 +571,18 @@ at cutover.
     (`team.mode: false`, `pm.mode: arc-in-git`). Tier 1 quality gate: markdown lint
     clean on the edited `.arc` workflow file.
 
+    **Post-review amendment (2026-04-16):** Item 8's many-file disambiguation
+    precedence read `**Working On:**` from SESSION-NOTES (Item 9, Batch 2) to
+    resolve which candidate file to load — creating a latent batch-ordering
+    dependency that the template didn't spell out. In zero/one-file cases the
+    scan resolves in Batch 1 without needing SESSION-NOTES; only the rare
+    many-file case needed deferred resolution. Added two surgical clarifications:
+    a sentence at the end of the Execution Strategy paragraph flagging the
+    exception, and a preface to Item 8's many-file case explaining that the scan
+    completes in Batch 1 but the load defers until SESSION-NOTES is available in
+    Batch 2. No batch restructuring — agents hitting the common zero/one-file
+    path never read the caveat. Synced template → `.arc/`.
+
 - [x] **2.6 `session-handoff.template.md` — dead-end removal, Working On: write, R18 guard**
 
     **Goal:** Remove the base-branch dead-end; add the `**Working On:**` write step;
@@ -612,7 +640,26 @@ at cutover.
     Rendered output synced to `.arc/`. Tier 1 quality gate: markdown lint clean on
     the edited `.arc` handoff workflow.
 
-- [ ] **2.7 `activate-work-unit.md` — Step 5 creates status file from template**
+    **Post-review amendment (2026-04-16):** The original pass addressed the
+    dead-end by renaming the standalone `### Conditional WORK-STATUS.md Commit`
+    section to `### Conditional Active Status File Commit` and adding a "skip
+    when no active WU exists" clause. Functionally correct, but the section sat
+    *after* the SESSION-NOTES write and `arc user save` — meaning a late-surfaced
+    dirty status file would be committed with a hash that the already-written
+    `**Commit at Handoff:**` value no longer pointed at. Restructured the numbered
+    handoff format as six steps (was four, with the update-tracked-state-and-
+    SESSION-NOTES step conflated): (1) review persistent context, (2) check
+    working dir paths, (3) write `**Working On:**`, (4) update status file
+    content, (5) safety-check commit if status file is still dirty, (6) write
+    SESSION-NOTES capturing the post-commit HEAD. Deleted the standalone
+    `### Conditional Active Status File Commit` H3 section entirely — its content
+    collapsed into step 5 as a lightweight catch-all paragraph with explicit
+    "most handoffs skip this; commit-time is primary per DEV-RULES.ARC § Work
+    status accuracy" framing and a "no ask — handoff invocation is the approval"
+    note. Contributor callout updated to reference the new step numbers
+    (skip steps 4–5 instead of the named deleted section). Added `[dev-rules-arc]`
+    reference link definition in both template and rendered surfaces. Synced
+    template → `.arc/`.
 
     - Edit `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/
       activate-work-unit.md`

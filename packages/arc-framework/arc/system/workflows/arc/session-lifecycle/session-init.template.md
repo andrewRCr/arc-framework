@@ -51,7 +51,8 @@ batch them into a single parallel read. SESSION-NOTES (needs identity), the task
 active status file), and conditionally the task execution workflow (item 11, needs the resolved active
 status file) form a second batch after the first completes. Within batches, `.ARC` files are listed before
 their `.PROJECT` counterparts for comprehension order. Sequential execution (follow item numbers) is fine if
-your platform doesn't support parallel reads.
+your platform doesn't support parallel reads. Full-mode many-file status-file disambiguation is the one
+exception to strict batch ordering — see Item 8's many-file case.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
@@ -95,7 +96,10 @@ session-state, follow the override instead.
          orientation will report this state and surface the next work-unit discovery result in
          Step 5.
        - **One-file case**: Load it directly — this is the active status file for the session.
-       - **Many-file case**: Apply disambiguation precedence in order:
+       - **Many-file case**: The scan completes in Batch 1. If multiple candidates match, defer
+         the load until SESSION-NOTES (Item 9, Batch 2) is available — step 1 of the precedence
+         below reads `**Working On:**` from it. Zero/one-file cases resolve in Batch 1 without
+         needing SESSION-NOTES. Apply disambiguation precedence in order:
            1. SESSION-NOTES `**Working On:**` value matches a candidate filename
            2. Candidate `**Branch:**` matches the current git branch
            3. Candidate `**State:** In Progress`

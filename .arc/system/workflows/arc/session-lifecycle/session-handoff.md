@@ -33,11 +33,10 @@ configured.
    if one exists
 
 > **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
-> to git notes (same as maintainers), but skip project-level active status-file updates
-> (items 4–5 above), the active status-file section below, and the Conditional Active Status
-> File Commit section.
-> Contributors don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md
-> update, git notes save, and confirmation.
+> to git notes (same as maintainers), but skip project-level active status-file work — items
+> 4–5 in the pre-handoff checks above, and steps 4–5 in the handoff format below. Contributors
+> don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md update, git
+> notes save, and confirmation.
 
 ### What to Update
 
@@ -78,20 +77,38 @@ triggers are met OR whose information is now carried in tracked state.
 
 Update session state files before ending session:
 
-1. **First**: Review `## Persistent Context` — apply the criterion in the Persistent Context entry
+1. **Review `## Persistent Context`** — apply the criterion in the Persistent Context entry
    below. Remove entries whose triggers are met, AND entries whose information is now carried in
    tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
-   the handoff summary; do not silently rewrite
-2. **Second**: Check if working directory context changed and update paths in the active status
-   file if needed
-3. **Third**: Write SESSION-NOTES `**Working On:**` using the marker vocabulary established in the
+   the handoff summary; do not silently rewrite.
+2. **Check working directory context** — if it changed during the session, update paths in the
+   active status file if one exists.
+3. **Write SESSION-NOTES `**Working On:**`** using the marker vocabulary established in the
    SESSION-NOTES template:
-   - `status-{name}.md` — normal case, file reference
-   - `[none]` — no active work
-   - `[planning: {category}/{name}]` — planning cycle, no WU yet
-   - `[between work units]` — between activation and archive of adjacent WUs
-4. **Then**: Update tracked state (if an active status file exists) and SESSION-NOTES with work
-   progress:
+    - `status-{name}.md` — normal case, file reference
+    - `[none]` — no active work
+    - `[planning: {category}/{name}]` — planning cycle, no WU yet
+    - `[between work units]` — between activation and archive of adjacent WUs
+4. **Update the active status file** (if an active WU exists) — advance `**Last Completed:**`,
+   `**Next Task:**`, `**Next Action:**`, and any other fields to reflect post-commit state. See
+   the template block below.
+5. **Safety-check commit** — if the active status file is dirty at this point (either the
+   task-commit path missed staging a prior update, or step 4 produced handoff-time edits), commit
+   it now as a standalone maintenance commit. No ask — handoff invocation is the approval:
+
+    ```bash
+    git add <resolved-status-file-path>
+    git commit -m "docs(arc): update work-unit status
+
+    Context: maintenance (atomic / no associated task list)"
+    ```
+
+    The new HEAD becomes the `**Commit at Handoff:**` value written in step 6. Most handoffs skip
+    this — [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy makes commit-time primary.
+    Contributors (`arc.role = contributor`) skip this step — no project-level status file to
+    commit.
+6. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from current
+   HEAD (post-step-5 if a commit was made).
 
 **Update the active status file** (tracked project state, if an active WU exists):
 
@@ -154,6 +171,8 @@ signal.
 **Template skeleton:**
 
 ```markdown
+## Handoff Metadata
+
 **Working On:** status-{name}.md
 <!--
 Markers:
@@ -165,20 +184,20 @@ Markers:
 
 **Commit at Handoff:** `{{short-hash}}`
 
-### Completed Work
+## Completed Work
 
 [Committed work — one line per commit: hash + outcome. See "Committed work" below.]
 [Uncommitted work — commit-level detail. See "Uncommitted work" below.]
 
-### Remaining Work Before Returning to Task List
+## Remaining Work Before Returning to Task List
 
 [Off-task-list work with known path back. Otherwise: [none] or "Path unclear".]
 
-### Additional Context
+## Additional Context
 
 [Only if the filter passes. Otherwise: [none].]
 
-### Persistent Context
+## Persistent Context
 
 <!-- Entries that survive across handoffs. Each has an explicit removal trigger. -->
 <!-- Review at each handoff: remove entries whose triggers have been met. -->
@@ -287,12 +306,12 @@ status-data-pipeline.md:
 SESSION-NOTES.md:
 
 ```markdown
-### Completed Work
+## Completed Work
 
 - ✅ Task 3.5: Added schema validation for input records
 - ⚠️ Discovered connection timeout during integration testing
 
-### Remaining Work Before Returning to Task List
+## Remaining Work Before Returning to Task List
 
 1. Fix connection timeout in batch processor (pool exhaustion under load)
 2. Add integration test for concurrent batch processing
@@ -303,7 +322,7 @@ SESSION-NOTES.md:
 > `Path unclear - exploratory debugging. Will return to Task 4.1 — Add retry logic (line ~312)
 > when resolved.`
 
-### Additional Context
+## Additional Context
 
 - Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
 - Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections
@@ -329,12 +348,12 @@ status-api-documentation.md:
 SESSION-NOTES.md:
 
 ```markdown
-### Completed Work
+## Completed Work
 
 - ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
 - ✅ Task 2.4: Response format documentation (committed a1b2c3d)
 
-### Additional Context
+## Additional Context
 
 **Pre-task review needed:**
 
@@ -408,30 +427,6 @@ precedence over `arc-config.yml` when set — check this first.
 If save itself fails (empty user directory, filesystem permissions), the session state is
 only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
-### Conditional Active Status File Commit (Maintainer Only)
-
-**Skip when `arc.role = contributor`** — contributors don't update project-level active status files.
-
-If the active status file is dirty after the handoff update and no task commit is pending to carry it,
-commit it as part of the handoff. This is only for standalone tracked-state changes during
-handoff itself. Skip this section entirely when no active WU exists and therefore no active status
-file exists. The handoff invocation is the approval — do not ask separately.
-
-**Trigger**: The active status file is dirty (`git diff --name-only` shows it) and no other
-staged/unstaged changes are pending that would form a task commit.
-
-**Action**: Commit standalone as part of the handoff:
-
-```bash
-git add <resolved-status-file-path>
-git commit -m "docs(arc): update work-unit status
-
-Context: maintenance (atomic / no associated task list)"
-```
-
-**Skip when**: The active status file will ride with a pending task commit (the normal case — see
-DEV-RULES.ARC § Work status accuracy).
-
 ### Confirm Handoff
 
 After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to
@@ -464,4 +459,5 @@ confirmation for the human — the session state files are the durable artifacts
 [session-init]: session-init.md
 [arc-methods]: ../../arc-methods.md
 [arc-methods-session]: ../../arc-methods.md#session-state
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

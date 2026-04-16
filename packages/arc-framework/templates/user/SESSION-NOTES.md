@@ -15,6 +15,8 @@
 > **Writing guide:** See `session-handoff.md` for detailed content guidance, examples, and
 > what to include vs. omit.
 
+## Handoff Metadata
+
 **Working On:** [none]
 <!--
 Markers:
