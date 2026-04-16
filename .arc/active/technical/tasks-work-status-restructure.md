@@ -842,108 +842,93 @@ at cutover.
     **Sync:** Framework file — edited package source first, copied to `.arc/`,
     post-sync diff empty. Markdown lint clean on `.arc/` copy.
 
-- [ ] **2.13 `manage-incidental-work.md` — paired status-file pause/resume**
+- [x] **2.13 `manage-incidental-work.md` — paired status-file pause/resume**
 
-    **Goal:** Relocate pause/resume coordination from task list header fields to
-    coordinated updates across two status files (parent + incidental). Completes R16
-    pointer migration — the task list carries structural metadata only; all dynamic
-    state (including interrupt relationships) lives in status files.
+    Added new `## Coordinated Pause/Resume` top-level section to
+    `manage-incidental-work.md`, positioned between "Git Branch for Incidental
+    Work" and "Execution, Completion, and Archival" — the natural flow point
+    after branching conventions and before execution/archival pointers. Section
+    opens with the symmetry principle and a hoisted atomic-commit requirement,
+    then three H3 subsections (Activation, Completion, Abandonment) covering
+    the full lifecycle. Each subsection names the triggering workflow, lists
+    the numbered steps, and calls out the exact field updates required on the
+    parent status file. Completes R16 pointer migration — task list carries
+    structural metadata only, dynamic interrupt state lives in status files.
 
-    File: `packages/arc-framework/arc/system/workflows/arc/supplemental/manage-incidental-work.md`
+    **Pointer format aligned with Task 2.2 template** (interpretation call):
+    This task's original draft (2026-04-15, pre-dating 2.2) specified
+    `**Interrupts:** tasks-{parent}.md — Task X.Y` and
+    `**Paused To:** status-{incidental}.md`. Task 2.2 subsequently shipped
+    `template-status.md` with the bare `{category}/{name}` convention for both
+    pointers — that template is authoritative. Used `{parent-category}/{parent-name}`
+    for `Interrupts:` and `incidental/{incidental-name}` for `Paused To:`.
+    Task identity is carried by `**Paused At:** Task X.Y` on the parent side;
+    no duplication needed on the incidental side.
 
-    **Design principle** (lead of new § Coordinated Pause/Resume subsection):
+    **Forward link to `deactivate-work-unit.md`:** Abandonment subsection uses
+    an inline link even though the target file doesn't land until Phase 4
+    (Task 4.1). Broken window is intra-WU only; resolves before integration.
+    Matches house-style inline linking for sibling work-unit-lifecycle files.
 
-    > Interrupt coordination is symmetric — every pause has a corresponding resume,
-    > and both surfaces update in the same commit as the triggering lifecycle event.
-    > The task list carries structural metadata only; dynamic interrupt state lives
-    > in status files per R16.
+    **Back-pointer in `strategy-task-list-formatting.md`:** Added one-line
+    bullet to the Incidental Task Lists Rules block pointing at the new
+    § Coordinated Pause/Resume — closes the gap left when Task 2.4 stripped
+    lifecycle state rules from that section.
 
-    **Activation-side (incidental interrupts active WU):**
+    **Sync:** Framework files — edited package source first, copied to `.arc/`,
+    post-sync diff empty on both files. Tier 1 markdown lint clean on both
+    `.arc/` copies. Added `[template-status]` reference link to
+    `manage-incidental-work.md`'s link block for the new template citation.
 
-    - Create `.arc/active/incidental/status-{name}.md` from the Task 2.2 template
-    - Populate incidental status file with the optional `**Interrupts:**` pointer:
-      `**Interrupts:** tasks-{parent}.md — Task X.Y`
-    - Update parent status file:
-        - `**State:**` → `Paused (YYYY-MM-DD) — interrupted by incidental-{name}`
-        - Add `**Paused At:** Task X.Y`
-        - Add `**Paused To:** status-{incidental}.md`
-    - Commit: parent status file update + new incidental artifacts in ONE atomic
-      operation (the paired flip must not straddle commits)
+- [x] **2.14 `1_create-prd.md` and `2_generate-tasks.md` — reference updates**
 
-    **Completion-side (incidental archives cleanly):**
+    **`1_create-prd.md`:** No edits needed. Pre-task grep for `WORK-STATUS`,
+    `status file`, `**Status:**`, and related project-pointer semantics
+    returned zero hits. The file stays entirely within its scope (PRD
+    creation + plan retirement) and doesn't reference session or project
+    pointer state.
 
-    - Archive incidental via existing `archive-work-unit.md` → deletes
-      `status-{incidental}.md` per Task 2.8
-    - Update parent status file:
-        - `**State:**` → `In Progress`
-        - Remove `**Paused At:**` field entirely
-        - Remove `**Paused To:**` field entirely
-    - Commit: parent status file update alongside incidental archive in ONE atomic
-      operation
+    **`2_generate-tasks.template.md`:** Two edits in the Task List Header
+    example block — both aligning this surface with the post-Task-2.4
+    strategy doc (authoritative):
 
-    **Abandonment-side (incidental deactivates without work executed):**
+    - Removed `**Status:** Not Started` line. Task 2.4 retired `**Status:**`
+      from task list headers; WU-lifecycle state now lives on the per-WU
+      status file's `**State:**` field. This surface was the last stale
+      copy of the retired field.
+    - `**Branch:**` → `**Branch(es):**`. Aligns with strategy doc's
+      authoritative plural form (supports stacked PRs / team sub-branches).
+      Minor drift fix done inline per "leave it cleaner" since it was in
+      the same block.
 
-    - Deactivate via Phase 4 `deactivate-work-unit.md` Case A workflow
-    - If incidental status file was already created, it is deleted as part of
-      deactivation; if never created, nothing to delete
-    - Update parent status file: same flip as completion side (State → In Progress,
-      remove pointer fields)
-    - Same atomic-commit requirement
+    **Sync:** Edited package source first. The file carries `arc:if team.mode`
+    conditionals that are stripped in `.arc/`, so can't straight-copy — applied
+    the same edit to the `.arc/` rendered copy directly. Post-edit diff between
+    template and `.arc/` shows only the expected conditional-block drift (team
+    ownership block + `[team-coordination]` link reference). Tier 1 markdown
+    lint clean on `.arc/` copy. Task 2.15.f (Phase 2 Tier 2 quality gates) will
+    run the framework-sync integration test for cross-file verification.
 
-    **Cross-references to update in this task:**
-
-    - Task 2.7 adds the routing pointer on `activate-work-unit.md`'s side
-    - Task 2.8 adds the routing note on `archive-work-unit.md`'s side
-    - This task ensures `manage-incidental-work.md` itself documents the full
-      coordination protocol that those other workflows reference
-
-    **Scope addition (2026-04-15, from Task 2.4 evaluation):** After Task 2.4
-    stripped Status/Interrupts/pause-resume rules from `strategy-task-list-formatting.md`
-    § Incidental Task Lists, standalone readers of that strategy doc have no
-    forward pointer indicating that lifecycle state now lives in the status file.
-    Add a one-line back-pointer to the Incidental Rules block there as part of
-    this task's scope (paired with the new coordination protocol here so the
-    pointer target is accurate on landing):
-
-    > "- Lifecycle state (Status, Interrupts, Paused At/Paused To) lives in
-    > the status file, not the task list — see `manage-incidental-work.md`
-    > for the pause/resume protocol"
-
-    Exact phrasing TBD during execution; sync the strategy file to `.arc/`
-    alongside the workflow sync.
-
-    Sync to `.arc/` counterpart.
-
-- [ ] **2.14 `1_create-prd.md` and `2_generate-tasks.md` — reference updates**
-
-    - Edit package source (both `2_generate-tasks.template.md` and the non-template
-      `1_create-prd.md`) and sync to `.arc/`
-    - Replace any `WORK-STATUS.md` references with `status-{name}.md` references
-    - These workflows don't directly write status files (activation does), so edits
-      are reference-updates only
-
-- [ ] **2.15 Phase 2 Tier 2 quality gates**
-    - [ ] 2.15.a Run `npm run -s lint:md` (full markdown lint)
-    - [ ] 2.15.b Run `npm run lint:ts` (framework source may reference template paths)
-    - [ ] 2.15.c Run `npm run lint:sh` (githooks hygiene)
-    - [ ] 2.15.d Run `npm run typecheck`
-    - [ ] 2.15.e Run `npm test` (CLI tests may cover init scaffolding; expect some to
-          require updating if they reference retired WORK-STATUS.template.md)
-    - [ ] 2.15.f Package-project sync verification across all edited files (including
-          the new template, renamed files, and retired templates)
-    - [ ] 2.15.g Marker vocabulary agreement check — grep the three SESSION-NOTES
-          `**Working On:**` surfaces (scaffolding template at
-          `packages/arc-framework/templates/user/SESSION-NOTES.md`, the embedded
-          skeleton in `session-handoff.template.md`, and the read logic in
-          `session-init.template.md`) and verify identical marker strings: `[none]`,
-          `[planning: {category}/{name}]`, `[between work units]`, and the
-          `status-{name}.md` filename reference pattern. Any drift in punctuation,
-          whitespace, or token shape → fix the outlier to match the other two.
-    - [ ] 2.15.h `Last Updated` field removal consistency check — grep the new status
-          file template and SESSION-NOTES scaffolding template for `Last Updated` →
-          expect zero hits. Grep the embedded SESSION-NOTES skeleton in
-          `session-handoff.template.md` → expect zero hits. Any hit → surface for
-          triage.
+- [x] **2.15 Phase 2 Tier 2 quality gates**
+    - [x] 2.15.a `npm run -s lint:md` — 0 errors across 178 files
+    - [x] 2.15.b `npm run lint:ts` — clean
+    - [x] 2.15.c `npm run lint:sh` — clean
+    - [x] 2.15.d `npm run typecheck` + `npm run typecheck:test` — clean
+    - [x] 2.15.e `npm test` — 573 unit/integration tests + 43 e2e tests, all pass. No
+          CLI tests required updating — WORK-STATUS.template.md retirement assertions
+          were already swept in Task 2.2's test-fixture updates
+    - [x] 2.15.f Package-project sync verification — `framework-sync.test.ts`
+          (integration) passes, confirming package source ↔ `.arc/` parity across all
+          Framework/Configurable files edited in Phase 1 and Phase 2
+    - [x] 2.15.g Marker vocabulary agreement — all four strings (`[none]`,
+          `[planning: {category}/{name}]`, `[between work units]`, `status-{name}.md`)
+          match byte-for-byte across the three surfaces: scaffolding template comment
+          block, `session-handoff.template.md` embedded skeleton comment block, and
+          the prose write-instructions in `session-handoff.template.md`. Session-init
+          only references `**Working On:**` as a field name (by design — it reads
+          the value but doesn't enumerate markers)
+    - [x] 2.15.h `Last Updated` removal — zero hits in `template-status.md`, scaffolding
+          `SESSION-NOTES.md`, and `session-handoff.template.md`
 
 ### **Phase 3:** Live Migration Cutover
 
