@@ -1,14 +1,14 @@
 # AGENT-BRIEFING.CONTRIBUTOR.md — Contributor Role Orientation
 
 This briefing applies when `git config arc.role` is set to `contributor`. It replaces the
-maintainer-focused session initialization (WORK-STATUS, task lists, task execution workflow)
+maintainer-focused session initialization (status files, task lists, task execution workflow)
 with a streamlined context appropriate for contributing to an ARC-managed project.
 
 ## What Contributors Do
 
 Contributors work on project code — features, bug fixes, documentation improvements — without
 managing the upstream project's planning and tracking artifacts. The maintainer manages the
-project work pipeline (PRDs, task lists, WORK-STATUS); contributors focus on implementation and,
+project work pipeline (PRDs, task lists, status files); contributors focus on implementation and,
 if they choose, on their own personal planning pipeline for their contribution work.
 
 ## Boundaries
@@ -18,7 +18,7 @@ artifacts (task lists, work status, backlog items). The pre-commit hook warns if
 files in these directories.
 
 **The boundary is ownership of tracked state, not the presence of WU concepts.** You may freely
-run ARC's full planning pipeline (sessions, task lists, WORK-STATUS, shift, handoffs) scoped to
+run ARC's full planning pipeline (sessions, task lists, status files, shift, handoffs) scoped to
 your personal workspace at `.arc/user/{identity}/`. Upstream's tracked `.arc/` tree provides the
 constitution, strategies, agent briefings, and workflows you need — you read them, you don't
 write to them.
@@ -48,11 +48,11 @@ per [arc-config.yml][arc-config]).
 
 **Initialization:** Loads project identity (AGENT-BRIEFING.ARC, AGENT-BRIEFING.PROJECT),
 constitutional context (DEV-RULES, QUICK-REFERENCE), and this briefing. Skips maintainer
-artifacts (upstream's WORK-STATUS, task list, task execution workflow). If you maintain your
-own personal WORK-STATUS.md at `user/{identity}/WORK-STATUS.md`, it is loaded automatically.
+artifacts (upstream's status file, task list, task execution workflow). If you maintain your
+own personal status-contributor.md at `user/{identity}/status-contributor.md`, it is loaded automatically.
 
 **Handoff:** Writes SESSION-NOTES.md for personal context across sessions. Skips project-level
-WORK-STATUS.md update (maintainer-managed). Your personal WORK-STATUS.md is updated if you're
+active status file update (maintainer-managed). Your personal status-contributor.md is updated if you're
 running a full planning pipeline locally.
 
 ## Personal Workspace: The Framework Read Contract
@@ -63,7 +63,7 @@ set of paths inside it; everything else is yours to organize freely.
 **Framework-managed reads** (paths the framework loads and whose lifecycle it manages):
 
 - `SESSION-NOTES.md` — session context, loaded at session-init, written at session-handoff
-- `WORK-STATUS.md` — your personal work state, loaded at session-init if present (optional)
+- `status-contributor.md` — your personal work state, loaded at session-init if present (optional)
 - `ATOMIC-INBOX.md` — personal capture queue (arc-in-git upstream projects only)
 - `active/tasks-*.md` — task lists, loaded at session-init when running a full planning pipeline
   (see § Running a Full Planning Pipeline Locally below)
@@ -102,7 +102,7 @@ your `arc.role` setting.
 ```text
 .arc/user/{identity}/
   SESSION-NOTES.md            ← session context (handled automatically by session workflows)
-  WORK-STATUS.md              ← your personal work state
+  status-contributor.md       ← your personal work state
   active/
     plan-<name>.md            ← plan doc (transient; subsumed by PRD at PRD-creation)
     prd-<name>.md             ← PRD (after plan doc is promoted)
@@ -132,7 +132,7 @@ When your contribution is finished and the PR is merged, there is no formal arch
 The lightweight path:
 
 1. Delete `user/{identity}/active/` entries for the completed work, or leave them
-2. Reset `user/{identity}/WORK-STATUS.md` to "no active work"
+2. Reset `user/{identity}/status-contributor.md` to "no active work"
 3. Move on
 
 If you want historical reference for your own completed work, mirror ARC's archive structure

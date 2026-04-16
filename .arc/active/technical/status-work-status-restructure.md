@@ -13,9 +13,8 @@
 **State:** In Progress
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
-**Next Task:** Task 6.5.a — Rename contributor personal file (line ~1420)
-**Last Completed:** Tasks 6.1–6.4 — agent/project reference updates (Chunk A)
+**Next Task:** Task 6.6 — Grep sweep for residual `WORK-STATUS` references (line ~1492)
+**Last Completed:** Task 6.5 — contributor-facing cleanup (Chunk B: 6.5.a rename + 6.5.b vocabulary)
 **Blockers:** [none]
-**Next Action:** Begin Task 6.5.a — rename `user/{identity}/WORK-STATUS.md` →
-`status-contributor.md` across `AGENT-BRIEFING.CONTRIBUTOR.md`, `user/README.md`,
-`session-init.template.md`, and adr-014 (three Framework + dual-copy sync; ADR `.arc/`-only).
+**Next Action:** Begin Chunk C — Task 6.6 grep sweep (six sub-checks 6.6.a-f) then
+6.7 Tier 2 gates (`lint:md` + package-project sync verification).

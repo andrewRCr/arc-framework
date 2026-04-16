@@ -160,7 +160,7 @@ session-state, follow the override instead.
 >   (boundaries, commit convention, session workflow differences)
 > - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and file exists —
 >   personal context is role-agnostic
-> - **Check** `.arc/user/{identity}/WORK-STATUS.md` if identity resolved — optional local
+> - **Check** `.arc/user/{identity}/status-contributor.md` if identity resolved — optional local
 >   planning state. If present, note it in the orientation; if absent, that's normal
 >   (contributors often don't maintain one)
 > - **Skip** items 8, 10–11 (project-level active status file, task list, task execution workflow)
@@ -176,7 +176,7 @@ session-state, follow the override instead.
 >
 > **Next action:** Ready for work. Use `Context: contribution (...)` commit footer.
 >
-> If local WORK-STATUS exists, include its state. If blockers or configuration issues were
+> If local status-contributor.md exists, include its state. If blockers or configuration issues were
 > detected, include them. Otherwise, keep it minimal — contributors don't need the full
 > maintainer state summary.
 

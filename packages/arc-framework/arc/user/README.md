@@ -60,7 +60,7 @@ the only paths the framework actively manages; everything else you put here is f
 | `ATOMIC-INBOX.md`  | session-init | Personal task capture queue (arc-in-git only)                   |
 
 That's the whole contract for most users. If you're running a personal planning pipeline as a
-contributor, `WORK-STATUS.md` and `active/tasks-*.md` are additional optional paths — see
+contributor, `status-contributor.md` and `active/tasks-*.md` are additional optional paths — see
 § Advanced: Personal Planning Pipeline below.
 
 ## Personal Content

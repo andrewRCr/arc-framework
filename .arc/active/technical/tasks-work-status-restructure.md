@@ -1416,7 +1416,7 @@ for Task 5.4 subsection).
     content (Scaffolded classification — project-owned `.arc/` copy only). 6.6.e
     evaluation rule will re-confirm this call during grep sweep.
 
-- [ ] **6.5 Contributor-facing reference cleanup**
+- [x] **6.5 Contributor-facing reference cleanup**
 
     Two distinct cleanup concerns in the contributor-facing documents, split here so
     the rename (mechanical) and the vocabulary cleanup (editorial decision) each
@@ -1428,68 +1428,46 @@ for Task 5.4 subsection).
       that describe the **maintainer's** (now-retired) project-level singular
       `WORK-STATUS.md` as a pipeline artifact — vocabulary cleanup, not a rename.
 
-    - [ ] **6.5.a Rename contributor personal file — `WORK-STATUS.md` → `status-contributor.md`**
+    - [x] **6.5.a Rename contributor personal file — `WORK-STATUS.md` → `status-contributor.md`**
 
-        **Goal:** Retire the last `WORK-STATUS.md` filename in the repo. The
-        contributor's optional personal planning state lives at
-        `user/{identity}/WORK-STATUS.md` under the old naming convention; rename
-        to `status-contributor.md` to align with the `status-{scope}.md` sibling
-        family established in this WU (per PRD R19). Separate concept from the
-        project-level file (different directory, different role) — not a
-        fundamental change, just a name that fits the new taxonomy.
+        10 contributor-personal references renamed across 4 files. Package
+        sources edited first, then synced to `.arc/` counterparts:
 
-        **Naming rationale:** `status-contributor.md` rather than
-        `status-contribution.md` — the file holds ongoing personal planning state,
-        not a single contribution in flight. Aligns 1:1 with the
-        `arc.role = contributor` config string. No filename collision with Lite
-        mode's `active/status.md` — different path root.
+        - `AGENT-BRIEFING.CONTRIBUTOR.md` (both copies) — 5 refs: prose at L52
+          (two instances on one line), L55 second half, file-list entry L66,
+          tree entry L105 (re-aligned to preserve column), reset-instruction
+          L135. File has no template tokens/conditionals — synced via direct
+          copy, framework-sync test green.
+        - `user/README.md` (both copies) — 1 ref at L63 ("contributor,
+          `status-contributor.md` and `active/tasks-*.md` are additional
+          optional paths"). Direct-copy sync.
+        - `session-init.template.md` / `.arc/` session-init.md — 2 refs on
+          the contributor session path: the `**Check**` path line (~L182
+          package / ~L163 `.arc/`) and the "If local status-contributor.md
+          exists" prose (~L198 / ~L179). Edits applied in parallel to both
+          copies; framework-sync confirms parity.
+        - `adr-014-support-contributor-role-for-open-source.md` (`.arc/`-only)
+          — 2 refs updated under Tier 3 post-amendment text-fix scope: L110
+          (implementation-detail path in § Decision) and L171 (tree-entry
+          contributor-personal filename). **Scope expansion noted:** L171 was
+          not enumerated in the task description (which said "around line 110")
+          but falls under the same Tier 3 post-amendment rule (contributor
+          personal file implementation detail) — renaming L110 without L171
+          would leave an inconsistent pair. Historical/maintainer-context
+          references elsewhere in ADR-014 (12 remaining hits) retained per
+          ADR immutability.
 
-        **Files to edit:**
+        **Verification:** Tier 1 lint on all 4 `.arc/` files green;
+        `framework-sync.test.ts` integration test 1/1 passing (confirms
+        template→rendered parity for the 3 Framework files). Grep of
+        `packages/arc-framework/arc/`, `.arc/system/`, and `.arc/user/` for
+        `WORK-STATUS` returns zero hits.
 
-        - `packages/arc-framework/arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` —
-          rename contributor-personal `user/{identity}/WORK-STATUS.md` references
-          to `user/{identity}/status-contributor.md` (L52, L55 second half, L66,
-          L105, L135 per pre-implementation scan; descriptive prose like
-          `your personal WORK-STATUS.md` → `your personal status-contributor.md`
-          included). The five maintainer-context references in the same file are
-          handled in 6.5.b — do not touch them here.
-        - `packages/arc-framework/arc/user/README.md` — the contributor-facing
-          `WORK-STATUS.md` mention at L63 ("`WORK-STATUS.md` and `active/tasks-*.md`
-          are additional optional paths") — rename to `status-contributor.md`.
-          Framework file — dual-copy sync required.
-        - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/
-          session-init.template.md` — contributor session path, two references:
-          the `**Check** \`.arc/user/{identity}/WORK-STATUS.md\`` line (~L182) and
-          the "If local WORK-STATUS exists, include its state" prose (~L198).
-          Both update to `status-contributor.md`.
-        - Sync all three Framework-file edits above to `.arc/` counterparts
-          (per `strategy-package-project-sync.md`).
-        - `.arc/reference/adr/adr-014-support-contributor-role-for-open-source.md`
-          — Tier 3 correction to the one-line reference (around line 110)
-          updating the implementation-detail filename. ADR decision unchanged;
-          post-amendment text fix per `strategy-adr-methodology.md` § Three-tier
-          model. ADR is `.arc/`-only (no package counterpart) per Phase 1 Task
-          1.1 precedent.
+    - [x] **6.5.b Maintainer-context vocabulary in `AGENT-BRIEFING.CONTRIBUTOR.md`**
 
-        **Scope guard:** Analysis files in `.arc/reference/analysis/` and archive
-        files in `.arc/reference/archive/` are NOT edited — historical record
-        with original filename is correct for those surfaces. Phase 6 grep sweep
-        (Task 6.6 below) accounts for legitimate historical references via its
-        "evaluate and fix" rule.
-
-        **Live contributor files:** No contributor `WORK-STATUS.md` exists in
-        this repo's `user/andrew/` (the primary identity is maintainer, not
-        contributor). If any exist on another clone, `arc join --reconfigure`
-        does not rename in place — callers maintaining one are advised via
-        commit message to rename manually.
-
-    - [ ] **6.5.b Maintainer-context vocabulary in `AGENT-BRIEFING.CONTRIBUTOR.md`**
-
-        **Goal:** Five references in `AGENT-BRIEFING.CONTRIBUTOR.md` describe the
-        **maintainer's** project-level pipeline artifact (the now-retired singular
-        `WORK-STATUS.md`) — not the contributor's personal file. The rename in
-        6.5.a does not apply; these need vocabulary updates to reflect the per-WU
-        status file model.
+        Five maintainer-context references rewritten per the pre-approved
+        mapping below. Package source edited first, `.arc/` copy synced
+        via direct copy (no template conditionals in this file).
 
         **Replacement mapping (pre-approved phrasing):**
 
