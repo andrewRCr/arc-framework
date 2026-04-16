@@ -111,9 +111,8 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 **PRD:** `.arc/[location]/[category]/prd-[name].md`
 **Created:** YYYY-MM-DD
-**Branch:** `feature/[name]` or `technical/[name]`
+**Branch(es):** `feature/[name]` or `technical/[name]`
 **Base Branch:** base branch per `arc-config.yml` (typically `main`)
-**Status:** Not Started
 ```
 
 The PRD path should reflect the PRD's current location (matching the task list's save location).
