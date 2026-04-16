@@ -13,22 +13,23 @@
 **State:** In Progress
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
-**Next Task:** Task 4.1 — Draft `deactivate-work-unit.md` — Case A primary procedure (line ~1035)
-**Last Completed:** Task 3.6 — broader `WORK-STATUS` textual reference sweep
-(22 live surfaces, 43 file touches). Updated workflow files
-(`3_process-task-loop`, `arc-extensions`, `02_define-project`,
-`maintain-project-docs`, `prepare-commits`, `verify-arc-integrity`,
-`03_configure-external-integration`), skill files (`skills/README`,
-`arc-commit`, `arc-task-audit`), hook/script logic (`commit-msg` RULE 7 +
-`verify-integrity.sh` Session State — both derive status file from staged
-task list like pre-commit CHECK 10), strategy docs (file-classification
-exemplars, package-project-sync template inventory, configurability-
-architecture defaults), top-level refs (META-PRD, TECHNICAL-OVERVIEW,
-arc/README), adopter template (QUICK-REFERENCE.template), user/README,
-and agent-tool skill copies (`.claude/`, `.codex/`). Dual-copy sync
-preserved; MD060 alignment fixes post-edit. Tier 2 gates green (616 tests,
-lint, typecheck); manual verify-integrity.sh run confirmed new glob-scan
-resolves this WU's status file correctly.
+**Next Task:** Task 5.1 — `plan-arc-modes.md` Finding #4 carve-out update (line ~1281)
+**Last Completed:** Phase 4 (Tasks 4.1–4.4) — shipped
+`deactivate-work-unit.md` workflow. Task 4.1 created the file with Case A
+end-to-end (PR close → base checkout → branch delete → mode-specific
+cleanup: arc-in-git auto-reverts via branch deletion, external flips
+tracker + deletes local scaffold, none deletes with optional preserve-
+outside-`.arc/` note). Task 4.2 added the "When NOT to Deactivate" section
+routing Cases B/C/D (pause via future arc-shift / reversal-PR recipe /
+integrate-or-clean) with per-case "Why this isn't deactivation" rationales.
+Task 4.3 registered the file in `manifest.json` (alphabetical, Framework
+classification) and added a `## Related Workflows` section to
+`activate-work-unit.md` for bidirectional discoverability; pristine.json
+deliberately not updated (see 4.3 completion notes for rationale). Task 4.4
+Tier 2 gates green: lint:md 179 files 0 errors, outbound + inbound link
+checks clean (manage-incidental-work.md's anticipatory links now resolve),
+framework-sync.test.ts 103/103. Dual-copy sync preserved.
 **Blockers:** [none]
-**Next Action:** Begin Phase 4 — author `deactivate-work-unit.md` from
-scratch. Task 4.1 ships the Case A primary procedure (no work, not merged).
+**Next Action:** Begin Phase 5 — plan-\* doc updates. Task 5.1 updates
+`plan-arc-modes.md` Finding #4 carve-out to reference this WU as the
+Following-Task-List-field-removal resolution (per PRD R17).

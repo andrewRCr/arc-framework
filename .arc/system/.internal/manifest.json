@@ -356,6 +356,11 @@
       "layer": "core",
       "pristine_hash": "352a7e30f5f45a5f0da1dd766de17c60a85607629629698f045466720b945f1e"
     },
+    "system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "0ee60e33d16d8fcf2af9268a9a80c781c142c1ba3f30e4fb628a1092adf94bfd"
+    },
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",

@@ -1154,55 +1154,120 @@ explanatory blocks.
 `notes-work-status-restructure.md` § Deactivation reshape (source for design principle
 and case matrix rationale).
 
-- [ ] **4.1 Draft `deactivate-work-unit.md` — Case A primary procedure**
+- [x] **4.1 Draft `deactivate-work-unit.md` — Case A primary procedure**
 
-    **Goal:** Ship a complete workflow for the only genuine deactivation case.
+    Created `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md`
+    and mirrored to `.arc/`. Workflow leads with the design-principle headline
+    (*"Deactivation means undo-activation of a work unit that didn't meaningfully
+    start."*) and ships Case A end-to-end: PR closure, branch deletion (local +
+    remote), then mode-specific cleanup split across three terminal steps.
 
-    - Create `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/
-      deactivate-work-unit.md`
-    - Lead with the design-principle headline: *"Deactivation means undo-activation of
-      a WU that didn't meaningfully start."*
-    - Document Case A preconditions: no task work executed; not merged to main
-    - Procedure: delete implementation branch (local + remote); git handles the revert
-      automatically; main is already in pre-activation state
-    - Move PRD/notes/tasks artifacts back to `backlog/{category}/` if activation moved
-      them (verify against `activate-work-unit.md`'s moves)
-    - Document postconditions: main matches pre-activation state; artifacts back in
-      backlog; no status file exists
-    - Sync to `.arc/`
+    **Mode variance (key design decision):** Case A's reversion semantics differ
+    by `pm.mode`. Under `arc-in-git`, branch deletion auto-reverts the `backlog/` →
+    `active/` moves and discards status file / PROJECT-STATUS / ROADMAP updates —
+    Step 4 is verification only. Under `external` and `none`, activation never moved
+    artifacts (no `backlog/` directory), so main retains them in `active/` after
+    branch deletion; Steps 5 and 6 handle explicit deletion with mode-appropriate
+    guidance — `external` treats local copies as tracker-cached scaffold (delete +
+    tracker state flip), `none` treats them as the only copies (delete, with
+    optional preserve-outside-`.arc/` note acknowledging `none` does not track
+    dormant plans). Rejected the "leave dormant in `active/`" option as semantically
+    incoherent (`active/` should mean in-flight) and Case B-adjacent.
 
-- [ ] **4.2 Routing pointers for Cases B / C / D**
+    **Structural content:** 4-cell Case Matrix near the top for reader context;
+    Prerequisites, Mode Detection, Steps, Checklist Summary, Postconditions, and
+    Next Step block follow the `activate-work-unit.md` shape. Incidental-WU pointer
+    added under Purpose (deactivating an incidental requires resuming the paused
+    parent via `manage-incidental-work.md`). Context footer for external/none
+    deletion commits uses `tasks-{name}.md (deactivation)` following the
+    lifecycle-phase pattern (`activation` / `archival`).
 
-    - Add a "When NOT to deactivate" section after the Case A procedure
-    - **Case B (not merged, some work):** Route to future `arc-shift` pause — metadata-
-      in-place pattern, `State:` field flip to `Paused`, no file relocation. Note that
-      `arc-shift` is not yet implemented (plan-arc-modes); for now, the recommendation
-      is to complete or abandon via existing workflows rather than attempting manual
-      parking
-    - **Case C (merged, no work — rare edge case):** Document as a noted edge case.
-      Requires a deactivation PR with inverse changes (move files back to backlog,
-      reset roadmap). Under full protection this needs its own branch + PR. Retain as
-      documented procedure; do not ship a separate workflow for it
-    - **Case D (merged, some work):** Route to `integrate-work-unit.md` (complete and
-      integrate) or `clean-work-unit.md` (archive with abandoned status)
-    - Each routing block includes a one-sentence rationale for why the case is not
-      deactivation in the restructure-era sense
+    **Scope boundary:** Task 4.1 ships Case A only — the "When NOT to Deactivate"
+    section with Case B/C/D routing lands in Task 4.2.
 
-- [ ] **4.3 Register new workflow in indexes**
+    **Sync:** Framework file — edited package source first, then mirrored to `.arc/`
+    (byte-identical, confirmed via `diff -q`). Tier 1 lint clean on `.arc/` copy
+    (package source is excluded from project lint scope by design).
 
-    - Update `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/
-      README.md` (if one exists) to list `deactivate-work-unit.md`
-    - Update any workflow index or cross-reference in related workflows
-      (`activate-work-unit.md` may want a "see also" pointer)
-    - Check `.arc/system/.internal/manifest.json` — if the package sync manifest
-      enumerates Framework workflow files, add the new file
-    - Sync to `.arc/`
+- [x] **4.2 Routing pointers for Cases B / C / D**
 
-- [ ] **4.4 Phase 4 Tier 2 quality gates**
-    - [ ] 4.4.a Run `npm run -s lint:md`
-    - [ ] 4.4.b Internal link checking — new file has outbound refs to other workflows;
-          other workflows may gain inbound refs. Verify no broken links
-    - [ ] 4.4.c Package-project sync verification
+    Added `## When NOT to Deactivate` section between the Case A procedure and the
+    Checklist Summary, with three `### Case X` subsections. Each opens with a
+    one-sentence **Why this isn't deactivation** rationale, per the task spec.
+
+    **Case B** routes to future `arc-shift` pause with a status callout noting that
+    `arc-shift` is unimplemented (plan-arc-modes); until then, completion via
+    `integrate-work-unit.md` or abandonment via `clean-work-unit.md` is
+    recommended over manual parking.
+
+    **Case C** is treated as a noted edge case with a concrete 3-step procedure
+    (new branch from main; reverse activation's `git mv` / `git rm` / PROJECT-STATUS
+    / ROADMAP changes; deactivation PR). Explicitly notes "no separate workflow
+    ships for Case C — use this section as the reference" per task spec.
+
+    **Case D** routes to `integrate-work-unit.md` (complete and ship) or
+    `clean-work-unit.md` (archive with abandoned status), with bulleted pointers.
+
+    **Sync:** Package source edited first, mirrored to `.arc/` (byte-identical).
+    Tier 1 lint clean on `.arc/` copy.
+
+- [x] **4.3 Register new workflow in indexes**
+
+    **README scan:** No `README.md` exists in `work-unit-lifecycle/`, `workflows/arc/`,
+    or `workflows/`. `.arc/system/README.md` describes `workflows/` at a directory
+    level without enumerating files. No README updates needed.
+
+    **Manifest entry:** Added
+    `system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` to
+    `.arc/system/.internal/manifest.json` in alphabetical position (between
+    `clean-work-unit.md` and `integrate-work-unit.md`) with
+    `classification: "Framework"`, `layer: "core"`,
+    `pristine_hash: 0ee60e33…` (sha256 of current file contents). JSON validated
+    via `python3 -c "import json; json.load(...)"`. This enables the
+    pre-commit package-sync warning and the `framework-sync.test.ts` drift check
+    for this file.
+
+    **pristine.json deliberately NOT updated.** pristine.json is a
+    content-addressable store populated by `arc init` / `arc update` at
+    install/update time (see `packages/arc-framework/src/commands/init.ts` L184,
+    `update.ts` L248). No test enforces manifest ⇔ pristine key equality; the
+    self-hosted sync discipline here maintains manifest.json manually at
+    structural edit points (new files, classification changes) while pristine.json
+    catches up on the next `arc update` self-test against a new framework
+    version. Manual JSON-string embedding of a 172-line markdown file into a
+    122K-token JSON was judged error-prone for zero current benefit.
+
+    **Cross-reference:** Added a `## Related Workflows` section to
+    `activate-work-unit.md` (above the reference links) with a one-line pointer to
+    `deactivate-work-unit.md`. The deactivate workflow already back-references
+    activate via `[activate]` in its Mode Detection block; this completes the
+    bidirectional link. Added `[deactivate]` reference-link entry in alphabetical
+    position among existing refs.
+
+    **Sync:** `activate-work-unit.md` edited in package source first, then
+    mirrored to `.arc/` (byte-identical). Manifest is project-instance-only (no
+    package counterpart). Tier 1 lint clean on `activate-work-unit.md` `.arc/`
+    copy.
+
+- [x] **4.4 Phase 4 Tier 2 quality gates**
+    - [x] 4.4.a `npm run -s lint:md` — 179 files, 0 errors
+    - [x] 4.4.b Internal link checking — manual verification (no dedicated link
+          checker in CI; markdownlint catches reference-definition issues but
+          not path resolution). Outbound refs from `deactivate-work-unit.md`
+          (5 reference links) all resolve:
+          `activate-work-unit.md`, `../../../arc-config.yml`,
+          `clean-work-unit.md`, `../supplemental/manage-incidental-work.md`,
+          `integrate-work-unit.md`. Outbound ref from `activate-work-unit.md`'s
+          new `[deactivate]` resolves to sibling file. Inbound refs:
+          `manage-incidental-work.md` already contains an anticipatory
+          `[deactivate-work-unit.md](../work-unit-lifecycle/deactivate-work-unit.md)`
+          link at § "Abandonment — incidental deactivates without work executed"
+          (lines 199, 203) — previously a dangling link, now resolves.
+    - [x] 4.4.c Package-project sync verification — `framework-sync.test.ts`
+          passed (103 integration tests, 0 failures). The new manifest entry
+          for `deactivate-work-unit.md` was recognized and the package source
+          ↔ `.arc/` mirror was verified byte-identical. `activate-work-unit.md`
+          sync also verified (edited package-first, mirrored to `.arc/`).
 
 ### **Phase 5:** Plan-\* Doc Updates
 

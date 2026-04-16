@@ -214,12 +214,18 @@ With the work unit activated, proceed to task execution:
 
 **→ [3_process-task-loop.md](../3_process-task-loop.md)** - Execute tasks one at a time with quality gates
 
+## Related Workflows
+
+- [`deactivate-work-unit.md`][deactivate] — reverse an activation when the WU is cancelled before any task
+  work (Case A); routing for cases with work or merged state
+
 ---
 
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
 [arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
 [arc-config]: ../../../arc-config.yml
+[deactivate]: deactivate-work-unit.md
 [integrate-planning-branch]: planning/integrate-planning-branch.md
 [session-init]: ../session-lifecycle/session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
