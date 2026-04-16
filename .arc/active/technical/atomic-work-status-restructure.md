@@ -13,61 +13,6 @@ Atomic Task Completion for the full protocol.
 
 ---
 
-- [ ] **Audit session-init context load for token-usage reductions**
-
-    **Top priority for next session — runs before resuming Task 2.7 or any other
-    planned task work.** With the session-init (Task 2.5) and session-handoff (Task
-    2.6) rewrites now landed, this is a good moment to audit the context load for
-    token efficiency before downstream work compounds whatever accumulation exists.
-
-    **Observation driving this:** Token usage at session-init completion (via
-    `/arc-resume` through to the orientation summary) has drifted upward over the
-    last several weeks: from ~29-35k in late sessions, to ~45-50k, to consistently
-    ~75-80k in the last two weeks or so. Some of this is structurally unavoidable —
-    ARC's configurability architecture (methods, extensions, per-mode conditionals)
-    carries a documentation surface cost that a centralized-for-solo-use design
-    would not pay. But the drift curve suggests there may be avoidable
-    accumulation worth auditing now.
-
-    **Scope of audit:** The session-init document set (items 1–11 plus
-    configuration reads) — examine each surface for:
-
-    - Redundant information restated across documents (the same rule echoing in
-      DEV-RULES.ARC, a strategy doc, and a workflow doc)
-    - Verbose guidance that could be condensed without losing signal
-    - Conditional content (`arc:if team.mode`, `arc:if pm.mode`) that renders
-      unnecessarily in this project's current config, or that bloats rendered
-      output even when it's project-applicable
-    - Documents that could move from "full read" to partial/anchored read at init
-      (the task list is already the one partial-read exception — are there others?)
-    - Reference material (examples, rationale, cross-references) that could defer
-      to on-demand loading via workflow triggers rather than sitting in the
-      session-init load set
-
-    **Approach — thorough, favoring system integrity over reductions.** Any
-    proposed cut must be validated against what the agent actually needs at
-    orientation time. Cutting a rule that only fires in a rare edge case is
-    still a loss if that edge case is the one the agent hits. The answer may
-    legitimately be "no meaningful savings available without structural
-    compromise" — that's an acceptable outcome. Hopefully the audit surfaces
-    some significant savings; remains to be seen.
-
-    **Deliverable:** Written audit — file-by-file findings with what could be
-    cut or deferred, what must stay, estimated token impact per proposed change.
-    Present for review *before* making any edits. Do not make changes during
-    the audit pass itself; the audit and the implementation are separate review
-    increments.
-
-    **Out of scope for this audit:**
-
-    - Restructuring the session-init workflow itself (just landed in Task 2.5)
-    - Restructuring the document classification system (T1/T2/T3 from
-      strategy-session-operations.md)
-    - Changes to arc-methods or arc-extensions design — this is a content audit
-      within the existing configurability architecture, not a reshape of it
-    - Anything that would affect the WU currently in flight — defer structural
-      changes that touch active workflow surfaces until after this WU merges
-
 - [x] **Fix `.husky/pre-commit` exit-code propagation**
 
     **Problem:** Commits that should be blocked by the ARC pre-commit hook land
@@ -254,3 +199,13 @@ Atomic Task Completion for the full protocol.
     Examples (already correctly brief — they anchor the new defaults), the
     `arc-handoff` skill prose (already minimal), or any other session-lifecycle file.
     Surgical incidental, not a workflow overhaul.
+
+- [x] **Audit session-init context load for token-usage reductions**
+
+    **Outcome:** Audit run and iterated with the maintainer. Finding surfaced an
+    architectural opportunity beyond the initial file-by-file trim scope: the current
+    front-load is belt-and-suspenders over an already-reliable workflow trigger system,
+    and shifting to JIT loading captures substantially larger savings. Captured as
+    `backlog/technical/plan-session-init-optimization.md` and roadmap-scheduled
+    immediately after this WU merges. No edits made during the audit pass itself
+    (per the atomic's scope guard).
