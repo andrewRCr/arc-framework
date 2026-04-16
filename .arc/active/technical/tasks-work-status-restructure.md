@@ -34,7 +34,12 @@ sync), `strategy-task-list-formatting.md` (Phase 2 task list template edit),
   task list template removes `**Status:**` header) and 9 workflow files
 - Author new `deactivate-work-unit.md` workflow (Case A primary + routing pointers)
 - Update 4 plan-\* docs (substantive `plan-arc-modes.md`; header-level notes on others)
-- Update 4 agent/project reference docs
+- Update 5 agent/project reference docs (including `AGENT-BRIEFING.CONTRIBUTOR.md`
+  for the contributor-personal rename)
+- Rename the contributor's optional personal status file from
+  `user/{identity}/WORK-STATUS.md` to `user/{identity}/status-contributor.md` —
+  retires the last `WORK-STATUS.md` filename in the repo and aligns with the
+  `status-{scope}.md` family established elsewhere in this WU
 - Live-migrate this WU's own state from `.arc/active/WORK-STATUS.md` to
   `.arc/active/technical/status-work-status-restructure.md` (Phase 3 cutover)
 - Remove ATOMIC-INBOX items #1–#3 at verification (resolved-by-design)
@@ -1039,17 +1044,63 @@ for Task 5.4 subsection).
       per-WU status file language
     - Both copies if Framework; project-owned if Scaffolded (check classification)
 
-- [ ] **6.5 Grep sweep — catch any remaining references**
-    - [ ] 6.5.a Grep `.arc/` for `WORK-STATUS.md` — expect zero hits after Phases 1–5
-    - [ ] 6.5.b Grep `packages/arc-framework/arc/` for `WORK-STATUS.md` — expect zero
+- [ ] **6.5 Contributor personal status file — rename `WORK-STATUS.md` → `status-contributor.md`**
+
+    **Goal:** Retire the last `WORK-STATUS.md` filename in the repo. The contributor's
+    optional personal planning state lives at `user/{identity}/WORK-STATUS.md` under the
+    old naming convention; rename to `status-contributor.md` to align with the
+    `status-{scope}.md` sibling family established in this WU (per PRD R19). Separate
+    concept from the project-level file (different directory, different role) — not a
+    fundamental change, just a name that fits the new taxonomy.
+
+    **Naming rationale:** `status-contributor.md` rather than `status-contribution.md`
+    — the file holds ongoing personal planning state, not a single contribution in
+    flight. Aligns 1:1 with the `arc.role = contributor` config string. No filename
+    collision with Lite mode's `active/status.md` — different path root.
+
+    **Files to edit:**
+
+    - `packages/arc-framework/arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` — rename
+      all `user/{identity}/WORK-STATUS.md` references to
+      `user/{identity}/status-contributor.md` (~9 references: prose, file list,
+      directory tree, handoff instructions); update descriptive prose that mentions
+      the old name (`your personal WORK-STATUS.md` → `your personal status-contributor.md`)
+    - `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/
+      session-init.template.md` — contributor session path (currently line ~178):
+      update the `user/{identity}/WORK-STATUS.md` check reference
+    - Sync both to `.arc/` counterparts
+    - `.arc/reference/adr/adr-014-support-contributor-role-for-open-source.md` — Tier
+      3 correction to the one-line reference (around line 110) updating the
+      implementation-detail filename. ADR decision unchanged; this is a
+      post-amendment text fix per `strategy-adr-methodology.md` § Three-tier model.
+      ADR is `.arc/`-only (no package counterpart) per Phase 1's Task 1.1 precedent
+
+    **Scope guard:** Analysis files in `.arc/reference/analysis/` and archive files
+    in `.arc/reference/archive/` are NOT edited — historical record with original
+    filename is correct for those surfaces. Phase 6 grep sweep (Task 6.6 below)
+    accounts for legitimate historical references via its "evaluate and fix" rule.
+
+    **Live contributor files:** No contributor `WORK-STATUS.md` exists in this repo's
+    `user/andrew/` (the primary identity is maintainer, not contributor). If any exist
+    on another clone, `arc join --reconfigure` does not rename in place — callers
+    maintaining one are advised via commit message to rename manually.
+
+    Sync to `.arc/` counterpart.
+
+- [ ] **6.6 Grep sweep — catch any remaining references**
+    - [ ] 6.6.a Grep `.arc/` for `WORK-STATUS.md` — expect zero hits after Phases 1–5
+          and Task 6.5 (analysis/archive files excluded)
+    - [ ] 6.6.b Grep `packages/arc-framework/arc/` for `WORK-STATUS.md` — expect zero
           hits
-    - [ ] 6.5.c Grep both trees for `active/WORK-STATUS` — expect zero hits
-    - [ ] 6.5.d Any hits found: evaluate and fix (may be legitimate historical
+    - [ ] 6.6.c Grep both trees for `active/WORK-STATUS` — expect zero hits
+    - [ ] 6.6.d Grep both trees for `user/{identity}/WORK-STATUS` — expect zero hits
+          after Task 6.5
+    - [ ] 6.6.e Any hits found: evaluate and fix (may be legitimate historical
           references in ADRs or archive; otherwise update)
 
-- [ ] **6.6 Phase 6 Tier 2 quality gates**
-    - [ ] 6.6.a Run `npm run -s lint:md`
-    - [ ] 6.6.b Package-project sync verification
+- [ ] **6.7 Phase 6 Tier 2 quality gates**
+    - [ ] 6.7.a Run `npm run -s lint:md`
+    - [ ] 6.7.b Package-project sync verification
 
 ### **Phase 7:** Verification
 

@@ -218,9 +218,9 @@ boundary sub-pattern) all collapse to resolved-by-design. Remove from inbox at t
 WU's integration.
 
 **R15. Agent and project doc references.** `AGENT-BRIEFING.ARC.md`,
-`AGENT-BRIEFING.PROJECT.md`, `CLAUDE.ARC.md` — update WORK-STATUS references as
-needed. `PROJECT-STATUS.md` role unchanged (portfolio-level index) — reference
-updates only.
+`AGENT-BRIEFING.PROJECT.md`, `CLAUDE.ARC.md`, `AGENT-BRIEFING.CONTRIBUTOR.md` —
+update WORK-STATUS references as needed. `PROJECT-STATUS.md` role unchanged
+(portfolio-level index) — reference updates only.
 
 **R16. Task list `**Status:**` header removal.** Remove the WU-lifecycle status
 header line from task list templates (package source) and all existing task lists.
@@ -244,6 +244,18 @@ Include a minimum-viable-SESSION-NOTES bullet set (things tried that didn't work
 decisions not captured in tracked state, observed risks, "currently mid-X with
 concrete next action Y"). Trivial incremental scope since `session-handoff.md` is
 already being edited for the structural change.
+
+**R19. Contributor personal status file rename.** The contributor's optional
+personal planning file (referenced by `session-init.md` contributor path and
+`AGENT-BRIEFING.CONTRIBUTOR.md`) is renamed from `user/{identity}/WORK-STATUS.md`
+to `user/{identity}/status-contributor.md`. Separate concept from the project-level
+file (different directory, different role — not merged into the per-WU family), but
+the `WORK-STATUS.md` filename is retired repo-wide alongside the project-level
+retirement for consistency. The file holds ongoing personal planning state, not a
+single contribution in flight — `status-contributor.md` aligns with the
+`arc.role = contributor` config string and the `status-{scope}.md` sibling family
+(`status-{wu-name}.md`, `status.md` for Lite). No filename collision with Lite
+mode's `active/status.md` — different path root.
 
 ## Non-Goals
 
