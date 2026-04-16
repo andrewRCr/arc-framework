@@ -15,34 +15,40 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 2.8 — `archive-work-unit.md` — delete per-WU file, do
-not reset (line ~706)
-**Last Completed**: Task 2.7 — rewrote `activate-work-unit.md` Step 5 from
-"Update WORK-STATUS.md" to "Create Status File" (creates
-`.arc/active/{category}/status-{name}.md` from `template-status.md` with the
-initial field set). Step 8 staging blocks on both `arc-in-git` and
-`none`/`external` paths now carry the new per-WU status file instead of the
-singular `WORK-STATUS.md`; commit body line and Mode Detection / Checklist
-Summary / Team-mode callout updated in parallel. Incidental-activation
-routing callout placed after `**When to use:**` in Purpose (activation entry
-fork), forward-referencing `manage-incidental-work.md` § Coordinated
-Pause/Resume (Task 2.13). Added `[template-status]` and `[incidental]` link
-defs. Step 4 and the `Status: Not Started` prerequisite intentionally left
-untouched — they retire with Task 2.14. Synced package source → `.arc/`,
-post-sync diff empty; markdown lint clean.
+**Next Task**: Task 2.13 — `manage-incidental-work.md` — paired status-file
+pause/resume (line ~845)
+**Last Completed**: Tasks 2.8–2.12 — work-unit-lifecycle workflow rewires
+for the per-WU status file model (deferred-review batch). 2.8
+`archive-work-unit.md` Step 5 collapsed to single `git rm status-{name}.md`
+action; 2.9 `clean-work-unit.md` retargets Mode 2 terminal `Complete` write
+from task list header to status file `**State:**` field; 2.10
+`integrate-work-unit.md` swaps WORK-STATUS references for status-file
+references across four surfaces (header, verification checklist, Step 6c,
+PR-body scoping); 2.11 `integrate-planning-branch.md` Step 5 simplified
+(dropped staleness-edge-case prose — planning branches don't carry a
+status file, so chain-of-planning-cycles confusion evaporates); 2.12
+`rotate-branch.md` Step 5 checklist updated for status-file travel across
+rotations + new rotation-across-sessions callout closing ATOMIC-INBOX
+item #3. All transitional `Status: Not Started` references retained —
+cascade with Task 2.14.
 
 **Blockers**: [none]
 
-**Next Action**: Proceed to Task 2.8: rewrite `archive-work-unit.md` so
-archive-time behavior `git rm`s the per-WU `status-{name}.md` (instead of
-resetting a singular `WORK-STATUS.md`). Preserve archival of the task list
-and atomic companion file. Add an incidental-archive routing note pointing
-at `manage-incidental-work.md` § Coordinated Pause/Resume for the parent
-state flip (State: Paused → In Progress, clear Paused At / Paused To). Edit
-package source first, sync to `.arc/`. Live `.arc/active/WORK-STATUS.md`
-remains untouched until Phase 3 per Task 2.1's interim guard.
+**Next Action**: Proceed to Task 2.13 — add § Coordinated Pause/Resume
+subsection to `manage-incidental-work.md` documenting the paired pause/
+resume protocol across parent and incidental status files. Completes R16
+pointer migration (task list carries structural metadata only; all dynamic
+interrupt state lives in status files). Protocol covers activation-side
+(incidental interrupts active WU), completion-side (incidental archives
+cleanly), and abandonment-side (incidental deactivates without work
+executed). Tasks 2.7 and 2.8 already forward-reference this subsection.
+Also adds a one-line back-pointer to `strategy-task-list-formatting.md` §
+Incidental Task Lists per Task 2.4 follow-on. Edit package source first,
+sync to `.arc/`. Live `.arc/active/WORK-STATUS.md` remains untouched until
+Phase 3 per Task 2.1's interim guard.
 
 ---
 
-**Last Updated**: 2026-04-16 (Task 2.7 complete — `activate-work-unit.md`
-rewritten for per-WU status file model; next is Task 2.8 archive-side mirror)
+**Last Updated**: 2026-04-16 (Phase 2 work-unit-lifecycle batch — Tasks
+2.8–2.12 complete; Task 2.13 is the § Coordinated Pause/Resume subsection
+prior workflow rewrites forward-reference)

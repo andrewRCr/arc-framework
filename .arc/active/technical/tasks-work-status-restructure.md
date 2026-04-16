@@ -703,52 +703,144 @@ at cutover.
     excluded from project lint scope by design). `framework-sync.test.ts`
     (Task 1.8) enforces the mirror on commit.
 
-- [ ] **2.8 `archive-work-unit.md` — delete per-WU file, do not reset**
+- [x] **2.8 `archive-work-unit.md` — delete per-WU file, do not reset**
 
-    - Edit package source and sync to `.arc/`
-    - Replace any "reset WORK-STATUS content" language with "`git rm` the per-WU status
-      file" — archive deletes, does not reset
-    - Preserve archival of task list and atomic companion file (unchanged)
-    - **Incidental archive routing:** add a note that archiving an incidental WU
-      alone does not handle the parent WU state flip (State: Paused → In Progress,
-      Paused At / Paused To removal). Callers interrupting an active WU with an
-      incidental must route archival through `manage-incidental-work.md` §
-      Coordinated Pause/Resume, which orchestrates both status files in the same
-      commit.
+    Step 5 rewritten from "Update WORK-STATUS.md" (a two-case block covering
+    reset-to-defaults on base branch and restore-to-parent-context for stacked
+    incidentals) to "Delete Status File" — `git rm .arc/active/{category}/status-{name}.md`.
+    Both legacy cases collapsed: under the new model, parent state lives in the
+    parent's own per-WU status file (still on disk after incidental archive), so
+    no restoration is needed; and there are no "no active work" defaults to reset
+    to, because session-init's zero-file case handles the between-WUs state
+    naturally.
 
-- [ ] **2.9 `clean-work-unit.md` — relocate terminal `State: Complete` write**
+    **Incidental archive routing callout** placed inside Step 5 — points to
+    `manage-incidental-work.md` § Coordinated Pause/Resume for the parent state
+    flip (State: Paused → In Progress, remove `Paused At:` / `Paused To:`). That
+    workflow (Task 2.13) orchestrates both status files in the same atomic
+    commit. `archive-work-unit.md` alone only `git rm`s the incidental file.
 
-    - Edit package source and sync to `.arc/`
-    - Terminal write target changes from task list `**Status:**` header to the status
-      file `**State:**` field
-    - Workflow ownership and behavior otherwise unchanged — `clean-work-unit.md` still
-      owns the `State: Complete` write (arc-shift never writes `Complete`)
+    **Step 8 staging:** Dropped `git add .arc/active/WORK-STATUS.md` — the `git rm`
+    in Step 5 auto-stages the deletion, and the `.arc/active/{category}/`
+    directory-level add already captures it. Added inline comment noting this.
 
-- [ ] **2.10 `integrate-work-unit.md` — references and Rotate → Integrate → Archive header update**
+    **Next Step cleanup:** Partial-protection line dropped the "(or follow
+    WORK-STATUS.md Next Action if different)" parenthetical. Full-protection
+    standalone-archival line dropped "Update WORK-STATUS.md Next Action..." —
+    there's no between-WU file to update under the new model. Common Pitfalls
+    entry rewritten: "Skip WORK-STATUS.md reset" → "Skip status file deletion →
+    dangling state file in active/".
 
-    - Edit package source and sync to `.arc/`
-    - Replace WORK-STATUS references with status file references throughout
-    - Update the Rotate → Integrate → Archive header language to reflect the per-WU
-      file traveling through rotations (no more "reset on main" mid-integration)
+    **Link defs added:** `[incidental]`.
 
-- [ ] **2.11 `integrate-planning-branch.md` — Step 5 simplification**
+    **Sync:** Framework file — edited package source first, copied to `.arc/`,
+    post-sync diff empty. Markdown lint clean on `.arc/` copy.
 
-    - Edit package source and sync to `.arc/`
-    - Step 5 becomes trivial: no WORK-STATUS absorb needed. The chain-of-planning-cycles
-      confusion is gone because planning branches don't carry a status file — they
-      carry PRD/notes/tasks, all of which merge cleanly to the base branch's
-      `backlog/{category}/` directory
-    - Remove any prose acknowledging the staleness edge case
+- [x] **2.9 `clean-work-unit.md` — relocate terminal `State: Complete` write**
 
-- [ ] **2.12 `rotate-branch.md` — per-WU file travel and session-boundary sub-pattern**
+    Two surfaces updated — both the Mode 2 terminal write targets the status
+    file's `**State:**` field instead of the task list's retired `**Status:**`
+    header:
 
-    - Edit package source and sync to `.arc/`
-    - Update examples to show the per-WU status file traveling through rotations via
-      normal merge flow
-    - Resolve the session-boundary sub-pattern gap (previously ATOMIC-INBOX item #3):
-      when an external action (npm publish, GitHub repo rename, smoke test) splits a
-      rotation across sessions, the status file on the rotation branch carries state
-      across the gap — session-init on the new session loads it by `Branch:` match
+    - Step 1 (§ Confirm Pairing and Status): Mode 2 bullet rewritten to "Update
+      the per-WU status file `**State:**` field to `Complete`" with a note that
+      lifecycle state lives in `active/{category}/status-{name}.md`, not the task
+      list.
+    - Step 6 (§ Update Cross References): "task file `**Status**: Complete`" →
+      "status file `**State:** Complete`". Notes file `**Status**: Complete`
+      unchanged — notes files track their own state separately, orthogonal to
+      this task's scope.
+
+    **Workflow ownership preserved:** `clean-work-unit.md` Mode 2 still owns the
+    terminal `State: Complete` write. Mode 1 (mid-work cleanup) remains
+    non-lifecycle per its existing semantics.
+
+    **Scope boundary:** Step 3's "Standard task list structure to preserve"
+    header list (line ~192, lists `Status` among preserved metadata) left
+    untouched — it's a transitional reference consistent with Task 2.7's
+    deferral of Step 4 (both depend on Task 2.14 retiring
+    `2_generate-tasks.template.md`'s `**Status:** Not Started` emission).
+
+    **Sync:** Framework file — edited package source first, copied to `.arc/`,
+    post-sync diff empty. Markdown lint clean on `.arc/` copy.
+
+- [x] **2.10 `integrate-work-unit.md` — references and Rotate → Integrate → Archive header update**
+
+    Four surfaces updated:
+
+    - **Rotate → Integrate → Archive header block** (top of file): "reset tracking
+      state" → "delete the per-WU status file"; "update tracking" in the Archive
+      bullet → "delete the status file". Added a trailing sentence: "The per-WU
+      status file travels with the task list across rotations via normal merge
+      flow — no mid-lifecycle resets or absorbs." Directly addresses the
+      "no more 'reset on main' mid-integration" clarification from the task
+      description.
+    - **Step 1 (Verify Work Completion):** "Task list header `**Status:**`
+      updated to `Complete`" → "Status file `**State:**` updated to `Complete`
+      (written by `clean-work-unit.md` Mode 2)". PRD header `**Status:**` line
+      left as-is — PRDs retain their own Status field independently.
+    - **Step 6c:** Title renamed "Update WORK-STATUS.md" → "Update Status File".
+      Body rewrites all WORK-STATUS mentions to target the per-WU status file
+      path `.arc/active/{category}/status-{name}.md`. Bundle-with-6b commit
+      guidance preserved; the "resets automated PR reviews" rationale preserved.
+    - **Step 7 (PR body scoping):** "those belong in WORK-STATUS and
+      SESSION-NOTES" → "those belong in the status file and SESSION-NOTES".
+
+    No new link defs needed — `[clean-work-unit.md](clean-work-unit.md)` added
+    inline matching the file's existing pattern for same-directory references.
+
+    **Sync:** Framework file — edited package source first, copied to `.arc/`,
+    post-sync diff empty. Markdown lint clean on `.arc/` copy.
+
+- [x] **2.11 `integrate-planning-branch.md` — Step 5 simplification**
+
+    Three surfaces updated:
+
+    - **Scope Boundaries § Does NOT belong:** "WORK-STATUS updates pointing to the
+      new work unit (activate-work-unit Step 5)" → "Status file creation for the
+      new work unit (activate-work-unit Step 5)". Matches the new Task 2.7 Step 5.
+    - **Step 2 (PR description § Scope of PR body):** "belongs in WORK-STATUS and
+      SESSION-NOTES" → "belongs in SESSION-NOTES" (status file doesn't apply here
+      — planning branches precede activation, so no status file exists yet).
+    - **Step 5 (Transition to Activation § Session boundary):** Full paragraph
+      rewritten. Dropped the "WORK-STATUS on the base branch may be stale after
+      merge (auto-resolved to the pre-merge base version — activate-work-unit
+      overwrites it)" staleness-edge-case prose. New version states plainly that
+      the base branch has no status file for this WU yet; `activate-work-unit.md`
+      Step 5 creates it. The chain-of-planning-cycles confusion evaporates
+      because planning branches don't carry a status file.
+
+    **Verification checklist bullet** "Task list `**Status:**` is `Not Started`"
+    (Step 1) left untouched — same transitional scope as Task 2.7's Step 4
+    deferral (cascades with Task 2.14's retirement of the emission).
+
+    **Sync:** Framework file — edited package source first, copied to `.arc/`,
+    post-sync diff empty. Markdown lint clean on `.arc/` copy.
+
+- [x] **2.12 `rotate-branch.md` — per-WU file travel and session-boundary sub-pattern**
+
+    Two scoped changes, both inside Step 5 (Update Tracking):
+
+    - **Checklist extended:** Replaced the single "WORK-STATUS.md updated to
+      reflect the new branch and current task" bullet with two bullets —
+      one for the status file field updates (`**Branch:**` + advance
+      `**Next Task:**` / `**Next Action:**`) and one confirming both the task
+      list and status file are present on the new branch (both travel via
+      normal merge flow). No new "examples" section needed — the checklist
+      bullet is the example, and the existing step 3-4 merge/next-branch
+      mechanics already describe the merge flow that carries both files.
+    - **Rotation-across-sessions callout** added as a `>` block immediately
+      after the existing "If the session is ending after rotation..." line —
+      the natural fork point for session-continuity guidance. Covers the
+      ATOMIC-INBOX item #3 gap: external action splits a rotation across
+      sessions → status file on the rotation branch carries state across
+      the gap → session-init's `**Branch:**` match resolves the active WU
+      with no special handling. Frames as "no special handling needed
+      beyond the normal session-handoff / session-init cycle" — reassures
+      the reader the common path already covers this case.
+
+    **Sync:** Framework file — edited package source first, copied to `.arc/`,
+    post-sync diff empty. Markdown lint clean on `.arc/` copy.
 
 - [ ] **2.13 `manage-incidental-work.md` — paired status-file pause/resume**
 
