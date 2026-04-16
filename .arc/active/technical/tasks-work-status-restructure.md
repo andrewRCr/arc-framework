@@ -1489,26 +1489,44 @@ for Task 5.4 subsection).
         AGENT-BRIEFING.CONTRIBUTOR.md` (Framework — edit package source first),
         then sync to `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`.
 
-- [ ] **6.6 Grep sweep — catch any remaining references**
-    - [ ] 6.6.a Grep `.arc/` for `WORK-STATUS.md` — expect zero hits after Phases 1–5
-          and Task 6.5 (analysis/archive files excluded)
-    - [ ] 6.6.b Grep `packages/arc-framework/arc/` for `WORK-STATUS.md` — expect zero
-          hits
-    - [ ] 6.6.c Grep both trees for `active/WORK-STATUS` — expect zero hits
-    - [ ] 6.6.d Grep both trees for `user/{identity}/WORK-STATUS` — expect zero hits
-          after Task 6.5
-    - [ ] 6.6.e Any hits found: evaluate and fix (may be legitimate historical
-          references in ADRs or archive; otherwise update)
-    - [ ] 6.6.f Grep both trees for `Following Task List` — expect zero hits
-          post-R17. FTL field was removed; any residual references (e.g., the
-          State-Conditional Promotion table in `strategy-session-operations.md`
-          carrying `Following Task List: Yes + Next Task populated` as a load
-          signal) must be retired. Framework-tree residuals require dual-copy
-          sync.
+- [x] **6.6 Grep sweep — catch any remaining references**
+    - [x] 6.6.a Grep `.arc/` for `WORK-STATUS.md` — ran; all hits fall under
+          legitimate categories (historical ADRs, analysis files, archive,
+          backlog `tasks-arcd-rebrand.md` scope-guarded by Won't Do, Phase 5
+          blockquote instructional refs in plan-post-release-methodology.md
+          and plan-expanded-planning-path.md, this WU's own PRD/notes/tasks/
+          atomic docs describing the migration). Zero live agent-directive
+          residuals.
+    - [x] 6.6.b Grep `packages/arc-framework/arc/` for `WORK-STATUS.md` —
+          zero hits. Clean.
+    - [x] 6.6.c Grep both trees for `active/WORK-STATUS` — same classification
+          as 6.6.a (this WU's docs + historical/scope-guarded surfaces).
+    - [x] 6.6.d Grep both trees for `user/{identity}/WORK-STATUS` — all hits
+          in analysis files, archive (beta-readiness artifacts), or this
+          WU's PRD describing the rename. Live agent-facing surface clean
+          after Task 6.5.
+    - [x] 6.6.e Evaluated all 6.6.a-d hits against the "legitimate vs
+          residual" rule. No live updates needed for `WORK-STATUS.md`
+          references — every hit is historical record or describes the
+          migration in-context.
+    - [x] 6.6.f Grep both trees for `Following Task List` — **one live
+          residual found and fixed:** `strategy-session-operations.md` L70
+          State-Conditional Promotion table carried the old load signal.
+          Replaced with "Status file resolved; `**Task List:**` not `[none]`"
+          — the current session-init task-execution-workflow load condition
+          (item 11 Skip-if rule). Column widths in header row and separator
+          adjusted to preserve MD060 alignment. Dual-copy Framework sync
+          verified via framework-sync integration test (1/1 passing). Other
+          FTL references live in plan-arc-modes.md (~line 2100-3100 historical
+          reasoning + ~line 4000-5100 forward-looking spec for the Modes WU),
+          this WU's own docs describing R17, and archive — all legitimate
+          per scope guard.
 
-- [ ] **6.7 Phase 6 Tier 2 quality gates**
-    - [ ] 6.7.a Run `npm run -s lint:md`
-    - [ ] 6.7.b Package-project sync verification
+- [x] **6.7 Phase 6 Tier 2 quality gates**
+    - [x] 6.7.a Full-repo `npm run -s lint:md` — 179 files, 0 errors.
+    - [x] 6.7.b Package-project sync verification — `check-package-sync.sh`
+          silent (0 warnings); `framework-sync.test.ts` integration test
+          1/1 passing (authoritative validator).
 
 ### **Phase 7:** Verification
 

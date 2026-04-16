@@ -65,9 +65,9 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content           | State Signal                                     | Promotes When             |
-|-------------------|--------------------------------------------------|---------------------------|
-| process-task-loop | `Following Task List: Yes` + Next Task populated | Active task work expected |
+| Content           | State Signal                                        | Promotes When             |
+|-------------------|-----------------------------------------------------|---------------------------|
+| process-task-loop | Status file resolved; `**Task List:**` not `[none]` | Active task work expected |
 
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
 dense procedural content. The state signal loads it precisely when relevant.

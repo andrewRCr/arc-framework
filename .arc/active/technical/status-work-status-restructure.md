@@ -13,8 +13,8 @@
 **State:** In Progress
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
-**Next Task:** Task 6.6 — Grep sweep for residual `WORK-STATUS` references (line ~1492)
-**Last Completed:** Task 6.5 — contributor-facing cleanup (Chunk B: 6.5.a rename + 6.5.b vocabulary)
+**Next Task:** Task 7.1 — Complete verification (line ~1533)
+**Last Completed:** Phase 6 (Tasks 6.1–6.7) — reference cleanup complete; one live FTL
+residual fixed in `strategy-session-operations.md` State-Conditional Promotion table.
 **Blockers:** [none]
-**Next Action:** Begin Chunk C — Task 6.6 grep sweep (six sub-checks 6.6.a-f) then
-6.7 Tier 2 gates (`lint:md` + package-project sync verification).
+**Next Action:** Begin Phase 7 — load `verify-work-unit.md` and run verification protocol.
