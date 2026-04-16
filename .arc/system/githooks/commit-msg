@@ -354,30 +354,44 @@ if echo "$commit_msg" | grep -qE 'Related to:.*PRD'; then
 fi
 
 # ============================================================================
-# RULE 7: WORK-STATUS.md freshness (task not advanced) (maintainer only)
+# RULE 7: Status file freshness (task not advanced) (maintainer only)
 # ============================================================================
 # When committing a completed parent task (Context: "Task X.Y"), verify that
-# staged WORK-STATUS.md has been advanced past that task.
+# the staged sibling status file has been advanced past that task.
+# The expected status file is derived from the staged task list's directory:
+# `active/{category}/tasks-{name}.md` → `active/{category}/status-{name}.md`.
 # Only checks parent-level tasks (X.Y) — subtask commits (X.Y.z) don't
 # advance Next Task, so no warning needed.
 # Skipped when context footer is disabled or custom (no ARC context to parse).
-# Skipped for contributors — they don't update project-level WORK-STATUS.md.
+# Skipped for contributors — they don't update project-level status files.
 if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] && [ "$context_footer_mode" != "custom" ]; then
     context_for_ws=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
     committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
 
     if [ -n "$committed_task_num" ]; then
-        ws_file=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' | head -1 || true)
-        if [ -n "$ws_file" ]; then
-            ws_current_num=$(git show ":$ws_file" 2>/dev/null | \
-                grep -E '^\*\*Next Task\*\*' | \
-                grep -oE 'Task [0-9]+\.[0-9]+' | head -1 | \
-                grep -oE '[0-9]+\.[0-9]+' || true)
-            if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ]; then
-                echo -e "${YELLOW}Warning: WORK-STATUS.md may not be advanced${NC}"
-                echo "   Context references Task $committed_task_num but WORK-STATUS.md still shows it as Next Task"
-                echo "   If this task is complete, advance Next Task to the next task"
-                warnings=$((warnings + 1))
+        # Derive expected status file from staged task list (same pattern as
+        # pre-commit CHECK 10).
+        staged_task_list=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' | head -1 || true)
+        if [ -n "$staged_task_list" ]; then
+            task_list_dir=$(dirname "$staged_task_list")
+            task_list_base=$(basename "$staged_task_list" .md)
+            wu_name=${task_list_base#tasks-}
+            expected_status="${task_list_dir}/status-${wu_name}.md"
+
+            # Only check when the status file is itself staged — if it isn't,
+            # pre-commit CHECK 10 already surfaces that.
+            status_is_staged=$(git diff --cached --name-only | grep -E "^${expected_status}$" | head -1 || true)
+            if [ -n "$status_is_staged" ]; then
+                ws_current_num=$(git show ":$expected_status" 2>/dev/null | \
+                    grep -E '^\*\*Next Task:\*\*' | \
+                    grep -oE 'Task [0-9]+\.[0-9]+' | head -1 | \
+                    grep -oE '[0-9]+\.[0-9]+' || true)
+                if [ -n "$ws_current_num" ] && [ "$committed_task_num" = "$ws_current_num" ]; then
+                    echo -e "${YELLOW}Warning: ${expected_status} may not be advanced${NC}"
+                    echo "   Context references Task $committed_task_num but the status file still shows it as Next Task"
+                    echo "   If this task is complete, advance Next Task to the next task"
+                    warnings=$((warnings + 1))
+                fi
             fi
         fi
     fi

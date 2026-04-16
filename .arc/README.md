@@ -14,9 +14,8 @@ full installation and setup walkthrough.
 
 ```text
 .arc/
-├── active/                    # Current work in progress
-│   ├── WORK-STATUS.md         # Project state: current task, blockers, next action
-│   ├── feature/               # Active feature development
+├── active/                    # Current work in progress (lazily created at first WU activation)
+│   ├── feature/               # Active feature development (contains per-WU status files + task lists)
 │   ├── technical/             # Active technical/infrastructure work
 │   └── incidental/            # Active maintenance and discovered work
 ├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)

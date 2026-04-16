@@ -179,10 +179,10 @@ session. The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are re
 material for consulting during planning and architecture decisions.
 
 <!-- arc:if pm.mode != external -->
-Clear your context and start a fresh session with `/arc-resume`. WORK-STATUS.md shows no
-active task list, so session initialization enters discovery mode: the agent checks your
-ROADMAP for the next queued item and helps you create a PRD and task list for your first
-work unit. From there, the normal session rhythm — `/arc-resume`, task execution,
+Clear your context and start a fresh session with `/arc-resume`. With no active work unit
+yet, session initialization enters discovery mode: the agent checks your ROADMAP for the
+next queued item and helps you create a PRD and task list for your first work unit. From
+there, the normal session rhythm — `/arc-resume`, task execution,
 `/arc-commit`, `/arc-handoff` — takes over.
 <!-- arc:endif -->
 

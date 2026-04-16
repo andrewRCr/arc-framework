@@ -1019,6 +1019,131 @@ before the change reaches main.
     Demo-script edits were string replacements only — no structural shell
     changes, low-risk.
 
+- [x] **3.6 Live stale-reference sweep — workflow/skill/strategy/hook surfaces**
+
+    **Outcome:** Closed the broader `WORK-STATUS` textual reference sweep gap
+    surfaced after Task 3.5. All live surfaces not explicitly scoped by Phase
+    5/6 now describe the per-WU status file model. 43 file touches across
+    18 package-source edits, 19 `.arc/` mirror/instance syncs, and 6
+    agent-tool skill re-syncs.
+
+    **In scope — 19 surfaces, dual-copy sync for Framework files:**
+
+    Live workflows (7):
+
+    - `3_process-task-loop.md` — commit-time WORK-STATUS staging
+      instruction
+    - `arc-extensions.md` — activation output description
+    - `initial-setup/02_define-project.md` — first-session discovery-mode
+      prose (note: init no longer creates `.arc/active/`)
+    - `supplemental/maintain-project-docs.md` — core-docs list
+    - `supplemental/prepare-commits.md` — commit-time instruction (2 refs)
+    - `supplemental/verify-arc-integrity.md` — `### Session State` health
+      check section (documentation side of the script rewrite in
+      `verify-integrity.sh` below)
+
+    Live skills (3):
+
+    - `skills/README.md` — arc-commit description
+    - `skills/arc-commit/SKILL.md` — active agent instruction (2 refs)
+    - `skills/arc-task-audit/SKILL.md` — active agent instruction
+
+    Hook/script logic (3 — non-trivial):
+
+    - `githooks/commit-msg` **RULE 7 rewrite** — currently hard-codes
+      `.arc/active/WORK-STATUS.md` in the freshness warning. Pattern-match
+      off Task 1.7's pre-commit CHECK 10 rewrite: derive the sibling
+      status file from the staged task list's directory.
+    - `githooks/README.md` — rule descriptions (multiple)
+    - `scripts/verify-integrity.sh` **Session State section rewrite** —
+      currently hard-coded path existence check + Task List field read;
+      new model needs glob-scan `.arc/active/**/status-*.md` + field
+      resolution (plus possible Lite-mode branch for `.arc/active/status.md`)
+
+    Strategy docs with factual updates (3):
+
+    - `strategies/arc/strategy-file-classification.md` — 3 refs using
+      WORK-STATUS as Scaffolded exemplar; replacement exemplar (ROADMAP
+      or META-PRD) since file retired
+    - `strategies/project/strategy-package-project-sync.md` — 2 refs
+      listing `WORK-STATUS.template.md` as Scaffolded counterpart (Task 2.2
+      retired this template; `template-status.md` is Framework, different
+      sync semantics — strategy needs factual update)
+    - `strategies/arc/strategy-configurability-architecture.md` — defaults
+      table row for session state mechanism
+
+    Top-level refs (2):
+
+    - `META-PRD.md` — session state mechanism description
+    - `TECHNICAL-OVERVIEW.md` — active workspace parenthetical
+
+    Agent-tool copies (2, plus re-sync of 4 others):
+
+    - `.claude/skills/arc-handoff/SKILL.md` — drifted from `.arc/` after
+      Task 3.5 edit; resync
+    - `.codex/skills/arc-handoff/SKILL.md` — same
+    - After `.arc/` edits land for arc-commit/SKILL.md and
+      arc-task-audit/SKILL.md, the `.claude/` and `.codex/` copies need
+      resync (4 additional file touches)
+
+    **Sync discipline:** Framework files (all the above except .arc/-only
+    items like the contributor rename target) require package-source-first
+    edit then sync to `.arc/`. Some workflow files have `.template.md`
+    variants in package source with `arc:if` conditionals; preserve them.
+
+    **Scope additions discovered during execution:** Mid-task grep (run on
+    the package tree) surfaced three additional live surfaces beyond the
+    initial 19: `packages/arc-framework/arc/README.md` (directory-tree
+    diagram listing `WORK-STATUS.md`), `packages/arc-framework/arc/user/README.md`
+    (project-level file description and "What Lives Where" table — two refs;
+    the contributor-personal line 63 was deferred to Phase 6.5 per scope),
+    `system/workflows/arc/initial-setup/03_configure-external-integration.md`
+    (activation-output description; package-only for our `pm.mode: arc-in-git`),
+    and `reference/QUICK-REFERENCE.template.md` (three refs pointing
+    developers to the active status file for working-directory context —
+    template source for adopter's rendered QUICK-REFERENCE; our project's
+    `.arc/reference/QUICK-REFERENCE.md` was already clean from prior edits).
+    All folded in under the same sweep logic.
+
+    **Post-edit MD060 fixes:** Table alignment issues surfaced in lint after
+    edits in `strategy-configurability-architecture.md` (row wider than
+    column) and `user/README.md` (same issue). Resolved by shortening row
+    content to fit existing column widths — no column-width changes needed.
+
+    **Quality gates executed:**
+
+    - `lint:md`: 0 errors across 178 files
+    - `lint:sh`: clean (shellcheck on githooks + system scripts, including
+      the rewritten `commit-msg` RULE 7 and `verify-integrity.sh` Session
+      State section)
+    - `lint:ts`: clean
+    - `typecheck` + `typecheck:test`: clean
+    - `npm test`: 616 tests green (573 unit/integration + 43 e2e),
+      including framework-sync integration test confirming package ↔ `.arc/`
+      parity across Framework files
+    - Manual: ran `bash .arc/system/scripts/verify-integrity.sh` post-rewrite
+      to confirm the new glob-scan logic correctly resolves this WU's
+      `status-work-status-restructure.md` and its Next Task field
+
+    **Out of scope (confirmed by verification grep):**
+
+    - ADR bodies (immutable historical decisions — amendments already done
+      where applicable per Task 1.1)
+    - `.arc/reference/analysis/*` (historical design analysis)
+    - `.arc/reference/archive/*` (archived, out of scope per § Won't Do)
+    - `.arc/system/.internal/manifest.json` and `pristine.json` (generated
+      artifacts; pristine.json is the three-way merge baseline and
+      intentionally preserves old content)
+    - `tasks-arcd-rebrand.md` (out of scope per § Won't Do)
+    - Plan docs with WORK-STATUS references as historical planning context
+      (`plan-arc-modes.md`, `plan-session-init-optimization.md`,
+      `plan-post-release-methodology.md`, `plan-expanded-planning-path.md`)
+    - Phase 5/6 scoped surfaces (agent briefings, PROJECT-STATUS,
+      contributor personal-file rename, session-init.md contributor section,
+      user/README.md contributor-pipeline line)
+    - Active WU artifacts and ROADMAP WU description (describe the
+      restructure by design)
+
 ### **Phase 4:** `deactivate-work-unit.md` (New Workflow)
 
 **Purpose:** Author the new deactivation workflow from scratch. Case A (no work, not

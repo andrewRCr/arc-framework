@@ -13,7 +13,7 @@ when the cost of an audit is justified; never invoke this proactively before sta
 
    - The user specifies which tasks to audit: a single task, a range, a phase, or the full
      task list.
-   - Read WORK-STATUS.md to locate the active task list, then read the relevant sections.
+   - Read the active status file to locate the active task list, then read the relevant sections.
    - For single-task audits, read the task and its immediate neighbors (predecessor and
      successor) for ordering context.
    - For phase or multi-task audits, read the full phase and skim adjacent phases for

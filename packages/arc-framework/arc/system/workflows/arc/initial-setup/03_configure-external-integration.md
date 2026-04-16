@@ -97,7 +97,7 @@ placeholder with your sync steps.
 ### post-work-unit-activate
 
 **What it does:** Fires after a work unit moves from backlog to active (branch created,
-task list activated, WORK-STATUS updated).
+task list activated, status file written).
 
 **Why configure it:** Keeps sprint boards or project dashboards current when new work begins.
 
