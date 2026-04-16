@@ -14,9 +14,10 @@ disable-model-invocation: false
 2. Follow the handoff workflow.
 
    - Apply `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` to
-     `.arc/active/WORK-STATUS.md` and `.arc/user/{identity}/SESSION-NOTES.md`.
+     the active status file (resolved at session init) and
+     `.arc/user/{identity}/SESSION-NOTES.md`.
 
-3. Don't leave WORK-STATUS.md dirty.
+3. Don't leave the status file dirty.
 
-   - If WORK-STATUS.md changed and no task commit is pending to carry it, commit it
-     standalone as part of the handoff. The handoff invocation is the approval.
+   - If the status file changed and no task commit is pending to carry it, commit
+     it standalone as part of the handoff. The handoff invocation is the approval.

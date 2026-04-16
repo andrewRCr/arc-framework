@@ -13,7 +13,8 @@ tool_use "Read .arc/system/agent/AGENT-BRIEFING.PROJECT.md"
 tool_use "Read .arc/reference/constitution/DEV-RULES.ARC.md"
 tool_use "Read .arc/reference/constitution/DEV-RULES.PROJECT.md"
 tool_use "Read .arc/reference/QUICK-REFERENCE.md"
-tool_use "Read .arc/active/WORK-STATUS.md"
+tool_use "Glob .arc/active/**/status-*.md"
+tool_use "Read .arc/active/feature/status-search-filters.md"
 
 sleep 0.2
 
@@ -23,7 +24,7 @@ tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST} (lines 180-230)"
 sleep 0.5
 
 # Conditional procedural load — active task work triggers this
-agent_text "  Active task work in WORK-STATUS — loading task execution workflow."
+agent_text "  Active task work in status file — loading task execution workflow."
 sleep 0.4
 tool_use "Read .arc/system/workflows/arc/3_process-task-loop.md"
 

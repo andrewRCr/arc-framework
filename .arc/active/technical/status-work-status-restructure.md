@@ -13,17 +13,16 @@
 **State:** In Progress
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
-**Next Task:** Task 3.5 — Sweep live WORK-STATUS path references missed in Phase 2 (line ~976)
-**Last Completed:** Tasks 3.1–3.4 — Phase 3 Live Migration Cutover. 3.1 atomic
-cutover: created this file from the Task 2.2 template, removed
-`.arc/active/WORK-STATUS.md`. 3.2 session-init scan validation — one-file case
-resolves to this file, `Branch:` matches, zero-file case returns empty;
-disambiguation not exercised by single-file state but `**Working On:**` in
-SESSION-NOTES matches filename. 3.3 Persistent Context entry removed from
-SESSION-NOTES (trigger met). 3.4.a lint clean (178 files, 0 errors); 3.4.b
-grep sweep surfaced live broken references in `arc-handoff` SKILL,
-`01_verify-and-configure`, `plan-arc-modes.md` Lite cascade line, and 3 demo
-scripts — inserted as Task 3.5 for a separate atomic commit.
+**Next Task:** Task 4.1 — Draft `deactivate-work-unit.md` — Case A primary procedure (line ~1035)
+**Last Completed:** Task 3.5 — Phase 2 sweep gap closed. Updated `arc-handoff`
+SKILL, `01_verify-and-configure` workflow (both package source + `.arc/`
+mirror), `plan-arc-modes.md` Lite cascade line, and 5 demo scripts (scope
+expanded from 3 — the broader `WORK-STATUS` sweep surfaced textual references
+in `arc-handoff.sh` and `arc-commit.sh`). § Verify Session State in
+`01_verify-and-configure.md` rewritten to confirm the SESSION-NOTES bootstrap
+Persistent Context entry instead of a non-existent status file. Tier 1 lint
+clean; framework-sync integration test passes (573 tests green). Phase 3
+closed out.
 **Blockers:** [none]
-**Next Action:** Execute Task 3.5 — fix the 5 live surfaces + 3 demo scripts
-surfaced by 3.4.b grep sweep, then proceed to Phase 4.
+**Next Action:** Begin Phase 4 — author `deactivate-work-unit.md` from
+scratch. Task 4.1 ships the Case A primary procedure (no work, not merged).

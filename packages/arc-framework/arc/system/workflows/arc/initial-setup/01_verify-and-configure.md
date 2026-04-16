@@ -23,24 +23,34 @@ for ongoing health checks, use `/arc-verify` instead.
 
 Confirm that `.arc/` was created at the repo root with the expected structure:
 
-- `active/` — Current work tracking (WORK-STATUS, task lists)
+- `active/` — Current work tracking (per-WU status files, task lists). Created
+  lazily at first work unit activation; absent immediately after init.
 - `backlog/` — Future work pipeline (ROADMAP, backlogs) · only with `pm.mode: arc-in-git`
 - `reference/` — Constitutional documents, strategies, ADRs
 - `system/` — Agent configs, workflows, githooks, settings
 
 ### Verify Session State
 
-Confirm that `.arc/active/WORK-STATUS.md` exists with initial "no active work" defaults:
+No active status file exists yet — per-WU status files (`status-{name}.md`) are
+created in `.arc/active/{category}/` at first work unit activation, not at init.
+
+Initial session state lives in the bootstrap Persistent Context entry in
+`.arc/user/{identity}/SESSION-NOTES.md`, pre-populated by `arc init`:
 
 ```markdown
-**Branch**: `main`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: —
-**Blockers**: [none]
-**Next Action**: Run initial setup → `01_verify-and-configure.md`
+## Persistent Context
+
+**Post-install setup:**
+_Remove when: initial-setup sequence complete._
+
+- First session after `arc init`. Work through the initial-setup sequence,
+  starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
+  The workflow guides onward steps.
 ```
+
+Confirm the entry is present. Session-init treats Persistent Context as active
+constraints, so the next `/arc-resume` surfaces the pointer to this workflow in
+its orientation output.
 
 ### Verify Agent Configuration
 

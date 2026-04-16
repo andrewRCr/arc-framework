@@ -13,7 +13,7 @@ tool_use "Read .arc/system/agent/AGENT-BRIEFING.PROJECT.md"
 tool_use "Read .arc/reference/constitution/DEV-RULES.ARC.md"
 tool_use "Read .arc/reference/constitution/DEV-RULES.PROJECT.md"
 tool_use "Read .arc/reference/QUICK-REFERENCE.md"
-tool_use "Read .arc/active/WORK-STATUS.md"
+tool_use "Glob .arc/active/**/status-*.md"
 
 sleep 0.8
 

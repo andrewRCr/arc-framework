@@ -975,52 +975,49 @@ before the change reaches main.
           Phase 2's edit set; new Task 3.5 inserted to sweep them in a separate
           atomic commit.
 
-- [ ] **3.5 Sweep live WORK-STATUS path references missed in Phase 2**
+- [x] **3.5 Sweep live WORK-STATUS path references missed in Phase 2**
 
-    **Goal:** Fix the live workflow/skill/demo references to the retired singular
-    `.arc/active/WORK-STATUS.md` path surfaced by Task 3.4.b grep sweep. These
-    surfaces were outside Phase 2's explicit workflow edit set but must ship
-    clean — `arc-handoff` SKILL and `01_verify-and-configure` are actively
-    consumed by agents and adopters post-merge.
+    **Outcome:** Swept the live workflow/skill/demo surfaces surfaced by 3.4.b.
+    All user-facing post-merge touch points now describe the per-WU status file
+    model.
 
-    **In scope:**
-
-    - `arc-handoff/SKILL.md` (package source + `.arc/` mirror) — line ~17
-      rewrites the session-handoff application target from the fixed singular
-      path to the scan-resolved active status file. Align phrasing with the
-      Task 2.5 session-init scan model.
+    - `arc-handoff/SKILL.md` (package source + `.arc/` mirror): session-handoff
+      target rewritten from the fixed singular path to "the active status file
+      (resolved at session init)". Step 3 header and body reworded from
+      "WORK-STATUS.md" → "the status file".
     - `initial-setup/01_verify-and-configure.md` (package source + `.arc/`
-      mirror) — line ~33 retires the "confirm WORK-STATUS.md exists with
-      no-active-work defaults" step. Per Task 2.2, init no longer creates
-      `.arc/active/`; the verify step needs to assert the empty/absent state
-      instead. Review surrounding prose for coherent post-edit flow.
-    - `plan-arc-modes.md` line ~2621 — Lite cascade forward-pointer names
-      `.arc/active/WORK-STATUS.md`. Per Task 2.5, Lite mode uses
-      `.arc/active/status.md` (singular); update to match.
-    - `docs/demos/{first-session-init,session-init-readme,session-init}.sh` —
-      three demo scripts simulating session-init tool calls. Update the
-      `Read .arc/active/WORK-STATUS.md` lines to reflect the new per-WU scan
-      outcome (demo scripts can hard-code a representative path like
-      `.arc/active/{category}/status-{name}.md`).
+      mirror): § Verify Directory Structure `active/` bullet reframed as
+      "created lazily at first work unit activation; absent immediately after
+      init". § Verify Session State rewritten — there is no file to verify at
+      init; instead, confirm the SESSION-NOTES bootstrap Persistent Context
+      entry (pre-populated by `arc init` per Task 2.2) with an example block.
+    - `plan-arc-modes.md` line 2621: Lite cascade forward-pointer updated
+      `.arc/active/WORK-STATUS.md` → `.arc/active/status.md`. Other WORK-STATUS
+      references in the doc describe pre-restructure state as part of the
+      historical planning analysis — left as-is.
+    - `docs/demos/` (5 scripts, expanded from the 3 named in the original
+      scope — 3.4.b's grep used the full path; a broader `WORK-STATUS` sweep
+      surfaced textual references in `arc-handoff.sh` and `arc-commit.sh`):
+      `first-session-init.sh` replaced the WORK-STATUS read with the
+      `Glob .arc/active/**/status-*.md` scan (zero-file case implicit in the
+      "no active work" flow). `session-init.sh` and `session-init-readme.sh`
+      replaced the WORK-STATUS read with a scan + read-of-resolved-file pair,
+      and the agent log line "Active task work in WORK-STATUS" → "in status
+      file". `arc-handoff.sh` and `arc-commit.sh` updated their bare
+      "WORK-STATUS.md" text references to "active status file".
 
-    **Explicitly deferred (no edit):**
+    **Deferred (no edit):**
 
-    - `.arc/reference/analysis/analysis-modes-*.md` — historical analysis
-      documents describing ruled-out options. References to
-      `.arc/active/WORK-STATUS.md` are part of the analysis context (the
-      then-current state that shaped the decision). Editing would introduce
-      anachronism.
-    - `.arc/reference/archive/…/tasks-cli-implementation.md` — archived task
-      list, immutable per § Won't Do.
+    - `.arc/reference/analysis/analysis-modes-*.md` — historical analysis.
+    - `.arc/reference/archive/…` — archived, out of scope per § Won't Do.
+    - Additional `WORK-STATUS` mentions in `plan-arc-modes.md` (historical
+      planning context).
 
-    **Sync discipline:** Edit package source first for Framework files
-    (`arc-handoff/SKILL.md`, `01_verify-and-configure.md`), then sync to `.arc/`.
-    `docs/demos/` and `plan-arc-modes.md` have no package counterpart.
-
-    **Quality gates:** Tier 1 markdown lint on modified files; framework-sync
-    integration test if Framework files changed.
-
-    **Commit:** Atomic — separate from the Phase 3 cutover commit.
+    **Quality gates:** `lint:md` clean on all modified `.md` files;
+    framework-sync integration test passes as part of full test suite
+    (573 tests green); shell lint (`lint:sh`) clean on system scripts.
+    Demo-script edits were string replacements only — no structural shell
+    changes, low-risk.
 
 ### **Phase 4:** `deactivate-work-unit.md` (New Workflow)
 

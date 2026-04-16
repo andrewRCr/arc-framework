@@ -2618,7 +2618,7 @@ Next Action `Continue Finding #4 — Lite session management`) skip discovery in
 
 **Implication for the cascade at [The Lite PRD § Cascades](#cascades-into-other-lite-surfaces):**
 The forward-pointer stating "Lite session-init document set includes `.arc/active/prd.md`,
-`.arc/active/tasks.md`, and `.arc/active/WORK-STATUS.md`. No backlog scan, no category-path
+`.arc/active/tasks.md`, and `.arc/active/status.md`. No backlog scan, no category-path
 lookup, no PRD-file discovery" stays consistent with this resolution. The cascade describes the
 discovery branch Lite runs _when_ discovery fires; most sessions never reach it because Next
 Action is concrete and the gate short-circuits.
