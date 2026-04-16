@@ -15,32 +15,34 @@
 
 **Branch**: `technical/work-status-restructure`
 **Task List**: `.arc/active/technical/tasks-work-status-restructure.md`
-**Next Task**: Task 2.7 — activate-work-unit.md Step 5 creates status file
-from template (line ~669)
-**Last Completed**: Session-init context-load audit ran and was iterated with
-the maintainer; outcome surfaced an architectural opportunity (JIT-migration
-over belt-and-suspenders front-load) beyond the initial file-by-file trim
-scope. Captured as `.arc/backlog/technical/plan-session-init-optimization.md`
-and roadmap-scheduled immediately after this WU merges (ROADMAP change log
-2026-04-16). Atomic task closed in `atomic-work-status-restructure.md` with
-a concise outcome note pointing at the plan doc. Also restored the Task 2.7
-checkbox header line accidentally consumed during `bea1105`'s Task 2.6
-post-review amendment (task list jumped 2.6 → 2.8 with orphan bullets;
-recovered from pre-bea1105 git state).
+**Next Task**: Task 2.8 — `archive-work-unit.md` — delete per-WU file, do
+not reset (line ~706)
+**Last Completed**: Task 2.7 — rewrote `activate-work-unit.md` Step 5 from
+"Update WORK-STATUS.md" to "Create Status File" (creates
+`.arc/active/{category}/status-{name}.md` from `template-status.md` with the
+initial field set). Step 8 staging blocks on both `arc-in-git` and
+`none`/`external` paths now carry the new per-WU status file instead of the
+singular `WORK-STATUS.md`; commit body line and Mode Detection / Checklist
+Summary / Team-mode callout updated in parallel. Incidental-activation
+routing callout placed after `**When to use:**` in Purpose (activation entry
+fork), forward-referencing `manage-incidental-work.md` § Coordinated
+Pause/Resume (Task 2.13). Added `[template-status]` and `[incidental]` link
+defs. Step 4 and the `Status: Not Started` prerequisite intentionally left
+untouched — they retire with Task 2.14. Synced package source → `.arc/`,
+post-sync diff empty; markdown lint clean.
 
 **Blockers**: [none]
 
-**Next Action**: Proceed to Task 2.7: rewrite `activate-work-unit.md` so
-Step 5 creates `.arc/active/{category}/status-{name}.md` from the new status
-template with the initial field set, update staging / commit references to
-carry the new status file instead of a singular `WORK-STATUS.md`, and add
-the incidental-activation routing pointer to `manage-incidental-work.md` §
-Coordinated Pause/Resume. Sync rendered output to `.arc/`. Live
-`.arc/active/WORK-STATUS.md` remains untouched until Phase 3 per Task 2.1's
-interim guard.
+**Next Action**: Proceed to Task 2.8: rewrite `archive-work-unit.md` so
+archive-time behavior `git rm`s the per-WU `status-{name}.md` (instead of
+resetting a singular `WORK-STATUS.md`). Preserve archival of the task list
+and atomic companion file. Add an incidental-archive routing note pointing
+at `manage-incidental-work.md` § Coordinated Pause/Resume for the parent
+state flip (State: Paused → In Progress, clear Paused At / Paused To). Edit
+package source first, sync to `.arc/`. Live `.arc/active/WORK-STATUS.md`
+remains untouched until Phase 3 per Task 2.1's interim guard.
 
 ---
 
-**Last Updated**: 2026-04-16 (session-init context-load audit complete;
-plan-session-init-optimization.md queued and roadmap-scheduled; Task 2.7
-header restored)
+**Last Updated**: 2026-04-16 (Task 2.7 complete — `activate-work-unit.md`
+rewritten for per-WU status file model; next is Task 2.8 archive-side mirror)

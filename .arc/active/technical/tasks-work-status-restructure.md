@@ -666,22 +666,42 @@ at cutover.
     reference link definition in both template and rendered surfaces. Synced
     template → `.arc/`.
 
-- [ ] **2.7 `activate-work-unit.md` — Step 5 creates status file from template**
+- [x] **2.7 `activate-work-unit.md` — Step 5 creates status file from template**
 
-    - Edit `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/
-      activate-work-unit.md`
-    - Step 5: create per-WU status file at
-      `.arc/active/{category}/status-{name}.md` from the new template (Task 2.2), with
-      `State: In Progress`, `Branch: {impl-branch}`, `Task List: tasks-{name}.md`,
-      initial `Next Task`, `Last Completed` ("Work unit activated"), `Blockers: [none]`,
-      `Next Action` (e.g., "Begin Phase 1")
-    - Step 8 commit references: stage the new status file alongside other activation
-      artifacts; remove any references to updating a singular WORK-STATUS.md
-    - **Incidental activation routing:** add an explicit "For incidental activation
-      that interrupts active work, see `manage-incidental-work.md` § Coordinated
-      Pause/Resume" pointer at Step 5 (or earlier, wherever the activation entry
-      fork is most natural). Normal (non-incidental) activation flow is unchanged.
-    - Sync to `.arc/`
+    Step 5 rewritten from "Update WORK-STATUS.md" (7 field-update bullets on the
+    singular file) to "Create Status File" (create `.arc/active/{category}/status-{name}.md`
+    from `template-status.md` with the initial field set: `State: In Progress`,
+    `Branch`, `Task List`, `Next Task`, `Last Completed: Work unit activated`,
+    `Blockers: [none]`, `Next Action`). Stale `Following Task List` reference
+    retired. Optional pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`)
+    kept commented out per template — they populate only on incidental interrupt
+    per Task 2.13.
+
+    Step 8 staging blocks updated on both paths (`arc-in-git` and `none`/`external`) —
+    they now stage `.arc/active/{category}/status-{name}.md` instead of
+    `.arc/active/WORK-STATUS.md`. Commit body line changed to
+    "Create status file and update task list status". Mode Detection summary line
+    ("branch creation, status update, WORK-STATUS, …") and Checklist Summary
+    ("WORK-STATUS.md updated") updated in parallel. Team-mode callout reworded
+    to "per-WU status file tracked in `active/{category}/`".
+
+    **Incidental activation routing pointer:** Placed as a `>` callout immediately
+    after `**When to use:**` in Purpose — the activation entry fork is at workflow
+    entry, not Step 5. Points to `manage-incidental-work.md` § Coordinated
+    Pause/Resume (forward reference to Task 2.13). Normal activation flow
+    unchanged.
+
+    **Link defs added:** `[template-status]`, `[incidental]`.
+
+    **Scope boundary:** Step 4 ("Change `Status: Not Started` → `Status: In Progress`")
+    and the Prerequisites bullet "Task list has `Status: Not Started`" both left
+    untouched — they remain valid until Task 2.14 retires the `**Status:**` header
+    from `2_generate-tasks.template.md`.
+
+    **Sync:** Framework file — edited package source first, copied to `.arc/`,
+    post-sync diff empty. Markdown lint clean on `.arc/` copy (package source
+    excluded from project lint scope by design). `framework-sync.test.ts`
+    (Task 1.8) enforces the mirror on commit.
 
 - [ ] **2.8 `archive-work-unit.md` — delete per-WU file, do not reset**
 

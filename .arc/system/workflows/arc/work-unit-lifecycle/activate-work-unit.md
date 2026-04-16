@@ -9,6 +9,11 @@ updating all tracking documents. This bridges the gap between task generation an
 
 **When to use:** After generating a task list (`2_generate-tasks.md`) when ready to begin implementation.
 
+> **Incidental activation that interrupts active work:** Pausing a parent WU to activate an incidental requires
+> coordinated updates across both status files in the same commit — see [`manage-incidental-work.md`][incidental]
+> § Coordinated Pause/Resume for the paired protocol. Normal (non-incidental) activation proceeds through the
+> steps below unchanged.
+
 ## Mode Detection
 
 Check [`arc-config.yml`][arc-config] → `pm.mode` to determine which activation path applies:
@@ -17,7 +22,8 @@ Check [`arc-config.yml`][arc-config] → `pm.mode` to determine which activation
 - **none / external**: Documents are already in `active/` (saved there by `2_generate-tasks.md`).
   Skip Steps 1 and 3.
 
-The remaining steps (branch creation, status update, WORK-STATUS, extensions, commit) apply in all modes.
+The remaining steps (branch creation, task list status update, status file creation, extensions, commit) apply
+in all modes.
 
 ## Prerequisites
 
@@ -99,30 +105,34 @@ Edit `.arc/active/{category}/tasks-{name}.md`:
    **PRD:** `.arc/active/{category}/prd-{name}.md`
    ```
 
-### Step 5: Update WORK-STATUS.md
+### Step 5: Create Status File
 
-Edit `.arc/active/WORK-STATUS.md`. This transitions the file from "no active work" defaults
-(set during init or after archival) to active work unit values:
+Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is the per-WU
+project pointer — it travels with the branch and carries state until the work unit is archived.
 
-1. Update **Branch** to feature branch name
-2. Update **Task List** path to active location
-3. Update **Following Task List** to `Yes`
-4. Update **Next Task** to first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
-5. Update **Last Completed** to previous work or `—` if first work unit
-6. Update **Next Action** to describe first task
-7. Clear **Blockers** (set to literal text `[none]` — the standard empty-state marker in WORK-STATUS)
+Replace the template's title (`# Status: [Work Name]`) with the actual work unit name, then fill in the initial
+field set:
 
-> **Team mode:** WORK-STATUS.md is shared in `active/` — one developer performs the activation,
-> and the update applies to the whole branch. Other developers joining the work unit establish
-> their session context via `user/{identity}/SESSION-NOTES.md` during their first
-> [session initialization][session-init].
+1. **State** — `In Progress`
+2. **Branch** — feature branch name (e.g., `feature/{name}` or `technical/{name}`)
+3. **Task List** — active path (e.g., `.arc/active/{category}/tasks-{name}.md`)
+4. **Next Task** — first task in triple-anchor format (e.g., "Task 1.1 — Setup scaffolding (line ~XX)")
+5. **Last Completed** — `Work unit activated`
+6. **Blockers** — `[none]` (standard empty-state marker)
+7. **Next Action** — describe first task action (e.g., "Begin Phase 1")
+
+Leave the optional pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`) commented out — they apply only when
+this WU is interrupted by an incidental (see [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume).
+
+> **Team mode:** The per-WU status file is tracked in `active/{category}/` — one developer performs the activation,
+> and the file applies to the whole branch. Other developers joining the work unit establish their session context
+> via `user/{identity}/SESSION-NOTES.md` during their first [session initialization][session-init].
 >
-> **Team branch setup:** If the team will use personal sub-branches (rather than committing
-> directly to the shared branch), create the integration branch in Step 2, then have each
-> developer create their sub-branch from it. Update the task list's `**Branch(es):**` header
-> to list all branches. Assign initial task ownership via `(@name)` markers in the task list.
-> See [Team Coordination Strategy][team-coordination] § Team Branching Patterns for pattern
-> options.
+> **Team branch setup:** If the team will use personal sub-branches (rather than committing directly to the shared
+> branch), create the integration branch in Step 2, then have each developer create their sub-branch from it.
+> Update the task list's `**Branch(es):**` header to list all branches. Assign initial task ownership via `(@name)`
+> markers in the task list. See [Team Coordination Strategy][team-coordination] § Team Branching Patterns for
+> pattern options.
 
 ### Step 6: Update PM Artifacts · `arc-in-git` only
 
@@ -150,20 +160,20 @@ See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 Stage the activation files and commit. The exact set depends on pm.mode:
 
 ```bash
-# arc-in-git: moved files + status updates
+# arc-in-git: moved files + new status file + task list update
 git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/tasks-{name}.md \
        .arc/active/{category}/atomic-{name}.md \
-       .arc/active/WORK-STATUS.md
+       .arc/active/{category}/status-{name}.md
 
-# none / external: status updates only (files already in active/)
+# none / external: new status file + task list update (other files already in active/)
 git add .arc/active/{category}/tasks-{name}.md \
        .arc/active/{category}/atomic-{name}.md \
-       .arc/active/WORK-STATUS.md
+       .arc/active/{category}/status-{name}.md
 
 git commit -m "docs(arc): activate {work-name} work unit
 
-- Update WORK-STATUS and task list status
+- Create status file and update task list status
 - Status: In Progress
 
 Context: tasks-{name}.md (activation)"
@@ -192,7 +202,7 @@ Before proceeding to task execution, verify:
 - [ ] Implementation branch created and checked out
 - [ ] PRD, task list, and atomic companion file in `.arc/active/{category}/` (moved from backlog if arc-in-git)
 - [ ] Task list `Status` changed to `In Progress`
-- [ ] WORK-STATUS.md updated (branch, task list, current task)
+- [ ] Status file created in `active/{category}/` (State, Branch, Task List, Next Task)
 - [ ] PROJECT-STATUS.md and ROADMAP.md updated (arc-in-git only)
 - [ ] All changes committed on feature branch
 
@@ -213,3 +223,5 @@ With the work unit activated, proceed to task execution:
 [integrate-planning-branch]: planning/integrate-planning-branch.md
 [session-init]: ../session-lifecycle/session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
+[template-status]: ../../../../reference/templates/template-status.md
+[incidental]: ../supplemental/manage-incidental-work.md
