@@ -1278,65 +1278,103 @@ the other two get header-level notes only.
 **Strategies:** `notes-work-status-restructure.md` § Harmony with shift lifecycle (source
 for Task 5.4 subsection).
 
-- [ ] **5.1 `plan-arc-modes.md` — Finding #4 carve-out update**
+- [x] **5.1 `plan-arc-modes.md` — Finding #4 carve-out update**
 
-    **Goal:** Explicitly hand the `Following Task List` (FTL) field removal resolution
-    to this WU.
+    Replaced the "Following Task List field removed from both modes" rationale block
+    (within § Lite Session Management > WORK-STATUS field set) with a carve-out
+    callout pointing to `prd-work-status-restructure.md` as the current source of
+    truth, plus a forward-looking prohibition blockquote ("The `Following Task List`
+    field is removed … Future edits to status file templates or field sets must not
+    re-introduce it."). Added `[restructure-prd]` reference link at file-end. The
+    carve-out preserves the FTL-redundancy framing in one sentence while redirecting
+    readers to the restructure WU for the full analysis, scope, and live-migration
+    plan. Historical reasoning in the Finding #4 narrative above and below stays
+    intact per the scope guard.
 
-    - Locate Finding #4 / Lite session management resolution (plan doc lines
-      approximately 2597–2605 per PRD R17 reference)
-    - Update the finding to reference this WU (`prd-work-status-restructure.md`) as
-      the resolution point instead of being a standalone finding
-    - **Explicit note in the carve-out text:** *"The `Following Task List` field is
-      removed as part of the Work-Status Restructure WU's R17 — the new status file
-      template does NOT carry this field. Future edits to status file templates or
-      field sets must not re-introduce it."* (This phrasing exists so a future editor
-      re-reading plan-arc-modes sees the prohibition at the source of truth for the
-      decision)
+- [x] **5.2 `plan-arc-modes.md` — shift-lifecycle vocabulary swap**
 
-- [ ] **5.2 `plan-arc-modes.md` — shift-lifecycle vocabulary find-and-replace**
+    Swept the § Shift Lifecycle section (§ State Lives in Task List Headers through
+    § Integration Interaction with Shift States) replacing task-list-host
+    `**Status:**` references with status-file-host `**State:**`. Shift vocabulary
+    (`Paused (date) — reason`, `Waiting-For {category} (date) — reason`, `In Progress`,
+    `Complete`) preserved verbatim. Touched: Pure Option C body code blocks and
+    supporting prose (Valid values wording, Scenario 5/8/9 host references), Header
+    format code block, Scope bullet host-field names (PRD `**Status:**` header vs.
+    status file `**State:**` field), workflow Step 3, resume-side pause-timestamp
+    source, session-init drift-detection language, integrate acceptance-matrix
+    language, Step 1 imperative line. PRD `**Status:**` header references kept
+    verbatim where the host is actually a PRD (unchanged per restructure Non-Goals).
+    Section heading § State Lives in Task List Headers (Pure Option C) preserved
+    verbatim — anchor preserves historical decision label; 5.4's Alignment subsection
+    carries the re-validation under the new substrate.
 
-    - Locate the shift-lifecycle section
-    - Replace task-list `**Status:**` header references with status file `**State:**`
-      field references
-    - Preserve shift vocabulary verbatim: `Paused (date) — reason`, `Waiting-For
-      {category} (date) — reason`, `In Progress`, `Complete`
-    - Mechanical edit — only the host field changes, not the values
+- [x] **5.3 `plan-arc-modes.md` — forward-looking language alignment**
 
-- [ ] **5.3 `plan-arc-modes.md` — line ~4016 language alignment**
+    Updated the enumerated forward-looking WORK-STATUS statements. Pure Option C
+    supplementary block (old L4016/L4019) rewritten as "Branch-local WU pointer is
+    per-WU, single-slot" — describes per-WU status file substrate, preserves
+    Clarification #2's branch-local WU pointer semantic, notes pre-restructure
+    singular-file precedent as the retired form. Scenario 7 (old L4049) rewrite:
+    two status file `**State:**` writes, no separate per-branch registry pointer,
+    atomicity local to two writes (down from three). "What this decision removes"
+    bullet (old L4062): "Template redesign for WORK-STATUS.md (unchanged from today)"
+    → "Multi-WU registry template (none needed — the per-WU status file is single-slot
+    by construction)", and "Cross-file atomicity between registry and task list
+    headers" → "between registry and per-WU state". Lite+Local walkthrough (old
+    L4662): `active/WORK-STATUS.md` → `active/status.md` per PRD Technical
+    Considerations. Finding #4 / Lite session management narrative (~2093–3102)
+    untouched per scope guard — historical reasoning stays.
 
-    - Locate the "WORK-STATUS.md remains branch status, single-slot" language
-    - Update to reflect per-WU `status-{name}.md` shape
-    - Align surrounding prose with the per-WU model
+- [x] **5.4 `plan-arc-modes.md` — new "Alignment with Work-Status Restructure WU" subsection**
 
-- [ ] **5.4 `plan-arc-modes.md` — new "Alignment with Work-Status Restructure WU" subsection**
+    Inserted new `### Alignment with Work-Status Restructure WU` subsection at the end
+    of § Shift Lifecycle (after § Out of Scope, before the `---` separator). Documents
+    the substrate change (task list header → status file `**State:**`), Pure Option C
+    re-validation (all concerns still satisfied — no registry, no cache, no session-init
+    multi-WU noise; status file is per-WU single-slot, not cross-WU registry),
+    metadata-in-place harmony (status file and task list co-located in
+    `active/{category}/`, travel together under full protection), ownership of
+    terminal transition unchanged (`integrate-work-unit.md` via `clean-work-unit.md`
+    Mode 2 still writes Complete; `/arc-shift` still never writes Complete),
+    vocabulary unchanged (value set preserved verbatim; only host field name
+    changed), and scenario battery re-validation (nine scenarios condensed to five
+    bullet groups; none break, Scenario 7 simplifies from three writes to two).
+    Added scope caveat for § Mid-Session Orientation below: `/arc-status` skill
+    references retain pre-restructure WORK-STATUS language because the skill will be
+    re-designed in its own PRD at activation time. Added `[restructure-notes]`
+    reference link at file-end alongside `[restructure-prd]`.
 
-    - Add a new subsection documenting harmony with the shift lifecycle
-    - Source material: `notes-work-status-restructure.md` § Harmony with shift lifecycle
-      (covers: per-WU file harmonizes with metadata-in-place, source-of-truth
-      simplification, ownership of terminal transition unchanged, vocabulary unchanged,
-      scenario battery re-validation)
-    - Include Pure Option C re-validation statement: Pure Option C's concerns (no
-      registry, no cache, no session-init noise) remain fully satisfied under the new
-      premise; task list header removal is the mechanical complement
-    - Reference the restructure WU's PRD and notes as primary sources
+- [x] **5.5 `plan-post-release-methodology.md` — header-level note**
 
-- [ ] **5.5 `plan-post-release-methodology.md` — header-level note**
+    Added a blockquote note after the `**Created:**` line (before the `---`
+    separator) acknowledging the Work-Status Restructure WU's per-WU status file
+    model. Inline link to `prd-work-status-restructure.md`. Notes that WORK-STATUS
+    references in plan items should be read as "the active WU's status file" and
+    that specific references will be updated when items promote to PRDs. No
+    substantive content change to the plan items.
 
-    - Add a single header-level note (or top-of-file banner) acknowledging that the
-      `arc-plan` skill reference in this plan aligns with the new per-WU status file
-      model; no substantive content change
-    - Source: PRD § Plan-\* doc updates
+- [x] **5.6 `plan-expanded-planning-path.md` — header-level note**
 
-- [ ] **5.6 `plan-expanded-planning-path.md` — header-level note**
+    Added a blockquote note after the `**Origin:**` paragraph (before the `---`
+    separator) acknowledging the restructure WU. Inline link to
+    `prd-work-status-restructure.md`. Notes that the § 12 "Existing session
+    pointers" detection-order logic is unchanged and the `WORK-STATUS.md` mention
+    should be read as "the active WU's status file Next Action" under the new
+    model.
 
-    - Add a single header-level note acknowledging alignment with the new model;
-      the existing session-pointer list reference resolves naturally
-
-- [ ] **5.7 Phase 5 Tier 2 quality gates**
-    - [ ] 5.7.a Run `npm run -s lint:md` (all edited plan-\* docs)
-    - [ ] 5.7.b Internal link checking (cross-references between plan-\* docs and the
-          restructure PRD)
+- [x] **5.7 Phase 5 Tier 2 quality gates**
+    - [x] 5.7.a `npm run -s lint:md` — full-repo pass green (179 files, 0 errors)
+    - [x] 5.7.b Internal link checking — manually verified:
+          - `[restructure-prd]` → `../../active/technical/prd-work-status-restructure.md` ✓
+          - `[restructure-notes]` → `../../active/technical/notes-work-status-restructure.md` ✓
+          - Inline links in `plan-post-release-methodology.md` and
+            `plan-expanded-planning-path.md` resolve to the same PRD ✓
+          - Intra-file anchor `#alignment-with-work-status-restructure-wu` (L4018 ref)
+            matches the inserted `### Alignment with Work-Status Restructure WU`
+            heading (L4400) ✓
+          - No package-project sync required — all three edited plan docs are
+            project-owned backlog files (no package counterparts per
+            `strategy-package-project-sync.md`)
 
 ### **Phase 6:** Remaining Reference Cleanup
 
@@ -1420,6 +1458,12 @@ for Task 5.4 subsection).
           after Task 6.5
     - [ ] 6.6.e Any hits found: evaluate and fix (may be legitimate historical
           references in ADRs or archive; otherwise update)
+    - [ ] 6.6.f Grep both trees for `Following Task List` — expect zero hits
+          post-R17. FTL field was removed; any residual references (e.g., the
+          State-Conditional Promotion table in `strategy-session-operations.md`
+          carrying `Following Task List: Yes + Next Task populated` as a load
+          signal) must be retired. Framework-tree residuals require dual-copy
+          sync.
 
 - [ ] **6.7 Phase 6 Tier 2 quality gates**
     - [ ] 6.7.a Run `npm run -s lint:md`

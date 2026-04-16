@@ -11,6 +11,13 @@ plan stage and the needs of large greenfield shaping work. The existing planning
 normal work well but provided little intermediate structure for turning a vague, far-reaching idea
 into a watertight, PRD-ready plan.
 
+> **Note:** The session-pointer reference to `WORK-STATUS.md` in § 12 ("Existing session
+> pointers") predates the Work-Status Restructure WU (see
+> [`prd-work-status-restructure.md`](../../active/technical/prd-work-status-restructure.md)),
+> which replaces the singular project pointer with per-WU `status-{name}.md` files. The
+> detection-order logic is unchanged — read "`WORK-STATUS.md` next action" as "the active
+> WU's status file Next Action" under the restructure model.
+
 ---
 
 ## Problem Statement
