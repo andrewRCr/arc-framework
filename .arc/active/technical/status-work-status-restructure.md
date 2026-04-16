@@ -15,8 +15,8 @@
 **Task List:** tasks-work-status-restructure.md
 **Completed:** 2026-04-16
 **Next Task:** [none] — integration in progress
-**Last Completed:** Task 7.1 — Phase 7 verification. Tier 3 quality gates green; 21/22
-success criteria met + 1 superseded-by-design (rebrand post-merge validation); atomic
-companion fully resolved.
+**Last Completed:** integrate-work-unit Phase 2 Step 6 — CodeRabbit pre-merge review;
+CodeRabbit extension restore + task-list Status residual purge + plan-docs-methodology-sweep
+capture landed in three `(integration)` commits. Completion doc refreshed.
 **Blockers:** [none]
 **Next Action:** integrate-work-unit Step 7 — push and create PR.

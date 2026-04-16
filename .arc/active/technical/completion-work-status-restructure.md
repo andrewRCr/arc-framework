@@ -70,13 +70,28 @@ conflation without superseding the decision itself.
 
 ## Verification
 
-- **Quality gates**: Tier 3 all passed as of Task 7.1 — markdown lint (0 violations),
-  TypeScript lint, shell lint, typecheck, 575/575 tests, build. CI expected to match.
-- **Success criteria**: 21 of 22 met + 1 superseded-by-design. The superseded criterion
-  ("Rebrand WU reactivates cleanly on the new model") is unsatisfiable until post-merge
-  by construction — structural enablers are in place (model shipped, rebrand task list
-  mechanical references cleaned at Phase 7); validation deferred to the rebrand WU's
-  next reactivation session.
+- **Quality gates**: Tier 3 all passed — markdown lint (0 violations), TypeScript
+  lint, shell lint, typecheck, full test suite (including `framework-sync.test.ts`
+  dual-copy drift check), build. Re-run clean after pre-merge review fixes. CI
+  expected to match.
+- **Pre-merge review**: CodeRabbit subagent run on aggregate diff (128 files,
+  +5151/-2019 across 49 commits). Surfaced four cross-task workflow regressions
+  from the WORK-STATUS textual sweep (task-list `**Status:**` references still
+  present in activate/archive/integrate-planning workflows), three stale TypeScript
+  comments post-Task-1.7, one pre-existing grep-anchor bug in `verify-integrity.sh`,
+  and one template/workflow alignment gap on `**Completed:**`. All fixed in
+  `21d51bb`. Docs-site methodology drift surfaced as plan-scale rather than
+  atomic-scale; captured as `plan-docs-methodology-sweep.md` in `1947e24`.
+- **Additional regression caught**: The Task 3.6 WORK-STATUS sweep inadvertently
+  wiped the project-local CodeRabbit `pre-merge-review.steps` extension (treated
+  `arc-extensions.md` as a template-replace rather than a Configurable three-way
+  merge). Restored in `c5875b1`; audit of all 10 Configurable files confirmed no
+  other instances of sync-loss on the branch.
+- **Success criteria**: 21 of 22 met + 1 superseded-by-design. The superseded
+  criterion ("Rebrand WU reactivates cleanly on the new model") is unsatisfiable
+  until post-merge by construction — structural enablers are in place (model
+  shipped, rebrand task list mechanical references cleaned at Phase 7); validation
+  deferred to the rebrand WU's next reactivation session.
 
 ## Related Documentation
 
@@ -93,6 +108,11 @@ conflation without superseding the decision itself.
 - **Session-init context-load optimization** — queued as
   `backlog/technical/plan-session-init-optimization.md` from the Task 7.1 audit atomic.
   Roadmap-scheduled immediately after this WU merges.
+- **Docs site methodology sweep** — seeded as
+  `backlog/technical/plan-docs-methodology-sweep.md` to propagate the per-WU status
+  file model (and other methodology drift that accumulates) to the adopter-facing
+  `docs/` site. Activates after the docs-site migration WU so the sweep targets the
+  Starlight structure rather than pre-port mkdocs prose.
 - **Supplemental/ directory split** (ATOMIC-INBOX, non-blocking) — observation captured
   during 2026-04-11 Finding #16 resolution about splitting
   `.arc/system/workflows/arc/supplemental/` into session-adjacent vs installation-level
