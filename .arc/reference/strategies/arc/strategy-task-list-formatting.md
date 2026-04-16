@@ -147,6 +147,8 @@ Task list headers provide essential metadata and context. Format varies by task 
 - Scope section separates included vs deferred work
 - Horizontal rule (`---`) separates header from tasks
 - Success Criteria section goes at bottom (see [Success Criteria Section](#success-criteria-section))
+- Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file, not the task list
+  — see [manage-incidental-work.md][manage-incidental] § Coordinated Pause/Resume for the protocol
 
 **Example:**
 
