@@ -10,8 +10,9 @@ hooks that work with any agent platform.
 **Session lifecycle:** Sessions are bounded — each starts with initialization and ends with
 handoff. The user invokes these as skills (e.g., `/arc-resume`, `/arc-handoff`). Initialization
 loads project context from a defined document set; handoff preserves working context for the
-next session. Session state splits between WORK-STATUS.md (tracked, committed) and
-SESSION-NOTES.md (personal, gitignored in `user/{identity}/`, portable via git notes).
+next session. Session state splits between the active WU's `status-{name}.md`
+(tracked, per-WU in `active/{category}/`) and SESSION-NOTES.md (personal, gitignored in
+`user/{identity}/`, portable via git notes).
 
 **Work pipeline:** Planned work follows a structured pipeline — PRD, task generation, task
 execution loop. Each task is a bounded review increment: the agent completes one, reports, and
@@ -36,12 +37,12 @@ method.
 | DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
 | QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
 | arc-config.yml              | Project settings                              | `system/`                 |
-| WORK-STATUS.md              | Current task, blockers, next action           | `active/`                 |
+| status-{name}.md            | Current task, blockers, next action (per-WU)  | `active/{category}/`      |
 
 ## Directory Structure
 
 ```text
-├── active/      — Current work (WORK-STATUS, task lists)
+├── active/      — Current work (status files, task lists)
 ├── backlog/     — Future work pipeline (arc-in-git PM only)
 ├── reference/   — Constitution, strategies, ADRs
 ├── system/      — Agent config, workflows, settings
