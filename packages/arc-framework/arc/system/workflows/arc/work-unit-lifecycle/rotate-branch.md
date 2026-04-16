@@ -114,12 +114,20 @@ your last fetch, preventing accidental overwrites of collaborators' work.
 ### 5) Update Tracking
 
 - [ ] Task list `**Branch(es):**` field includes the new branch name (if not updated in step 2)
-- [ ] WORK-STATUS.md updated to reflect the new branch and current task
-- [ ] Task list file is present and accessible on the new branch
+- [ ] Status file (`active/{category}/status-{name}.md`) `**Branch:**` updated to the new branch
+      name; `**Next Task:**` and `**Next Action:**` advanced to the first task on the new branch
+- [ ] Task list file and status file are present and accessible on the new branch (both travel
+      across rotations via normal merge flow)
 - [ ] Current task is identifiable — next unchecked item in the task list
 
 If the session is ending after rotation, run [session-handoff][session-handoff] to preserve context
 for the next session.
+
+> **Rotation split across sessions:** When an external action (npm publish, platform repo rename,
+> manual smoke test) splits a rotation across sessions, the status file on the rotation branch
+> carries state across the gap. The next session's session-init resolves the active status file
+> by `**Branch:**` match — no special handling needed beyond the normal session-handoff /
+> session-init cycle.
 
 ---
 
