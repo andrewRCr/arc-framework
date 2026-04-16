@@ -936,54 +936,91 @@ at cutover.
 singular path to the new per-WU shape, and exercise the new loading strategy end-to-end
 before the change reaches main.
 
-- [ ] **3.1 Cutover: create new status file, delete the old**
+- [x] **3.1 Cutover: create new status file, delete the old**
 
-    **Goal:** Single atomic cutover. After this task, `.arc/active/WORK-STATUS.md` no
+    **Outcome:** Single atomic cutover complete. `.arc/active/WORK-STATUS.md` no
     longer exists on this branch; `.arc/active/technical/status-work-status-restructure.md`
-    exists and holds the project pointer.
+    now holds the project pointer, populated from the new template (Task 2.2) with
+    pre-cutover state. Per-WU state lives at the new location for the remainder of
+    this WU.
 
-    - Create `.arc/active/technical/status-work-status-restructure.md` from the new
-      template (Task 2.2)
-    - Populate fields from pre-cutover WORK-STATUS.md state:
-        - `**State:**` `In Progress`
-        - `**Branch:**` `technical/work-status-restructure`
-        - `**Task List:**` `tasks-work-status-restructure.md`
-        - `**Next Task:**` Task 3.2 (triple-anchor)
-        - `**Last Completed:**` Task 3.1 (cutover summary)
-        - `**Blockers:**` `[none]`
-        - `**Next Action:**` "Run end-to-end session-init loading validation (Task 3.2)"
-    - `git rm .arc/active/WORK-STATUS.md`
-    - Commit as a single atomic operation
+- [x] **3.2 End-to-end session-init loading validation (dry-run)**
 
-- [ ] **3.2 End-to-end session-init loading validation (dry-run)**
+    **Outcome:** New loading strategy resolves correctly against live state on this
+    branch. Scan of `.arc/active/**/status-*.md` returns exactly one file; `Branch:`
+    field matches current git branch; zero-file case confirmed via temporary rename
+    (empty scan result). Disambiguation precedence not exercised by a single-file
+    case (correct per workflow — step 1 bypassed), but `**Working On:**` value in
+    SESSION-NOTES matches the filename if it had been needed. No friction discovered.
 
-    **Goal:** Prove the new loading strategy resolves correctly against live state on
-    this branch before the change reaches main.
+- [x] **3.3 Remove Persistent Context entry from SESSION-NOTES**
 
-    - Walk through the Task 2.5 session-init scan logic manually against current state:
-        - Full mode scan of `.arc/active/**/status-*.md` → expect exactly one file
-        - Verify `Branch:` field matches current git branch
-        - Verify zero-file case handling (temporarily rename the file; re-run scan;
-          rename back)
-    - Exercise disambiguation precedence against SESSION-NOTES `**Working On:**` value
-      (should resolve cleanly to the single extant status file)
-    - Document any discovered friction in `notes-work-status-restructure.md` or atomic
-      companion for Phase 7 verification review
-    - No actual session boundary required — this is a logic walk, not a session restart
+    **Outcome:** Persistent Context entry removed from
+    `.arc/user/andrew/SESSION-NOTES.md`; section reset to `[none]`. Removal trigger
+    met — edited workflow instructions now match live state on this branch.
 
-- [ ] **3.3 Remove Persistent Context entry from SESSION-NOTES**
+    **Note:** Technically executed ahead of the Phase 3 cutover commit landing
+    (this commit is still pending user approval), but the cutover changes are
+    staged atomically with this task list update, so the trigger effectively
+    resolves as part of the same commit operation.
 
-    **Goal:** Removal trigger met — Phase 3 cutover commit has landed. Edited workflow
-    instructions now match live state on this branch.
+- [x] **3.4 Phase 3 Tier 2 quality gates**
+    - [x] 3.4.a `npm run -s lint:md` — 0 errors across 178 files
+    - [x] 3.4.b Grep sweep complete. Findings classified: active WU artifacts
+          describe the retirement by design (legitimate); ROADMAP names both paths
+          in the WU summary (legitimate); archived task list untouched per scope.
+          Analysis docs (`analysis-modes-*.md`) document ruled-out options against
+          the pre-restructure path as historical fact — left as-is. Live broken
+          references identified in 5 surfaces + 3 demo scripts — out-of-scope for
+          Phase 2's edit set; new Task 3.5 inserted to sweep them in a separate
+          atomic commit.
 
-    - Remove the entry added in Task 2.1 from `.arc/user/andrew/SESSION-NOTES.md` §
-      Persistent Context
-    - Leave the section back to `[none]` unless other persistent entries exist
+- [ ] **3.5 Sweep live WORK-STATUS path references missed in Phase 2**
 
-- [ ] **3.4 Phase 3 Tier 2 quality gates**
-    - [ ] 3.4.a Run `npm run -s lint:md`
-    - [ ] 3.4.b Verify no references to `.arc/active/WORK-STATUS.md` remain in any
-          workflow, strategy, or reference doc (grep sweep)
+    **Goal:** Fix the live workflow/skill/demo references to the retired singular
+    `.arc/active/WORK-STATUS.md` path surfaced by Task 3.4.b grep sweep. These
+    surfaces were outside Phase 2's explicit workflow edit set but must ship
+    clean — `arc-handoff` SKILL and `01_verify-and-configure` are actively
+    consumed by agents and adopters post-merge.
+
+    **In scope:**
+
+    - `arc-handoff/SKILL.md` (package source + `.arc/` mirror) — line ~17
+      rewrites the session-handoff application target from the fixed singular
+      path to the scan-resolved active status file. Align phrasing with the
+      Task 2.5 session-init scan model.
+    - `initial-setup/01_verify-and-configure.md` (package source + `.arc/`
+      mirror) — line ~33 retires the "confirm WORK-STATUS.md exists with
+      no-active-work defaults" step. Per Task 2.2, init no longer creates
+      `.arc/active/`; the verify step needs to assert the empty/absent state
+      instead. Review surrounding prose for coherent post-edit flow.
+    - `plan-arc-modes.md` line ~2621 — Lite cascade forward-pointer names
+      `.arc/active/WORK-STATUS.md`. Per Task 2.5, Lite mode uses
+      `.arc/active/status.md` (singular); update to match.
+    - `docs/demos/{first-session-init,session-init-readme,session-init}.sh` —
+      three demo scripts simulating session-init tool calls. Update the
+      `Read .arc/active/WORK-STATUS.md` lines to reflect the new per-WU scan
+      outcome (demo scripts can hard-code a representative path like
+      `.arc/active/{category}/status-{name}.md`).
+
+    **Explicitly deferred (no edit):**
+
+    - `.arc/reference/analysis/analysis-modes-*.md` — historical analysis
+      documents describing ruled-out options. References to
+      `.arc/active/WORK-STATUS.md` are part of the analysis context (the
+      then-current state that shaped the decision). Editing would introduce
+      anachronism.
+    - `.arc/reference/archive/…/tasks-cli-implementation.md` — archived task
+      list, immutable per § Won't Do.
+
+    **Sync discipline:** Edit package source first for Framework files
+    (`arc-handoff/SKILL.md`, `01_verify-and-configure.md`), then sync to `.arc/`.
+    `docs/demos/` and `plan-arc-modes.md` have no package counterpart.
+
+    **Quality gates:** Tier 1 markdown lint on modified files; framework-sync
+    integration test if Framework files changed.
+
+    **Commit:** Atomic — separate from the Phase 3 cutover commit.
 
 ### **Phase 4:** `deactivate-work-unit.md` (New Workflow)
 
