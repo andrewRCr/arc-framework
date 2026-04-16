@@ -135,6 +135,12 @@ Update session state files before ending session:
 _Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
 WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
 
+_Content discipline: the status file is a project pointer, not session narrative. Keep each field to one
+line (Next Action may span two when it names a multi-file scope). Push longer context elsewhere — commit
+body for what-and-why, SESSION-NOTES for next-session context, task list completion notes for per-task
+detail. If Last Completed or Next Action exceeds ~2 lines, the content likely belongs in one of those
+surfaces instead._
+
 _Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
 activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
 push and create PR". Task-list-driven workflows (process-task-loop) don't need this; the task list

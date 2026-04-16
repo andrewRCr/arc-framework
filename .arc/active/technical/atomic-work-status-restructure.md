@@ -209,3 +209,37 @@ Atomic Task Completion for the full protocol.
     `backlog/technical/plan-session-init-optimization.md` and roadmap-scheduled
     immediately after this WU merges. No edits made during the audit pass itself
     (per the atomic's scope guard).
+
+- [x] **Add `_Content discipline:_` inline guidance to status-file template block**
+
+    **Problem:** Recent status file updates for this WU averaged ~15-25 narrative
+    lines in Last Completed / Next Action, against template examples showing
+    one-line entries (`session-handoff.md` L126, L131). Surfaced during Chunk A
+    (Phase 6) handoff when maintainer flagged the bloat directly.
+
+    **Root cause in workflow:** The template block's example lines are concise,
+    but no headline rule inside the block explains why — or routes narrative
+    elsewhere. Existing `_Note:_` at L135-136 distinguishes Next Task vs Next
+    Action but says nothing about content volume. Symmetric gap to the
+    SESSION-NOTES section (which received its signal-discipline restructure in
+    the prior atomic): same workflow, parallel gap for the status-file portion.
+
+    **Fix applied:** Added a short `_Content discipline:_` paragraph between the
+    existing _Note:_ (Next Task / Next Action) and _Workflow step pointer:_ notes
+    inside the template block. Five sentences, matches existing `_Note:_` tone.
+    Reminds: pointer not narrative; one line per field; narrative routes to
+    commit body / SESSION-NOTES / task list completion notes; ~2 lines is the
+    threshold trigger. Applied to both `session-handoff.template.md` (package)
+    and `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (rendered).
+
+    **Verification:**
+
+    - Tier 1 lint on `.arc/` copy: 0 errors.
+    - `framework-sync.test.ts` integration test: 1/1 passing — confirms the
+      template renders to valid `.arc/` content matching what's on disk
+      (template vs rendered copy maintain the expected 10-line `team.mode`
+      conditional offset, no unexpected drift).
+
+    **Scope guard:** One paragraph in one subsection of one workflow file. No
+    other edits. Companion to the prior SESSION-NOTES signal-discipline
+    atomic — same workflow, parallel concern.
