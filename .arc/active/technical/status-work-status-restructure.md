@@ -39,7 +39,6 @@ audit recommendations: 5.3 description expanded with enumerated line
 targets (F1), 6.6.f added to grep both trees for `Following Task List`
 residuals (F2).
 **Blockers:** [none]
-**Next Action:** Commit Phase 5 as a single atomic unit, then begin
-Phase 6 — remaining reference cleanup. Task 6.1 updates
-`AGENT-BRIEFING.ARC.md` WORK-STATUS references (Framework file —
-package-source edit first, then sync to `.arc/`).
+**Next Action:** Begin Phase 6 — remaining reference cleanup. Task 6.1
+updates `AGENT-BRIEFING.ARC.md` WORK-STATUS references (Framework file
+— package-source edit first, then sync to `.arc/`).
