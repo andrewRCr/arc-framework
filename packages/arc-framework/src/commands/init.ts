@@ -212,7 +212,7 @@ export async function runInit(
     }
   }
 
-  // Git integration (gitattributes, merge driver, hooks path)
+  // Git integration (hooks path)
   await configureGitIntegration({
     cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
   });

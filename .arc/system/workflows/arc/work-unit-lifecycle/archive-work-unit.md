@@ -9,7 +9,7 @@ the substantive work (doc prep, review, merge) happens in [integrate-work-unit][
 **When to use:** The work unit's PR is merged and you're on the parent branch.
 
 **Prerequisite:** [integrate-work-unit][integrate-work-unit] completed — docs are clean, completion
-metadata exists (`completion-{name}.md` created, task list Status: `Complete`), code review is
+metadata exists (`completion-{name}.md` created, status file `**State:** Complete`), code review is
 done, PR is merged.
 
 > **Full protection mode (`branch.protection: full`):** Archival commits cannot go directly to the
@@ -66,16 +66,7 @@ git branch -d {child-branch-name}
 git push origin --delete {child-branch-name}  # if pushed
 ```
 
-### 2) Update Task List Status to Integrated
-
-Update the task list header `**Status:**` from `Complete` to `Integrated`. This marks the transition
-from "all tasks done" (pre-merge) to "merged to base branch" (post-merge). The archived task list
-will show its final lifecycle state.
-
-If a PRD exists, its status remains `Complete` — the PRD tracks whether the plan was fulfilled, not
-the merge state.
-
-### 3) Route Reference Files (If Applicable)
+### 2) Route Reference Files (If Applicable)
 
 Before archiving, assess whether any work artifacts have reference value beyond this work unit —
 investigation notes, benchmark data, design explorations, dependency maps. These files lose
@@ -107,7 +98,7 @@ discoverability once buried in the archive directory.
 - **No** → Proceed directly to archival. Most work units won't produce standalone reference
   files — this step is a quick assessment, not a gate.
 
-### 4) Archive Files
+### 3) Archive Files
 
 **Create archive directory and move all files using git mv** (preserves history).
 
@@ -136,7 +127,7 @@ git mv .arc/active/{category}/notes-{name}.md .arc/reference/archive/{quarter}/{
 git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 ```
 
-### 5) Delete Status File
+### 4) Delete Status File
 
 `git rm` the per-WU status file — archive deletes, does not reset. The status file lived alongside the task list in
 `active/{category}/` and travels with the work unit; once the task list is archived, the status file has no active
@@ -151,7 +142,7 @@ git rm .arc/active/{category}/status-{name}.md
 > archival through [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume — that workflow orchestrates
 > both status files in the same commit so the paired flip lands atomically.
 
-### 6) Update PM Artifacts · `arc-in-git` only
+### 5) Update PM Artifacts · `arc-in-git` only
 
 > **Skip this step** if `pm.mode` is `none` or `external`.
 
@@ -169,20 +160,20 @@ Update project management documents to reflect the completed and archived work u
 
 - Update the work unit's status to complete (e.g., add "✅ Complete" marker with month/year)
 
-### 7) Post-Archival Extensions · `#post-work-unit-archive`
+### 6) Post-Archival Extensions · `#post-work-unit-archive`
 
 If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now.
 
 See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
 
-### 8) Commit Archive Changes
+### 7) Commit Archive Changes
 
 ```bash
 git add .arc/reference/archive/{quarter}/{category}/{name}/
-git add .arc/active/{category}/  # captures file deletions (including the status file git-rm'd in Step 5)
+git add .arc/active/{category}/  # captures file deletions (including the status file git-rm'd in Step 4)
 ```
 
-**Note:** With `arc-in-git`, also stage PROJECT-STATUS.md and ROADMAP.md if updated in Step 6.
+**Note:** With `arc-in-git`, also stage PROJECT-STATUS.md and ROADMAP.md if updated in Step 5.
 If [post-work-unit-archive extensions][arc-ext-post-archive] produced additional changes, stage
 those as well.
 
@@ -206,7 +197,7 @@ Archival of completed incidental work:
 Context: tasks-auth-edge-cases.md (archival)"
 ```
 
-### 9) Next Step
+### 8) Next Step
 
 **Partial protection:** Archival is complete. **→ [1_create-prd.md][create-prd]** — Plan the next
 work unit.

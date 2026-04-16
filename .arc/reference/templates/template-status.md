@@ -19,8 +19,11 @@
 **Next Action:** —
 
 <!--
-Optional pointer fields (add when applicable):
+Optional fields (add when applicable):
 
+- **Completed:** YYYY-MM-DD — set when `**State:**` transitions to `Complete`
+  (written by clean-work-unit.md Mode 2 during integration prep). Records the
+  date the work unit finished pre-merge; the file is deleted at archive.
 - **Interrupts:** {category}/{name} — on incidental WU status files; names the
   parent WU paused by this incidental. See manage-incidental-work.md for the
   pause/resume coordination protocol.
@@ -37,5 +40,6 @@ State enum values:
 - In Progress — Active task execution (the common case)
 - Paused      — Interrupted by an incidental (see Paused At / Paused To pointers)
 - Verifying   — All tasks complete, verify-work-unit.md in progress
-- Complete    — Merged and archived (brief window before file retirement)
+- Complete    — Integration prep done, awaiting merge (brief window before
+                file retirement at archive)
 -->

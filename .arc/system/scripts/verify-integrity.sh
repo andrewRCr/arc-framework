@@ -330,7 +330,8 @@ else
             task_num=$(echo "$next_task_line" | grep -oE 'Task [0-9]+\.[0-9]+' | head -1)
             if [ -n "$task_num" ]; then
                 num_part="${task_num#Task }"
-                if grep -qF -- "$num_part" "$task_list_path" 2>/dev/null; then
+                # Anchor on task-list entry shape so e.g. "1.1" doesn't false-match "1.10".
+                if grep -qE "^[[:space:]]*-[[:space:]]*\[[x~ ]\][[:space:]]*\*?\*?${num_part}([[:space:]]|\*|$)" "$task_list_path" 2>/dev/null; then
                     pass "Next task reference resolves: $task_num"
                 else
                     warn "Next task reference may be stale: $task_num not found in task list"

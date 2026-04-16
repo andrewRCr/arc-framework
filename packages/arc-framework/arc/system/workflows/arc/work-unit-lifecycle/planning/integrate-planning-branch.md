@@ -59,7 +59,6 @@ delivered" and "implementation started" is the PR merge.
 ### 1) Verify Readiness
 
 - [ ] Planning artifacts committed (PRD and task list — see [Mode Detection](#mode-detection) for path)
-- [ ] Task list `**Status:**` is `Not Started`
 - [ ] If batch: archival complete and committed ([archive-work-unit][archive-work-unit] steps 1–7)
 - [ ] Quality gates pass on new/modified files
 - [ ] Working tree is clean

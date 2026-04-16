@@ -22,7 +22,7 @@ Check [`arc-config.yml`][arc-config] → `pm.mode` to determine which activation
 - **none / external**: Documents are already in `active/` (saved there by `2_generate-tasks.md`).
   Skip Steps 1 and 3.
 
-The remaining steps (branch creation, task list status update, status file creation, extensions, commit) apply
+The remaining steps (branch creation, status file creation, extensions, commit) apply
 in all modes.
 
 ## Prerequisites
@@ -30,7 +30,6 @@ in all modes.
 **All modes:**
 
 - PRD and task list exist for this work unit
-- Task list has `Status: Not Started`
 - Working tree is clean (all changes committed)
 - Currently on base branch (typically `main` — see [`arc-config.yml`][arc-config])
 - Planning artifacts are on the base branch — arrived via one of:
@@ -94,18 +93,13 @@ git mv .arc/backlog/{category}/tasks-{name}.md .arc/active/{category}/
 git mv .arc/backlog/{category}/atomic-{name}.md .arc/active/{category}/
 ```
 
-### Step 4: Update Task List Status
+After the move, update the task list's PRD path reference from `backlog` to `active`:
 
-Edit `.arc/active/{category}/tasks-{name}.md`:
+```text
+**PRD:** `.arc/active/{category}/prd-{name}.md`
+```
 
-1. Change `Status: Not Started` → `Status: In Progress`
-2. **(arc-in-git only)** Update PRD path reference from `backlog` to `active`:
-
-   ```
-   **PRD:** `.arc/active/{category}/prd-{name}.md`
-   ```
-
-### Step 5: Create Status File
+### Step 4: Create Status File
 
 Create `.arc/active/{category}/status-{name}.md` from [`template-status.md`][template-status]. This is the per-WU
 project pointer — it travels with the branch and carries state until the work unit is archived.
@@ -134,7 +128,7 @@ this WU is interrupted by an incidental (see [`manage-incidental-work.md`][incid
 > markers in the task list. See [Team Coordination Strategy][team-coordination] § Team Branching Patterns for
 > pattern options.
 
-### Step 6: Update PM Artifacts · `arc-in-git` only
+### Step 5: Update PM Artifacts · `arc-in-git` only
 
 > **Skip this step** if `pm.mode` is `none` or `external`.
 
@@ -149,13 +143,13 @@ Update project management documents to reflect the newly active work unit:
 
 - Update the work unit's status from its previous state (e.g., "Planning" → "In Progress")
 
-### Step 7: Post-Activation Extensions · `#post-work-unit-activate`
+### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 
 If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now.
 
 See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
 
-### Step 8: Commit Activation
+### Step 7: Commit Activation
 
 Stage the activation files and commit. The exact set depends on pm.mode:
 
@@ -173,17 +167,17 @@ git add .arc/active/{category}/tasks-{name}.md \
 
 git commit -m "docs(arc): activate {work-name} work unit
 
-- Create status file and update task list status
-- Status: In Progress
+- Create status file with State: In Progress
+- Move planning artifacts to active/ (arc-in-git)
 
 Context: tasks-{name}.md (activation)"
 ```
 
 **Note:** Stage only the files actually modified. With `arc-in-git`, also stage PROJECT-STATUS.md and
-ROADMAP.md if updated in Step 6. If [post-work-unit-activate extensions][arc-ext-post-activate]
+ROADMAP.md if updated in Step 5. If [post-work-unit-activate extensions][arc-ext-post-activate]
 produced additional changes, stage those as well.
 
-### Step 9: Push Feature Branch (Optional)
+### Step 8: Push Feature Branch (Optional)
 
 Set upstream for the feature branch:
 

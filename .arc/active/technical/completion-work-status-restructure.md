@@ -21,7 +21,7 @@ conflation without superseding the decision itself.
   DEV-RULES.ARC, `arc-methods.md`, `strategy-session-operations.md`,
   `strategy-team-coordination.md` full rewrite) and `strategy-work-organization.md` full
   rewrite — in-scope expansion surfaced mid-execution
-- **Per-WU status file template** at `.arc/reference/templates/template-status-file.md`
+- **Per-WU status file template** at `.arc/reference/templates/template-status.md`
   with `**State:**` as the load-bearing lifecycle marker; `**Status:**` header retired
   from the task list template
 - **Nine workflow files updated** for per-WU status file discovery, travel across

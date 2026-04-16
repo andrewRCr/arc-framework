@@ -62,9 +62,8 @@ export interface JoinResult {
  * Run the join command orchestration.
  *
  * Verifies an existing ARC installation, then configures the developer's
- * personal workspace: role in git config, git integration (hooks,
- * gitattributes, merge driver), skills, gitignore block, identity, and
- * user directory.
+ * personal workspace: role in git config, git integration (hooks path),
+ * skills, gitignore block, identity, and user directory.
  *
  * @param options - Join options with all dependencies injected
  * @returns Join result
@@ -95,7 +94,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     await io.exec("git", ["config", "--local", "arc.identity", identityResult]);
   }
 
-  // Git integration (gitattributes, merge driver, hooks path)
+  // Git integration (hooks path)
   await configureGitIntegration({
     cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
   });
