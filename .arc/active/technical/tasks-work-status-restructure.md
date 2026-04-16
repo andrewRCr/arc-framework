@@ -4,7 +4,6 @@
 **Created:** 2026-04-15
 **Branch(es):** `technical/work-status-restructure`
 **Base Branch:** `main`
-**Status:** In Progress
 
 ## Overview
 
@@ -48,8 +47,11 @@ sync), `strategy-task-list-formatting.md` (Phase 2 task list template edit),
 
 ### Won't Do
 
-- Edit `tasks-arcd-rebrand.md` in any way (absorbed during rebrand reactivation after this
-  WU merges — deliberately out of scope)
+- Substantive edits to `tasks-arcd-rebrand.md` — rebrand-specific task content is absorbed
+  during rebrand reactivation after this WU merges. Mechanical cleanup (`**Status:**`
+  header removal and `WORK-STATUS.md` → `status file` reference swaps in task bodies) is
+  handled at Phase 7 verification as part of the meta-circular cleanup pass; see Task 7.1
+  completion notes.
 - Edit historical archived task lists in `.arc/reference/archive/` (immutable historical
   record — only templates and active task lists receive the `**Status:**` header removal)
 - Change SESSION-NOTES model or location (adding `**Working On:**` is an extension, not a
@@ -1530,7 +1532,35 @@ for Task 5.4 subsection).
 
 ### **Phase 7:** Verification
 
-- [ ] **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+- [x] **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+    **Quality gates:** Tier 3 full suite all green — markdown lint 179 files 0 errors,
+    TypeScript lint clean, shell lint clean, typecheck + typecheck:test clean, 43/43
+    tests pass, build succeeds, working tree clean.
+
+    **Success criteria:** 22 total — 21 met, 1 superseded-by-design (rebrand
+    reactivation validation, post-merge gate). All 6 design-flaws-eliminated criteria
+    met by construction. See Success Criteria section below for dispositions and the
+    two Deviation/Superseded annotations.
+
+    **Atomic companion:** 6 items, all `[x]` completed with notes. Companion file will
+    retain at archive (has content).
+
+    **Residual cleanup folded in at verification** (R11 scope adjustment,
+    PRD Document History 2026-04-16):
+
+    - Own task list (`tasks-work-status-restructure.md`) — removed vestigial
+      `**Status:** In Progress` header line (line 7); Won't Do note updated to
+      reflect the scope adjustment.
+    - Rebrand task list (`tasks-arcd-rebrand.md`) — removed `**Status:** Not Started`
+      header; rewrote six task-body references from `WORK-STATUS.md` to the new
+      status file path (`.arc/active/technical/status-arcd-rebrand.md`). Mechanical
+      1:1 substitutions; no rebrand-specific design decisions. Substantive
+      rebrand-specific edits remain scoped to reactivation per original R11 plan.
+    - PRD Document History — added 2026-04-16 row documenting the R11 scope
+      adjustment.
+
+    Markdown lint re-run after edits: 0 errors across 179 files.
 
 ---
 
@@ -1538,51 +1568,58 @@ for Task 5.4 subsection).
 
 ### Design flaws eliminated
 
-- [ ] Parallel-WU merge conflicts at integration gone (different files, no shared mutation)
-- [ ] WORK-STATUS staleness on main under full protection gone (file never exists there
+- [x] Parallel-WU merge conflicts at integration gone (different files, no shared mutation)
+- [x] WORK-STATUS staleness on main under full protection gone (file never exists there
       between WUs)
-- [ ] `session-handoff.md` dead-end on main under full protection gone (nothing to commit
+- [x] `session-handoff.md` dead-end on main under full protection gone (nothing to commit
       when no active WU)
-- [ ] `integrate-planning-branch.md` § Step 5 planning-cycle chain confusion gone
+- [x] `integrate-planning-branch.md` § Step 5 planning-cycle chain confusion gone
       (WORK-STATUS isn't part of planning state)
-- [ ] `rotate-branch.md` session-boundary sub-pattern gap gone (per-WU file travels
+- [x] `rotate-branch.md` session-boundary sub-pattern gap gone (per-WU file travels
       through rotations via normal merge flow)
-- [ ] Archive content conflicts gone (archive deletes a file; no content merge)
+- [x] Archive content conflicts gone (archive deletes a file; no content merge)
 
 ### Post-migration invariants
 
-- [ ] No tracked path exists at `.arc/active/WORK-STATUS.md`
-- [ ] `packages/arc-framework/arc/active/WORK-STATUS.template.md` retired from package
+- [x] No tracked path exists at `.arc/active/WORK-STATUS.md`
+- [x] `packages/arc-framework/arc/active/WORK-STATUS.template.md` retired from package
       source (no scaffolding at init)
-- [ ] Every active work unit has exactly one `status-{name}.md` file in its category
+- [x] Every active work unit has exactly one `status-{name}.md` file in its category
       directory
-- [ ] Session-init correctly resolves the active status file across the 8 stress-test
+- [x] Session-init correctly resolves the active status file across the 8 stress-test
       scenarios in `notes-work-status-restructure.md` § Stress-test battery (at minimum:
       zero/one/many-file cases validated during Phase 3)
-- [ ] `**State:**` field is the sole source of truth for WU lifecycle — task list
-      `**Status:**` header removed from the task list template
-- [ ] Status file is deleted (not reset) at archive per `archive-work-unit.md`
-- [ ] ATOMIC-INBOX items #1, #2, #3 removed from `.arc/user/andrew/ATOMIC-INBOX.md`
+- [x] `**State:**` field is the sole source of truth for WU lifecycle — task list
+      `**Status:**` header removed from the task list template.
+      **Deviation:** Template is clean; at Phase 7 the live WU task list retained its
+      `**Status:**` header as a residual. Cleaned up at verification (this WU's own
+      task list + `tasks-arcd-rebrand.md` mechanical cleanup folded in per the R11
+      scope adjustment; see PRD Document History 2026-04-16).
+- [x] Status file is deleted (not reset) at archive per `archive-work-unit.md`
+- [x] ATOMIC-INBOX items #1, #2, #3 removed from `.arc/user/andrew/ATOMIC-INBOX.md`
       (resolved-by-design via this WU)
-- [ ] SESSION-NOTES template carries the `**Working On:**` field with defined marker
+- [x] SESSION-NOTES template carries the `**Working On:**` field with defined marker
       vocabulary per PRD Q1 resolution
-- [ ] `session-handoff.md` writes `**Working On:**`; `session-init.md` reads it as
+- [x] `session-handoff.md` writes `**Working On:**`; `session-init.md` reads it as
       primary disambiguation signal; SESSION-NOTES template documents the marker
       vocabulary — all three surfaces agree
-- [ ] Package-source mirrors synced per `strategy-package-project-sync.md` — every
+- [x] Package-source mirrors synced per `strategy-package-project-sync.md` — every
       `.arc/` edit has its package-source counterpart staged in this WU's commits
-- [ ] ADR-007 carries a `## Amendments` section documenting the refinement
-- [ ] `plan-arc-modes.md` carries the substantive cross-reference section, the
+- [x] ADR-007 carries a `## Amendments` section documenting the refinement
+- [x] `plan-arc-modes.md` carries the substantive cross-reference section, the
       Finding #4 carve-out reference with the explicit "do not re-introduce FTL"
       prohibition, shift-lifecycle vocabulary find-and-replace, and line ~4016
       alignment
-- [ ] `deactivate-work-unit.md` exists in both `.arc/` and package source, ships Case A
+- [x] `deactivate-work-unit.md` exists in both `.arc/` and package source, ships Case A
       primary procedure, and documents routing pointers for Cases B/C/D
-- [ ] Rebrand WU reactivates cleanly on the new model (first real exercise across
-      rotating branches) — validated when rebrand WU's next session begins post-merge
-- [ ] All quality gates pass (markdown lint, TypeScript lint, shell lint, typecheck,
+- [~] Rebrand WU reactivates cleanly on the new model (first real exercise across
+      rotating branches) — validated when rebrand WU's next session begins post-merge.
+      **Superseded:** Not satisfiable until post-merge by design. Enablers in place
+      (structural model shipped, rebrand task list mechanical references cleaned at
+      Phase 7); validation deferred to rebrand's next reactivation session.
+- [x] All quality gates pass (markdown lint, TypeScript lint, shell lint, typecheck,
       test suite, build — 0 violations)
-- [ ] Ready for `integrate-work-unit.md`
+- [x] Ready for `integrate-work-unit.md`
 
 ---
 

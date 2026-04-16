@@ -10,11 +10,13 @@
 
 ## Active Work
 
-**State:** In Progress
+**State:** Verifying
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
-**Next Task:** Task 7.1 — Complete verification (line ~1533)
-**Last Completed:** Phase 6 (Tasks 6.1–6.7) — reference cleanup complete; one live FTL
-residual fixed in `strategy-session-operations.md` State-Conditional Promotion table.
+**Next Task:** [none] — all tasks complete; awaiting integration
+**Last Completed:** Task 7.1 — Phase 7 verification. Tier 3 quality gates green; 21/22
+success criteria met + 1 superseded-by-design (rebrand post-merge validation); atomic
+companion fully resolved. Residual cleanup of `**Status:**` header + `WORK-STATUS.md`
+body references in both own and rebrand task lists folded in per R11 scope adjustment.
 **Blockers:** [none]
-**Next Action:** Begin Phase 7 — load `verify-work-unit.md` and run verification protocol.
+**Next Action:** Load `integrate-work-unit.md` — pre-merge review, push, PR, merge.

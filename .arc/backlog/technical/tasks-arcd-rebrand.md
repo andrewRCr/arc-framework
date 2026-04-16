@@ -9,7 +9,6 @@
 `technical/arcd-rebrand-self-migrate` (Phase 6 + Phase 7 + final integration,
 created after Phase 5 merge)
 **Base Branch:** `main`
-**Status:** Not Started
 
 ## Overview
 
@@ -503,9 +502,9 @@ completes [`rotate-branch.md`][rotate-branch] Step 4–5 interrupted by session 
         - Add `technical/arcd-rebrand-post-rename-cleanup` to the task list header's `Branch(es)`
           list; stage with other Phase 3 commits
 
-    - [ ] **3.3.c Update WORK-STATUS.md**
-        - Branch field → `technical/arcd-rebrand-post-rename-cleanup`
-        - Next Task → triple-anchor for Task 3.4 or the next unchecked
+    - [ ] **3.3.c Update status file** (`.arc/active/technical/status-arcd-rebrand.md`)
+        - `**Branch:**` field → `technical/arcd-rebrand-post-rename-cleanup`
+        - `**Next Task:**` → triple-anchor for Task 3.4 or the next unchecked
 
 - [ ] **3.4 Stale reference sweep post-rename**
 
@@ -534,7 +533,7 @@ completes [`rotate-branch.md`][rotate-branch] Step 4–5 interrupted by session 
 
 - [ ] **3.6 Commit post-rename cleanup**
 
-    - [ ] **3.6.a Stage and commit any sweep fixes + task list / WORK-STATUS updates**
+    - [ ] **3.6.a Stage and commit any sweep fixes + task list / status file updates**
         - Commit type: `chore(arc)` for URL updates; `docs(arc)` for prose fixes
         - `Context: tasks-arcd-rebrand.md (Task 3.x)` or range
 
@@ -563,7 +562,8 @@ Covers PRD R1, R3.
     - [ ] **4.1.a Branch from `main`**
         - `git switch main && git pull origin main`
         - `git switch -c technical/arcd-rebrand-publish`
-        - Update task list `Branch(es)` field and WORK-STATUS.md
+        - Update task list `Branch(es)` field and status file
+          (`.arc/active/technical/status-arcd-rebrand.md`)
 
 - [ ] **4.2 Publish prep**
 
@@ -652,7 +652,7 @@ Covers PRD R1, R3.
 Publishing `@arc-framework/cli@0.1.1` requires a separate directory with its own minimal
 `package.json` (name `@arc-framework/cli`). This Phase creates that directory **outside the tracked
 repo tree** (e.g., `/tmp/arc-framework-cli-deprecation`), publishes from there, and discards it after
-the publish + deprecate flag land. The branch itself carries only task list / WORK-STATUS updates —
+the publish + deprecate flag land. The branch itself carries only task list / status file updates —
 no code changes to tracked files.
 
 - [ ] **5.1 Create Phase 5 branch**
@@ -660,7 +660,8 @@ no code changes to tracked files.
     - [ ] **5.1.a Branch from `main`**
         - `git switch main && git pull origin main`
         - `git switch -c technical/arcd-rebrand-deprecate`
-        - Update task list `Branch(es)` field and WORK-STATUS.md
+        - Update task list `Branch(es)` field and status file
+          (`.arc/active/technical/status-arcd-rebrand.md`)
 
 - [ ] **5.2 Prepare ephemeral deprecation package**
 
@@ -759,7 +760,7 @@ Phase 7 verification, and the final [`integrate-work-unit.md`][integrate-work-un
         - `git switch main && git pull origin main`
         - `git switch -c technical/arcd-rebrand-self-migrate`
         - Update task list `Branch(es)` field (mark this as the final branch)
-        - Update WORK-STATUS.md
+        - Update status file (`.arc/active/technical/status-arcd-rebrand.md`)
 
 - [ ] **6.2 Rename installed config file**
 
