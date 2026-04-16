@@ -8,8 +8,8 @@ reviewable deliverable.
 
 **When to use:** All tasks in the task list are marked `[x]` and the verification phase has passed.
 
-**What comes after:** Once merged, run [archive-work-unit][archive-work-unit] to move files to the archive
-and reset tracking state.
+**What comes after:** Once merged, run [archive-work-unit][archive-work-unit] to move files to the archive and
+delete the per-WU status file.
 
 **Multi-branch work units** follow three operations across their lifecycle:
 
@@ -17,11 +17,12 @@ and reset tracking state.
    Merge the branch, set up the next one, continue working. No completion doc, no archival.
    See [rotate-branch][rotate-branch] workflow.
 2. **Integrate** — This workflow. All tasks complete. Prepare docs, review, PR, merge.
-3. **Archive** — Post-merge. Move files to archive, update tracking. See
+3. **Archive** — Post-merge. Move files to archive, delete the status file. See
    [archive-work-unit][archive-work-unit].
 
-Rotation may happen multiple times during a work unit; integration and archival each happen exactly once
-at the end.
+Rotation may happen multiple times during a work unit; integration and archival each happen exactly once at the
+end. The per-WU status file travels with the task list across rotations via normal merge flow — no
+mid-lifecycle resets or absorbs.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
@@ -51,7 +52,7 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 ### 1) Verify Work Completion
 
 - [ ] All task list subtasks and parent tasks marked `[x]`
-- [ ] Task list header `**Status:**` updated to `Complete`
+- [ ] Status file `**State:**` updated to `Complete` (written by [clean-work-unit.md](clean-work-unit.md) Mode 2)
 - [ ] Task list Success Criteria all checked (expected — verification phase should have validated these)
 - [ ] PRD alignment (if PRD exists — planned work only):
     - [ ] Confirm success criteria against PRD — second pass after verification phase. Note any
@@ -186,13 +187,13 @@ delivered state:
 Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
 description — stale metadata in the PR undermines the review it's meant to support.
 
-### 6c) Update WORK-STATUS.md
+### 6c) Update Status File
 
-Update WORK-STATUS.md so Next Action reflects the current integration step (e.g., "integrate-work-unit
-Step 7 — push and create PR"). Stage and commit with the `(integration)` context footer — bundle
-with the Step 6b commit if one is being made, or commit standalone if no other Phase 2 changes
-exist. This ensures WORK-STATUS is committed before the PR is created — a standalone WORK-STATUS
-commit after push resets automated PR reviews.
+Update the per-WU status file (`.arc/active/{category}/status-{name}.md`) so `**Next Action:**` reflects the
+current integration step (e.g., "integrate-work-unit Step 7 — push and create PR"). Stage and commit with the
+`(integration)` context footer — bundle with the Step 6b commit if one is being made, or commit standalone if
+no other Phase 2 changes exist. This ensures the status file is committed before the PR is created — a
+standalone status-file commit after push resets automated PR reviews.
 
 ### 7) Push and Create PR
 
@@ -203,7 +204,7 @@ gh pr create --base {parent-branch} --head {branch-name}
 
 Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
 When adapting, do not add new sections describing post-merge workflow continuity or next
-actions — those belong in WORK-STATUS and SESSION-NOTES, not the PR body. The reader is
+actions — those belong in the status file and SESSION-NOTES, not the PR body. The reader is
 reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
 
 ### 8) Address PR Review Findings
