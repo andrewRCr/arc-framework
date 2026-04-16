@@ -136,46 +136,20 @@ git mv .arc/active/{category}/notes-{name}.md .arc/reference/archive/{quarter}/{
 git mv .arc/active/{category}/completion-{name}.md .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 ```
 
-### 5) Update WORK-STATUS.md
+### 5) Delete Status File
 
-Update `.arc/active/WORK-STATUS.md` to reflect the post-archival state.
+`git rm` the per-WU status file — archive deletes, does not reset. The status file lived alongside the task list in
+`active/{category}/` and travels with the work unit; once the task list is archived, the status file has no active
+purpose and is removed from the working tree.
 
-**Archiving to base branch** (normal case — work unit complete, on base branch or batch
-planning branch):
-
-Reset to "no active work" defaults. Use the current branch — `git branch --show-current` —
-which is the base branch for direct archival, or the batch planning branch under full
-protection.
-
-```markdown
-**Branch**: `{current branch}`
-**Task List**: [none]
-**Following Task List**: No
-**Next Task**: —
-**Last Completed**: {Work Name} (archived)
-**Blockers**: [none]
-**Next Action**: {see below}
+```bash
+git rm .arc/active/{category}/status-{name}.md
 ```
 
-**Next Action guidance by PM mode:**
-
-- **arc-in-git**: Identify next work unit — consult ROADMAP.md and backlog for candidates, then
-  begin or continue planning
-- **none / external**: Create a PRD when ready to start planned work → `1_create-prd.md`
-
-If the next work unit is already known (e.g., batching archival with planning), name it
-directly in Next Action.
-
-**Archiving to parent work branch** (stacked incidental returning to parent):
-
-Restore WORK-STATUS.md to the parent work unit's context. You're on the parent branch
-after the incidental's merge — recover state from the task list and commit history:
-
-1. **Branch**: Current branch (`git branch --show-current`) — this is the parent work branch
-2. **Task List**: Locate the parent's task list in `.arc/active/{category}/tasks-{parent-name}.md`
-3. **Next Task**: Find the first unchecked `[ ]` item in the parent task list (triple-anchor format)
-4. **Last Completed**: The last `[x]` task before the unchecked one
-5. **Next Action**: `Resume {parent work unit name} — Task X.Y`
+> **Archiving an incidental that interrupted active work:** `git rm`-ing `status-{incidental}.md` alone does not
+> handle the parent WU's state flip (State: `Paused` → `In Progress`, remove `Paused At:` / `Paused To:`). Route
+> archival through [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume — that workflow orchestrates
+> both status files in the same commit so the paired flip lands atomically.
 
 ### 6) Update PM Artifacts · `arc-in-git` only
 
@@ -205,8 +179,7 @@ See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
 
 ```bash
 git add .arc/reference/archive/{quarter}/{category}/{name}/
-git add .arc/active/{category}/  # captures file deletions
-git add .arc/active/WORK-STATUS.md
+git add .arc/active/{category}/  # captures file deletions (including the status file git-rm'd in Step 5)
 ```
 
 **Note:** With `arc-in-git`, also stage PROJECT-STATUS.md and ROADMAP.md if updated in Step 6.
@@ -235,8 +208,8 @@ Context: tasks-auth-edge-cases.md (archival)"
 
 ### 9) Next Step
 
-**Partial protection:** Archival is complete. **→ [1_create-prd.md][create-prd]** — Plan next
-work unit (or follow WORK-STATUS.md Next Action if different).
+**Partial protection:** Archival is complete. **→ [1_create-prd.md][create-prd]** — Plan the next
+work unit.
 
 **Full protection (batch branch):** Continue on the same branch — proceed to
 [1_create-prd.md][create-prd] for the next work unit. After task generation
@@ -247,7 +220,7 @@ that PR merges.
 
 **Full protection (standalone archival):** If no next work unit is planned, the housekeeping
 branch carries only archival. Push, create a PR, and merge directly — no planning workflows
-needed. Update WORK-STATUS.md Next Action to reflect that no next work unit is queued.
+needed.
 
 ---
 
@@ -290,7 +263,7 @@ for feature vs technical vs incidental decision rules.
 - Use `mv` instead of `git mv` → Loses file history
 - Archive before merge → Run [integrate-work-unit][integrate-work-unit] first
 - Archive before all branches merged → Multi-branch work units archive once after final merge
-- Skip WORK-STATUS.md reset → Next session-init starts with stale state
+- Skip status file deletion → dangling state file in `active/` confuses next session-init
 
 ---
 
@@ -303,3 +276,4 @@ for feature vs technical vs incidental decision rules.
 [activate-planning-branch]: planning/activate-planning-branch.md
 [integrate-planning-branch]: planning/integrate-planning-branch.md
 [arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive
+[incidental]: ../supplemental/manage-incidental-work.md
