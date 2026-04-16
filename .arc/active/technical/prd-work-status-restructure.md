@@ -1,7 +1,9 @@
 # PRD: Work-Status Restructure
 
 **Type:** Technical
-**Updated:** 2026-04-15
+**Status:** Complete
+**Created:** 2026-04-15
+**Completed:** 2026-04-16
 
 ---
 
@@ -397,9 +399,9 @@ pre-merge review.
 
 ## Open Questions
 
-All items below are deferred to implementation with clear direction. Each must be
-**defined** by WU completion — not left freeform or undocumented. No blockers for
-starting task generation.
+All items below were deferred to implementation with clear direction at the
+planning boundary, then resolved as implementation progressed. Resolutions
+recorded inline per question.
 
 ### Resolve during work
 
@@ -418,22 +420,49 @@ Final decision codified in three surfaces that must agree: (a) `session-handoff.
 write instruction, (b) `session-init.md` read/interpret logic, (c) SESSION-NOTES
 template comment block.
 
+**Resolved (Phase 2):** Shipped with the four-marker vocabulary exactly as listed
+above. All three surfaces agree — `session-handoff.md` writes the marker, `session-init.md`
+uses it as the primary disambiguation signal (step 1 of the many-file precedence),
+and the SESSION-NOTES template comment block documents the vocabulary.
+
 **Q2. Ambiguous-discovery prompt format.** When session-init's discovery precedence
 falls through to the prompt step (R4, last resort), what does the prompt show?
 List candidates with one-line summaries? Fallback if the user dismisses? Decide
 during `session-init.md` edit (Phase 2).
 
+**Resolved (Phase 2):** Shipped with a four-line-per-candidate prompt showing filename +
+branch, truncated `**Next Task:**`, and `**State:**`, plus a `[q]` abort option. On abort
+or dismiss, session-init surfaces the candidate list so the user resolves manually.
+
 **Q3. ADR-007 amendment prose.** Format settled (Tier 2 Amendment in `## Amendments`
 section, per R7); content drafted during Phase 1. PRD captures intent; actual
 prose is a Phase 1 task deliverable.
+
+**Resolved (Phase 1, Task 1.1):** Tier 2 Amendment added to ADR-007 `## Amendments`
+section. Disentangles the two conflated concepts (per-developer session state vs.
+per-WU project pointer) without superseding the original decision.
 
 **Q4. `strategy-team-coordination.md` § Concurrent Sessions rewrite prose.**
 Direction settled (narrow rewrite, two-axis, shipping-clean, per R8); prose drafted
 during Phase 1.
 
+**Resolved (Phase 1, Task 1.3):** Scope widened mid-batch from § Concurrent Sessions
+only to the full file (16 WORK-STATUS references surfaced across intro, shared resources
+table, session state merge behavior, and others). `strategy-work-organization.md` added
+as Task 1.4 (7 more references, unscoped in the original plan). Design decisions in
+`notes-work-status-restructure.md` § Consequences — retire `merge=ours` (Task 1.7)
+rather than repath; rewrite pre-commit CHECK 10 to derive sibling status file from
+the staged task list's directory.
+
 **Q5. `plan-arc-modes.md` cross-reference section prose.** Structure known (harmony
 walk, Pure Option C re-validation, Finding #4 carve-out reference, per R11); prose
 drafted during Phase 5.
+
+**Resolved (Phase 5, Task 5.1):** Substantive cross-reference section shipped with
+the harmony walk, Pure Option C re-validation, and the Finding #4 carve-out reference
+with an explicit "do not re-introduce FTL" prohibition. Shift-lifecycle vocabulary
+find-and-replace and line ~4016 alignment folded in. Mechanical-only updates to the
+other three plan-\* docs completed under Task 5.2.
 
 ## Document History
 
@@ -446,9 +475,10 @@ complete" and note any material deviations from the original plan. The PRD then
 serves as a historical record of what was planned, how it evolved, and what
 actually shipped. -->
 
-| Date       | Change                                                                                  |
-|------------|-----------------------------------------------------------------------------------------|
-| 2026-04-15 | Initial draft — formalized from `plan-work-status-restructure.md`                       |
-| 2026-04-15 | R7 refined — ADR-007 filename, placement, scope (see R7 prose)                          |
-| 2026-04-15 | R16 scope refined — pointer fields move from task list to status file; Task 2.13 added  |
-| 2026-04-16 | R11 scope adjusted — mechanical cleanup of `tasks-arcd-rebrand.md` folded in at Phase 7 |
+| Date       | Change                                                                                                           |
+|------------|------------------------------------------------------------------------------------------------------------------|
+| 2026-04-15 | Initial draft — formalized from `plan-work-status-restructure.md`                                                |
+| 2026-04-15 | R7 refined — ADR-007 filename, placement, scope (see R7 prose)                                                   |
+| 2026-04-15 | R16 scope refined — pointer fields move from task list to status file; Task 2.13 added                           |
+| 2026-04-16 | R11 scope adjusted — mechanical cleanup of `tasks-arcd-rebrand.md` folded in at Phase 7                          |
+| 2026-04-16 | Implementation complete — 21/22 success criteria satisfied; rebrand reactivation deferred (post-merge by design) |
