@@ -666,6 +666,8 @@ at cutover.
     reference link definition in both template and rendered surfaces. Synced
     template → `.arc/`.
 
+- [ ] **2.7 `activate-work-unit.md` — Step 5 creates status file from template**
+
     - Edit `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/
       activate-work-unit.md`
     - Step 5: create per-WU status file at
