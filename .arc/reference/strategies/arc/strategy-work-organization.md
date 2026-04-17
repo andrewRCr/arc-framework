@@ -37,6 +37,7 @@ Planned work that adds user-visible capabilities from product vision.
 - Tasks: `.arc/active/feature/tasks-<name>.md`
 - Notes: `.arc/active/feature/notes-<name>.md` (optional)
 - Atomic: `.arc/active/feature/atomic-<name>.md` (companion)
+- Status: `.arc/active/feature/status-<name>.md` (per-WU state pointer)
 - Git branch: `feature/<name>`
 
 ### Technical Work (Infrastructure Improvements)
@@ -49,6 +50,7 @@ Planned work that improves codebase quality, architecture, or developer experien
 - Tasks: `.arc/active/technical/tasks-<name>.md`
 - Notes: `.arc/active/technical/notes-<name>.md` (optional)
 - Atomic: `.arc/active/technical/atomic-<name>.md` (companion)
+- Status: `.arc/active/technical/status-<name>.md` (per-WU state pointer)
 - Git branch: `technical/<name>`
 
 ### Incidental Work (Reactive Quality Improvements)
@@ -61,6 +63,7 @@ See [Incidental Work Model](#incidental-work-model) for branching and lifecycle.
 - Tasks: `.arc/active/incidental/tasks-<name>.md`
 - Notes: `.arc/active/incidental/notes-<name>.md` (optional)
 - Atomic: `.arc/active/incidental/atomic-<name>.md` (companion)
+- Status: `.arc/active/incidental/status-<name>.md` (per-WU state pointer)
 - Git branch: `incidental/<name>` (stacked on parent; see [Incidental Work Model](#incidental-work-model))
 
 ---
@@ -320,10 +323,12 @@ via PR for review before implementation begins. This separates "decide what to b
 .arc/active/
   feature/
     prd-<name>.md, tasks-<name>.md, notes-<name>.md,
-    atomic-<name>.md, status-<name>.md
+    atomic-<name>.md, status-<name>.md,
+    completion-<name>.md (created before PR)
   technical/
     prd-<name>.md, tasks-<name>.md, notes-<name>.md,
-    atomic-<name>.md, status-<name>.md
+    atomic-<name>.md, status-<name>.md,
+    completion-<name>.md (created before PR)
   incidental/
     tasks-<name>.md, notes-<name>.md (optional),
     atomic-<name>.md, status-<name>.md,
