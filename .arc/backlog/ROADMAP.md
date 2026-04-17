@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-04-17
 
 ---
 
@@ -100,16 +100,16 @@ and update behavior, conditional content architecture, ARC skill expansion.
 - Upstream: WU4 (beta-ready repo, stable methodology surface to audit)
 - Downstream: Work-Status Restructure
 
-**Work-Status Restructure** — In Progress (April 2026)
+**Work-Status Restructure** — ✅ Complete (April 2026)
 
-Replace the singular tracked `.arc/active/WORK-STATUS.md` with a per-work-unit status file
+Replaced the singular tracked `.arc/active/WORK-STATUS.md` with a per-work-unit status file
 pattern (`.arc/active/{category}/status-{name}.md`), disentangling the project pointer from
-the session pointer. Eliminates the parallel-WU concurrency flaw and base-branch staleness
-dead-ends under full protection. Lands a new `deactivate-work-unit.md` workflow, drops
-`**Following Task List**` from the status template (R17), and dogfoods its own output at the
-Phase 3 live-migration cutover point.
+the session pointer. Eliminated the parallel-WU concurrency flaw and base-branch staleness
+dead-ends under full protection. Shipped `deactivate-work-unit.md` workflow, dropped
+`**Following Task List**` from the status template (R17), and dogfooded its own output at
+the Phase 3 live-migration cutover point.
 
-- PRD: `technical/prd-work-status-restructure.md`
+- Archive: `archive/2026-q2/technical/03_work-status-restructure/`
 - Upstream: Methodology Maturation (stable methodology surface, dual-copy sync discipline)
 - Downstream: Session-Init Optimization (stable session-init substrate to optimize),
   ARCd Rebrand (first real exercise of the per-WU status file model across rotating branches)
