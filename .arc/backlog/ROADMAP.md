@@ -219,21 +219,25 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │
    │     │     │     │     │     ├──► Methodology Maturation ✅
    │     │     │     │     │     │     │
-   │     │     │     │     │     │     ├──► ARCd Rebrand
+   │     │     │     │     │     │     ├──► Work-Status Restructure
    │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     ├──► Expanded Planning Path
+   │     │     │     │     │     │     │     ├──► Session-Init Optimization
    │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     ├──► ARCd Rebrand
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
-   │     │     │     │     │     │     │     │     │     │           ▲
-   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
-   │     │                                                          ▲
-   │     └──────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
-   │                                                                ▲
-   └────────────────────────────────────────────────────────────────┘
+   │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
+   │     │     │     │     │     │     │     │     │     │     │     │           ▲
+   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
+   │     │                                                                          ▲
+   │     └──────────────────────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
+   │                                                                                ▲
+   └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Parallelism:** WU5 docs site content and README drafts can begin after WU1+WU2 without
