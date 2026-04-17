@@ -781,7 +781,7 @@ describe("runInit", () => {
     });
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
+    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
 
     // .gitignore updated with pristine.json and user/*/ entries
     const gitignoreWrite = writeCalls.find(
@@ -796,6 +796,17 @@ describe("runInit", () => {
     );
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/githooks");
+
+    // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
+    const gitattributesWrite = writeCalls.find(
+      (c) => c[0] === "/project/.gitattributes",
+    );
+    expect(gitattributesWrite).toBeUndefined();
+
+    const mergeDriverCall = execCalls.find(
+      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+    );
+    expect(mergeDriverCall).toBeUndefined();
   });
 });
 

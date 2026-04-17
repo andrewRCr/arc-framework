@@ -146,11 +146,21 @@ describe("runJoin", () => {
 
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
 
-    // hooks path
+    // hooks path — exact call shape
     const hooksPath = execCalls.find(
       (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
+    expect(hooksPath).toEqual([
+      "git",
+      ["config", "core.hooksPath", ".arc/system/githooks"],
+    ]);
+
+    // guard: merge driver was retired in d8e5048 — no merge.* git config should be written
+    const mergeDriverCall = execCalls.find(
+      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+    );
+    expect(mergeDriverCall).toBeUndefined();
   });
 
   it("creates user directory with templates", async () => {
