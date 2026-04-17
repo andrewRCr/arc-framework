@@ -120,7 +120,7 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 # Task List: [Work Name]
 
 **PRD:** `.arc/[location]/[category]/prd-[name].md`
-**Branch(es):** `feature/[name]` or `technical/[name]`
+**Branch(es):** `feature/[name]` or `technical/[name]` (comma-separated if multiple)
 **Base Branch:** base branch per `arc-config.yml` (typically `main`)
 ```
 
