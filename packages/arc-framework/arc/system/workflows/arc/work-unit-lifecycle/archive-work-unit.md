@@ -169,7 +169,7 @@ See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
 ### 7) Commit Archive Changes
 
 ```bash
-git add .arc/reference/archive/{quarter}/{category}/{name}/
+git add .arc/reference/archive/{quarter}/{category}/{NN}_{name}/
 git add .arc/active/{category}/  # captures file deletions (including the status file git-rm'd in Step 4)
 ```
 
