@@ -169,7 +169,8 @@ decisions are made, not on a schedule.
 
 Project definition is complete. Three of these documents — AGENT-BRIEFING.PROJECT,
 QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
-session. The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are reference
+session.
+The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are reference
 material for consulting during planning and architecture decisions.
 
 Clear your context and start a fresh session with `/arc-resume`. With no active work unit
