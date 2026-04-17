@@ -14,8 +14,8 @@ tool_use "Read .arc/active/feature/${PROJECT_TASK_LIST}"
 
 sleep 0.6
 
-# --- Phase 3: Verify WORK-STATUS, write session notes, sync ---
-agent_text "  WORK-STATUS.md is current — updated with last commit."
+# --- Phase 3: Verify status file, write session notes, sync ---
+agent_text "  Active status file is current — updated with last commit."
 sleep 0.4
 
 tool_use "Write .arc/user/andrew/SESSION-NOTES.md"

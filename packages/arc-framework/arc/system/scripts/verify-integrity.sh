@@ -88,13 +88,15 @@ check_file() {
     fi
 }
 
-# Core files that must exist in every ARC installation
+# Core files that must exist in every ARC installation.
+# Note: active/ is lazily created at first work unit activation — no core-file
+# check for status files here; the Session State section below handles
+# presence/validation.
 check_file "$ARC_DIR/system/agent/AGENT-BRIEFING.ARC.md" "Agent briefing (ARC)"
 check_file "$ARC_DIR/system/agent/AGENT-BRIEFING.PROJECT.md" "Agent briefing (project)"
 check_file "$ARC_DIR/reference/constitution/DEV-RULES.ARC.md" "Dev rules (ARC)"
 check_file "$ARC_DIR/reference/constitution/DEV-RULES.PROJECT.md" "Dev rules (project)"
 check_file "$ARC_DIR/reference/QUICK-REFERENCE.md" "Quick reference"
-check_file "$ARC_DIR/active/WORK-STATUS.md" "Work status"
 check_file "$ARC_DIR/system/arc-config.yml" "Config file"
 check_file "$ARC_DIR/system/workflows/arc-methods.md" "Methods file"
 check_file "$ARC_DIR/system/workflows/arc-extensions.md" "Extensions file"
@@ -279,43 +281,64 @@ echo ""
 
 echo "--- Session State ---"
 
-work_status="$ARC_DIR/active/WORK-STATUS.md"
+# Scan for active status files under .arc/active/.
+# Full mode: active/{category}/status-{name}.md (depth 2).
+# Lite mode support can be added here (active/status.md at depth 1) when Lite lands.
+status_files=()
+if [ -d "$ARC_DIR/active" ]; then
+    while IFS= read -r f; do
+        [ -n "$f" ] && status_files+=("$f")
+    done < <(find "$ARC_DIR/active" -mindepth 2 -maxdepth 2 -type f -name 'status-*.md' 2>/dev/null)
+fi
 
-if [ -f "$work_status" ]; then
-    # Check task list path if specified
-    task_list_line=$(grep -E '^\*\*Task List\*\*' "$work_status" 2>/dev/null | head -1)
-    if [ -n "$task_list_line" ]; then
-        # shellcheck disable=SC2016 # Single quotes intentional — matching literal backticks
-        task_list_path=$(echo "$task_list_line" | sed -E 's/.*`([^`]+)`.*/\1/' | sed 's/^[[:space:]]*//')
+if [ ${#status_files[@]} -eq 0 ]; then
+    info "No active status file (normal between work units)"
+else
+    if [ ${#status_files[@]} -gt 1 ]; then
+        info "Multiple active status files found (${#status_files[@]}) — verifying each; disambiguation is a session-init concern"
+    fi
+    for work_status in "${status_files[@]}"; do
+        status_dir=$(dirname "$work_status")
+        status_rel="${work_status#"$ARC_DIR"/}"
 
-        if echo "$task_list_path" | grep -q '\[none\]'; then
-            info "No active task list"
-        elif [ -n "$task_list_path" ] && [ "$task_list_path" != "$task_list_line" ]; then
-            if [ -f "$task_list_path" ]; then
-                pass "Task list exists: $task_list_path"
+        # Read the Task List field (filename relative to status file's directory)
+        task_list_line=$(grep -E '^\*\*Task List:\*\*' "$work_status" 2>/dev/null | head -1)
+        if [ -z "$task_list_line" ]; then
+            continue
+        fi
+        task_list_name=$(echo "$task_list_line" | sed -E 's/^\*\*Task List:\*\*[[:space:]]*//' | sed 's/[[:space:]]*$//')
 
-                # Check next task reference resolves
-                next_task_line=$(grep -E '^\*\*Next Task\*\*' "$work_status" 2>/dev/null | head -1)
-                if [ -n "$next_task_line" ]; then
-                    # Extract task number (e.g., "Task 3.5")
-                    task_num=$(echo "$next_task_line" | grep -oE 'Task [0-9]+\.[0-9]+' | head -1)
-                    if [ -n "$task_num" ]; then
-                        # Extract just the number part for searching
-                        num_part="${task_num#Task }"
-                        if grep -qF -- "$num_part" "$task_list_path" 2>/dev/null; then
-                            pass "Next task reference resolves: $task_num"
-                        else
-                            warn "Next task reference may be stale: $task_num not found in task list"
-                        fi
-                    fi
+        if echo "$task_list_name" | grep -q '\[none\]'; then
+            info "No active task list ($status_rel)"
+            continue
+        fi
+        if [ -z "$task_list_name" ]; then
+            continue
+        fi
+
+        # Resolve the task list path relative to the status file's directory
+        task_list_path="${status_dir}/${task_list_name}"
+        if [ ! -f "$task_list_path" ]; then
+            error "Task list path in $status_rel does not exist: $task_list_path"
+            continue
+        fi
+        pass "Task list exists: $task_list_path"
+
+        # Check that the Next Task reference resolves inside the task list
+        next_task_line=$(grep -E '^\*\*Next Task:\*\*' "$work_status" 2>/dev/null | head -1)
+        if [ -n "$next_task_line" ]; then
+            task_num=$(echo "$next_task_line" | grep -oE 'Task [0-9]+\.[0-9]+' | head -1)
+            if [ -n "$task_num" ]; then
+                num_part="${task_num#Task }"
+                # Anchor on task-list entry shape so e.g. "1.1" doesn't false-match "1.10".
+                if grep -qE "^[[:space:]]*-[[:space:]]*\[[x~ ]\][[:space:]]*\*?\*?${num_part}([[:space:]]|\*|$)" "$task_list_path" 2>/dev/null; then
+                    pass "Next task reference resolves: $task_num"
+                else
+                    warn "Next task reference may be stale: $task_num not found in task list"
                 fi
-            else
-                error "Task list path in WORK-STATUS.md does not exist: $task_list_path"
             fi
         fi
-    fi
-else
-    error "WORK-STATUS.md missing"
+    done
 fi
 
 echo ""

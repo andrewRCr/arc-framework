@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-16
 
 ---
 
@@ -98,9 +98,39 @@ and update behavior, conditional content architecture, ARC skill expansion.
 
 - PRD: `technical/prd-methodology-maturation.md`
 - Upstream: WU4 (beta-ready repo, stable methodology surface to audit)
-- Downstream: ARCd Rebrand
+- Downstream: Work-Status Restructure
 
-**ARCd Rebrand** — After Methodology Maturation
+**Work-Status Restructure** — In Progress (April 2026)
+
+Replace the singular tracked `.arc/active/WORK-STATUS.md` with a per-work-unit status file
+pattern (`.arc/active/{category}/status-{name}.md`), disentangling the project pointer from
+the session pointer. Eliminates the parallel-WU concurrency flaw and base-branch staleness
+dead-ends under full protection. Lands a new `deactivate-work-unit.md` workflow, drops
+`**Following Task List**` from the status template (R17), and dogfoods its own output at the
+Phase 3 live-migration cutover point.
+
+- PRD: `technical/prd-work-status-restructure.md`
+- Upstream: Methodology Maturation (stable methodology surface, dual-copy sync discipline)
+- Downstream: Session-Init Optimization (stable session-init substrate to optimize),
+  ARCd Rebrand (first real exercise of the per-WU status file model across rotating branches)
+
+**Session-Init Optimization** — After Work-Status Restructure
+
+Reduce session-init token cost (~40k loadset, ~70–80k observed at orientation completion with
+harness overhead) toward a defensible ~22–28k floor by shifting front-loaded reference content
+to JIT loading via reliable workflow triggers. Commissioned from the Work-Status Restructure
+WU via a session-init context-load audit. Adds a "Method and extension loading" rule to
+DEV-RULES.ARC, splits `arc-config.yml` into a user file + sibling defaults file, removes
+full-reads of `arc-methods.md` and `arc-extensions.md` from the parallel batch, and applies
+secondary content-hygiene trims to QUICK-REFERENCE, DEV-RULES.ARC, STRATEGY-INDEX, and the
+task-list partial-read spec.
+
+- Plan: `technical/plan-session-init-optimization.md`
+- Upstream: Work-Status Restructure (overlapping edits on session-init.md would conflict;
+  session-init substrate must stabilize first)
+- Downstream: ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
+
+**ARCd Rebrand** — After Session-Init Optimization
 
 Rebrand ARC → ARCd as the public product brand while preserving ARC as the methodology and
 workflow vocabulary. Split architecture: ARCd names the public implementation surface
@@ -112,7 +142,8 @@ Operating Modes WU scope — same-surface editorial pass avoids a second churn e
 before Operating Modes and public release.
 
 - Plan: `technical/plan-arcd-rebrand.md`
-- Upstream: Methodology Maturation (same-surface churn avoidance)
+- Upstream: Session-Init Optimization (lean session-init surface for terminology sweep),
+  Methodology Maturation (same-surface churn avoidance)
 - Downstream: Expanded Planning Path, Operating Modes, WU5
 
 **Expanded Planning Path** — After ARCd Rebrand
@@ -188,21 +219,25 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │
    │     │     │     │     │     ├──► Methodology Maturation ✅
    │     │     │     │     │     │     │
-   │     │     │     │     │     │     ├──► ARCd Rebrand
+   │     │     │     │     │     │     ├──► Work-Status Restructure
    │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     ├──► Expanded Planning Path
+   │     │     │     │     │     │     │     ├──► Session-Init Optimization
    │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     ├──► ARCd Rebrand
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
-   │     │     │     │     │     │     │     │     │     │           ▲
-   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
-   │     │                                                          ▲
-   │     └──────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
-   │                                                                ▲
-   └────────────────────────────────────────────────────────────────┘
+   │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
+   │     │     │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
+   │     │     │     │     │     │     │     │     │     │     │     │           ▲
+   │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────────────┘ (content can start after WU2)
+   │     │                                                                          ▲
+   │     └──────────────────────────────────────────────────────────────────────────┘ (philosophy informs docs + README)
+   │                                                                                ▲
+   └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Parallelism:** WU5 docs site content and README drafts can begin after WU1+WU2 without
@@ -254,6 +289,15 @@ site structure.
 
 ## Change Log
 
+- **2026-04-16**: Session-Init Optimization inserted between Work-Status Restructure and
+  ARCd Rebrand. Commissioned mid-WU via the session-init context-load audit captured in
+  `atomic-work-status-restructure.md`. Audit surfaced an architectural opportunity
+  (JIT-migration over belt-and-suspenders front-load) beyond the initial file-by-file
+  trim scope. Scheduled immediately after the current WU merges so edits to `session-init.md`
+  don't compound.
+- **2026-04-15**: Work-Status Restructure inserted between Methodology Maturation and ARCd Rebrand;
+  activated on `technical/work-status-restructure`. Structural fix for WORK-STATUS.md so the rebrand
+  WU can be the first real exercise of the per-WU status file model across rotating branches
 - **2026-04-14**: Phase C re-sequenced — ARCd Rebrand and Expanded Planning Path inserted before
   Operating Modes; modes plan doc parked PRD-ready with pre-approved foundation → Lite+Local split
   fallback

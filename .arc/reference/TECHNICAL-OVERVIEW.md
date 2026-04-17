@@ -44,7 +44,7 @@ customized, and committed to their repositories.
 - **Agent files** (`system/agent/`) — Per-agent instruction files (CLAUDE, CODEX, GEMINI,
   Copilot, Cursor, Windsurf, Warp)
 - **Git hooks** (`system/githooks/`) — Commit message validation, format enforcement
-- **Active workspace** (`active/`) — Current work (WORK-STATUS, task lists by category)
+- **Active workspace** (`active/`) — Current work (per-WU status files, task lists by category)
 - **Backlog** (`backlog/`) — Future work pipeline (ROADMAP, category backlogs)
 
 ### CLI Package (`packages/arc-framework/`)

@@ -37,6 +37,7 @@ Planned work that adds user-visible capabilities from product vision.
 - Tasks: `.arc/active/feature/tasks-<name>.md`
 - Notes: `.arc/active/feature/notes-<name>.md` (optional)
 - Atomic: `.arc/active/feature/atomic-<name>.md` (companion)
+- Status: `.arc/active/feature/status-<name>.md` (per-WU state pointer)
 - Git branch: `feature/<name>`
 
 ### Technical Work (Infrastructure Improvements)
@@ -49,6 +50,7 @@ Planned work that improves codebase quality, architecture, or developer experien
 - Tasks: `.arc/active/technical/tasks-<name>.md`
 - Notes: `.arc/active/technical/notes-<name>.md` (optional)
 - Atomic: `.arc/active/technical/atomic-<name>.md` (companion)
+- Status: `.arc/active/technical/status-<name>.md` (per-WU state pointer)
 - Git branch: `technical/<name>`
 
 ### Incidental Work (Reactive Quality Improvements)
@@ -61,6 +63,7 @@ See [Incidental Work Model](#incidental-work-model) for branching and lifecycle.
 - Tasks: `.arc/active/incidental/tasks-<name>.md`
 - Notes: `.arc/active/incidental/notes-<name>.md` (optional)
 - Atomic: `.arc/active/incidental/atomic-<name>.md` (companion)
+- Status: `.arc/active/incidental/status-<name>.md` (per-WU state pointer)
 - Git branch: `incidental/<name>` (stacked on parent; see [Incidental Work Model](#incidental-work-model))
 
 ---
@@ -110,15 +113,15 @@ Common multi-branch patterns:
 
 **Branch scope:** One planned work unit per branch. Switching work units implies switching
 branches. Incidental task lists may live alongside the primary work when they stay on the same
-branch by design. `WORK-STATUS.md` reflects whichever work unit is currently active.
+branch by design.
 
-**WORK-STATUS.md merge behavior:** WORK-STATUS.md on the base branch stays in its "no active
-work" default state — work branches diverge with active state, and merges restore the default.
-`.gitattributes` with `merge=ours` auto-resolves local merges by keeping the target branch
-version. For PR merges (server-side, where local merge drivers don't apply), the resolution is
-always "take base" — deterministic and trivial. Post-merge workflows
-([rotate-branch][rotate-branch], [archive-work-unit][archive-work-unit]) update WORK-STATUS.md
-immediately, so the auto-resolved content is transient.
+**Per-WU status file behavior on branches.** Each active WU carries its own
+`status-{name}.md` at `active/{category}/`. The file is created by
+[activate-work-unit][activate-work-unit] on the WU's branch and deleted by
+[archive-work-unit][archive-work-unit] at the end of the WU's lifecycle. Parallel WUs on
+independent branches carry different files — no cross-branch mutation conflict is possible at
+the status-file layer. For within-WU team sub-branches sharing one file, see
+[Team Coordination Strategy][team-coordination] § Session State Merge Behavior.
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
@@ -279,8 +282,8 @@ via PR for review before implementation begins. This separates "decide what to b
   when implementation begins.
 
 - **Delivery, not activation.** Planning branches deliver artifacts to the base branch. They
-  don't start the next work unit — moving files to `active/`, updating WORK-STATUS, and
-  activation-triggered PM updates all happen post-merge during
+  don't start the next work unit — moving files to `active/`, creating the WU's
+  `status-{name}.md`, and activation-triggered PM updates all happen post-merge during
   [activate-work-unit][activate-work-unit]. For the PR and merge step, see
   [integrate-planning-branch][integrate-planning-branch].
 
@@ -306,8 +309,9 @@ via PR for review before implementation begins. This separates "decide what to b
   the base branch. Activation happens after the batch PR merges (implementation branch is
   created from the base branch, not the batch branch). The scope boundary is the PR merge:
   archival-triggered PM updates (ROADMAP marking the completed WU) belong on the batch branch;
-  activation-triggered updates (ROADMAP marking the new WU, WORK-STATUS, file moves) belong in
-  step 6. See [integrate-planning-branch][integrate-planning-branch] for operational detail.
+  activation-triggered updates (ROADMAP marking the new WU, new `status-{name}.md` creation,
+  file moves) belong in step 6. See [integrate-planning-branch][integrate-planning-branch] for
+  operational detail.
 
 ---
 
@@ -317,14 +321,18 @@ via PR for review before implementation begins. This separates "decide what to b
 
 ```text
 .arc/active/
-  WORK-STATUS.md
   feature/
-    prd-<name>.md, tasks-<name>.md, notes-<name>.md, atomic-<name>.md
+    prd-<name>.md, tasks-<name>.md, notes-<name>.md,
+    atomic-<name>.md, status-<name>.md,
+    completion-<name>.md (created before PR)
   technical/
-    prd-<name>.md, tasks-<name>.md, notes-<name>.md, atomic-<name>.md
+    prd-<name>.md, tasks-<name>.md, notes-<name>.md,
+    atomic-<name>.md, status-<name>.md,
+    completion-<name>.md (created before PR)
   incidental/
     tasks-<name>.md, notes-<name>.md (optional),
-    atomic-<name>.md, completion-<name>.md (created before PR)
+    atomic-<name>.md, status-<name>.md,
+    completion-<name>.md (created before PR)
 ```
 
 ### Archive
@@ -384,6 +392,5 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [config-arch]: strategy-configurability-architecture.md
-[rotate-branch]: ../../../system/workflows/arc/work-unit-lifecycle/rotate-branch.md
 [activate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: ../../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md

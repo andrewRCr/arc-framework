@@ -9,7 +9,6 @@
 `technical/arcd-rebrand-self-migrate` (Phase 6 + Phase 7 + final integration,
 created after Phase 5 merge)
 **Base Branch:** `main`
-**Status:** Not Started
 
 ## Overview
 
@@ -483,13 +482,23 @@ completes [`rotate-branch.md`][rotate-branch] Step 4–5 interrupted by session 
         - `https://github.com/andrewRCr/arc-framework` should redirect (GitHub auto-redirects old
           repo URLs for a transitional window; do not rely on this long-term)
 
-- [ ] **3.2 Update local clone remote URL**
+- [ ] **3.2 Update local clone for new remote**
 
     - [ ] **3.2.a `git remote set-url` origin**
         - `git remote set-url origin git@github.com:andrewRCr/ARCd-framework.git` (or HTTPS form
           per local preference)
         - Verify with `git remote -v`
         - Test: `git fetch origin` succeeds against the new URL
+
+    - [ ] **3.2.b Rename local clone directory for consistency**
+        - Open a fresh shell at the parent directory (not inside the clone being moved)
+        - `mv arc-framework/ ARCd-framework/` (or platform equivalent)
+        - Update shell aliases, IDE workspace files, direnv/envrc configs, and any tooling
+          pointing at the old path
+        - `cd` into the renamed directory; verify `git status` and `git remote -v` work cleanly
+        - Note: `install_config.repo_root` in `.arc/system/.internal/manifest.json` now holds the
+          stale path. It stays stale through Phases 3–5 without causing test failures (rendered
+          `.arc/` content still matches) and gets refreshed to the new path in Task 6.4.
 
 - [ ] **3.3 Create Phase 3 branch**
 
@@ -503,9 +512,9 @@ completes [`rotate-branch.md`][rotate-branch] Step 4–5 interrupted by session 
         - Add `technical/arcd-rebrand-post-rename-cleanup` to the task list header's `Branch(es)`
           list; stage with other Phase 3 commits
 
-    - [ ] **3.3.c Update WORK-STATUS.md**
-        - Branch field → `technical/arcd-rebrand-post-rename-cleanup`
-        - Next Task → triple-anchor for Task 3.4 or the next unchecked
+    - [ ] **3.3.c Update status file** (`.arc/active/technical/status-arcd-rebrand.md`)
+        - `**Branch:**` field → `technical/arcd-rebrand-post-rename-cleanup`
+        - `**Next Task:**` → triple-anchor for Task 3.4 or the next unchecked
 
 - [ ] **3.4 Stale reference sweep post-rename**
 
@@ -534,7 +543,7 @@ completes [`rotate-branch.md`][rotate-branch] Step 4–5 interrupted by session 
 
 - [ ] **3.6 Commit post-rename cleanup**
 
-    - [ ] **3.6.a Stage and commit any sweep fixes + task list / WORK-STATUS updates**
+    - [ ] **3.6.a Stage and commit any sweep fixes + task list / status file updates**
         - Commit type: `chore(arc)` for URL updates; `docs(arc)` for prose fixes
         - `Context: tasks-arcd-rebrand.md (Task 3.x)` or range
 
@@ -563,7 +572,8 @@ Covers PRD R1, R3.
     - [ ] **4.1.a Branch from `main`**
         - `git switch main && git pull origin main`
         - `git switch -c technical/arcd-rebrand-publish`
-        - Update task list `Branch(es)` field and WORK-STATUS.md
+        - Update task list `Branch(es)` field and status file
+          (`.arc/active/technical/status-arcd-rebrand.md`)
 
 - [ ] **4.2 Publish prep**
 
@@ -652,7 +662,7 @@ Covers PRD R1, R3.
 Publishing `@arc-framework/cli@0.1.1` requires a separate directory with its own minimal
 `package.json` (name `@arc-framework/cli`). This Phase creates that directory **outside the tracked
 repo tree** (e.g., `/tmp/arc-framework-cli-deprecation`), publishes from there, and discards it after
-the publish + deprecate flag land. The branch itself carries only task list / WORK-STATUS updates —
+the publish + deprecate flag land. The branch itself carries only task list / status file updates —
 no code changes to tracked files.
 
 - [ ] **5.1 Create Phase 5 branch**
@@ -660,7 +670,8 @@ no code changes to tracked files.
     - [ ] **5.1.a Branch from `main`**
         - `git switch main && git pull origin main`
         - `git switch -c technical/arcd-rebrand-deprecate`
-        - Update task list `Branch(es)` field and WORK-STATUS.md
+        - Update task list `Branch(es)` field and status file
+          (`.arc/active/technical/status-arcd-rebrand.md`)
 
 - [ ] **5.2 Prepare ephemeral deprecation package**
 
@@ -759,7 +770,7 @@ Phase 7 verification, and the final [`integrate-work-unit.md`][integrate-work-un
         - `git switch main && git pull origin main`
         - `git switch -c technical/arcd-rebrand-self-migrate`
         - Update task list `Branch(es)` field (mark this as the final branch)
-        - Update WORK-STATUS.md
+        - Update status file (`.arc/active/technical/status-arcd-rebrand.md`)
 
 - [ ] **6.2 Rename installed config file**
 
@@ -788,6 +799,10 @@ Phase 7 verification, and the final [`integrate-work-unit.md`][integrate-work-un
     - [ ] **6.4.a Update `.arc/system/.internal/manifest.json`**
         - Bump stored `schemaVersion` to match Phase 1.6's `MANIFEST_SCHEMA_VERSION`
         - Regenerate file hashes for all framework files in `.arc/`
+        - **Update `install_config.repo_root`** to the new directory path (set automatically when
+          the `arcd` CLI regenerates; hand-edit if no CLI path). Field was added by WU
+          Work-Status Restructure to capture install-time repo path for the framework-sync drift
+          check; Task 3.2.b left it pointing at the stale pre-rename path.
         - Prefer using the `arcd` CLI if a refresh-manifest subcommand exists; otherwise hand-edit
           the manifest JSON and recompute hashes via the CLI's hash utility
 

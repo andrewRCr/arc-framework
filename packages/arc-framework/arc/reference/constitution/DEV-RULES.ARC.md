@@ -41,13 +41,14 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
   `git diff <file>` — other tasks may have uncommitted work in the same file
 - **Task list accuracy:** Before committing, verify task documentation reflects completed work
   (parent task marked `[x]` if all subtasks complete). Stage task list updates with the commit
-- **Work status accuracy:** When committing work that changes project state, update WORK-STATUS.md
-  to reflect the post-commit state and stage it alongside the other changes. This applies to task
-  completion (advance Next Task, Last Completed, Next Action), but also to planning-phase commits
-  (PRD creation, task generation, activation, archival) that change the branch, next action, or
-  active work unit. Session handoff catches missed updates as a fallback, but commit-time is primary.
+- **Work status accuracy:** When committing work that changes project state, update the active
+  WU's `status-{name}.md` (at `active/{category}/`) to reflect the post-commit state and stage
+  it alongside the other changes. This applies to task completion (advance Next Task, Last
+  Completed, Next Action), but also to planning-phase commits (PRD creation, task generation,
+  activation, archival) that change the branch, next action, or active work unit. Session
+  handoff catches missed updates as a fallback, but commit-time is primary.
   **Contributor override:** Contributors (`arc.role = contributor`) do not update project-level
-  WORK-STATUS.md — see [AGENT-BRIEFING.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
+  status files — see [AGENT-BRIEFING.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
@@ -187,12 +188,13 @@ loop within each task — one behavior at a time, never batching all tests befor
 
 Session state uses two files with different update triggers:
 
-- **WORK-STATUS.md** (tracked, `active/`) — updated at commit time and session handoff only
+- **`status-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer,
+  updated at commit time and session handoff only
     - **Commit time**: Advance alongside task list changes (§ Commit Discipline, "Work status
       accuracy"). Staged as part of the commit — not a separate operation.
     - **Session handoff**: If dirty with no pending commit, propose a standalone commit.
     - **Not at other times** — mid-session updates are churn. The next session recovers state
-      from committed WORK-STATUS.md, git log, and task list checkboxes.
+      from the committed `status-{name}.md`, git log, and task list checkboxes.
 - **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
   Personal working context for the next session. Each developer has their own directory
   (`user/{identity}/`), so concurrent developers don't conflict on session state. Portability
@@ -313,7 +315,8 @@ document.
 handoffs describe what the artifact delivers, not the author's workflow continuity. A PR
 reader is reviewing a change set; they don't need a map of which session comes next. Workflow
 continuity (post-merge activation, next actions, session boundaries, file-retirement metadata
-tied to specific commits) belongs in WORK-STATUS and SESSION-NOTES, not in the artifact body.
+tied to specific commits) belongs in the active WU's `status-{name}.md` and SESSION-NOTES,
+not in the artifact body.
 
 **Examples of reader-hostile patterns:**
 
@@ -336,10 +339,10 @@ These documents contain detailed procedures for specific activities — procedur
 session initialization.
 
 - **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
-  conditionally at session-init when WORK-STATUS shows active task work (see session-init item 11).
-  If it wasn't loaded at init (no active task list, or session pivoted to task execution), load it
-  before beginning any task. The workflow's method dependencies block triggers loading of
-  issue-triage, quality-gate-commands, and (conditionally) test-first
+  conditionally at session-init when the active `status-{name}.md` shows active task work (see
+  session-init item 11). If it wasn't loaded at init (no active task list, or session pivoted
+  to task execution), load it before beginning any task. The workflow's method dependencies
+  block triggers loading of issue-triage, quality-gate-commands, and (conditionally) test-first
 - **Before complex commits:** Load the [commit guide][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis. The workflow's method dependencies block triggers
   loading of commit-format and commit-context-format

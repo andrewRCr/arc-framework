@@ -8,8 +8,8 @@ reviewable deliverable.
 
 **When to use:** All tasks in the task list are marked `[x]` and the verification phase has passed.
 
-**What comes after:** Once merged, run [archive-work-unit][archive-work-unit] to move files to the archive
-and reset tracking state.
+**What comes after:** Once merged, run [archive-work-unit][archive-work-unit] to move files to the archive and
+delete the per-WU status file.
 
 **Multi-branch work units** follow three operations across their lifecycle:
 
@@ -17,11 +17,12 @@ and reset tracking state.
    Merge the branch, set up the next one, continue working. No completion doc, no archival.
    See [rotate-branch][rotate-branch] workflow.
 2. **Integrate** — This workflow. All tasks complete. Prepare docs, review, PR, merge.
-3. **Archive** — Post-merge. Move files to archive, update tracking. See
+3. **Archive** — Post-merge. Move files to archive, delete the status file. See
    [archive-work-unit][archive-work-unit].
 
-Rotation may happen multiple times during a work unit; integration and archival each happen exactly once
-at the end.
+Rotation may happen multiple times during a work unit; integration and archival each happen exactly once at the
+end. The per-WU status file travels with the task list across rotations via normal merge flow — no
+mid-lifecycle resets or absorbs.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
@@ -51,12 +52,10 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 ### 1) Verify Work Completion
 
 - [ ] All task list subtasks and parent tasks marked `[x]`
-- [ ] Task list header `**Status:**` updated to `Complete`
 - [ ] Task list Success Criteria all checked (expected — verification phase should have validated these)
 - [ ] PRD alignment (if PRD exists — planned work only):
     - [ ] Confirm success criteria against PRD — second pass after verification phase. Note any
       deviations or criteria met differently than originally planned
-    - [ ] PRD header `**Status:**` updated to `Complete`
     - [ ] PRD Open Questions resolved with brief notes on decisions made
 - [ ] All quality gates passed (documented as completed subtasks in task list)
 - [ ] Implementation verified in development environment (if applicable — documentation-only work may not need this)
@@ -103,7 +102,10 @@ just a keep/delete decision.
 **Run [clean-work-unit.md](clean-work-unit.md) workflow in Mode 2 (Archival Preparation).**
 
 This produces: clean task file (temporal markers removed, detailed granularity preserved), notes file
-evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), cross-references updated.
+evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), cross-references updated,
+and the status file `**State:**` field set to `Complete`.
+
+**Verify before proceeding:** Confirm the status file `**State:**` now reads `Complete`.
 
 ### 3) Create Completion Metadata
 
@@ -113,16 +115,27 @@ based on work complexity. Complete the verification checklist (standard template
 
 ### 4) Commit Documentation Changes
 
-Commit all documentation updates to the child branch. Stage the entire work unit directory —
-this captures all modified, added, and deleted files without requiring explicit enumeration.
+Commit all documentation updates to the child branch. Stage the work unit's files by the
+`*-{name}.md` name-suffix glob — this scopes to the current WU (category directories can hold
+multiple WUs in parallel or across overlapping lifecycles) and captures all modified, added,
+and deleted files for this WU in one pattern.
 
 ```bash
-git add .arc/active/{category}/
+git add .arc/active/{category}/*-{name}.md
 ```
 
-**What this stages:** Task list, notes, completion doc, PRD (if planned work), atomic companion
-file, and any supplementary files (analysis, research) kept in Step 1c. Unmodified files are
+**What this stages:** Task list, notes, completion doc, PRD (if planned work), status file,
+and atomic companion file — all follow the `*-{name}.md` convention. Unmodified files are
 no-ops.
+
+**Supplementary files:** If analysis/research files were kept in Step 1c and their filenames
+don't include `{name}` (free-form-named, e.g., `analysis-reviewer-response.md`), add them
+explicitly alongside the glob:
+
+```bash
+git add .arc/active/{category}/*-{name}.md \
+       .arc/active/{category}/analysis-{topic}.md
+```
 
 **Atomic companion file:** If `atomic-{name}.md` contains no checkbox items (no `- [` lines),
 delete it before staging — an empty companion file has no archival value. If it contains
@@ -132,7 +145,7 @@ task list.
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
 context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
-integration use the same pattern.
+integration use the `(code review)` footer instead — see `arc-methods.md` § commit-context-format.
 
 **⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
 
@@ -141,6 +154,12 @@ integration use the same pattern.
 ## Phase 2: Code Review & Merge
 
 **Context:** Still on child branch, docs are clean and committed. **PR is not created yet.**
+
+**Status file discipline:** Once `clean-work-unit.md` Mode 2 has written
+`**State:** Complete`, the status file is stable through the review and merge window. Update
+it only for phase-boundary events (Step 6c below; substantive deliverable change driven by
+review, rare; archival). Cycle-level review context — findings in flight, drafted replies,
+pass numbers — belongs in SESSION-NOTES and the PR itself, not in the status file.
 
 ### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`
 
@@ -167,7 +186,7 @@ If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 1. Execute the [pre-merge-review method][arc-methods-pmr] — review the aggregate diff, classify
    findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
 2. If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them
-3. Commit any fixes with the `(integration)` context footer
+3. Commit any fixes with the `(code review)` context footer
 
 When disabled, proceed directly to push and PR creation.
 
@@ -186,13 +205,13 @@ delivered state:
 Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
 description — stale metadata in the PR undermines the review it's meant to support.
 
-### 6c) Update WORK-STATUS.md
+### 6c) Update Status File
 
-Update WORK-STATUS.md so Next Action reflects the current integration step (e.g., "integrate-work-unit
-Step 7 — push and create PR"). Stage and commit with the `(integration)` context footer — bundle
-with the Step 6b commit if one is being made, or commit standalone if no other Phase 2 changes
-exist. This ensures WORK-STATUS is committed before the PR is created — a standalone WORK-STATUS
-commit after push resets automated PR reviews.
+Update the per-WU status file (`.arc/active/{category}/status-{name}.md`) so `**Next Action:**` reflects the
+current integration step (e.g., "integrate-work-unit Step 7 — push and create PR"). Stage and commit with the
+`(integration)` context footer — bundle with the Step 6b commit if one is being made, or commit standalone if
+no other Phase 2 changes exist. This ensures the status file is committed before the PR is created — a
+standalone status-file commit after push resets automated PR reviews.
 
 ### 7) Push and Create PR
 
@@ -203,8 +222,12 @@ gh pr create --base {parent-branch} --head {branch-name}
 
 Use `completion-{name}.md` as PR description template — copy/adapt sections for the PR body.
 When adapting, do not add new sections describing post-merge workflow continuity or next
-actions — those belong in WORK-STATUS and SESSION-NOTES, not the PR body. The reader is
+actions — those belong in the status file and SESSION-NOTES, not the PR body. The reader is
 reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
+
+**After the PR is created:** Update the completion doc's `**Pull Request:**` field with the PR URL
+returned by `gh pr create`. Commit alongside any Step 8 review-driven fixes, or standalone if
+none (with `(integration)` context footer).
 
 ### 8) Address PR Review Findings
 
@@ -215,7 +238,7 @@ Process findings from PR reviewers (human or automated) using the
 - **Defer/reject**: Document reason in PR reply
 - **Update completion metadata** if work outcomes changed (completion doc should reflect final state)
 - **Re-run Tier 1 quality gates** on all modified files — mandatory after review-driven commits
-- Commit fixes with the `(integration)` context footer
+- Commit fixes with the `(code review)` context footer
 
 ### 9) Merge Pull Request
 
@@ -266,21 +289,32 @@ git pull origin {parent-branch}
 **When to use:** Work where significant progress was made before an architectural decision changed direction.
 Earlier phases remain valid (will be used by new approach), but later phases are obsolete.
 
-**Status field:** `**Status:** Superseded (partial)`
+**State value:** `Superseded (partial)` on the status file (see [`template-status.md`][template-status] State enum).
 
 **Required elements:**
 
-1. **Header metadata:**
+1. **Status file** (during life — deleted at archive):
 
    ```markdown
-   **Completed:** YYYY-MM-DD
-   **Status:** Superseded (partial)
+   **State:** Superseded (partial)
    **Superseded By:** `tasks-{new-approach}.md` (YYYY-MM-DD)
    ```
 
-2. **Supersession rationale:** Brief explanation of what triggered the change and what remains valid vs obsolete.
+   `Superseded By:` is an optional status-file field documented in [`template-status.md`][template-status].
 
-3. **Decision point marker:** Insert before first superseded task:
+2. **Completion doc** (archival record):
+
+   ```markdown
+   **Superseded By:** `tasks-{new-approach}.md` (YYYY-MM-DD)
+   ```
+
+   Also document in the body what was completed vs superseded — the completion doc is the archival
+   entry point, so this narrative needs to stand alone without the status file.
+
+3. **Supersession rationale** (in the task list body): Brief explanation of what triggered the change and
+   what remains valid vs obsolete.
+
+4. **Decision point marker** (in the task list body): Insert before first superseded task:
 
    ```markdown
    ---
@@ -292,7 +326,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    ---
    ```
 
-4. **Mark superseded tasks with `[~]`:** Clearly indicates tasks weren't abandoned without thought:
+5. **Mark superseded tasks with `[~]`:** Clearly indicates tasks weren't abandoned without thought:
 
    ```markdown
    - [~] **4.1 Task description** *(superseded by infinite scroll)*
@@ -302,10 +336,9 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    (complete). Same convention used in [success criteria][task-list-formatting] for superseded
    criteria.
 
-5. **Completion doc:** Include `**Status:** Superseded (partial)` and document what was completed vs superseded.
-
-**Key principle:** The `[~]` marker + decision point note creates clear audit trail showing intentional
-architectural pivot, not abandoned work.
+**Key principle:** The `[~]` marker + decision point note creates a clear audit trail showing intentional
+architectural pivot, not abandoned work. Header metadata (State, Superseded By) lives in the status file
+and completion doc — not on the task list header.
 
 ---
 
@@ -317,6 +350,7 @@ architectural pivot, not abandoned work.
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
+[template-status]: ../../../../reference/templates/template-status.md
 [rotate-branch]: rotate-branch.md
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md

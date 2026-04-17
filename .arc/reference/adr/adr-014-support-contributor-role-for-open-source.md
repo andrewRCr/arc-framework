@@ -107,7 +107,7 @@ When `arc.role = contributor`, session initialization:
 - **Loads**: reference layer (AGENT-BRIEFING, DEV-RULES, strategies, QUICK-REFERENCE), system layer
   (arc-config.yml, agent-specific file), and the contributor briefing document
 - **Skips**: WORK-STATUS.md, task lists, task execution workflow, backlog, next work unit discovery
-- **Checks for local planning state**: if `user/{identity}/WORK-STATUS.md` exists, loads the contributor's
+- **Checks for local planning state**: if `user/{identity}/status-contributor.md` exists, loads the contributor's
   personal planning state (see Contributor Planning below)
 - **Orients**: "Contributing to [project]. Quality gates: [commands]. What are you working on?"
 
@@ -168,7 +168,7 @@ their gitignored user directory:
 ```text
 .arc/user/{identity}/
   SESSION-NOTES.md                      ← already exists
-  WORK-STATUS.md                        ← contributor's work state
+  status-contributor.md                 ← contributor's work state
   active/
     tasks-fix-issue-42.md               ← contributor's task list
 ```

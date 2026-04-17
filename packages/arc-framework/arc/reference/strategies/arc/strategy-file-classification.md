@@ -44,7 +44,7 @@ section-level.
 Created once during `arc init` from template. User replaces all placeholder content with
 project-specific content. Never touched by framework updates.
 
-**Examples:** META-PRD, PROJECT-STATUS, WORK-STATUS, ROADMAP, backlog files.
+**Examples:** META-PRD, PROJECT-STATUS, ROADMAP, backlog files.
 
 **Update behavior:** Skip entirely. These are project-owned after initialization.
 
@@ -69,7 +69,7 @@ name their own artifacts and recognize what a file is from its name alone.
 **ALL-CAPS** files are organizational hubs — files you navigate *to* for project-wide context.
 They're dashboards, indexes, and governance documents that serve as stable reference points.
 
-Examples: `WORK-STATUS.md`, `AGENT-BRIEFING.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
+Examples: `AGENT-BRIEFING.PROJECT.md`, `QUICK-REFERENCE.md`, `DEV-RULES.ARC.md`,
 `STRATEGY-INDEX.md`, `README.md`, `META-PRD.md`, `ROADMAP.md`
 
 **Lowercase with prefix** files are instances of a pattern — files you create *from* a convention.
@@ -138,7 +138,7 @@ intent. If the plan doc can carry the work without degrading, keep it there.
 
 Files that go through the CLI render engine during `arc init` — token substitution (`{{TOKEN}}`),
 conditional content (`<!-- arc:if -->`), or full placeholder replacement — use a `.template.md`
-suffix. The suffix is stripped at init time: `WORK-STATUS.template.md` becomes `WORK-STATUS.md`,
+suffix. The suffix is stripped at init time: `ROADMAP.template.md` becomes `ROADMAP.md`,
 `AGENT-BRIEFING.PROJECT.template.md` becomes `AGENT-BRIEFING.PROJECT.md`.
 
 The suffix marks render-engine input, not classification. Both Configurable and Scaffolded files

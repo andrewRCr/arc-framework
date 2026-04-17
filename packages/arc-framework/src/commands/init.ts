@@ -199,6 +199,7 @@ export async function runInit(
       pm_mode: prompts.pm_mode,
       tools: prompts.tools,
       team_mode: prompts.team_mode,
+      repo_root: cwd,
     },
     files: manifestFiles,
   };
@@ -212,7 +213,7 @@ export async function runInit(
     }
   }
 
-  // Git integration (gitattributes, merge driver, hooks path)
+  // Git integration (hooks path)
   await configureGitIntegration({
     cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
   });

@@ -246,7 +246,7 @@ describe("resolveFileList — actual recipe", () => {
 
 describe("toOutputPath", () => {
   it("strips .template suffix from .template.md files", () => {
-    expect(toOutputPath("active/WORK-STATUS.template.md")).toBe("active/WORK-STATUS.md");
+    expect(toOutputPath("reference/META-PRD.template.md")).toBe("reference/META-PRD.md");
   });
 
   it("leaves non-template files unchanged", () => {
@@ -271,8 +271,8 @@ describe("toOutputPath", () => {
 
 describe("classifyFile", () => {
   it("classifies Scaffolded files", () => {
-    expect(classifyFile("active/WORK-STATUS.template.md")).toBe("Scaffolded");
     expect(classifyFile("reference/META-PRD.template.md")).toBe("Scaffolded");
+    expect(classifyFile("reference/PROJECT-STATUS.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
   });
 
@@ -297,7 +297,7 @@ describe("classifyFile", () => {
 
 describe("needsRendering", () => {
   it("returns true for .template files", () => {
-    expect(needsRendering("active/WORK-STATUS.template.md")).toBe(true);
+    expect(needsRendering("reference/META-PRD.template.md")).toBe(true);
     expect(needsRendering("system/workflows/arc/3_process-task-loop.template.md")).toBe(true);
   });
 
@@ -328,7 +328,7 @@ describe("buildManifestFiles", () => {
   it("creates file entries with classification, layer, and hash", () => {
     const fileContents: Record<string, string> = {
       "README.md": "# Hello",
-      "active/WORK-STATUS.md": "# Status",
+      "reference/META-PRD.md": "# Meta PRD",
     };
     const arcInGitFiles = new Set<string>();
     const entries = buildManifestFiles(fileContents, arcInGitFiles);
@@ -340,15 +340,15 @@ describe("buildManifestFiles", () => {
   });
 
   it("uses output path (not template path) for classification lookup", () => {
-    // WORK-STATUS.template.md → Scaffolded via template path, but buildManifestFiles
-    // receives the output path (WORK-STATUS.md). classifyFile checks template paths,
+    // META-PRD.template.md → Scaffolded via template path, but buildManifestFiles
+    // receives the output path (META-PRD.md). classifyFile checks template paths,
     // so the output path doesn't match SCAFFOLDED_FILES and falls through to Framework.
     const fileContents: Record<string, string> = {
-      "active/WORK-STATUS.md": "# Status",
+      "reference/META-PRD.md": "# Meta PRD",
     };
     const entries = buildManifestFiles(fileContents, new Set());
-    expect(entries["active/WORK-STATUS.md"]).toBeDefined();
-    expect(entries["active/WORK-STATUS.md"]!.classification).toBe("Framework");
+    expect(entries["reference/META-PRD.md"]).toBeDefined();
+    expect(entries["reference/META-PRD.md"]!.classification).toBe("Framework");
   });
 });
 
@@ -492,12 +492,12 @@ describe("runInit", () => {
 
   it("fresh mode: strips .template from output filenames", async () => {
     const recipe: Recipe = {
-      include_files: ["active/WORK-STATUS.template.md"],
+      include_files: ["reference/META-PRD.template.md"],
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
     const io = mockIO({
-      "/templates/active/WORK-STATUS.template.md": "# Status",
+      "/templates/reference/META-PRD.template.md": "# Meta PRD",
     });
 
     await runInit({
@@ -511,10 +511,10 @@ describe("runInit", () => {
     });
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-    const statusWrite = writeCalls.find(
-      (c) => c[0] === "/project/.arc/active/WORK-STATUS.md",
+    const metaPrdWrite = writeCalls.find(
+      (c) => c[0] === "/project/.arc/reference/META-PRD.md",
     );
-    expect(statusWrite).toBeDefined();
+    expect(metaPrdWrite).toBeDefined();
   });
 
   it("fresh mode: stores identity via git config", async () => {
@@ -671,6 +671,7 @@ describe("runInit", () => {
       pm_mode: "none",
       tools: ["claude"],
       team_mode: false,
+      repo_root: "/project",
     });
 
     const files = manifest.files as Record<string, { classification: string; pristine_hash: string }>;
@@ -684,10 +685,10 @@ describe("runInit", () => {
     const io = mockIO({
       "/templates/README.md": "# framework file",
       "/templates/system/arc-config.yml": "pm.mode: none",
-      "/templates/active/WORK-STATUS.template.md": "# scaffolded",
+      "/templates/reference/META-PRD.template.md": "# scaffolded",
     });
     const recipe: Recipe = {
-      include_files: ["README.md", "system/arc-config.yml", "active/WORK-STATUS.template.md"],
+      include_files: ["README.md", "system/arc-config.yml", "reference/META-PRD.template.md"],
       prompts: minimalRecipe.prompts,
       conditions: {},
     };
@@ -719,7 +720,7 @@ describe("runInit", () => {
     expect(pristineStore["system/arc-config.yml"]).toBeDefined();
 
     // Scaffolded file NOT in pristine store
-    expect(pristineStore["active/WORK-STATUS.md"]).toBeUndefined();
+    expect(pristineStore["reference/META-PRD.md"]).toBeUndefined();
   });
 
   it("fresh mode: returns correct filesWritten and tools for message building", async () => {
@@ -748,22 +749,19 @@ describe("runInit", () => {
     expect(result!.tools).toEqual(["claude", "cursor"]);
   });
 
-  it("fresh mode: sets up git integration (gitignore, gitattributes, config)", async () => {
+  it("fresh mode: sets up git integration (gitignore, hooks)", async () => {
     const existingGitignore = "node_modules/\n";
-    const existingGitattributes = "*.png binary\n";
     const io = mockIO({
       "/templates/README.md": "# hi",
       "/templates/system/arc-config.yml": "pm.mode: none",
-      // Provide existing gitignore/gitattributes for append operations
+      // Provide existing gitignore for append operations
       "/project/.gitignore": existingGitignore,
-      "/project/.gitattributes": existingGitattributes,
     });
 
-    // Override readFile to return existing files for gitignore/gitattributes
+    // Override readFile to return existing file for gitignore
     const origReadFile = io.readFile;
     (io as { readFile: typeof origReadFile }).readFile = vi.fn(async (path: string) => {
       if (path === "/project/.gitignore") return existingGitignore;
-      if (path === "/project/.gitattributes") return existingGitattributes;
       return origReadFile(path);
     });
 
@@ -784,7 +782,7 @@ describe("runInit", () => {
     });
 
     const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls;
-    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls;
+    const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
 
     // .gitignore updated with pristine.json and user/*/ entries
     const gitignoreWrite = writeCalls.find(
@@ -793,25 +791,23 @@ describe("runInit", () => {
     expect(gitignoreWrite).toBeDefined();
     expect(gitignoreWrite![1]).toContain(".arc/system/.internal/pristine.json");
 
-    // .gitattributes updated with WORK-STATUS.md merge=ours
-    const gitattrsWrite = writeCalls.find(
-      (c) => c[0] === "/project/.gitattributes",
-    );
-    expect(gitattrsWrite).toBeDefined();
-    expect(gitattrsWrite![1]).toContain("WORK-STATUS.md merge=ours");
-
-    // git config merge.ours.driver true
-    const mergeDriver = execCalls.find(
-      (c) => c[1]?.includes("merge.ours.driver"),
-    );
-    expect(mergeDriver).toBeDefined();
-
     // git config core.hooksPath
     const hooksPath = execCalls.find(
       (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
     expect(hooksPath![1]).toContain(".arc/system/githooks");
+
+    // guard: .gitattributes and merge driver were retired in d8e5048 — no regression
+    const gitattributesWrite = writeCalls.find(
+      (c) => c[0] === "/project/.gitattributes",
+    );
+    expect(gitattributesWrite).toBeUndefined();
+
+    const mergeDriverCall = execCalls.find(
+      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
+    );
+    expect(mergeDriverCall).toBeUndefined();
   });
 });
 

@@ -103,17 +103,20 @@ or moved without updating references.
 
 ### Session State
 
-Checks that WORK-STATUS.md exists, the task list path it references is valid, and the next task
-reference can be found in the task list.
+Scans `.arc/active/**/status-*.md` for active status files, validates each referenced task list
+path, and confirms the next task reference resolves within the task list.
 
 **Severity:**
 
-- **ERROR** — WORK-STATUS.md missing or task list path invalid.
+- **INFO** — no active status file (normal between work units).
+- **ERROR** — task list path referenced by a status file points to a missing file.
 - **WARN** — next task reference not found in task list (may be stale).
-- **INFO** — no active task list (`[none]` in WORK-STATUS.md).
+- **INFO** — multiple active status files found (verified individually; disambiguation is a
+  session-init concern, not a verify concern).
 
-**Remediation:** Update WORK-STATUS.md to reflect current state. If the task list was moved or
-renamed, update the path.
+**Remediation:** Update the affected status file to reflect current state. If the task list
+was moved or renamed, update the `**Task List:**` field. For between-WU sessions, the INFO
+case is expected — no action needed.
 
 ### Methods and Extensions
 

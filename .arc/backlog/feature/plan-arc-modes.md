@@ -4,7 +4,7 @@
 can be used. Two modes: a lightweight mode that preserves execution discipline without lifecycle ceremony,
 and a local mode that enables ARC in repositories the developer doesn't control.
 
-**Status:** Draft (design phase complete — Lite, Local, and shift lifecycle resolved; Audits A + B drained; PRD-ready)
+**State:** Draft (design phase complete — Lite, Local, and shift lifecycle resolved; Audits A + B drained; PRD-ready)
 **Created:** 2026-04-01
 **Last Updated:** 2026-04-14
 **Origin:** Developer experience gaps at both ends of the adoption spectrum — small projects need less
@@ -2594,18 +2594,17 @@ concrete gating and example content is implementation-phase detail.
 **Full field set (6 fields):** Same as Lite plus `Task List` (path to the active task list,
 required because Full may have multiple task lists across work units in the pipeline).
 
-**`Following Task List` field removed from both modes.** The Yes/No flag is redundant with the
-Next Task + Next Action pair: an off-task-list detour is readable from the mismatch between Next
-Action's subject and Next Task's subject; on-task-list preparation is readable from their
-alignment; mid-task resume is readable from Next Action referencing the same task as Next Task.
-The meta-flag adds no signal that the other two fields don't already carry. Removing it simplifies
-handoff (one less field to write), simplifies session-init orientation (one less field to parse),
-and eliminates one decision point at handoff time ("is this still 'on' the task list?").
+**`Following Task List` field removal — carved out to the Work-Status Restructure WU
+(R17).** This decision's resolution has moved out of plan-arc-modes; see
+[`prd-work-status-restructure.md`][restructure-prd] for the current source of truth. The
+FTL Yes/No flag was found redundant with the Next Task + Next Action pair, and removal
+applied symmetrically across both modes — the full reasoning, scope analysis, and
+live-migration plan are carried by the restructure WU.
 
-Scope of removal: both Lite and Full session-handoff example blocks and WORK-STATUS templates.
-This is a uniform simplification, not a mode-gated change. Folded into Finding #4's resolution
-as adjacent scope after its redundancy surfaced during Lite WORK-STATUS field-set design and
-applied symmetrically to Full on the same reasoning.
+> **Forward-looking prohibition (carried from the carve-out).** The `Following Task List`
+> field is removed as part of the Work-Status Restructure WU's R17 — the new status file
+> template does NOT carry this field. Future edits to status file templates or field sets
+> must not re-introduce it.
 
 #### Discovery gate parity with Full
 
@@ -2618,7 +2617,7 @@ Next Action `Continue Finding #4 — Lite session management`) skip discovery in
 
 **Implication for the cascade at [The Lite PRD § Cascades](#cascades-into-other-lite-surfaces):**
 The forward-pointer stating "Lite session-init document set includes `.arc/active/prd.md`,
-`.arc/active/tasks.md`, and `.arc/active/WORK-STATUS.md`. No backlog scan, no category-path
+`.arc/active/tasks.md`, and `.arc/active/status.md`. No backlog scan, no category-path
 lookup, no PRD-file discovery" stays consistent with this resolution. The cascade describes the
 discovery branch Lite runs _when_ discovery fires; most sessions never reach it because Next
 Action is concrete and the gate short-circuits.
@@ -3997,27 +3996,32 @@ simpler.
 
 **The shape:**
 
-Each task list's status header carries its own state. A paused WU's task list has, for example:
+Each WU's status file carries its own state in the `**State:**` field. A paused WU's status
+file has, for example:
 
 ```markdown
-**Status:** Paused (2026-04-09) — awaiting code review from Alice
+**State:** Paused (2026-04-09) — awaiting code review from Alice
 ```
 
 Or for external-blocking states (see [Finding B resolution](#finding-b-paused-vs-waiting-for-vocabulary-split) below):
 
 ```markdown
-**Status:** Waiting-For Review (2026-04-09) — Alice, PR #42
+**State:** Waiting-For Review (2026-04-09) — Alice, PR #42
 ```
 
-Valid `Status:` values: `In Progress` / `Paused` / `Waiting-For {category}` / `Complete`. Inline
+Valid `State:` values: `In Progress` / `Paused` / `Waiting-For {category}` / `Complete`. Inline
 date in parentheses is the pause timestamp (ceremony-free, auto-observed per Clarification #4 in
 the audit). Freeform reason follows the dash.
 
-**`WORK-STATUS.md` remains branch status, single-slot.** No In Flight registry, no Active Focus
-section, no template redesign. The current shape (flat Branch / Task List / Next Task fields)
-stands — this decision _reduces_ scope from the earlier sketch rather than adding to it. The
-semantic distinction carried in Clarification #2 of the audit is preserved: `WORK-STATUS.md`
-describes the current branch's WU; it is not a multi-WU registry.
+**Branch-local WU pointer is per-WU, single-slot.** No In Flight registry, no Active Focus
+section. Under the Work-Status Restructure WU (see
+[§ Alignment with Work-Status Restructure WU](#alignment-with-work-status-restructure-wu) below),
+the pointer is the per-WU `status-{name}.md` file in `active/{category}/` — one status file per
+WU, with a flat field set (State / Branch / Task List / Next Task / Last Completed / Blockers /
+Next Action). The file is single-slot by construction (one WU, one file); it is not a multi-WU
+registry. Pre-restructure, this role was served by a singular `active/WORK-STATUS.md`; the per-WU
+file preserves Clarification #2's semantic distinction (branch-local WU pointer) while
+eliminating the parallel-WU concurrency flaw.
 
 **No index file.** No `user/{identity}/IN-FLIGHT.md`, no per-dev cache, no registry file in any
 form. The walk's honest-failure-mode analysis demonstrated that any cache introduces drift risk
@@ -4043,26 +4047,29 @@ orientation entirely, aligned with the reframe above.
 - **Scenario 4 (person-to-person handoff):** The paused task list is in tracked `active/` and
   moves with the branch on pull. Personal context still moves via SESSION-NOTES git notes as
   today. No additional state to coordinate.
-- **Scenario 5 (activate new while one is paused):** `activate-work-unit` sets new task list's
-  `Status: In Progress`. Paused task list's header is untouched. No cross-workflow coordination.
-- **Scenario 7 (rotate between two paused WUs):** Shift updates two task list headers +
-  `WORK-STATUS.md` Active Focus (single-slot pointer to current branch's WU). Atomicity is
-  local to three file writes.
-- **Scenario 8 (resume after long pause):** Pause timestamp lives inline in the Status header.
-  Shift reads the header on resume and surfaces a staleness warning if the interval exceeds one
+- **Scenario 5 (activate new while one is paused):** `activate-work-unit` writes the new WU's
+  status file with `State: In Progress`. The paused WU's status file is untouched. No
+  cross-workflow coordination.
+- **Scenario 7 (rotate between two paused WUs):** Shift updates two status file `**State:**`
+  fields (the pausing WU's flips to `Paused (date) — reason`; the resuming WU's flips to
+  `In Progress`). Atomicity is local to two file writes; under the restructure there is no
+  separate per-branch registry pointer to update.
+- **Scenario 8 (resume after long pause):** Pause timestamp lives inline in the `State:` field.
+  Shift reads the field on resume and surfaces a staleness warning if the interval exceeds one
   week (fixed, not configurable — see [Resolved Decisions](#resolved-decisions) → "Staleness
   threshold").
-- **Scenario 9 (waiting-for-review distinction):** Encoded as a specific `Status:` value. See
+- **Scenario 9 (waiting-for-review distinction):** Encoded as a specific `State:` value. See
   Finding B resolution.
 
 **What this decision removes from scope (vs. the earlier "In Flight registry" sketch):**
 
 - Registry file design (none needed)
 - Per-dev cache file and its rebuild/self-healing logic (none needed)
-- Template redesign for `WORK-STATUS.md` (unchanged from today)
+- Multi-WU registry template (none needed — the per-WU status file is single-slot by
+  construction)
 - Session-init integration work for multi-WU reporting (unchanged — session-init stays lean)
-- Cross-file atomicity discipline between registry and task list headers (single source of
-  truth means no sync concern)
+- Cross-file atomicity discipline between registry and per-WU state (single source of truth
+  means no sync concern)
 
 The cascade of simplification from the reframe is intentional and the primary value of walking
 the scenario battery carefully — the design gets smaller, not bigger.
@@ -4076,15 +4083,17 @@ date and freeform reason format. Per the
 these headers are the sole source of truth for WU state; there is no cache or registry to keep
 in sync.
 
-**Header format:**
+**Field format:**
 
 ```markdown
-**Status:** In Progress
-**Status:** Paused (2026-04-09) — blocked on session token decision
-**Status:** Waiting-For Review (2026-04-09) — Alice, PR #42
-**Status:** Waiting-For Approval (2026-04-09) — ARB signoff expected Thursday
-**Status:** Complete
+**State:** In Progress
+**State:** Paused (2026-04-09) — blocked on session token decision
+**State:** Waiting-For Review (2026-04-09) — Alice, PR #42
+**State:** Waiting-For Approval (2026-04-09) — ARB signoff expected Thursday
+**State:** Complete
 ```
+
+PRDs retain `**Status:**` headers and follow the same value format on shift transitions.
 
 **Valid Status values:**
 
@@ -4128,8 +4137,8 @@ mechanism change beyond the existing Status header. Documentation sweep in
 
 **Scope:**
 
-- **PRD status header** — updated on shift transitions (Status value + date + reason)
-- **Task list status header** — updated on shift transitions (same format)
+- **PRD `**Status:**` header** — updated on shift transitions (value + date + reason)
+- **Status file `**State:**` field** — updated on shift transitions (same format)
 - **Supplementary docs** (`atomic-*.md`, `notes-*.md`) — deferred to implementation. Gut-level:
   skip them, they're supplementary and the churn isn't worth it. Revisit if implementation
   surfaces a reason.
@@ -4173,9 +4182,9 @@ normal options while the latter takes leave-as-is automatically.
 
 1. Gather reason and context (ask if not supplied and transition needs one)
 2. Optionally snapshot SESSION-NOTES to the WU's directory as preserved context
-3. Update the affected task list(s) Status headers — e.g., feature-x header flips from
-   `In Progress` to `Paused (YYYY-MM-DD) — reason`, and for rotations feature-y's header flips
-   from `Paused` (with its own old timestamp) to `In Progress`
+3. Update the affected WU(s) status file `**State:**` field — e.g., feature-x's State flips
+   from `In Progress` to `Paused (YYYY-MM-DD) — reason`, and for rotations feature-y's State
+   flips from `Paused` (with its own old timestamp) to `In Progress`
 4. Update PRD Status header(s) to match (same format as task list)
 5. Update `WORK-STATUS.md` to reflect the new current-branch WU (single-slot, branch-local)
 6. Persist — commit in tracked Full (via arc-commit invocation or inline commit step), backing
@@ -4211,7 +4220,7 @@ On resume transitions, the workflow additionally:
 
 1. Surfaces the preserved SESSION-NOTES snapshot (if any) as recovery context
 2. Checks branch alignment in tracked Full, suggests the switch if needed
-3. Reads the pause timestamp from the task list Status header and reports pause age (e.g.,
+3. Reads the pause timestamp from the status file `**State:**` field and reports pause age (e.g.,
    "paused 2d ago", "paused 9d ago — assumptions may be stale"). If the pause exceeds **1 week**
    (fixed, not configurable), surfaces an advisory prompt to re-read the PRD and task list
    before proceeding. The prompt is dismissible — it nudges, it doesn't gate. 1 week fits
@@ -4236,11 +4245,11 @@ summary focused on "what am I doing right now?" — which is all session-init ne
 for the common single-WU case, and all it _should_ answer for the multi-WU case where extra
 information would be noise.
 
-The only session-init touchpoint the shift lifecycle adds is **drift detection** — if
-`WORK-STATUS.md` points to a task list whose Status header reads `Paused` or `Waiting-For`,
-the orientation surfaces the mismatch ("WORK-STATUS says active, but the task list is paused —
-did you shift in another session and forget to commit `WORK-STATUS.md`?"). This is a safety
-check, not a multi-WU report.
+The only session-init touchpoint the shift lifecycle adds is **drift detection** — if the
+status file `**State:**` field reads `Paused` or `Waiting-For` while the PRD `**Status:**`
+header still says `In Progress` (or vice versa), the orientation surfaces the mismatch ("PRD
+says active, but the status file is paused — did you interrupt a shift without completing all
+updates?"). This is a safety check, not a multi-WU report.
 
 ### Skill Shape
 
@@ -4264,21 +4273,21 @@ User invocations that naturally route through `/arc-shift`:
 The shift lifecycle introduces `Paused` and `Waiting-For {category}` as valid mid-flight states for
 an in-progress work unit. `integrate-work-unit.md` is the terminal transition point — it takes a
 completed WU and prepares it for merge. Without explicit handling, the expanded state vocabulary
-leaves an ambiguity: what should integrate do when invoked on a WU whose task list header reads
-something other than `In Progress`?
+leaves an ambiguity: what should integrate do when invoked on a WU whose status file
+`**State:**` field reads something other than `In Progress`?
 
-#### Current workflow does not validate the Status header
+#### Current workflow does not validate the State field
 
 A reading of `integrate-work-unit.md` clarifies the pre-shift-lifecycle behavior. Step 1 ("Verify
 Work Completion") is agent-enforced prose. Its validation checks are: all subtasks and parent
 tasks marked `[x]`, Success Criteria all checked, quality gates passed.
 
-The Status header line in Step 1 — `[ ] Task list header **Status:** updated to Complete` — is
-phrased as an **imperative**, not a gate. It instructs the agent to ensure the header says
+The state line in Step 1 — `[ ] Status file **State:** updated to Complete` — is
+phrased as an **imperative**, not a gate. It instructs the agent to ensure the State field reads
 `Complete` before proceeding, and the transition itself is a silent side effect of Step 2's
-`clean-work-unit.md` Mode 2 run (which sets `Status: Complete` unconditionally during doc cleanup).
-There is no validation today that refuses integration if the current Status value is something
-else — the workflow effectively assumes `In Progress` and rewrites the header during prep.
+`clean-work-unit.md` Mode 2 run (which sets `State: Complete` unconditionally during doc cleanup).
+There is no validation today that refuses integration if the current State value is something
+else — the workflow effectively assumes `In Progress` and rewrites the State field during prep.
 
 This reframes Finding #13 from "add a validation layer" to **"surface the state transition
 explicitly so it can accept the shift-lifecycle vocabulary."** The resolution is primarily a
@@ -4350,7 +4359,7 @@ own the final `→ Complete` state transition?** The resolution: **integrate own
 This is already implicitly true today (`clean-work-unit.md` Mode 2 performs the transition during
 integrate's Step 2). The resolution does not move the transition; it preserves locality — the
 workflow that finalizes the WU owns the final state write — while making the entry-state check
-explicit upstream. `/arc-shift` never writes `Status: Complete`.
+explicit upstream. `/arc-shift` never writes `State: Complete`.
 
 #### Feedforward to implementation
 
@@ -4387,6 +4396,66 @@ It's universal.
   branch-local for simplicity, revisit if team mode dogfooding says otherwise.
 - **Expected-resume-date field** — useful context ("expected back Thursday") but potentially stale.
   Consider during detail design.
+
+### Alignment with Work-Status Restructure WU
+
+The Work-Status Restructure WU (see [`prd-work-status-restructure.md`][restructure-prd] and
+[`notes-work-status-restructure.md`][restructure-notes]) changes the substrate this section
+was originally designed against. Pre-restructure, state lived in task list `**Status:**`
+headers (Pure Option C, 2026-04-09) because no per-WU `WORK-STATUS`-equivalent file
+existed. Post-restructure, `**State:**` lives in a per-WU `status-{name}.md` file in
+`active/{category}/`. The shift-lifecycle design survives the substrate change — only the
+host field moves. The full re-validation record lives in
+[`notes-work-status-restructure.md`][restructure-notes] § Harmony with shift lifecycle;
+this subsection captures the load-bearing points.
+
+**Per-WU file harmonizes with metadata-in-place.** A paused WU's `status-{name}.md` stays
+where it is; its files don't move; the `**State:**` field flips in place. Rolling back a
+pause is still a metadata flip. Metadata-in-place is strengthened — status file and task
+list live next to each other in `active/{category}/` and travel together under full
+protection.
+
+**Source-of-truth simplifies.** Pure Option C chose task list headers because no per-WU
+status file existed. The restructure introduced `status-{name}.md` as the explicit per-WU
+surface, so `**State:**` joins its existing field set (Branch / Task List / Next Task /
+Last Completed / Blockers / Next Action) without new machinery. Task list `**Status:**`
+header removal (R16) retires a redundant surface. Pure Option C's concerns remain fully
+satisfied — the status file is per-WU and single-slot, not a cross-WU registry; no cache;
+no session-init multi-WU noise; session-init still reads one file per WU.
+
+**Ownership of terminal transition unchanged.** `integrate-work-unit.md` via
+`clean-work-unit.md` Mode 2 still owns the `→ Complete` write — it now writes the status
+file `**State:**` field instead of the task list `**Status:**` header. `/arc-shift` still
+never writes `Complete`.
+
+**Vocabulary unchanged.** The value set (`In Progress` / `Paused (date) — reason` /
+`Waiting-For {category} (date) — reason` / `Complete`) is preserved verbatim. Only the
+host field name changes (task list `**Status:**` → status file `**State:**`). Task 5.2 of
+the restructure WU applied the mechanical swap throughout this section.
+
+**Scenario battery re-validation.** The nine-scenario battery evaluated under
+task-list-header-as-home carries forward under status-file-as-home — each scenario's
+answer stays identical or simplifies:
+
+- **Scenarios 1–4** (solo tracked, Local, team merge, person-to-person handoff): status
+  files travel with branches just like task list headers did; same branch-local semantics
+  and portability.
+- **Scenario 5** (activate new while paused): new WU's status file is created with
+  `State: In Progress`; paused WU's status file is untouched.
+- **Scenario 7** (rotate): two status file `**State:**` writes, no separate per-branch
+  pointer. _Simplifies_ — three writes pre-restructure become two.
+- **Scenario 8** (resume after long pause): pause timestamp reads natively from the
+  `State:` field.
+- **Scenario 9** (waiting-for distinction): encoded as a specific `State:` value.
+
+No scenario breaks under the substrate change.
+
+**Mid-Session Orientation scope caveat.** The `## Mid-Session Orientation` section below
+(and the `/arc-status` skill described there) retains its original pre-restructure
+WORK-STATUS references. The `/arc-status` skill will be re-designed in its own PRD at
+activation time; those references describe skill design thinking at the time of writing.
+Read them as "the WU's status file" under the restructure premise — the underlying logic
+(on-demand multi-WU awareness via a skill, session-init stays lean) is unchanged.
 
 ---
 
@@ -4659,7 +4728,7 @@ This combination wasn't explicitly designed — it falls out of the orthogonal a
 what it actually looks like:
 
 - `.arc/` exists in working tree, untracked via `.git/info/exclude`
-- Contains: `active/prd.md`, `active/tasks.md`, `active/WORK-STATUS.md`,
+- Contains: `active/prd.md`, `active/tasks.md`, `active/status.md`,
   `user/{identity}/SESSION-NOTES.md`, plus reference/system/constitutional content
 - No `backlog/`, no `suspended/`, no `feature/` subdirs, no lifecycle workflows (Lite's contribution)
 - No `arc.role` in config, Local-mode context footer pattern, role resolution skipped (Local's
@@ -5506,6 +5575,8 @@ Session-init Local-axis pre-check.
 ---
 
 [arcd-rebrand]: ../technical/plan-arcd-rebrand.md
+[restructure-prd]: ../../active/technical/prd-work-status-restructure.md
+[restructure-notes]: ../../active/technical/notes-work-status-restructure.md
 [contrib-stress-test]: ../../reference/analysis/analysis-modes-contributor-lifecycle-stress-test.md
 [solo-audit]: ../../reference/analysis/analysis-modes-solo-dev-blind-spot-audit.md
 [task-list-formatting]: ../../reference/strategies/arc/strategy-task-list-formatting.md

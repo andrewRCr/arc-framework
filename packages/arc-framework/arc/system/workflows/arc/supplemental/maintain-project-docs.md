@@ -128,7 +128,7 @@ framework version — use any versioning scheme that works for your team.
 ### Always Read (Session Init)
 
 - `AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md` - ARC orientation and project context
-- `WORK-STATUS.md` - Active work state
+- Active status file (`active/{category}/status-{name}.md`) - Active work state
 - `SESSION-NOTES.md` - Personal session context (if exists)
 - `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
 - `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules

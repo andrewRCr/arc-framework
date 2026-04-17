@@ -5,6 +5,8 @@
 - [Historical context](#historical-context) — ADR-007 conflation analysis
 - [Alternatives considered](#alternatives-considered) — six options, rejection rationale
 - [Resolved decisions (2026-04-14 iteration)](#resolved-decisions-2026-04-14-iteration)
+- [Consequences surfaced during execution](#consequences-surfaced-during-execution)
+  — merge=ours retirement, CHECK 10 rewrite
 - [Stress-test battery](#stress-test-battery) — 8 scenarios for Phase 3 validation
 - [Harmony with shift lifecycle](#harmony-with-shift-lifecycle) — Phase 5 walk source
 - [Deactivation reshape under arc-shift alignment](#deactivation-reshape-under-arc-shift-alignment)
@@ -145,6 +147,159 @@ follow-up session. Summary pointers (do NOT re-derive during implementation):
    Trust hierarchy still applies on conflict: if SESSION-NOTES says
    `Working On: X` but tracked state unambiguously shows `Y`, proceed with `Y` and
    report the discrepancy per `session-init.md` § 7 protocol.
+
+---
+
+## Consequences surfaced during execution
+
+Two downstream decisions surfaced during Phase 1 Task 1.3 execution (2026-04-15) and
+deserve durable capture so future editors and adopters don't have to re-derive them
+from commit history. Both are direct consequences of the project-pointer restructure;
+neither was anticipated during the 2026-04-14 planning iteration.
+
+### Retirement of the `.gitattributes` `merge=ours` rule
+
+**Prior state.** Root `.gitattributes` carried the rule
+`.arc/active/WORK-STATUS.md merge=ours`. Under the singular-file model, every branch
+had some form of WORK-STATUS.md. Branch-to-base merges that touched the file on both
+sides would conflict, with the semantically correct resolution being "target (base)
+branch wins" — an "the integration owner reconciles afterward" pattern.
+`merge=ours` automated that silently.
+
+**Case analysis under the new per-WU model.** Walking through every case where two
+sides could both have a modified version of the same status file:
+
+1. **Parallel WUs on independent branches** (common case): Different files entirely.
+   Branch A carries `status-work-status-restructure.md`; Branch B carries
+   `status-rebrand.md`. Zero file-level overlap. `merge=ours` has nothing to do here
+   — it literally never fires.
+
+2. **Feature branch → main**: The status file only exists on the WU's branch during
+   the WU's active lifetime. Either main never held the file (created on branch by
+   `activate-work-unit.md`) or main lost it at archive time (`git rm` in
+   `archive-work-unit.md`). Either way, main's version and the branch's version are
+   not both extant-and-modified at merge time. `merge=ours` doesn't fire here.
+
+3. **Within-WU team sub-branches sharing one `status-{name}.md`** (Alice's sub-branch
+   merges to the integration branch after Bob already merged changes that touched
+   the status file): This is the one case where both sides have a modified version
+   of the same file. This is what `merge=ours` was designed for.
+
+**Evaluation of case 3.** Under existing `merge=ours` the integration branch's
+version wins silently and Alice's edits are lost. The rationale was "integration
+owner reconciles afterward" — correctness-by-compensation reliant on the human
+remembering a post-merge manual step. Under normal merge (no rule), if Alice and Bob
+touched different fields the merge is clean; if they touched the same field (e.g.,
+both advanced `**Next Task:**`) git reports a conflict and manual resolution is
+required.
+
+The new model's status files are small (7 fields) and field-level overlap between
+concurrent developers is rare. Clean auto-merge is the common case. When there IS a
+genuine conflict, it reflects real coordination disagreement that should be visible
+— and the existing `(@name)` marker discipline plus last-committer-wins convention
+(documented in `strategy-team-coordination.md` § Concurrent Sessions) already names
+the coordination layer. Visible merge conflicts are a better signal than silent
+data loss.
+
+**Platform note** (previously documented in the retired § Session State Merge
+Behavior subsection of `strategy-team-coordination.md`): custom merge drivers
+including `merge=ours` do NOT run during server-side PR merges on GitHub, GitLab, or
+Bitbucket. The rule was already half-effective — only local `git merge` operations
+benefited. Retiring it loses only the local-merge behavior, not any CI behavior.
+
+**Decision.** Retire the rule entirely. Do not repath to
+`.arc/active/**/status-*.md`. Reasoning: the silent-discard behavior is a footgun
+under the new model (case 3 is the only live case and it's better served by visible
+conflict resolution), and cases 1 and 2 make the rule irrelevant in the common
+path. Retiring is simpler than preserving a rule whose behavior we don't actually
+want.
+
+**What this does NOT mean for adopters.** Teams operating in heavy within-WU
+sub-branch coordination patterns who hit frequent status-file conflicts can add a
+2-line local `.gitattributes` rule themselves — `.gitattributes` is standard git,
+not ARC-specific, and the pattern is trivial. The framework ships no opt-in
+guidance because:
+
+- Pre-emptive opt-in documentation recommends a behavior (silent discard) that we
+  just argued is incorrect for the model.
+- No current friction data justifies pre-emptive guidance.
+- Every "optional knob mentioned in case someone wants it" adds maintenance burden
+  and cognitive load at adoption time.
+- If real friction materializes via an adopter issue, guidance can be added then
+  with actual evidence.
+
+Strategy docs (`strategy-team-coordination.md`, `strategy-work-organization.md`)
+ship forward-clean with no mention of the rule past or future. Historical record
+lives here and in ADR-007's 2026-04-15 amendment (implicitly, via the existing
+cross-reference from the amendment to this notes file).
+
+### Rewrite (not retirement) of pre-commit hook CHECK 10
+
+**Prior state.** The pre-commit hook's CHECK 10 scanned staged files for task list
+completions and warned (soft, non-blocking) if `.arc/active/WORK-STATUS.md` was not
+also staged. The path was hard-coded. Intent: catch the "forgot to update the
+project pointer alongside task list updates" case per the `DEV-RULES.ARC.md` §
+Commit Discipline "Work status accuracy" rule.
+
+**Options considered during Task 1.3 scope expansion:**
+
+- **(i) Retire the check entirely.** Rely on session-handoff as the sole accuracy
+  mechanism per `session-handoff.md` § Verify Work Status Accuracy.
+- **(ii) Rewrite to derive the sibling status file** from each staged task list's
+  directory (`active/{category}/tasks-{name}.md` → sibling
+  `active/{category}/status-{name}.md`).
+
+**Decision.** Rewrite (option ii). Reasoning:
+
+- The rule being enforced ("stage the status file alongside task list updates") is
+  load-bearing under the new model just as it was under the old. The restructure
+  moves the project pointer per-WU but doesn't weaken the update discipline.
+- Under the new structure, derivation is *simpler* than the old hard-coded path —
+  task list and status file are guaranteed siblings in the same
+  `active/{category}/` directory, so the derivation is a trivial shell transformation.
+- Commit-time feedback is immediate. Handoff-time feedback is deferred by hours or
+  days. The commit-time feedback loop catches drift when it's cheap to fix; handoff
+  as the only mechanism is a regression.
+- The check is already soft (warning, not block). There's no friction cost when the
+  derivation is wrong (e.g., atomic-only commits correctly bypass the check because
+  the regex targets `tasks-*.md`, not `atomic-*.md`).
+
+**Scope improvements made during the rewrite** (low cost, higher value than a
+straight path substitution):
+
+- **Scope to `active/` only.** Backlog task list edits should not trigger the check
+  (implicit in the old model since the old path was fixed to `.arc/active/`).
+  Making this explicit in the regex prevents false positives on backlog edits.
+- **Atomic companion file edits exempt automatically.** The regex targets
+  `tasks-*.md`, so `atomic-{name}.md` edits don't match the trigger condition.
+  Context footer semantics already exempt atomic commits from the project-pointer
+  update rule.
+- **Contributor-skip preserved.** Unchanged behavior via
+  `hooks.contributor_protected_paths` — project-level status file updates are a
+  maintainer concern.
+
+**Validation strategy.** Task 1.7.c smoke-tests the rewritten hook against current
+staged changes (no status file exists yet; hook should not false-positive). Full
+end-to-end validation happens at Phase 3 cutover (Task 3.1) when the new status
+file first exists and CHECK 10 becomes exercisable against real live state.
+
+### Why these decisions live here and not in an ADR amendment
+
+ADR-007's 2026-04-15 amendment already documents the project-pointer restructure
+and cross-references this notes file for full analysis. Both of the decisions above
+are direct mechanical consequences of the restructure decision — they don't
+introduce new architectural commitments, they just record how the restructure
+touches adjacent machinery. The ADR amendment convention is append-only (per
+`strategy-adr-methodology.md` Tier 2 convention), and re-amending a committed
+amendment for a clear downstream consequence is ADR thrashing. The existing
+amendment's cross-reference to this notes file implicitly covers the consequence
+analysis — a reader following the ADR → notes file trail sees both the
+architectural decision and its downstream consequences in the right places.
+
+Forward-clean strategy docs (`strategy-team-coordination.md`,
+`strategy-work-organization.md`) ship without any mention of the retired
+`merge=ours` rule, past or future. Adopters see the current model with no "before"
+framing to contextualize.
 
 ---
 

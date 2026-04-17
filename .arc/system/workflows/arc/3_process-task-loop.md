@@ -71,8 +71,9 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
-       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Only the
-         task list header `**Completed:**` field should have a date. Inline dates become temporal noise during archival.
+       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
+         dates become temporal noise during archival. WU-level completion date lives on the completion doc's
+         `**Completed:**` field; no task list or per-task date stamp is expected.
        - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
          detailed instructions) that no longer serves a purpose.
@@ -158,10 +159,10 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
      When committing, follow [Commit Guide](supplemental/prepare-commits.md) guidelines.
 
-     **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
-     advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage
-     it alongside the task list changes. This is the primary update mechanism; session handoff is
-     only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
+     **Active status file (stage with every task commit):** Before staging, update the active
+     status file — advance Next Task, Last Completed, and Next Action to reflect the post-commit
+     state. Stage it alongside the task list changes. This is the primary update mechanism; session
+     handoff is only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? Common
      splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
@@ -212,8 +213,9 @@ on **lifecycle intent** — when you intend to handle it, not what domain it's i
 
 - **Will do during this work unit** → add to the **atomic companion file** (`atomic-{name}.md`
   in the same directory as the task list). All task lists have a companion file.
-- **For later** (won't do during this WU) → add to **ATOMIC-INBOX.md** in `user/{identity}/`
-  (personal, gitignored, branch-agnostic — persists across work unit boundaries)
+- **For later** (won't do during this WU) → depends on PM mode:
+    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal, gitignored,
+      branch-agnostic — persists across work unit boundaries)
 
 ### Atomic Task Completion
 

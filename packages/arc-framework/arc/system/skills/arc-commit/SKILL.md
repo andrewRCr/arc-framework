@@ -31,10 +31,10 @@ disable-model-invocation: false
      `.arc/system/workflows/arc/supplemental/prepare-commits.md` to analyze and split
      changes into atomic commits.
 
-5. Stage WORK-STATUS.md with every task commit.
+5. Stage the active status file with every task commit.
 
-   - Before staging, update WORK-STATUS.md — advance Next Task, Last Completed, and
-     Next Action to reflect the post-commit state.
+   - Before staging, update the active status file — advance Next Task, Last Completed,
+     and Next Action to reflect the post-commit state.
    - Stage it alongside the task list changes. This is the primary update mechanism.
 
 6. Enforce atomicity.

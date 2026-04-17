@@ -70,7 +70,8 @@ marked `[x]`. If any unchecked tasks found → STOP — use Mode 1 instead.
 
 **Update status metadata:**
 
-- Update `**Status**:` field in task file header (Mode 2: change to "Complete", remove temporal notes)
+- **Mode 2 only:** Update the per-WU status file `**State:**` field to `Complete`. The task list no
+  longer carries a `**Status:**` header — lifecycle state lives in `active/{category}/status-{name}.md`.
 - Add/update `**Completed**:` date in both files (YYYY-MM-DD format)
 - Note: All work uses separate `completion-{name}.md` (created in
   [integrate-work-unit](integrate-work-unit.md) workflow Phase 1, Step 3)
@@ -297,7 +298,8 @@ See "Compatibility Research" above for library evaluation.
 ### 6. Update Cross References
 
 - Confirm "Related Task/Notes" pointers are accurate in both files
-- Update status metadata: task file `**Status**: Complete`, notes file `**Status**: Complete`
+- Update status file `**State:** Complete` (sole source of truth for WU lifecycle — notes and
+  PRD headers do not carry a State/Status field post-activation)
 - Add completion date to both files
 - **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all
   references to it from the task file

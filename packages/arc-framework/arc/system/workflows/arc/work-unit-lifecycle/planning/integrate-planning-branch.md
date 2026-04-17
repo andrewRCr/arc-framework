@@ -47,7 +47,7 @@ delivered" and "implementation started" is the PR merge.
 
 - Moving files from `backlog/` to `active/` (arc-in-git — [activate-work-unit][activate-work-unit]
   Step 3)
-- WORK-STATUS updates pointing to the new work unit (activate-work-unit Step 5)
+- Status file creation for the new work unit (activate-work-unit Step 5)
 - Activation-triggered PM updates (ROADMAP marking new WU in-progress, PROJECT-STATUS reflecting new
   active work — activate-work-unit extensions)
 - Implementation work of any kind
@@ -59,7 +59,6 @@ delivered" and "implementation started" is the PR merge.
 ### 1) Verify Readiness
 
 - [ ] Planning artifacts committed (PRD and task list — see [Mode Detection](#mode-detection) for path)
-- [ ] Task list `**Status:**` is `Not Started`
 - [ ] If batch: archival complete and committed ([archive-work-unit][archive-work-unit] steps 1–7)
 - [ ] Quality gates pass on new/modified files
 - [ ] Working tree is clean
@@ -83,9 +82,9 @@ gh pr create --base {base-branch} --head {planning-branch}
 
 **Scope of the PR body:** Describe what this PR delivers, not what happens next. Workflow
 continuity (post-merge activation, session boundaries, "next action after merge" style
-sections) belongs in WORK-STATUS and SESSION-NOTES, not the PR body. The reader is reviewing
-a change set — keep the body scoped to what they need to evaluate it. See
-[DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
+sections) belongs in SESSION-NOTES, not the PR body. The reader is reviewing a change set —
+keep the body scoped to what they need to evaluate it. See [DEV-RULES.ARC][dev-rules-arc]
+§ Write for the reader.
 
 ### 3) Address Review Feedback
 
@@ -119,11 +118,9 @@ artifacts from backlog to active (arc-in-git), updates tracking state.
 Activation may happen immediately or in a later session. The artifacts are stable on the base branch.
 
 **Session boundary:** If activation does not follow immediately in this session, run
-[session-handoff][session-handoff] before ending. WORK-STATUS on the base branch may be stale after
-merge (auto-resolved to the pre-merge base version — activate-work-unit overwrites it). SESSION-NOTES
-is the recovery mechanism: capture that the planning branch is merged, name the work unit ready for
-activation, and note activate-work-unit as the next step. This gives the next session enough context
-to proceed even if WORK-STATUS hasn't caught up yet.
+[session-handoff][session-handoff] before ending. Capture in SESSION-NOTES that the planning branch
+is merged and the work unit is ready for activation. The base branch has no status file for this WU
+yet — `activate-work-unit.md` Step 5 creates it at activation time.
 
 ---
 

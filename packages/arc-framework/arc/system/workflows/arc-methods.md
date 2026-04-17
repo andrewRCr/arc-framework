@@ -113,7 +113,10 @@ grep-searchable across commit history.
 - `Context: tasks-[filename].md (incidental - discovered during <context>)` — incidental fix
 - `Context: tasks-[filename].md (planning)` — task list metadata only
 - `Context: tasks-[filename].md (activation)` — backlog to active transition
-- `Context: tasks-[filename].md (integration)` — integration prep and review fixes
+- `Context: tasks-[filename].md (integration)` — integration prep (completion doc, cleanup,
+  reference fixes; not review-driven fixes — see `(code review)`)
+- `Context: tasks-[filename].md (code review)` — commits responding to code review findings
+  (local pre-merge or PR-stage)
 - `Context: tasks-[filename].md (archival)` — active to archive transition
 
 **With atomic companion file:**
@@ -244,7 +247,9 @@ writes session state
 
 Read/write session state at session boundaries:
 
-- **WORK-STATUS.md** (`active/`) — tracked project state, updated at commit time and handoff
+- **`status-{name}.md`** (`active/{category}/`) — tracked per-WU project pointer. The
+  `**State:**` field is the load-bearing lifecycle marker; see the status file template for
+  the full field set. Updated at commit time and handoff.
 - **SESSION-NOTES.md** (`user/{identity}/`) — gitignored personal context, written at handoff
 - **Git notes** (`refs/notes/arc/user/{identity}`) — portability layer for the user directory.
   Save at handoff, load at init when local files are missing or stale. Push per `user.sync_push`

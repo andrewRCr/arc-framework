@@ -17,12 +17,18 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- [none — between work units]
+- Work-Status Restructure (technical) — Replace singular `active/WORK-STATUS.md` with per-WU
+  `active/{category}/status-{name}.md` files, disentangling the project pointer from the
+  session pointer and eliminating the parallel-WU concurrency flaw and base-branch staleness
+  dead-ends under full protection
+    - Task list: `.arc/active/technical/tasks-work-status-restructure.md`
+    - Branch: `technical/work-status-restructure`
 
 **Next Priority:**
 
 - ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology), with
-  absorbed config-key renames and CLI command cleanup
+  absorbed config-key renames and CLI command cleanup. First real exercise of the per-WU status
+  file model across rotating branches
 - Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
 - Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle
 

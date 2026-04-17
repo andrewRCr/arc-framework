@@ -83,8 +83,9 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
-       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Only the
-         task list header `**Completed:**` field should have a date. Inline dates become temporal noise during archival.
+       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
+         dates become temporal noise during archival. WU-level completion date lives on the completion doc's
+         `**Completed:**` field; no task list or per-task date stamp is expected.
        - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
          detailed instructions) that no longer serves a purpose.
@@ -170,15 +171,15 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
      When committing, follow [Commit Guide](supplemental/prepare-commits.md) guidelines.
 
-     **WORK-STATUS.md (stage with every task commit):** Before staging, update WORK-STATUS.md —
-     advance Next Task, Last Completed, and Next Action to reflect the post-commit state. Stage
-     it alongside the task list changes. This is the primary update mechanism; session handoff is
-     only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
+     **Active status file (stage with every task commit):** Before staging, update the active
+     status file — advance Next Task, Last Completed, and Next Action to reflect the post-commit
+     state. Stage it alongside the task list changes. This is the primary update mechanism; session
+     handoff is only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
 <!-- arc:if team.mode == true -->
 
      **Shared branch concurrency:** When multiple developers commit to the same branch, pull
-     before committing to reduce merge conflicts on WORK-STATUS.md and the task list. If a
-     conflict occurs, resolve WORK-STATUS.md by updating it to reflect the current combined
+     before committing to reduce merge conflicts on the status file and the task list. If a
+     conflict occurs, resolve the status file by updating it to reflect the current combined
      state (not either side's version). Task list conflicts are resolved by accepting both
      sides' checkbox changes.
 <!-- arc:endif -->

@@ -1,7 +1,7 @@
 # Session Notes
 
-> **About this file:** Personal session context — gitignored. Companion to the tracked
-> [WORK-STATUS.md](../active/WORK-STATUS.md) in `active/` which carries the factual project
+> **About this file:** Personal session context — gitignored. Companion to the active work
+> unit's `status-{name}.md` in `active/{category}/` which carries the factual project
 > pointer (branch, task, blockers). Together they implement P5 (Context Preservation).
 >
 > **Lifecycle:** Created during session handoff, consumed during session init. Delete between
@@ -12,11 +12,22 @@
 > See `session-handoff.md` for operations, `arc-config.yml` for `user.sync_push` behavior
 > (always / prompt / manual).
 >
-> **Customization:** The session state mechanism is overridable — see `arc-methods.md` §
-> session-state.
->
 > **Writing guide:** See `session-handoff.md` for detailed content guidance, examples, and
 > what to include vs. omit.
+
+## Handoff Metadata
+
+**Working On:** [none]
+<!--
+Markers:
+  [none]                        — no active work
+  [planning: {category}/{name}] — planning cycle, no WU yet
+  [between work units]          — between activation and archive of adjacent WUs
+  status-{name}.md              — normal case, file reference
+-->
+
+**Commit at Handoff:** `{{short-hash}}`
+<!-- Record via: git rev-parse --short HEAD. Session-init uses this to detect staleness. -->
 
 ## Completed Work
 
@@ -41,9 +52,9 @@ file paths, and what changed. For committed work, a simple list with commit hash
 <!-- remove entries whose triggers have been met. -->
 <!-- Delete this section entirely if no persistent context is needed. -->
 
----
+**Post-install setup:**
+_Remove when: initial-setup sequence complete._
 
-**Commit at Handoff**: `{{short-hash}}`
-<!-- Record via: git rev-parse --short HEAD. Session-init uses this to detect staleness. -->
-
-**Last Updated**: {{YYYY-MM-DD}}
+- First session after `arc init`. Work through the initial-setup sequence,
+  starting at `.arc/system/workflows/arc/initial-setup/01_verify-and-configure.md`.
+  The workflow guides onward steps.

@@ -17,7 +17,7 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 | [Resource name] | `[path]`                | [brief explanation]       |
 | ARC docs        | `.arc/`                 | Development documentation |
 
-**Working Directory Note**: Your working directory may vary. Check WORK-STATUS.md for
+**Working Directory Note**: Your working directory may vary. Check the active status file for
 current context and adjusted paths.
 
 ### Runtime Environment
@@ -210,7 +210,7 @@ arc log --atomic
 
 ✅ Check `pwd` first
 ✅ Use absolute paths or correct relative paths
-✅ Reference WORK-STATUS.md for working directory context
+✅ Reference the active status file for working directory context
 
 ### Command Construction
 
@@ -227,5 +227,5 @@ arc log --atomic
 
 ---
 
-**Commands assume repo root.** If working from a subdirectory, see WORK-STATUS.md
+**Commands assume repo root.** If working from a subdirectory, see the active status file
 for adjusted paths.

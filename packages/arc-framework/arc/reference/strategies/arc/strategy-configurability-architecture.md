@@ -104,7 +104,7 @@ a configurability path (how teams adapt it).
 | Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
 | Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
 | Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
-| WORK-STATUS.md + user/{identity}/ state | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
+| Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
 | Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
 
 #### Design commitment conventions

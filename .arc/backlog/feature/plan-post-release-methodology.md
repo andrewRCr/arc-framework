@@ -5,8 +5,15 @@ emerge during 1.0 development but belong after release. This is a living collect
 not a single-scope work unit — items here will be triaged into concrete work units when
 post-1.0 planning begins.
 
-**Status:** Draft (collecting)
+**State:** Draft (collecting)
 **Created:** 2026-03-05
+
+> **Note:** Items in this plan that reference `WORK-STATUS.md` predate the Work-Status
+> Restructure WU (see [`prd-work-status-restructure.md`](../../active/technical/prd-work-status-restructure.md)),
+> which replaces the singular project pointer with per-WU `status-{name}.md` files in
+> `active/{category}/`. The design intent of each item is unchanged — read `WORK-STATUS.md`
+> mentions here as "the active WU's status file" under the restructure model. Specific
+> references will be updated when individual items are promoted to PRDs.
 
 ---
 

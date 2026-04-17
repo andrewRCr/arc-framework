@@ -60,7 +60,7 @@ sleep 0.8
 
 # --- Phase 4: State sync + commit ---
 printf "\n"
-agent_text "  WORK-STATUS.md updated — Next Task advanced to 2.4."
+agent_text "  Active status file updated — Next Task advanced to 2.4."
 agent_text "  Staged alongside task list changes."
 sleep 0.6
 

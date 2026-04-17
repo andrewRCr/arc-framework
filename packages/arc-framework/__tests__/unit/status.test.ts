@@ -183,7 +183,7 @@ describe("runStatus", () => {
   it("reports Scaffolded files as scaffolded instead of modified", async () => {
     const manifest = buildManifest({
       files: {
-        "active/WORK-STATUS.md": {
+        "reference/META-PRD.md": {
           classification: "Scaffolded",
           layer: "core",
           // No pristine_hash — Scaffolded files are adopter-owned
@@ -199,15 +199,15 @@ describe("runStatus", () => {
     const io = buildIO({
       manifest,
       files: {
-        [`${CWD}/.arc/active/WORK-STATUS.md`]: "custom content\n",
+        [`${CWD}/.arc/reference/META-PRD.md`]: "custom content\n",
         [`${CWD}/.arc/system/arc-config.yml`]: FILE_CONTENT,
       },
-      arcFiles: ["active/WORK-STATUS.md", "system/arc-config.yml"],
+      arcFiles: ["reference/META-PRD.md", "system/arc-config.yml"],
     });
 
     const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
-    const scaffolded = result.fileStatuses.find((f) => f.path === "active/WORK-STATUS.md");
+    const scaffolded = result.fileStatuses.find((f) => f.path === "reference/META-PRD.md");
     expect(scaffolded).toBeDefined();
     expect(scaffolded!.state).toBe("scaffolded");
     expect(scaffolded!.classification).toBe("Scaffolded");
@@ -364,7 +364,7 @@ describe("buildStatusSummary", () => {
   it("shows scaffolded files with S label and count", () => {
     const summary = buildStatusSummary({
       fileStatuses: [
-        { path: "active/WORK-STATUS.md", state: "scaffolded", classification: "Scaffolded" },
+        { path: "reference/META-PRD.md", state: "scaffolded", classification: "Scaffolded" },
         { path: "system/arc-config.yml", state: "unmodified", classification: "Configurable" },
       ],
       versionInstalled: "1.0.0",
@@ -374,7 +374,7 @@ describe("buildStatusSummary", () => {
     });
 
     expect(summary).toContain("1 scaffolded");
-    expect(summary).toContain("S [Scaffolded] .arc/active/WORK-STATUS.md");
+    expect(summary).toContain("S [Scaffolded] .arc/reference/META-PRD.md");
   });
 
   it("omits legend when all files are unmodified", () => {

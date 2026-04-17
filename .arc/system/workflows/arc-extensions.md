@@ -134,7 +134,7 @@ The agent should propose which invocation path based on diff size, but the user 
 ## post-work-unit-activate
 
 **Workflow:** [activate-work-unit.md][activate-work-unit] · **Fires:** After Core activation steps complete (branch
-created, task list moved to active, WORK-STATUS updated)
+created, task list moved to active, status file written)
 
 **Contract:** Perform additional actions after a work unit is activated. Core PM artifact updates
 (PROJECT-STATUS, ROADMAP) are handled by the workflow's built-in arc-in-git step — this extension is for

@@ -29,20 +29,26 @@ configured.
 3. `git rev-parse --short HEAD` — record commit anchor for SESSION-NOTES.md staleness detection
 4. Task list file — verify marked checkboxes reflect actual completion (maintainer only — contributors
    skip this)
-5. **Working directory** — if it changed during the session, update paths in WORK-STATUS.md
+5. **Working directory** — if it changed during the session, update paths in the active status file
+   if one exists
 
 > **Contributor role (`arc.role = contributor`):** Contributors write SESSION-NOTES.md and save
-> to git notes (same as maintainers), but skip project-level WORK-STATUS.md updates (items 4–5
-> above), the WORK-STATUS.md section below, and the Conditional WORK-STATUS.md Commit section.
-> Contributors don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md
-> update, git notes save, and confirmation.
+> to git notes (same as maintainers), but skip project-level active status-file work — items
+> 4–5 in the pre-handoff checks above, and steps 4–5 in the handoff format below. Contributors
+> don't manage the project work pipeline — proceed directly to the SESSION-NOTES.md update, git
+> notes save, and confirmation.
 
 ### What to Update
 
-Session state is split across two files (per the [session-state method][arc-methods-session] default — if your
-project overrides session-state, follow the override instead):
+Session state is split across tracked project state and personal session state (per the
+[session-state method][arc-methods-session] default — if your project overrides session-state,
+follow the override instead):
 
-- **WORK-STATUS.md** (tracked, `.arc/active/`) — project state: branch, task list, next task, blockers, next action
+- **Active status file** (tracked) — project state for the active work unit:
+  `status-{name}.md` in `.arc/active/{category}/` for Full mode, `status.md` in `.arc/active/`
+  for Lite mode. Carries `**State:**`, `**Branch:**`, `**Task List:**`, `**Next Task:**`,
+  `**Last Completed:**`, `**Blockers:**`, and `**Next Action:**`. Between work units or during
+  planning cycles with no active WU, no tracked status file exists.
 - **SESSION-NOTES.md** (gitignored, `.arc/user/{identity}/`) — personal context: completed work, decisions,
   debugging insights, things tried. Replaced each handoff (not appended). Created only when there's context
   worth preserving. Between work units, reset to persistent context only (if any exists) or a minimal
@@ -53,9 +59,11 @@ project overrides session-state, follow the override instead):
 > reassign task ownership via `(@name)` markers. See [Team Coordination
 > Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
 
-**Every handoff** — WORK-STATUS.md (state fields) and SESSION-NOTES.md (session context, if any)
+**Every handoff** — active status file (if an active WU exists) and SESSION-NOTES.md
+session context
 
-**When context changes** — Working directory paths or environment expectations in WORK-STATUS.md
+**When context changes** — Working directory paths or environment expectations in the active
+status file (if one exists)
 
 **Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
 cross-session constraints that tracked state does not yet carry (forward-looking constraints,
@@ -69,33 +77,58 @@ triggers are met OR whose information is now carried in tracked state.
 
 Update session state files before ending session:
 
-1. **First**: Review `## Persistent Context` — apply the criterion in the Persistent Context entry
+1. **Review `## Persistent Context`** — apply the criterion in the Persistent Context entry
    below. Remove entries whose triggers are met, AND entries whose information is now carried in
    tracked state (the criterion catches drift introduced by earlier sessions). Surface removals in
-   the handoff summary; do not silently rewrite
-2. **Second**: Check if working directory context changed and update paths in WORK-STATUS.md if needed
-3. **Then**: Update both files with work progress:
+   the handoff summary; do not silently rewrite.
+2. **Check working directory context** — if it changed during the session, update paths in the
+   active status file if one exists.
+3. **Write SESSION-NOTES `**Working On:**`** using the marker vocabulary established in the
+   SESSION-NOTES template:
+    - `status-{name}.md` — normal case, file reference
+    - `[none]` — no active work
+    - `[planning: {category}/{name}]` — planning cycle, no WU yet
+    - `[between work units]` — between activation and archive of adjacent WUs
+4. **Update the active status file** (if an active WU exists) — advance `**Last Completed:**`,
+   `**Next Task:**`, `**Next Action:**`, and any other fields to reflect post-commit state. See
+   the template block below.
+5. **Safety-check commit** — if the active status file is dirty at this point (either the
+   task-commit path missed staging a prior update, or step 4 produced handoff-time edits), commit
+   it now as a standalone maintenance commit. No ask — handoff invocation is the approval:
 
-**Update `.arc/active/WORK-STATUS.md`** (tracked project state):
+    ```bash
+    git add <resolved-status-file-path>
+    git commit -m "docs(arc): update work-unit status
+
+    Context: maintenance (atomic / no associated task list)"
+    ```
+
+    The new HEAD becomes the `**Commit at Handoff:**` value written in step 6. Most handoffs skip
+    this — [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy makes commit-time primary.
+    Contributors (`arc.role = contributor`) skip this step — no project-level status file to
+    commit.
+6. **Write SESSION-NOTES** per the guidance below. Record `**Commit at Handoff:**` from current
+   HEAD (post-step-5 if a commit was made).
+
+**Update the active status file** (tracked project state, if an active WU exists):
 
 <!-- arc:if team.mode == true -->
-> **Team mode:** WORK-STATUS.md represents branch-level state, not personal state. "Next Task"
-> should reflect the branch's overall next incomplete task, not your personal next task (which
+> **Team mode:** The active status file represents work-unit state, not personal state. "Next Task"
+> should reflect the WU's overall next incomplete task, not your personal next task (which
 > is determined by `(@name)` markers at session-init). When multiple developers are active, the
 > last committer's update wins — this is expected and resolved at session-init via `(@name)`
-> filtering. Before writing, check whether WORK-STATUS.md changed since session-init
-> (`git diff .arc/active/WORK-STATUS.md`) — if another developer updated it mid-session,
+> filtering. Before writing, check whether the active status file changed since session-init
+> (`git diff <resolved-status-file-path>`) — if another developer updated it mid-session,
 > incorporate their changes rather than silently overwriting.
 <!-- arc:endif -->
 
 ```markdown
 ## Active Work
 
+**State:** In Progress
 **Branch**: [current branch name, e.g., feature/config-parser]
 **Task List**: [path to task list, e.g., .arc/active/feature/tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
-**Following Task List**: Yes
-  [OR: No - [brief context, e.g., "fixing connection timeout in batch processor (will return to Task 4.5)"]]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
   [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
   [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
@@ -112,6 +145,12 @@ Update session state files before ending session:
 _Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
 WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
 
+_Content discipline: the status file is a project pointer, not session narrative. Keep each field to one
+line (Next Action may span two when it names a multi-file scope). Push longer context elsewhere — commit
+body for what-and-why, SESSION-NOTES for next-session context, task list completion notes for per-task
+detail. If Last Completed or Next Action exceeds ~2 lines, the content likely belongs in one of those
+surfaces instead._
+
 _Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive, rotate,
 activate-planning-branch), include the workflow name and step — e.g., "integrate-work-unit Step 7 —
 push and create PR". Task-list-driven workflows (process-task-loop) don't need this; the task list
@@ -120,111 +159,160 @@ checkbox state is the pointer._
 
 **Update `.arc/user/{identity}/SESSION-NOTES.md`** (personal session context — gitignored):
 
+**Audience:** The reader is the next session's agent loading from cold context. They already have
+tracked state — git log, task list, active status file, commit bodies, `notes-*.md`, PRD, constitution,
+strategies. Write only what they can't derive from any of that. The goal is signal, not length. A
+genuinely rich session may produce a longer note; a routine session produces a shorter one. Volume
+is a side effect, not a target.
+
+**The filter — include only if all three hold:**
+
+1. **Not carried in any tracked source.** If the fact lives in a commit body, task list,
+   `notes-*.md`, PRD, strategy, or constitution, that source is authoritative. Duplicating it here
+   creates a shadow copy that drifts.
+2. **The next session will act on it at step 0.** Orientation-relevant — it changes what the next
+   session does or checks when it loads. Not a retrospective observation you "want on record."
+3. **Missing or wrong would cost real rework.** Re-deriving from tracked state in 30 seconds is
+   not rework; a mis-interpretation costing an hour of re-debugging is.
+
+If any of the three fails, omit. This is the same criterion Persistent Context enforces — it
+applies to every ephemeral section too.
+
+**Long-session bias — resist it.** The pattern this filter exists to catch: long sessions
+accumulate rich context, the agent reaches handoff, and an "I don't want to lose this" impulse
+drives verbose preservation. Re-read the filter. Tracked state catches more than it feels like it
+does at end-of-session. Duplication here adds startup noise for the next session without adding
+signal.
+
+**Template skeleton:**
+
 ```markdown
-### Completed Work
+## Handoff Metadata
 
-**CRITICAL: When documenting UNCOMMITTED work, use commit-level granularity.**
+**Working On:** status-{name}.md
+<!--
+Markers:
+  [none]                        — no active work
+  [planning: {category}/{name}] — planning cycle, no WU yet
+  [between work units]          — between activation and archive of adjacent WUs
+  status-{name}.md              — normal case, file reference
+-->
 
-Next session needs enough detail to recreate proper atomic commits from `git diff`:
-- Map accomplishments to logical commits (what changed, which files/components)
-- Include task numbers/references for `Context:` footer
-- Note any incidental work separate from task list work
-- Provide specificity: component names, file paths, what was changed
+**Commit at Handoff:** `{{short-hash}}`
 
-**Good examples (uncommitted work):**
+## Completed Work
 
-- ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) - rejects malformed YAML
-- ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45-67) - added nullable fields for partial updates
-- ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md) - corrected template path
+[Committed work — one line per commit: hash + outcome. See "Committed work" below.]
+[Uncommitted work — commit-level detail. See "Uncommitted work" below.]
 
-**Bad examples (too vague for commit reconstruction):**
+## Remaining Work Before Returning to Task List
 
-- ❌ "Worked on the parser" (no file mapping, no commit grouping)
-- ❌ "Updated several files" (which? for what commits?)
-- ❌ "Fixed bugs" (what bugs? which files? separate commits?)
+[Off-task-list work with known path back. Otherwise: [none] or "Path unclear".]
 
-**For committed work:** Simple list with commit hashes is sufficient (commit messages already documented details).
+## Additional Context
 
-### Remaining Work Before Returning to Task List
+[Only if the filter passes. Otherwise: [none].]
 
-_(Only for off-task-list work, only if path is known. Otherwise state "Path unclear - will return to Task X.Y when resolved.")_
-
-1. [Step 1]
-2. [Step 2]
-3. Return to Task X.Y — Title (line ~XXX in tasks-file.md)
-
-### Additional Context
-
-[Supplemental information not in task list: debugging insights, decisions made, things tried/ruled out, constraints discovered]
-
-[OR: [none] if task list has all needed context]
-
-### Persistent Context
+## Persistent Context
 
 <!-- Entries that survive across handoffs. Each has an explicit removal trigger. -->
 <!-- Review at each handoff: remove entries whose triggers have been met. -->
 
 **[Entry name]:**
-*Remove when: [explicit trigger condition]*
+_Remove when: [explicit trigger condition]_
 
 - [Context that must persist until trigger is met]
-
----
-
-**Commit at Handoff**: `{{short-hash}}`
-
-**Last Updated**: {{YYYY-MM-DD}}
 ```
 
-**What to include:**
+**Completed Work — committed work (default):** One line per commit: hash + outcome. Nothing more.
 
-- **Remaining Work** - Only for off-task-list work when path back is known
-    - List ALL steps if known, not just immediate next
-    - Critical: Captures full path back to task list (use triple-anchor format: task number + title + line hint)
-- **Additional Context** - Supplemental info not in task list
-    - Debugging: What tried, what ruled out, what suspected
-    - Decisions: Choices made that inform approach
-    - Constraints: User preferences, technical limitations
-    - Goal: Don't repeat work, don't lose insights
-- **Persistent Context** - Context that must survive across multiple handoffs
-    - **Criterion:** Persistent context is for information the **tracked state does not carry
-      yet**. If the information lives in any tracked document — plan, strategy, constitution,
-      recipe, or code — it does not belong here. The tracked doc is authoritative; duplicating
-      it in persistent context creates a shadow source that can drift.
-    - Each entry needs an explicit removal trigger (not tied to full work unit completion)
-    - Passes the criterion: forward-looking constraints (terminology for a rename that hasn't
-      landed), un-codified meta-conventions (rules not yet in a strategy doc), parking references
-      (to uncommitted work visible in `git status`)
-    - Fails the criterion: mechanism decisions already in a plan doc's § Resolved Decisions
-      table, architecture rules already in a strategy doc, behavioral guidance already in
-      DEV-RULES
-    - **Anti-pattern (common during pre-PRD planning work):** Writing a persistent-context entry
-      for every mechanism decision resolved in the plan doc. Persistent context is not a
-      substitute for the plan doc's § Resolved Decisions section — the plan doc is authoritative
-      and a future session working in the relevant area should read it per ARC's
-      "verify before assuming" discipline
-    - Review at each handoff: remove entries whose triggers are met, AND entries whose
-      information is now carried in tracked state
+- ✅ `a1b2c3d` — Task 3.5: Schema validation for input records
+- ✅ `e4f5g6h` — Tasks 3.6–3.7: Batch ingestion error handling
 
-**What NOT to include:**
+The commit body already documents what changed, why, and the design decisions — that's what
+`git log` is for. Restating it in SESSION-NOTES is the most common noise pattern. Trust the
+commit body.
 
-- ❌ Summaries of entire task list (that's in the task list file)
-- ❌ Future work beyond path back to task list
-- ❌ Project status updates (that's in git commits)
-- ❌ Task descriptions already in task list (redundant)
+**Completed Work — uncommitted work (exception):** When documenting uncommitted work, use
+commit-level granularity — the next session needs enough detail to recreate proper atomic
+commits from `git diff`:
+
+- ✅ Task 3.2.1: Added input validation to config parser (src/config.py, src/validators.py) —
+  rejects malformed YAML
+- ✅ Task 3.2.2: Updated API response schema (api/v2/schemas.py:45–67) — added nullable fields
+- ✅ Incidental: Fixed broken cross-reference in workflow doc (session-init.md)
+
+Map accomplishments to logical commits (what changed, which files), include task numbers for
+`Context:` footers, note incidental work separately from task list work.
+
+**Remaining Work Before Returning to Task List:** Only for off-task-list work when the path
+back is known. List all steps, not just the next one. Use triple-anchor format (task number +
+title + line hint) for the return target. When the path is unknown, state it: "Path unclear —
+will return to Task X.Y when resolved."
+
+**Additional Context:** Supplemental information that passes the filter — debugging insights,
+decisions not in commit bodies, things tried and ruled out, constraints discovered. If nothing
+passes the filter, write `[none]`. Empty is the normal case for routine sessions.
+
+**Persistent Context:** Entries that survive across handoffs. Each needs an explicit removal
+trigger (not tied to full work unit completion). Same criterion as the filter above — tracked
+state is authoritative.
+
+- **Passes:** forward-looking constraints (terminology for a rename that hasn't landed),
+  un-codified meta-conventions (rules not yet in a strategy doc), parking references (to
+  uncommitted work visible in `git status`).
+- **Fails:** mechanism decisions already in a plan doc's § Resolved Decisions, architecture
+  rules already in a strategy doc, behavioral guidance already in DEV-RULES.
+- **Anti-pattern** (common during pre-PRD planning): writing a persistent-context entry for
+  every mechanism decision resolved in the plan doc. Persistent context is not a substitute
+  for the plan doc's § Resolved Decisions section.
+
+Review at each handoff: remove entries whose triggers are met, AND entries whose information
+is now carried in tracked state.
+
+**Anti-patterns — omit by name.** When you notice yourself writing one of these, delete it and
+trust the tracked source:
+
+- ❌ **Commit-by-commit retrospective narration.** "Commit `abc123` delivered Task 1.3 as a
+  full-file sweep because mid-batch discovery surfaced 16 references…" The commit body is
+  exactly this. Leave it there.
+- ❌ **Phase preview describing upcoming tasks.** "Task 2.2 creates the template, 2.3 adds the
+  Working On field, 2.4 removes the Status header…" The task list is exactly this. The next
+  session reads it when they get there, not at step 0.
+- ❌ **Design-decision retrospective already in a commit body or notes file.** If the decision
+  is in a commit or `notes-*.md § Consequences`, cross-reference it at most — don't restate it.
+- ❌ **Session-retrospective incidentals.** "Table-width math was tight; commit body length
+  warnings fired twice; markdown-table-prettify has a stdout gotcha." Process observations,
+  not next-session context. If one becomes a durable lesson, codify it in a strategy or
+  QUICK-REFERENCE — not SESSION-NOTES.
+- ❌ **"Things NOT to re-do" lists** mirroring decisions already captured elsewhere. Defensive
+  duplication. Tracked state will surface what the next session needs.
+- ❌ **Explanatory paragraphs where the template expects whitespace.** An empty Persistent
+  Context section is fine as empty. Don't write prose explaining why it's empty.
+- ❌ **Restating committed content.** If it's in a committed file (WU status file, task list,
+  commit message, `notes-*.md`), don't restate it here. The next session reads tracked state
+  first; SESSION-NOTES is the delta.
+
+**Minimum viable SESSION-NOTES — what belongs here:** If it doesn't fit one of these, it
+probably doesn't belong:
+
+- Things tried that didn't work (not yet captured in a commit or notes file)
+- Decisions not captured in tracked state
+- Observed risks
+- "Currently mid-X with concrete next action Y" when stopping mid-task
 
 ### Handoff Examples
 
 **Example 1: Off-task-list with known path back**
 
-WORK-STATUS.md:
+status-data-pipeline.md:
 
 ```markdown
 ## Active Work
 
+**State:** In Progress
 **Branch**: feature/data-pipeline
 **Task List**: .arc/active/feature/tasks-data-pipeline.md
-**Following Task List**: No - fixing connection timeout in batch processor (will return to Task 4.1)
 **Next Task**: Task 4.1 — Add retry logic to ingestion step (line ~312)
 **Last Completed**: Task 3.5 — Schema validation for input records
 **Blockers**: [none]
@@ -234,12 +322,12 @@ WORK-STATUS.md:
 SESSION-NOTES.md:
 
 ```markdown
-### Completed Work
+## Completed Work
 
 - ✅ Task 3.5: Added schema validation for input records
 - ⚠️ Discovered connection timeout during integration testing
 
-### Remaining Work Before Returning to Task List
+## Remaining Work Before Returning to Task List
 
 1. Fix connection timeout in batch processor (pool exhaustion under load)
 2. Add integration test for concurrent batch processing
@@ -250,7 +338,7 @@ SESSION-NOTES.md:
 > `Path unclear - exploratory debugging. Will return to Task 4.1 — Add retry logic (line ~312)
 > when resolved.`
 
-### Additional Context
+## Additional Context
 
 - Timeout occurs when batch size exceeds 1000 records (connection pool default is 10)
 - Tried increasing pool size to 50, but underlying issue is sequential processing blocking connections
@@ -259,14 +347,14 @@ SESSION-NOTES.md:
 
 **Example 2: Preparatory work before starting task**
 
-WORK-STATUS.md:
+status-api-documentation.md:
 
 ```markdown
 ## Active Work
 
+**State:** In Progress
 **Branch**: technical/api-documentation
 **Task List**: .arc/active/technical/tasks-api-documentation.md
-**Following Task List**: Yes
 **Next Task**: Task 3.1 — Document authentication endpoints (line ~203)
 **Last Completed**: Tasks 2.3-2.4 — Query parameter and response format sections
 **Blockers**: [none]
@@ -276,12 +364,12 @@ WORK-STATUS.md:
 SESSION-NOTES.md:
 
 ```markdown
-### Completed Work
+## Completed Work
 
 - ✅ Task 2.3: Query parameter documentation (committed a1b2c3d)
 - ✅ Task 2.4: Response format documentation (committed a1b2c3d)
 
-### Additional Context
+## Additional Context
 
 **Pre-task review needed:**
 
@@ -293,18 +381,20 @@ SESSION-NOTES.md:
 
 **When work is complete and/or task list has been archived**, use this expanded format:
 
-WORK-STATUS.md:
+status-{name}.md while the WU is still active:
 
 ```markdown
 ## Active Work
 
+**State:** Complete
 **Last Completed**: [Task list name] (Tasks X-Y, archived)
 **Blockers**: [none]
-**Next Action**: Begin [new-task-list.md] starting with Task 1
+**Next Action:** archive-work-unit Step 1 — archive artifacts and retire the status file
 ```
 
-SESSION-NOTES.md at completion is minimal — accomplishment summary with commit hashes, archive
-path. Preserve any Persistent Context entries that span work units; reset ephemeral sections.
+If the work unit has already been archived, no active status file remains. SESSION-NOTES.md at
+completion is minimal — accomplishment summary with commit hashes, archive path. Preserve any
+Persistent Context entries that span work units; reset ephemeral sections.
 
 ### Post-Update Cleanup
 
@@ -337,33 +427,26 @@ precedence over `arc-config.yml` when set — check this first.
     arc user save
     ```
 
-### Conditional WORK-STATUS.md Commit (Maintainer Only)
+**Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
 
-**Skip when `arc.role = contributor`** — contributors don't update project-level WORK-STATUS.md.
+- **Push rejected (non-fast-forward):** Remote notes diverged from local. The CLI offers
+  force-push (overwrite remote) or pull-first (overwrite local). Choose based on which
+  version is authoritative. This commonly happens when the same developer works from two
+  machines without syncing, or in team mode when two developers share an identity by mistake.
+- **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
+  save` — push is a convenience for portability. The local save still happened; push later
+  when a remote is available.
+- **Pull warning (local changes):** When pulling would overwrite unsaved local notes, the CLI
+  confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
+  prior state if needed.
 
-If WORK-STATUS.md is dirty after the handoff update and no task commit is pending to carry it,
-commit it as part of the handoff. This resolves the "dangling WORK-STATUS.md" gap during
-off-task-list sessions (evaluation, design discussions, pre-planning) where no task commit
-naturally includes it. The handoff invocation is the approval — do not ask separately.
-
-**Trigger**: WORK-STATUS.md is dirty (`git diff --name-only` shows it) and no other
-staged/unstaged changes are pending that would form a task commit.
-
-**Action**: Commit standalone as part of the handoff:
-
-```bash
-git add .arc/active/WORK-STATUS.md
-git commit -m "docs(arc): update WORK-STATUS.md
-
-Context: maintenance (atomic / no associated task list)"
-```
-
-**Skip when**: WORK-STATUS.md will ride with a pending task commit (the normal case — see
-DEV-RULES.ARC § Work status accuracy).
+If save itself fails (empty user directory, filesystem permissions), the session state is
+only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
 ### Confirm Handoff
 
-After updating WORK-STATUS.md and SESSION-NOTES.md, deliver a verbal summary to the user. This is a quick
+After updating the active status file (if any) and SESSION-NOTES.md, deliver a verbal summary to
+the user. This is a quick
 confirmation for the human — the session state files are the durable artifacts.
 
 **ARC session handoff complete** · `{branch-name}` · {clean | uncommitted changes}
@@ -377,7 +460,7 @@ confirmation for the human — the session state files are the durable artifacts
 
 - [Files/changes with logical commit grouping]
 
-**Next session:** [What comes next per WORK-STATUS.md]
+**Next session:** [What comes next per the active status file, or next-work discovery when between WUs]
 
 **Formatting guidance:**
 
@@ -392,4 +475,5 @@ confirmation for the human — the session state files are the durable artifacts
 [session-init]: session-init.md
 [arc-methods]: ../../arc-methods.md
 [arc-methods-session]: ../../arc-methods.md#session-state
+[dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

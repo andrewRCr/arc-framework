@@ -61,7 +61,7 @@ edit the template in the package source. The `.arc/` rendered copy reflects this
 config (`team.mode: false`, `pm.mode: arc-in-git`) — conditional blocks for other modes are
 absent. Don't copy `.arc/` content back to the template without re-adding the conditionals.
 
-**Remaining 8 templates** (WORK-STATUS, ROADMAP, backlogs, META-PRD, PROJECT-STATUS,
+**Remaining 7 templates** (ROADMAP, backlogs, META-PRD, PROJECT-STATUS,
 TECHNICAL-OVERVIEW, QUICK-REFERENCE) are Scaffolded or Configurable — project-owned content,
 no sync concern.
 
@@ -218,7 +218,6 @@ arc-in-git files are annotated explicitly.
 
 ### Template counterparts (package `.template.md` → `.arc/` `.md`)
 
-- `active/WORK-STATUS.template.md` → `active/WORK-STATUS.md` (Scaffolded)
 - `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded · arc-in-git)
 - `backlog/feature/BACKLOG-FEATURE.template.md` → `backlog/feature/BACKLOG-FEATURE.md` (Scaffolded · arc-in-git)
 - `backlog/technical/BACKLOG-TECHNICAL.template.md` → `backlog/technical/BACKLOG-TECHNICAL.md` (Scaffolded · arc-in-git)

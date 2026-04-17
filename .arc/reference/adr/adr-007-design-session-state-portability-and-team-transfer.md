@@ -368,6 +368,18 @@ boundaries, losing the task pointer. "Next Task" makes the intent unambiguous: a
 to work on (or continue), never `[none]` when incomplete tasks remain. The field's purpose — direct navigation
 via triple-anchor format, out-of-order execution support — is unchanged.
 
+**Amendment (2026-04-15):** The two-file decomposition (Part 1) conflated two distinct concerns that this ADR
+did not name separately: _personal session context_ (correctly per-developer via SESSION-NOTES and git notes)
+and _project state pointer_ (incorrectly carried as a singular tracked path at `active/WORK-STATUS.md`).
+ADR-012 subsequently refined Parts 1–3 for the unified `user/{identity}/` model and identity consolidation,
+but preserved the singular `active/WORK-STATUS.md` path — the project-pointer scope question was never
+re-examined. The Work-Status Restructure work unit splits the project pointer out from the singular path to
+per-work-unit `active/{category}/status-{name}.md` files, eliminating two structural flaws inherent to the
+singular pattern (parallel-WU integration conflicts in team mode and base-branch staleness under full
+branch protection) that are not fixable at the workflow layer. The per-developer session-state identity
+established here is unchanged; only the project-pointer scope changes. See `prd-work-status-restructure.md`
+and `notes-work-status-restructure.md` § Historical context for the full analysis.
+
 ---
 
 Context: tasks-foundational-gap-closure.md (Task 1.2)

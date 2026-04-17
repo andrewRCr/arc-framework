@@ -241,7 +241,7 @@ export async function runUpdate(
     schema_version: MANIFEST_SCHEMA_VERSION,
     framework_version: getFrameworkVersion(),
     installed_at: manifest.installed_at,
-    install_config: ic,
+    install_config: { ...ic, repo_root: cwd },
     files: applyResult.newManifestFiles,
   };
   await atomicWriteJson(manifestPath, newManifest);

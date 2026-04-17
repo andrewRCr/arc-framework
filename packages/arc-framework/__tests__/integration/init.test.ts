@@ -73,12 +73,20 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Directory Structure ---
 
+  it("does not create .arc/active/ at init — per-WU status files are created lazily at activation", async () => {
+    try {
+      await stat(join(arcDir, "active"));
+      expect.fail(".arc/active/ should not exist after a clean init — created lazily at first work unit activation");
+    } catch (err: unknown) {
+      expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
+    }
+  });
+
   it("creates .arc/ directory with expected subdirectories", async () => {
     const arcStat = await stat(arcDir);
     expect(arcStat.isDirectory()).toBe(true);
 
     const expectedDirs = [
-      "active",
       "reference",
       "reference/constitution",
       "reference/strategies",
@@ -170,11 +178,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(gitignore).toContain(".arc/user/*/");
   });
 
-  it("configures .gitattributes with WORK-STATUS merge strategy", async () => {
-    const gitattrs = await readFile(join(tempDir, ".gitattributes"), "utf-8");
-    expect(gitattrs).toContain(".arc/active/WORK-STATUS.md merge=ours");
-  });
-
   it("sets git config for hooks path", async () => {
     const { stdout } = await execFileAsync(
       "git",
@@ -234,6 +237,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       pm_mode: "none",
       tools: ["claude"],
       team_mode: false,
+      repo_root: tempDir,
     });
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
   });
@@ -281,14 +285,6 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(claudeFile.isFile()).toBe(true);
   });
 
-  it("WORK-STATUS.md initial Next Action points to setup workflow", async () => {
-    const content = await readFile(
-      join(arcDir, "active/WORK-STATUS.md"),
-      "utf-8",
-    );
-    expect(content).toContain("01_verify-and-configure");
-  });
-
   it("installs script files", async () => {
     const validateConfig = await stat(
       join(arcDir, "system/scripts/validate-config.sh"),
@@ -328,7 +324,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   it("pristine store excludes Scaffolded files", async () => {
     const store = await readPristineStore(tempDir);
 
-    expect(store["active/WORK-STATUS.md"]).toBeUndefined();
+    expect(store["reference/META-PRD.md"]).toBeUndefined();
   });
 
   it("pristine store content matches .arc/ files exactly", async () => {
@@ -673,10 +669,5 @@ describe("join integration", () => {
       "git", ["config", "core.hooksPath"], { cwd: tempDir },
     );
     expect(hooksPath.trim()).toBe(".arc/system/githooks");
-
-    // Gitattributes configured
-    const gitattrs = await readFile(join(tempDir, ".gitattributes"), "utf-8");
-    expect(gitattrs).toContain("WORK-STATUS.md merge=ours");
-    expect(gitattrs).toContain("# ARC Framework (managed by arc cli)");
   });
 });

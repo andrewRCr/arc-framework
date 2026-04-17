@@ -31,7 +31,7 @@ fi
 echo -e "${GREEN}Running pre-commit checks...${NC}"
 
 # Contributor mode notice (XC-M02) — maintainer-only checks (task list staging,
-# task numbering, WORK-STATUS co-staging) are silently skipped for contributors.
+# task numbering, status file co-staging) are silently skipped for contributors.
 if [ "$arc_role" = "contributor" ]; then
     echo "   (contributor mode — maintainer checks skipped)"
 fi
@@ -279,27 +279,45 @@ if [ -n "$meta_project_refs" ]; then
 fi
 
 # ============================================================================
-# CHECK 10: WORK-STATUS.md co-staging with task lists (maintainer only)
+# CHECK 10: Status file co-staging with task lists (maintainer only)
 # ============================================================================
-# If task lists are staged with checkbox completions, WORK-STATUS.md should
-# typically be staged too (Current Task should advance). Only warns when the
-# diff contains actual checkbox state changes — not for reference updates,
-# planning restructuring, or other non-completion edits.
-# Skipped for contributors — they don't update project-level WORK-STATUS.md.
+# If a task list is staged with checkbox completions, its sibling status file
+# (same directory, `status-<name>.md`) should typically be staged too — Next
+# Task should advance. Only warns when the diff contains actual checkbox state
+# changes — not for reference updates, planning restructuring, or other
+# non-completion edits.
+# Skipped for contributors — they don't update project-level status files.
+# Scope is strict: `active/{category}/tasks-{name}.md` only. Backlog task list
+# edits and atomic companion file edits do not trigger this check.
 if [ "$arc_role" != "contributor" ]; then
-    staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
-    staged_work_status=$(git diff --cached --name-only | grep -E '^\.arc/active/WORK-STATUS\.md$' || true)
+    staged_task_lists_for_ws=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' || true)
 
-    if [ -n "$staged_task_lists_for_ws" ] && [ -z "$staged_work_status" ]; then
-        # Check if the diff actually contains checkbox completions (marked [x] or [~])
-        # shellcheck disable=SC2086 # Intentional word splitting — variable holds multiple file paths
-        task_list_has_completions=$(git diff --cached -- $staged_task_lists_for_ws | grep -E '^\+.*- \[(x|~)\]' || true)
-        if [ -n "$task_list_has_completions" ]; then
-            echo -e "${YELLOW}Warning: Task list staged with completions but WORK-STATUS.md is not${NC}"
-            echo "   Task list changes often mean the current task has advanced"
-            echo "   Remember to update and stage WORK-STATUS.md"
-            warnings=$((warnings + 1))
-        fi
+    if [ -n "$staged_task_lists_for_ws" ]; then
+        staged_files=$(git diff --cached --name-only)
+        # shellcheck disable=SC2086 # Intentional word splitting — variable holds newline-separated file paths
+        for task_list in $staged_task_lists_for_ws; do
+            # Derive the expected sibling status file path from the task list's
+            # directory: `active/{category}/tasks-{name}.md` →
+            # `active/{category}/status-{name}.md`.
+            task_list_dir=$(dirname "$task_list")
+            task_list_base=$(basename "$task_list" .md)
+            wu_name=${task_list_base#tasks-}
+            expected_status="${task_list_dir}/status-${wu_name}.md"
+
+            # Check if this task list has checkbox completions (marked [x] or [~])
+            task_list_has_completions=$(git diff --cached -- "$task_list" | grep -E '^\+.*- \[(x|~)\]' || true)
+            if [ -n "$task_list_has_completions" ] && [ -f "$expected_status" ]; then
+                # Only warn when the expected status file actually exists in the
+                # working tree — skip pre-activation, mid-restructure, or early
+                # planning-phase cases where the file is not yet created.
+                if ! printf '%s\n' "$staged_files" | grep -qxF "$expected_status"; then
+                    echo -e "${YELLOW}Warning: ${task_list} staged with completions but ${expected_status} is not${NC}"
+                    echo "   Task list changes often mean the current task has advanced"
+                    echo "   Remember to update and stage ${expected_status}"
+                    warnings=$((warnings + 1))
+                fi
+            fi
+        done
     fi
 fi
 

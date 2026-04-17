@@ -9,8 +9,8 @@ team branching patterns, merge conflict handling, and external tracker integrati
 
 These conventions activate when `team.mode: true` is set in `arc-config.yml`. Some structural
 foundations are always present regardless of team mode — per-identity `user/{identity}/`
-directories, shared `WORK-STATUS.md` in `active/`. The conventions below add coordination
-patterns on top of that foundation.
+directories, per-WU `status-{name}.md` files in `active/{category}/`. The conventions below
+add coordination patterns on top of that foundation.
 
 **Prerequisite:** [Work Organization Strategy][work-org] (branching model, work categories,
 protection modes). This strategy layers team-specific patterns on top of that foundation.
@@ -36,21 +36,22 @@ protection modes). This strategy layers team-specific patterns on top of that fo
 How standard ARC workflows adapt when team mode is active. Detailed conventions follow
 in subsequent sections and referenced documents.
 
-| Aspect              | Solo (default)           | Team mode                                        |
-|---------------------|--------------------------|--------------------------------------------------|
-| Session notes       | `user/{identity}/`       | `user/{identity}/` (same structure)              |
-| Work status         | `active/WORK-STATUS.md`  | `active/WORK-STATUS.md` (shared, one per branch) |
-| ATOMIC-INBOX.md (1) | `user/{identity}/`       | `user/{identity}/` (same structure)              |
-| One task at a time  | Single pair              | Per developer-agent pair (concurrent pairs OK)   |
-| Task ownership      | Implicit                 | `(@name)` markers in task lists                  |
-| Branching           | One branch per work unit | Multiple patterns — see below                    |
+| Aspect              | Solo (default)                       | Team mode                                         |
+|---------------------|--------------------------------------|---------------------------------------------------|
+| Session notes       | `user/{identity}/`                   | `user/{identity}/` (same structure)               |
+| Work status         | `active/{category}/status-{name}.md` | `active/{category}/status-{name}.md` (one per WU) |
+| ATOMIC-INBOX.md (1) | `user/{identity}/`                   | `user/{identity}/` (same structure)               |
+| One task at a time  | Single pair                          | Per developer-agent pair (concurrent pairs OK)    |
+| Task ownership      | Implicit                             | `(@name)` markers in task lists                   |
+| Branching           | One branch per work unit             | Multiple patterns — see below                     |
 
 (1) ATOMIC-INBOX.md requires `pm.mode: arc-in-git`. Atomic tasks as a concept (task list
 sections for off-plan work) are Core and always available.
 
-**Key distinction:** WORK-STATUS.md is shared in `active/` (one per branch, tracked in git).
-It represents **branch-level state** — "Next Task" is the branch's next incomplete task, not
-any individual developer's personal next task. In team mode, each developer resolves their
+**Key distinction:** Each active work unit has its own `status-{name}.md` in
+`active/{category}/`, tracked in git and shared across developers working on that WU. It
+represents **WU-level state** — "Next Task" is the WU's next incomplete task, not any
+individual developer's personal next task. In team mode, each developer resolves their
 personal next task by scanning `(@name)` markers in the task list (see
 [session-init][session-init] team-mode step). Personal files (SESSION-NOTES.md, ATOMIC-INBOX.md)
 live in `user/{identity}/` and are gitignored — no merge conflicts between developers. The
@@ -143,11 +144,11 @@ The incoming developer runs a standard session-init with these additions:
    ```
 
    The CLI extracts the outgoing developer's SESSION-NOTES and workspace files into a
-   readable format. This supplements WORK-STATUS.md with qualitative context — decisions,
-   gotchas, and approach notes that aren't captured in tracked artifacts.
+   readable format. This supplements the active WU's `status-{name}.md` with qualitative
+   context — decisions, gotchas, and approach notes that aren't captured in tracked artifacts.
 
 2. **Verify task ownership.** Check the task list for `(@name)` markers confirming which tasks
-   are assigned to you. WORK-STATUS.md shows the branch-level current task; the markers show
+   are assigned to you. The WU's `status-{name}.md` shows the current task; the markers show
    your personal scope.
 
 3. **Confirm understanding.** Report your understanding in the session-init orientation summary.
@@ -159,12 +160,12 @@ The incoming developer runs a standard session-init with these additions:
 Person-to-person handoff works asynchronously — the outgoing developer may not be available
 when the incoming developer starts.
 
-- **Documents must stand alone.** SESSION-NOTES.md + WORK-STATUS.md should provide complete
-  orientation without verbal walkthrough.
-- **WORK-STATUS.md provides minimum viable context.** Even without SESSION-NOTES.md, the
+- **Documents must stand alone.** SESSION-NOTES.md + the active WU's `status-{name}.md`
+  should provide complete orientation without verbal walkthrough.
+- **`status-{name}.md` provides minimum viable context.** Even without SESSION-NOTES.md, the
   project pointer (branch, task list, current task, next action) is sufficient to start work.
-- **Graceful degradation.** If git notes weren't pushed, fall back to WORK-STATUS.md + task
-  list + git log.
+- **Graceful degradation.** If git notes weren't pushed, fall back to `status-{name}.md` +
+  task list + git log.
 - **Questions are expected.** The incoming developer may leave questions in commit messages,
   PR comments, or team channels.
 
@@ -253,38 +254,46 @@ Personal files in `user/{identity}/` (SESSION-NOTES.md and, with `pm.mode: arc-i
 ATOMIC-INBOX.md) are gitignored — no merge conflicts by design. Only one developer writes to
 each identity directory.
 
-`WORK-STATUS.md` in `active/` is shared (one per branch, tracked in git) and represents
-branch-level progress. The `.gitattributes` `merge=ours` strategy auto-resolves local merges
-by keeping the target branch version. This is designed for **branch-to-base merges** (feature →
-main) where the base branch version is authoritative post-merge.
-
-**Sub-branch caveats:** When merging personal sub-branches into a shared integration branch,
-`merge=ours` keeps the integration branch's WORK-STATUS, silently discarding the sub-branch
-version. This is expected — the integration branch owner should update WORK-STATUS after
-merging to reflect the combined state. If multiple sub-branches merge in sequence, only the
-integration branch's WORK-STATUS survives; each merge should be followed by a reconciliation
-update.
-
-**Platform note:** Custom merge drivers (including `merge=ours`) do not run during server-side
-PR merges on GitHub, GitLab, or Bitbucket. If both branches modified WORK-STATUS.md, the
-platform reports a merge conflict. This is expected when the base branch version is unchanged
-(no conflict), but may require manual resolution when both sides have updates.
+Per-WU status files (`active/{category}/status-{name}.md`) are tracked and shared across
+developers working on the same WU. Parallel work units on independent branches never collide
+at the status-file layer — each WU carries its own file, and merges to the base branch never
+touch the same path from both sides. Within-WU coordination (team sub-branches sharing one
+status file) resolves through normal git merge behavior: non-overlapping field edits merge
+cleanly, field-level collisions surface as merge conflicts that the integration branch owner
+resolves manually. `(@name)` marker discipline on task lists minimizes status-file field
+overlap in practice — the typical pattern is one developer advancing `Next Task` per commit,
+not concurrent writes to the same field.
 
 See [Work Organization Strategy][work-org] § Task Lists and Branches for the full merge
 convention.
 
 ### Concurrent Sessions
 
-The sections above describe sequential handoff (Alice finishes, Bob starts). When multiple
-developers are actively working simultaneously on the same branch:
+Sequential handoff (Alice finishes, Bob starts) is the common pattern. When multiple
+developers work simultaneously, two different topologies carry different coordination
+properties — address them separately.
+
+**Parallel work units on independent branches.** Alice works on
+`feature/auth/feature-auth-refresh` with its own `status-auth-refresh.md`; Bob works on
+`technical/ci-matrix` with its own `status-ci-matrix.md`. The work units don't coordinate at
+all at the status-file layer: different files, different branches, different task lists.
+Independent WUs merge to the base branch without ever touching each other's status files.
+This is the dominant pattern for parallel solo work on independent concerns.
+
+**Within-WU team sub-branches.** Alice and Bob both work on the same WU via personal
+sub-branches (`feature/user-auth/alice`, `feature/user-auth/bob`) off a shared integration
+branch. They share one `status-{name}.md`. Coordination mechanisms:
 
 - **Task list:** Each developer works their `(@name)`-assigned tasks. Conflicts only arise
   when both commit task list updates at the same time — pull before committing to reduce
-  conflict frequency. Remaining conflicts are resolved as described above.
-- **WORK-STATUS.md:** The last committer's update wins. This is acceptable because
-  WORK-STATUS represents branch-level state, and each developer resolves their personal
-  next task from `(@name)` markers at session-init — they don't depend on WORK-STATUS
-  for personal state.
+  conflict frequency. Remaining conflicts are resolved as described under
+  [Task Lists Are Shared Files](#task-lists-are-shared-files).
+- **Status file (`status-{name}.md`):** Shared write surface. Non-overlapping field edits
+  merge cleanly; concurrent edits to the same field (e.g., both advancing `Next Task`)
+  produce a merge conflict that the integration branch owner resolves manually. Last
+  committer's update wins as the default convention when edits are compatible — each
+  developer resolves their personal next task from `(@name)` markers at session-init and
+  doesn't depend on the shared status file for personal state.
 - **SESSION-NOTES.md:** No conflict possible — each developer writes to their own
   `user/{identity}/` directory.
 

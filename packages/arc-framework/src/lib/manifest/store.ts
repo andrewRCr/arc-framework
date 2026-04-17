@@ -62,6 +62,9 @@ export function validateManifest(data: unknown): ValidationResult {
     if (!Array.isArray(ic.tools)) {
       errors.push("install_config.tools must be an array");
     }
+    if (ic.repo_root !== undefined && typeof ic.repo_root !== "string") {
+      errors.push("install_config.repo_root must be a string");
+    }
   }
   if (typeof obj.files !== "object" || obj.files === null) {
     errors.push("Missing or invalid 'files' (expected object)");

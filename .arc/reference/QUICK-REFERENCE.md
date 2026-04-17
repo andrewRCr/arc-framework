@@ -209,6 +209,15 @@ git --no-pager diff --stat
 
 ## ARC CLI Commands
 
+> **Self-hosting invocation:** This repo develops the `arc` CLI itself — don't rely on a global
+> `arc` install in this working tree. A global install would resolve to the published version,
+> not local source, so changes you make here wouldn't run. Use `npx arc <command>` for every ARC
+> CLI command in the sections below; npm workspaces symlinks the local package binary into
+> `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires `npm run build` to be
+> current (the binary points at `packages/arc-framework/dist/cli.js`). This guidance applies only
+> to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
+> directly.
+
 ### Setup and Configuration
 
 ```bash

@@ -139,14 +139,6 @@ against the roadmap.
 
 <!-- arc:endif -->
 
-<!-- arc:if pm.mode == external -->
-
-> **With External Tracker** (`pm.mode: external`) — Proceed to
-> [03_configure-external-integration.md][configure-external] to connect ARC workflows to your
-> tracker.
-
-<!-- arc:endif -->
-
 ---
 
 ## Maintaining Project Documents
@@ -179,6 +171,44 @@ decisions are made, not on a schedule.
 
 ---
 
+## Next Step
+
+Project definition is complete. Three of these documents — AGENT-BRIEFING.PROJECT,
+QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
+session.
+<!-- arc:if pm.mode == arc-in-git -->
+The rest (META-PRD, TECHNICAL-OVERVIEW, ROADMAP, PROJECT-STATUS) are reference
+material for consulting during planning and architecture decisions.
+<!-- arc:endif -->
+<!-- arc:if pm.mode != arc-in-git -->
+The rest (META-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during
+planning and architecture decisions.
+<!-- arc:endif -->
+
+<!-- arc:if pm.mode == arc-in-git -->
+Clear your context and start a fresh session with `/arc-resume`. With no active work unit
+yet, session initialization enters discovery mode: the agent checks your ROADMAP for the
+next queued item and helps you create a PRD and task list for your first work unit. From
+there, the normal session rhythm — `/arc-resume`, task execution,
+`/arc-commit`, `/arc-handoff` — takes over.
+<!-- arc:endif -->
+
+<!-- arc:if pm.mode == none -->
+Clear your context and start a fresh session with `/arc-resume`. With no active work unit
+yet, session initialization reports the empty state and awaits your direction. When ready
+to begin your first work unit, follow [1_create-prd.md][create-prd] to define it from
+your project docs, then [2_generate-tasks.md][generate-tasks] for the task list. From
+there, the normal session rhythm — `/arc-resume`, task execution, `/arc-commit`,
+`/arc-handoff` — takes over.
+<!-- arc:endif -->
+
+<!-- arc:if pm.mode == external -->
+Proceed to [03_configure-external-integration.md][configure-external] to connect ARC
+workflows to your tracker.
+<!-- arc:endif -->
+
+---
+
 [init-arc]: 01_verify-and-configure.md
 <!-- arc:if pm.mode == external -->
 [configure-external]: 03_configure-external-integration.md
@@ -192,4 +222,8 @@ decisions are made, not on a schedule.
 <!-- arc:if pm.mode == arc-in-git -->
 [roadmap]: ../../../../backlog/ROADMAP.md
 [project-status]: ../../../../reference/PROJECT-STATUS.md
+<!-- arc:endif -->
+<!-- arc:if pm.mode == none -->
+[create-prd]: ../1_create-prd.md
+[generate-tasks]: ../2_generate-tasks.md
 <!-- arc:endif -->

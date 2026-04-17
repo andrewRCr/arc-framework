@@ -141,31 +141,26 @@ describe("runJoin", () => {
     expect(identityCall).toBeDefined();
   });
 
-  it("configures git integration (gitattributes, merge driver, hooks)", async () => {
+  it("configures git integration (hooks path)", async () => {
     await runJoin(opts);
 
     const execCalls = (io.exec as ReturnType<typeof vi.fn>).mock.calls as [string, string[]][];
 
-    // merge driver
-    const mergeDriver = execCalls.find(
-      (c) => c[1]?.includes("merge.ours.driver"),
-    );
-    expect(mergeDriver).toBeDefined();
-
-    // hooks path
+    // hooks path — exact call shape
     const hooksPath = execCalls.find(
       (c) => c[1]?.includes("core.hooksPath"),
     );
     expect(hooksPath).toBeDefined();
+    expect(hooksPath).toEqual([
+      "git",
+      ["config", "core.hooksPath", ".arc/system/githooks"],
+    ]);
 
-    // gitattributes block written
-    const writeCalls = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls as [string, string][];
-    const gitattrsWrite = writeCalls.find(
-      (c) => c[0] === "/project/.gitattributes",
+    // guard: merge driver was retired in d8e5048 — no merge.* git config should be written
+    const mergeDriverCall = execCalls.find(
+      (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
     );
-    expect(gitattrsWrite).toBeDefined();
-    expect(gitattrsWrite![1]).toContain("WORK-STATUS.md merge=ours");
-    expect(gitattrsWrite![1]).toContain("# ARC Framework (managed by arc cli)");
+    expect(mergeDriverCall).toBeUndefined();
   });
 
   it("creates user directory with templates", async () => {

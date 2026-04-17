@@ -28,7 +28,7 @@ For simple, single-concern commits where you know what changed:
 
 1. `git status` — review pending changes
 2. `git --no-pager diff --stat` — overview of scope
-3. Update task list and WORK-STATUS.md if committing completed task work (see
+3. Update task list and the active status file if committing completed task work (see
    [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy) — stage with the commit
 4. Stage files for one logical change
 5. Pre-stage review extensions · `#pre-stage-review`: If [pre-stage-review extensions][arc-ext-pre-stage] are
@@ -109,7 +109,7 @@ Examine changes that might not be immediately obvious — config files, document
 - Mark completed subtasks as `[x]` in task files
 - Mark parent tasks `[x]` ONLY if ALL subtasks are complete
 - Update progress notes and add any discovered tasks
-- **Update WORK-STATUS.md** — advance Next Task, Last Completed, and Next Action to
+- **Update the active status file** — advance Next Task, Last Completed, and Next Action to
   reflect the post-commit state (see [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy)
 
 ### 5. Plan Commit Sequence

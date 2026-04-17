@@ -3,15 +3,18 @@
 **Type:** Feature | Technical
 **Updated:** YYYY-MM-DD
 
-<!-- Optional: Add dependency tracking when work depends on other in-progress items.
-**Status:** Pending Dependencies
+<!-- Optional: Add pre-activation lifecycle metadata.
 
-**Related Work:**
+**State:** (e.g., Draft, Stub, Capture, Pending Dependencies, Approved — brief description)
+
+**Related Work:** (only when State is Pending Dependencies)
 
 - Depends on: [Dependency] — brief description
 - Complete: [Resolved dependency] — brief description
 
-Remove Status and Related Work when dependencies resolve. -->
+Both fields are pre-activation only — removed at activation (see activate-work-unit.md
+Step 4). From then on, the per-WU status file's **State:** field is the sole source of
+truth for work unit lifecycle. -->
 
 ---
 

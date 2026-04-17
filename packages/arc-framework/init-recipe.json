@@ -1,7 +1,6 @@
 {
   "include_files": [
     "README.md",
-    "active/WORK-STATUS.template.md",
     "reference/QUICK-REFERENCE.template.md",
     "reference/META-PRD.template.md",
     "reference/TECHNICAL-OVERVIEW.template.md",
@@ -20,6 +19,7 @@
     "reference/templates/template-contributing.md",
     "reference/templates/template-plan.md",
     "reference/templates/template-prd.md",
+    "reference/templates/template-status.md",
     "reference/strategies/arc/strategy-adr-methodology.md",
     "reference/strategies/arc/strategy-configurability-architecture.md",
     "reference/strategies/arc/strategy-file-classification.md",
