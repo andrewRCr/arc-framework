@@ -397,7 +397,7 @@ if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] 
 
             # Only check when the status file is itself staged — if it isn't,
             # pre-commit CHECK 10 already surfaces that.
-            status_is_staged=$(git diff --cached --name-only | grep -E "^${expected_status}$" | head -1 || true)
+            status_is_staged=$(git diff --cached --name-only | grep -xF "$expected_status" | head -1 || true)
             if [ -n "$status_is_staged" ]; then
                 ws_current_num=$(git show ":$expected_status" 2>/dev/null | \
                     grep -E '^\*\*Next Task:\*\*' | \
