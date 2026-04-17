@@ -14,16 +14,10 @@
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
 **Next Task:** [none] — integration in progress
-**Last Completed:** CR Pass 1 Issue-level findings processed — 9 substantive
-commits (`e7db003`..`7acf992`) covering verifier severity + doc sync,
-archive-path `{NN}_{name}`, base-branch terminology sweep in deactivate,
-full-protection branch+PR spelled out for deactivate Steps 5/6, mode-aware
-`02_define-project` Next Step, `repo_root` captured in `InstallConfig` with
-arcd-rebrand plan-doc follow-up, and incidental branch-prefix support in
-deactivate. Remaining Issue findings dispositioned as already-fixed or
-rejected. Completion doc Pre-merge review section updated to reflect both
-Pass 1 batches. Tier 3 re-verified clean (616/616 tests).
+**Last Completed:** CR Pass 1 Issue-level batch processed and all 24 review-cycle
+commits pushed (`975c1f6`..`3dee685`). Completion doc captures both nitpick and
+Issue batches. Tier 3 clean (616/616 tests).
 **Blockers:** [none]
-**Next Action:** integrate-work-unit Step 8 — push all unpushed commits,
-then `@coderabbitai resume` on PR #19 after the user posts the drafted
-Issue-finding replies; monitor re-review cycle for any new findings.
+**Next Action:** integrate-work-unit Steps 9+ — after user posts the 17 drafted
+Issue-finding replies and `@coderabbitai resume` on PR #19, monitor re-review.
+If clean → merge + archive-work-unit; if new findings → continue Pass 1.
