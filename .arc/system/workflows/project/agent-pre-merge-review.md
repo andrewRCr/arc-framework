@@ -41,7 +41,7 @@ Work through findings sequentially using the [review-triage method][arc-methods-
 ### 3) Commit Fixes
 
 Stage all fixes and commit as a single batch (preferred). Document dispositions in the commit
-message per the review-triage method's documentation format. Use the `(integration)` context
+message per the review-triage method's documentation format. Use the `(code review)` context
 footer.
 
 Split commits only if fixes have substantially different scope (e.g., critical bugs separate from
@@ -87,7 +87,7 @@ comment:
 
 ### 2) Commit Fixes (Atomic by Scope)
 
-Commit fixes with the `(integration)` context footer, grouped by logical scope rather than
+Commit fixes with the `(code review)` context footer, grouped by logical scope rather than
 mechanically per finding. Same concern across N findings → one commit. Different concerns →
 separate commits. Document dispositions per the [review-triage method][arc-methods-rt] in
 the relevant commit message.

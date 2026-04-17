@@ -113,7 +113,10 @@ grep-searchable across commit history.
 - `Context: tasks-[filename].md (incidental - discovered during <context>)` — incidental fix
 - `Context: tasks-[filename].md (planning)` — task list metadata only
 - `Context: tasks-[filename].md (activation)` — backlog to active transition
-- `Context: tasks-[filename].md (integration)` — integration prep and review fixes
+- `Context: tasks-[filename].md (integration)` — integration prep (completion doc, cleanup,
+  reference fixes; not review-driven fixes — see `(code review)`)
+- `Context: tasks-[filename].md (code review)` — commits responding to code review findings
+  (local pre-merge or PR-stage)
 - `Context: tasks-[filename].md (archival)` — active to archive transition
 
 **With atomic companion file:**

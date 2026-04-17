@@ -134,7 +134,7 @@ task list.
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
 context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
-integration use the same pattern.
+integration use the `(code review)` footer instead — see `arc-methods.md` § commit-context-format.
 
 **⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
 
@@ -169,7 +169,7 @@ If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 1. Execute the [pre-merge-review method][arc-methods-pmr] — review the aggregate diff, classify
    findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
 2. If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them
-3. Commit any fixes with the `(integration)` context footer
+3. Commit any fixes with the `(code review)` context footer
 
 When disabled, proceed directly to push and PR creation.
 
@@ -221,7 +221,7 @@ Process findings from PR reviewers (human or automated) using the
 - **Defer/reject**: Document reason in PR reply
 - **Update completion metadata** if work outcomes changed (completion doc should reflect final state)
 - **Re-run Tier 1 quality gates** on all modified files — mandatory after review-driven commits
-- Commit fixes with the `(integration)` context footer
+- Commit fixes with the `(code review)` context footer
 
 ### 9) Merge Pull Request
 
