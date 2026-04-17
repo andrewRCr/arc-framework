@@ -14,8 +14,12 @@
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
 **Next Task:** [none] — integration in progress
-**Last Completed:** Pre-merge review consolidation — WU-doc metadata thesis (`bb9e8c4`) +
-agent-pre-merge-review commit/push discipline fix (`b655d23`). 3 commits unpushed.
+**Last Completed:** CodeRabbit Pass 1 nitpick-level findings addressed — 9 atomic
+commits (`975c1f6`..`d632731`) covering hook RULE 7 sharpening, strategy/README doc
+consistency, integrate-work-unit ordering fix, plan-arc-modes terminology, ROADMAP
+graph insertion, generate-tasks Branch(es) clarification, and setup-test regression
+guards. Full Tier 3 suite re-verified clean (616/616 tests). 13 commits unpushed.
 **Blockers:** [none]
-**Next Action:** integrate-work-unit Step 8 — push 3 commits (`@coderabbitai pause` active
-on PR #19), process remaining CodeRabbit Pass 1 findings, `@coderabbitai resume` when done.
+**Next Action:** integrate-work-unit Step 8 — push all 13 commits (`@coderabbitai pause`
+active on PR #19), then process remaining Issue-level CodeRabbit Pass 1 findings
+(substantive, reply-required), `@coderabbitai resume` when the review cycle closes.
