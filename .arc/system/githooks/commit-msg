@@ -384,9 +384,17 @@ if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] 
                 fi
             done
         fi
-        # Fall back to the first staged task list when Context extraction fails.
+        # Fall back to the first staged task list — but only when Context didn't
+        # name a task list (no explicit intent to match) or exactly one task list
+        # is staged (unambiguous even if Context's named file couldn't be resolved
+        # on disk — likely a typo). When Context named a file AND multiple lists
+        # are staged, skip the check rather than misattribute committed_task_num
+        # against a sibling WU's status file.
         if [ -z "$task_list_path" ]; then
-            task_list_path=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' | head -1 || true)
+            staged_count=$(git diff --cached --name-only | grep -cE '^\.arc/active/[^/]+/tasks-[^/]+\.md$' || true)
+            if [ -z "$context_task_file" ] || [ "$staged_count" -eq 1 ]; then
+                task_list_path=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' | head -1 || true)
+            fi
         fi
 
         if [ -n "$task_list_path" ]; then
