@@ -79,7 +79,7 @@ git checkout {base-branch}
 **Local:**
 
 ```bash
-git branch -D {feature|technical}/{branch-name}
+git branch -D {feature|technical|incidental}/{branch-name}
 ```
 
 Use `-D` (force) — the branch carries the activation commit that was never merged to the base
@@ -88,7 +88,7 @@ branch. That's expected for Case A.
 **Remote (if pushed):**
 
 ```bash
-git push origin --delete {feature|technical}/{branch-name}
+git push origin --delete {feature|technical|incidental}/{branch-name}
 ```
 
 ### Step 4: Verify Pre-Activation State · `arc-in-git` only
