@@ -111,7 +111,7 @@ path, and confirms the next task reference resolves within the task list.
 - **INFO** — no active status file (normal between work units).
 - **ERROR** — task list path referenced by a status file points to a missing file.
 - **WARN** — next task reference not found in task list (may be stale).
-- **WARN** — multiple active status files found (verified individually; disambiguation is a
+- **INFO** — multiple active status files found (verified individually; disambiguation is a
   session-init concern, not a verify concern).
 
 **Remediation:** Update the affected status file to reflect current state. If the task list
