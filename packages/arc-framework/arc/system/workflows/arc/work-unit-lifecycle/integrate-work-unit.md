@@ -52,7 +52,6 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 ### 1) Verify Work Completion
 
 - [ ] All task list subtasks and parent tasks marked `[x]`
-- [ ] Status file `**State:**` updated to `Complete` (written by [clean-work-unit.md](clean-work-unit.md) Mode 2)
 - [ ] Task list Success Criteria all checked (expected — verification phase should have validated these)
 - [ ] PRD alignment (if PRD exists — planned work only):
     - [ ] Confirm success criteria against PRD — second pass after verification phase. Note any
@@ -103,7 +102,10 @@ just a keep/delete decision.
 **Run [clean-work-unit.md](clean-work-unit.md) workflow in Mode 2 (Archival Preparation).**
 
 This produces: clean task file (temporal markers removed, detailed granularity preserved), notes file
-evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), cross-references updated.
+evaluated for archival worthiness (kept and cleaned, or deleted if scratchpad), cross-references updated,
+and the status file `**State:**` field set to `Complete`.
+
+**Verify before proceeding:** Confirm the status file `**State:**` now reads `Complete`.
 
 ### 3) Create Completion Metadata
 
