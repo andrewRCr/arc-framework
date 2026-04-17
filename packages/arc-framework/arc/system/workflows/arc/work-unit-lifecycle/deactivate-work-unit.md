@@ -121,7 +121,14 @@ these local files are scaffold that should be removed.
 
 1. **Update the tracker**: Move the work item back to its pre-activation state (backlog / icebox /
    equivalent) in the external system.
-2. **Delete local artifacts**:
+2. **Set up commit branch** (full protection only): Under `branch.protection: full`, the deletion
+   commit requires its own branch. Skip under partial — commit directly to base.
+
+   ```bash
+   git checkout -b chore/deactivate-{name}
+   ```
+
+3. **Delete local artifacts**:
 
    ```bash
    git rm .arc/active/{category}/prd-{name}.md \
@@ -129,13 +136,20 @@ these local files are scaffold that should be removed.
           .arc/active/{category}/atomic-{name}.md
    ```
 
-3. **Commit.** Under full protection, this deletion requires its own branch + PR. Under partial
-   protection, direct commit to base is acceptable.
+4. **Commit:**
 
    ```bash
    git commit -m "docs(arc): deactivate {work-name} work unit
 
    Context: tasks-{name}.md (deactivation)"
+   ```
+
+5. **Push and open a PR** (full protection only): Push the housekeeping branch and merge via PR.
+   Under partial protection, the commit is already on base — nothing more to do.
+
+   ```bash
+   git push -u origin chore/deactivate-{name}
+   gh pr create --base {base-branch} --head chore/deactivate-{name}
    ```
 
 Reactivation later re-renders artifacts from the tracker.
@@ -151,7 +165,14 @@ mode.
 
 1. **Optional preservation**: Copy artifacts to a location outside `.arc/` if the content is worth
    keeping.
-2. **Delete local artifacts**:
+2. **Set up commit branch** (full protection only): Under `branch.protection: full`, the deletion
+   commit requires its own branch. Skip under partial — commit directly to base.
+
+   ```bash
+   git checkout -b chore/deactivate-{name}
+   ```
+
+3. **Delete local artifacts**:
 
    ```bash
    git rm .arc/active/{category}/prd-{name}.md \
@@ -159,13 +180,20 @@ mode.
           .arc/active/{category}/atomic-{name}.md
    ```
 
-3. **Commit.** Under full protection, this deletion requires its own branch + PR. Under partial
-   protection, direct commit to base is acceptable.
+4. **Commit:**
 
    ```bash
    git commit -m "docs(arc): deactivate {work-name} work unit
 
    Context: tasks-{name}.md (deactivation)"
+   ```
+
+5. **Push and open a PR** (full protection only): Push the housekeeping branch and merge via PR.
+   Under partial protection, the commit is already on base — nothing more to do.
+
+   ```bash
+   git push -u origin chore/deactivate-{name}
+   gh pr create --base {base-branch} --head chore/deactivate-{name}
    ```
 
 ---
