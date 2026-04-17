@@ -115,16 +115,27 @@ based on work complexity. Complete the verification checklist (standard template
 
 ### 4) Commit Documentation Changes
 
-Commit all documentation updates to the child branch. Stage the entire work unit directory —
-this captures all modified, added, and deleted files without requiring explicit enumeration.
+Commit all documentation updates to the child branch. Stage the work unit's files by the
+`*-{name}.md` name-suffix glob — this scopes to the current WU (category directories can hold
+multiple WUs in parallel or across overlapping lifecycles) and captures all modified, added,
+and deleted files for this WU in one pattern.
 
 ```bash
-git add .arc/active/{category}/
+git add .arc/active/{category}/*-{name}.md
 ```
 
-**What this stages:** Task list, notes, completion doc, PRD (if planned work), atomic companion
-file, and any supplementary files (analysis, research) kept in Step 1c. Unmodified files are
+**What this stages:** Task list, notes, completion doc, PRD (if planned work), status file,
+and atomic companion file — all follow the `*-{name}.md` convention. Unmodified files are
 no-ops.
+
+**Supplementary files:** If analysis/research files were kept in Step 1c and their filenames
+don't include `{name}` (free-form-named, e.g., `analysis-reviewer-response.md`), add them
+explicitly alongside the glob:
+
+```bash
+git add .arc/active/{category}/*-{name}.md \
+       .arc/active/{category}/analysis-{topic}.md
+```
 
 **Atomic companion file:** If `atomic-{name}.md` contains no checkbox items (no `- [` lines),
 delete it before staging — an empty companion file has no archival value. If it contains
