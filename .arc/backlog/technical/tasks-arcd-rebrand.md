@@ -482,13 +482,23 @@ completes [`rotate-branch.md`][rotate-branch] Step 4–5 interrupted by session 
         - `https://github.com/andrewRCr/arc-framework` should redirect (GitHub auto-redirects old
           repo URLs for a transitional window; do not rely on this long-term)
 
-- [ ] **3.2 Update local clone remote URL**
+- [ ] **3.2 Update local clone for new remote**
 
     - [ ] **3.2.a `git remote set-url` origin**
         - `git remote set-url origin git@github.com:andrewRCr/ARCd-framework.git` (or HTTPS form
           per local preference)
         - Verify with `git remote -v`
         - Test: `git fetch origin` succeeds against the new URL
+
+    - [ ] **3.2.b Rename local clone directory for consistency**
+        - Open a fresh shell at the parent directory (not inside the clone being moved)
+        - `mv arc-framework/ ARCd-framework/` (or platform equivalent)
+        - Update shell aliases, IDE workspace files, direnv/envrc configs, and any tooling
+          pointing at the old path
+        - `cd` into the renamed directory; verify `git status` and `git remote -v` work cleanly
+        - Note: `install_config.repo_root` in `.arc/system/.internal/manifest.json` now holds the
+          stale path. It stays stale through Phases 3–5 without causing test failures (rendered
+          `.arc/` content still matches) and gets refreshed to the new path in Task 6.4.
 
 - [ ] **3.3 Create Phase 3 branch**
 
@@ -789,6 +799,10 @@ Phase 7 verification, and the final [`integrate-work-unit.md`][integrate-work-un
     - [ ] **6.4.a Update `.arc/system/.internal/manifest.json`**
         - Bump stored `schemaVersion` to match Phase 1.6's `MANIFEST_SCHEMA_VERSION`
         - Regenerate file hashes for all framework files in `.arc/`
+        - **Update `install_config.repo_root`** to the new directory path (set automatically when
+          the `arcd` CLI regenerates; hand-edit if no CLI path). Field was added by WU
+          Work-Status Restructure to capture install-time repo path for the framework-sync drift
+          check; Task 3.2.b left it pointing at the stale pre-rename path.
         - Prefer using the `arcd` CLI if a refresh-manifest subcommand exists; otherwise hand-edit
           the manifest JSON and recompute hashes via the CLI's hash utility
 
