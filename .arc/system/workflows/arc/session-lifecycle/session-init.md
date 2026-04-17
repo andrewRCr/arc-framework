@@ -307,6 +307,7 @@ git log -1 --format=%h
 git log --oneline <handoff-hash>..HEAD
 
 # Check active status file freshness
+# Skip this command if no active status file was resolved (zero-file case) — no path to check.
 git log -1 --format=%h -- <resolved-status-file-path>
 # If this differs from HEAD, the active status file hasn't been updated across recent commits
 ```
