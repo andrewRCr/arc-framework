@@ -358,7 +358,9 @@ fi
 # ============================================================================
 # When committing a completed parent task (Context: "Task X.Y"), verify that
 # the staged sibling status file has been advanced past that task.
-# The expected status file is derived from the staged task list's directory:
+# The expected status file is derived from the task list named in the Context
+# footer (preferred — unambiguous even when multiple task lists are staged),
+# falling back to the first staged task list if Context extraction fails:
 # `active/{category}/tasks-{name}.md` → `active/{category}/status-{name}.md`.
 # Only checks parent-level tasks (X.Y) — subtask commits (X.Y.z) don't
 # advance Next Task, so no warning needed.
@@ -366,15 +368,29 @@ fi
 # Skipped for contributors — they don't update project-level status files.
 if [ "$arc_role" != "contributor" ] && [ "$context_footer_mode" != "disabled" ] && [ "$context_footer_mode" != "custom" ]; then
     context_for_ws=$(echo "$commit_msg" | grep '^Context: ' | head -n1)
-    committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
+    committed_task_num=$(echo "$context_for_ws" | grep -oE '\(Task [0-9]+\.[0-9]+(; (planning|maintenance))?\)$' | grep -oE '[0-9]+\.[0-9]+' || true)
 
     if [ -n "$committed_task_num" ]; then
-        # Derive expected status file from staged task list (same pattern as
-        # pre-commit CHECK 10).
-        staged_task_list=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' | head -1 || true)
-        if [ -n "$staged_task_list" ]; then
-            task_list_dir=$(dirname "$staged_task_list")
-            task_list_base=$(basename "$staged_task_list" .md)
+        # Prefer the task list named in the Context footer — resolves the path
+        # on disk so multiple staged task lists don't cause a wrong match.
+        context_task_file=$(echo "$context_for_ws" | grep -oE 'tasks-[a-zA-Z0-9-]+\.md' | head -1 || true)
+        task_list_path=""
+        if [ -n "$context_task_file" ]; then
+            for dir in .arc/active/*/; do
+                if [ -f "${dir}${context_task_file}" ]; then
+                    task_list_path="${dir}${context_task_file}"
+                    break
+                fi
+            done
+        fi
+        # Fall back to the first staged task list when Context extraction fails.
+        if [ -z "$task_list_path" ]; then
+            task_list_path=$(git diff --cached --name-only | grep -E '^\.arc/active/[^/]+/tasks-[^/]+\.md$' | head -1 || true)
+        fi
+
+        if [ -n "$task_list_path" ]; then
+            task_list_dir=$(dirname "$task_list_path")
+            task_list_base=$(basename "$task_list_path" .md)
             wu_name=${task_list_base#tasks-}
             expected_status="${task_list_dir}/status-${wu_name}.md"
 
