@@ -295,7 +295,7 @@ if [ ${#status_files[@]} -eq 0 ]; then
     info "No active status file (normal between work units)"
 else
     if [ ${#status_files[@]} -gt 1 ]; then
-        warn "Multiple active status files found (${#status_files[@]}) — verifying each; disambiguation is a session-init concern"
+        info "Multiple active status files found (${#status_files[@]}) — verifying each; disambiguation is a session-init concern"
     fi
     for work_status in "${status_files[@]}"; do
         status_dir=$(dirname "$work_status")
