@@ -237,6 +237,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       pm_mode: "none",
       tools: ["claude"],
       team_mode: false,
+      repo_root: tempDir,
     });
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
   });

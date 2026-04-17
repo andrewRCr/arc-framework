@@ -671,6 +671,7 @@ describe("runInit", () => {
       pm_mode: "none",
       tools: ["claude"],
       team_mode: false,
+      repo_root: "/project",
     });
 
     const files = manifest.files as Record<string, { classification: string; pristine_hash: string }>;

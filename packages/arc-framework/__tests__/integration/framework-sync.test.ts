@@ -33,29 +33,6 @@ const ARC_DIR = join(REPO_ROOT_DIR, ".arc");
 const PKG_ARC_DIR = join(REPO_ROOT_DIR, "packages/arc-framework/arc");
 
 /**
- * Read the installed REPO_ROOT value from `.arc/reference/QUICK-REFERENCE.md`.
- *
- * Using the committed value rather than `process.cwd()` makes the check
- * cwd-independent: CI and local runs produce the same rendered output, so
- * drift is detected against the committed state rather than the checkout
- * location.
- */
-async function readInstalledRepoRoot(): Promise<string> {
-  const content = await readFile(
-    join(ARC_DIR, "reference/QUICK-REFERENCE.md"),
-    "utf-8",
-  );
-  const match = content.match(/^\*\*Repository Root\*\*:\s*`([^`]+)`/m);
-  if (!match?.[1]) {
-    throw new Error(
-      "Could not extract Repository Root from .arc/reference/QUICK-REFERENCE.md",
-    );
-  }
-  // QUICK-REFERENCE stores with trailing slash; buildTokenMap uses bare cwd.
-  return match[1].replace(/\/$/, "");
-}
-
-/**
  * Locate the package source for a `.arc/`-relative path.
  *
  * Templates are stored with a `.template.{ext}` suffix in package source;
@@ -99,9 +76,13 @@ describe("framework sync (self-hosting drift check)", () => {
     }
     manifest = loaded;
 
-    const repoRoot = await readInstalledRepoRoot();
     const cfg = manifest.install_config;
-    tokens = buildTokenMap({ project_name: cfg.project_name }, repoRoot);
+    if (!cfg.repo_root) {
+      throw new Error(
+        "manifest.install_config.repo_root missing — run `arc init` or `arc update` to populate it",
+      );
+    }
+    tokens = buildTokenMap({ project_name: cfg.project_name }, cfg.repo_root);
     conditionals = buildConfigMap({
       pm_mode: cfg.pm_mode,
       tools: cfg.tools,

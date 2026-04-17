@@ -199,6 +199,7 @@ export async function runInit(
       pm_mode: prompts.pm_mode,
       tools: prompts.tools,
       team_mode: prompts.team_mode,
+      repo_root: cwd,
     },
     files: manifestFiles,
   };
