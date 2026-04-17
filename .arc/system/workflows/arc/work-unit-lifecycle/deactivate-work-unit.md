@@ -27,8 +27,8 @@ to undo.
 
 |                        | No task work executed        | Some task work executed           |
 | ---------------------- | ---------------------------- | --------------------------------- |
-| **Not merged to main** | **Case A** — this workflow   | **Case B** → `arc-shift` (future) |
-| **Merged to main**     | **Case C** — noted edge case | **Case D** → integrate or clean   |
+| **Not merged to base** | **Case A** — this workflow   | **Case B** → `arc-shift` (future) |
+| **Merged to base**     | **Case C** — noted edge case | **Case D** → integrate or clean   |
 
 Only Case A is genuine deactivation — the implementation branch is the entire surface area of the
 activation, so deleting it undoes the activation by construction. The other three have work or merged
@@ -50,7 +50,7 @@ Reversion semantics differ by [`arc-config.yml`][arc-config] → `pm.mode`:
 
 - **arc-in-git**: Activation moved PRD / task list / atomic companion from `backlog/` to `active/`
   on the branch ([`activate-work-unit.md`][activate] Step 3). Branch deletion reverts those moves
-  automatically — main still shows the artifacts in `backlog/`. Apply Step 4.
+  automatically — the base branch still shows the artifacts in `backlog/`. Apply Step 4.
 - **external**: Local `active/` artifacts are agent-facing scaffold; the external tracker holds the
   source of truth. Apply Step 5.
 - **none**: Local `active/` artifacts are the only copies. Apply Step 6.
@@ -71,7 +71,7 @@ gh pr close {pr-number} --comment "Deactivating work unit; no task work executed
 ### Step 2: Switch to Base Branch
 
 ```bash
-git checkout main
+git checkout {base-branch}
 ```
 
 ### Step 3: Delete the Implementation Branch
@@ -82,8 +82,8 @@ git checkout main
 git branch -D {feature|technical}/{branch-name}
 ```
 
-Use `-D` (force) — the branch carries the activation commit that was never merged to main. That's
-expected for Case A.
+Use `-D` (force) — the branch carries the activation commit that was never merged to the base
+branch. That's expected for Case A.
 
 **Remote (if pushed):**
 
@@ -96,8 +96,8 @@ git push origin --delete {feature|technical}/{branch-name}
 > **Skip this step** if `pm.mode` is `external` or `none`.
 
 Branch deletion reverted the `git mv` from `backlog/` to `active/` and discarded the activation
-commit's status file creation and PROJECT-STATUS / ROADMAP updates. Main should now match
-pre-activation state. Verify:
+commit's status file creation and PROJECT-STATUS / ROADMAP updates. The base branch should now
+match pre-activation state. Verify:
 
 ```bash
 ls .arc/backlog/{category}/prd-{name}.md \
@@ -115,7 +115,7 @@ No further action required — the WU is back in planning state.
 
 > **Skip this step** if `pm.mode` is `arc-in-git` or `none`.
 
-Local `active/` artifacts persist on main after branch deletion — activation never moved them,
+Local `active/` artifacts persist on the base branch after branch deletion — activation never moved them,
 since `external` mode has no `backlog/` directory. The external tracker holds the source of truth;
 these local files are scaffold that should be removed.
 
@@ -189,14 +189,14 @@ are, no file relocation.
 > [`integrate-work-unit.md`][integrate] or abandon it via [`clean-work-unit.md`][clean] —
 > attempting manual parking without `arc-shift` protocol support invites state drift.
 
-### Case C — Merged to main, no work executed → Reversal PR (edge case)
+### Case C — Merged to base branch, no work executed → Reversal PR (edge case)
 
-**Why this isn't Case A:** Activation's changes are already on main as committed history, so branch
-deletion alone can't restore pre-activation state.
+**Why this isn't Case A:** Activation's changes are already on the base branch as committed
+history, so branch deletion alone can't restore pre-activation state.
 
 **Procedure (rare):**
 
-1. Create a new branch from main (e.g., `technical/deactivate-{name}`)
+1. Create a new branch from the base branch (e.g., `technical/deactivate-{name}`)
 2. Reverse activation's changes on the branch:
     - `git mv` PRD / task list / atomic companion from `active/{category}/` back to
       `backlog/{category}/` (arc-in-git); or `git rm` them (external / none)
@@ -207,7 +207,7 @@ deletion alone can't restore pre-activation state.
 This retains Case A's postconditions via explicit inverse commits. No separate workflow ships for
 Case C — use this section as the reference.
 
-### Case D — Merged to main, some work executed → Integrate or Clean
+### Case D — Merged to base branch, some work executed → Integrate or Clean
 
 **Why this isn't deactivation:** Reversing merged history is the opposite of undo-activation; the
 honest path is either finishing the WU or archiving it with abandoned status.
@@ -229,7 +229,7 @@ Before considering the work unit deactivated, verify:
 
 ## Postconditions
 
-- Main matches pre-activation state for tracked ARC content
+- Base branch matches pre-activation state for tracked ARC content
 - No implementation branch for this WU exists locally or on remote
 - Reactivation later starts from the equivalent pre-activation position (backlog entry, tracker
   item, or fresh planning round per mode)
