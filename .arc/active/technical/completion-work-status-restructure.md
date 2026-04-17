@@ -89,6 +89,23 @@ conflation without superseding the decision itself.
   `arc-extensions.md` as a template-replace rather than a Configurable three-way
   merge). Restored in `c5875b1`; audit of all 10 Configurable files confirmed no
   other instances of sync-loss on the branch.
+- **CR PR review cycle** (Pass 1, across two sessions under
+  `@coderabbitai pause`): CodeRabbit findings on the opened PR processed in
+  two batches. **Nitpick batch** — 9 atomic commits
+  (`975c1f6`..`d632731`) covering hook RULE 7 sharpening, strategy/README
+  consistency, integrate-work-unit ordering fix, plan-arc-modes terminology,
+  ROADMAP graph insertion, generate-tasks Branch(es) clarification, and
+  setup-test regression guards. **Issue batch** — 17 substantive findings
+  processed sequentially, 9 commits: verifier severity downgrade
+  (`e7db003`) paired with doc-sync (`f392fda`), archive staging path `{NN}_{name}`
+  (`0c64a82`), base-branch terminology sweep in deactivate (`9eb364b`),
+  full-protection branch+PR spelled out for deactivate Steps 5/6 (`ea3349b`),
+  mode-aware `02_define-project` Next Step split (`0185a70`), `repo_root`
+  captured in `InstallConfig` for a non-circular framework-sync drift check
+  (`0603228`) with cross-WU plan-doc update to `tasks-arcd-rebrand.md`
+  (`450fb72`), and incidental branch-prefix support in deactivate (`7acf992`).
+  Remaining Issue findings dispositioned as already-fixed or rejected with
+  rationale — dispositions recorded on the PR.
 - **Success criteria**: 21 of 22 met + 1 superseded-by-design. The superseded
   criterion ("Rebrand WU reactivates cleanly on the new model") is unsatisfiable
   until post-merge by construction — structural enablers are in place (model

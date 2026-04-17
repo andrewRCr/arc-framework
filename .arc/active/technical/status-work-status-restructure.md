@@ -14,12 +14,16 @@
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
 **Next Task:** [none] — integration in progress
-**Last Completed:** CodeRabbit Pass 1 nitpick-level findings addressed — 9 atomic
-commits (`975c1f6`..`d632731`) covering hook RULE 7 sharpening, strategy/README doc
-consistency, integrate-work-unit ordering fix, plan-arc-modes terminology, ROADMAP
-graph insertion, generate-tasks Branch(es) clarification, and setup-test regression
-guards. Full Tier 3 suite re-verified clean (616/616 tests). 13 commits unpushed.
+**Last Completed:** CR Pass 1 Issue-level findings processed — 9 substantive
+commits (`e7db003`..`7acf992`) covering verifier severity + doc sync,
+archive-path `{NN}_{name}`, base-branch terminology sweep in deactivate,
+full-protection branch+PR spelled out for deactivate Steps 5/6, mode-aware
+`02_define-project` Next Step, `repo_root` captured in `InstallConfig` with
+arcd-rebrand plan-doc follow-up, and incidental branch-prefix support in
+deactivate. Remaining Issue findings dispositioned as already-fixed or
+rejected. Completion doc Pre-merge review section updated to reflect both
+Pass 1 batches. Tier 3 re-verified clean (616/616 tests).
 **Blockers:** [none]
-**Next Action:** integrate-work-unit Step 8 — push all 13 commits (`@coderabbitai pause`
-active on PR #19), then process remaining Issue-level CodeRabbit Pass 1 findings
-(substantive, reply-required), `@coderabbitai resume` when the review cycle closes.
+**Next Action:** integrate-work-unit Step 8 — push all unpushed commits,
+then `@coderabbitai resume` on PR #19 after the user posts the drafted
+Issue-finding replies; monitor re-review cycle for any new findings.
