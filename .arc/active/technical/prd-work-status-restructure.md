@@ -93,7 +93,7 @@ field, and loads the correct file. No external state required.
 **R2. Status file field set.** Seven fields + title:
 
 - `**State:**` — WU lifecycle enum (`In Progress` / `Paused (date) — reason` /
-  `Waiting-For {category} (date) — reason` / `Complete`)
+  `Waiting-For {category} (date) — reason` / `Complete` / `Superseded (partial)`)
 - `**Branch:**` — current branch (supports rotating/sub-branch scenarios)
 - `**Task List:**` — filename reference (not path)
 - `**Next Task:**` — triple-anchor format

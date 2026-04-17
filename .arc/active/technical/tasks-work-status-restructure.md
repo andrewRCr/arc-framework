@@ -371,7 +371,7 @@ at cutover.
     `**Working On:**` on top — see its pre-execution note for folding guidance.
 
     **Quality gates:** Tier 1 markdown lint clean, TypeScript lint/typecheck
-    clean, full test suite passes (616 tests: 470 unit + 102 integration + 43
+    clean, full test suite passes (616 tests: 470 unit + 103 integration + 43
     e2e, including `framework-sync.test.ts` which verifies package source ↔
     `.arc/` mirror parity for the new template). tsup build succeeds.
 
