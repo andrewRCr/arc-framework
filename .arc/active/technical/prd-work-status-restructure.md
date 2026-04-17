@@ -1,9 +1,6 @@
 # PRD: Work-Status Restructure
 
 **Type:** Technical
-**Status:** Complete
-**Created:** 2026-04-15
-**Completed:** 2026-04-16
 
 ---
 
@@ -391,7 +388,7 @@ pre-merge review.
   marker vocabulary — all three agree
 - [ ] Package-source mirrors synced per `strategy-package-project-sync.md` — every
   `.arc/` edit has its package-source counterpart
-- [ ] ADR-007 carries a `## Amendments` section documenting the refinement
+- [ ] ADR-007 carries a `### Amendments` subsection under `## Consequences` documenting the refinement
 - [ ] `plan-arc-modes.md` cross-reference section exists with harmony walk and
   Finding #4 carve-out reference
 - [ ] Rebrand WU reactivates cleanly on the new model (first real exercise across
@@ -434,13 +431,14 @@ during `session-init.md` edit (Phase 2).
 branch, truncated `**Next Task:**`, and `**State:**`, plus a `[q]` abort option. On abort
 or dismiss, session-init surfaces the candidate list so the user resolves manually.
 
-**Q3. ADR-007 amendment prose.** Format settled (Tier 2 Amendment in `## Amendments`
-section, per R7); content drafted during Phase 1. PRD captures intent; actual
-prose is a Phase 1 task deliverable.
+**Q3. ADR-007 amendment prose.** Format settled (Tier 2 Amendment in `### Amendments`
+subsection under `## Consequences`, per R7); content drafted during Phase 1. PRD
+captures intent; actual prose is a Phase 1 task deliverable.
 
-**Resolved (Phase 1, Task 1.1):** Tier 2 Amendment added to ADR-007 `## Amendments`
-section. Disentangles the two conflated concepts (per-developer session state vs.
-per-WU project pointer) without superseding the original decision.
+**Resolved (Phase 1, Task 1.1):** Tier 2 Amendment added to ADR-007 `### Amendments`
+subsection under `## Consequences`. Disentangles the two conflated concepts
+(per-developer session state vs. per-WU project pointer) without superseding the
+original decision.
 
 **Q4. `strategy-team-coordination.md` § Concurrent Sessions rewrite prose.**
 Direction settled (narrow rewrite, two-axis, shipping-clean, per R8); prose drafted
@@ -482,3 +480,5 @@ actually shipped. -->
 | 2026-04-15 | R16 scope refined — pointer fields move from task list to status file; Task 2.13 added                           |
 | 2026-04-16 | R11 scope adjusted — mechanical cleanup of `tasks-arcd-rebrand.md` folded in at Phase 7                          |
 | 2026-04-16 | Implementation complete — 21/22 success criteria satisfied; rebrand reactivation deferred (post-merge by design) |
+| 2026-04-17 | R2 State enum extended (pre-merge review): added `Superseded (partial)`, dropped phantoms `Planning`/`Verifying` |
+| 2026-04-17 | Header dated-fields consolidated to status file + completion doc (pre-merge review); PR-URL captured on latter   |

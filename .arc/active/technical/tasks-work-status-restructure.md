@@ -1,8 +1,6 @@
 # Task List: Work-Status Restructure
 
 **PRD:** `.arc/active/technical/prd-work-status-restructure.md`
-**Created:** 2026-04-15
-**Completed:** 2026-04-16
 **Branch(es):** `technical/work-status-restructure`
 **Base Branch:** `main`
 

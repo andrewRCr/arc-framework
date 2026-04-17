@@ -35,6 +35,9 @@ The completion doc must be accurate because it's used for PRs. Before writing:
 2. **Final phase(s)** of task list — Actual completion state, follow-up work status
 3. **CLEANUP-PROGRESS data** (for large files) — Metrics collected during cleanup
 4. **Git log** for final commit hash — `git log -1 --oneline`
+5. **Activation commit** for the `**Started:**` date — find via
+   `git log --diff-filter=A -- .arc/active/{category}/status-{name}.md` (the commit
+   that created the status file is the activation event; use its date)
 
 ---
 
@@ -43,10 +46,16 @@ The completion doc must be accurate because it's used for PRs. Before writing:
 ```markdown
 # Completion: {Work Name}
 
+**Started**: YYYY-MM-DD
 **Completed**: YYYY-MM-DD
 **Branch**: {branch-name}
 **Category**: {Feature | Technical | Incidental}
+**Pull Request**: {URL — add once PR is created in integrate-work-unit Step 7}
 **Context**: {One-liner: "Discovered during X" or "Part of roadmap initiative Y"}
+
+<!-- Optional (supersession case only):
+**Superseded By**: `tasks-{new-approach}.md` (YYYY-MM-DD)
+See integrate-work-unit.md Appendix § Handling Partially Superseded Work. -->
 
 ## Summary
 
@@ -98,7 +107,9 @@ The completion doc must be accurate because it's used for PRs. Before writing:
 
 Before considering the completion doc done, verify EVERY claim:
 
-- [ ] **Completed date**: Verified (matches task list header)
+- [ ] **Started / Completed dates**: Started = activation commit date
+      (`git log --diff-filter=A -- status-{name}.md`); Completed = integration prep date
+- [ ] **Pull Request URL**: Added after `gh pr create` in integrate-work-unit Step 7
 - [ ] **Phase count**: Matches actual phases in task file — `grep -c "^###.*Phase" tasks-*.md`
 - [ ] **Quantitative claims**: Each number verified in task file
       - Where does "7 themes" come from? -> Phase X, line Y
@@ -122,9 +133,11 @@ itself serves as the detailed record.
 ```markdown
 # Completion: {Work Name}
 
+**Started**: YYYY-MM-DD
 **Completed**: YYYY-MM-DD
 **Branch**: {branch-name}
 **Category**: Incidental
+**Pull Request**: {URL — add once PR is created}
 **Context**: {One-liner: "Discovered during X"}
 
 ## Summary

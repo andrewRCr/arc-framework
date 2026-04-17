@@ -7,7 +7,7 @@ guidance. Primary mechanism: shift front-loaded reference content to JIT (just-i
 via reliable, explicit workflow triggers. Secondary mechanism: file-level content hygiene on the
 remaining init load set.
 
-**Status:** Draft (problem well-framed, alternatives evaluated, phase structure sketched;
+**State:** Draft (problem well-framed, alternatives evaluated, phase structure sketched;
 open questions flagged for PRD-time resolution)
 **Created:** 2026-04-16
 **Origin:** The atomic task in `atomic-work-status-restructure.md` captured an observed drift in

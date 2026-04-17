@@ -118,6 +118,11 @@ field set:
 Leave the optional pointer fields (`Interrupts:`, `Paused At:`, `Paused To:`) commented out — they apply only when
 this WU is interrupted by an incidental (see [`manage-incidental-work.md`][incidental] § Coordinated Pause/Resume).
 
+**Remove pre-activation PRD metadata:** Remove `**State:**`, `**Related Work:**`, and `**Updated:**` lines from the
+PRD header (see [`template-prd.md`][template-prd]). These fields serve pre-activation staleness/dependency tracking
+only — once the status file is created, its `**State:**` field is the sole source of truth for WU lifecycle, and
+git history tracks post-activation edits. The PRD retains only `**Type:**` going forward.
+
 > **Team mode:** The per-WU status file is tracked in `active/{category}/` — one developer performs the activation,
 > and the file applies to the whole branch. Other developers joining the work unit establish their session context
 > via `user/{identity}/SESSION-NOTES.md` during their first [session initialization][session-init].
@@ -195,8 +200,8 @@ Before proceeding to task execution, verify:
 
 - [ ] Implementation branch created and checked out
 - [ ] PRD, task list, and atomic companion file in `.arc/active/{category}/` (moved from backlog if arc-in-git)
-- [ ] Task list `Status` changed to `In Progress`
 - [ ] Status file created in `active/{category}/` (State, Branch, Task List, Next Task)
+- [ ] PRD `**State:**` / `**Related Work:**` / `**Updated:**` pre-activation metadata removed (if present)
 - [ ] PROJECT-STATUS.md and ROADMAP.md updated (arc-in-git only)
 - [ ] All changes committed on feature branch
 
@@ -224,4 +229,5 @@ With the work unit activated, proceed to task execution:
 [session-init]: ../session-lifecycle/session-init.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [template-status]: ../../../../reference/templates/template-status.md
+[template-prd]: ../../../../reference/templates/template-prd.md
 [incidental]: ../supplemental/manage-incidental-work.md

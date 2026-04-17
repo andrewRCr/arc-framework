@@ -17,10 +17,11 @@ the same planning branch as the PRD — verify you're still on it. Under partial
 default), this may happen directly on the base branch. See
 [activate-planning-branch][activate-planning-branch] for how planning branches are set up.
 
-Before starting, read the PRD thoroughly. If the PRD has dependency metadata (Status and Related
-Work fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
-confirm with the user before proceeding — generating tasks against unresolved dependencies
-produces a plan that can't execute. If all dependencies are resolved, remove the metadata fields.
+Before starting, read the PRD thoroughly. If the PRD has pre-activation metadata (`**State:**` and/or
+`**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
+confirm with the user before proceeding — generating tasks against unresolved dependencies produces a plan that
+can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
+leave the fields in place during task generation.
 
 ### Step 1: Assess Codebase and Relevant Strategies
 
@@ -110,7 +111,6 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 # Task List: [Work Name]
 
 **PRD:** `.arc/[location]/[category]/prd-[name].md`
-**Created:** YYYY-MM-DD
 **Branch(es):** `feature/[name]` or `technical/[name]`
 **Base Branch:** base branch per `arc-config.yml` (typically `main`)
 ```

@@ -298,7 +298,8 @@ See "Compatibility Research" above for library evaluation.
 ### 6. Update Cross References
 
 - Confirm "Related Task/Notes" pointers are accurate in both files
-- Update status metadata: status file `**State:** Complete`, notes file `**Status**: Complete`
+- Update status file `**State:** Complete` (sole source of truth for WU lifecycle — notes and
+  PRD headers do not carry a State/Status field post-activation)
 - Add completion date to both files
 - **If notes file was deleted:** Delete the file (`git rm notes-{name}.md`) and remove all
   references to it from the task file

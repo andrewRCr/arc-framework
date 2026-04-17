@@ -13,10 +13,10 @@
 **State:** Complete
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
-**Completed:** 2026-04-16
 **Next Task:** [none] — integration in progress
-**Last Completed:** integrate-work-unit Phase 2 Step 6 — CodeRabbit pre-merge review;
-CodeRabbit extension restore + task-list Status residual purge + plan-docs-methodology-sweep
-capture landed in three `(integration)` commits. Completion doc refreshed.
+**Last Completed:** integrate-work-unit Step 7 — PR #19 created. Mid-review consolidation
+landing: WU-doc metadata audit (dated-field consolidation, State enum authoritative doc,
+supersession under per-WU model, PR-URL capture in completion doc).
 **Blockers:** [none]
-**Next Action:** integrate-work-unit Step 7 — push and create PR.
+**Next Action:** integrate-work-unit Step 8 — continue CodeRabbit review, batch-commit fixes,
+post replies with commit hash.

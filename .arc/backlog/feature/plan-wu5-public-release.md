@@ -3,7 +3,7 @@
 **Purpose:** Make ARC Framework publicly available and adoptable — docs site with content, polished
 README, public repo, community infrastructure, and release automation.
 
-**Status:** Stub (content deferred from WU4; flesh out after beta testing)
+**State:** Stub (content deferred from WU4; flesh out after beta testing)
 **Created:** 2026-03-21
 **Origin:** Split from original `plan-wu4-public-release.md` when WU4 scope narrowed to beta readiness
 

@@ -1,8 +1,10 @@
 # Completion: Work-Status Restructure
 
+**Started**: 2026-04-15
 **Completed**: 2026-04-16
 **Branch**: technical/work-status-restructure
 **Category**: Technical
+**Pull Request**: <https://github.com/andrewRCr/arc-framework/pull/19>
 **Context**: Roadmap-scheduled restructure to fix structural flaws in the singular
 `.arc/active/WORK-STATUS.md` model surfaced during session-state portability work.
 

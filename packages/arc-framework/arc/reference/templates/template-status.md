@@ -21,9 +21,6 @@
 <!--
 Optional fields (add when applicable):
 
-- **Completed:** YYYY-MM-DD — set when `**State:**` transitions to `Complete`
-  (written by clean-work-unit.md Mode 2 during integration prep). Records the
-  date the work unit finished pre-merge; the file is deleted at archive.
 - **Interrupts:** {category}/{name} — on incidental WU status files; names the
   parent WU paused by this incidental. See manage-incidental-work.md for the
   pause/resume coordination protocol.
@@ -31,15 +28,27 @@ Optional fields (add when applicable):
   incidental; records the task at which work paused.
 - **Paused To:** {category}/{name} — on parent WU status files; names the
   incidental that caused the pause.
+- **Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD) — when State is
+  Superseded (partial); points to the successor WU absorbing the remaining
+  phases. See integrate-work-unit.md Appendix § Handling Partially Superseded
+  Work for the full protocol.
 -->
 
 <!--
-State enum values:
+State enum values (authoritative — this is the single source of truth):
 
-- Planning    — PRD/plan in progress, no task list yet
-- In Progress — Active task execution (the common case)
-- Paused      — Interrupted by an incidental (see Paused At / Paused To pointers)
-- Verifying   — All tasks complete, verify-work-unit.md in progress
-- Complete    — Integration prep done, awaiting merge (brief window before
-                file retirement at archive)
+- In Progress        — Active task execution (the common case; set at
+                       activate-work-unit.md Step 4 and on resume from pause)
+- Paused (YYYY-MM-DD) — reason
+                     — Interrupted by an incidental or future arc-shift pause
+                       (see Interrupts / Paused At / Paused To pointers)
+- Waiting-For {category} (YYYY-MM-DD) — reason
+                     — Blocked awaiting external action (future arc-shift
+                       lifecycle value; not yet written by any current workflow)
+- Complete           — Tasks done, integration prep finished, awaiting merge
+                       (brief window before the file is deleted at archive;
+                       written by clean-work-unit.md Mode 2)
+- Superseded (partial) — Partial work being integrated; remaining phases
+                       absorbed into a successor WU (see Superseded By pointer
+                       and integrate-work-unit.md Appendix)
 -->

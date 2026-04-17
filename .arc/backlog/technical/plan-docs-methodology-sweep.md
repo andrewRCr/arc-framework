@@ -4,7 +4,7 @@
 accumulated since the content port into the public `docs/` site. Accumulation home for
 docs-site methodology drift captured between now and WU activation.
 
-**Status:** Capture (accumulating items; PRD-drafted closer to activation)
+**State:** Capture (accumulating items; PRD-drafted closer to activation)
 **Created:** 2026-04-16
 **Origin:** The Work-Status Restructure WU shipped the per-WU status file model to
 `.arc/` and `packages/arc-framework/arc/` but did not update the adopter-facing content

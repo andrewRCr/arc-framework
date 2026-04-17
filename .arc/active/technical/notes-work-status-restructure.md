@@ -1,8 +1,5 @@
 # Notes: Work-Status Restructure
 
-**Status:** Complete
-**Completed:** 2026-04-16
-
 ## Contents
 
 - [Historical context](#historical-context) — ADR-007 conflation analysis

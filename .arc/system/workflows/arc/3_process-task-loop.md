@@ -71,8 +71,9 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
-       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Only the
-         task list header `**Completed:**` field should have a date. Inline dates become temporal noise during archival.
+       - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
+         dates become temporal noise during archival. WU-level completion date lives on the completion doc's
+         `**Completed:**` field; no task list or per-task date stamp is expected.
        - **Streamline verbose planning details**: When marking complete, keep outcomes (actual changes,
          key decisions, architectural impact) but trim planning scaffolding (pre-implementation steps,
          detailed instructions) that no longer serves a purpose.

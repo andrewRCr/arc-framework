@@ -62,7 +62,6 @@ Task list headers provide essential metadata and context. Format varies by task 
 # Task List: [Feature/Technical Name]
 
 **PRD:** `.arc/active/{feature|technical}/prd-[name].md`
-**Created:** YYYY-MM-DD
 **Branch(es):** `{feature|technical}/[branch-name]`
 **Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
 
@@ -110,7 +109,6 @@ Task list headers provide essential metadata and context. Format varies by task 
 ```markdown
 # Incidental: [Descriptive Title]
 
-**Created:** YYYY-MM-DD
 **Branch(es):** `incidental/[name]`
 **Base Branch:** `[parent-branch-this-branched-from]`
 
@@ -155,7 +153,6 @@ Task list headers provide essential metadata and context. Format varies by task 
 ```markdown
 # Incidental: CLI Output Encoding on Windows
 
-**Created:** 2025-10-29
 **Branch(es):** `incidental/cli-output-encoding`
 **Base Branch:** `feature/multi-format-export`
 

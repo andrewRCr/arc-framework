@@ -57,7 +57,6 @@ not a post-merge activity. This ensures PR reviewers see clean, well-organized d
 - [ ] PRD alignment (if PRD exists — planned work only):
     - [ ] Confirm success criteria against PRD — second pass after verification phase. Note any
       deviations or criteria met differently than originally planned
-    - [ ] PRD header `**Status:**` updated to `Complete`
     - [ ] PRD Open Questions resolved with brief notes on decisions made
 - [ ] All quality gates passed (documented as completed subtasks in task list)
 - [ ] Implementation verified in development environment (if applicable — documentation-only work may not need this)
@@ -207,6 +206,10 @@ When adapting, do not add new sections describing post-merge workflow continuity
 actions — those belong in the status file and SESSION-NOTES, not the PR body. The reader is
 reviewing a change set. See [DEV-RULES.ARC][dev-rules-arc] § Write for the reader.
 
+**After the PR is created:** Update the completion doc's `**Pull Request:**` field with the PR URL
+returned by `gh pr create`. Commit alongside any Step 8 review-driven fixes, or standalone if
+none (with `(integration)` context footer).
+
 ### 8) Address PR Review Findings
 
 Process findings from PR reviewers (human or automated) using the
@@ -267,21 +270,32 @@ git pull origin {parent-branch}
 **When to use:** Work where significant progress was made before an architectural decision changed direction.
 Earlier phases remain valid (will be used by new approach), but later phases are obsolete.
 
-**Status field:** `**Status:** Superseded (partial)`
+**State value:** `Superseded (partial)` on the status file (see [`template-status.md`][template-status] State enum).
 
 **Required elements:**
 
-1. **Header metadata:**
+1. **Status file** (during life — deleted at archive):
 
    ```markdown
-   **Completed:** YYYY-MM-DD
-   **Status:** Superseded (partial)
+   **State:** Superseded (partial)
    **Superseded By:** `tasks-{new-approach}.md` (YYYY-MM-DD)
    ```
 
-2. **Supersession rationale:** Brief explanation of what triggered the change and what remains valid vs obsolete.
+   `Superseded By:` is an optional status-file field documented in [`template-status.md`][template-status].
 
-3. **Decision point marker:** Insert before first superseded task:
+2. **Completion doc** (archival record):
+
+   ```markdown
+   **Superseded By:** `tasks-{new-approach}.md` (YYYY-MM-DD)
+   ```
+
+   Also document in the body what was completed vs superseded — the completion doc is the archival
+   entry point, so this narrative needs to stand alone without the status file.
+
+3. **Supersession rationale** (in the task list body): Brief explanation of what triggered the change and
+   what remains valid vs obsolete.
+
+4. **Decision point marker** (in the task list body): Insert before first superseded task:
 
    ```markdown
    ---
@@ -293,7 +307,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    ---
    ```
 
-4. **Mark superseded tasks with `[~]`:** Clearly indicates tasks weren't abandoned without thought:
+5. **Mark superseded tasks with `[~]`:** Clearly indicates tasks weren't abandoned without thought:
 
    ```markdown
    - [~] **4.1 Task description** *(superseded by infinite scroll)*
@@ -303,10 +317,9 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    (complete). Same convention used in [success criteria][task-list-formatting] for superseded
    criteria.
 
-5. **Completion doc:** Include `**Status:** Superseded (partial)` and document what was completed vs superseded.
-
-**Key principle:** The `[~]` marker + decision point note creates clear audit trail showing intentional
-architectural pivot, not abandoned work.
+**Key principle:** The `[~]` marker + decision point note creates a clear audit trail showing intentional
+architectural pivot, not abandoned work. Header metadata (State, Superseded By) lives in the status file
+and completion doc — not on the task list header.
 
 ---
 
@@ -318,6 +331,7 @@ architectural pivot, not abandoned work.
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
+[template-status]: ../../../../reference/templates/template-status.md
 [rotate-branch]: rotate-branch.md
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md
