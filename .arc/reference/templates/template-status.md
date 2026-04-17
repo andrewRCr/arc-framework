@@ -45,9 +45,11 @@ State enum values (authoritative — this is the single source of truth):
 - Waiting-For {category} (YYYY-MM-DD) — reason
                      — Blocked awaiting external action (future arc-shift
                        lifecycle value; not yet written by any current workflow)
-- Complete           — Tasks done, integration prep finished, awaiting merge
-                       (brief window before the file is deleted at archive;
-                       written by clean-work-unit.md Mode 2)
+- Complete           — Work done, opened for integration. Covers the full
+                       integration + pre-merge review + merge window; file is
+                       stable through review (cycle-level context lives in
+                       SESSION-NOTES / PR / git log, not here) and is deleted
+                       at archive. Written by clean-work-unit.md Mode 2.
 - Superseded (partial) — Partial work being integrated; remaining phases
                        absorbed into a successor WU (see Superseded By pointer
                        and integrate-work-unit.md Appendix)

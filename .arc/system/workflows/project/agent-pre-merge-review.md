@@ -221,6 +221,10 @@ reply.
 - Do not reply to nitpicks — clutters PR conversation; silent fix and resolve
 - Do not rush fixes without evaluating context — check for documented deferrals first
 - Do not fix code scheduled for deletion — defer unless it affects current functionality
+- Do not update the status file for review-cycle bookkeeping (Pass 1 vs. Pass 2, drafted
+  replies, commit ranges, pass numbers). The status file is stable through the review window;
+  cycle context belongs in SESSION-NOTES, PR comments, and git log. See
+  [integrate-work-unit.md][integrate-work-unit] Phase 2 § "Status file discipline"
 
 ---
 
