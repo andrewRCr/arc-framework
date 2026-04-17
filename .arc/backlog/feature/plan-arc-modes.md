@@ -4276,18 +4276,18 @@ completed WU and prepares it for merge. Without explicit handling, the expanded 
 leaves an ambiguity: what should integrate do when invoked on a WU whose status file
 `**State:**` field reads something other than `In Progress`?
 
-#### Current workflow does not validate the Status header
+#### Current workflow does not validate the State field
 
 A reading of `integrate-work-unit.md` clarifies the pre-shift-lifecycle behavior. Step 1 ("Verify
 Work Completion") is agent-enforced prose. Its validation checks are: all subtasks and parent
 tasks marked `[x]`, Success Criteria all checked, quality gates passed.
 
 The state line in Step 1 — `[ ] Status file **State:** updated to Complete` — is
-phrased as an **imperative**, not a gate. It instructs the agent to ensure the header says
+phrased as an **imperative**, not a gate. It instructs the agent to ensure the State field reads
 `Complete` before proceeding, and the transition itself is a silent side effect of Step 2's
-`clean-work-unit.md` Mode 2 run (which sets `Status: Complete` unconditionally during doc cleanup).
-There is no validation today that refuses integration if the current Status value is something
-else — the workflow effectively assumes `In Progress` and rewrites the header during prep.
+`clean-work-unit.md` Mode 2 run (which sets `State: Complete` unconditionally during doc cleanup).
+There is no validation today that refuses integration if the current State value is something
+else — the workflow effectively assumes `In Progress` and rewrites the State field during prep.
 
 This reframes Finding #13 from "add a validation layer" to **"surface the state transition
 explicitly so it can accept the shift-lifecycle vocabulary."** The resolution is primarily a
@@ -4359,7 +4359,7 @@ own the final `→ Complete` state transition?** The resolution: **integrate own
 This is already implicitly true today (`clean-work-unit.md` Mode 2 performs the transition during
 integrate's Step 2). The resolution does not move the transition; it preserves locality — the
 workflow that finalizes the WU owns the final state write — while making the entry-state check
-explicit upstream. `/arc-shift` never writes `Status: Complete`.
+explicit upstream. `/arc-shift` never writes `State: Complete`.
 
 #### Feedforward to implementation
 
