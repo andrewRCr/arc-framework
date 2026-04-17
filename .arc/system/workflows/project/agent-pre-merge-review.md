@@ -66,7 +66,10 @@ Agent runs PR review (Pass 2) — expect fewer findings than without local revie
 **Core principles:**
 
 - **Sequential processing** — address comments one at a time to avoid duplicate agent responses
-- **Batch commits** — minimize commits to reduce automated review triggers
+- **Atomic commits, one push per review cycle** — the review tool re-triggers on push, not
+  commit. Commit atomically per logical scope (ARC's atomicity principle); collect all fixes
+  from the current review pass; push once when done. Commit count doesn't matter — push count
+  does. See Step 3 for intermediate-push escape hatches.
 - **Classification-aware** — review tools classify findings by severity; substantive findings
   get replies, minor suggestions get silent fixes
 
@@ -79,18 +82,56 @@ comment:
 2. **If substantive**: Draft reply immediately (use `[commit-hash]` placeholder) — captures context
    while fresh
 3. **If minor/nitpick**: No reply needed, just fix silently
-4. **Do NOT commit yet** — collect all fixes first
+4. **Commit atomically by logical scope** as you complete each scope of fixes. Multiple
+   commits are fine — scope matters more than count. Do NOT push yet.
 
-### 2) Batch Commit
+### 2) Commit Fixes (Atomic by Scope)
 
-After processing all comments, commit fixes in a single batch. Document dispositions per the
-review-triage method. Use the `(integration)` context footer.
+Commit fixes with the `(integration)` context footer, grouped by logical scope rather than
+mechanically per finding. Same concern across N findings → one commit. Different concerns →
+separate commits. Document dispositions per the [review-triage method][arc-methods-rt] in
+the relevant commit message.
+
+### 2b) Completion Doc Freshness Check (Pre-Push)
+
+If review-driven commits in this cycle included substantive changes, verify
+`completion-{name}.md` still reflects the delivered state before pushing. Run the
+field-by-field check per [integrate-work-unit.md][integrate-work-unit] § 6b
+(Summary / Key Deliverables / Implementation Highlights / Verification / Follow-Up Work).
+Update and commit with `(integration)` context footer if stale.
+
+**Substantive vs. cosmetic triage** — one test: *"would the completion doc's headline
+sections genuinely change?"*
+
+- **Substantive** (run the check): new or removed capability, field rename across
+  surfaces, enum extension, consolidated or refactored concept already summarized in
+  the doc, new deferral captured, security hardening, new tests reflecting new coverage.
+- **Cosmetic** (skip the check): typos, formatting, link target corrections,
+  doc-consistency-only fixes, comment-level clarifications.
+
+Skip this step if every fix in this cycle was cosmetic. Otherwise run it once, just
+before pushing — a two-minute scan. The completion doc doubles as the PR description;
+stale metadata in the PR undermines the review it's meant to support.
+
+### 3) Push Once Per Review Cycle
+
+After all fixes from this review pass are committed, push:
 
 ```bash
 git push origin {branch-name}
 ```
 
-### 3) Post Replies and Resolve
+The review tool re-triggers on push, not commit — one push per cycle = one re-review pass
+showing the delta. This is the core noise-reduction discipline; commit atomicity is
+independent of it.
+
+**Intermediate push needed?** When a safety backup, CI validation, or cross-machine handoff
+requires pushing before the review cycle is complete, use the review tool's pause mechanism
+if available (e.g., CodeRabbit's `@coderabbitai pause` — see [Tool-Specific
+Notes](#tool-specific-notes)). Push, continue working, post resume when ready for
+re-review. Default flow never needs this.
+
+### 4) Post Replies and Resolve
 
 1. Get commit hash: `git log -1 --format=%h`
 2. Replace `[commit-hash]` placeholders in drafted replies
@@ -125,7 +166,8 @@ short-lived code. Current functionality works correctly.
 ### Minor Quality (Silent Fix)
 
 **Finding**: "Typo: 'recieve' should be 'receive'"
-**Action**: Fix silently, include in batch commit, resolve conversation without reply.
+**Action**: Fix silently, bundle into the relevant scope commit, resolve conversation without
+reply.
 
 ---
 
@@ -144,6 +186,14 @@ short-lived code. Current functionality works correctly.
   preserves correspondence with PR comment order for efficient posting. Always append new
   replies to the end of the file. Place the `[commit-hash]` placeholder at the end of each
   reply (e.g., "Updated X to Y. Fixed in [commit-hash].").
+- **Pause/resume for intermediate pushes**: Post `@coderabbitai pause` as a PR comment to
+  suppress automatic re-review on subsequent pushes; post `@coderabbitai resume` when ready
+  for re-review. Use when a safety backup, CI validation, or cross-machine handoff forces a
+  push before the review cycle is complete. The default workflow (atomic commits locally,
+  one push per cycle) doesn't need this — pause/resume is the escape hatch, not the norm.
+- **Project-level noise reduction** (optional): `.coderabbit.yaml` at the repo root supports
+  `auto_review.auto_pause_after_reviewed_commits: N` (auto-pauses after N commits) and
+  `auto_review.ignore_title_keywords: [wip, draft]`. See CodeRabbit configuration docs.
 
 ### GitHub Copilot Reviews
 
@@ -153,15 +203,21 @@ short-lived code. Current functionality works correctly.
 ### Other Tools
 
 - Adapt local review command and classification terminology
-- Core workflow (evaluate -> fix -> batch commit -> reply) applies regardless of tool
+- Core workflow (evaluate → fix → atomic commits → single push → reply) applies regardless
+  of tool; check for tool-specific pause/resume equivalents before relying on push batching alone
 
 ---
 
 ## Anti-Patterns
 
 - Do not skip local review — Pass 1 catches the majority of issues
-- Do not reply before committing (PR Mode) — commit first, reply with hash
-- Do not make multiple small commits for review fixes — batch to minimize re-review triggers
+- Do not reply before pushing — replies reference a commit hash that must exist on origin
+  for GitHub to link it
+- Do not push before all review-pass findings are addressed — push triggers re-review;
+  commits do not. Atomic commits + one push per cycle is the discipline. Pause/resume is
+  an escape hatch for forced intermediate pushes, not a default
+- Do not collapse atomic commits into a single mega-batch to "minimize commits" — that
+  conflates commit count with push count. The tool doesn't care about commit count
 - Do not reply to nitpicks — clutters PR conversation; silent fix and resolve
 - Do not rush fixes without evaluating context — check for documented deferrals first
 - Do not fix code scheduled for deletion — defer unless it affects current functionality
@@ -170,3 +226,4 @@ short-lived code. Current functionality works correctly.
 
 [arc-methods-rt]: ../../../../.arc/system/workflows/arc-methods.md#review-triage
 [arc-ext-pre-merge-review]: ../../../../.arc/system/workflows/arc-extensions.md#pre-merge-review
+[integrate-work-unit]: ../arc/work-unit-lifecycle/integrate-work-unit.md
