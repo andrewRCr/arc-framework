@@ -142,6 +142,12 @@ names), `has-override` / `has-steps` (populated status signal).
 A `system/methods/README.md` and `system/extensions/README.md` provide human-facing
 whole-system reading — the conventional role of READMEs in capability directories.
 
+**Session-init consumption:** Session-init loads the aggregated frontmatter from all
+per-file docs (~1k tokens for the current ~10 methods), serving as the thin-index
+awareness layer. Full method/extension bodies load on-demand when workflow steps
+reference them explicitly. The READMEs are authored for human whole-system reading,
+not agent init consumption — their token cost is paid only when a human opens them.
+
 **Rationale:** File-level frontmatter is ubiquitous and parseable by standard tools;
 per-section mid-file metadata would require a custom syntax. Cross-references
 become file-link-based (still clean). Three-way merge becomes file-level. Production
@@ -153,9 +159,21 @@ orphaned without workflow references to invoke them.
 Add a new rule to `DEV-RULES.ARC.md` (candidate: § Verification and Discovery,
 subsection "Method and extension loading"). Short, imperative, P10-anchored:
 
-> When a workflow step references a method, extension, or strategy, load the
-> relevant content before acting on that step unless it's already in context.
-> Don't proceed from intuition when a governing reference is one link away.
+> When a workflow step references a method, extension, strategy, or workflow,
+> load the relevant content before acting on that step. Don't proceed from
+> intuition when a governing reference is one link away.
+
+**Absolute framing (no "unless already in context" hedge) is deliberate.**
+Compliance-reliability research (AGENTIF instruction-following benchmarks,
+constitutional-rule audits, motivated-reasoning studies) found conditional hedges
+on compliance rules create rationalization surfaces — the agent self-grants the
+condition and skips the load. Positive absolutes measurably outperform
+conditionals. Meta-constraint confusion between a hedged constitutional rule
+and an unhedged in-workflow reminder compounds the effect.
+
+In-workflow references must use semantically aligned framing (absolute, not
+hedged). Misalignment between constitutional and inline venues degrades
+compliance more than either framing alone.
 
 This makes the behavior durable — not dependent on agent discretion or one-off
 workflow wording.
@@ -211,6 +229,45 @@ check) remains but simplifies. Additional ~1–2k tokens of savings from structu
 condensation of session-init.md itself. Semantic flow (gated steps, precedence
 rules, trust hierarchy) preserved without reordering.
 
+### D7. Structural conventions for load operations and shape boundaries
+
+Two coordinated authoring conventions, split by mechanism.
+
+**D7a — Inline load-target references: markdown links with path-encoded kind.**
+When a workflow step references a method, extension, workflow, or strategy to
+load, use a markdown link (reference-style or inline) at the point of invocation.
+Target path encodes the kind: `system/methods/*`, `system/extensions/*`,
+`system/workflows/*`, `reference/strategies/*`. CI validation derives per-workflow
+load-target manifests by grepping link definitions against target-path
+conventions. No new tag vocabulary. No block wrappers — a front-loaded
+`<dependencies>` manifest would imply eager-load-at-entry semantics, regressing
+toward the front-loading this plan is removing.
+
+**D7b — Shape-boundary wrappers: XML tags for templates, output formats, and
+extension points.** Use explicit XML-style tags where the agent produces or
+consumes against a shape — boundary clarity prevents surrounding guidance from
+bleeding into generated output. Bounded vocabulary:
+
+- `<template>...</template>` — template body in template docs (PRD, task list,
+  status file, SESSION-NOTES)
+- `<output-format>...</output-format>` — shape spec for structured agent-produced
+  artifacts (orientation summary, completion reports, handoff summaries)
+- `<extension-point name="...">...</extension-point>` — extension boundaries
+  (formalizes the existing anchor-ID convention; enables CI validation that
+  every extension point has a matching definition in arc-extensions.md)
+
+**Rationale for the split:** External research showed XML tags earn their keep
+for structural-section boundaries (Anthropic-trained attention for
+content-category delineation), not for inline identifier mentions where tag
+clunk costs exceed compliance benefit. Markdown links carry sufficient attention
+signal for directives, and encoded-path kind gives CI what XML-tag per-kind
+validation would have. Tags apply only where the agent must respect a shape
+boundary distinct from surrounding prose.
+
+**Phase placement:** Conventions established during Phase 4 operational-context
+audit and applied incrementally as files are touched. Existing files without
+the conventions remain valid until their next edit. No sweeping retrofit pass.
+
 ## Phased Approach
 
 Phase ordering: trigger completeness before front-load removal; constitutional rule
@@ -224,11 +281,18 @@ audit before session-init restructure (restructure depends on slimmed file sizes
   trigger exists
 - Strengthen any weak triggers inline (imperative framing, explicit load
   instruction, method-dependencies block where missing)
-- Define "reliable trigger" concretely — working definition: "≥1 reference to
-  method/extension anchor from a non-arc-methods/arc-extensions file" — refine via
-  Phase 1 findings
-- Land a framework-sync-style CI check: every method and extension has ≥1 workflow
-  reference
+- **Reliable trigger definition** (research-derived): a reference that is
+  (a) positioned at an action step in a workflow reachable from session-init
+  or explicit user invocation, (b) phrased in declarative or imperative form
+  (not hedged with undefined-state conditions like "if applicable" or
+  "unless already loaded"), (c) uses the D7a link convention so CI can
+  validate path resolution. Buried references in unreachable or rarely-loaded
+  workflows do not qualify as reliable triggers.
+- **Reliable-trigger CI check** (implementation): script enumerates all
+  method/extension files, greps for qualifying references across workflows,
+  DEV-RULES, and strategies per the definition above; fails CI if any method
+  or extension lacks ≥1 reliable-trigger reference. Lives alongside the
+  framework-sync test. Pre-commit vs. CI placement per Open Question 8.
 
 ### Phase 2 — Constitutional rule
 
@@ -239,20 +303,61 @@ audit before session-init restructure (restructure depends on slimmed file sizes
 
 ### Phase 3 — Methods/extensions per-file restructure with YAML frontmatter
 
-- Create `system/methods/` and `system/extensions/` directories in both `.arc/` and
-  `packages/arc-framework/arc/`
+**Content restructure:**
+
+- Create `system/methods/` and `system/extensions/` directories in both `.arc/`
+  and `packages/arc-framework/arc/`
 - Split `arc-methods.md` into one file per method; same for `arc-extensions.md`
 - Add file-level YAML frontmatter to each file (name, description, workflow,
   related, has-override / has-steps)
 - Author `system/methods/README.md` and `system/extensions/README.md` for
   whole-system reading; derive the Method Dependencies table from frontmatter
-- Update all cross-references from workflows, DEV-RULES, etc. to point at new paths
-- Update session-init to read the README/index at init (thin awareness layer) vs.
-  full file bodies
+- Update all cross-references from workflows, DEV-RULES, etc. to point at new
+  paths using the D7a link convention
+- Update session-init to read aggregated frontmatter at init (thin awareness
+  layer) vs. full file bodies
 - Retire `arc-methods.md` and `arc-extensions.md`
-- Update `arc init` / `arc update` CLI to handle new directory structure (per-file
-  install, per-file three-way-merge on update, migration from old single-file layout
-  for existing adopters)
+
+**CLI updates:**
+
+- `arc init` — install per-file methods/extensions directories with frontmatter
+- `arc update` — per-file three-way merge for methods/extensions; migration
+  path triggered when old single-file layout detected
+
+**Migration path design:**
+
+- Parse existing `arc-methods.md` and `arc-extensions.md` from adopter
+  installations
+- Identify populated `.override` sections per method/extension (header + body)
+- Map each to target per-file location (`system/methods/{name}.md` frontmatter
+  and override block)
+- Preserve user content verbatim; no reformatting
+- Archive old files on successful migration (not delete — recovery path)
+- Handle edge cases: custom sections, malformed overrides, conflicting user edits
+- Adopter UX: automatic vs. prompted (see Open Question 7)
+
+**Hook and CI validations:**
+
+- **Frontmatter schema validation** — required fields present and correctly
+  typed; values match the YAML contract
+- **D7a link-resolution check** — markdown links to `system/methods/*`,
+  `system/extensions/*`, `system/workflows/*`, `reference/strategies/*`
+  resolve to existing files
+- **Framework-sync test updates** — enumerate new per-file directories when
+  comparing `packages/arc-framework/arc/` to `.arc/`
+
+Pre-commit vs. CI placement per Open Question 8.
+
+**Test coverage:**
+
+- **Unit**: frontmatter parsing, migration logic, per-file three-way merge
+- **Integration**: install fresh / install with pre-existing .arc / update
+  from old layout / update with user-modified methods / idempotent re-update
+- **E2E**: `arc init` produces expected layout; `arc update` migration path
+  end-to-end; `arc update --dry-run` preview correctness; `arc init
+  --reconfigure` unaffected
+- **Hook behavior tests**: frontmatter and D7a checks reject malformed inputs,
+  accept valid ones
 
 ### Phase 4 — Operational-context audit + extraction staging
 
@@ -286,21 +391,55 @@ Per-file process:
 Target: ~80–90% extraction rate on rationale/background content, case-by-case
 retention per the heuristic.
 
-### Phase 5 — Anchored partial-reads for mixed-purpose docs
+**Additional audit heuristics** (research-derived, applied during extraction):
 
-- QUICK-REFERENCE.md: init reads `## Environment & Path Context` +
-  `## Runtime Environment` sections only; Command Patterns, Quality Gate Commands,
-  ARC CLI Commands, anti-patterns load on-demand
+- **Prefer declarative over imperative framing** for load directives where it
+  reads naturally. "X is loaded here" / "X: loaded in context" tends to reduce
+  compliance variance versus "LOAD X" per external research. Don't force
+  declarative where imperative reads better; judgment per-occurrence.
+- **Operational rationale clauses** (the "because..." pattern on conditionals):
+  single clause, ≤12 words, inline with the directive. Purpose is to anchor
+  branch decisions against rationalization, not to explain design philosophy.
+  Anything longer extracts to `notes-docs-content-sweep.md` under the normal
+  rationale-extraction rule.
+- **Eliminate hedges with undefined state** — phrases like "unless already
+  loaded," "if applicable," "when relevant" create rationalization surfaces.
+  Replace with explicit conditions ("if step N incomplete") or remove.
+- **Apply D7 conventions opportunistically** as files are touched — markdown
+  links at load-reference sites, shape-boundary tags where they apply.
+
+**Hook/CI validation** (introduced as D7b tagging is applied):
+
+- **D7b extension-point match check** — every `<extension-point name="X">` in
+  workflows has a matching populated definition section in `arc-extensions.md`
+- **Hook behavior tests**: extension-point check rejects mismatched tags,
+  accepts valid ones
+
+Pre-commit vs. CI placement per Open Question 8.
+
+### Phase 5 — Partial-read narrowing for mixed-purpose docs and task lists
+
+Narrow the always-loaded partial reads to init-relevant sections only; other
+content loads on-demand when workflows reference it.
+
+**QUICK-REFERENCE.md:**
+
+- Init reads `## Environment & Path Context` + `## Runtime Environment`
+  sections only
+- Command Patterns, Quality Gate Commands, ARC CLI Commands, anti-patterns
+  load on-demand
 - Update session-init Item 7 spec accordingly
 
-### Phase 6 — Task-list partial-read narrow
+**Active task lists:**
 
-- Session-init Item 10 partial-read spec: Header + Overview + Scope + current phase
-  preamble + current task section
-- Explicitly skip completed phases' preambles (stale historical context at init)
-- Verify graduated triple-anchor lookup still resolves cleanly under narrower read
+- Session-init Item 10 partial-read spec: Header + Overview + Scope + current
+  phase preamble + current task section
+- Explicitly skip completed phases' preambles (stale historical context at
+  init)
+- Verify graduated triple-anchor lookup still resolves cleanly under the
+  narrower read
 
-### Phase 7 — Session-init workflow restructuring
+### Phase 6 — Session-init workflow restructuring
 
 - Shrink Step 2 parallel batch (post-Phase 3 effects)
 - Simplify Step 4 (configuration check) post-Phase 4 trim
@@ -308,19 +447,36 @@ retention per the heuristic.
 - Preserve semantic flow (no reordering of gated steps)
 - Update embedded examples and freshness-check guidance to match new batch structure
 
-### Phase 8 — Session-type conditional loading
+### Phase 7 — Session-type conditional loading
 
-- Formalize `Working On:` field type prefix (planning / execution / integration) in
-  SESSION-NOTES template and session-handoff workflow
+**Methodology changes:**
+
+- Formalize `Working On:` field type prefix (planning / execution / integration)
+  in SESSION-NOTES template and session-handoff workflow
 - Update session-handoff to write type explicitly based on current-session state
 - Update session-init to:
     - Read `Working On:` type prefix at init
-    - Infer type if SESSION-NOTES is missing or prefix is absent (backwards compat)
+    - Infer type if SESSION-NOTES is missing or prefix is absent (backwards
+      compat)
     - Conditionally load workflows/methods per type
 - Define per-type load sets (baseline + mode-specific)
 - Document the model in DEV-RULES.ARC or `strategy-session-operations.md`
 
-### Phase 9 — Verification + before/after measurement
+**CLI and template updates:**
+
+- `arc init` — install updated SESSION-NOTES template with `Working On:` type
+  prefix
+- `arc join` — same template update; no structural changes otherwise
+
+**Test coverage:**
+
+- **Unit**: session-type inference logic (signals → type resolution)
+- **Integration**: session-init with explicit type prefix / with inferred type /
+  with ambiguous signals (user-prompt path)
+- **E2E**: fresh session-init across each session-type variant produces correct
+  load set
+
+### Phase 8 — Verification + before/after measurement
 
 - Run clean session-init against a representative active task list
 - Record token count at orientation completion
@@ -333,10 +489,12 @@ retention per the heuristic.
 
 ## Scope Estimate
 
-**Large (2–3 weeks of focused work).** Scope expanded from the original plan. Phase 4
-audit covers three tiers plus one strategy; Phase 3 introduces per-file restructure
-with cross-reference updates and CLI work; Phase 8 adds session-type conditional
-loading.
+**Large (3–4 weeks of focused work).** Phase 3 (methods/extensions restructure)
+and Phase 4 (operational-context audit) are the heaviest phases — Phase 3 spans
+content restructure, CLI/migration work, new validation hooks, and full test
+coverage; Phase 4 covers three content tiers plus one strategy with extraction
+staging and adds the D7b extension-point match check. Phase 7 adds session-type
+conditional loading with template and CLI updates. Other phases are narrower.
 
 **Two-copy discipline:** every framework file change requires sync between
 `packages/arc-framework/arc/` and `.arc/`. The framework-sync integration test
@@ -345,33 +503,48 @@ session-init.md, session-handoff.md, process-task-loop.md, prepare-commits.md,
 integrate-work-unit.md, create-prd, generate-tasks, work-unit-lifecycle workflows,
 supplemental workflows, methods/*, extensions/*, strategy-task-list-formatting.
 
-**CLI implications:** `arc init` and `arc update` need updates for:
-
-- New `system/methods/` and `system/extensions/` directory handling (per-file
-  install, per-file three-way-merge on update)
-- Migration path for existing adopters (retire `arc-methods.md` / `arc-extensions.md`
-  cleanly; move any user `.override` content into the new per-file structure)
-- No other structural CLI changes (arc-config stays as-is structurally)
-
-This is meaningful CLI-side work, folded into Phase 3.
+**Code-side implications:** CLI, hook, CI, and test work are colocated with the
+methodology phases each supports — Phase 1 lands the reliable-trigger CI check;
+Phase 3 handles per-file methods/extensions install/update/migration plus
+frontmatter schema and D7a link-resolution validations, framework-sync test
+updates, and associated test coverage; Phase 4 adds the D7b extension-point
+match check; Phase 7 handles SESSION-NOTES template updates and session-type
+test coverage. arc-config stays as-is structurally; no changes there.
 
 ## Unknowns and Open Questions
 
-Resolved via external research (nine investigations during plan refinement):
+Resolved via external research (thirteen investigations across two passes —
+nine during plan development, four validating the compliance-reliability thesis
+against procedural-adherence literature):
 
-- "Reliable trigger" definition — working definition established; refined via Phase 1
+- "Reliable trigger" definition — refined via compliance research: action-step
+  positioning, declarative/imperative framing, reachable workflow, D7a link
+  convention (see Phase 1)
 - Front-load vs JIT reliability — ARC's explicit-reference model is structurally
-  different from intent-matching; thin-index + explicit-reference hybrid fits
+  different from intent-matching; thin-index + explicit-reference hybrid fits;
+  pure JIT with no front-load has no empirical baseline in comparable tools
 - arc-config format — resolved: keep as-is structurally
-- Methods/extensions splits — resolved: per-file with YAML frontmatter (production
-  idiom)
+- Methods/extensions splits — resolved: per-file with YAML frontmatter (matches
+  Claude Skills progressive-disclosure production idiom)
 - Grep-filter read pattern — resolved: not an established pattern; ruled out
 - Hidden directory conventions — resolved: no tools use `.internal/` for
   human-readable content; keep visible
 - Reference-by-link audit heuristics — resolved: concrete heuristics established
-  (see Strategy B retention principles)
+  (Strategy B retention principles; D7a link convention)
 - Session-type conditional loading — resolved: explicit signal via `Working On:`
   field prefix; auto-inferred at init
+- Constitutional rule vs. in-workflow compliance venues — resolved: in-workflow
+  triggers are primary (empirically stronger per research); constitutional rule
+  adds belt-and-suspenders value only if semantically aligned and hedge-free (D2)
+- XML tag applicability — resolved: split by mechanism — D7a markdown links for
+  inline load references (lower visual cost, sufficient attention signal); D7b
+  XML tags reserved for shape boundaries (templates, output formats, extension
+  points) where tag-boundary attention earns its keep
+- Compliance-reliability baseline scope — resolved: near-zero failure rate holds
+  for Claude/Codex-class agents with focused, well-specified workflows; degrades
+  in long sessions, nested conditionals, and on weaker procedural-adherence
+  models. ARC's focused-session discipline already mitigates the primary
+  degradation vector
 
 Flagged for PRD-time resolution:
 
@@ -385,11 +558,19 @@ Flagged for PRD-time resolution:
    in-scope (Tier 2 amendment, not supersession). Draft during Phase 2 or Phase 3.
 5. **Link-placeholder resolution verification mechanism.** Markdownlint custom
    rule, separate CI check, or docs-content-sweep WU-internal check?
-6. **Measurement rigor for Phase 9.** Statusline token counts include harness
-   overhead. Single clean run, averaged across N, or both (loadset-only + full
-   orientation)?
+6. **Measurement rigor for Phase 8 verification.** Statusline token counts
+   include harness overhead. Single clean run, averaged across N, or both
+   (loadset-only + full orientation)?
 7. **CLI migration path granularity.** Automatic migration of user overrides on
    `arc update`, or prompted/manual? Needs UX decision.
+8. **Hook vs. CI check placement.** Which new validations (frontmatter schema,
+   D7a link resolution, D7b extension-point match, reliable-trigger audit,
+   framework-sync updates) run in pre-commit hooks (fast, local, block bad
+   commits early) vs. GitHub Actions CI (slower, canonical, catches what
+   escapes local checks)? Likely split: frontmatter schema and D7a as
+   pre-commit (per-file, fast); reliable-trigger audit and framework-sync as
+   CI (cross-file, slower); D7b could go either way. Decision affects
+   developer UX and CI coverage strategy.
 
 ## Dependencies and Constraints
 
@@ -427,12 +608,12 @@ SESSION-NOTES `Working On:` type prefix formalization. User customizations
 
 1. **Audit quality risk.** Over-aggressive extraction could lose operational content.
    Mitigation: retention heuristic (flow / counterintuitive / confusing-if-absent),
-   spot-check verification in Phase 9, case-by-case judgment throughout Phase 4.
+   spot-check verification in Phase 8, case-by-case judgment throughout Phase 4.
 
 2. **Compliance risk from front-load removal.** Even with thin index + explicit
    references, behavior shift may expose edge cases. Mitigation: constitutional
    rule (Phase 2) lands before removals (Phase 3–4); trigger completeness audit
-   (Phase 1) catches gaps; Phase 9 verification measures correctness.
+   (Phase 1) catches gaps; Phase 8 verification measures correctness.
 
 3. **Per-file restructure cross-reference drift.** Many workflows reference methods
    and extensions by anchor. Moving to file-paths requires updates across the
@@ -447,7 +628,7 @@ SESSION-NOTES `Working On:` type prefix formalization. User customizations
 
 5. **Measurement target may not hit.** Success criteria project ~25–35% reduction;
    actual may differ. Mitigation: measurement is a reporting metric, not a gate; if
-   delta is materially short, Phase 9 surfaces the gap for analysis rather than
+   delta is materially short, Phase 8 surfaces the gap for analysis rather than
    blocking archival.
 
 6. **CLI migration edge cases.** Adopters with populated `.override` sections in
@@ -475,6 +656,10 @@ SESSION-NOTES `Working On:` type prefix formalization. User customizations
 - CLI (`arc init` / `arc update`) handles new methods/extensions directory structure
   including migration path for existing adopters
 - Adopter-facing changes documented in release notes with clear upgrade guidance
+- Late-session behavior (20+ task completions in a single session) verifies
+  naturally in the first post-change task-executing WU; regressions surfaced
+  and reported if observed. Not bundled into Phase 8 to avoid synthetic test
+  material
 
 ## References
 
@@ -482,19 +667,32 @@ SESSION-NOTES `Working On:` type prefix formalization. User customizations
   for token-usage reductions" — atomic task that commissioned the audit
 - **Audit findings:** Preserved in conversation leading to this plan's refinement
   (captured in WU notes file during PRD creation)
-- **External research** (nine investigations during plan refinement):
-    - Config file design idioms (ESLint, Prettier, TypeScript, Biome, Vite)
-    - Agent context-loading patterns (Cursor, Claude Code, Aider, MCP)
-    - Prompt caching impact on context organization
-    - Grep-filter read pattern prior art (ruled out as novel/risky)
-    - Hybrid index+body pattern mechanics (Cursor rules, Claude Code skills, MCP)
-    - Token reduction angles beyond architecture (compression, link-not-inline,
-      session-type loading)
-    - Hidden/internal directory conventions (ruled against `.internal/` for
-      human-readable content)
-    - Reference-by-link audit heuristics (Mintlify, `/llms.txt`, agent-doc anti-patterns)
-    - Session-type conditional loading patterns (Cursor modes, Aider architect,
-      explicit-signal + progressive-disclosure consensus)
+- **External research** (thirteen investigations across two passes):
+    - **Plan development pass (nine):**
+        - Config file design idioms (ESLint, Prettier, TypeScript, Biome, Vite)
+        - Agent context-loading patterns (Cursor, Claude Code, Aider, MCP)
+        - Prompt caching impact on context organization
+        - Grep-filter read pattern prior art (ruled out as novel/risky)
+        - Hybrid index+body pattern mechanics (Cursor rules, Claude Code skills,
+          MCP)
+        - Token reduction angles beyond architecture (compression,
+          link-not-inline, session-type loading)
+        - Hidden/internal directory conventions (ruled against `.internal/` for
+          human-readable content)
+        - Reference-by-link audit heuristics (Mintlify, `/llms.txt`, agent-doc
+          anti-patterns)
+        - Session-type conditional loading patterns (Cursor modes, Aider
+          architect, explicit-signal + progressive-disclosure consensus)
+    - **Compliance-reliability validation pass (four):**
+        - Procedural instruction-following reliability in long-horizon agent
+          tasks (IFEval, AGENTIF, agent drift, model-specific adherence)
+        - Structural phrasing patterns for embedded procedural instructions
+          (declarative vs. imperative, positive vs. negative framing, hedge
+          effects, XML-tag attention boundaries)
+        - Thin front-loaded index vs. pure JIT compliance (Claude Skills,
+          Cursor Rules, MCP, RAG-MCP ablation findings)
+        - Constitutional rules vs. in-workflow inline reminders (system-prompt
+          decay, meta-constraint confusion, venue alignment requirements)
 - **Related strategies:** `strategy-session-operations.md` (context loading tiers),
   `strategy-configurability-architecture.md` (override mechanisms),
   `strategy-package-project-sync.md` (two-copy discipline),
@@ -506,7 +704,10 @@ SESSION-NOTES `Working On:` type prefix formalization. User customizations
 
 ## Document History
 
-| Date       | Change                                                                                        |
-|------------|-----------------------------------------------------------------------------------------------|
-| 2026-04-16 | Initial draft — problem framed, 7-phase approach, 7 open questions flagged                    |
-| 2026-04-17 | Research-driven revision — 4 strategies, 9 phases, per-file methods/extensions, content audit |
+| Date       | Change                                                                                         |
+|------------|------------------------------------------------------------------------------------------------|
+| 2026-04-16 | Initial draft — problem framed, 7-phase approach, 7 open questions flagged                     |
+| 2026-04-17 | Research-driven revision — 4 strategies, 9 phases, per-file methods/extensions, content audit  |
+| 2026-04-17 | Compliance-reliability validation — D2 absolute framing, D7 structural conventions added       |
+| 2026-04-17 | Code-side scope — Phase 9 added for CLI/hook/CI/test work; old Phase 9 renumbered to Phase 10  |
+| 2026-04-17 | Phase restructure — code-side colocated; Phase 5+6 merged; 10 phases → 8                       |
