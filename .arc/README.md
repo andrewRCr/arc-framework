@@ -16,8 +16,8 @@ full installation and setup walkthrough.
 .arc/
 ├── active/                    # Current work in progress (lazily created at first WU activation)
 │   ├── feature/               # Active feature development (contains per-WU status files + task lists)
-│   ├── technical/             # Active technical/infrastructure work
-│   └── incidental/            # Active maintenance and discovered work
+│   ├── technical/             # Active technical/infrastructure work (contains per-WU status files + task lists)
+│   └── incidental/            # Active maintenance and discovered work (contains per-WU status files + task lists)
 ├── backlog/                   # Future work pipeline (arc-in-git pm.mode only)
 │   ├── ROADMAP.md             # Sequencing strategy for upcoming work
 │   ├── feature/               # Feature backlog
