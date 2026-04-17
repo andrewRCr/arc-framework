@@ -165,8 +165,9 @@ git add .arc/active/{category}/prd-{name}.md \
        .arc/active/{category}/atomic-{name}.md \
        .arc/active/{category}/status-{name}.md
 
-# none / external: new status file + task list update (other files already in active/)
-git add .arc/active/{category}/tasks-{name}.md \
+# none / external: new status file + task list/PRD edits (other files already in active/)
+git add .arc/active/{category}/prd-{name}.md \
+       .arc/active/{category}/tasks-{name}.md \
        .arc/active/{category}/atomic-{name}.md \
        .arc/active/{category}/status-{name}.md
 
