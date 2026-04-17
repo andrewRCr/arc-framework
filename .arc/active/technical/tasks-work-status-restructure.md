@@ -1534,8 +1534,9 @@ for Task 5.4 subsection).
 - [x] **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
     **Quality gates:** Tier 3 full suite all green — markdown lint 179 files 0 errors,
-    TypeScript lint clean, shell lint clean, typecheck + typecheck:test clean, 43/43
-    tests pass, build succeeds, working tree clean.
+    TypeScript lint clean, shell lint clean, typecheck + typecheck:test clean,
+    616/616 tests pass (573 unit/integration + 43 e2e), build succeeds, working tree
+    clean.
 
     **Success criteria:** 22 total — 21 met, 1 superseded-by-design (rebrand
     reactivation validation, post-merge gate). All 6 design-flaws-eliminated criteria
