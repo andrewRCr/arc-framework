@@ -14,9 +14,8 @@
 **Branch:** technical/work-status-restructure
 **Task List:** tasks-work-status-restructure.md
 **Next Task:** [none] — integration in progress
-**Last Completed:** integrate-work-unit Step 7 — PR #19 created. Mid-review consolidation
-landing: WU-doc metadata audit (dated-field consolidation, State enum authoritative doc,
-supersession under per-WU model, PR-URL capture in completion doc).
+**Last Completed:** Pre-merge review consolidation — WU-doc metadata thesis (`bb9e8c4`) +
+agent-pre-merge-review commit/push discipline fix (`b655d23`). 3 commits unpushed.
 **Blockers:** [none]
-**Next Action:** integrate-work-unit Step 8 — continue CodeRabbit review, batch-commit fixes,
-post replies with commit hash.
+**Next Action:** integrate-work-unit Step 8 — push 3 commits (`@coderabbitai pause` active
+on PR #19), process remaining CodeRabbit Pass 1 findings, `@coderabbitai resume` when done.
