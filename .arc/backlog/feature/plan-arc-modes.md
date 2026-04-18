@@ -3924,6 +3924,14 @@ ARC operations. Resolves Audit A sub-finding H3-N6.
 
 **Cross-cutting deliverable — applies to all ARC modes.**
 
+> **Scheduled for extraction to the Mobility WU.** This section and the § Mid-Session
+> Orientation section below are slated to move into `plan-work-unit-mobility.md` as part of
+> that WU's first implementation phase. Mobility sequences before modes; when mobility
+> activates, this content moves, and modes plan updates to reference the extracted content
+> via cross-WU links. No edits here in the meantime — the mobility plan carries the
+> extraction shape, rationale, and open questions (notably the pause-pointer reconciliation).
+> See [plan-work-unit-mobility.md][mobility-plan] § Extraction Scope.
+
 ### The Gap This Fills
 
 Work units don't always move from activation through completion without interruption. Real team
@@ -4460,6 +4468,11 @@ Read them as "the WU's status file" under the restructure premise — the underl
 ---
 
 ## Mid-Session Orientation
+
+> **Scheduled for extraction to the Mobility WU** alongside the § Shift Lifecycle section
+> above. `/arc-status` travels with shift because its Full-only "In flight" block is
+> tightly coupled to shift vocabulary; the mode-universal core doesn't justify splitting
+> the skill. See [plan-work-unit-mobility.md][mobility-plan] § Extraction Scope.
 
 Cross-cutting section for `/arc-status`, the mid-session "warm orient" skill. Mode-universal
 (ships in both Lite and Full), complementary to the existing session-lifecycle skills
@@ -5594,3 +5607,4 @@ Session-init Local-axis pre-check.
 [obsidian-enc]: https://forum.obsidian.md/t/can-i-encrypt-a-vault/33645
 [git-crypt]: https://github.com/AGWA/git-crypt
 [chezmoi-encryption]: https://www.chezmoi.io/user-guide/encryption/
+[mobility-plan]: plan-work-unit-mobility.md

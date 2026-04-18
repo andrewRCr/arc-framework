@@ -11,28 +11,40 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Last Completed:**
 
-- Methodology Maturation (technical) — Foundational clarity: methodology/implementation boundary,
-  content architecture, update semantics, human co-development posture, skill infrastructure
-    - Archive: `archive/2026-q2/technical/02_methodology-maturation/`
+- Work-Status Restructure (technical) — Per-WU `active/{category}/status-{name}.md` files
+  replacing the singular `active/WORK-STATUS.md`, disentangling the project pointer from the
+  session pointer and eliminating the parallel-WU concurrency flaw and base-branch staleness
+  dead-ends under full protection
+    - Archive: `archive/2026-q2/technical/03_work-status-restructure/`
 
 **Currently Active:**
 
-- Work-Status Restructure (technical) — Replace singular `active/WORK-STATUS.md` with per-WU
-  `active/{category}/status-{name}.md` files, disentangling the project pointer from the
-  session pointer and eliminating the parallel-WU concurrency flaw and base-branch staleness
-  dead-ends under full protection
-    - Task list: `.arc/active/technical/tasks-work-status-restructure.md`
-    - Branch: `technical/work-status-restructure`
+- [none] — Session-Init Optimization PRD drafted on `technical/plan-session-init-optimization`;
+  pending integration and activation
 
 **Next Priority:**
 
-- ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology), with
-  absorbed config-key renames and CLI command cleanup. First real exercise of the per-WU status
-  file model across rotating branches
+- Session-Init Optimization — Reduce session-init token cost toward a defensible ~22–28k floor
+  by shifting front-loaded reference content to JIT loading via reliable workflow triggers
+- Then: ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology),
+  with absorbed config-key renames and CLI command cleanup
 - Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
 - Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle
 
 ## Completed Major Work
+
+### Work-Status Restructure (April 2026)
+
+Replaced singular `active/WORK-STATUS.md` with per-WU `active/{category}/status-{name}.md` files,
+disentangling the project pointer from the session pointer.
+
+- ADR-007 Tier 2 Amendment: per-WU project pointer distinct from per-developer session state
+- New `template-status.md` with `**State:**` as the load-bearing lifecycle marker
+- New `deactivate-work-unit.md` workflow (Case A primary; B/C/D via routing pointers)
+- Nine workflow files updated for per-WU status discovery, travel across rotating branches, archive deletion
+- SESSION-NOTES `**Working On:**` field with four-marker vocabulary
+- Meta-circular dogfood: Phase 3 live migration of this WU's own state onto the new model
+- Six atomic tasks alongside planned work (husky pre-commit fix, CI framework-sync drift check, etc.)
 
 ### Methodology Maturation (April 2026)
 
