@@ -19,7 +19,8 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- [none] — planning Session-Init Optimization on `technical/plan-session-init-optimization`
+- [none] — Session-Init Optimization PRD drafted on `technical/plan-session-init-optimization`;
+  pending integration and activation
 
 **Next Priority:**
 

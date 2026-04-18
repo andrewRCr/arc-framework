@@ -168,7 +168,7 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 - **Upstream:** `prd-arcd-docs-site.md` (format migration must land first so sweep
   targets the Starlight structure)
 - **Downstream:** `plan-wu5-public-release.md` (public release prereq)
-- **Feeds this plan:** `plan-session-init-optimization.md` (produces content
+- **Feeds this plan:** `prd-session-init-optimization.md` (produces content
   contributions via `notes-docs-content-sweep.md` staging file)
 - **Does not block:** `plan-arcd-rebrand.md`, `plan-expanded-planning-path.md`,
   `plan-arc-modes.md`
@@ -180,8 +180,8 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 - `prd-arcd-rebrand.md` § docs/ exception
 - Pre-merge review for `technical/work-status-restructure` (2026-04-16) — original
   surfacing of the per-WU status file docs drift
-- `plan-session-init-optimization.md` § Strategy B (operational-context audit producing
-  content contributions staged here)
+- `prd-session-init-optimization.md` § Requirements P1.1–P1.3 (operational-context audit
+  producing content contributions staged here)
 
 ## Document History
 

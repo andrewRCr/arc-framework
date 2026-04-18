@@ -116,16 +116,14 @@ the Phase 3 live-migration cutover point.
 
 **Session-Init Optimization** — After Work-Status Restructure
 
-Reduce session-init token cost (~40k loadset, ~70–80k observed at orientation completion with
-harness overhead) toward a defensible ~22–28k floor by shifting front-loaded reference content
-to JIT loading via reliable workflow triggers. Commissioned from the Work-Status Restructure
-WU via a session-init context-load audit. Adds a "Method and extension loading" rule to
-DEV-RULES.ARC, splits `arc-config.yml` into a user file + sibling defaults file, removes
-full-reads of `arc-methods.md` and `arc-extensions.md` from the parallel batch, and applies
-secondary content-hygiene trims to QUICK-REFERENCE, DEV-RULES.ARC, STRATEGY-INDEX, and the
-task-list partial-read spec.
+Reduce session-init token cost (~40k loadset, ~75–80k observed at orientation completion)
+toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
+frontmatter index replace single-file full-reads; a new "Method and extension loading" rule
+in DEV-RULES.ARC anchors compliance; operational-context audit trims always-loaded docs
+(DEV-RULES, briefings, QUICK-REFERENCE, session-init.md); session-type conditional loading
+formalizes the `Working On:` prefix for planning/execution/integration differentiation.
 
-- Plan: `technical/plan-session-init-optimization.md`
+- PRD: `technical/prd-session-init-optimization.md`
 - Upstream: Work-Status Restructure (overlapping edits on session-init.md would conflict;
   session-init substrate must stabilize first)
 - Downstream: ARCd Rebrand (lean session-init surface for rebrand terminology sweep)

@@ -262,8 +262,8 @@ patterns, status-file merge behavior).
 - **Work-Status Restructure WU** (shipped): per-WU `status-{name}.md` files are the
   substrate mobility builds on. The restructure's alignment with shift is already validated
   in [plan-arc-modes.md][arc-modes] § Alignment with Work-Status Restructure WU (L4400-4460).
-- **Session-Init Optimization WU** (current planning, see
-  [plan-session-init-optimization.md][session-init-opt]): clean base for adding worktree
+- **Session-Init Optimization WU** (PRD drafted, see
+  [prd-session-init-optimization.md][session-init-opt]): clean base for adding worktree
   detection. Detection is a small additive check that doesn't conflict with optimization's
   content-loading architecture changes.
 
@@ -539,7 +539,7 @@ in the plan than discover late.
 
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [arc-modes]: plan-arc-modes.md
-[session-init-opt]: ../technical/plan-session-init-optimization.md
+[session-init-opt]: ../technical/prd-session-init-optimization.md
 [arcd-rebrand-prd]: ../technical/prd-arcd-rebrand.md
 [solo-audit]: ../../reference/analysis/analysis-modes-solo-dev-blind-spot-audit.md
 [template-status]: ../../reference/templates/template-status.md
