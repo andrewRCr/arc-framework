@@ -1,6 +1,6 @@
 # Task List: Session-Init Optimization
 
-**PRD:** `.arc/backlog/technical/prd-session-init-optimization.md`
+**PRD:** `.arc/active/technical/prd-session-init-optimization.md`
 **Branch(es):** `technical/session-init-optimization`
 **Base Branch:** `main`
 
@@ -375,6 +375,8 @@ longer extracts.
         - `.arc/reference/constitution/DEV-RULES.PROJECT.md`
         - `.arc/reference/QUICK-REFERENCE.md`
         - `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+        - `.arc/reference/templates/template-status.md` (shapes every active status file;
+          instantiated file is read at every session-init, so template-level bloat propagates)
         - `.arc/system/arc-config.yml` (comment-level audit only; structural changes out of scope)
     - For each: extract rationale/background/overflow examples to `notes-docs-content-sweep.md`;
       leave `[TODO-docs-site]` reference-style link placeholders at extraction sites
@@ -480,12 +482,30 @@ the cautious path — default to up-front load; shift to conditional only where 
     - Graduated triple-anchor lookup (line hint → task number → title fragment) continues
       to resolve correctly under the narrower read (verify in test)
 
-- [ ] **5.3 DEV-RULES section-level partial-read evaluation (per-rule)**
+- [ ] **5.3 Status file partial-read narrowing**
+
+    **Goal:** Session-init reads only the `## Active Work` block of the active status file —
+    the 7 load-bearing fields (State, Branch, Task List, Next Task, Last Completed, Blockers,
+    Next Action) plus any optional fields present (Interrupts, Paused At, Paused To,
+    Superseded By). Non-load-bearing content (the "About this file" blockquote, any future
+    documentation) is not read at init.
+
+    - Update `session-init.md` Step 2 item 8 — replace "MUST RESOLVE, THEN READ IN FULL"
+      with partial-read specification (from `## Active Work` heading through the last
+      `**Field:**` line in that section)
+    - Document the `## Active Work` section as a contract boundary: any content an agent
+      needs at session-init must live inside this block
+    - Related: Phase 4.2 audits `template-status.md` to eliminate authoring-guidance comment
+      blocks that historically shipped from the template; this partial-read narrowing is the
+      durable guard regardless of future template content
+    - Two-copy sync
+
+- [ ] **5.4 DEV-RULES section-level partial-read evaluation (per-rule)**
 
     **Goal:** Each candidate section independently evaluated against a strict reliability bar;
     dispositions recorded.
 
-    - [ ] **5.3.a Evaluate candidate sections**
+    - [ ] **5.4.a Evaluate candidate sections**
         - Candidates: DEV-RULES.ARC § Task Execution; DEV-RULES.ARC § Capture Routing;
           DEV-RULES.PROJECT § Quality Gates; DEV-RULES.PROJECT § Package-Project Sync
         - For each, assess: is there a clear, reliable trigger (session type, config value,
@@ -493,12 +513,12 @@ the cautious path — default to up-front load; shift to conditional only where 
         - Disposition values: `conditional-load` (with named trigger) / `up-front-load`
           (with reason) / `retired-as-rationale` (if content moves to docs-site staging)
 
-    - [ ] **5.3.b Record dispositions in notes file**
+    - [ ] **5.4.b Record dispositions in notes file**
         - Append a "DEV-RULES partial-read dispositions" section to
           `notes-session-init-optimization.md`
         - One entry per evaluated section: candidate / disposition / named trigger or reason
 
-    - [ ] **5.3.c Apply dispositions**
+    - [ ] **5.4.c Apply dispositions**
         - For `conditional-load` sections: update `session-init.md` Step 2 items 4/5 to
           include trigger-based load logic
         - For `up-front-load` sections: no structural change (safety floor)
@@ -507,27 +527,27 @@ the cautious path — default to up-front load; shift to conditional only where 
     **Note:** Default remains up-front load; shifting is opportunistic. "Up-front load remains
     correct" is always a valid disposition.
 
-- [ ] **5.4 Session-init workflow Step 2/4/7 restructure**
+- [ ] **5.5 Session-init workflow Step 2/4/7 restructure**
 
     **Goal:** Batching structure, configuration check, and mismatch-handling prose all match
-    Phase 4 audit outcomes and Phase 5.1–5.3 partial-reads.
+    Phase 4 audit outcomes and Phase 5.1–5.4 partial-reads.
 
-    - [ ] **5.4.a Step 2 batching**
+    - [ ] **5.5.a Step 2 batching**
         - Re-express Batch 1 / Batch 2 ordering given slimmed loadset
         - Update embedded examples (e.g., many-file disambiguation prompt) if they reference
           content that moved
 
-    - [ ] **5.4.b Step 4 simplification**
+    - [ ] **5.5.b Step 4 simplification**
         - Configuration check simplifies post-audit (fewer defaults to scan, overrides surface
           the same way but against the slimmer content set)
 
-    - [ ] **5.4.c Step 7 tightening**
+    - [ ] **5.5.c Step 7 tightening**
         - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to
           auto-recover vs. stop-and-ask tiers
 
     - Two-copy sync
 
-- [ ] **5.5 Phase 5 close — Tier 2 quality gates**
+- [ ] **5.6 Phase 5 close — Tier 2 quality gates**
     - Markdown lint, framework-sync, targeted re-run of session-init against a representative
       active task list (if available) to spot-check regressions
 

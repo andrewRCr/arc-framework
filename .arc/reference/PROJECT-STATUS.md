@@ -19,14 +19,16 @@ Current state at a glance. Updated when work is activated, completed, or archive
 
 **Currently Active:**
 
-- [none] — Session-Init Optimization PRD drafted on `technical/plan-session-init-optimization`;
-  pending integration and activation
+- Session-Init Optimization (technical) — Reduce session-init token cost from ~75–80k
+  toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
+  frontmatter index replace full-file reads; operational-context audit trims always-loaded
+  docs; session-type conditional loading formalizes the `Working On:` prefix
+    - Task list: `.arc/active/technical/tasks-session-init-optimization.md`
+    - Branch: `technical/session-init-optimization`
 
 **Next Priority:**
 
-- Session-Init Optimization — Reduce session-init token cost toward a defensible ~22–28k floor
-  by shifting front-loaded reference content to JIT loading via reliable workflow triggers
-- Then: ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology),
+- ARCd Rebrand — Public product brand split (ARCd for product surface, ARC for methodology),
   with absorbed config-key renames and CLI command cleanup
 - Then: Expanded Planning Path — Optional pre-PRD planning path for high-novelty, high-coupling work
 - Then: ARC Operating Modes — Lightweight mode (ARC Lite) + local/untracked mode + shift lifecycle

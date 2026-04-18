@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-18
 
 ---
 
@@ -114,7 +114,7 @@ the Phase 3 live-migration cutover point.
 - Downstream: Session-Init Optimization (stable session-init substrate to optimize),
   ARCd Rebrand (first real exercise of the per-WU status file model across rotating branches)
 
-**Session-Init Optimization** — After Work-Status Restructure
+**Session-Init Optimization** — In Progress (activated 2026-04-18)
 
 Reduce session-init token cost (~40k loadset, ~75–80k observed at orientation completion)
 toward a ≤60k observation target (≥25% reduction). Per-file methods/extensions with YAML
@@ -287,6 +287,8 @@ site structure.
 
 ## Change Log
 
+- **2026-04-18**: Session-Init Optimization PRD + task list complete; activated on
+  `technical/session-init-optimization` after batch planning branch merge.
 - **2026-04-16**: Session-Init Optimization inserted between Work-Status Restructure and
   ARCd Rebrand. Commissioned mid-WU via the session-init context-load audit captured in
   `atomic-work-status-restructure.md`. Audit surfaced an architectural opportunity

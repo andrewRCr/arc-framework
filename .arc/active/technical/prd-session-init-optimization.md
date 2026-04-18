@@ -1,14 +1,6 @@
 # PRD: Session-Init Optimization
 
 **Type:** Technical
-**Updated:** 2026-04-18
-
-**State:** Draft — pending review
-
-**Related Work:**
-
-- Complete: Work-Status Restructure — stabilized session-init substrate (merged `27771f6`, archived `15c4a18`)
-- Upstream (complete): Methodology Maturation — stable methodology surface this optimization operates against
 
 ---
 
