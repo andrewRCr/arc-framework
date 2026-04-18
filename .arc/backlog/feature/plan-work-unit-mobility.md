@@ -147,8 +147,9 @@ layer). Each layer is independently useful; together they deliver the full capab
 5. **`strategy-concurrent-work.md` (new strategy doc).** Placement decision: sibling to
    `strategy-team-coordination.md`, not extending it. Same-identity concurrency is
    structurally different from multi-developer coordination and deserves its own doc. The
-   new strategy covers blessed pairings, swap discipline, worktree pattern usage, and the
-   relationship to team mode.
+   new strategy covers blessed pairings, swap discipline, worktree pattern usage, the
+   relationship to team mode, and the main-worktree-under-full-protection framing
+   ("your main worktree is not always on main").
 
 6. **Inbox sync fix.** `arc user load` gains cross-WU file merge semantics:
    - WU-scoped files (SESSION-NOTES) stay HEAD-ancestry-scoped (current behavior)
@@ -368,6 +369,32 @@ mode lands, this paragraph needs reframing. Options: generalize to
 "when tracked state lives outside git," forward-reference Local mode, or defer the paragraph
 to Local mode's content sweep. PRD decision.
 
+### Main-worktree role under full protection
+
+Under `branch.protection: full`, nothing commits directly to `main` — archival, ROADMAP
+updates, and backlog edits all need their own branches and PRs. With worktrees in use,
+this reshapes the main worktree's role:
+
+- WU worktrees handle feature work on their own branches (created at activation, removed
+  after merge)
+- The main worktree (the developer's home-base working directory) becomes the
+  administrative / coordination worktree — where planning branches live, where archive
+  branches live, where cross-WU backlog edits get staged
+- The main worktree is rarely literally on `main` — it cycles through short-lived admin
+  branches (plan-*, archive-*) and only returns to `main` between administrative tasks
+
+This is a natural specialization: meta-work happens in the main worktree on admin
+branches; feature work happens in WU worktrees on feature branches. But it's a mental
+model shift worth documenting. Adopters used to `pwd` implying "I'm on `main`" will need
+to recalibrate — full protection's pre-commit hook catches direct-to-main commits
+regardless, but the behavioral pattern is new. `strategy-concurrent-work.md` (new)
+should include a "Your main worktree is not always on main" framing note.
+
+Batched archive + next-planning composes cleanly: main worktree creates
+`feature/plan-wu-c`, commits the WU-A archive first, then the WU-C planning content,
+single PR merges both. Mobility doesn't complicate this; it just notes that parallel WU
+worktrees continue developing during the admin work.
+
 ---
 
 ## Unknowns and Open Questions
@@ -436,6 +463,10 @@ Who owns worktree creation and removal?
 - Removal after merge: integrate-work-unit gets an advisory step? CLI helper? Pure
   developer responsibility?
 - Stale worktrees (branch merged, worktree still exists): how does session-init handle this?
+- Batched archive composition (full protection): when WU-A's archive batches with WU-C's
+  planning branch, WU-A's worktree can be removed immediately post-merge (archive happens
+  in the main worktree, not WU-A's) — but the advisory should make this sequencing
+  explicit so adopters don't wait on the batched archive before cleaning up.
 
 ### "Primary" tenure tracking value
 
