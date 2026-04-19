@@ -72,11 +72,31 @@ institutionalizes the guarantee.
           `post-context-load`, `pre-stage-review`, `pre-merge-review`,
           `post-work-unit-activate`, `post-work-unit-archive`
         - Produce initial coverage table (method/extension → file/line of each current reference)
+        - Reference-source scope: `system/workflows/**/*.md`, `reference/constitution/*.md`,
+          `reference/strategies/**/*.md`, `system/agent/*.md`. Exclude `reference/adr/*.md`
+          (historical decisions, not active triggers) and `reference/archive/`
+        - Landing: append a "Phase 1 trigger coverage audit" section to
+          `notes-session-init-optimization.md` (one subsection for methods, one for extensions)
 
     - [ ] **1.1.b Classify each reference against the reliable-trigger bar**
-        - "Reliable trigger" = positioned at an action step in a reachable workflow; declarative/
-          imperative framing (no `if applicable`, `unless already loaded`, `when relevant`);
-          uses the D7a link convention
+        - **Reliable trigger (methods):** positioned at an action step in a reachable
+          workflow + declarative/imperative framing (no `if applicable`, `unless already
+          loaded`, `when relevant`) + uses markdown-link form (reference-style or inline)
+          pointing at the method
+        - **Reliable trigger (extensions):** positioned at an action step + uses markdown-link
+          form. The `If [X extensions] are configured, execute them` wrapper is *structurally
+          valid*, not hedged — extensions are conditional by mechanism, and Phase 3's
+          `has-steps` frontmatter makes that condition a structural lookup. Treat the wrapper
+          as reliable when the load/check is unconditionally positioned at the action step
+        - **D7a note:** at Phase 1 (pre-restructure), "link convention" means markdown-link
+          form only. Full D7a path-encoded conformance (`system/methods/*`,
+          `system/extensions/*` link targets) lands during Phase 3.10 cross-reference sweep;
+          not a Phase 1 classification gate
+        - **File-level general mentions** (e.g., DEV-RULES referencing `arc-methods.md` as a
+          concept, without anchor) do NOT count as reliable triggers — they don't point at a
+          specific method. Phase 3.10 decides per-case whether to drop, relink to
+          `system/methods/` directory, or relink to a concept-intro location. Leave for
+          Phase 3; don't flag in Phase 1
         - Mark each reference: reliable / hedged / unreachable
         - Flag any method or extension with zero reliable triggers
 
@@ -84,26 +104,43 @@ institutionalizes the guarantee.
         - For each flagged method/extension: either strengthen an existing reference or add a
           new one in the appropriate workflow
         - Two-copy sync for every edit (`packages/arc-framework/arc/` + `.arc/`)
+        - If 1.1.b surfaces no gaps, mark this task `[~]` with a one-line note pointing at the
+          1.1.b outcome in the notes file
 
 - [ ] **1.2 Reliable-trigger CI audit script**
 
     **Goal:** Automated enumeration that fails CI when any method or extension lacks a reliable
     trigger.
 
-    Build `test-first` (one behavior at a time):
+    - Placement: `scripts/audit-method-triggers.mjs` (repo-dev-only; parallel to existing
+      `scripts/check-package-sync.sh`; not shipped to adopters)
+    - Language: node ESM — aligns with package stack, tests via existing vitest,
+      forward-compatible with Phase 3.2's frontmatter parser for later reuse
     - Script enumerates `system/methods/*.md` and `system/extensions/*.md` (placeholder until
-      Phase 3; script can scan legacy aggregate files in the interim by iterating the
-      `## method-name` sections)
-    - Script greps for qualifying references across `system/workflows/**/*.md`,
-      `reference/constitution/*.md`, `reference/strategies/**/*.md`
-    - Script distinguishes reliable from hedged references (regex/phrase filter on known hedges)
-    - Exit non-zero with diagnostic output when any method or extension has zero reliable
-      references
+      Phase 3; interim scan of legacy aggregate files by iterating `## method-name` sections)
+    - Greps for qualifying references across `system/workflows/**/*.md`,
+      `reference/constitution/*.md`, `reference/strategies/**/*.md`, `system/agent/*.md`
+    - Distinguishes reliable from hedged references per Task 1.1.b rubric (methods: strict;
+      extensions: `if configured` wrapper accepted as structurally valid)
+    - Exit non-zero with diagnostic output (method/extension name, scanned locations,
+      reason for non-coverage)
+
+    Build `test-first` (one behavior at a time):
+    - Enumerates all methods from legacy aggregate (8 entries)
+    - Enumerates all extensions from legacy aggregate (8 entries)
+    - Reliable method reference passes
+    - Hedged method reference flagged
+    - Extension reference with `if configured` wrapper passes
+    - Method with zero references fails with diagnostic naming the method
+    - Empty scope directory handled without crash
+    - Malformed input files (non-markdown, unreadable) skipped, not fatal
 
 - [ ] **1.3 Wire script into CI workflow**
-    - Add step to `.github/workflows/ci.yml` `quality` job after existing `npm run build`
+    - Add step to `.github/workflows/ci.yml` `quality` job after existing `npm run build`:
+      `- run: node scripts/audit-method-triggers.mjs`
     - Step runs on all branches (fail-fast signal before PR)
-    - Document the check in `DEV-RULES.ARC` or relevant strategy as a known gate
+    - Optional one-line mention in `strategy-session-operations.md` near the methods-loading
+      discussion noting the CI check backs the reliability guarantee
 
 - [ ] **1.4 Phase 1 close — Tier 2 quality gates**
     - Run full markdown lint, code lint, typecheck, test suite before Phase 2
