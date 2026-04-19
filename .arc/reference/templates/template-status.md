@@ -10,13 +10,13 @@
 
 ## Active Work
 
-**State:** —
-**Branch:** —
-**Task List:** —
-**Next Task:** —
-**Last Completed:** —
-**Blockers:** [none]
-**Next Action:** —
+- **State:** —
+- **Branch:** —
+- **Task List:** —
+- **Next Task:** —
+- **Last Completed:** —
+- **Blockers:** [none]
+- **Next Action:** —
 
 <!--
 Optional fields (add when applicable):

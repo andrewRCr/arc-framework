@@ -46,12 +46,12 @@ The completion doc must be accurate because it's used for PRs. Before writing:
 ```markdown
 # Completion: {Work Name}
 
-**Started**: YYYY-MM-DD
-**Completed**: YYYY-MM-DD
-**Branch**: {branch-name}
-**Category**: {Feature | Technical | Incidental}
-**Pull Request**: {URL — add once PR is created in integrate-work-unit Step 7}
-**Context**: {One-liner: "Discovered during X" or "Part of roadmap initiative Y"}
+- **Started**: YYYY-MM-DD
+- **Completed**: YYYY-MM-DD
+- **Branch**: {branch-name}
+- **Category**: {Feature | Technical | Incidental}
+- **Pull Request**: {URL — add once PR is created in integrate-work-unit Step 7}
+- **Context**: {One-liner: "Discovered during X" or "Part of roadmap initiative Y"}
 
 <!-- Optional (supersession case only):
 **Superseded By**: `tasks-{new-approach}.md` (YYYY-MM-DD)
@@ -133,12 +133,12 @@ itself serves as the detailed record.
 ```markdown
 # Completion: {Work Name}
 
-**Started**: YYYY-MM-DD
-**Completed**: YYYY-MM-DD
-**Branch**: {branch-name}
-**Category**: Incidental
-**Pull Request**: {URL — add once PR is created}
-**Context**: {One-liner: "Discovered during X"}
+- **Started**: YYYY-MM-DD
+- **Completed**: YYYY-MM-DD
+- **Branch**: {branch-name}
+- **Category**: Incidental
+- **Pull Request**: {URL — add once PR is created}
+- **Context**: {One-liner: "Discovered during X"}
 
 ## Summary
 

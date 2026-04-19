@@ -119,9 +119,9 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 ```markdown
 # Task List: [Work Name]
 
-**PRD:** `.arc/[location]/[category]/prd-[name].md`
-**Branch(es):** `feature/[name]` or `technical/[name]` (comma-separated if multiple)
-**Base Branch:** base branch per `arc-config.yml` (typically `main`)
+- **PRD:** `.arc/[location]/[category]/prd-[name].md`
+- **Branch(es):** `feature/[name]` or `technical/[name]` (comma-separated if multiple)
+- **Base Branch:** base branch per `arc-config.yml` (typically `main`)
 ```
 
 The PRD path should reflect the PRD's current location (matching the task list's save location).

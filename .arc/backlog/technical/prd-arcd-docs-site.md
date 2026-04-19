@@ -1,7 +1,7 @@
 # PRD: ARCd Docs Site
 
-**Type:** Technical
-**Updated:** 2026-04-14
+- **Type:** Technical
+- **Updated:** 2026-04-14
 
 **State:** Pending Dependencies
 

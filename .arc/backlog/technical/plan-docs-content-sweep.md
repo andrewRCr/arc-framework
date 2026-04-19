@@ -6,13 +6,12 @@ content contributions staged from other WUs (e.g., operational-context extractio
 rule/workflow slim-down passes). Accumulation home for both input types between now and
 WU activation.
 
-**State:** Capture (accumulating items; PRD-drafted closer to activation)
-**Created:** 2026-04-16
-**Origin:** The Work-Status Restructure WU shipped the per-WU status file model to
-`.arc/` and `packages/arc-framework/arc/` but did not update the adopter-facing content
-at `docs/`. Pre-merge review surfaced ~15 touch points across 9 files still describing
-the retired singular `WORK-STATUS.md` model. That propagation was the first captured
-item; subsequent WUs now also stage content contributions here.
+- **State:** Capture (accumulating items; PRD-drafted closer to activation)
+- **Created:** 2026-04-16
+- **Origin:** The Work-Status Restructure WU shipped the per-WU status file model to `.arc/` and
+  `packages/arc-framework/arc/` but did not update the adopter-facing content at `docs/`. Pre-merge review surfaced ~15
+  touch points across 9 files still describing the retired singular `WORK-STATUS.md` model. That propagation was the
+  first captured item; subsequent WUs now also stage content contributions here.
 
 ---
 

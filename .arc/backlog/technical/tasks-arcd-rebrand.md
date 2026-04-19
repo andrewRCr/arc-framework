@@ -1,14 +1,14 @@
 # Task List: ARCd Rebrand
 
-**PRD:** `.arc/backlog/technical/prd-arcd-rebrand.md`
-**Created:** 2026-04-14
-**Branch(es):** `technical/arcd-rebrand` (Phases 1–2, active first),
-`technical/arcd-rebrand-post-rename-cleanup` (Phase 3, created after Phase 2 merge),
-`technical/arcd-rebrand-publish` (Phase 4, created after Phase 3 merge),
-`technical/arcd-rebrand-deprecate` (Phase 5, created after Phase 4 merge),
-`technical/arcd-rebrand-self-migrate` (Phase 6 + Phase 7 + final integration,
-created after Phase 5 merge)
-**Base Branch:** `main`
+- **PRD:** `.arc/backlog/technical/prd-arcd-rebrand.md`
+- **Created:** 2026-04-14
+- **Branch(es):** `technical/arcd-rebrand` (Phases 1–2, active first),
+  `technical/arcd-rebrand-post-rename-cleanup` (Phase 3, created after Phase 2 merge),
+  `technical/arcd-rebrand-publish` (Phase 4, created after Phase 3 merge),
+  `technical/arcd-rebrand-deprecate` (Phase 5, created after Phase 4 merge),
+  `technical/arcd-rebrand-self-migrate` (Phase 6 + Phase 7 + final integration,
+  created after Phase 5 merge)
+- **Base Branch:** `main`
 
 ## Overview
 

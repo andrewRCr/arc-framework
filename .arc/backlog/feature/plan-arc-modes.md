@@ -4,11 +4,11 @@
 can be used. Two modes: a lightweight mode that preserves execution discipline without lifecycle ceremony,
 and a local mode that enables ARC in repositories the developer doesn't control.
 
-**State:** Draft (design phase complete — Lite, Local, and shift lifecycle resolved; Audits A + B drained; PRD-ready)
-**Created:** 2026-04-01
-**Last Updated:** 2026-04-14
-**Origin:** Developer experience gaps at both ends of the adoption spectrum — small projects need less
-ceremony, and constrained environments need ARC without repo footprint.
+- **State:** Draft (design phase complete — Lite, Local, and shift lifecycle resolved; Audits A + B drained; PRD-ready)
+- **Created:** 2026-04-01
+- **Last Updated:** 2026-04-14
+- **Origin:** Developer experience gaps at both ends of the adoption spectrum — small projects need less ceremony, and
+  constrained environments need ARC without repo footprint.
 
 **Planning approach:** This work unit has a broadly known intent but largely unknown shape. Spend time here
 in the plan stage doing research, evaluation, and design decisions so the PRD can be specific about

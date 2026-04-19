@@ -61,9 +61,9 @@ Task list headers provide essential metadata and context. Format varies by task 
 ```markdown
 # Task List: [Feature/Technical Name]
 
-**PRD:** `.arc/active/{feature|technical}/prd-[name].md`
-**Branch(es):** `{feature|technical}/[branch-name]`
-**Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
+- **PRD:** `.arc/active/{feature|technical}/prd-[name].md`
+- **Branch(es):** `{feature|technical}/[branch-name]`
+- **Base Branch:** base branch (typically `main` — see `.arc/system/arc-config.yml`)
 
 ## Overview
 
