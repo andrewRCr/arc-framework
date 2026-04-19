@@ -13,7 +13,8 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 1.1 — Method and extension trigger coverage audit (line ~64)
-- **Last Completed:** Work unit activated
+- **Next Task:** Task 1.2 — Reliable-trigger CI audit script (line ~102)
+- **Last Completed:** Task 1.1 — audit PASS; all 16 methods/extensions carry ≥1 reliable trigger
 - **Blockers:** [none]
-- **Next Action:** Begin Phase 1 — start with Task 1.1.a (enumerate methods and extensions)
+- **Next Action:** Begin Task 1.2 — draft `scripts/audit-method-triggers.mjs` per the 1.1.b
+  outcome notes in `notes-session-init-optimization.md`
