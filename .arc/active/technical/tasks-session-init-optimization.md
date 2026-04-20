@@ -50,12 +50,14 @@ rationale, risks, research references).
 
 ## Tasks
 
-### **Phase 1:** Trigger Completeness Audit + CI Check
+### **Phase 1:** Workflow Trigger Contract — Schema, Migration, and CI Enforcement
 
 **Strategies:** `strategy-session-operations.md`, `strategy-configurability-architecture.md`
 
-**Purpose:** Safety precondition for front-load removal. Every method and extension must have ≥1 reliable-trigger
-reference before Phase 3 retires the always-loaded bodies. CI check institutionalizes the guarantee.
+**Purpose:** Establish the workflow→method/extension trigger contract end-to-end: define a structural YAML frontmatter
+schema, codify the author-side declaration rule, migrate all in-scope workflows, and enforce coverage in CI. Replaces
+brittle prose-grep enforcement with a structural one. Safety precondition for Phase 3's front-load removal; the
+structural contract is what makes "every method/extension has ≥1 reliable trigger" mechanically provable.
 
 - [x] **1.1 Method and extension trigger coverage audit**
 
@@ -91,7 +93,7 @@ reference before Phase 3 retires the always-loaded bodies. CI check institutiona
         - Non-link prose pointers (`integrate-work-unit.md:148` plain-text "see `arc-methods.md` §
           commit-context-format") classified informational — deferred to Phase 3.10 cross-reference sweep for relinking
           to `system/methods/` paths
-        - CI-audit (Task 1.3) implication recorded: enumerator must treat method-dependencies bullets and in-step links
+        - CI-audit (Task 1.4) implication recorded: enumerator must treat method-dependencies bullets and in-step links
           equivalently, and disambiguate substring matches on anchors (e.g., `#session-state` vs
           `#session-state-portability`)
 
@@ -99,40 +101,140 @@ reference before Phase 3 retires the always-loaded bodies. CI check institutiona
         methods/extensions. See `notes-session-init-optimization.md` § Phase 1 Classification (Task 1.1.b) § Overall
         verdict.
 
-- [ ] **1.2 Reliable-trigger CI audit script**
+- [ ] **1.2 Define workflow frontmatter schema + author-side declaration rule**
 
-    **Goal:** Automated enumeration that fails CI when any method or extension lacks a reliable trigger.
-    - Placement: `scripts/audit-method-triggers.mjs` (repo-dev-only; parallel to existing
-      `scripts/check-package-sync.sh`; not shipped to adopters)
-    - Language: node ESM — aligns with package stack, tests via existing vitest, forward-compatible with Phase 3.2's
-      frontmatter parser for later reuse
-    - Script enumerates `system/methods/*.md` and `system/extensions/*.md` (placeholder until Phase 3; interim scan of
-      legacy aggregate files by iterating `## method-name` sections)
-    - Greps for qualifying references across `system/workflows/**/*.md`, `reference/constitution/*.md`,
-      `reference/strategies/**/*.md`, `system/agent/*.md`
-    - Distinguishes reliable from hedged references per Task 1.1.b rubric (methods: strict; extensions: `if configured`
-      wrapper accepted as structurally valid)
-    - Exit non-zero with diagnostic output (method/extension name, scanned locations, reason for non-coverage)
+    **Goal:** Structural contract for declaring method/extension triggers in workflow files. Replaces prose
+    "Method dependencies (load on first reference):" preambles with a machine-readable, schema-validated frontmatter
+    block.
+
+    **Schema specification** (lives in `reference/strategies/arc/strategy-session-operations.md` as a new section
+    "Workflow Frontmatter Schema"):
+
+    ```yaml
+    ---
+    audience: agent              # enum: agent | dual
+    purpose: One-sentence description of the workflow's purpose.
+    arc:                          # optional; omit if workflow loads no methods/extensions
+      methods:
+        - method-name
+      extensions:
+        - extension-name
+    ---
+    ```
+
+    - `audience` and `purpose` are top-level (cosmetic/editorial; readable by humans and machines)
+    - `arc:` is the protected namespace — fields under it are mechanically enforced (CI audit; future schema
+      validation in Phase 3)
+    - `arc.methods` / `arc.extensions`: arrays of method/extension names (strings); names match the method/extension
+      filename (Phase 3 future state) or the legacy aggregate `## section-name` heading (interim)
+    - YAML block scalar (`purpose: |`) handles multi-line purpose text where needed
+
+    **Author-side declaration rule** (added to `reference/constitution/DEV-RULES.ARC.md` § Verification and Discovery
+    as a new subsection "Method and extension loading"):
+
+    > When a workflow loads a method or extension, declare it in the workflow's frontmatter `arc.methods` or
+    > `arc.extensions` field. The declaration is the load contract — CI enforces ≥1 declaration per method or
+    > extension. Body-level prose references (in-step markdown links, "see X" pointers) remain for reader navigation
+    > but do not constitute the trigger.
+
+    The agent-side compliance rule (load-on-encounter) lands in Phase 2.1; together they form the rule pair.
+
+    - Two-copy sync: `strategy-session-operations.md` and `DEV-RULES.ARC.md` edits land in both
+      `packages/arc-framework/arc/...` and `.arc/...`
+    - Tier 2 gate: markdown lint both files
+
+- [ ] **1.3 Migrate all workflows to frontmatter**
+
+    **Goal:** Every workflow under `system/workflows/` carries schema-conformant frontmatter. Body-level
+    "Method dependencies (load on first reference):" prose preambles removed; redundant body-level "Audience:"
+    callouts removed.
+
+    **Source of truth** for `arc.methods` / `arc.extensions` arrays: `notes-session-init-optimization.md` § Phase 1
+    Classification § Reliable-trigger locations (Task 1.1.b output). Each workflow listed there populates its
+    frontmatter from the methods/extensions it owns as a reliable-trigger location.
+
+    **Per-file migration steps:**
+
+    1. Add YAML frontmatter block at top of file (before `# Workflow:` heading)
+    2. Populate `audience` (default `agent`; mark `dual` only where body has substantial human-facing content)
+    3. Populate `purpose` from existing body purpose statement (single sentence; YAML block scalar for multi-line)
+    4. Populate `arc.methods` / `arc.extensions` per 1.1.b ground truth (omit `arc:` block if workflow loads none)
+    5. Remove body-level `**Audience:**` callout if duplicates frontmatter
+    6. Remove `**Method dependencies (load on first reference):**` prose preamble + bullet list
+    7. In-step markdown links to methods/extensions remain (reader navigation)
+    8. Two-copy sync per file (`packages/arc-framework/arc/system/workflows/...` and `.arc/system/workflows/...`)
+
+    **Out of scope:** `arc-methods.md` and `arc-extensions.md` themselves — they retire in Phase 3.12.
+
+    - [ ] **1.3.a `arc/` top-level (3 files)**
+        - `1_create-prd.md`, `2_generate-tasks.md`, `3_process-task-loop.md`
+
+    - [ ] **1.3.b `arc/session-lifecycle/` (3 files)**
+        - `session-init.md`, `session-handoff.md`, `session-loop.md`
+
+    - [ ] **1.3.c `arc/work-unit-lifecycle/` (7 files)**
+        - `activate-work-unit.md`, `archive-work-unit.md`, `clean-work-unit.md`, `deactivate-work-unit.md`,
+          `integrate-work-unit.md`, `rotate-branch.md`, `verify-work-unit.md`
+
+    - [ ] **1.3.d `arc/work-unit-lifecycle/planning/` (2 files)**
+        - `activate-planning-branch.md`, `integrate-planning-branch.md`
+
+    - [ ] **1.3.e `arc/supplemental/` (6 files)**
+        - `add-agent.md`, `integrate-external-content.md`, `maintain-project-docs.md`, `manage-incidental-work.md`,
+          `prepare-commits.md`, `verify-arc-integrity.md`
+
+    - [ ] **1.3.f `arc/initial-setup/` (2 files)**
+        - `01_verify-and-configure.md`, `02_define-project.md`
+
+    - [ ] **1.3.g `project/` (1 file)**
+        - `agent-pre-merge-review.md`
+
+    **Tier 2 gate after each subtask:** markdown lint passes on migrated files (both copies).
+
+- [ ] **1.4 Reliable-trigger CI audit script (test-first)**
+
+    **Goal:** Automated enumeration that fails CI when any method or extension lacks a workflow declaration. Reads
+    YAML frontmatter only — no prose-grepping.
+
+    - **Placement:** `packages/arc-framework/scripts/audit-method-triggers.ts` (TypeScript, run via `tsx` in CI)
+    - **Tests:** `packages/arc-framework/__tests__/unit/scripts/audit-method-triggers.test.ts`
+    - **Package script:** add `"lint:arc": "tsx packages/arc-framework/scripts/audit-method-triggers.ts"` to root
+      `package.json` and `packages/arc-framework/package.json`
+    - **Add `tsx` as dev dep** if not already present in `packages/arc-framework/package.json`
+    - **Verify publish exclusion:** confirm `packages/arc-framework/scripts/` is excluded from the published npm
+      package (via `files` allowlist in `package.json` or `.npmignore`); add exclusion if needed
+
+    **Algorithm:**
+
+    1. Enumerate methods from `system/methods/*.md` filenames if directory exists; else from `arc-methods.md`
+       `## section-name` headings (interim, until Phase 3 retires the aggregate)
+    2. Enumerate extensions from `system/extensions/*.md` filenames if directory exists; else from
+       `arc-extensions.md` headings (interim)
+    3. Walk `system/workflows/**/*.md`; parse YAML frontmatter via `js-yaml` (already a project dep)
+    4. Build coverage map: `{ name → [workflowFile, ...] }` from each workflow's `arc.methods` / `arc.extensions`
+    5. Pass condition: every enumerated method and extension has ≥1 workflow declaration
+    6. On failure, emit per-method/extension diagnostic (missing entity name + hint:
+       `declare in a workflow's frontmatter \`arc.methods\` or \`arc.extensions\` field`); exit non-zero
 
     Build `test-first` (one behavior at a time):
-    - Enumerates all methods from legacy aggregate (8 entries)
-    - Enumerates all extensions from legacy aggregate (8 entries)
-    - Reliable method reference passes
-    - Hedged method reference flagged
-    - Extension reference with `if configured` wrapper passes
-    - Method with zero references fails with diagnostic naming the method
-    - Empty scope directory handled without crash
-    - Malformed input files (non-markdown, unreadable) skipped, not fatal
+    - Enumerates 8 methods from legacy aggregate (`arc-methods.md` `## section-name` headings)
+    - Enumerates 8 extensions from legacy aggregate (`arc-extensions.md` `## section-name` headings)
+    - Forward-compatible: enumerates from `system/methods/*.md` filenames when directory is populated
+    - Parses `arc.methods` array from a workflow's frontmatter
+    - Parses `arc.extensions` array from a workflow's frontmatter
+    - Workflow with no frontmatter contributes zero declarations (does not crash)
+    - Workflow with malformed YAML reports diagnostic and continues (does not crash)
+    - Method with zero workflow declarations fails the audit with diagnostic naming the method
 
-- [ ] **1.3 Wire script into CI workflow**
-    - Add step to `.github/workflows/ci.yml` `quality` job after existing `npm run build`:
-      `- run: node scripts/audit-method-triggers.mjs`
+- [ ] **1.5 Wire script into CI workflow**
+    - Add step to `.github/workflows/ci.yml` `quality` job after `- run: npm run -s lint:md`:
+      `- run: npm run lint:arc`
     - Step runs on all branches (fail-fast signal before PR)
-    - Optional one-line mention in `strategy-session-operations.md` near the methods-loading discussion noting the CI
-      check backs the reliability guarantee
+    - Acceptance: CI green on this branch after push (verify before closing the task)
 
-- [ ] **1.4 Phase 1 close — Tier 2 quality gates**
+- [ ] **1.6 Phase 1 close — Tier 2 quality gates**
     - Run full markdown lint, code lint, typecheck, test suite before Phase 2
+    - Run `npm run lint:arc` locally to confirm before push
 
 ---
 
@@ -143,12 +245,13 @@ reference before Phase 3 retires the always-loaded bodies. CI check institutiona
 **Purpose:** Anchor compliance behavior before Phase 3 removes the always-loaded bodies. Constitutional framing is
 absolute — no hedges — per compliance-reliability research.
 
-- [ ] **2.1 "Method and extension loading" rule in DEV-RULES.ARC**
+- [ ] **2.1 Add agent-side compliance rule to "Method and extension loading"**
 
-    **Goal:** New subsection under § Verification and Discovery, both copies, hedge-free.
-    - Insertion point: `.arc/reference/constitution/DEV-RULES.ARC.md` § Verification and Discovery (adjacent to existing
-      `Verify before assuming`, `Consult strategy guidance`, `Re-check core documents` subsections)
-    - Rule text (per PRD P0.3):
+    **Goal:** Subsection now contains both rules paired. Author-side declaration rule landed in Phase 1.2 alongside the
+    schema; this task adds the agent-side compliance rule alongside it.
+    - File: `reference/constitution/DEV-RULES.ARC.md` § Verification and Discovery § Method and extension loading
+      (subsection created in Phase 1.2)
+    - Agent-side rule text (per PRD P0.3):
         > When a workflow step references a method, extension, strategy, or workflow, load the relevant content before
         > acting on that step. Don't proceed from intuition when a governing reference is one link away.
     - Two-copy sync: apply identical edit to `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md`
@@ -614,9 +717,11 @@ definition plus a notes-file entry.
       `system/extensions/` (both copies)
 - [ ] Session-init Step 2 loads aggregated frontmatter index only; full method and extension bodies load on-demand at
       workflow references
-- [ ] Reliable-trigger CI check active and passing on `main`
-- [ ] "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies);
-      cross-referenced from relevant workflow method-dependencies blocks
+- [ ] Reliable-trigger CI check (`npm run lint:arc`) active and passing on `main`; reads workflow frontmatter only
+- [ ] All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
+      `arc.methods`, `arc.extensions`); body-level "Method dependencies" prose preambles retired
+- [ ] "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies)
+      with paired rules: author-side declaration (frontmatter) + agent-side compliance (load-on-encounter)
 - [ ] ADR-013 Tier 2 amendment reflects the implemented per-file model and constitutional rule
 - [ ] Observed tokens-at-orientation-completion drops ≥25% from baseline (~75–80k → ≤60k) in a clean maintainer session
       with active task list

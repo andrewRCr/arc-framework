@@ -67,12 +67,13 @@ ARC's focused-session discipline already mitigates the primary degradation vecto
 
 Why the phases land in this order:
 
-- **Trigger completeness before front-load removal.** If a method or extension lacks a reliable workflow trigger,
-  removing its front-load guarantees a load failure at first reference. Phase 1 (trigger audit) is the safety
-  precondition for everything downstream.
-- **Constitutional rule with or before removal.** The rule anchors compliance durably across sessions. Landing it early
-  (Phase 2) ensures the behavior is governed before the removal lands, rather than assuming agents will discover the
-  rule later.
+- **Trigger contract before front-load removal.** If a method or extension lacks a reliable workflow trigger,
+  removing its front-load guarantees a load failure at first reference. Phase 1 establishes the contract end-to-end
+  (frontmatter schema + author-side declaration rule + workflow migration + CI enforcement) so the structural
+  guarantee holds before Phase 3 retires the always-loaded bodies.
+- **Constitutional rules with or before removal.** The rule pair anchors compliance durably across sessions. The
+  author-side declaration rule lands in Phase 1.2 alongside the schema; the agent-side compliance rule lands in
+  Phase 2.1. Both before Phase 3's removal, so loading behavior is governed before always-loaded bodies retire.
 - **Methods/extensions restructure before content audit.** The restructure moves method and extension bodies out of the
   always-loaded set; the audit then applies to remaining always-loaded content. Ordering the opposite way audits content
   that's about to be removed entirely — wasted effort.
@@ -678,7 +679,7 @@ can revisit if the rubric is tightened later.
   per-path relinking to the new `system/methods/` and `system/extensions/` directories. The `integrate-work-unit.md:148`
   plain-prose pointer and the `strategy-configurability-architecture.md:318–319` example-walkthrough links are the ones
   most likely to need tightening.
-- **CI audit (Task 1.3):** enumerator should treat method-dependencies bullets and in-step markdown-links equivalently
+- **CI audit (Task 1.4):** enumerator should treat method-dependencies bullets and in-step markdown-links equivalently
   as reliable triggers; the audit pass-condition is ≥1 reliable trigger per method/extension. A false match like
   `strategy-session-operations.md:22` confirms the CI script needs anchor-disambiguation (e.g., exact `#session-state`
   anchor match rather than substring).

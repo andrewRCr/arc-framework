@@ -69,19 +69,28 @@ reference. "Reliable trigger" means: positioned at an action step in a reachable
 phrased declarative/imperative (no hedges like "if applicable" or "unless already loaded"),
 uses the D7a link convention.
 
-**P0.2 Reliable-trigger CI check.** Script enumerates method/extension files, greps for
-qualifying references across workflows / DEV-RULES / strategies, fails CI if any method or
-extension lacks coverage. Placement: CI (cross-file scan).
+**P0.2 Workflow frontmatter trigger contract + CI check.** Workflow files declare their
+method/extension dependencies via YAML frontmatter (`arc.methods`, `arc.extensions` arrays).
+All `system/workflows/**/*.md` files migrate to this schema; body-level "Method dependencies
+(load on first reference):" prose preambles retire. CI script enumerates method/extension
+files (or legacy aggregate sections during interim), parses workflow frontmatter, fails CI if
+any method or extension lacks ≥1 declaration. Placement: CI (whole-repo frontmatter parse).
+Scope is workflows only — constitution and strategies are informational, not trigger
+declarations.
 
-**P0.3 Constitutional rule.** "Method and extension loading" subsection added to
-DEV-RULES.ARC § Verification and Discovery. Short, imperative, hedge-free:
+**P0.3 Constitutional rule pair.** "Method and extension loading" subsection added to
+DEV-RULES.ARC § Verification and Discovery. Two paired rules, both absolute, hedge-free:
 
-> When a workflow step references a method, extension, strategy, or workflow, load the
-> relevant content before acting on that step. Don't proceed from intuition when a governing
-> reference is one link away.
+> **Author-side declaration.** When a workflow loads a method or extension, declare it in the
+> workflow's frontmatter `arc.methods` or `arc.extensions` field. The declaration is the load
+> contract — CI enforces ≥1 declaration per method or extension. Body-level prose references
+> remain for reader navigation but do not constitute the trigger.
+>
+> **Agent-side compliance.** When a workflow step references a method, extension, strategy, or
+> workflow, load the relevant content before acting on that step. Don't proceed from intuition
+> when a governing reference is one link away.
 
-Cross-referenced from relevant workflow method-dependencies blocks. AGENT-BRIEFING.ARC updated
-if needed to surface the rule during init.
+AGENT-BRIEFING.ARC updated if needed to surface the rule pair during init.
 
 **P0.4 ADR-013 amendment drafted (Phase 2).** Tier 2 amendment reflecting the method-loading
 model change (per-file structure with frontmatter index). Sanity check pass in Phase 3 to
@@ -297,12 +306,15 @@ syntax — rejected. Cross-references become file-link-based; three-way merge be
 
 Two coordinated conventions, split by mechanism.
 
-**D7a — Inline load-target references: markdown links with path-encoded kind.** Workflow
-steps reference a method/extension/workflow/strategy via markdown link at point of invocation.
-Target path encodes kind: `system/methods/*`, `system/extensions/*`, `system/workflows/*`,
-`reference/strategies/*`. CI derives per-workflow load-target manifests from link grep. No
-new tag vocabulary. No front-loaded `<dependencies>` manifest block (would imply eager-load
-semantics regressing toward the front-loading this work removes).
+**D7a — Inline load-target references plus frontmatter trigger contract.** Workflow steps
+reference a method/extension/workflow/strategy via markdown link at point of invocation
+(reader navigation; agent loads on first encounter per the agent-side compliance rule). Target
+path encodes kind: `system/methods/*`, `system/extensions/*`, `system/workflows/*`,
+`reference/strategies/*`. The authoritative trigger contract lives in workflow YAML
+frontmatter (`arc.methods`, `arc.extensions` arrays) — CI enforces ≥1 declaration per
+method/extension. The frontmatter is a structural contract for enforcement, not a load
+directive; agent loading remains in-step on first reference. No new tag vocabulary for inline
+references.
 
 **D7b — Shape-boundary wrappers: XML tags for templates, output formats, and extension points.**
 Explicit XML-style tags where the agent produces or consumes against a shape, preventing
@@ -322,7 +334,7 @@ Applied opportunistically as files are touched during the Phase 4 audit. No swee
 | ------------------------- | ---------- | ---------------------------------------------------------------------------- |
 | Frontmatter schema        | pre-commit | Per-staged-file, schema check is cheap                                       |
 | D7a link resolution       | pre-commit | Per-staged-file, file-existence check is cheap                               |
-| Reliable-trigger audit    | CI         | Whole-repo enumeration of methods × cross-workflow grep                      |
+| Reliable-trigger audit    | CI         | Parses workflow frontmatter; checks each method/extension has ≥1 declaration |
 | Framework-sync            | CI         | Two-directory comparison; existing pattern                                   |
 | D7b extension-point match | pre-commit | Fast grep check when workflow files stage; catches rename drift immediately  |
 
@@ -429,6 +441,7 @@ checklist, trim strategy).
 
 ## Document History
 
-| Date       | Change        |
-|------------|---------------|
-| 2026-04-18 | Initial draft |
+| Date       | Change                                                                              |
+|------------|-------------------------------------------------------------------------------------|
+| 2026-04-18 | Initial draft                                                                       |
+| 2026-04-20 | P0.2/P0.3/D7a refined: workflow frontmatter trigger contract; constitutional pair   |
