@@ -364,61 +364,28 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
         `packages/arc-framework/arc/system/extensions/` (8 entries + README). Total new files this phase:
         36 (16 methods + 16 extensions + 4 READMEs).
 
-- [ ] **1.5 Reliable-trigger CI audit script (test-first)**
+- [x] **1.5 Reliable-trigger CI audit script (test-first)**
 
-    **Goal:** Automated enumeration that fails CI when any method or extension lacks a workflow declaration. Reads
-    YAML frontmatter only — no prose-grepping. Runs against the per-file structure from 1.4; no legacy-aggregate
-    fallback branch.
-
-    - **Placement:** `packages/arc-framework/src/scripts/audit-method-triggers.ts` — inside the existing `src/` tree so
-      `tsconfig.json` strict-typecheck, `lint:ts`, and publish exclusion (via `files` allowlist) all apply without
-      configuration changes. `tsup.config.ts` has a single `src/cli.ts` entry, so this file is not bundled into
-      `dist/`.
-    - **Tests:** `packages/arc-framework/__tests__/unit/scripts/audit-method-triggers.test.ts`
-    - **Package script:** add
-      `"lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts"` to the **root**
-      `package.json` **only** — do NOT add to `packages/arc-framework/package.json`. The audit is framework-CI-only
-      per `strategy-workflow-authoring.md` § Enforcement; adopters have no use case for it, and shipping a
-      framework-internal script entry via the published CLI would be user-hostile.
-    - **Add `tsx` as a dev dep at root** (alongside `husky`, `markdownlint-cli2`) — the script runs from repo root in
-      CI.
-    - **Script shape:** expose named exports (`enumerateMethods`, `enumerateExtensions`, `buildCoverageMap`,
-      `formatDiagnostic`, etc.) + a guarded CLI entry at the bottom
-      (`if (fileURLToPath(import.meta.url) === process.argv[1]) { await main(); }`) so tests can import the pure
-      functions and CI can invoke the file directly.
-
-    **Corpus scope:** walk the package-source copy only — enumerate methods/extensions from
-    `packages/arc-framework/arc/system/methods/*.md` and `packages/arc-framework/arc/system/extensions/*.md`, walk
-    workflows from `packages/arc-framework/arc/system/workflows/**/*.md`. The `.arc/` copy is a downstream consumer;
-    drift between the two is caught by the existing framework-sync test, not this audit.
-
-    **Algorithm:**
-
-    1. Enumerate methods from `system/methods/*.md` filenames, excluding `README.md`
-    2. Enumerate extensions from `system/extensions/*.md` filenames, excluding `README.md`
-    3. Walk `system/workflows/**/*.md`; parse YAML frontmatter via `js-yaml` (import directly — no need for the
-       Phase 3 parser utility at this layer)
-    4. Build two independent coverage maps keyed by kind: `methods: Map<name, workflows[]>` and
-       `extensions: Map<name, workflows[]>` — tracked separately so any future name collision across kinds cannot
-       silently collapse (current corpus has none after 1.4.a; defensive invariant)
-    5. Pass condition: every enumerated method and extension has ≥1 workflow declaration in its own map
-    6. On failure, emit per-entry diagnostic naming the correct frontmatter field for the failing kind —
-       `Method "X" has no workflow declaration. Add X to some workflow's arc.methods frontmatter field.`
-       (and the parallel message with `arc.extensions` for extension failures)
-    7. Exit non-zero on any gap
-
-    Build `test-first` (one behavior at a time):
-    - Enumerates method filenames from `system/methods/`, excluding `README.md`
-    - Enumerates extension filenames from `system/extensions/`, excluding `README.md`
-    - Parses `arc.methods` array from a workflow's frontmatter
-    - Parses `arc.extensions` array from a workflow's frontmatter
-    - Workflow with no frontmatter contributes zero declarations (does not crash)
-    - Workflow with malformed YAML reports diagnostic and continues (does not crash)
-    - Method with zero workflow declarations fails the audit with diagnostic naming the method and `arc.methods`
-    - Extension with zero workflow declarations fails the audit with diagnostic naming the extension and
-      `arc.extensions`
-    - Methods and extensions tracked in separate coverage maps — same-name method+extension would require independent
-      declarations (defensive test against future name collisions)
+    **Outcome:** Structural CI audit that fails when any method/extension lacks a workflow `arc.methods` /
+    `arc.extensions` frontmatter declaration — no prose-grepping, no legacy-aggregate fallback.
+    - **Script:** `packages/arc-framework/src/scripts/audit-method-triggers.ts`. Pure exports
+      (`enumerateMethods`, `enumerateExtensions`, `parseWorkflowFrontmatter`, `buildCoverageMap`,
+      `walkMarkdownFiles`, `formatMethodDiagnostic`, `formatExtensionDiagnostic`, `audit`) + guarded CLI
+      entry (`fileURLToPath(import.meta.url) === process.argv[1]`). Corpus root resolved from script
+      location, not `cwd`. Corpus is package-source only (`packages/arc-framework/arc/system/...`); `.arc/`
+      drift is the framework-sync test's concern.
+    - **Tests:** `packages/arc-framework/__tests__/unit/scripts/audit-method-triggers.test.ts` (14 tests
+      covering all 9 spec behaviors). Test-first executed as a single batch — tightly coupled glue over
+      `readdir` / `yaml.load` / array ops with no independent discovery value per-behavior.
+    - **Key invariants:** separate coverage maps per kind (method+extension same-name collision cannot
+      silently collapse); malformed YAML reported as diagnostic without crashing; diagnostics name the
+      correct frontmatter field for the failing kind.
+    - **Root wiring:** `lint:arc:triggers` script + `tsx ^4.19.2` devDependency added to root `package.json`.
+      Package-level `packages/arc-framework/package.json` deliberately unchanged — framework-CI-only per
+      `strategy-workflow-authoring.md § Enforcement`; shipping a CI-only script entry via the published CLI
+      would be user-hostile.
+    - **Verification:** audit passes against real corpus (all 8 methods + 8 extensions covered). Tier 1 gates
+      clean (`typecheck`, `typecheck:test`, `lint:ts`, `test:unit` 484 tests, `lint:md` 200 files, `build`).
 
 - [ ] **1.6 Wire audit into CI**
     - Add step to `.github/workflows/ci.yml` `quality` job **before** `- run: npm run -s lint:md`:

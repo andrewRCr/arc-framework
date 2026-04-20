@@ -20,10 +20,12 @@
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
+    "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "prepare": "husky"
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "markdownlint-cli2": "0.21.0"
+    "markdownlint-cli2": "0.21.0",
+    "tsx": "^4.19.2"
   }
 }
