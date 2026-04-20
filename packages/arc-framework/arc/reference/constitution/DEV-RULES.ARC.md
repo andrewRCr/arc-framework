@@ -190,8 +190,9 @@ Session state uses two files with different update triggers:
 
 - **`status-{name}.md`** (tracked, `active/{category}/`) — the active WU's project pointer,
   updated at commit time and session handoff only
-    - **Commit time**: Advance alongside task list changes (§ Commit Discipline, "Work status
-      accuracy"). Staged as part of the commit — not a separate operation.
+    - **Commit time**: The trigger is a user-initiated commit request (not anticipation of one).
+      Advance alongside task list changes (§ Commit Discipline, "Work status accuracy"). Staged
+      as part of the commit — not a separate operation.
     - **Session handoff**: If dirty with no pending commit, propose a standalone commit.
     - **Not at other times** — mid-session updates are churn. The next session recovers state
       from the committed `status-{name}.md`, git log, and task list checkboxes.

@@ -92,6 +92,8 @@ arc:
          unit, made irrelevant by a design decision, or superseded by a different approach — mark it `[~]`
          instead of `[x]`. Add a brief note explaining why (e.g., "Deferred to WU3", "Superseded by
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
+       - **Do not update `status-{name}.md` at this step.** The status file updates at commit prep
+         (step 4, "Await user instructions"), triggered by the user's commit request — not task completion.
      - **Extensions** · `#post-task-completion`: If [post-task-completion extensions][arc-ext-task-completion] are
        configured, execute them now. Teams using external trackers (Jira, Linear, GitHub Issues) use this
        extension to sync task completion status — see [Team Coordination Strategy][team-coordination]
