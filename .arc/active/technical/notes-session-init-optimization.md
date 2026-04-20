@@ -557,7 +557,7 @@ External references:
   directing a load. Also: references in non-workflow files (`reference/constitution/`, `reference/strategies/`,
   `system/agent/`) by strict reading of the "reachable workflow" criterion.
 - **File-level general mentions** (DEV-RULES referencing `arc-methods.md` as a concept without anchor) — per task spec,
-  not flagged in Phase 1; left for Phase 3.10 to resolve against the new `system/methods/` directory structure.
+  not flagged in Phase 1; left for Phase 3.6 to resolve against the new `system/methods/` directory structure.
 
 **Method-dependencies blocks** (e.g., `3_process-task-loop.md:16–18`, `prepare-commits.md:14–15`,
 `integrate-work-unit.md:33–34`, `session-handoff.md:19`) are classified as **reliable**. The block preamble ("load on
@@ -632,7 +632,7 @@ structural wrapper at the firing site is the load point and additional wrappers 
 
 ### Judgment calls recorded
 
-These are the non-obvious classifications. None changes any verdict; all flagged here so Phase 3.10 / CI-audit design
+These are the non-obvious classifications. None changes any verdict; all flagged here so Phase 3.6 / CI-audit design
 can revisit if the rubric is tightened later.
 
 1. **Session-init/handoff Step-preamble directives** (`session-init.md:57`, `session-handoff.md:44`) — classified as
@@ -652,7 +652,7 @@ can revisit if the rubric is tightened later.
    effectiveness.
 
 4. **Non-link prose pointers** (e.g., `integrate-work-unit.md:148` "see `arc-methods.md` § commit-context-format") —
-   informational. Fails the markdown-link-form criterion. Phase 3.10 may relink these as part of the `system/methods/`
+   informational. Fails the markdown-link-form criterion. Phase 3.6 may relink these as part of the `system/methods/`
    path-encoded conformance sweep.
 
 5. **Strategy classification tables** (`strategy-session-operations.md:158–165`) — informational. They document where
@@ -675,11 +675,15 @@ can revisit if the rubric is tightened later.
 ### Downstream implications
 
 - **Task 1.1.c (fix coverage gaps):** no gaps to fix. Proceed directly to Task 1.2 once 1.1 is closed.
-- **Phase 3.10 (cross-reference sweep):** the informational-tier references (constitution, strategies, agent) will need
+- **Phase 3.6 (cross-reference sweep):** the informational-tier references (constitution, strategies, agent) will need
   per-path relinking to the new `system/methods/` and `system/extensions/` directories. The `integrate-work-unit.md:148`
   plain-prose pointer and the `strategy-configurability-architecture.md:318–319` example-walkthrough links are the ones
   most likely to need tightening.
-- **CI audit (Task 1.4):** enumerator should treat method-dependencies bullets and in-step markdown-links equivalently
-  as reliable triggers; the audit pass-condition is ≥1 reliable trigger per method/extension. A false match like
-  `strategy-session-operations.md:22` confirms the CI script needs anchor-disambiguation (e.g., exact `#session-state`
-  anchor match rather than substring).
+- **CI audit (now Task 1.5 after Phase 1 restructure):** reads YAML frontmatter only — no prose-grep, no anchor
+  disambiguation. Enumerates entities from per-file filenames (`system/methods/*.md`, `system/extensions/*.md`; excludes
+  `README.md`) after Phase 1 Task 1.4 establishes the per-file structure, and builds coverage from each workflow's
+  `arc.methods` / `arc.extensions` frontmatter arrays. Pass-condition is still ≥1 reliable trigger per method/extension;
+  reliability is now guaranteed structurally by the frontmatter contract rather than the prose-reliability classification
+  from Task 1.1.b. Method and extension coverage maps are tracked independently (defensive invariant — the historical
+  `pre-merge-review` name collision is resolved by renaming the method to `diff-review` in Task 1.4.a, but the
+  independent-maps invariant stays in place against future collisions).

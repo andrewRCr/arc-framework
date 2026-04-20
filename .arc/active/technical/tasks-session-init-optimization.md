@@ -50,14 +50,17 @@ rationale, risks, research references).
 
 ## Tasks
 
-### **Phase 1:** Workflow Trigger Contract — Schema, Migration, and CI Enforcement
+### **Phase 1:** Workflow Trigger Contract + Per-File Restructure + CI Enforcement
 
-**Strategies:** `strategy-session-operations.md`, `strategy-configurability-architecture.md`
+**Strategies:** `strategy-session-operations.md`, `strategy-configurability-architecture.md`,
+`strategy-package-project-sync.md`
 
 **Purpose:** Establish the workflow→method/extension trigger contract end-to-end: define a structural YAML frontmatter
-schema, codify the author-side declaration rule, migrate all in-scope workflows, and enforce coverage in CI. Replaces
-brittle prose-grep enforcement with a structural one. Safety precondition for Phase 3's front-load removal; the
-structural contract is what makes "every method/extension has ≥1 reliable trigger" mechanically provable.
+schema, codify the author-side declaration rule, migrate all in-scope workflows, pull forward the per-file
+methods/extensions restructure (so the audit script lands on final structure with no legacy-aggregate fallback), rename
+the `pre-merge-review` method to `diff-review` (fixing the method/extension name collision), and enforce coverage in CI.
+Replaces brittle prose-grep enforcement with a structural one. Aggregate files (`arc-methods.md`, `arc-extensions.md`)
+remain in place until Phase 3 retires them — per-file becomes authoritative from Task 1.4 forward.
 
 - [x] **1.1 Method and extension trigger coverage audit**
 
@@ -91,7 +94,7 @@ structural contract is what makes "every method/extension has ≥1 reliable trig
         - `strategy-session-operations.md:22` dropped from catalog (false regex match on `#session-state-portability`
           anchor — not a reference to the `session-state` method)
         - Non-link prose pointers (`integrate-work-unit.md:148` plain-text "see `arc-methods.md` §
-          commit-context-format") classified informational — deferred to Phase 3.10 cross-reference sweep for relinking
+          commit-context-format") classified informational — deferred to Phase 3.6 cross-reference sweep for relinking
           to `system/methods/` paths
         - CI-audit (Task 1.4) implication recorded: enumerator must treat method-dependencies bullets and in-step links
           equivalently, and disambiguate substring matches on anchors (e.g., `#session-state` vs
@@ -203,50 +206,140 @@ structural contract is what makes "every method/extension has ≥1 reliable trig
           classified informational in Task 1.1.b; reliable triggers for `review-triage` are the
           in-step directives at lines 36, 78, 92.
 
-- [ ] **1.4 Reliable-trigger CI audit script (test-first)**
+- [ ] **1.4 Per-file restructure + method rename (structural prep for CI audit)**
+
+    **Goal:** Establish the per-file `system/methods/` and `system/extensions/` layout the audit script enumerates from,
+    and fix the `pre-merge-review` method/extension name collision by renaming the method to `diff-review`. Pulls
+    forward what was Phase 3.1 + 3.3 + 3.4 + 3.5 so Task 1.5's audit lands on final structure with no legacy-aggregate
+    fallback branch.
+
+    **Aggregate handling:** `arc-methods.md` and `arc-extensions.md` stay in place until Phase 3 retires them —
+    session-init Step 2 still scans them for override presence through Phase 2 close. Per-file becomes authoritative
+    from this task forward; aggregates are frozen snapshots pending retirement.
+
+    - [ ] **1.4.a Rename `pre-merge-review` method → `diff-review`; broaden framing to generic activity contract**
+
+        **Goal:** Method becomes a reusable activity contract (the review of an aggregate diff), matching the
+        activity-noun convention every other method follows (`issue-triage`, `commit-format`, `review-triage`, etc.).
+        Moment stays named by the `pre-merge-review` extension that hooks at that lifecycle point. Eliminates the
+        method/extension name collision permanently and opens the method for composition by other workflows/skills.
+        - Rename `## pre-merge-review` heading + anchor in `arc-methods.md` to `## diff-review`
+        - Update the Method Dependencies table row and the `pre-merge-review → review-triage` coupling entry
+        - Rewrite the method's body: drop temporal "before push" framing from the activity description (move to the
+          `When:` field only); frame the contract as generic diff review
+        - Update cross-references in the `pre-merge-review` extension contract in `arc-extensions.md` (text + anchor)
+        - Update `integrate-work-unit.md` frontmatter `arc.methods` entry + in-step markdown-link references
+        - Update `arc-config.yml` inline comment at `review.pre_merge` (describes "the pre-merge-review method" →
+          "the diff-review method")
+        - Grep residuals across `system/workflows/**`, `reference/strategies/**`, `reference/constitution/**`,
+          `system/agent/**` — distinguish method references (rename) from extension references (keep)
+        - Two-copy sync across `packages/arc-framework/arc/` and `.arc/`
+        - Tier 1 gate: markdown lint both copies
+
+    - [ ] **1.4.b Document per-file frontmatter schema (was Phase 3.1)**
+
+        **Goal:** Fixed field contract for method and extension files.
+        - Methods schema fields: `name`, `description` (one-line operational purpose), `workflow` (primary triggering
+          workflow filename — methods may be composed from other workflows/skills too), `related` (related method
+          names, array), `has-override` (populated status signal: `true`/`false`)
+        - Extensions schema fields: same as methods except `has-steps` replaces `has-override`
+        - Placement: new section in `strategy-session-operations.md` § Method and Extension Loading
+        - Two-copy sync
+
+    - [ ] **1.4.c Create per-file directory structure (both copies) (was Phase 3.3)**
+        - `packages/arc-framework/arc/system/methods/` and `.arc/system/methods/`
+        - `packages/arc-framework/arc/system/extensions/` and `.arc/system/extensions/`
+
+    - [ ] **1.4.d Migrate 8 methods to per-file (was Phase 3.4)**
+
+        **Goal:** Each method's `.override` / `.default` body extracted to `{name}.md` with frontmatter; content
+        preserved verbatim (no rewording during migration — 1.4.a already handled the rename-related rewording).
+        - `commit-format.md`, `commit-context-format.md`, `issue-triage.md`, `test-first.md`, `session-state.md`,
+          `diff-review.md` (renamed per 1.4.a), `review-triage.md`, `quality-gate-commands.md`
+        - Frontmatter `workflow` field populated from current method's "Workflow:" line
+        - Frontmatter `related` field populated from current Method Dependencies table
+        - Frontmatter `has-override` = `false` for all (no current overrides configured)
+        - Two-copy sync per file
+
+    - [ ] **1.4.e Migrate 8 extensions to per-file (was Phase 3.5)**
+        - `post-task-quality.md`, `post-unit-quality.md`, `post-task-completion.md`, `post-context-load.md`,
+          `pre-stage-review.md`, `pre-merge-review.md`, `post-work-unit-activate.md`, `post-work-unit-archive.md`
+        - Frontmatter `has-steps` populated based on current `.steps` content (only `pre-merge-review` currently has
+          steps; the rest are placeholders)
+        - Two-copy sync per file
+
+    - [ ] **1.4.f Tier 2 gate after structural prep**
+        - Full markdown lint across both copies; confirm no broken links introduced by the rename
+        - Confirm both `system/methods/` and `system/extensions/` directories populated with 8 files each in both
+          copies (16 files × 2 copies = 32 new files)
+
+- [ ] **1.5 Reliable-trigger CI audit script (test-first)**
 
     **Goal:** Automated enumeration that fails CI when any method or extension lacks a workflow declaration. Reads
-    YAML frontmatter only — no prose-grepping.
+    YAML frontmatter only — no prose-grepping. Runs against the per-file structure from 1.4; no legacy-aggregate
+    fallback branch.
 
-    - **Placement:** `packages/arc-framework/scripts/audit-method-triggers.ts` (TypeScript, run via `tsx` in CI)
+    - **Placement:** `packages/arc-framework/src/scripts/audit-method-triggers.ts` — inside the existing `src/` tree so
+      `tsconfig.json` strict-typecheck, `lint:ts`, and publish exclusion (via `files` allowlist) all apply without
+      configuration changes. `tsup.config.ts` has a single `src/cli.ts` entry, so this file is not bundled into
+      `dist/`.
     - **Tests:** `packages/arc-framework/__tests__/unit/scripts/audit-method-triggers.test.ts`
-    - **Package script:** add `"lint:arc": "tsx packages/arc-framework/scripts/audit-method-triggers.ts"` to root
-      `package.json` and `packages/arc-framework/package.json`
-    - **Add `tsx` as dev dep** if not already present in `packages/arc-framework/package.json`
-    - **Verify publish exclusion:** confirm `packages/arc-framework/scripts/` is excluded from the published npm
-      package (via `files` allowlist in `package.json` or `.npmignore`); add exclusion if needed
+    - **Package script:** add
+      `"lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts"` to the **root**
+      `package.json` **only** — do NOT add to `packages/arc-framework/package.json`. The audit is framework-CI-only
+      per `strategy-workflow-authoring.md` § Enforcement; adopters have no use case for it, and shipping a
+      framework-internal script entry via the published CLI would be user-hostile.
+    - **Add `tsx` as a dev dep at root** (alongside `husky`, `markdownlint-cli2`) — the script runs from repo root in
+      CI.
+    - **Script shape:** expose named exports (`enumerateMethods`, `enumerateExtensions`, `buildCoverageMap`,
+      `formatDiagnostic`, etc.) + a guarded CLI entry at the bottom
+      (`if (fileURLToPath(import.meta.url) === process.argv[1]) { await main(); }`) so tests can import the pure
+      functions and CI can invoke the file directly.
+
+    **Corpus scope:** walk the package-source copy only — enumerate methods/extensions from
+    `packages/arc-framework/arc/system/methods/*.md` and `packages/arc-framework/arc/system/extensions/*.md`, walk
+    workflows from `packages/arc-framework/arc/system/workflows/**/*.md`. The `.arc/` copy is a downstream consumer;
+    drift between the two is caught by the existing framework-sync test, not this audit.
 
     **Algorithm:**
 
-    1. Enumerate methods from `system/methods/*.md` filenames if directory exists; else from `arc-methods.md`
-       `## section-name` headings (interim, until Phase 3 retires the aggregate)
-    2. Enumerate extensions from `system/extensions/*.md` filenames if directory exists; else from
-       `arc-extensions.md` headings (interim)
-    3. Walk `system/workflows/**/*.md`; parse YAML frontmatter via `js-yaml` (already a project dep)
-    4. Build coverage map: `{ name → [workflowFile, ...] }` from each workflow's `arc.methods` / `arc.extensions`
-    5. Pass condition: every enumerated method and extension has ≥1 workflow declaration
-    6. On failure, emit per-method/extension diagnostic (missing entity name + hint:
-       `declare in a workflow's frontmatter \`arc.methods\` or \`arc.extensions\` field`); exit non-zero
+    1. Enumerate methods from `system/methods/*.md` filenames, excluding `README.md`
+    2. Enumerate extensions from `system/extensions/*.md` filenames, excluding `README.md`
+    3. Walk `system/workflows/**/*.md`; parse YAML frontmatter via `js-yaml` (import directly — no need for the
+       Phase 3 parser utility at this layer)
+    4. Build two independent coverage maps keyed by kind: `methods: Map<name, workflows[]>` and
+       `extensions: Map<name, workflows[]>` — tracked separately so any future name collision across kinds cannot
+       silently collapse (current corpus has none after 1.4.a; defensive invariant)
+    5. Pass condition: every enumerated method and extension has ≥1 workflow declaration in its own map
+    6. On failure, emit per-entry diagnostic naming the correct frontmatter field for the failing kind —
+       `Method "X" has no workflow declaration. Add X to some workflow's arc.methods frontmatter field.`
+       (and the parallel message with `arc.extensions` for extension failures)
+    7. Exit non-zero on any gap
 
     Build `test-first` (one behavior at a time):
-    - Enumerates 8 methods from legacy aggregate (`arc-methods.md` `## section-name` headings)
-    - Enumerates 8 extensions from legacy aggregate (`arc-extensions.md` `## section-name` headings)
-    - Forward-compatible: enumerates from `system/methods/*.md` filenames when directory is populated
+    - Enumerates method filenames from `system/methods/`, excluding `README.md`
+    - Enumerates extension filenames from `system/extensions/`, excluding `README.md`
     - Parses `arc.methods` array from a workflow's frontmatter
     - Parses `arc.extensions` array from a workflow's frontmatter
     - Workflow with no frontmatter contributes zero declarations (does not crash)
     - Workflow with malformed YAML reports diagnostic and continues (does not crash)
-    - Method with zero workflow declarations fails the audit with diagnostic naming the method
+    - Method with zero workflow declarations fails the audit with diagnostic naming the method and `arc.methods`
+    - Extension with zero workflow declarations fails the audit with diagnostic naming the extension and
+      `arc.extensions`
+    - Methods and extensions tracked in separate coverage maps — same-name method+extension would require independent
+      declarations (defensive test against future name collisions)
 
-- [ ] **1.5 Wire script into CI workflow**
-    - Add step to `.github/workflows/ci.yml` `quality` job after `- run: npm run -s lint:md`:
-      `- run: npm run lint:arc`
+- [ ] **1.6 Wire audit into CI**
+    - Add step to `.github/workflows/ci.yml` `quality` job **before** `- run: npm run -s lint:md`:
+      `- run: npm run lint:arc:triggers`
+    - Rationale: the audit is the cheapest structural gate (YAML parse only, no build), so running it first produces
+      the fastest fail when the trigger contract breaks
     - Step runs on all branches (fail-fast signal before PR)
     - Acceptance: CI green on this branch after push (verify before closing the task)
 
-- [ ] **1.6 Phase 1 close — Tier 2 quality gates**
+- [ ] **1.7 Phase 1 close — Tier 2 quality gates**
     - Run full markdown lint, code lint, typecheck, test suite before Phase 2
-    - Run `npm run lint:arc` locally to confirm before push
+    - Run `npm run lint:arc:triggers` locally to confirm before push
 
 ---
 
@@ -290,31 +383,22 @@ absolute — no hedges — per compliance-reliability research.
 
 ---
 
-### **Phase 3:** Per-File Methods and Extensions Restructure
+### **Phase 3:** Validation, Integration, and Finalization
 
 **Strategies:** `strategy-package-project-sync.md`, `strategy-session-operations.md`,
 `strategy-configurability-architecture.md`, `strategy-quality-gates.md`, `strategy-testing-methodology.md`
 
-**Purpose:** The architectural change. Retire aggregate files; establish per-file layout with YAML frontmatter; wire
-validation hooks; update cross-references; adapt session-init to scan aggregated frontmatter only. Close with ADR-013
-sanity check.
+**Purpose:** Landing phase for the per-file structure established in Phase 1. Build the frontmatter parser utility;
+write schema + link-resolution validation hooks; adapt session-init Step 2 to read aggregated frontmatter only; sweep
+cross-references from legacy aggregate anchors to per-file paths; update the framework-sync test to enumerate per-file
+directories; retire legacy aggregate files; add CLI test coverage; close with ADR-013 sanity check.
 
-**Note:** Phase 3 is the heaviest phase; Tier 2 gates run at sub-phase boundaries (3.5 content migration close, 3.10
-cross-reference sweep close), not only at phase end. Two-copy discipline applies throughout — every file change touches
-`packages/arc-framework/arc/` and `.arc/`.
+**Note:** Tier 2 gates run at sub-phase boundaries (3.6 cross-reference sweep close), not only at phase end. Two-copy
+discipline applies throughout — every file change touches `packages/arc-framework/arc/` and `.arc/`.
 
-- [ ] **3.1 Design YAML frontmatter schema**
+- [ ] **3.1 Frontmatter parsing utility (test-first)**
 
-    **Goal:** Fixed field contract for method and extension files.
-    - Methods schema fields: `name`, `description` (one-line operational purpose), `workflow` (triggering workflow
-      filename), `related` (related method names, array), `has-override` (populated status signal: `true`/`false`)
-    - Extensions schema fields: same as methods except `has-steps` replaces `has-override`
-    - Document schema in a brief spec (placement: `reference/strategies/arc/` as a section in
-      `strategy-session-operations.md`, or inline in each directory's README — decide during task)
-
-- [ ] **3.2 Frontmatter parsing utility (test-first)**
-
-    **Goal:** Shared parsing logic for validation hooks and aggregated-index generation.
+    **Goal:** Shared parsing logic for validation hooks (3.3) and aggregated-index generation (3.5).
     - Placement: `packages/arc-framework/src/lib/frontmatter/` (new module; slot alongside existing `lib/` utilities)
 
     Build `test-first` (one behavior at a time):
@@ -324,29 +408,7 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - Rejects files with type mismatches (e.g., `related` not an array)
     - Returns null or empty result for files without frontmatter (safe default)
 
-- [ ] **3.3 Create per-file directory structure (both copies)**
-    - `packages/arc-framework/arc/system/methods/` and `.arc/system/methods/`
-    - `packages/arc-framework/arc/system/extensions/` and `.arc/system/extensions/`
-
-- [ ] **3.4 Migrate 8 methods to per-file**
-
-    **Goal:** Each method's `.override` / `.default` body extracted to `{name}.md` with frontmatter; content preserved
-    verbatim (no rewording during migration).
-    - `commit-format.md`, `commit-context-format.md`, `issue-triage.md`, `test-first.md`, `session-state.md`,
-      `pre-merge-review.md`, `review-triage.md`, `quality-gate-commands.md`
-    - Frontmatter `workflow` field populated from current method's "Workflow:" line
-    - Frontmatter `related` field populated from current Method Dependencies table
-    - Frontmatter `has-override` = `false` for all (no current overrides configured)
-    - Two-copy sync per file
-
-- [ ] **3.5 Migrate 8 extensions to per-file**
-    - `post-task-quality.md`, `post-unit-quality.md`, `post-task-completion.md`, `post-context-load.md`,
-      `pre-stage-review.md`, `pre-merge-review.md`, `post-work-unit-activate.md`, `post-work-unit-archive.md`
-    - Frontmatter `has-steps` populated based on current `.steps` content (only `pre-merge-review` currently has steps;
-      the rest are placeholders)
-    - Two-copy sync per file
-
-- [ ] **3.6 Directory READMEs**
+- [ ] **3.2 Directory READMEs**
 
     **Goal:** Human-facing whole-system reading surface; not loaded at agent init.
     - `system/methods/README.md` — overview, Method Dependencies table (derived from or mirroring frontmatter `related`
@@ -354,12 +416,12 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - `system/extensions/README.md` — overview, extension-point summary table, navigation
     - Two-copy sync per README
 
-- [ ] **3.7 Frontmatter schema validation hook (test-first)**
+- [ ] **3.3 Frontmatter schema validation hook (test-first)**
 
     **Goal:** Pre-commit hook rejects staged method/extension files with missing or malformed frontmatter.
     - Placement: slots into `.arc/system/githooks/pre-commit` after CHECK 11 (line ~346) as CHECK 12; mirrors the
       existing check-block pattern (labeled `CHECK 12:`, same output style, short-circuit on failure)
-    - Delegates to a helper script (shell + node one-liner using the Phase 3.2 parser, or pure shell — decide during
+    - Delegates to a helper script (shell + node one-liner using the Phase 3.1 parser, or pure shell — decide during
       task)
     - Two-copy sync per hook edit
 
@@ -370,7 +432,7 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - `related` not an array fails
     - Non-method/extension files staged do not trigger the check
 
-- [ ] **3.8 D7a link-resolution pre-commit hook (test-first)**
+- [ ] **3.4 D7a link-resolution pre-commit hook (test-first)**
 
     **Goal:** Hook rejects staged files with broken links to `system/methods/*`, `system/extensions/*`,
     `system/workflows/*`, `reference/strategies/*`.
@@ -384,7 +446,7 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - External links (https://...) are ignored
     - Inline code-span backticks containing link-like strings are ignored
 
-- [ ] **3.9 Session-init Step 2 — aggregated frontmatter scan**
+- [ ] **3.5 Session-init Step 2 — aggregated frontmatter scan**
 
     **Goal:** Session-init reads only frontmatter across all method/extension files (~1k tokens for ~16 files), not full
     bodies.
@@ -393,7 +455,7 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - Update Step 4 ("Check Active Configuration") to reference new structure
     - Two-copy sync
 
-- [ ] **3.10 Cross-reference sweep**
+- [ ] **3.6 Cross-reference sweep**
 
     **Goal:** All 53+ matches of `arc-methods.md#anchor` / `arc-extensions.md#anchor` across the repo updated to new
     per-file paths using D7a link convention.
@@ -401,9 +463,9 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
       AGENT-BRIEFING files, CLAUDE.ARC.md)
     - Grep-and-replace pass (automatable but each match manually verified — ensures anchor points map to the right
       per-file destination)
-    - Run the Phase 3.8 link-resolution hook against the full repo to catch residual broken links
+    - Run the Phase 3.4 link-resolution hook against the full repo to catch residual broken links
 
-- [ ] **3.11 Framework-sync integration test updates**
+- [ ] **3.7 Framework-sync integration test updates**
 
     **Goal:** Existing framework-sync test enumerates new per-file directories; drift between package source and `.arc/`
     on methods/extensions is caught by CI.
@@ -411,14 +473,14 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - Extend enumeration to include `system/methods/*.md` and `system/extensions/*.md`
     - Add test case for per-file drift detection
 
-- [ ] **3.12 Retire legacy aggregate files**
+- [ ] **3.8 Retire legacy aggregate files**
     - Delete `.arc/system/workflows/arc-methods.md`
     - Delete `.arc/system/workflows/arc-extensions.md`
     - Delete `packages/arc-framework/arc/system/workflows/arc-methods.md`
     - Delete `packages/arc-framework/arc/system/workflows/arc-extensions.md`
     - Verify no remaining references (run grep for filename matches across both trees)
 
-- [ ] **3.13 CLI test coverage — per-file restructure**
+- [ ] **3.9 CLI test coverage — per-file restructure**
 
     **Goal:** Fresh install, update, reconfigure, and hook behavior all verified against new structure.
     - Integration: fresh `arc init` produces `system/methods/` and `system/extensions/` with all 8 files each
@@ -427,9 +489,9 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - Integration: `arc update` idempotent re-update produces no diff
     - E2E: `arc init --yes` layout matches expected structure
     - E2E: `arc init --reconfigure` unaffected by per-file restructure
-    - Hook behavior tests: Phase 3.7 and 3.8 hooks verified against sample repos
+    - Hook behavior tests: Phase 3.3 and 3.4 hooks verified against sample repos
 
-- [ ] **3.14 ADR-013 sanity check and finalize**
+- [ ] **3.10 ADR-013 sanity check and finalize**
 
     **Goal:** Amendment drafted in Phase 2.3 matches the concrete implemented model; tweak wording if needed; mark the
     amendment as accepted.
@@ -437,7 +499,7 @@ cross-reference sweep close), not only at phase end. Two-copy discipline applies
     - Apply any minor wording adjustments
     - Remove draft marker; two-copy sync
 
-- [ ] **3.15 Phase 3 close — Tier 3 quality gates**
+- [ ] **3.11 Phase 3 close — Tier 3 quality gates**
     - Full markdown lint, code lint (TS + sh), typecheck, test suite, build, framework-sync
     - Verify zero regressions before Phase 4
 
