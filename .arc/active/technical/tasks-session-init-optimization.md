@@ -129,26 +129,35 @@ structural contract is what makes "every method/extension has ≥1 reliable trig
 
 - [ ] **1.3 Migrate all workflows to frontmatter**
 
-    **Goal:** Every workflow under `system/workflows/` carries schema-conformant frontmatter. Body-level
-    "Method dependencies (load on first reference):" prose preambles removed; redundant body-level "Audience:"
-    callouts removed.
+    **Goal:** Every workflow under `system/workflows/` carries schema-conformant frontmatter per the
+    template. Body-level `**Audience:**` / `**Purpose:**` callouts and
+    `**Method dependencies (load on first reference):**` prose preambles removed.
 
-    **Source of truth** for `arc.methods` / `arc.extensions` arrays: `notes-session-init-optimization.md` § Phase 1
-    Classification § Reliable-trigger locations (Task 1.1.b output). Each workflow listed there populates its
-    frontmatter from the methods/extensions it owns as a reliable-trigger location.
+    **Authoritative references:**
+
+    - `strategy-workflow-authoring.md` — schema, field semantics, declaration rule, body conventions
+    - `template-workflow.md` — canonical skeleton to apply per file
+    - `notes-session-init-optimization.md` § Phase 1 Classification § Reliable-trigger locations —
+      source of truth for each workflow's `arc.methods` / `arc.extensions` arrays (Task 1.1.b output)
 
     **Per-file migration steps:**
 
-    1. Add YAML frontmatter block at top of file (before `# Workflow:` heading)
-    2. Populate `audience` (default `agent`; mark `dual` only where body has substantial human-facing content)
-    3. Populate `purpose` from existing body purpose statement (single sentence; YAML block scalar for multi-line)
-    4. Populate `arc.methods` / `arc.extensions` per 1.1.b ground truth (omit `arc:` block if workflow loads none)
-    5. Remove body-level `**Audience:**` callout if duplicates frontmatter
-    6. Remove `**Method dependencies (load on first reference):**` prose preamble + bullet list
-    7. In-step markdown links to methods/extensions remain (reader navigation)
-    8. Two-copy sync per file (`packages/arc-framework/arc/system/workflows/...` and `.arc/system/workflows/...`)
+    1. Add YAML frontmatter block at top (before `# Workflow:` heading) per template structure: `purpose`
+       first (single sentence; YAML block scalar `purpose: |` for multi-line), then `audience: agent`
+       (or `dual` where body has substantial human-facing content), then optional `arc:` block
+    2. Populate `arc.methods` / `arc.extensions` per reliable-trigger ground truth. Omit the `arc:`
+       block entirely if the workflow loads no methods/extensions
+    3. Remove body-level `**Audience:**` and `**Purpose:**` callouts (now in frontmatter)
+    4. Remove `**Method dependencies (load on first reference):**` prose preamble + bullet list
+    5. In-step markdown links to methods/extensions remain (reader navigation, not triggers)
+    6. Two-copy sync per file (`packages/arc-framework/arc/system/workflows/...` and
+       `.arc/system/workflows/...`) — except `workflows/project/` which is single-copy
 
     **Out of scope:** `arc-methods.md` and `arc-extensions.md` themselves — they retire in Phase 3.12.
+
+    **Project workflow note (1.3.g):** `agent-pre-merge-review.md` lives in `workflows/project/` and is
+    single-copy. Confirm whether it loads any ARC methods/extensions; omit the `arc:` block per author-side
+    rule if it loads none.
 
     - [ ] **1.3.a `arc/` top-level (3 files)**
         - `1_create-prd.md`, `2_generate-tasks.md`, `3_process-task-loop.md`
