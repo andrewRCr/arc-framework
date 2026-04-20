@@ -420,51 +420,33 @@ absolute — no hedges — per compliance-reliability research.
     identical. Tier 1 markdown lint clean.
 
     **Follow-on:** PRD P0.3 wording ("references a method, extension, strategy, or workflow") predates the landed
-    frontmatter trigger contract and reads broader than the implemented rule. PRD P0.3/D7a refreshed alongside this
-    landing (see `prd-session-init-optimization.md` Document History 2026-04-20 rows). Ancillary consumers
-    (notes file, ADR-013 amendment) reference the rule by name only — no wording drift there.
+    frontmatter trigger contract and reads broader than the implemented rule. Consider a PRD refresh to align; not
+    blocking — PRDs are "spirit, not verbatim" in ARC convention, and the implemented rule is the more accurate
+    behavioral specification.
 
-- [ ] **2.2 AGENT-BRIEFING.ARC cross-reference**
-    - Evaluate whether the agent-side compliance rule landed in 2.1 warrants a briefing-level surface at session init
-      (separate from its DEV-RULES home, which is already always-loaded at T1). Consider: does the agent benefit from
-      seeing the rule flagged during the briefing pass, or is DEV-RULES § Verification and Discovery sufficient?
-    - If yes: add a brief reference pointing to the DEV-RULES subsection
-    - If no: record the decision in `notes-session-init-optimization.md` so it's auditable later
-    - Two-copy sync (if an edit lands)
+- [x] **2.2 AGENT-BRIEFING.ARC cross-reference**
 
-- [ ] **2.3 Draft ADR-013 Tier 2 amendment**
+    **Outcome:** Decision — no cross-reference. Recorded in `notes-session-init-optimization.md § Phase 2 Decisions §
+    Task 2.2`. Rationale: AGENT-BRIEFING.ARC holds framework orientation not behavioral rules; DEV-RULES is the
+    single source of truth for rules; both docs are in session-init Batch 1 so earlier position gains are marginal
+    and don't change execution-time compliance; two T1 homes carry drift risk. No file edit; no two-copy sync
+    needed.
 
-    **Goal:** Amendment entry reflects the method-loading model changes (per-file restructure, frontmatter trigger
-    contract, constitutional compliance rule, naming reconciliation, CI-enforced coverage invariant). Draft only —
-    sanity check in Phase 3. Appends to the existing `### Amendments` section established by the 2026-04-08 entry.
-    ADRs are project-scoped (no package copy) — single-file edit.
-    - File: `.arc/reference/adr/adr-013-adopt-on-demand-method-loading.md`
-    - Follow [ADR Methodology Strategy][adr-methodology] § Tier 2 amendments format
-    - Capture scope (expanded from SESSION-NOTES Persistent Context — scope was known to grow beyond the original
-      single-bullet draft):
-        - Per-file restructure — methods and extensions now live as per-file entries in `system/methods/` and
-          `system/extensions/`, replacing aggregate `arc-methods.md` / `arc-extensions.md`
-        - Per-file frontmatter schema — 4 fields (`name`, `description`, `related`, `has-override` for methods /
-          `active` for extensions); `workflow` field deliberately omitted (no mechanical consumer, lossy on fan-out,
-          reverse index stays in the strategy's classification table)
-        - Workflow frontmatter trigger contract — workflows declare dependencies via `arc.methods` / `arc.extensions`
-          arrays; in-step links remain reader navigation, the frontmatter is the authoritative load contract
-        - Author-side declaration rule codified in `strategy-workflow-authoring.md`; agent-side compliance rule
-          codified in DEV-RULES.ARC § Verification and Discovery § Method and extension loading (landed in 2.1)
-        - `pre-merge-review` method renamed to `diff-review` — contract broadened from pre-merge-specific to a
-          generic review activity reusable by other workflows/skills
-        - Extension terminology renames — `has-steps` → `active`, `.steps` → `.actions`
-        - Per-file body conventions codified in `strategy-session-operations.md § Per-file Body Conventions`
-          (H1 form, bulleted-blockquote preamble with trigger/contract visual separator, structural content sections)
-        - CI-enforced reliable-trigger invariant — `audit-method-triggers.ts` in the quality job fails when any
-          method/extension lacks a workflow `arc.methods` / `arc.extensions` declaration; operationalizes the
-          author-side declaration rule as a structural, machine-checked gate (not prose-grep)
-    - Why: cost reduction, compliance reliability, structural enforcement vs. brittle prose-grep
-    - Relation to original decision: reinforces and concretizes on-demand loading with a structural contract
-    - Leave as draft until Phase 3 close sanity-checks against the implemented model
+- [x] **2.3 Draft ADR-013 Tier 2 amendment**
 
-- [ ] **2.4 Phase 2 close — Tier 2 quality gates**
-    - Markdown lint, then proceed to Phase 3
+    **Outcome:** Amendment dated 2026-04-20 appended to ADR-013's existing `### Amendments` section. Captures five
+    consolidated bullets: per-file restructure (including frontmatter schema, terminology renames, `workflow` field
+    omission, body conventions); workflow frontmatter as trigger contract; T1/T3 constitutional pair placement;
+    `pre-merge-review` → `diff-review` rename and contract broadening; CI-enforced reliable-trigger invariant.
+    Closing paragraph ties back to the original decision — direction holds, implementation is concretized.
+    Left as draft; Phase 3 close (Task 3.10) will sanity-check against the implemented model. Tier 1 markdown
+    lint clean. Single-copy per `strategy-package-project-sync.md` (ADRs project-scoped).
+
+- [x] **2.4 Phase 2 close — Tier 2 quality gates**
+
+    **Outcome:** All Tier 2 gates green locally. `lint:md` (200 files, 0 errors), `lint:ts`, `lint:sh`, `typecheck`,
+    `typecheck:test`, `npm test` (43 tests across 8 files, all passing), `build`, and `lint:arc:triggers` (all 8
+    methods + 8 extensions covered). Phase 2 complete.
 
 ---
 
@@ -913,4 +895,3 @@ definition plus a notes-file entry.
 ---
 
 [verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md

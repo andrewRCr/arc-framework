@@ -687,3 +687,30 @@ can revisit if the rubric is tightened later.
   from Task 1.1.b. Method and extension coverage maps are tracked independently (defensive invariant — the historical
   `pre-merge-review` name collision is resolved by renaming the method to `diff-review` in Task 1.4.a, but the
   independent-maps invariant stays in place against future collisions).
+
+## Phase 2 Decisions
+
+### Task 2.2 — AGENT-BRIEFING.ARC cross-reference: no edit
+
+**Decision:** Do not add a cross-reference to the new "Method and extension loading" rule in
+`AGENT-BRIEFING.ARC.md`. The rule lives only in DEV-RULES.ARC § Verification and Discovery.
+
+**Rationale:**
+
+- **Separation of concerns.** AGENT-BRIEFING.ARC currently holds framework orientation (how ARC
+  works) — not behavioral rules. DEV-RULES is the authoritative home for behavioral rules. Adding
+  one cross-reference invites future bloat (why not the other verification rules too?) and erodes
+  the separation that makes both docs legible.
+- **Position doesn't change compliance.** Both files are in session-init Batch 1, read before
+  the task list and workflows. Earlier position in AGENT-BRIEFING would surface the rule
+  marginally sooner in context, but the rule's trigger fires during task execution ("when a
+  workflow step references X"), not at init-read. Agents store at init; they act at execution.
+  Marginal primacy gain is not worth duplication cost.
+- **Single source of truth.** Two T1 homes carry drift risk. Colocating the rule with its
+  peers in DEV-RULES § Verification and Discovery ("Verify before assuming", "Consult strategy
+  guidance") provides structural context — the rule is read alongside adjacent verification
+  behaviors, which is more valuable than isolated earlier surfacing.
+
+**Implementing agent perspective (recorded during implementation):** From an init-reader
+standpoint, the DEV-RULES subsection is sufficient. The rule is concrete and actionable at
+workflow-step execution; there's no operational benefit to seeing it twice at init.

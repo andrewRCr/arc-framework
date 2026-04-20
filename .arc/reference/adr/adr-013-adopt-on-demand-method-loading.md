@@ -129,3 +129,39 @@ workflow-embedded directives, strategy-index triggers, user-invocable skills).
 as a standalone file. Its content — the three-tier loading model (T1/T2/T3), classification criteria, and loading
 mechanisms — was absorbed into `strategy-session-operations.md` during the methodology maturation work unit, which
 consolidated session management and context loading into a single strategy.
+
+**Amendment (2026-04-20):** The method-loading model landed substantively more structure than this ADR's Decision
+described. Captured during the session-init-optimization work unit:
+
+- **Per-file restructure replaces aggregate files.** `arc-methods.md` and `arc-extensions.md` were retired; methods
+  and extensions now live as per-file entries under `system/methods/` and `system/extensions/`. Each file carries
+  YAML frontmatter with fields `name`, `description`, `related`, plus `has-override` (methods) or `active`
+  (extensions). Extension terminology reconciled — legacy `has-steps`/`.steps` became `active`/`.actions`. The
+  `workflow` field was deliberately omitted (no mechanical consumer, lossy on fan-out; the reverse index stays in
+  the strategy's classification table). Per-file body conventions are codified in
+  `strategy-session-operations.md § Per-file Body Conventions`.
+
+- **Workflow frontmatter is the trigger contract.** Workflows declare their method and extension dependencies in
+  `arc.methods` / `arc.extensions` frontmatter arrays — the authoritative load contract. In-step markdown links
+  remain for reader navigation but no longer constitute the trigger. This replaces the original "method
+  dependencies block" (prose preamble) approach with a structural, machine-readable one.
+
+- **Constitutional pair codified across T1 and T3.** The author-side declaration rule lives in
+  `strategy-workflow-authoring.md § Author-side Declaration Rule` (T3, on-demand — workflow authoring is rare). The
+  agent-side compliance rule lives in `DEV-RULES.ARC § Verification and Discovery § Method and extension loading`
+  (T1, every session — loading compliance is universal behavior). The T1/T3 split matches load frequency to
+  operational need rather than pairing both rules in a single location.
+
+- **Name-collision resolution.** The `pre-merge-review` method collided with the same-named extension. The method
+  was renamed to `diff-review` and its contract broadened from pre-merge-specific to a generic review activity
+  reusable across workflows and skills.
+
+- **CI-enforced reliable-trigger invariant.** `audit-method-triggers.ts` runs in the CI quality job and fails when
+  any method or extension lacks a workflow `arc.methods` / `arc.extensions` declaration. This operationalizes the
+  author-side declaration rule as a structural, machine-checked gate — replacing the prose-grep enforcement the
+  original approach would have required.
+
+The original decision's direction holds: on-demand loading via workflow-embedded triggers, with session-init
+performing an override-presence scan only. This amendment concretizes the implementation — workflow-embedded
+triggers became frontmatter arrays; the override scan became an aggregated frontmatter-only read across ~16
+per-file entries; compliance reliability is now backed by a CI gate rather than relying on agent discipline alone.
