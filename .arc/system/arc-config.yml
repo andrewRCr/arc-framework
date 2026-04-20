@@ -117,8 +117,8 @@ hooks.contributor_protected_paths: active/|backlog/
 
 # Pre-merge diff review before push.
 # Controls whether the agent reviews the aggregate diff before pushing.
-# The pre-merge-review method (arc-methods.md) defines the review activity;
-# this setting controls whether it runs.
+# The diff-review method (arc-methods.md) defines the review activity;
+# this setting gates the integrate-work-unit invocation of it.
 #   enabled  - Agent reviews aggregate diff before pushing (default)
 #   disabled - Skip local review; rely on PR-time review only
 review.pre_merge: enabled

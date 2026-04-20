@@ -368,13 +368,13 @@ check_section() {
 if [ -f "$methods_file" ]; then
     # Check for expected method sections
     for method in commit-format commit-context-format issue-triage test-first session-state \
-                  pre-merge-review review-triage quality-gate-commands; do
+                  diff-review review-triage quality-gate-commands; do
         check_section "$methods_file" "$method"
     done
 
     # Check each method has .override and .default subsections
     for method in commit-format commit-context-format issue-triage test-first session-state \
-                  pre-merge-review review-triage quality-gate-commands; do
+                  diff-review review-triage quality-gate-commands; do
         if ! grep -q "^### ${method}.override" "$methods_file" 2>/dev/null; then
             error "arc-methods.md: ### ${method}.override subsection missing"
         fi

@@ -100,11 +100,11 @@ project-specific validations on staged content (security scanning, license heade
 
 ## pre-merge-review
 
-**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **Fires:** After the [pre-merge-review
-method][arc-methods-pmr] completes, before push and PR creation
+**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **Fires:** After the [diff-review
+method][arc-methods-diff-review] completes, before push and PR creation
 
-**Contract:** Add review ceremony on top of the default pre-merge review. The [pre-merge-review
-method][arc-methods-pmr] defines the base review activity (lightweight diff review by default, overridable);
+**Contract:** Add review ceremony on top of the default diff review. The [diff-review
+method][arc-methods-diff-review] defines the base review activity (lightweight diff review by default, overridable);
 this extension adds additional steps. Both are gated by `review.pre_merge` in
 [`arc-config.yml`][arc-config] — when disabled, neither method nor extension fires.
 
@@ -157,7 +157,7 @@ Without populated steps, the workflow proceeds naturally.
 [prepare-commits]: arc/supplemental/prepare-commits.md
 [integrate-work-unit]: arc/work-unit-lifecycle/integrate-work-unit.md
 [arc-methods-rt]: arc-methods.md#review-triage
-[arc-methods-pmr]: arc-methods.md#pre-merge-review
+[arc-methods-diff-review]: arc-methods.md#diff-review
 [arc-config]: ../arc-config.yml
 [activate-work-unit]: arc/work-unit-lifecycle/activate-work-unit.md
 [archive-work-unit]: arc/work-unit-lifecycle/archive-work-unit.md

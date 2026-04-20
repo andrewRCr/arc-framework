@@ -165,7 +165,7 @@ Method content loads on-demand when the agent reaches a workflow step that refer
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
 | commit-format         | prepare-commits     | User-triggered commit events               |
 | commit-context-format | prepare-commits     | User-triggered commit events               |
-| pre-merge-review      | integrate-work-unit | Integration phase only                     |
+| diff-review           | integrate-work-unit | Integration phase only                     |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
 

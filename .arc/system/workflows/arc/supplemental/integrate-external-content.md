@@ -72,7 +72,7 @@ the system.
 ## Step 3a: Wire as Method Override
 
 1. Identify which method in [`arc-methods.md`][arc-methods] this content replaces
-   (e.g., `commit-format`, `pre-merge-review`, `session-state`)
+   (e.g., `commit-format`, `diff-review`, `session-state`)
 2. Read the method's **contract** — your override should satisfy the same invariant
 3. Adapt the content to fit the override format:
     - Populate the `### {method-name}.override` section with the new implementation

@@ -51,7 +51,7 @@ implementation changes to match your team's tooling.
 | `issue-triage`          | Severity thresholds for fix-vs-defer decisions on discovered issues |
 | `test-first`            | Decision tree for when to write tests before implementation         |
 | `session-state`         | How session state is read and written at boundaries                 |
-| `pre-merge-review`      | Aggregate diff review before pushing                                |
+| `diff-review`           | Aggregate diff review activity (used at pre-merge and composable)   |
 | `review-triage`         | Classifying and acting on review findings                           |
 | `quality-gate-commands` | Project-specific quality gate command definitions                   |
 
@@ -89,7 +89,7 @@ inconsistent behavior:
 | ----------------------- | ----------------------- | ------------------------------- |
 | `commit-format`         | `commit-context-format` | Both govern the commit message  |
 | `commit-context-format` | `commit-format`         | Both govern the commit message  |
-| `pre-merge-review`      | `review-triage`         | Uses review-triage for findings |
+| `diff-review`           | `review-triage`         | Uses review-triage for findings |
 
 All other methods are independent.
 

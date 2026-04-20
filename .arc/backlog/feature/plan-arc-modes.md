@@ -15,6 +15,11 @@ in the plan stage doing research, evaluation, and design decisions so the PRD ca
 deliverables rather than deferring design to implementation. The plan doc is the primary working artifact
 until design decisions are resolved.
 
+> **Activation-time reconciliation:** Strategy-audit meta-notes at lines ~2654, ~4895, ~5440 reference the
+> framework method as `pre-merge-review` in the context of the Method Classification by Trigger table row
+> analysis. That method was renamed to `diff-review` during Session-Init Optimization WU (Task 1.4.a) —
+> update these references when this WU activates.
+
 **Upstream dependency:** Methodology Maturation (`prd-methodology-maturation.md`) — settles the
 methodology/implementation boundary, language consistency, and content architecture that this work unit
 builds on. **Completed** (2026-04-08, archived). The conditional content architecture analysis

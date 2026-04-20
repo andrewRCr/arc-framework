@@ -10,6 +10,11 @@
   created after Phase 5 merge)
 - **Base Branch:** `main`
 
+> **Activation-time reconciliation:** Subtask 2.9.a (line 447) references the framework method as
+> `pre-merge-review`. That method was renamed to `diff-review` during Session-Init Optimization
+> WU (Task 1.4.a) — update the reference when this WU activates. The extension that shares the
+> name (`pre-merge-review` on lines 451-452) keeps its name and needs no change.
+
 ## Overview
 
 **Purpose:** Establish ARCd as the public product and implementation brand while preserving ARC as the

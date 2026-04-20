@@ -3,7 +3,7 @@ purpose: Prepare completed work for integration — docs cleanup, completion met
 audience: agent
 arc:
   methods:
-    - pre-merge-review
+    - diff-review
     - review-triage
   extensions:
     - pre-merge-review
@@ -185,7 +185,7 @@ transfer routes through backlog, not into another person's inbox.
 
 If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
-1. Execute the [pre-merge-review method][arc-methods-pmr] — review the aggregate diff, classify
+1. Execute the [diff-review method][arc-methods-diff-review] — review the aggregate diff, classify
    findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
 2. If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them
 3. Commit any fixes with the `(code review)` context footer
@@ -347,7 +347,7 @@ and completion doc — not on the task list header.
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-methods-rt]: ../../arc-methods.md#review-triage
-[arc-methods-pmr]: ../../arc-methods.md#pre-merge-review
+[arc-methods-diff-review]: ../../arc-methods.md#diff-review
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md

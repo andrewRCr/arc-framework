@@ -26,7 +26,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [issue-triage](#issue-triage) — severity triage, fix-vs-defer decisions
 - [test-first](#test-first) — decision tree by change type
 - [session-state](#session-state) — reading and writing session state
-- [pre-merge-review](#pre-merge-review) — aggregate diff review before push
+- [diff-review](#diff-review) — aggregate diff review activity (used at pre-merge and other composable moments)
 - [review-triage](#review-triage) — classifying and acting on review findings
 - [quality-gate-commands](#quality-gate-commands) — project quality gate definitions
 
@@ -43,7 +43,7 @@ when populating any `.override` section.
 | commit-context-format | commit-format           | Both govern the commit message   |
 | issue-triage          | —                       | Independent                      |
 | test-first            | —                       | Independent                      |
-| pre-merge-review      | review-triage           | Uses review-triage for findings  |
+| diff-review           | review-triage           | Uses review-triage for findings  |
 | review-triage         | —                       | Independent                      |
 | session-state         | —                       | Independent                      |
 | quality-gate-commands | —                       | Independent                      |
@@ -257,26 +257,27 @@ Read/write session state at session boundaries:
 
 ---
 
-## pre-merge-review
+## diff-review
 
-**Workflow:** [integrate-work-unit.md][integrate-work-unit] · **When:** After Phase 1 docs are committed, before push
-and PR creation
+**Workflow:** [integrate-work-unit.md][integrate-work-unit] (primary caller) · **When:** When a workflow or skill
+invokes diff review — notably at integrate-work-unit after Phase 1 docs are committed, before push and PR creation
 
-**Contract:** Review aggregate changes before integration to catch cross-cutting issues that per-task review misses.
-Gated by `review.pre_merge` in [`arc-config.yml`][arc-config] — when disabled, skip entirely.
+**Contract:** Review an aggregate diff to catch cross-cutting issues that per-task review misses. Generic activity
+contract — callers decide when to invoke and what gating applies. The primary caller (integrate-work-unit.md) gates
+on `review.pre_merge` in [`arc-config.yml`][arc-config]; other callers apply their own gating.
 
 **Related:** [review-triage](#review-triage) — use for finding classification
 
-### pre-merge-review.override
+### diff-review.override
 
 [No override configured]
 
-### pre-merge-review.default
+### diff-review.default
 
-Lightweight diff review before pushing. Catches issues that only emerge at the aggregate level — cross-task
-inconsistencies, documentation drift, cleanup artifacts. Research consistently shows that self-review before
-submission eliminates a significant proportion of review comments and catches issues that are trivial to fix
-but compound if left for reviewers.
+Lightweight diff review. Catches issues that only emerge at the aggregate level — cross-task inconsistencies,
+documentation drift, cleanup artifacts. Research consistently shows that self-review before submission eliminates
+a significant proportion of review comments and catches issues that are trivial to fix but compound if left for
+reviewers.
 
 **Review the aggregate diff against the parent branch:**
 
@@ -300,10 +301,12 @@ aggregate change actually solve the stated problem? Check exception handling pat
 code systematically underperforms on error cases and edge conditions.
 
 **Process findings** using the [review-triage method](#review-triage) (fix/defer/reject/silent-fix). Run Tier 3
-quality gates on modified files. Commit fixes with the `(integration)` context footer.
+quality gates on modified files. Commit fixes using the context footer appropriate to the invoking workflow (e.g.,
+`(integration)` when called from integrate-work-unit.md).
 
-For structured review workflows (multi-pass, AI tool integration, team review protocols), override this method
-or configure the [pre-merge-review extension][arc-ext-pre-merge-review] for additional ceremony.
+For structured review workflows (multi-pass, AI tool integration, team review protocols), override this method.
+Workflows invoking diff-review at the pre-merge moment may also configure the [pre-merge-review
+extension][arc-ext-pre-merge-review] for additional ceremony at that specific moment.
 
 ---
 

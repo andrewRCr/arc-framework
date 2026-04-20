@@ -217,24 +217,46 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
     session-init Step 2 still scans them for override presence through Phase 2 close. Per-file becomes authoritative
     from this task forward; aggregates are frozen snapshots pending retirement.
 
-    - [ ] **1.4.a Rename `pre-merge-review` method → `diff-review`; broaden framing to generic activity contract**
+    - [x] **1.4.a Rename `pre-merge-review` method → `diff-review`; broaden framing to generic activity contract**
 
-        **Goal:** Method becomes a reusable activity contract (the review of an aggregate diff), matching the
-        activity-noun convention every other method follows (`issue-triage`, `commit-format`, `review-triage`, etc.).
-        Moment stays named by the `pre-merge-review` extension that hooks at that lifecycle point. Eliminates the
-        method/extension name collision permanently and opens the method for composition by other workflows/skills.
-        - Rename `## pre-merge-review` heading + anchor in `arc-methods.md` to `## diff-review`
-        - Update the Method Dependencies table row and the `pre-merge-review → review-triage` coupling entry
-        - Rewrite the method's body: drop temporal "before push" framing from the activity description (move to the
-          `When:` field only); frame the contract as generic diff review
-        - Update cross-references in the `pre-merge-review` extension contract in `arc-extensions.md` (text + anchor)
-        - Update `integrate-work-unit.md` frontmatter `arc.methods` entry + in-step markdown-link references
-        - Update `arc-config.yml` inline comment at `review.pre_merge` (describes "the pre-merge-review method" →
-          "the diff-review method")
-        - Grep residuals across `system/workflows/**`, `reference/strategies/**`, `reference/constitution/**`,
-          `system/agent/**` — distinguish method references (rename) from extension references (keep)
-        - Two-copy sync across `packages/arc-framework/arc/` and `.arc/`
-        - Tier 1 gate: markdown lint both copies
+        **Outcome:** Method renamed to `diff-review` across both copies; framing broadened to generic activity contract
+        with primary-caller annotation on `integrate-work-unit.md`. Extension keeps name `pre-merge-review`. Ref-def
+        anchor renamed `[arc-methods-pmr]` → `[arc-methods-diff-review]` everywhere it appeared
+        (`arc-extensions.md`, `integrate-work-unit.md`).
+
+        **Files touched (two-copy sync applied to framework files; single-copy to project files):**
+        - `arc-methods.md` — heading, anchor, Contents entry, Method Dependencies table row, Workflow/When/Contract
+          framing, `.override`/`.default` subsection names, (integration)-context-footer instruction generalized
+        - `arc-extensions.md` — contract cross-references in `pre-merge-review` extension (text + ref-def anchor)
+        - `integrate-work-unit.md` — frontmatter `arc.methods` entry, in-step markdown-link + display text, ref-def
+        - `arc-config.yml` — inline comment under `review.pre_merge`
+        - `integrate-external-content.md` — method example list
+        - `strategy-session-operations.md` — Method Classification by Trigger table row
+        - `adr-013-adopt-on-demand-method-loading.md` — method table row (single-copy)
+        - `analysis-cross-cutting-dependencies.md` — Methods & Dependencies table + override-coupling bullet
+          (single-copy)
+        - `docs/customization/methods.md` — Methods table + Method Dependencies table (single-copy)
+        - `verify-integrity.sh` — both method-list for-loop entries (extension for-loop preserved)
+
+        **Preserved references (extension / moment-name / project-specific):**
+        - `project/agent-pre-merge-review.md` — entirely about the extension; no changes
+        - `arc-task-review/SKILL.md` — prose reference to "the integration workflow's pre-merge-review" as
+          moment-language (not a link), preserved
+        - `integrate-work-unit.md:184` step heading `#pre-merge-review` anchor — moment-name for the step, preserved
+        - `strategy-session-operations.md:61, 176` — both refer to the extension, preserved
+        - Step-heading anchors, frontmatter `arc.extensions` entries, and ref-defs named after the extension
+
+        **Out-of-spec-scope residuals (method references that still say `pre-merge-review`):**
+        - Backlog: `tasks-arcd-rebrand.md` (line 447 "method: pre-merge-review") and `plan-arc-modes.md` (lines 2654,
+          4895, 5440 strategy-audit meta-notes referencing the method name). Spec scope for 1.4.a is
+          `system/workflows/**`, `reference/strategies/**`, `reference/constitution/**`, `system/agent/**`;
+          backlog/ is out of scope. Flagged via SESSION-NOTES persistent-context for reconciliation at each
+          backlog WU's activation.
+        - Archive: `reference/archive/**` references left intact per ARC's "document what is, not what was"
+          convention — historical docs describe the method by the name that was current at the time.
+
+        **Tier 1 gate:** markdownlint clean across 13 edited `.md` files (both copies); shellcheck clean on
+        `verify-integrity.sh` (both copies).
 
     - [ ] **1.4.b Document per-file frontmatter schema (was Phase 3.1)**
 
