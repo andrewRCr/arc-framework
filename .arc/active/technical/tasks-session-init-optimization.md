@@ -463,40 +463,87 @@ directories; retire legacy aggregate files; add CLI test coverage; close with AD
 **Note:** Tier 2 gates run at sub-phase boundaries (3.6 cross-reference sweep close), not only at phase end. Two-copy
 discipline applies throughout — every file change touches `packages/arc-framework/arc/` and `.arc/`.
 
-- [ ] **3.1 Frontmatter parsing utility (test-first)**
+- [ ] **3.1 Frontmatter schema finalization + parsing utility**
 
-    **Goal:** Shared parsing logic for validation hooks (3.3) and aggregated-index generation (3.5).
-    - Placement: `packages/arc-framework/src/lib/frontmatter/` (new module; slot alongside existing `lib/` utilities)
+    Parent task. 3.1.a locks in the final field name before 3.1.b builds the parser against it, so the parser and
+    its test cases never reference an intermediate name.
 
-    Build `test-first` (one behavior at a time):
-    - Parses valid triple-dash YAML frontmatter correctly
-    - Extracts all required fields
-    - Rejects files missing required fields with field-name diagnostic
-    - Rejects files with type mismatches (e.g., `related` not an array)
-    - Returns null or empty result for files without frontmatter (safe default)
+    - [ ] **3.1.a Rename method schema field `has-override` → `override-active`**
 
-- [ ] **3.2 Directory READMEs**
+        **Goal:** Parallelize semantics with extensions' `active` field and drop the `has-`-prefix plural
+        awkwardness. Self-documenting: the field answers "is the override turned on?" — method-side counterpart to
+        the extension-side "is the extension turned on?".
 
-    **Goal:** Human-facing whole-system reading surface; not loaded at agent init.
-    - `system/methods/README.md` — overview, Method Dependencies table (derived from or mirroring frontmatter `related`
-      fields), navigation to per-file content
-    - `system/extensions/README.md` — overview, extension-point summary table, navigation
-    - Two-copy sync per README
+        **Scope (30 occurrences across 21 files, PRD and this task list excluded):**
+        - 16 method files (8 × 2 copies): frontmatter field rename
+        - 2 README files (`.arc/system/methods/README.md` + package copy): loading-model callout
+        - `strategy-session-operations.md` × 2 copies: schema spec, field semantics, and any prose references
+        - `adr-013-adopt-on-demand-method-loading.md`: single-copy per ADR convention
+        - PRD P0.5 deferred to Task 3.10 (refresh bundled with ADR-013 sanity check)
+        - This task list's descriptions refresh naturally via Phase 3 edits
+
+    - [ ] **3.1.b Frontmatter parsing utility (test-first)**
+
+        **Goal:** Shared parsing logic for validation hooks (3.3) and aggregated-index generation (3.5).
+        - Placement: `packages/arc-framework/src/lib/frontmatter/` (new module; slot alongside existing `lib/`
+          utilities)
+        - **Scope decision — Option A (extract shared scaffold):** Extract the triple-dash + `yaml.load` boilerplate
+          currently embedded in `src/scripts/audit-method-triggers.ts` (`parseWorkflowFrontmatter`, lines ~78–114)
+          into the new `lib/frontmatter/` module as a generic parser. Build the method/extension-file schema
+          parser on top. Refactor the audit script to consume the shared layer — removes duplication, prevents
+          silent drift between the two parsers.
+
+        Build `test-first` (one behavior at a time):
+        - Parses valid triple-dash YAML frontmatter correctly (generic layer)
+        - Returns null/empty result for files without frontmatter (safe default)
+        - Reports parse errors without crashing (malformed YAML)
+        - Method schema: required fields `name`, `description`, `override-active`; optional `related` (array)
+        - Extension schema: required fields `name`, `description`, `active`; optional `related` (array)
+        - Rejects missing required fields with field-name diagnostic
+        - Rejects type mismatches (e.g., `related` not an array, `override-active` not a boolean)
+        - `name` field must match file basename (e.g., `issue-triage.md` requires `name: issue-triage`)
+        - Audit script still passes after refactor (workflow frontmatter parsing behavior unchanged)
+
+- [ ] **3.2 Enhance directory READMEs with derived tables**
+
+    **Goal:** Add the whole-system reading surfaces missing from the 1.4.c skeletons. Files and overview content
+    already exist — this task adds the tables. Files are not loaded at agent init; these are human browsing
+    surfaces.
+
+    - `system/methods/README.md` — add **Method Dependencies table with a "Coupling" column**. Table value comes
+      from the rationale column ("Both govern the commit message", "Uses review-triage for findings"), not from
+      mirroring the per-file `related` field alone. Only 3 coupling pairs total (commit-format↔commit-context-format,
+      diff-review→review-triage) — a 3-row table with one-line rationale each. If the rationale column is dropped,
+      skip the table — the frontmatter already carries the pair signal.
+    - `system/extensions/README.md` — add **extension-point summary table sorted by workflow lifecycle order**
+      (post-context-load → post-task-quality → post-task-completion → post-unit-quality → pre-stage-review →
+      pre-merge-review → post-work-unit-activate → post-work-unit-archive). Columns: name, workflow, fire moment,
+      contract précis. Lifecycle ordering is the value — alphabetical ordering doesn't answer the adopter
+      question "when should my extension fire?".
+    - Two-copy sync — edit each README in both copies
+    - Non-goal: file creation (done in 1.4.c)
 
 - [ ] **3.3 Frontmatter schema validation hook (test-first)**
 
     **Goal:** Pre-commit hook rejects staged method/extension files with missing or malformed frontmatter.
-    - Placement: slots into `.arc/system/githooks/pre-commit` after CHECK 11 (line ~346) as CHECK 12; mirrors the
-      existing check-block pattern (labeled `CHECK 12:`, same output style, short-circuit on failure)
-    - Delegates to a helper script (shell + node one-liner using the Phase 3.1 parser, or pure shell — decide during
-      task)
+    - Placement: slots into `.arc/system/githooks/pre-commit` after CHECK 11, before the Summary block (line ~347
+      as of audit; verify against current file). Labeled `CHECK 12:`, same output style as existing checks,
+      short-circuit on failure.
+    - **Delegation decision — node via `tsx` (using the Phase 3.1 parser):** Pure shell can't reasonably validate
+      YAML schema constraints (type mismatches, boolean fields, name-matches-basename). CI already uses `tsx` for
+      `lint:arc:triggers`, so the dependency is not net-new. Hook invokes the 3.1 parser as a thin CLI entry (add
+      a guarded `fileURLToPath(import.meta.url) === process.argv[1]` entry in the parser module, mirroring
+      `audit-method-triggers.ts`).
     - Two-copy sync per hook edit
 
     Build `test-first` (one behavior at a time):
-    - Valid frontmatter passes
+    - Valid frontmatter passes (both method and extension schemas)
     - Missing `name` field fails with diagnostic naming the file and field
     - Missing `description` fails
+    - Missing `override-active` on a method file fails
+    - Missing `active` on an extension file fails
     - `related` not an array fails
+    - `name` not matching file basename fails
     - Non-method/extension files staged do not trigger the check
 
 - [ ] **3.4 D7a link-resolution pre-commit hook (test-first)**
@@ -505,13 +552,22 @@ discipline applies throughout — every file change touches `packages/arc-framew
     `system/workflows/*`, `reference/strategies/*`.
     - Placement: CHECK 13 in `.arc/system/githooks/pre-commit`
     - Per-staged-file; shell-based (grep link targets → verify file exists)
+    - **Resolution rules:** (a) relative paths resolve from the source file's directory, not repo root or `cwd`;
+      (b) anchor fragments (`file.md#section`) — file existence only, skip anchor verification (header-slugs +
+      ref-style + case-folding is deferred as out-of-scope for Phase 3); (c) both inline `[text](path)` and
+      reference-style `[text][ref]` → `[ref]: path` in scope; (d) external links (`https?://...`, `mailto:`)
+      ignored; (e) inline code-span backticks containing link-like strings ignored.
     - Two-copy sync
 
     Build `test-first` (one behavior at a time):
-    - Valid link to existing `system/methods/` file passes
+    - Valid inline link to existing `system/methods/` file passes
+    - Valid reference-style link resolving to existing file passes
     - Link to nonexistent file fails with diagnostic naming source file and target
-    - External links (https://...) are ignored
+    - Relative path resolves from source file's directory (not `cwd`)
+    - Anchor fragments: file existence verified, anchor fragment ignored (`file.md#anchor` passes if `file.md` exists)
+    - External links (`https://...`) are ignored
     - Inline code-span backticks containing link-like strings are ignored
+    - Broken reference-style link (undefined `[ref]`) fails with diagnostic
 
 - [ ] **3.5 Session-init Step 2 — aggregated frontmatter scan**
 
@@ -519,55 +575,101 @@ discipline applies throughout — every file change touches `packages/arc-framew
     bodies.
     - Update `system/workflows/arc/session-lifecycle/session-init.md` Step 2 — replace current "Scan `arc-methods.md`
       for active overrides" with "Aggregate frontmatter from `system/methods/*.md` and `system/extensions/*.md`"
-    - Update Step 4 ("Check Active Configuration") to reference new structure
+    - **Step 4 semantic replacement (not just a reference update):** Current Step 4.2 reads "Scan
+      `.arc/system/workflows/arc-methods.md`. For each method, check if the `.override` section is populated."
+      Replace with: "Read the `override-active` field from each `system/methods/*.md` frontmatter (parsed during
+      Step 2 aggregation); surface active overrides in the orientation." Same for extensions: read `active` field
+      from `system/extensions/*.md` frontmatter. This is a mechanism change, not wording polish.
     - Two-copy sync
 
 - [ ] **3.6 Cross-reference sweep**
 
-    **Goal:** All 53+ matches of `arc-methods.md#anchor` / `arc-extensions.md#anchor` across the repo updated to new
+    **Goal:** All anchor-form references to `arc-methods.md#anchor` / `arc-extensions.md#anchor` updated to new
     per-file paths using D7a link convention.
-    - Scope: `.arc/` + `packages/arc-framework/arc/` (workflows, ADRs, strategies, DEV-RULES, backlog docs,
-      AGENT-BRIEFING files, CLAUDE.ARC.md)
-    - Grep-and-replace pass (automatable but each match manually verified — ensures anchor points map to the right
-      per-file destination)
+    - **Actual match count (audit-verified):** 80 anchor-form matches across both copies, 28 in `.arc/` active
+      surface alone. PRD's original "53+" estimate was low.
+    - **Scope:** `.arc/` + `packages/arc-framework/arc/` — workflows, constitution, strategies, AGENT-BRIEFING
+      files, CLAUDE.ARC.md. Exclude `reference/adr/` (history), `reference/archive/` (per "document what is" —
+      historical docs describe the name that was current at the time), `active/technical/` session-init-opt WU
+      docs (refresh naturally via Phase 3 edits), and `backlog/` (per Task 1.4.a precedent — backlog
+      reconciliation happens at each backlog WU's activation via persistent context).
+    - Grep-and-replace pass (automatable but each match manually verified — ensures anchor points map to the
+      right per-file destination)
     - Run the Phase 3.4 link-resolution hook against the full repo to catch residual broken links
 
-- [ ] **3.7 Framework-sync integration test updates**
+- [ ] **3.7 Framework-sync: register per-file entries in the manifest**
 
-    **Goal:** Existing framework-sync test enumerates new per-file directories; drift between package source and `.arc/`
-    on methods/extensions is caught by CI.
-    - File: `packages/arc-framework/__tests__/integration/framework-sync.test.ts`
-    - Extend enumeration to include `system/methods/*.md` and `system/extensions/*.md`
-    - Add test case for per-file drift detection
+    **Goal:** Drift between package source and `.arc/` on methods/extensions is caught by CI — via the existing
+    manifest-driven framework-sync test, not custom enumeration.
+
+    **Context:** The framework-sync test (`packages/arc-framework/__tests__/integration/framework-sync.test.ts`)
+    iterates `manifest.files` for entries with `classification: "Framework"`. Audit confirmed the 18 new per-file
+    paths (8 methods + 8 extensions + 2 READMEs) are missing from `.arc/system/.internal/manifest.json` —
+    1.4.c–e added the files but never registered them. This is the 1.4 oversight to fix.
+
+    - Add 18 entries to `.arc/system/.internal/manifest.json` under `files`, each with `classification:
+      "Framework"` and whatever hash/metadata fields existing Framework entries carry
+    - Verify `loadPackageSource` (test:42) resolves each new path — the test already handles non-template files
+      via the `readFile(plain, ...)` fallback, but confirm against the new directories
+    - Existing test then provides drift coverage automatically — no enumeration changes needed
+    - Two-copy discipline does not apply to `.arc/system/.internal/manifest.json` — that file is project-local
+      install state, not framework content
 
 - [ ] **3.8 Retire legacy aggregate files**
     - Delete `.arc/system/workflows/arc-methods.md`
     - Delete `.arc/system/workflows/arc-extensions.md`
     - Delete `packages/arc-framework/arc/system/workflows/arc-methods.md`
     - Delete `packages/arc-framework/arc/system/workflows/arc-extensions.md`
+    - **Remove legacy manifest entries:** Delete `system/workflows/arc-methods.md` and
+      `system/workflows/arc-extensions.md` entries from `.arc/system/.internal/manifest.json` (currently at
+      lines 270, 275 as of audit — verify). Without this, the framework-sync test fails because the manifest
+      references files that no longer exist.
     - Verify no remaining references (run grep for filename matches across both trees)
 
 - [ ] **3.9 CLI test coverage — per-file restructure**
 
     **Goal:** Fresh install, update, reconfigure, and hook behavior all verified against new structure.
     - Integration: fresh `arc init` produces `system/methods/` and `system/extensions/` with all 8 files each
-    - Integration: `arc update` on repo with pre-existing `.arc/` migrates correctly (three-way merge preserves any user
-      overrides — though none exist at current zero-adopter state, test confirms mechanism)
-    - Integration: `arc update` idempotent re-update produces no diff
-    - E2E: `arc init --yes` layout matches expected structure
+      **plus 2 READMEs, and all 18 files are registered in the resulting `manifest.json` with
+      `classification: "Framework"`** (closes the 1.4.c–e oversight surfaced in Task 3.7)
+    - Integration: `arc update` on a repo with legacy `arc-methods.md` / `arc-extensions.md` layout is an **explicit
+      no-op on the legacy files** — does not delete, rewrite, or migrate them. PRD § Won't Do excludes migration
+      code; zero-adopter state means no adopter reaches this code path. Test asserts the no-op, not a migration
+      path that doesn't exist.
+    - Integration: `arc update` idempotent re-update on a post-restructure `.arc/` produces no diff
+    - E2E: `arc init --yes` layout matches expected structure (includes per-file directories and manifest entries)
     - E2E: `arc init --reconfigure` unaffected by per-file restructure
     - Hook behavior tests: Phase 3.3 and 3.4 hooks verified against sample repos
 
-- [ ] **3.10 ADR-013 sanity check and finalize**
+- [ ] **3.10 ADR-013 sanity check, PRD refresh, and finalize**
 
-    **Goal:** Amendment drafted in Phase 2.3 matches the concrete implemented model; tweak wording if needed; mark the
-    amendment as accepted.
-    - Compare amendment text against the actual per-file structure, frontmatter fields, and session-init Step 2 behavior
-    - Apply any minor wording adjustments
-    - Remove draft marker; two-copy sync
+    **Goal:** Amendment drafted in Phase 2.3 matches the concrete implemented model; tweak wording if needed; mark
+    the amendment as accepted. Co-located PRD refresh since the schema reconciliation visits the same ground.
+
+    **Amendment checklist (each must match implemented state):**
+    - (a) Per-file structure matches amendment description — `system/methods/` and `system/extensions/` with 8
+      files each plus README
+    - (b) Schema field names match implemented form post-3.1.a: `name`, `description`, `related`,
+      `override-active` (methods) / `active` (extensions). No `workflow` field; no `has-override`; no `has-steps`
+    - (c) Session-init Step 2 behavior matches post-3.5 state (aggregated frontmatter scan, not full-body reads)
+    - (d) `pre-merge-review` method → `diff-review` rename complete (per Task 1.4.a)
+    - (e) CI-enforced reliable-trigger invariant is wired (per Task 1.6)
+
+    **PRD refresh (bundled):**
+    - P0.5: update field list to drop `workflow`, rename `has-override` → `override-active`
+    - P0.6: rename `has-steps` → `active`
+    - Other P0.x bullets audited for stale schema-field references
+
+    **Close:**
+    - Apply any minor wording adjustments to the amendment
+    - Remove draft marker; two-copy sync on ADR and strategy files (PRD single-copy per work-unit convention)
 
 - [ ] **3.11 Phase 3 close — Tier 3 quality gates**
     - Full markdown lint, code lint (TS + sh), typecheck, test suite, build, framework-sync
+    - **Hook false-positive surface check:** Confirm CHECK 12 (3.3 schema validation) and CHECK 13 (3.4
+      link-resolution) don't fire on unrelated staged files — stage a handful of non-method/non-extension /
+      non-markdown files (e.g., `tsconfig.json`, `.gitignore`, a random `src/*.ts` file) and verify hooks
+      short-circuit cleanly. The hooks must gate on path pattern before running validation.
     - Verify zero regressions before Phase 4
 
 ---
@@ -641,6 +743,12 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
         - Move: feature/technical header template, incidental header template, verification phase block, atomic
           companion file template, success criteria block
         - Two-copy sync (`packages/arc-framework/arc/reference/templates/template-tasks.md`)
+        - **Evaluate per-phase `**Strategies:**` convention** — phase headers in recent task lists carry a
+          `**Strategies:** ...` line listing potentially relevant strategy docs. Original intent was per-phase
+          awareness, but in practice across many work units it reads as noise — STRATEGY-INDEX already provides
+          session-init awareness, and executing agents consult strategies on demand by domain, not by phase header.
+          Decide keep / trim / replace before finalizing the phase-header template shape here; if removed, consider
+          a sweep of existing active and backlog task lists as part of this task or a follow-up.
 
     - [ ] **4.5.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
         - Move checklist from `strategy-task-list-formatting.md` § Quick Format Checklist into the appropriate point in
