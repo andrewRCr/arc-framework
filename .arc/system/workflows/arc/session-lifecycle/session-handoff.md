@@ -390,29 +390,22 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 
 ### Save to Git Notes
 
-After writing SESSION-NOTES.md, save the user directory to git notes and push based on the
-`user.sync_push` setting. **Per-developer override:** `git config arc.syncPush` takes
-precedence over `arc-config.yml` when set — check this first.
+After writing SESSION-NOTES.md, run `arc sync`:
 
-- **`always`** (solo default): save and push in one step:
+```bash
+arc sync
+```
 
-    ```bash
-    arc sync
-    ```
+`arc sync` resolves the effective push policy (`git config arc.syncPush` → `arc-config.yml`
+`user.sync_push` → default `always`) and acts accordingly:
 
-- **`prompt`** (team default): save first, then ask the user whether to push:
+- **`always`**: saves and pushes in one step.
+- **`prompt`**: saves, then asks before pushing. In non-interactive environments (CI, no TTY),
+  degrades to `manual` with a warning rather than hanging on the prompt.
+- **`manual`**: saves only; the user pushes later with `arc user push`.
 
-    ```bash
-    arc user save
-    # then ask — if yes:
-    arc user push
-    ```
-
-- **`manual`**: save only — user pushes when ready:
-
-    ```bash
-    arc user save
-    ```
+For manual control outside of handoff (ad-hoc save, push, or force-push), `arc user save`,
+`arc user push`, and `arc user push --force` remain available.
 
 **Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
 

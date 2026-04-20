@@ -55,6 +55,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isHandledError: () => false,
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
+  isNonInteractiveEnvironment: () => false,
   readPmMode: vi.fn(async () => "none"),
 }));
 

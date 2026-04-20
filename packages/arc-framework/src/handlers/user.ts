@@ -15,6 +15,7 @@ import { slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   runWithSpinner, isHandledError, resolveUserIdentity, isRemoteError, readPmMode,
 } from "./shared.js";
@@ -147,78 +148,47 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   }
   const io = createUserIOContext();
 
-  try {
-    await runWithSpinner(
-      "Pushing user notes...",
-      () => runUserPush({ io, identity, force: opts.force }),
-      "Push complete.",
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+  // Explicit --force: bypass recovery prompt, push forcibly.
+  if (opts.force) {
+    try {
+      await runWithSpinner(
+        "Force-pushing user notes...",
+        () => runUserPush({ io, identity, force: true }),
+        "Force push complete.",
+      );
+      p.outro("Done.");
+    } catch (err) {
+      if (isHandledError(err)) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isRemoteError(msg)) {
+        p.log.error("No remote configured. Push requires a remote repository.");
+        p.log.info("Set up a remote with: git remote add origin <url>");
+        process.exitCode = 1;
+        return;
+      }
+      throw err;
+    }
+    return;
+  }
 
-    // Detect missing remote
-    if (isRemoteError(msg)) {
+  const result = await pushWithInteractiveRecovery(io, identity);
+  switch (result.kind) {
+    case "ok":
+    case "ok-recovered":
+      p.outro("Done.");
+      return;
+    case "cancelled":
+      p.log.info("Push cancelled.");
+      return;
+    case "no-remote":
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       process.exitCode = 1;
       return;
-    }
-
-    // Detect diverged remote (non-fast-forward rejection)
-    if (msg.includes("non-fast-forward") || msg.includes("[rejected]")) {
-      p.log.warn("Push rejected — remote has diverged from local notes.");
-      const action = await p.select({
-        message: "How would you like to resolve this?",
-        options: [
-          { value: "force", label: "Force push (overwrite remote with local)" },
-          { value: "pull", label: "Pull first (overwrite local with remote)" },
-          { value: "cancel", label: "Cancel" },
-        ],
-      });
-
-      if (p.isCancel(action) || action === "cancel") {
-        p.log.info("Push cancelled.");
-        return;
-      }
-
-      if (action === "force") {
-        try {
-          await runWithSpinner(
-            "Force-pushing user notes...",
-            () => runUserPush({ io, identity, force: true }),
-            "Force push complete.",
-          );
-        } catch (forceErr) {
-          if (isHandledError(forceErr)) return;
-          throw forceErr;
-        }
-      } else {
-        // Pull first (force — we know refs have diverged), then retry push
-        try {
-          await runWithSpinner(
-            "Pulling user notes...",
-            () => runUserPull({ io, identity, force: true }),
-            "Pull complete.",
-          );
-          await runWithSpinner(
-            "Pushing user notes...",
-            () => runUserPush({ io, identity }),
-            "Push complete.",
-          );
-        } catch (pullPushErr) {
-          if (isHandledError(pullPushErr)) return;
-          throw pullPushErr;
-        }
-      }
-      p.outro("Done.");
-      return;
-    }
-
-    if (isHandledError(err)) return;
-    throw err;
+    case "failed":
+      if (isHandledError(result.error)) return;
+      throw result.error;
   }
-
-  p.outro("Done.");
 }
 
 // --- Pull ---
