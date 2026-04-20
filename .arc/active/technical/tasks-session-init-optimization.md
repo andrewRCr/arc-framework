@@ -749,6 +749,13 @@ default to up-front load; shift to conditional only where trigger is clear.
         - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to auto-recover vs.
           stop-and-ask tiers
 
+    **Note:** Audit session-init.md for speed considerations alongside the structural restructure. Baseline:
+    ~2 minutes from `/arc-resume` invocation to orientation summary (pre-optimization). Phase 1–4 reductions
+    shrink wall-clock time naturally (less content to read and process); 5.5 is the moment to also evaluate
+    structural speed wins independent of load-set size — unexploited batching opportunities, redundant checks,
+    steps whose cost is dominated by serial tool calls rather than content. Apply low-risk wins inline during
+    5.5.a–c; record larger opportunities as follow-ons.
+
     - Two-copy sync
 
 - [ ] **5.6 Phase 5 close — Tier 2 quality gates**
