@@ -148,6 +148,95 @@ initiates the activity.
 `arc.extensions` arrays are the load contract; in-step markdown links remain as reader navigation but do not
 constitute the trigger.
 
+### Per-file Frontmatter Schema
+
+Methods and extensions live as per-file entries under `system/methods/` and `system/extensions/`, each with a
+fixed YAML frontmatter block. The schema is the structural contract: session-init reads `has-override` /
+`active` to produce the override-presence index without parsing bodies, and the framework-repo CI audit
+reads the directories and workflow frontmatter to enforce corpus-wide coverage.
+
+**Method schema** (`system/methods/<name>.md`):
+
+```yaml
+---
+name: <method-name>
+description: <one-line operational purpose>
+related:
+  - <related-method-name>
+has-override: false
+---
+```
+
+**Extension schema** (`system/extensions/<name>.md`):
+
+```yaml
+---
+name: <extension-name>
+description: <one-line operational purpose>
+related:
+  - <related-extension-name>
+active: false
+---
+```
+
+**Field semantics:**
+
+- `name` — method or extension name; must match the file basename (e.g., `issue-triage.md` registers
+  `issue-triage`)
+- `description` — one-line operational purpose. What it does, not where it fires
+- `related` — array of coupled method or extension names within the same kind. Overriding one should prompt
+  review of the others. Omit when empty
+- `has-override` (methods only) — `true` when the file's override body is populated; `false` when the default
+  is in effect. Session-init reads this to produce the override-presence index without parsing method bodies
+- `active` (extensions only) — `true` when the extension's `.actions` section is populated; `false` when the
+  extension is an empty placeholder. Workflows checking `active: false` skip the extension invocation at its
+  fire point
+
+**Why no `workflow` field:** The workflow→method/extension trigger contract lives in workflow frontmatter
+(`arc.methods` / `arc.extensions`) — that's the mechanical coverage guarantee enforced by the framework-repo
+CI audit. The reverse index (method→workflows) is centralized in this strategy's "Method classification by
+trigger" table, which stays readable when methods fire from multiple workflows. A per-file `workflow` field
+would duplicate that info, would be lossy when methods fan out (e.g., `session-state` fires at both
+session-init and session-handoff), and has no mechanical consumer — so it's omitted.
+
+### Per-file Body Conventions
+
+Beyond the frontmatter schema, per-file method and extension documents follow a fixed body shape so reader
+orientation stays consistent across files.
+
+**H1:** `# Method: <name>` or `# Extension: <name>` — makes the kind visible at the top of the file.
+
+**Preamble — blockquoted bullet list** immediately under the H1. Each field is a distinct bullet so prettier
+and similar reflow tools don't merge them into one paragraph (the adjacent-bold-metadata gotcha codified in
+commit `0870274`):
+
+```markdown
+> - **Workflow:** <primary caller link(s)>
+> - **When:** <trigger condition — methods only>      OR
+> - **Fires:** <precise fire moment — extensions only>
+>
+> - **Contract:** <invariant; load-bearing>
+> - **Related:** <sibling link> — <one-clause rationale; when applicable>
+```
+
+Methods use `**When:**` (they're activity contracts that kick in during a workflow step); extensions use
+`**Fires:**` (they're event handlers at a precise fire point). The distinct wording preserves the semantic
+distinction between the two kinds.
+
+The blockquote signals "this is preamble / framing" — subordinate to the structural content sections that
+follow. A blank `>` line separates the trigger context (Workflow + When / Fires) from the contract content
+(Contract + optional Related), for readability when Contract runs long. Multi-line field values use 2-space
+continuation indent after the `>` so the wrapped text aligns with the character after the bullet marker.
+
+**Structural sections — the content the system reads:**
+
+- Methods: `## <name>.override` + `## <name>.default` (the override content and the default spec)
+- Extensions: `## <name>.actions` (the steps to execute when `active: true`; placeholder `[No extension
+  configured]` when `active: false`)
+
+**Ref-defs:** Collected after a trailing `---` separator per [DEV-RULES.PROJECT][dev-rules-project]. Link
+targets resolve via paths relative to the file's directory (`system/methods/` or `system/extensions/`).
+
 ### arc-methods.md
 
 Session initialization scans arc-methods.md for override *presence* only — which methods have
@@ -258,4 +347,5 @@ directory are automatically included without additional plumbing.
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
+[dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [git-notes]: https://git-scm.com/docs/git-notes

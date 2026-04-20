@@ -206,7 +206,7 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
           classified informational in Task 1.1.b; reliable triggers for `review-triage` are the
           in-step directives at lines 36, 78, 92.
 
-- [ ] **1.4 Per-file restructure + method rename (structural prep for CI audit)**
+- [x] **1.4 Per-file restructure + method rename (structural prep for CI audit)**
 
     **Goal:** Establish the per-file `system/methods/` and `system/extensions/` layout the audit script enumerates from,
     and fix the `pre-merge-review` method/extension name collision by renaming the method to `diff-review`. Pulls
@@ -258,42 +258,111 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
         **Tier 1 gate:** markdownlint clean across 13 edited `.md` files (both copies); shellcheck clean on
         `verify-integrity.sh` (both copies).
 
-    - [ ] **1.4.b Document per-file frontmatter schema (was Phase 3.1)**
+    - [x] **1.4.b Document per-file frontmatter schema (was Phase 3.1)**
 
-        **Goal:** Fixed field contract for method and extension files.
-        - Methods schema fields: `name`, `description` (one-line operational purpose), `workflow` (primary triggering
-          workflow filename — methods may be composed from other workflows/skills too), `related` (related method
-          names, array), `has-override` (populated status signal: `true`/`false`)
-        - Extensions schema fields: same as methods except `has-steps` replaces `has-override`
-        - Placement: new section in `strategy-session-operations.md` § Method and Extension Loading
-        - Two-copy sync
+        **Outcome:** New `### Per-file Frontmatter Schema` subsection added to
+        `strategy-session-operations.md § Method and Extension Loading`, placed between the "Declaration
+        mechanism" paragraph and the aggregate `### arc-methods.md` subsection — stable content (workflow-side
+        trigger contract + per-file schema) leads; transitional aggregate subsections follow until Phase 3
+        retires them.
 
-    - [ ] **1.4.c Create per-file directory structure (both copies) (was Phase 3.3)**
-        - `packages/arc-framework/arc/system/methods/` and `.arc/system/methods/`
-        - `packages/arc-framework/arc/system/extensions/` and `.arc/system/extensions/`
+        **Schema landed (revised from 1.4.b spec):**
+        - Methods: `name`, `description`, `related`, `has-override`
+        - Extensions: `name`, `description`, `related`, `active` (was `has-steps` in the original spec —
+          renamed during 1.4.c–f execution for clarity; `active: true/false` directly answers the runtime
+          question the workflow asks at the fire point)
+        - Spec's `workflow` field dropped — the workflow→method/extension trigger contract is already mechanical
+          via workflow frontmatter (Task 1.5 audit); the reverse index (method→workflows) stays centralized in
+          this strategy's "Method classification by trigger" table, which handles fan-out better than a
+          per-file "primary caller" field. `workflow` would have duplicated info with no mechanical consumer
+          and drifted silently. Rationale captured as a "Why no `workflow` field" paragraph in the section so a
+          future author doesn't re-propose it.
+        - `related` kept to preserve the override-coupling signal when Phase 3 retires arc-methods.md's
+          Method Dependencies table — lands at the natural point of use (the method file being overridden).
 
-    - [ ] **1.4.d Migrate 8 methods to per-file (was Phase 3.4)**
+        **Body conventions codified** in a new `### Per-file Body Conventions` subsection alongside the schema:
+        H1 format (`# Method:` / `# Extension:`), preamble as a bulleted blockquote (`> - **Workflow:** ... >
+        - **When:**/**Fires:** ... > - **Contract:** ... > - **Related:** ...`), structural content sections
+        (`.override` / `.default` for methods, `.actions` for extensions), and ref-def convention. Bulleted form
+        is mandated to prevent prettier (and similar reflow tools) from merging adjacent bold-lead metadata
+        lines — same rationale as commit `0870274`.
 
-        **Goal:** Each method's `.override` / `.default` body extracted to `{name}.md` with frontmatter; content
-        preserved verbatim (no rewording during migration — 1.4.a already handled the rename-related rewording).
-        - `commit-format.md`, `commit-context-format.md`, `issue-triage.md`, `test-first.md`, `session-state.md`,
-          `diff-review.md` (renamed per 1.4.a), `review-triage.md`, `quality-gate-commands.md`
-        - Frontmatter `workflow` field populated from current method's "Workflow:" line
-        - Frontmatter `related` field populated from current Method Dependencies table
-        - Frontmatter `has-override` = `false` for all (no current overrides configured)
-        - Two-copy sync per file
+        **Files touched (two-copy sync):**
+        - `reference/strategies/arc/strategy-session-operations.md` (both copies, byte-identical via `diff -q`)
 
-    - [ ] **1.4.e Migrate 8 extensions to per-file (was Phase 3.5)**
-        - `post-task-quality.md`, `post-unit-quality.md`, `post-task-completion.md`, `post-context-load.md`,
-          `pre-stage-review.md`, `pre-merge-review.md`, `post-work-unit-activate.md`, `post-work-unit-archive.md`
-        - Frontmatter `has-steps` populated based on current `.steps` content (only `pre-merge-review` currently has
-          steps; the rest are placeholders)
-        - Two-copy sync per file
+        **Tier 1 gate:** markdownlint clean on the `.arc/` copy; package copy is byte-identical and excluded
+        from root lint by design (`!packages/arc-framework/arc/**` in `.markdownlint-cli2.jsonc`).
 
-    - [ ] **1.4.f Tier 2 gate after structural prep**
-        - Full markdown lint across both copies; confirm no broken links introduced by the rename
-        - Confirm both `system/methods/` and `system/extensions/` directories populated with 8 files each in both
-          copies (16 files × 2 copies = 32 new files)
+        **Downstream implications:**
+        - Task 1.4.d (method migration): populate 4 fields per file, not 5; `related` populated from current
+          Method Dependencies table (3 methods have coupling: commit-format ↔ commit-context-format,
+          diff-review → review-triage)
+        - Task 1.4.e (extension migration): populate 4 fields per file, not 5; `related` likely empty for all
+          8 extensions (no coupling table currently exists for extensions — confirm at migration time)
+        - Task 2.3 (ADR-013 Tier 2 amendment): scope already flagged via persistent context; add the
+          `workflow`-field omission decision to the amendment's scope when drafting.
+
+    - [x] **1.4.c Create per-file directory structure (both copies) (was Phase 3.3)**
+
+        **Outcome:** Four directories created (methods + extensions × 2 copies). Each got a thin README with
+        orientation framing (how overrides / `has-steps` work, loading-model note, classification note) plus
+        an index listing the 8 entries with a terse one-liner each. General content reused verbatim from the
+        header sections of `arc-methods.md` / `arc-extensions.md` — no per-method/extension detail in the
+        READMEs; that lives in the per-file entries.
+
+    - [x] **1.4.d Migrate 8 methods to per-file (was Phase 3.4)**
+
+        **Outcome:** 8 method files created in `system/methods/` (both copies, byte-identical). Content
+        preserved verbatim from `arc-methods.md` per-method sections; header levels shifted one (H2→H1,
+        H3→H2); `#section-anchor` cross-references rewritten to sibling `<name>.md` links; ref-defs recomputed
+        for the per-file location (`../workflows/...`, `../../reference/...`, `../arc-config.yml`, etc.).
+
+        **Frontmatter populated per 1.4.b-revised schema (4 fields):**
+        - `commit-format` · related: `[commit-context-format]`
+        - `commit-context-format` · related: `[commit-format]`
+        - `issue-triage` · no related
+        - `test-first` · no related
+        - `session-state` · no related
+        - `diff-review` · related: `[review-triage]`
+        - `review-triage` · no related (coupling is one-directional: diff-review depends on it, not vice versa)
+        - `quality-gate-commands` · no related
+        - `has-override: false` across all 8
+
+        **Files touched (two-copy sync):** 16 new files (`.arc/system/methods/*.md` + package-copy mirror).
+
+    - [x] **1.4.e Migrate 8 extensions to per-file (was Phase 3.5)**
+
+        **Outcome:** 8 extension files created in `system/extensions/` (both copies, byte-identical). Same
+        transformation pattern as methods: verbatim content, header bump, per-file ref-defs.
+
+        **Frontmatter populated per 1.4.b-revised schema (4 fields):**
+        - All 8 extensions — `related` omitted (confirmed: `arc-extensions.md` has no coupling table;
+          the `pre-merge-review` extension references the `diff-review` method but cross-kind coupling is
+          not what `related` captures)
+        - `active: false` for 7 placeholder extensions (post-task-quality, post-unit-quality,
+          post-task-completion, post-context-load, pre-stage-review, post-work-unit-activate,
+          post-work-unit-archive) — section: `## <name>.actions` with `[No extension configured]`
+        - `active: true` for `pre-merge-review` (the one extension with configured actions — CodeRabbit
+          review ceremony) — section: `## pre-merge-review.actions`
+
+        **Naming decisions during migration:** The original 1.4.b spec used `has-steps` / `.steps`; both
+        renamed during execution to `active` / `.actions` to better reflect semantics (runtime state +
+        generalized "actions to perform at this fire point"). Methods unchanged (`has-override` / `.override`
+        — the existing terminology is crisp and there's no parallel concern).
+
+        **Files touched (two-copy sync):** 16 new files (`.arc/system/extensions/*.md` + package-copy mirror).
+
+    - [x] **1.4.f Tier 2 gate after structural prep**
+
+        **Outcome:** Full markdown lint clean (`npm run -s lint:md`, 200 files in the `.arc/` tree, 0 errors).
+        Package copy excluded from root lint config by design (`!packages/arc-framework/arc/**`) but is
+        byte-identical to the `.arc/` copy for methods/ and extensions/ via `diff -rq`, so equally clean by
+        construction. Ref-def scan across all 16 new per-file entries + 2 READMEs — every relative path
+        resolves to an existing file (`../workflows/...`, `../extensions/...`, `../../reference/...`,
+        `../arc-config.yml`, sibling `<name>.md`). Directory structure: 9 files each in
+        `.arc/system/methods/`, `.arc/system/extensions/`, `packages/arc-framework/arc/system/methods/`,
+        `packages/arc-framework/arc/system/extensions/` (8 entries + README). Total new files this phase:
+        36 (16 methods + 16 extensions + 4 READMEs).
 
 - [ ] **1.5 Reliable-trigger CI audit script (test-first)**
 
