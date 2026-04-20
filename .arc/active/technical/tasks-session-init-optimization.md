@@ -387,17 +387,17 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
     - **Verification:** audit passes against real corpus (all 8 methods + 8 extensions covered). Tier 1 gates
       clean (`typecheck`, `typecheck:test`, `lint:ts`, `test:unit` 484 tests, `lint:md` 200 files, `build`).
 
-- [ ] **1.6 Wire audit into CI**
-    - Add step to `.github/workflows/ci.yml` `quality` job **before** `- run: npm run -s lint:md`:
-      `- run: npm run lint:arc:triggers`
-    - Rationale: the audit is the cheapest structural gate (YAML parse only, no build), so running it first produces
-      the fastest fail when the trigger contract breaks
-    - Step runs on all branches (fail-fast signal before PR)
-    - Acceptance: CI green on this branch after push (verify before closing the task)
+- [x] **1.6 Wire audit into CI**
 
-- [ ] **1.7 Phase 1 close — Tier 2 quality gates**
-    - Run full markdown lint, code lint, typecheck, test suite before Phase 2
-    - Run `npm run lint:arc:triggers` locally to confirm before push
+    **Outcome:** Added `- run: npm run lint:arc:triggers` to `.github/workflows/ci.yml` `quality` job between
+    `npm run build` and `npm run -s lint:md`. Runs on all branches (fail-fast signal before PR). CI-green
+    acceptance verified on push.
+
+- [x] **1.7 Phase 1 close — Tier 2 quality gates**
+
+    **Outcome:** All Tier 2 gates green locally. `lint:md` (200 files, 0 errors), `lint:ts`, `lint:sh`,
+    `typecheck`, `typecheck:test`, `npm test` (unit + e2e, all passing), `build`, and `lint:arc:triggers`
+    (all 8 methods + 8 extensions covered). Phase 1 complete.
 
 ---
 

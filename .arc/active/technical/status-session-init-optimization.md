@@ -13,16 +13,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 1.6 — Wire audit into CI (line ~436)
-- **Last Completed:** Task 1.5 — Reliable-trigger CI audit script. Landed
-  `packages/arc-framework/src/scripts/audit-method-triggers.ts` with 14 unit tests under
-  `__tests__/unit/scripts/`. Pure exports + guarded CLI entry; corpus root resolved from script
-  location. Separate coverage maps per kind; malformed YAML diagnosed without crash. Root
-  `package.json` gained `lint:arc:triggers` script and `tsx ^4.19.2` devDep (package-level unchanged
-  — framework-CI-only). Audit passes against real corpus (all 8 methods + 8 extensions). Tier 1
-  gates clean (typecheck, typecheck:test, lint:ts, test:unit, lint:md, build). Test-first batched:
-  tightly coupled glue with no independent discovery value.
+- **Next Task:** Task 2.1 — Add agent-side compliance rule to "Method and extension loading"
+- **Last Completed:** Phase 1 complete. 1.5 landed the reliable-trigger audit script + tests + root
+  wiring (`lint:arc:triggers`, `tsx` devDep). 1.6 wired the audit into `.github/workflows/ci.yml`
+  `quality` job between `build` and `lint:md`. 1.7 closed with all Tier 2 gates green locally:
+  `lint:md` (200 files, 0 errors), `lint:ts`, `lint:sh`, `typecheck`, `typecheck:test`, `npm test`
+  (unit + e2e), `build`, and `lint:arc:triggers` (all 8 methods + 8 extensions covered).
 - **Blockers:** [none]
-- **Next Action:** Begin Task 1.6 — wire `lint:arc:triggers` into CI. Add `- run: npm run lint:arc:triggers`
-  step to `.github/workflows/ci.yml` `quality` job before the `lint:md` step. Acceptance: CI green on
-  this branch after push.
+- **Next Action:** Begin Phase 2 Task 2.1 — add the agent-side compliance rule to
+  `reference/constitution/DEV-RULES.ARC.md` § Verification and Discovery § Method and extension
+  loading (subsection created in Phase 1.2). Two-copy sync required (apply identical edit to
+  `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md`). Tier 2 gate: markdown lint
+  both files.
