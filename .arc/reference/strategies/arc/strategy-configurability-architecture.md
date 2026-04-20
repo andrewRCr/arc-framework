@@ -66,6 +66,12 @@ These are project-owned files — adopters create them, ARC doesn't ship them (e
 `DEV-RULES.ARC.md` and `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies,
 workflows, and domain-specific rules are loaded on demand when work touches their domain.
 
+**Authoring project workflows.** Unlike `workflows/arc/` (framework-owned, wholesale replaced on update),
+`workflows/project/` is adopter territory. Project workflows may load ARC methods or extensions by declaring them
+in the frontmatter's `arc.methods` / `arc.extensions` arrays — see [Workflow Authoring Strategy][workflow-authoring]
+for the schema and declaration rule, and [`template-workflow.md`][template-workflow] for canonical structure.
+Workflows with no method/extension dependencies can skip the schema.
+
 **DEV-RULES.PROJECT splitting:** `DEV-RULES.PROJECT.md` can be split into domain-specific files
 (`DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`, etc.) as project standards grow. The base file remains the entry
 point with cross-project standards; domain files extend it for specific areas.
@@ -430,4 +436,6 @@ the [Agent Hooks](https://andrewrcr.github.io/arc-framework/customization/hooks/
 [dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [quality-gates]: strategy-quality-gates.md
 [work-org]: strategy-work-organization.md
+[workflow-authoring]: strategy-workflow-authoring.md
+[template-workflow]: ../../templates/template-workflow.md
 [agent-skills-spec]: https://agentskills.io/

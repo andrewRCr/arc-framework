@@ -143,6 +143,11 @@ initiates the activity.
 
 ## Method and Extension Loading
 
+**Declaration mechanism.** Workflow frontmatter declares method and extension dependencies — see
+[Workflow Authoring Strategy][workflow-authoring] for the schema. The frontmatter's `arc.methods` /
+`arc.extensions` arrays are the load contract; in-step markdown links remain as reader navigation but do not
+constitute the trigger.
+
 ### arc-methods.md
 
 Session initialization scans arc-methods.md for override *presence* only — which methods have
@@ -252,4 +257,5 @@ directory are automatically included without additional plumbing.
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [strategy-index]: ../STRATEGY-INDEX.md
+[workflow-authoring]: strategy-workflow-authoring.md
 [git-notes]: https://git-scm.com/docs/git-notes

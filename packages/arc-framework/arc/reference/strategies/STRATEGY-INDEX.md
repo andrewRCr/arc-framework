@@ -32,6 +32,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
 - `arc/strategy-task-list-formatting.md` - Task list formatting specification, header templates, element rules
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
+- `arc/strategy-workflow-authoring.md` - Workflow frontmatter schema, author-side declaration rule, body conventions
+    - Consult when: authoring a framework or project workflow file
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers
     - Consult when: working in team mode, setting up multi-developer coordination
 - `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival

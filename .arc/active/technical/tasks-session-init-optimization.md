@@ -101,47 +101,31 @@ structural contract is what makes "every method/extension has ≥1 reliable trig
         methods/extensions. See `notes-session-init-optimization.md` § Phase 1 Classification (Task 1.1.b) § Overall
         verdict.
 
-- [ ] **1.2 Define workflow frontmatter schema + author-side declaration rule**
+- [x] **1.2 Define workflow frontmatter schema + author-side declaration rule**
 
-    **Goal:** Structural contract for declaring method/extension triggers in workflow files. Replaces prose
-    "Method dependencies (load on first reference):" preambles with a machine-readable, schema-validated frontmatter
-    block.
+    **Goal:** Structural contract for declaring method/extension triggers in workflow files, replacing prose
+    "Method dependencies" preambles with a machine-readable frontmatter block.
 
-    **Schema specification** (lives in `reference/strategies/arc/strategy-session-operations.md` as a new section
-    "Workflow Frontmatter Schema"):
+    **Outcome:** New dedicated `strategy-workflow-authoring.md` houses the schema, author-side declaration
+    rule, and body conventions (rules-only catalogue, ~70 lines — same shape Task 4.5 will leave
+    `strategy-task-list-formatting.md` in, applied here from creation). New `template-workflow.md` in
+    `reference/templates/` gives framework + adopter workflow authors a canonical skeleton. STRATEGY-INDEX
+    entry added. `configurability-architecture.md` carries a short pointer in its content-customization
+    section ("Authoring project workflows"); no inline schema. `DEV-RULES.ARC.md § When to Load Additional
+    Guidance` gets one bullet pointing at the strategy (load on-demand — workflow authoring is a rare
+    event and doesn't belong in T1 every-session load). `session-operations.md § Method and Extension
+    Loading` picked up a short declaration-mechanism pointer. Schema shape: `purpose` first, `audience:
+    agent` with inline `# agent | dual` comment, `arc.methods` / `arc.extensions` arrays under protected
+    namespace; angle-bracket placeholder convention for template fields that need author input.
 
-    ```yaml
-    ---
-    audience: agent              # enum: agent | dual
-    purpose: One-sentence description of the workflow's purpose.
-    arc:                          # optional; omit if workflow loads no methods/extensions
-      methods:
-        - method-name
-      extensions:
-        - extension-name
-    ---
-    ```
+    Placement discussion summary: original spec placed schema in `strategy-session-operations.md`; moved
+    to a dedicated strategy after discussion — (a) session-operations is about loading mechanics, not
+    file-structure spec; (b) `configurability-architecture.md` owns customization mechanisms but adding
+    workflow authoring broadens its scope; (c) a dedicated strategy mirrors `strategy-task-list-formatting`
+    exactly and gives adopter-authored project workflows a clean discovery surface.
 
-    - `audience` and `purpose` are top-level (cosmetic/editorial; readable by humans and machines)
-    - `arc:` is the protected namespace — fields under it are mechanically enforced (CI audit; future schema
-      validation in Phase 3)
-    - `arc.methods` / `arc.extensions`: arrays of method/extension names (strings); names match the method/extension
-      filename (Phase 3 future state) or the legacy aggregate `## section-name` heading (interim)
-    - YAML block scalar (`purpose: |`) handles multi-line purpose text where needed
-
-    **Author-side declaration rule** (added to `reference/constitution/DEV-RULES.ARC.md` § Verification and Discovery
-    as a new subsection "Method and extension loading"):
-
-    > When a workflow loads a method or extension, declare it in the workflow's frontmatter `arc.methods` or
-    > `arc.extensions` field. The declaration is the load contract — CI enforces ≥1 declaration per method or
-    > extension. Body-level prose references (in-step markdown links, "see X" pointers) remain for reader navigation
-    > but do not constitute the trigger.
-
-    The agent-side compliance rule (load-on-encounter) lands in Phase 2.1; together they form the rule pair.
-
-    - Two-copy sync: `strategy-session-operations.md` and `DEV-RULES.ARC.md` edits land in both
-      `packages/arc-framework/arc/...` and `.arc/...`
-    - Tier 2 gate: markdown lint both files
+    Two-copy sync applied across both `.arc/` and `packages/arc-framework/arc/`. Tier 1 markdown lint
+    clean (182 files, 0 violations).
 
 - [ ] **1.3 Migrate all workflows to frontmatter**
 

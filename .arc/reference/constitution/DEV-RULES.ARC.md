@@ -348,6 +348,8 @@ session initialization.
   loading of commit-format and commit-context-format
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
   strategy documents
+- **Before authoring a workflow:** Consult [Workflow Authoring Strategy][workflow-authoring] —
+  frontmatter schema, author-side declaration rule, body conventions
 - **For method defaults and overrides:** Workflow documents include method dependencies blocks
   that trigger loading of the relevant [`arc-methods.md`][arc-methods] sections on-demand. Follow
   the workflow — method loading is embedded in the steps
@@ -361,6 +363,7 @@ session initialization.
 [arc-methods]: ../../system/workflows/arc-methods.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
 [config-arch]: ../strategies/arc/strategy-configurability-architecture.md
+[workflow-authoring]: ../strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
