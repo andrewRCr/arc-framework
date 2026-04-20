@@ -408,32 +408,61 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
 **Purpose:** Anchor compliance behavior before Phase 3 removes the always-loaded bodies. Constitutional framing is
 absolute — no hedges — per compliance-reliability research.
 
-- [ ] **2.1 Add agent-side compliance rule to "Method and extension loading"**
+- [ ] **2.1 Add agent-side compliance rule to DEV-RULES.ARC**
 
-    **Goal:** Subsection now contains both rules paired. Author-side declaration rule landed in Phase 1.2 alongside the
-    schema; this task adds the agent-side compliance rule alongside it.
-    - File: `reference/constitution/DEV-RULES.ARC.md` § Verification and Discovery § Method and extension loading
-      (subsection created in Phase 1.2)
+    **Goal:** Agent-side compliance rule lands in DEV-RULES.ARC as a new subsection under § Verification and Discovery.
+    The paired author-side declaration rule stays in `strategy-workflow-authoring.md` (T3 on-demand — workflow authoring
+    is rare, doesn't warrant every-session load); the new DEV-RULES subsection cross-references it so readers can find
+    the author-side rule when relevant. Rationale: agent-side loading compliance is universal every-session behavior
+    (T1); author-side authoring is a rare procedural event (T3).
+    - File: `reference/constitution/DEV-RULES.ARC.md` — create new subsection § Verification and Discovery § Method
+      and extension loading (does not exist today — Phase 1.2 placed the author-side rule in
+      `strategy-workflow-authoring.md` instead of pairing both in DEV-RULES)
     - Agent-side rule text (per PRD P0.3):
         > When a workflow step references a method, extension, strategy, or workflow, load the relevant content before
         > acting on that step. Don't proceed from intuition when a governing reference is one link away.
+    - Include an inline pointer to `strategy-workflow-authoring.md § Author-side Declaration Rule` for the paired
+      author-side rule
     - Two-copy sync: apply identical edit to `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md`
-    - Tier 2 gate: markdown lint both files
+    - Tier 1 check: markdown lint both files
 
 - [ ] **2.2 AGENT-BRIEFING.ARC cross-reference**
-    - Determine whether the briefing should surface the new rule at init (beyond its existing DEV-RULES pointer)
-    - If yes: add a brief reference; if no: record the decision in the notes file so it's auditable later
-    - Two-copy sync
+    - Evaluate whether the agent-side compliance rule landed in 2.1 warrants a briefing-level surface at session init
+      (separate from its DEV-RULES home, which is already always-loaded at T1). Consider: does the agent benefit from
+      seeing the rule flagged during the briefing pass, or is DEV-RULES § Verification and Discovery sufficient?
+    - If yes: add a brief reference pointing to the DEV-RULES subsection
+    - If no: record the decision in `notes-session-init-optimization.md` so it's auditable later
+    - Two-copy sync (if an edit lands)
 
 - [ ] **2.3 Draft ADR-013 Tier 2 amendment**
 
-    **Goal:** Amendment entry reflects the method-loading model change (per-file structure with frontmatter index +
-    constitutional rule). Draft only — sanity check in Phase 3.
+    **Goal:** Amendment entry reflects the method-loading model changes (per-file restructure, frontmatter trigger
+    contract, constitutional compliance rule, naming reconciliation, CI-enforced coverage invariant). Draft only —
+    sanity check in Phase 3. Appends to the existing `### Amendments` section established by the 2026-04-08 entry.
+    ADRs are project-scoped (no package copy) — single-file edit.
     - File: `.arc/reference/adr/adr-013-adopt-on-demand-method-loading.md`
     - Follow [ADR Methodology Strategy][adr-methodology] § Tier 2 amendments format
-    - Capture: what changed (per-file structure, frontmatter index at session-init, constitutional rule), why (cost
-      reduction, compliance reliability), relation to original decision (reinforces and concretizes on-demand loading)
-    - Two-copy sync
+    - Capture scope (expanded from SESSION-NOTES Persistent Context — scope was known to grow beyond the original
+      single-bullet draft):
+        - Per-file restructure — methods and extensions now live as per-file entries in `system/methods/` and
+          `system/extensions/`, replacing aggregate `arc-methods.md` / `arc-extensions.md`
+        - Per-file frontmatter schema — 4 fields (`name`, `description`, `related`, `has-override` for methods /
+          `active` for extensions); `workflow` field deliberately omitted (no mechanical consumer, lossy on fan-out,
+          reverse index stays in the strategy's classification table)
+        - Workflow frontmatter trigger contract — workflows declare dependencies via `arc.methods` / `arc.extensions`
+          arrays; in-step links remain reader navigation, the frontmatter is the authoritative load contract
+        - Author-side declaration rule codified in `strategy-workflow-authoring.md`; agent-side compliance rule
+          codified in DEV-RULES.ARC § Verification and Discovery § Method and extension loading (landed in 2.1)
+        - `pre-merge-review` method renamed to `diff-review` — contract broadened from pre-merge-specific to a
+          generic review activity reusable by other workflows/skills
+        - Extension terminology renames — `has-steps` → `active`, `.steps` → `.actions`
+        - Per-file body conventions codified in `strategy-session-operations.md § Per-file Body Conventions`
+          (H1 form, bulleted-blockquote preamble with trigger/contract visual separator, structural content sections)
+        - CI-enforced reliable-trigger invariant — `audit-method-triggers.ts` in the quality job fails when any
+          method/extension lacks a workflow `arc.methods` / `arc.extensions` declaration; operationalizes the
+          author-side declaration rule as a structural, machine-checked gate (not prose-grep)
+    - Why: cost reduction, compliance reliability, structural enforcement vs. brittle prose-grep
+    - Relation to original decision: reinforces and concretizes on-demand loading with a structural contract
     - Leave as draft until Phase 3 close sanity-checks against the implemented model
 
 - [ ] **2.4 Phase 2 close — Tier 2 quality gates**
