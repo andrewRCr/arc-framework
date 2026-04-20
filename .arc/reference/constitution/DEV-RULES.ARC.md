@@ -23,7 +23,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
 - [Task Execution](#task-execution) — one at a time, sub-agent scope, quality gates, leave-it-cleaner, test-first
 - [Session Management](#session-management) — state control, context quality
-- [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, re-check
+- [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions, re-check
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
 - [When to Load Additional Guidance](#when-to-load-additional-guidance) — on-demand reference
 
@@ -269,6 +269,12 @@ Before implementing work in codified domains, consult the relevant strategy docu
 
 When uncertain if a strategy applies, ask. For large multi-topic strategies, search for the
 specific topic rather than reading the entire document.
+
+### Method and extension loading · P5
+
+When a workflow declares method or extension dependencies in its YAML frontmatter
+(`arc.methods` / `arc.extensions`), load the declared content before executing the workflow.
+Don't proceed from intuition when the declared content is one read away.
 
 ### Re-check core documents
 

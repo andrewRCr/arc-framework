@@ -78,19 +78,26 @@ any method or extension lacks ≥1 declaration. Placement: CI (whole-repo frontm
 Scope is workflows only — constitution and strategies are informational, not trigger
 declarations.
 
-**P0.3 Constitutional rule pair.** "Method and extension loading" subsection added to
-DEV-RULES.ARC § Verification and Discovery. Two paired rules, both absolute, hedge-free:
+**P0.3 Constitutional rule pair.** Paired rules anchor the frontmatter trigger contract, each
+placed by load-frequency tier:
 
-> **Author-side declaration.** When a workflow loads a method or extension, declare it in the
-> workflow's frontmatter `arc.methods` or `arc.extensions` field. The declaration is the load
-> contract — CI enforces ≥1 declaration per method or extension. Body-level prose references
-> remain for reader navigation but do not constitute the trigger.
+> **Author-side declaration** — in `strategy-workflow-authoring.md § Author-side Declaration
+> Rule` (T3 on-demand; loaded when authoring workflows). When a workflow loads a method or
+> extension, declare it in the workflow's frontmatter `arc.methods` or `arc.extensions` array.
+> The declaration is the load contract; in-step markdown links and prose references remain for
+> reader navigation but do not constitute the trigger. Framework-repo CI enforces ≥1
+> declaration per method and extension; project workflows carry no coverage requirement.
 >
-> **Agent-side compliance.** When a workflow step references a method, extension, strategy, or
-> workflow, load the relevant content before acting on that step. Don't proceed from intuition
-> when a governing reference is one link away.
+> **Agent-side compliance** — in `DEV-RULES.ARC § Verification and Discovery § Method and
+> extension loading` (T1; every session). When a workflow declares method or extension
+> dependencies in its YAML frontmatter (`arc.methods` / `arc.extensions`), load the declared
+> content before executing the workflow. Don't proceed from intuition when the declared
+> content is one read away.
 
-AGENT-BRIEFING.ARC updated if needed to surface the rule pair during init.
+Split placement matches T1/T3 load frequency to operational need: agent-side loading
+compliance is universal every-session behavior; author-side authoring is a rare procedural
+event. No AGENT-BRIEFING.ARC cross-reference — the DEV-RULES home is already every-session
+loaded; duplication would add drift risk without improving compliance.
 
 **P0.4 ADR-013 amendment drafted (Phase 2).** Tier 2 amendment reflecting the method-loading
 model change (per-file structure with frontmatter index). Sanity check pass in Phase 3 to
@@ -307,14 +314,15 @@ syntax — rejected. Cross-references become file-link-based; three-way merge be
 Two coordinated conventions, split by mechanism.
 
 **D7a — Inline load-target references plus frontmatter trigger contract.** Workflow steps
-reference a method/extension/workflow/strategy via markdown link at point of invocation
-(reader navigation; agent loads on first encounter per the agent-side compliance rule). Target
-path encodes kind: `system/methods/*`, `system/extensions/*`, `system/workflows/*`,
-`reference/strategies/*`. The authoritative trigger contract lives in workflow YAML
-frontmatter (`arc.methods`, `arc.extensions` arrays) — CI enforces ≥1 declaration per
-method/extension. The frontmatter is a structural contract for enforcement, not a load
-directive; agent loading remains in-step on first reference. No new tag vocabulary for inline
-references.
+reference methods, extensions, workflows, and strategies via markdown link at point of
+invocation; target path encodes kind (`system/methods/*`, `system/extensions/*`,
+`system/workflows/*`, `reference/strategies/*`). For methods and extensions, the authoritative
+load trigger is the workflow's YAML frontmatter (`arc.methods` / `arc.extensions` arrays) —
+agents load declared dependencies when they read the workflow, per the agent-side compliance
+rule. In-step markdown links serve reader navigation only, not as triggers. Framework-repo CI
+enforces ≥1 declaration per method and extension. Strategies and workflows (no frontmatter
+analog) load on explicit in-step directives ("load and follow X"); STRATEGY-INDEX provides the
+T1 navigation layer. No new tag vocabulary for inline references.
 
 **D7b — Shape-boundary wrappers: XML tags for templates, output formats, and extension points.**
 Explicit XML-style tags where the agent produces or consumes against a shape, preventing
@@ -445,3 +453,4 @@ checklist, trim strategy).
 |------------|-------------------------------------------------------------------------------------|
 | 2026-04-18 | Initial draft                                                                       |
 | 2026-04-20 | P0.2/P0.3/D7a refined: workflow frontmatter trigger contract; constitutional pair   |
+| 2026-04-20 | P0.3/D7a narrowed at Phase 2.1 landing: frontmatter-triggered rule; T1/T3 split     |

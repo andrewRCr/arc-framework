@@ -408,23 +408,21 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
 **Purpose:** Anchor compliance behavior before Phase 3 removes the always-loaded bodies. Constitutional framing is
 absolute — no hedges — per compliance-reliability research.
 
-- [ ] **2.1 Add agent-side compliance rule to DEV-RULES.ARC**
+- [x] **2.1 Add agent-side compliance rule to DEV-RULES.ARC**
 
-    **Goal:** Agent-side compliance rule lands in DEV-RULES.ARC as a new subsection under § Verification and Discovery.
-    The paired author-side declaration rule stays in `strategy-workflow-authoring.md` (T3 on-demand — workflow authoring
-    is rare, doesn't warrant every-session load); the new DEV-RULES subsection cross-references it so readers can find
-    the author-side rule when relevant. Rationale: agent-side loading compliance is universal every-session behavior
-    (T1); author-side authoring is a rare procedural event (T3).
-    - File: `reference/constitution/DEV-RULES.ARC.md` — create new subsection § Verification and Discovery § Method
-      and extension loading (does not exist today — Phase 1.2 placed the author-side rule in
-      `strategy-workflow-authoring.md` instead of pairing both in DEV-RULES)
-    - Agent-side rule text (per PRD P0.3):
-        > When a workflow step references a method, extension, strategy, or workflow, load the relevant content before
-        > acting on that step. Don't proceed from intuition when a governing reference is one link away.
-    - Include an inline pointer to `strategy-workflow-authoring.md § Author-side Declaration Rule` for the paired
-      author-side rule
-    - Two-copy sync: apply identical edit to `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md`
-    - Tier 1 check: markdown lint both files
+    **Outcome:** New subsection § Verification and Discovery § Method and extension loading landed in DEV-RULES.ARC —
+    two sentences, purely behavioral. Rule narrowed from PRD P0.3 wording to match the structural load contract:
+    trigger is specifically a workflow's YAML frontmatter `arc.methods` / `arc.extensions` declarations, not any
+    in-step reference (in-step links are reader navigation per `strategy-workflow-authoring.md`). Paired author-side
+    rule intentionally not referenced in DEV-RULES — that rule is T3 on-demand for a rare activity, doesn't warrant
+    every-session documentation bloat in a constitutional behavioral rule. Contents-list entry for § Verification
+    and Discovery updated to include "load methods/extensions". Two-copy sync applied — both DEV-RULES.ARC copies
+    identical. Tier 1 markdown lint clean.
+
+    **Follow-on:** PRD P0.3 wording ("references a method, extension, strategy, or workflow") predates the landed
+    frontmatter trigger contract and reads broader than the implemented rule. PRD P0.3/D7a refreshed alongside this
+    landing (see `prd-session-init-optimization.md` Document History 2026-04-20 rows). Ancillary consumers
+    (notes file, ADR-013 amendment) reference the rule by name only — no wording drift there.
 
 - [ ] **2.2 AGENT-BRIEFING.ARC cross-reference**
     - Evaluate whether the agent-side compliance rule landed in 2.1 warrants a briefing-level surface at session init
@@ -889,7 +887,9 @@ definition plus a notes-file entry.
 - [ ] All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
       `arc.methods`, `arc.extensions`); body-level "Method dependencies" prose preambles retired
 - [ ] "Method and extension loading" subsection present in DEV-RULES.ARC § Verification and Discovery (both copies)
-      with paired rules: author-side declaration (frontmatter) + agent-side compliance (load-on-encounter)
+      with agent-side compliance rule (load frontmatter-declared methods/extensions before executing the workflow);
+      paired author-side declaration rule lives in `strategy-workflow-authoring.md § Author-side Declaration Rule`
+      (T3 on-demand, not every-session)
 - [ ] ADR-013 Tier 2 amendment reflects the implemented per-file model and constitutional rule
 - [ ] Observed tokens-at-orientation-completion drops ≥25% from baseline (~75–80k → ≤60k) in a clean maintainer session
       with active task list
