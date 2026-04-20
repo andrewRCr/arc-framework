@@ -83,7 +83,7 @@ git config arc.identity
 Session context portability is controlled by `user.sync_push` in `arc-config.yml` — this
 determines whether session notes are automatically pushed to the remote via git notes
 (`always` for solo, `prompt` for team). Individual developers can override with
-`git config arc.sync_push`.
+`git config arc.syncPush`.
 
 ### Configuration Walkthrough
 
@@ -155,7 +155,7 @@ Confirm that `arc init` set up the local environment:
   workspace directory (`user/{identity}/`).
 - **User workspace** — `user/{identity}/` exists. Check `user.sync_push` in
   `arc-config.yml` for the team's sync behavior; override locally with
-  `git config arc.sync_push` if needed.
+  `git config arc.syncPush` if needed.
 
 ### Configuration Review
 

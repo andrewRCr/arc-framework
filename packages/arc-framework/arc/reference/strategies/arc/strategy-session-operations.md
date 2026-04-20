@@ -332,7 +332,7 @@ init triggers pull + load when local files are missing or stale.
 - `prompt` — team default. Conscious choice per handoff.
 - `manual` — full control. Push only when explicitly requested.
 
-Per-developer override via `git config arc.sync_push`.
+Per-developer override via `git config arc.syncPush`.
 
 ### Scope
 

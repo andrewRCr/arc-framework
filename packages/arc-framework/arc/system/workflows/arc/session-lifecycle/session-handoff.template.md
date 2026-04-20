@@ -401,7 +401,7 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 ### Save to Git Notes
 
 After writing SESSION-NOTES.md, save the user directory to git notes and push based on the
-`user.sync_push` setting. **Per-developer override:** `git config arc.sync_push` takes
+`user.sync_push` setting. **Per-developer override:** `git config arc.syncPush` takes
 precedence over `arc-config.yml` when set — check this first.
 
 - **`always`** (solo default): save and push in one step:

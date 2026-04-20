@@ -160,5 +160,5 @@ team.mode: false
 #   always - Push session state automatically after every handoff. (default)
 #   prompt - Ask whether to push after handoff.
 #   manual - Never auto-push; user runs `arc session push` explicitly.
-# Per-developer override: `git config arc.sync_push <value>`
+# Per-developer override: `git config arc.syncPush <value>`
 user.sync_push: always

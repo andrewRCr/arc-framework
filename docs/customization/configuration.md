@@ -60,10 +60,10 @@ The same-files, config-driven approach enables smooth scaling:
 
 Adoption flexibility has two independent axes:
 
-| Axis                 | What varies                   | Mechanism                            |
-| -------------------- | ----------------------------- | ------------------------------------ |
-| Method customization | ARC defaults vs. team methods | Overrides in `arc-methods.md`        |
-| Functionality scope  | What features are installed   | PM mode selection (`pm.mode`)        |
+| Axis                 | What varies                   | Mechanism                     |
+|----------------------|-------------------------------|-------------------------------|
+| Method customization | ARC defaults vs. team methods | Overrides in `arc-methods.md` |
+| Functionality scope  | What features are installed   | PM mode selection (`pm.mode`) |
 
 Enforcement depth — how strictly conventions are applied — is not a named axis. It is simply
 "edit `arc-config.yml`." Three adopter postures:
@@ -174,7 +174,7 @@ ARC accommodates squash merging by shifting traceability mechanisms, not by bloc
 ## CLI Commands
 
 | Command                  | Scope           | What it does                                                   |
-| ------------------------ | --------------- | -------------------------------------------------------------- |
+|--------------------------|-----------------|----------------------------------------------------------------|
 | `arc init`               | Project setup   | Scaffold `.arc/` directory, manifest, hooks, config, templates |
 | `arc init --reconfigure` | Project config  | Change structural settings (pm.mode, team.mode, project name)  |
 | `arc init --dry-run`     | Preview         | Show what `--reconfigure` would change without applying        |
@@ -192,14 +192,14 @@ Every setting in `arc-config.yml`, with its options and default.
 ### Branch model
 
 | Setting             | Options           | Default   | What it controls                                                                                                         |
-| ------------------- | ----------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+|---------------------|-------------------|-----------|--------------------------------------------------------------------------------------------------------------------------|
 | `branch.base`       | Any branch name   | `main`    | Primary integration branch                                                                                               |
 | `branch.protection` | `partial`, `full` | `partial` | Branch and PR requirements for changes. `partial`: planned work requires branches. `full`: all changes require branches. |
 
 ### Commit discipline
 
 | Setting                  | Options                                         | Default        | What it controls                                    |
-| ------------------------ | ----------------------------------------------- | -------------- | --------------------------------------------------- |
+|--------------------------|-------------------------------------------------|----------------|-----------------------------------------------------|
 | `commit.format`          | `conventional`, `custom`, `any`                 | `conventional` | Commit message format enforced by hook              |
 | `commit.context_footer`  | `required`, `recommended`, `custom`, `disabled` | `required`     | Context footer requirement                          |
 | `commit.custom_pattern`  | Regex string                                    | *(empty)*      | Custom format regex (when `format: custom`)         |
@@ -208,13 +208,13 @@ Every setting in `arc-config.yml`, with its options and default.
 ### Merge strategy
 
 | Setting          | Options                     | Default | What it controls                        |
-| ---------------- | --------------------------- | ------- | --------------------------------------- |
+|------------------|-----------------------------|---------|-----------------------------------------|
 | `merge.strategy` | `merge`, `rebase`, `squash` | `merge` | How branches integrate into base branch |
 
 ### Hooks
 
 | Setting                             | Options                   | Default              | What it controls                              |
-| ----------------------------------- | ------------------------- | -------------------- | --------------------------------------------- |
+|-------------------------------------|---------------------------|----------------------|-----------------------------------------------|
 | `hooks.pre_commit`                  | `enabled`, `disabled`     | `enabled`            | Pre-commit check execution                    |
 | `hooks.commit_msg`                  | `enabled`, `disabled`     | `enabled`            | Commit message format validation              |
 | `hooks.task_numbering`              | `error`, `warning`, `off` | `error`              | Task numbering format check (1.1.a not 1.1.1) |
@@ -228,19 +228,19 @@ Every setting in `arc-config.yml`, with its options and default.
 ### Review
 
 | Setting            | Options               | Default   | What it controls                                        |
-| ------------------ | --------------------- | --------- | ------------------------------------------------------- |
+|--------------------|-----------------------|-----------|---------------------------------------------------------|
 | `review.pre_merge` | `enabled`, `disabled` | `enabled` | Whether the agent reviews aggregate diff before pushing |
 
 ### Platform
 
 | Setting         | Options                                         | Default  | What it controls                                                   |
-| --------------- | ----------------------------------------------- | -------- | ------------------------------------------------------------------ |
+|-----------------|-------------------------------------------------|----------|--------------------------------------------------------------------|
 | `platform.type` | `github`, `gitlab`, `bitbucket`, `azure-devops` | `github` | Git hosting platform (informational — affects command suggestions) |
 
 ### Project management
 
 | Setting   | Options                          | Default | What it controls                                             |
-| --------- | -------------------------------- | ------- | ------------------------------------------------------------ |
+|-----------|----------------------------------|---------|--------------------------------------------------------------|
 | `pm.mode` | `none`, `arc-in-git`, `external` | `none`  | PM mode. **Structural** — requires `arc init --reconfigure`. |
 
 See [The Planning Module](../work-planning.md#the-planning-module) for guidance on choosing a PM
@@ -249,16 +249,16 @@ mode — what each option provides and when it fits.
 ### Team mode
 
 | Setting     | Options         | Default | What it controls                                                 |
-| ----------- | --------------- | ------- | ---------------------------------------------------------------- |
+|-------------|-----------------|---------|------------------------------------------------------------------|
 | `team.mode` | `false`, `true` | `false` | Multi-developer mode. **Structural** — `arc init --reconfigure`. |
 
 See [Team Coordination](../reference/team-coordination.md) for the full coordination protocol.
 
 ### User directory
 
-| Setting          | Options                      | Default  | What it controls                                                                                                                                           |
-| ---------------- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push session state via git notes after handoff. Defaults to `prompt` when `team.mode: true` is set during init. Override: `git config arc.sync_push`. |
+| Setting          | Options                      | Default  | What it controls                                                                                                                                          |
+|------------------|------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user.sync_push` | `always`, `prompt`, `manual` | `always` | Auto-push session state via git notes after handoff. Defaults to `prompt` when `team.mode: true` is set during init. Override: `git config arc.syncPush`. |
 
 ## Validation Scenarios
 

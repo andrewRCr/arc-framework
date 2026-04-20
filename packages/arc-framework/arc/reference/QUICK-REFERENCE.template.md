@@ -190,7 +190,7 @@ arc sync
 ```
 
 Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
-`manual`). Per-developer override: `git config arc.sync_push`.
+`manual`). Per-developer override: `git config arc.syncPush`.
 
 ### Atomic Work History
 

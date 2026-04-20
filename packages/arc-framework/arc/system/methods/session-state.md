@@ -25,7 +25,7 @@ Read/write session state at session boundaries:
 - **SESSION-NOTES.md** (`user/{identity}/`) — gitignored personal context, written at handoff
 - **Git notes** (`refs/notes/arc/user/{identity}`) — portability layer for the user directory.
   Save at handoff, load at init when local files are missing or stale. Push per `user.sync_push`
-  config (`always` / `prompt` / `manual`; per-developer override via `git config arc.sync_push`).
+  config (`always` / `prompt` / `manual`; per-developer override via `git config arc.syncPush`).
 
 ---
 

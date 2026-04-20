@@ -142,7 +142,7 @@ Session workflows call these internally: session handoff triggers save + push; s
 - `prompt` — team default. Conscious choice per handoff.
 - `manual` — full control.
 
-Per-developer override via `git config arc.sync_push`.
+Per-developer override via `git config arc.syncPush`.
 
 **Scope benefit.** Any file in the user directory — session notes, inbox items, personal scratch notes — travels with
 the developer across machines through one mechanism. New file types added to the user directory are automatically
