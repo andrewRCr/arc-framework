@@ -1,9 +1,9 @@
+---
+purpose: Guide creation of work-level PRDs defining scope and requirements for planned work.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Create PRD
-
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Guide the creation of work-level PRDs that define scope and requirements for individual
-pieces of planned work. Work PRDs build on the project vision established in the META-PRD.
 
 ARC distinguishes two work types:
 

@@ -115,7 +115,8 @@ structural contract is what makes "every method/extension has ≥1 reliable trig
     Guidance` gets one bullet pointing at the strategy (load on-demand — workflow authoring is a rare
     event and doesn't belong in T1 every-session load). `session-operations.md § Method and Extension
     Loading` picked up a short declaration-mechanism pointer. Schema shape: `purpose` first, `audience:
-    agent` with inline `# agent | dual` comment, `arc.methods` / `arc.extensions` arrays under protected
+    agent` with inline `# agent | collaborative (human and agent) | human` comment, `arc.methods` /
+    `arc.extensions` arrays under protected
     namespace; angle-bracket placeholder convention for template fields that need author input.
 
     Placement discussion summary: original spec placed schema in `strategy-session-operations.md`; moved
@@ -127,62 +128,80 @@ structural contract is what makes "every method/extension has ≥1 reliable trig
     Two-copy sync applied across both `.arc/` and `packages/arc-framework/arc/`. Tier 1 markdown lint
     clean (182 files, 0 violations).
 
-- [ ] **1.3 Migrate all workflows to frontmatter**
+- [x] **1.3 Migrate all workflows to frontmatter**
 
-    **Goal:** Every workflow under `system/workflows/` carries schema-conformant frontmatter per the
-    template. Body-level `**Audience:**` / `**Purpose:**` callouts and
-    `**Method dependencies (load on first reference):**` prose preambles removed.
+    **Outcome:** All 25 workflow files under `system/workflows/` now carry schema-conformant YAML
+    frontmatter per `template-workflow.md`. Body-level `**Audience:**`/`**Purpose:**` callouts and
+    `**Method dependencies**` prose preambles removed; in-step markdown links to methods/extensions
+    preserved for reader navigation. Unused `[arc-methods]`/`[session-init]` ref defs cleaned up
+    where their only usage was the retired method-dep block. Two-copy sync applied where applicable;
+    `workflows/project/` single-copy. Tier 2 gate clean after each subtask; full-project lint clean
+    at task close (182 files, 0 errors).
 
-    **Authoritative references:**
+    **Ground truth applied:** `arc.methods`/`arc.extensions` arrays populated per
+    `notes-session-init-optimization.md` § Phase 1 Classification § Reliable-trigger locations.
+    Workflows with no reliable triggers omit the `arc:` block per author-side rule
+    (`strategy-workflow-authoring.md` § Author-side Declaration Rule).
 
-    - `strategy-workflow-authoring.md` — schema, field semantics, declaration rule, body conventions
-    - `template-workflow.md` — canonical skeleton to apply per file
-    - `notes-session-init-optimization.md` § Phase 1 Classification § Reliable-trigger locations —
-      source of truth for each workflow's `arc.methods` / `arc.extensions` arrays (Task 1.1.b output)
+    **Audience mapping:** Schema expanded mid-task from binary (`agent | dual`) to three values
+    (`agent | collaborative (human and agent) | human`) after discussion surfaced that `dual` was
+    opaque in isolation and conflated two distinct cases. Final mapping: `agent` for agent-executed
+    workflows (bulk of the corpus); `collaborative (human and agent)` for `1_create-prd`,
+    `2_generate-tasks`, `activate-work-unit`, `deactivate-work-unit`, supplemental setup,
+    initial-setup workflows; `human` for `session-loop.md` (describes the user's loop; not loaded
+    by agents during session lifecycle). Template + strategy doc updated to match; pre-commit
+    schema validation lands in a later Phase 1 task so enum enforcement was deferred and the swap
+    was editorial only.
 
-    **Per-file migration steps:**
+    **Follow-ons absorbed mid-task (post-initial-sweep):**
 
-    1. Add YAML frontmatter block at top (before `# Workflow:` heading) per template structure: `purpose`
-       first (single sentence; YAML block scalar `purpose: |` for multi-line), then `audience: agent`
-       (or `dual` where body has substantial human-facing content), then optional `arc:` block
-    2. Populate `arc.methods` / `arc.extensions` per reliable-trigger ground truth. Omit the `arc:`
-       block entirely if the workflow loads no methods/extensions
-    3. Remove body-level `**Audience:**` and `**Purpose:**` callouts (now in frontmatter)
-    4. Remove `**Method dependencies (load on first reference):**` prose preamble + bullet list
-    5. In-step markdown links to methods/extensions remain (reader navigation, not triggers)
-    6. Two-copy sync per file (`packages/arc-framework/arc/system/workflows/...` and
-       `.arc/system/workflows/...`) — except `workflows/project/` which is single-copy
+    - `prepare-commits.md` H1 brought inline with body-conventions rule: `# Commit Guide` →
+      `# Workflow: Prepare Commits`. Display-text references updated: `[commit guide]` →
+      `[prepare-commits workflow]` across `DEV-RULES.ARC.md` (× 2) and `3_process-task-loop.md`
+      inline-link display text. Reference-definition anchors (`[prepare-commits]`) unchanged.
+    - `prepare-commits.md` declares `pre-stage-review` extension in frontmatter per the
+      reliable-trigger audit (in-step link at former body line 34).
 
-    **Out of scope:** `arc-methods.md` and `arc-extensions.md` themselves — they retire in Phase 3.12.
+    - [x] **1.3.a `arc/` top-level (3 files)** — `1_create-prd.md` (no arc block),
+          `2_generate-tasks.md` (methods: test-first),
+          `3_process-task-loop.md` (methods: issue-triage, quality-gate-commands, test-first;
+          extensions: post-task-quality, post-unit-quality, post-task-completion)
 
-    **Project workflow note (1.3.g):** `agent-pre-merge-review.md` lives in `workflows/project/` and is
-    single-copy. Confirm whether it loads any ARC methods/extensions; omit the `arc:` block per author-side
-    rule if it loads none.
+    - [x] **1.3.b `arc/session-lifecycle/` (3 files)** — `session-init.md`
+          (methods: session-state; extensions: post-context-load),
+          `session-handoff.md` (methods: session-state),
+          `session-loop.md` (no arc block; audience: human)
 
-    - [ ] **1.3.a `arc/` top-level (3 files)**
-        - `1_create-prd.md`, `2_generate-tasks.md`, `3_process-task-loop.md`
+    - [x] **1.3.c `arc/work-unit-lifecycle/` (7 files)** —
+          `activate-work-unit.md` (extensions: post-work-unit-activate),
+          `archive-work-unit.md` (extensions: post-work-unit-archive),
+          `integrate-work-unit.md` (methods: pre-merge-review, review-triage; extensions:
+          pre-merge-review). `clean-work-unit.md`, `deactivate-work-unit.md`, `rotate-branch.md`,
+          `verify-work-unit.md` carry no arc block.
 
-    - [ ] **1.3.b `arc/session-lifecycle/` (3 files)**
-        - `session-init.md`, `session-handoff.md`, `session-loop.md`
+    - [x] **1.3.d `arc/work-unit-lifecycle/planning/` (2 files)** —
+          `activate-planning-branch.md`, `integrate-planning-branch.md` — both no arc block.
+          Prose mention of `post-work-unit-archive` at `integrate-planning-branch.md:42` was
+          classified informational in Task 1.1.b; does not declare a trigger.
 
-    - [ ] **1.3.c `arc/work-unit-lifecycle/` (7 files)**
-        - `activate-work-unit.md`, `archive-work-unit.md`, `clean-work-unit.md`, `deactivate-work-unit.md`,
-          `integrate-work-unit.md`, `rotate-branch.md`, `verify-work-unit.md`
+    - [x] **1.3.e `arc/supplemental/` (6 files)** —
+          `prepare-commits.md` (methods: commit-format, commit-context-format; extensions:
+          pre-stage-review). `add-agent.md`, `integrate-external-content.md`,
+          `maintain-project-docs.md`, `manage-incidental-work.md`, `verify-arc-integrity.md` carry
+          no arc block.
 
-    - [ ] **1.3.d `arc/work-unit-lifecycle/planning/` (2 files)**
-        - `activate-planning-branch.md`, `integrate-planning-branch.md`
+    - [x] **1.3.f `arc/initial-setup/` (3 files)** —
+          `01_verify-and-configure.md`, `02_define-project.md` (enumerated in spec). Also migrated
+          `03_configure-external-integration.md` (package source only; `pm.mode: external`
+          conditional install) for goal coverage — not enumerated in the original subtask list but
+          a framework workflow under the same scope. All three: no arc block, audience:
+          collaborative (human and agent).
 
-    - [ ] **1.3.e `arc/supplemental/` (6 files)**
-        - `add-agent.md`, `integrate-external-content.md`, `maintain-project-docs.md`, `manage-incidental-work.md`,
-          `prepare-commits.md`, `verify-arc-integrity.md`
-
-    - [ ] **1.3.f `arc/initial-setup/` (2 files)**
-        - `01_verify-and-configure.md`, `02_define-project.md`
-
-    - [ ] **1.3.g `project/` (1 file)**
-        - `agent-pre-merge-review.md`
-
-    **Tier 2 gate after each subtask:** markdown lint passes on migrated files (both copies).
+    - [x] **1.3.g `project/` (1 file)** —
+          `agent-pre-merge-review.md` (methods: review-triage; single-copy). Overview-prose
+          references to `pre-merge-review` extension and `review-triage` method at lines 6–8 were
+          classified informational in Task 1.1.b; reliable triggers for `review-triage` are the
+          in-step directives at lines 36, 78, 92.
 
 - [ ] **1.4 Reliable-trigger CI audit script (test-first)**
 

@@ -1,11 +1,9 @@
+---
+purpose: Add a new AI agent to a project that already has ARC installed and configured.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Add Agent to Existing ARC Project
-
-**Audience:** Dual — a developer reading this for guidance, and a new AI agent following these
-steps to bootstrap itself into an ARC project.
-
-**Purpose:** Add a new AI agent to a project that already has ARC installed. This covers the case
-where the agent wasn't selected during `arc init` — the project works, but this agent has no
-skill files, no agent-specific configuration, and no way to discover ARC workflows automatically.
 
 **When to use:**
 

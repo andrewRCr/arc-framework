@@ -1,10 +1,11 @@
+---
+purpose: Verify that `arc init` completed successfully and walk through initial project configuration.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Verify and Configure ARC
 
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Verify that `arc init` completed successfully, walk through project configuration,
-and orient the developer to ARC's customization surfaces. This workflow runs once after init —
-for ongoing health checks, use `/arc-verify` instead.
+This workflow runs once after init — for ongoing health checks, use `/arc-verify` instead.
 
 **When to use**: After running `arc init` (fresh install or joining an existing project).
 

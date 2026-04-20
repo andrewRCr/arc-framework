@@ -1,8 +1,9 @@
+---
+purpose: Execute the task list's verification phase — Tier 3 gates, success criteria, completion notes.
+audience: agent
+---
+
 # Workflow: Verify Completion
-
-**Audience:** Agent-executed — your agent follows this when reaching the verification phase.
-
-## Purpose
 
 Every task list ends with a verification phase containing a single task that points here.
 The task description is intentionally thin — this workflow is the authoritative protocol.

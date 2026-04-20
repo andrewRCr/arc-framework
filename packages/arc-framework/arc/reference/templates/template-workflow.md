@@ -1,6 +1,6 @@
 ---
 purpose: <one-sentence description of what this workflow does>
-audience: agent                  # agent | dual
+audience: agent                  # agent | collaborative (human and agent) | human
 arc:                              # omit if this workflow loads no methods/extensions
   methods:
     - <method-name>

@@ -1,21 +1,20 @@
+---
+purpose: Execute tasks from ARC task lists — completion protocol, quality gates, stops, and incidental work routing.
+audience: agent
+arc:
+  methods:
+    - issue-triage
+    - quality-gate-commands
+    - test-first
+  extensions:
+    - post-task-quality
+    - post-unit-quality
+    - post-task-completion
+---
+
 # Workflow: Task Processing Loop
 
-**Audience:** Agent-executed — your agent follows this protocol during task execution.
-
-## Purpose
-
-This workflow defines the detailed process for executing tasks defined in ARC task lists (e.g., `.arc/active/*/tasks-*.md`).
-It ensures consistent execution, quality control, and documentation of work.
-
 ## Task Implementation
-
-**Method dependencies (load on first reference):** This workflow references three arc-methods. When first
-encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
-`.default` if no override is configured.
-
-- [issue-triage][arc-methods-it] — severity triage for pre-existing issues (the "leave it cleaner" rule)
-- [quality-gate-commands][arc-methods-qg] — project quality gate definitions
-- [test-first][arc-methods-tf] — decision tree (only when task has `Build \`test-first\`` marker)
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
@@ -169,7 +168,7 @@ encountered, load the relevant section of [`arc-methods.md`][arc-methods] — ch
 
   4. Await user instructions on how to proceed.
      User may choose to commit changes (AI can execute only if explicitly approved) or request modifications.
-     When committing, follow [Commit Guide](supplemental/prepare-commits.md) guidelines.
+     When committing, follow the [prepare-commits workflow](supplemental/prepare-commits.md).
 
      **Active status file (stage with every task commit):** Before staging, update the active
      status file — advance Next Task, Last Completed, and Next Action to reflect the post-commit
@@ -289,7 +288,6 @@ permanent record committed to git — always update it before reporting completi
 [arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
 [arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
 [arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality
-[arc-methods]: ../arc-methods.md
 [arc-methods-tf]: ../arc-methods.md#test-first
 [arc-methods-it]: ../arc-methods.md#issue-triage
 [arc-methods-qg]: ../arc-methods.md#quality-gate-commands

@@ -1,13 +1,12 @@
+---
+purpose: Run mechanical health checks against an ARC installation and interpret the results.
+audience: agent
+---
+
 # Workflow: Verify ARC Integrity
 
-**Audience:** Agent-executed — invoked via the `arc-verify` skill or directly by the agent when
-verifying installation health.
-
-## Purpose
-
-Run mechanical health checks against an ARC installation and interpret results. The verification
-script performs deterministic checks; this workflow defines what the checks mean, how to interpret
-severities, and what remediation to offer.
+The verification script performs deterministic checks; this workflow defines what the checks mean,
+how to interpret severities, and what remediation to offer.
 
 ## When to Use
 

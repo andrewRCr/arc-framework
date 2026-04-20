@@ -52,7 +52,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 - AI reports completion, then awaits commit instructions
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
-[commit guide][prepare-commits].
+[prepare-commits workflow][prepare-commits].
 
 ### Commit format · P6 · `[configurable]`
 
@@ -343,7 +343,7 @@ session initialization.
   session-init item 11). If it wasn't loaded at init (no active task list, or session pivoted
   to task execution), load it before beginning any task. The workflow's method dependencies
   block triggers loading of issue-triage, quality-gate-commands, and (conditionally) test-first
-- **Before complex commits:** Load the [commit guide][prepare-commits] — multi-session
+- **Before complex commits:** Load the [prepare-commits workflow][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis. The workflow's method dependencies block triggers
   loading of commit-format and commit-context-format
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant

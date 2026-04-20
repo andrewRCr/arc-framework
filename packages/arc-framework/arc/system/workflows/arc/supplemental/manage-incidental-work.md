@@ -1,10 +1,9 @@
+---
+purpose: Create and manage incidental task lists for work discovered during implementation.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Manage Incidental Work
-
-**Audience:** Shared context — referenced by both developer and agent when discovered work arises.
-
-**Purpose**: Guidelines for creating and managing incidental task lists—
-quality improvements, refactoring, or tech debt discovered during feature or technical work—
-that should be addressed immediately.
 
 **When to use**: During feature or technical work when discovering issues requiring multiple subtasks (>30 min effort)
 that block or significantly impact current work.

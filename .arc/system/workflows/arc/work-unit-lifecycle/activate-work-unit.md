@@ -1,11 +1,12 @@
+---
+purpose: Transition a work unit to active — establish the implementation branch and update all tracking documents.
+audience: collaborative (human and agent)
+arc:
+  extensions:
+    - post-work-unit-activate
+---
+
 # Workflow: Activate Work Unit
-
-**Audience:** Collaborative — developer and agent transition planned work to active status.
-
-## Purpose
-
-Transition a work unit (PRD + task list) to active status, establishing the implementation branch and
-updating all tracking documents. This bridges the gap between task generation and task execution.
 
 **When to use:** After generating a task list (`2_generate-tasks.md`) when ready to begin implementation.
 

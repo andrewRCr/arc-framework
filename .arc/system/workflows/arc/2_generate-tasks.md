@@ -1,9 +1,12 @@
+---
+purpose: Transform a reviewed PRD into an executable task list with phases, sub-tasks, and test-first ordering.
+audience: collaborative (human and agent)
+arc:
+  methods:
+    - test-first
+---
+
 # Workflow: Generate Task List
-
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Transform a PRD into an executable task list — a step-by-step implementation plan
-with phases, sub-tasks, quality checkpoints, and test-first ordering.
 
 **When to use**: After a PRD has been created and reviewed, when work is ready for implementation
 planning.

@@ -1,10 +1,9 @@
+---
+purpose: Classify externally-sourced content and wire it into the ARC system.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Integrate External Content
-
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Classify externally-sourced content and wire it into the ARC system. Covers community-shared
-strategies, workflows, Skills, method overrides, and any other content found outside the current project
-that should become part of the project's ARC configuration.
 
 **When to use**: When you have external content to integrate — a file already dropped into the repo, an
 external file to import, or even just a link or concept to evaluate. Common sources: community-shared ARC

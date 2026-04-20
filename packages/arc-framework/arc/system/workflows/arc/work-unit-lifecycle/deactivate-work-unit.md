@@ -1,13 +1,13 @@
+---
+purpose: Revert a work unit activation when no task work has started — return to pre-activation state.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Deactivate Work Unit
 
-**Audience:** Collaborative — developer and agent revert the activation of a work unit that never
-meaningfully started.
-
-## Purpose
-
-Revert a work unit activation when no task work has been executed and nothing has merged to the base
-branch. Returns the project to its pre-activation state: implementation branch gone, planning
-artifacts back in their pre-activation location, no status file.
+Returns the project to its pre-activation state: implementation branch gone, planning artifacts back
+in their pre-activation location, no status file. Applicable only when nothing has merged to the
+base branch.
 
 > **Design principle:** _Deactivation means undo-activation of a work unit that didn't meaningfully
 > start._ If work has happened, the correct operation is pause (`arc-shift`, future), completion

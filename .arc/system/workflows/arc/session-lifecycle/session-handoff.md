@@ -1,9 +1,12 @@
+---
+purpose: Capture session state so the next session can resume with full context — counterpart to session-init.
+audience: agent
+arc:
+  methods:
+    - session-state
+---
+
 # Workflow: Session Handoff
-
-**Audience:** Agent-executed — your agent follows this to capture session state.
-
-**Purpose**: Capture session state so the next session can resume with full context. This is the counterpart to
-[session initialization][session-init] — together they implement P5 (Context Preservation) at session boundaries.
 
 **When to use**: User-triggered at the end of a session, or when transitioning between work contexts.
 
@@ -11,12 +14,6 @@
 otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff ceremonies; the
 principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
 via [`arc-methods.md` § session-state][arc-methods-session].
-
-**Method dependency (load on first reference):** This workflow references one arc-method. Load the relevant
-section of [`arc-methods.md`][arc-methods] — check `.override` first; use `.default` if no override is
-configured.
-
-- [session-state][arc-methods-session] — reading and writing session state
 
 ## Handoff Protocol
 
@@ -462,8 +459,6 @@ confirmation for the human — the session state files are the durable artifacts
 - **Next session** is standalone and prominent — same scanning target as init's
   "Next action"
 
-[session-init]: session-init.md
-[arc-methods]: ../../arc-methods.md
 [arc-methods-session]: ../../arc-methods.md#session-state
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

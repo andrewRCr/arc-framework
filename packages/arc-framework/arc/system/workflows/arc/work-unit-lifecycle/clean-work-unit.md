@@ -1,6 +1,9 @@
-# Workflow: Clean Work Unit Files
+---
+purpose: Clean task lists and notes files — remove temporal noise while preserving the historical record.
+audience: agent
+---
 
-**Audience:** Agent-executed — your agent follows this to clean up task lists and notes files.
+# Workflow: Clean Work Unit Files
 
 Use this workflow when an active task list has accumulated historical notes or when the companion notes document
 needs pruning. **Execute this workflow before archiving completed work** to ensure files are reference-ready.

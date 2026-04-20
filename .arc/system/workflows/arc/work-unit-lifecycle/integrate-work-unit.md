@@ -1,6 +1,15 @@
-# Workflow: Integrate Work Unit
+---
+purpose: Prepare completed work for integration — docs cleanup, completion metadata, code review, and merge.
+audience: agent
+arc:
+  methods:
+    - pre-merge-review
+    - review-triage
+  extensions:
+    - pre-merge-review
+---
 
-**Audience:** Agent-executed — your agent follows this to prepare completed work for integration.
+# Workflow: Integrate Work Unit
 
 After all tasks are marked complete and verification passes, this workflow prepares the work for integration:
 documentation cleanup, completion metadata, code review, and merge. The work unit's branch becomes a clean,
@@ -25,13 +34,6 @@ end. The per-WU status file travels with the task list across rotations via norm
 mid-lifecycle resets or absorbs.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
-
-**Method dependencies (load on first reference):** This workflow references two arc-methods. When first
-encountered, load the relevant section of [`arc-methods.md`][arc-methods] — check `.override` first; use
-`.default` if no override is configured.
-
-- [pre-merge-review][arc-methods-pmr] — aggregate diff review before push
-- [review-triage][arc-methods-rt] — classifying and acting on review findings
 
 ## Workflow Overview
 
@@ -344,7 +346,6 @@ and completion doc — not on the task list header.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[arc-methods]: ../../arc-methods.md
 [arc-methods-rt]: ../../arc-methods.md#review-triage
 [arc-methods-pmr]: ../../arc-methods.md#pre-merge-review
 [arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review

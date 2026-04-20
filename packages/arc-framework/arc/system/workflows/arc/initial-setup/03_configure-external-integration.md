@@ -1,10 +1,12 @@
+---
+purpose: Connect ARC's workflow extension points and methods to your external project tracker.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Configure External Tracker Integration
 
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Connect ARC's workflow extension points and methods to your external project
-tracker. This makes `pm.mode: external` meaningful — without this configuration, ARC
-workflows don't know how to interact with your tracker.
+This makes `pm.mode: external` meaningful — without this configuration, ARC workflows don't know
+how to interact with your tracker.
 
 **When to use**: After [02_define-project.md][define-project] when `pm.mode` is set to
 `external` in [`arc-config.yml`][arc-config].

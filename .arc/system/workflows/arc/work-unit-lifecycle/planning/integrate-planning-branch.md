@@ -1,6 +1,9 @@
-# Workflow: Integrate Planning Branch
+---
+purpose: PR and merge a planning branch — lighter than work-unit integration (no completion doc, no pre-merge review).
+audience: agent
+---
 
-**Audience:** Agent-executed — your agent follows this to PR and merge a completed planning branch.
+# Workflow: Integrate Planning Branch
 
 Planning branches deliver planning artifacts (PRDs, task lists) and optionally archival of a prior work unit
 to the base branch via PR. This is intentionally lighter than [integrate-work-unit][integrate-work-unit] —

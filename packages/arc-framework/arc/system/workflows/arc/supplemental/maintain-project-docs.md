@@ -1,9 +1,9 @@
+---
+purpose: Keep project documentation accurate, consistent, and free of contradictions as the project evolves.
+audience: agent
+---
+
 # Workflow: Maintain Project Docs
-
-**Audience:** Agent-executed — your agent follows this when updating project documentation.
-
-**Purpose**: Keep project documentation (constitutional docs, strategies, agent files) accurate, consistent, and free
-of contradictions as the project evolves.
 
 **When to use**: When making changes to constitutional documents or discovering documentation issues during active work.
 

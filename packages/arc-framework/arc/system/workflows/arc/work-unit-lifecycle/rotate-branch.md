@@ -1,6 +1,9 @@
-# Workflow: Rotate Branch (Intermediate Merge)
+---
+purpose: Intermediate merge — a branch's scope is done but the task list has remaining work to continue.
+audience: agent
+---
 
-**Audience:** Agent-executed — your agent follows this when merging a branch mid-work-unit.
+# Workflow: Rotate Branch (Intermediate Merge)
 
 Multi-branch work units go through three operations: **Rotate → Integrate → Archive**. This workflow covers
 Rotate — the intermediate merge. A branch's scope of work is done, but the overall task list has more work

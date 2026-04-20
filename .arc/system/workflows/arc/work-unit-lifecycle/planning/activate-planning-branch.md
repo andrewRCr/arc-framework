@@ -1,6 +1,9 @@
-# Workflow: Activate Planning Branch
+---
+purpose: Create a planning branch for delivering planning artifacts (PRDs, task lists) to the base branch.
+audience: agent
+---
 
-**Audience:** Agent-executed — your agent follows this to set up a planning branch.
+# Workflow: Activate Planning Branch
 
 Creates a planning branch for delivering planning artifacts (and optionally archival of a prior work unit)
 to the base branch. This is the planning-side counterpart to [activate-work-unit][activate-work-unit] —

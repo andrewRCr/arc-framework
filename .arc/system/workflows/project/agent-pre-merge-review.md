@@ -1,9 +1,14 @@
+---
+purpose: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
+audience: agent
+arc:
+  methods:
+    - review-triage
+---
+
 # Workflow: Agent Pre-Merge Review (Project-Specific)
 
-**Audience:** Agent-executed — your agent follows this for pre-merge code review.
-
-**Purpose**: Two-pass defense-in-depth strategy for AI agent code reviews before merging work.
-This is a project-specific workflow that populates the `pre-merge-review` extension point in
+This project-specific workflow populates the `pre-merge-review` extension point in
 [arc-extensions.md][arc-ext-pre-merge-review]. It supplements the canonical
 [review-triage method][arc-methods-rt], which governs finding classification.
 

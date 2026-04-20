@@ -1,9 +1,11 @@
+---
+purpose: Establish the project documents that guide development and orient your agent.
+audience: collaborative (human and agent)
+---
+
 # Workflow: Define Project
 
-**Audience:** Collaborative — developer and agent work through this together.
-
-**Purpose**: Establish the project documents that guide development and orient your agent.
-Some of these are loaded every session — the agent operates on whatever they say. Others
+Some of these documents are loaded every session — the agent operates on whatever they say. Others
 are reference material consulted during planning and architecture decisions.
 
 **When to use**:

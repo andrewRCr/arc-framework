@@ -1,10 +1,13 @@
+---
+purpose: Authoritative reference for the ARC session cycle — bounded, intentional periods with explicit start and end.
+audience: human
+---
+
 # Workflow: Session Loop
 
-**Audience:** Human — this describes the user's repeating workflow. Not loaded by agents during session initialization.
-
-**Purpose:** Authoritative reference for the ARC session cycle. Sessions are bounded, intentional periods of
-agent-assisted work with explicit start and end states. This document describes the cycle the user drives;
-[session-init][session-init] and [session-handoff][session-handoff] are the agent-executed workflows within it.
+Sessions are bounded, intentional periods of agent-assisted work with explicit start and end states.
+This document describes the cycle the user drives; [session-init][session-init] and
+[session-handoff][session-handoff] are the agent-executed workflows within it.
 
 **Principles:** P5 (Context Preservation), P3 (Focused Sequential Execution), P2 (Co-Development)
 

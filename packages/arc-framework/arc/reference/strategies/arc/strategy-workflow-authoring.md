@@ -28,7 +28,7 @@ under the `arc:` namespace are mechanically enforced; top-level fields are edito
 ```yaml
 ---
 purpose: <one-sentence description of what this workflow does>
-audience: agent                  # agent | dual
+audience: agent                  # agent | collaborative (human and agent) | human
 arc:                              # omit if this workflow loads no methods/extensions
   methods:
     - <method-name>
@@ -40,7 +40,10 @@ arc:                              # omit if this workflow loads no methods/exten
 **Top-level fields** (editorial — readable by humans and machines, not mechanically enforced):
 
 - `purpose` — single-sentence workflow purpose; use a YAML block scalar (`purpose: |`) for multi-line text
-- `audience` — `agent` (agent-executed) or `dual` (workflow also has substantial human-facing content)
+- `audience` — one of:
+    - `agent` — agent-executed; the developer observes and approves at checkpoints
+    - `collaborative (human and agent)` — developer and agent work through the workflow together
+    - `human` — reference material for developers; not loaded by agents during session lifecycle
 
 **`arc:` namespace** (protected — mechanically enforced by CI):
 

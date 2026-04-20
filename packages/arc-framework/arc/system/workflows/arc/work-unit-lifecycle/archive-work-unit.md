@@ -1,6 +1,12 @@
-# Workflow: Archive Work Unit
+---
+purpose: Archive a merged work unit — move docs to archive, update tracking, clean up branches.
+audience: agent
+arc:
+  extensions:
+    - post-work-unit-archive
+---
 
-**Audience:** Agent-executed — your agent follows this to archive a merged work unit.
+# Workflow: Archive Work Unit
 
 After a work unit is merged to the parent branch, this workflow moves completed documentation to
 structured archive, updates tracking state, and cleans up branches. This is post-merge bookkeeping —
