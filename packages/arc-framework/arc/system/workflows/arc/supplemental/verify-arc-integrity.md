@@ -13,8 +13,9 @@ how to interpret severities, and what remediation to offer.
 - **Post-setup:** After `arc init` or `arc-setup` to confirm the installation is complete
 - **Standalone health check:** When something seems wrong — broken hooks, missing files, config
   drift
-- **Post-modification gate:** After editing `arc-config.yml`, `arc-methods.md`, or structural
-  files — verify the change didn't break references or cross-field dependencies
+- **Post-modification gate:** After editing `arc-config.yml`, files under `system/methods/` or
+  `system/extensions/`, or structural files — verify the change didn't break references or
+  cross-field dependencies
 
 ## Running the Script
 
@@ -100,35 +101,24 @@ targets resolve to existing files.
 **Remediation:** Fix the link path or create the missing target file. Common causes: file renamed
 or moved without updating references.
 
-### Session State
-
-Scans `.arc/active/**/status-*.md` for active status files, validates each referenced task list
-path, and confirms the next task reference resolves within the task list.
-
-**Severity:**
-
-- **INFO** — no active status file (normal between work units).
-- **ERROR** — task list path referenced by a status file points to a missing file.
-- **WARN** — next task reference not found in task list (may be stale).
-- **INFO** — multiple active status files found (verified individually; disambiguation is a
-  session-init concern, not a verify concern).
-
-**Remediation:** Update the affected status file to reflect current state. If the task list
-was moved or renamed, update the `**Task List:**` field. For between-WU sessions, the INFO
-case is expected — no action needed.
-
 ### Methods and Extensions
 
-Structural check: verifies that `arc-methods.md` has all expected method sections (each with
-`.override` and `.default` subsections) and `arc-extensions.md` has all expected extension
-sections.
+Structural sanity check: verifies that `system/methods/` and `system/extensions/` exist and that
+each file within opens with a YAML frontmatter block containing the required keys (`name`,
+`description`, plus `override-active` for methods / `active` for extensions). `README.md` is
+excluded. Deep schema validation — name-matches-basename, type correctness, related-array
+shape — runs in the pre-commit frontmatter hook (CHECK 12); this check is a post-hoc
+diagnostic, not a replacement.
 
 **Severity:**
 
-- **ERROR** — expected section missing.
+- **ERROR** — methods or extensions directory missing, a file lacks the opening `---` frontmatter
+  delimiter, the frontmatter block is not closed within the first 20 lines, or a required key is
+  absent.
+- **WARN** — directory exists but contains no method/extension files.
 
-**Remediation:** Restore the missing section. If upgrading from an older ARC version, the section
-may need to be added manually or via `arc update`.
+**Remediation:** Restore the missing directory, file, or frontmatter key. If upgrading from an
+older ARC version, re-run `arc update` to pull in the per-file structure.
 
 ### Manifest
 

@@ -796,20 +796,54 @@ discipline applies throughout — every file change touches `packages/arc-framew
     strategy narratives. Subtasks carve the sweep by concern; 3.8.a through 3.8.c must land before 3.8.d so
     the delete commit ships atomically with no residual live references.
 
-    - [ ] **3.8.a Active hooks and integrity scripts**
+    - [x] **3.8.a Active hooks and integrity scripts**
 
         **Goal:** `arc-verify` and the `commit-msg` hook continue to work post-aggregate-deletion.
-        - `system/scripts/verify-integrity.sh` §7 (L347–392, both copies): rewrite the structural check. Current
-          impl greps for `## {section}` and `### {name}.override|.default` sections in the aggregates. Rewrite to
-          enumerate files under `system/methods/` and `system/extensions/` and validate each has parseable YAML
-          frontmatter — delegate to `packages/arc-framework/src/scripts/validate-frontmatter.ts` where practical,
-          or re-encode the per-file assertions inline in shell.
-        - `system/workflows/arc/supplemental/verify-arc-integrity.md` (both copies): prose at L16 and the
-          "Structural check" description at L122–123 describe the old mechanism — update to match the rewritten
-          script.
-        - `system/githooks/commit-msg` L313 (both copies): error message points at
-          `"See arc-methods.md § commit-context-format"`. Retarget at `system/methods/commit-context-format.md`.
-        - Two-copy sync applied.
+
+        **Outcome:** Hook and diagnostic script aggregate references removed; `verify-integrity.sh` §6
+        (Session State) deleted outright; `commit-msg` CHECK 7 loosened to be format-agnostic. Scope
+        expanded beyond the original three bullets in two passes: (1) §2 and §5 aggregate references
+        folded in to honor the post-deletion-survival goal literal; (2) §6 investigation uncovered a
+        silently-non-functional check whose parser tightly coupled to status-file line format — value
+        proved marginal (redundant with session-init runtime validation), so the check was deleted
+        rather than repaired. CHECK 7 in `commit-msg` retained but loosened to prevent the same
+        format-coupling trap for adopters.
+
+        - `system/scripts/verify-integrity.sh` (both copies):
+            - §2: removed the two aggregate `check_file` calls (Methods/Extensions file entries).
+            - §5: removed the two aggregate entries from the `ref_file` iteration list.
+            - §6 (Session State) **deleted entirely**. Duplicated session-init's runtime validation of
+              Task List / Next Task references; parser-format coupling was not worth maintaining for
+              preemptive detection that the next session itself catches.
+            - §7 (now §6 after renumber): replaced section/subsection grep on aggregates with per-file
+              enumeration. For each `.md` in `system/methods/` and `system/extensions/` (excluding
+              `README.md`): verify first line is `---`, closing `---` within first 20 lines, and
+              required keys present (`name`, `description`, plus `override-active` for methods /
+              `active` for extensions). Deep schema validation remains pre-commit CHECK 12's
+              responsibility. Inline shell — no `npx tsx` dependency — keeps the diagnostic
+              self-contained for adopter contexts where `packages/arc-framework/` doesn't exist.
+            - §8 renumbered to §7.
+        - `system/workflows/arc/supplemental/verify-arc-integrity.md` (both copies): L16
+          post-modification-gate bullet retargeted at `system/methods/` / `system/extensions/`;
+          "Methods and Extensions" section rewrote structural-check description + severity table;
+          "Session State" section deleted.
+        - `system/githooks/commit-msg` (both copies):
+            - L313 contributor advisory retargeted at `.arc/system/methods/commit-context-format.md`.
+            - CHECK 7 Next Task grep loosened from `^- \*\*Next Task:\*\*` to `\*\*Next Task:\*\*`
+              (match-anywhere). Tolerates list markers, indentation, backticks, path-prefixed values
+              — extracts `Task X.Y` from whatever shape the adopter's status file uses. Trade-off:
+              silently no-ops on non-ARC labels (`Current Task:` etc.) rather than false-firing on
+              format variance.
+        - `packages/arc-framework/__tests__/unit/scripts/commit-msg-status-pattern.test.ts` (new):
+          regression + documentation coverage for CHECK 7's pattern. Asserts (a) the hook source
+          still carries the lenient form, and (b) the pattern matches five representative status-file
+          shapes (list-item, naked bold, indented, backticked-full-path, missing). Protects against
+          accidental re-tightening.
+        - Quality gates: `lint:sh` clean (both copies); `lint:md` clean on modified markdown;
+          unit suite 584/584 passing (including the new 7-test file); functional smoke test of
+          `verify-integrity.sh` confirms all 16 per-file frontmatter checks PASS and renumbered §6/§7
+          run cleanly.
+        - Two-copy sync applied throughout.
 
     - [ ] **3.8.b Tier 1 always-loaded doc references**
 
