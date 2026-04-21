@@ -13,24 +13,24 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.4 — D7a link-resolution pre-commit hook
-  (test-first) (line ~575)
-- **Last Completed:** Tasks 3.2–3.3 under deferred review. 3.2 added
-  Method Dependencies and Extension Points tables to the per-file
-  READMEs (both copies); Purpose column replaces the original "contract
-  précis" header after review feedback. 3.3 added the agent-file schema
-  parser (`src/lib/frontmatter/agent.ts`, `active: boolean` only), CLI
-  dispatcher (`src/scripts/validate-frontmatter.ts`) routing methods /
-  extensions / agent files / other, and CHECK 12 in the pre-commit hook
-  (both copies) invoking the dispatcher via tsx. 19 new unit tests
-  (7 agent + 12 dispatcher); Tier 2 green (lint:md 197/0, lint:ts,
-  lint:sh, typecheck, typecheck:test, 703 tests, lint:arc:triggers,
-  build).
+- **Next Task:** Task 3.5 — Session-init Step 2 aggregated frontmatter
+  scan (line ~613)
+- **Last Completed:** Task 3.4 — D7a link-resolution pre-commit hook.
+  New shell script `system/scripts/validate-links.sh` (both copies)
+  validates inline + reference-style markdown links; skips external /
+  anchor-only / code-span / fenced-block contents; resolves relative
+  paths from source `dirname`. CHECK 13 wired into both pre-commit
+  copies. 11 new integration tests (test-first; bug caught mid-
+  implementation — awk placeholder with backticks caused infinite loop,
+  fixed by dropping delimiters). Tier 2 green (lint:md 197/0, lint:ts,
+  lint:sh with new script included, typecheck, typecheck:test, 714
+  tests from 703, lint:arc:triggers, build).
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.4 — add CHECK 13 to the pre-commit hook
-  rejecting staged files with broken links to `system/methods/*`,
-  `system/extensions/*`, `system/workflows/*`, `reference/strategies/*`.
-  Shell-based (per-staged-file, grep + file existence); resolution rules
-  spelled out in the task spec (relative paths from source dir, anchor
-  fragments ignored, both inline and reference-style links, external
-  links ignored, code-span contents ignored). Two-copy sync.
+- **Next Action:** Begin Task 3.5 — update `session-init.md` Step 2 to
+  aggregate frontmatter from `system/methods/*.md` and
+  `system/extensions/*.md` (~1k tokens across ~16 files) instead of
+  reading `arc-methods.md` / `arc-extensions.md` aggregates. Step 4.2
+  is a mechanism change, not wording polish — read the `override-active`
+  field from each method's frontmatter and the `active` field from each
+  extension's, surfacing active overrides in the orientation. Two-copy
+  sync.

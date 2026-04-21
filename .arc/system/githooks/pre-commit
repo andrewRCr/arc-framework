@@ -365,6 +365,26 @@ if [ -n "$frontmatter_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK 13: Markdown link resolution (D7a)
+# ============================================================================
+# Validates that inline and reference-style markdown links in staged .md files
+# resolve to existing files. Skips external links, anchor-only links, and
+# link-like text inside code spans or fenced code blocks. Relative paths
+# resolve from the source file's directory (not cwd).
+link_candidates=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.md$' || true)
+
+if [ -n "$link_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! link_output=$("$(dirname "$0")/../scripts/validate-links.sh" $link_candidates 2>&1); then
+        echo -e "${RED}Error: Markdown link resolution failed:${NC}"
+        echo "$link_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the link targets in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

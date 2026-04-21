@@ -572,28 +572,43 @@ discipline applies throughout — every file change touches `packages/arc-framew
     - [x] `name` not matching file basename fails (method/extension)
     - [x] Non-method/extension/agent files staged do not trigger the check
 
-- [ ] **3.4 D7a link-resolution pre-commit hook (test-first)**
+- [x] **3.4 D7a link-resolution pre-commit hook (test-first)**
 
-    **Goal:** Hook rejects staged files with broken links to `system/methods/*`, `system/extensions/*`,
-    `system/workflows/*`, `reference/strategies/*`.
-    - Placement: CHECK 13 in `.arc/system/githooks/pre-commit`
-    - Per-staged-file; shell-based (grep link targets → verify file exists)
-    - **Resolution rules:** (a) relative paths resolve from the source file's directory, not repo root or `cwd`;
-      (b) anchor fragments (`file.md#section`) — file existence only, skip anchor verification (header-slugs +
-      ref-style + case-folding is deferred as out-of-scope for Phase 3); (c) both inline `[text](path)` and
-      reference-style `[text][ref]` → `[ref]: path` in scope; (d) external links (`https?://...`, `mailto:`)
-      ignored; (e) inline code-span backticks containing link-like strings ignored.
-    - Two-copy sync
+    **Outcome:** CHECK 13 wired into both pre-commit copies; shell-based validator
+    (`system/scripts/validate-links.sh`) checks inline links, reference-style usages, and
+    reference definitions in staged markdown; 11 new integration tests covering the spec's
+    behavior list plus multi-diagnostic aggregation.
+    - **Script** — `system/scripts/validate-links.sh` (both copies). Sanitizes markdown
+      (awk state machine drops fenced code blocks, masks inline code spans with a
+      placeholder that does not re-match the backtick regex). Validates: inline `[text](t)`
+      targets, reference definitions `[ref]: t`, and reference usages `[text][ref]` (must
+      have a matching definition). Skips: external URLs (http/https/mailto/ftp/ssh/git),
+      anchor-only links, anchor fragments on non-anchor-only links. Relative paths resolve
+      from the source file's `dirname`; bash's `test -e` normalizes `..` segments natively
+      so no explicit `realpath` call is needed.
+    - **CHECK 13 in pre-commit** — shell-filters staged `*.md` files; invokes the script
+      via `"$(dirname "$0")/../scripts/validate-links.sh"` (symlink-agnostic — works whether
+      `core.hooksPath` points at `.arc/system/githooks/` directly or via copy). Diagnostics
+      surface with 3-space indent matching CHECK 12's output style. Two-copy sync verified.
+    - **Test coverage (test-first, then fixed one bug)** — 11 integration tests using a
+      tmp-dir fixture pattern: valid inline / valid ref-style / broken inline / relative
+      path resolution from source dir / anchor fragment passthrough / external skip / code
+      span ignored / fenced block ignored / undefined ref / broken ref definition target /
+      multiple diagnostics in one run. Bug caught by the code-span test: initial awk
+      placeholder `` `CODESPAN` `` re-matched the `` `[^`]*` `` regex on each iteration —
+      infinite loop. Fix: placeholder without backticks (`CODESPAN`). Tests green after fix.
+    - Tier 2 green: lint:md (197 files, 0 err), lint:ts, lint:sh (includes new script),
+      typecheck, typecheck:test, 714 tests (11 new, from 703), lint:arc:triggers, build.
 
     Build `test-first` (one behavior at a time):
-    - Valid inline link to existing `system/methods/` file passes
-    - Valid reference-style link resolving to existing file passes
-    - Link to nonexistent file fails with diagnostic naming source file and target
-    - Relative path resolves from source file's directory (not `cwd`)
-    - Anchor fragments: file existence verified, anchor fragment ignored (`file.md#anchor` passes if `file.md` exists)
-    - External links (`https://...`) are ignored
-    - Inline code-span backticks containing link-like strings are ignored
-    - Broken reference-style link (undefined `[ref]`) fails with diagnostic
+    - [x] Valid inline link to existing `system/methods/` file passes
+    - [x] Valid reference-style link resolving to existing file passes
+    - [x] Link to nonexistent file fails with diagnostic naming source file and target
+    - [x] Relative path resolves from source file's directory (not `cwd`)
+    - [x] Anchor fragments: file existence verified, anchor fragment ignored (`file.md#anchor` passes if `file.md` exists)
+    - [x] External links (`https://...`) are ignored
+    - [x] Inline code-span backticks containing link-like strings are ignored
+    - [x] Broken reference-style link (undefined `[ref]`) fails with diagnostic
 
 - [ ] **3.5 Session-init Step 2 — aggregated frontmatter scan**
 
