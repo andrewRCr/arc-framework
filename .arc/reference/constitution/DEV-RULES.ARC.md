@@ -9,8 +9,8 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
 > **How rules work in ARC**
 >
 > Every rule traces to one of ARC's 11 principles (P1–P11). Rules marked `[configurable]` point
-> to a specific override mechanism in [`arc-config.yml`][arc-config] or
-> [`arc-methods.md`][arc-methods] — ARC ships a default, your team can replace it. All other
+> to a specific override mechanism in [`arc-config.yml`][arc-config] or a file in
+> [`system/methods/`][arc-methods-dir] — ARC ships a default, your team can replace it. All other
 > rules are followed as stated.
 >
 > For the full principle definitions, see the [Philosophy][core-philosophy] docs.
@@ -62,7 +62,7 @@ format is a strong default.
 
 ARC ships conventional commit format — `type(scope): description` — with a structured
 `Context:` footer. The full format specification, context footer patterns, and type catalog
-are in [`arc-methods.md`][arc-methods] → `#commit-format`, `#commit-context-format`.
+are in the [commit-format][arc-methods-cf] and [commit-context-format][arc-methods-ccf] methods.
 
 Format enforcement is set in [`arc-config.yml`][arc-config] → `commit.format`,
 `commit.context_footer`. Git hooks validate automatically.
@@ -137,7 +137,7 @@ over an issue because it's outside your current task.
 
 **If you can fix it now** (in the file, manageable scope): · `[configurable]`
 
-Assess severity via the [`issue-triage`][arc-methods] method in `arc-methods.md`. The method
+Assess severity via the [issue-triage method][arc-methods-it]. The method
 determines fix-vs-defer thresholds; teams can override the triage defaults while keeping the
 principle intact.
 
@@ -172,12 +172,12 @@ better coverage and catches design issues earlier.
 ARC ships a decision tree based on change type — test-first for new models, endpoints, business
 logic, and complex transformations; test-after acceptable for simple CRUD, presentational
 components, config changes, and trivial refactoring. If unsure, default to test-first. The
-full decision tree is in [`arc-methods.md`][arc-methods] → `#test-first`.
+full decision tree is in the [test-first method][arc-methods-tf].
 
 During task list creation, group test and implementation together by module or concern — not as
 separate "write tests" and "implement" tasks. The executing agent applies the red-green-refactor
 loop within each task — one behavior at a time, never batching all tests before implementing
-(see [`arc-methods.md`][arc-methods] → `#test-first` for execution discipline,
+(see the [test-first method][arc-methods-tf] for execution discipline,
 [process-task-loop][process-task-loop] for the full loop).
 
 ---
@@ -358,7 +358,7 @@ session initialization.
 - **Before authoring a workflow:** Consult [Workflow Authoring Strategy][workflow-authoring] —
   frontmatter schema, author-side declaration rule, body conventions
 - **For method defaults and overrides:** Workflow documents include method dependencies blocks
-  that trigger loading of the relevant [`arc-methods.md`][arc-methods] sections on-demand. Follow
+  that trigger loading of the relevant [`system/methods/`][arc-methods-dir] files on-demand. Follow
   the workflow — method loading is embedded in the steps
 - **For quality gate tier definitions:** Load the [Quality Gates Strategy][quality-gates] —
   Tier 1/2/3 boundaries, escalation guidance
@@ -367,7 +367,11 @@ session initialization.
 
 [dev-rules-project]: DEV-RULES.PROJECT.md
 [arc-config]: ../../system/arc-config.yml
-[arc-methods]: ../../system/workflows/arc-methods.md
+[arc-methods-cf]: ../../system/methods/commit-format.md
+[arc-methods-ccf]: ../../system/methods/commit-context-format.md
+[arc-methods-it]: ../../system/methods/issue-triage.md
+[arc-methods-tf]: ../../system/methods/test-first.md
+[arc-methods-dir]: ../../system/methods/README.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
 [config-arch]: ../strategies/arc/strategy-configurability-architecture.md
 [workflow-authoring]: ../strategies/arc/strategy-workflow-authoring.md

@@ -19,9 +19,9 @@ disable-model-invocation: false
 
 3. Load commit format guidance.
 
-   - Read `arc-methods.md` § commit-format and § commit-context-format before composing
-     any commit message. Both paths require this — the format spec includes context footer
-     patterns that are not safe to assume from memory.
+   - Read `system/methods/commit-format.md` and `system/methods/commit-context-format.md`
+     before composing any commit message. Both paths require this — the format spec includes
+     context footer patterns that are not safe to assume from memory.
 
 4. Execute the chosen workflow.
 

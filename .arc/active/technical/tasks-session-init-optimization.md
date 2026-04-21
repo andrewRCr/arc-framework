@@ -845,24 +845,27 @@ discipline applies throughout — every file change touches `packages/arc-framew
           run cleanly.
         - Two-copy sync applied throughout.
 
-    - [ ] **3.8.b Tier 1 always-loaded doc references**
+    - [x] **3.8.b Tier 1 always-loaded doc references**
 
         **Goal:** Session-init's always-loaded document set has zero broken references to the aggregates.
-        - `reference/constitution/DEV-RULES.ARC.md` (both copies): L370 ref-def
-          `[arc-methods]: ../../system/workflows/arc-methods.md` — closes the Task 3.6 gap. Body usages at L13,
-          L65, L140, L175, L180, L361 use `[arc-methods]` with anchor suffixes (`#commit-format`,
-          `#commit-context-format`, `#test-first`, etc.). Replace the single ref-def with per-file ref-defs (one
-          per referenced method) and drop the anchor suffix from each usage. Suggested ref-def names:
-          `[arc-methods-cf]`, `[arc-methods-ccf]`, `[arc-methods-tf]`, `[arc-methods-it]`, `[arc-methods-qg]` —
-          matches the convention Task 3.6 used for `integrate-work-unit.md`'s `arc-methods-ccf`.
-        - `system/agent/AGENT-BRIEFING.ARC.md` L23 (both copies): prose "adapt via `arc-methods.md` without
-          modifying framework files. Extension points in `arc-extensions.md` allow injecting custom steps..." —
-          rewrite to name the per-file directories.
-        - `system/skills/arc-commit/SKILL.md` L22 (both copies): "Read `arc-methods.md` § commit-format and §
-          commit-context-format before composing" — point at the two per-file paths.
-        - `system/arc-config.yml` L120 comment (both copies): "# The diff-review method (arc-methods.md)
-          defines..." — rewrite to name `system/methods/diff-review.md`.
-        - Two-copy sync applied.
+        - `reference/constitution/DEV-RULES.ARC.md` (both copies): single `[arc-methods]` ref-def replaced with
+          four per-file ref-defs (`-cf`, `-ccf`, `-it`, `-tf`) plus one directory-level ref-def
+          (`[arc-methods-dir]` → `system/methods/README.md`). `-qg` dropped from the suggested set — no
+          `quality-gate-commands` link usage exists in the file. Body usages rewritten at all six sites:
+          L13 (conceptual intro → `system/methods/` directory), L65 (split into two per-method links), L140
+          (issue-triage), L175 + L180 (test-first, two sites), L361 (relevant `system/methods/` files).
+        - `system/agent/AGENT-BRIEFING.ARC.md` L21–24 (both copies): `**Methods and extensions:**` paragraph
+          rewritten — methods now override via `.override` section under `system/methods/`; extensions live
+          under `system/extensions/`.
+        - `system/skills/arc-commit/SKILL.md` L22 (both copies): commit format guidance now points at
+          `system/methods/commit-format.md` and `system/methods/commit-context-format.md`.
+        - `system/arc-config.yml` L120 comment (both copies): diff-review pointer updated to
+          `system/methods/diff-review.md`.
+        - Quality gates: `lint:md` clean on the three modified markdown files in `.arc/` (package-source
+          mirrors are excluded from lint by config but are byte-identical to the `.arc/` copies).
+        - Full-file grep across all eight modified files confirms zero remaining `arc-methods.md` /
+          `arc-extensions.md` references.
+        - Two-copy sync applied throughout.
 
     - [ ] **3.8.c Strategy narrative rewrites**
 

@@ -19,9 +19,9 @@ execution loop. Each task is a bounded review increment: the agent completes one
 waits for approval before proceeding.
 
 **Methods and extensions:** ARC ships strong defaults for key behaviors (commit format,
-issue-triage, test-first, quality gate commands). Teams can override any method via
-`arc-methods.md` without modifying framework files. Extension points in `arc-extensions.md`
-allow injecting custom steps at defined workflow boundaries.
+issue-triage, test-first, quality gate commands). Teams can override any method by populating
+its `.override` section under `system/methods/` without modifying framework files. Extensions
+under `system/extensions/` inject custom steps at defined workflow boundaries.
 
 **Quality gates:** Every task must pass quality checks before completion. Gate commands are
 project-specific — defined in DEV-RULES.PROJECT and referenced via the quality-gate-commands
