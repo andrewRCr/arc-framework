@@ -312,7 +312,7 @@ reports
 ---
 
 [context-loading]: research-context-loading.md
-[context-degradation]: ../../../.arc-internal/reference/research/research-context-degradation.md
+[context-degradation]: research-context-degradation.md
 [ifscale-reliability]: https://arxiv.org/abs/2507.11538
 [manyifeval-reliability]: https://arxiv.org/abs/2509.21051
 [primacy]: https://arxiv.org/abs/2507.13949

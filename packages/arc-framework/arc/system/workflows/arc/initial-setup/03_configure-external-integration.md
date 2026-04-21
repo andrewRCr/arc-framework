@@ -179,7 +179,7 @@ For ongoing reference on how ARC and external trackers work together, see the
 ---
 
 [define-project]: 02_define-project.md
-[arc-config]: ../../../system/arc-config.yml
+[arc-config]: ../../../arc-config.yml
 [arc-extensions]: ../../arc-extensions.md
 [arc-methods]: ../../arc-methods.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

@@ -159,4 +159,4 @@ The full philosophical argument, with research grounding, is in the
 
 ---
 
-[core-philosophy]: strategies/arc/strategy-core-philosophy.md
+[core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/

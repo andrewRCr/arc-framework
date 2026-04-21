@@ -158,4 +158,4 @@ the full script inventory._
 
 ---
 
-[scripts-readme]: ../../../system/scripts/README.md
+[scripts-readme]: ../../../scripts/README.md

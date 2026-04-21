@@ -220,4 +220,4 @@ See [QUICK-REFERENCE][quick-ref] for the exact commands at each tier.
 
 ---
 
-[quick-ref]: ../QUICK-REFERENCE.md
+[quick-ref]: ../../QUICK-REFERENCE.md

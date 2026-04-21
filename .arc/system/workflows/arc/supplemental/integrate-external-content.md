@@ -125,4 +125,4 @@ the system.
 
 [arc-methods]: ../../arc-methods.md
 [arc-extensions]: ../../arc-extensions.md
-[strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
+[strategy-index]: ../../../../reference/strategies/STRATEGY-INDEX.md

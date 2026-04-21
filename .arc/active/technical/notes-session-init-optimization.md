@@ -239,8 +239,8 @@ Self: `system/workflows/arc-methods.md:26, 44, 153, 162, 166`.
 External references:
 
 - `system/agent/AGENT-BRIEFING.ARC.md:22` — prose ("issue-triage, test-first, quality gate commands")
-- `reference/constitution/DEV-RULES.ARC.md:140` — in-rule link ("Assess severity via the [`issue-triage`][arc-methods]
-  method in `arc-methods.md`")
+- `reference/constitution/DEV-RULES.ARC.md:140` — in-rule link ("Assess severity via the
+  \[`issue-triage`\]\[arc-methods\] method in `arc-methods.md`")
 - `reference/constitution/DEV-RULES.ARC.md:345` — prose in § When to Load Additional Guidance ("method dependencies
   block triggers loading of issue-triage, quality-gate-commands, and (conditionally) test-first")
 - `system/workflows/arc/session-lifecycle/session-init.md:247` — prose inside Item 11 body describing what the
@@ -646,7 +646,7 @@ can revisit if the rubric is tightened later.
    bullets are the targets. This doubles coverage with the in-step links but robustness is desirable here.
 
 3. **Constitutional directives in DEV-RULES** (e.g., `DEV-RULES.ARC:140` "Assess severity via the
-   [`issue-triage`][arc-methods] method") — classified informational under strict workflow scope, even though they
+   \[`issue-triage`\]\[arc-methods\] method") — classified informational under strict workflow scope, even though they
    contain imperative-plus-markdown-link shape. DEV-RULES loads at session init and its rules govern behavior, so
    practically these do trigger loads; the classification reflects the rubric's "reachable workflow" scope, not
    effectiveness.
