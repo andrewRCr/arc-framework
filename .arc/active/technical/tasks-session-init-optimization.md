@@ -978,29 +978,46 @@ discipline applies throughout — every file change touches `packages/arc-framew
           docs-content-sweep WU. Backlog plan-doc references (ROADMAP, `plan-arc-modes.md`, etc.) refresh at
           activation of their respective WUs.
 
-- [ ] **3.9 CLI test coverage — per-file restructure**
+- [x] **3.9 CLI test coverage — per-file restructure**
 
-    **Goal:** Fresh install, update, reconfigure, and hook behavior all verified against new structure.
-    - **Unit — classification**: `classifyFile("system/methods/commit-format.md")` and
-      `classifyFile("system/extensions/post-task-quality.md")` return `"Framework"` (falls through the
-      `CONFIGURABLE_FILES` and `SCAFFOLDED_FILES` sets to the default). One representative method path + one
-      representative extension path asserted in the existing classification test file (wherever `classifyFile`
-      coverage lives — likely `__tests__/unit/manifest/apply.test.ts` alongside the removed aggregate assertion).
-    - **Integration**: fresh `arc init` produces `system/methods/` and `system/extensions/` with all 8 files each
-      **plus 2 READMEs, and all 18 files are registered in the resulting `manifest.json` with `classification:
-      "Framework"`** (closes the 1.4.c–e oversight surfaced in Task 3.7).
-    - **Integration**: `arc update` on a repo with legacy `arc-methods.md` / `arc-extensions.md` layout is an
-      **explicit no-op on the legacy files** — does not delete, rewrite, or migrate them. PRD § Won't Do excludes
-      migration code; zero-adopter state means no adopter reaches this code path. Test asserts the no-op, not a
-      migration path that doesn't exist.
-    - **Integration**: `arc update` idempotent re-update on a post-restructure `.arc/` produces no diff.
-    - **E2E**: `arc init --yes` layout matches expected structure (includes per-file directories and manifest entries).
-    - **E2E**: `arc init --reconfigure` unaffected by per-file restructure.
-    - **Hook coverage (decide at implementation — specify or drop)**: CHECK 12 (3.3 schema validation) and CHECK 13
-      (3.4 link resolution) are already covered by per-hook unit/integration tests delivered in those tasks.
-      Either add concrete cross-flow coverage (e.g., "fresh `arc init` repo, stage a malformed per-file methods
-      frontmatter, confirm CHECK 12 blocks") or drop this bullet as duplicate coverage. Call it on implementation,
-      note the decision.
+    **Outcome:** Per-file methods/extensions layout verified across unit, integration, and E2E tiers. Classification
+    matches the landed three-way-merge model (adopter-customizable per-file; READMEs fall through to Framework) — the
+    planning-phase "all 18 Framework" framing was rejected after review because Framework classification wholesale-
+    replaces on update, which would obliterate adopter `.override` / `.actions` content. Corrected model locked in as
+    the single source of truth across the new tests.
+    - **Unit — classification** (`__tests__/unit/init.test.ts`): added `classifyFile("system/extensions/post-task-quality.md")`
+      → `Configurable` (representative extension; representative method path `system/methods/commit-format.md` → `Configurable`
+      was already asserted at :282). Added `classifyFile("system/methods/README.md")` and
+      `classifyFile("system/extensions/README.md")` → `Framework` to pin the README fall-through behavior.
+    - **Integration — fresh install** (`__tests__/integration/init.test.ts`): three new cases under the
+      `pm.mode=none, tools=[claude]` describe — (a) all 8 method files + README present on disk, (b) all 8 extension
+      files + README present on disk, (c) all 18 registered in manifest with 16 `Configurable` (methods + extensions)
+      and 2 `Framework` (READMEs).
+    - **Integration — legacy no-op** (`__tests__/integration/update.test.ts`): new case seeds
+      `system/methods/arc-methods.md` and `system/extensions/arc-extensions.md` onto a post-restructure `.arc/`,
+      runs `arc update`, and asserts the legacy files are untouched on disk, absent from
+      `added`/`removed`/`keptForReview`, and not registered in the post-update manifest. No migration code path
+      assumed — zero-adopter state per PRD § Won't Do.
+    - **Integration — idempotent re-update** (`__tests__/integration/update.test.ts`): new case runs update twice on a
+      fresh post-restructure `.arc/`; second run produces zero `added`/`removed`/`updated`/`reclassified`/`conflicts`
+      entries touching any of the 18 per-file paths, and `manifest.json` is byte-identical between runs.
+    - **E2E — init layout** (`__tests__/e2e/init.e2e.test.ts`): new case runs `arc init --yes`, asserts all 18 per-file
+      paths exist on disk, asserts legacy `arc-methods.md` / `arc-extensions.md` do NOT ship, and validates manifest
+      classification split (16 Configurable, 2 Framework).
+    - **E2E — reconfigure regression** (`__tests__/e2e/reconfigure.e2e.test.ts`): new case snapshots per-file content
+      pre-reconfigure, reconfigures `pm.mode: none → arc-in-git`, asserts all 18 files remain byte-identical on disk and
+      retain their manifest classification.
+    - **Hook cross-flow coverage — decision: DROP as duplicate.** Rationale: CHECK 12 logic covered by
+      `__tests__/unit/scripts/validate-frontmatter.test.ts` (in-memory fixtures, schema logic thoroughly exercised);
+      CHECK 13 logic covered by `__tests__/integration/validate-links.test.ts` (subprocess against fixture files);
+      CHECK 14 logic covered by `__tests__/unit/scripts/validate-package-neutrality.test.ts`. Hook→validator routing
+      positive path is exercised daily by real dev commits touching methods/extensions frontmatter; routing negative
+      path (short-circuit on non-matching staged files) is covered by the Task 3.12 planned hook false-positive surface
+      check. A synthetic "fresh init → stage bad frontmatter → confirm block" test reproduces validator logic already
+      under test with additional infrastructure cost (git setup + hook install + stage + commit attempt) and no new
+      coverage dimension.
+    - Quality gates: `lint:ts` + `typecheck:test` clean; targeted vitest runs pass — 52 unit / 63 integration (init+update)
+      / 22 E2E (init+reconfigure).
 
 - [ ] **3.10 ADR-013 sanity check, PRD refresh, and finalize**
 

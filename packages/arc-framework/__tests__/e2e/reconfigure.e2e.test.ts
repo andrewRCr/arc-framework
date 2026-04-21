@@ -125,6 +125,72 @@ describe("arc init --reconfigure", () => {
     expect(output).toContain("Contributors cannot reconfigure");
   });
 
+  it("reconfigure leaves per-file methods and extensions directories untouched", async () => {
+    const methodNames = [
+      "commit-context-format", "commit-format", "diff-review",
+      "issue-triage", "quality-gate-commands", "review-triage",
+      "session-state", "test-first",
+    ];
+    const extensionNames = [
+      "post-context-load", "post-task-completion", "post-task-quality",
+      "post-unit-quality", "post-work-unit-activate",
+      "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+    ];
+
+    // Snapshot per-file content before reconfigure (fresh init baseline).
+    const before: Record<string, string> = {};
+    for (const name of methodNames) {
+      const rel = `system/methods/${name}.md`;
+      before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
+    }
+    for (const name of extensionNames) {
+      const rel = `system/extensions/${name}.md`;
+      before[rel] = await readFile(join(tmpDir, ".arc", rel), "utf-8");
+    }
+    before["system/methods/README.md"] = await readFile(
+      join(tmpDir, ".arc/system/methods/README.md"), "utf-8",
+    );
+    before["system/extensions/README.md"] = await readFile(
+      join(tmpDir, ".arc/system/extensions/README.md"), "utf-8",
+    );
+
+    // Reconfigure pm.mode — orthogonal to methods/extensions.
+    const reconf = await runArc(
+      ["init", "--reconfigure", "--yes", "--pm-mode", "arc-in-git"],
+      tmpDir,
+    );
+    expect(reconf.exitCode).toBe(0);
+
+    // All 18 files still present and byte-identical.
+    for (const [rel, original] of Object.entries(before)) {
+      const current = await readFile(join(tmpDir, ".arc", rel), "utf-8");
+      expect(current, `${rel} changed during reconfigure`).toBe(original);
+    }
+
+    // Manifest still has all 18 entries with unchanged classification.
+    const manifestRaw = await readFile(
+      join(tmpDir, ".arc/system/.internal/manifest.json"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(manifestRaw) as {
+      files: Record<string, { classification: string }>;
+    };
+    for (const name of methodNames) {
+      const key = `system/methods/${name}.md`;
+      expect(manifest.files[key]!.classification).toBe("Configurable");
+    }
+    for (const name of extensionNames) {
+      const key = `system/extensions/${name}.md`;
+      expect(manifest.files[key]!.classification).toBe("Configurable");
+    }
+    expect(manifest.files["system/methods/README.md"]!.classification).toBe(
+      "Framework",
+    );
+    expect(manifest.files["system/extensions/README.md"]!.classification).toBe(
+      "Framework",
+    );
+  });
+
   it("reconfigure with same values is a no-op", async () => {
     // Reconfigure with identical values
     const result = await runArc(

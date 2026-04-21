@@ -278,6 +278,85 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(projectBriefing.isFile()).toBe(true);
   });
 
+  // --- Per-File Methods and Extensions ---
+
+  it("installs all 8 per-file methods plus README in system/methods/", async () => {
+    const methodFiles = [
+      "commit-context-format.md",
+      "commit-format.md",
+      "diff-review.md",
+      "issue-triage.md",
+      "quality-gate-commands.md",
+      "review-triage.md",
+      "session-state.md",
+      "test-first.md",
+      "README.md",
+    ];
+    for (const name of methodFiles) {
+      const s = await stat(join(arcDir, "system/methods", name));
+      expect(s.isFile(), `expected system/methods/${name}`).toBe(true);
+    }
+  });
+
+  it("installs all 8 per-file extensions plus README in system/extensions/", async () => {
+    const extensionFiles = [
+      "post-context-load.md",
+      "post-task-completion.md",
+      "post-task-quality.md",
+      "post-unit-quality.md",
+      "post-work-unit-activate.md",
+      "post-work-unit-archive.md",
+      "pre-merge-review.md",
+      "pre-stage-review.md",
+      "README.md",
+    ];
+    for (const name of extensionFiles) {
+      const s = await stat(join(arcDir, "system/extensions", name));
+      expect(s.isFile(), `expected system/extensions/${name}`).toBe(true);
+    }
+  });
+
+  it(
+    "registers all 18 per-file methods/extensions in manifest — 16 Configurable, 2 READMEs Framework",
+    async () => {
+      const manifest = await readManifestFile(tempDir);
+
+      const methodNames = [
+        "commit-context-format", "commit-format", "diff-review",
+        "issue-triage", "quality-gate-commands", "review-triage",
+        "session-state", "test-first",
+      ];
+      const extensionNames = [
+        "post-context-load", "post-task-completion", "post-task-quality",
+        "post-unit-quality", "post-work-unit-activate",
+        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+      ];
+
+      for (const name of methodNames) {
+        const key = `system/methods/${name}.md`;
+        const entry = manifest.files[key];
+        expect(entry, `manifest missing ${key}`).toBeDefined();
+        expect(entry!.classification, `${key} classification`).toBe("Configurable");
+      }
+
+      for (const name of extensionNames) {
+        const key = `system/extensions/${name}.md`;
+        const entry = manifest.files[key];
+        expect(entry, `manifest missing ${key}`).toBeDefined();
+        expect(entry!.classification, `${key} classification`).toBe("Configurable");
+      }
+
+      // READMEs fall through to Framework — not adopter-customizable
+      const methodsReadme = manifest.files["system/methods/README.md"];
+      expect(methodsReadme).toBeDefined();
+      expect(methodsReadme!.classification).toBe("Framework");
+
+      const extensionsReadme = manifest.files["system/extensions/README.md"];
+      expect(extensionsReadme).toBeDefined();
+      expect(extensionsReadme!.classification).toBe("Framework");
+    },
+  );
+
   it("installs CLAUDE.ARC.md (tool-conditional file)", async () => {
     const claudeFile = await stat(
       join(arcDir, "system/agent/CLAUDE.ARC.md"),

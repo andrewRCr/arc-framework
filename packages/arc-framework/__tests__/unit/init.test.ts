@@ -280,6 +280,7 @@ describe("classifyFile", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/agent/CLAUDE.ARC.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
+    expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
     expect(classifyFile("reference/constitution/DEV-RULES.PROJECT.md")).toBe("Configurable");
     expect(classifyFile("system/agent/AGENT-BRIEFING.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");
@@ -290,6 +291,10 @@ describe("classifyFile", () => {
     expect(classifyFile("reference/constitution/DEV-RULES.ARC.md")).toBe("Framework");
     expect(classifyFile("system/agent/AGENT-BRIEFING.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/3_process-task-loop.template.md")).toBe("Framework");
+    // Per-file methods/extensions directory READMEs fall through to Framework —
+    // only the 8 methods + 8 extensions themselves are adopter-customizable.
+    expect(classifyFile("system/methods/README.md")).toBe("Framework");
+    expect(classifyFile("system/extensions/README.md")).toBe("Framework");
   });
 });
 

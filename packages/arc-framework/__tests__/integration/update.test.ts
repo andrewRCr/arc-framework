@@ -105,6 +105,106 @@ describe("update integration — baseline (real recipe)", () => {
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
   });
+
+  it("re-update on post-restructure .arc/ is idempotent for per-file methods/extensions", async () => {
+    const recipe = await loadRecipe();
+
+    // First update — no-op baseline.
+    await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: realTemplateDir,
+      recipe,
+    });
+
+    const manifestBefore = await readFile(manifestPath(tempDir), "utf-8");
+
+    // Second update — should produce no diff.
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: realTemplateDir,
+      recipe,
+    });
+
+    expect(result.updated).toBe(0);
+    expect(result.conflicts).toEqual([]);
+    expect(result.added).toEqual([]);
+    expect(result.removed).toEqual([]);
+    expect(result.reclassified).toEqual([]);
+
+    // Per-file methods/extensions specifically: none of the 18 entries moved
+    // through added/removed/updated/conflicts.
+    const perFilePaths = [
+      ...[
+        "commit-context-format", "commit-format", "diff-review",
+        "issue-triage", "quality-gate-commands", "review-triage",
+        "session-state", "test-first",
+      ].map((n) => `system/methods/${n}.md`),
+      ...[
+        "post-context-load", "post-task-completion", "post-task-quality",
+        "post-unit-quality", "post-work-unit-activate",
+        "post-work-unit-archive", "pre-merge-review", "pre-stage-review",
+      ].map((n) => `system/extensions/${n}.md`),
+      "system/methods/README.md",
+      "system/extensions/README.md",
+    ];
+    for (const path of perFilePaths) {
+      expect(result.added, `${path} should not be added`).not.toContain(path);
+      expect(result.removed, `${path} should not be removed`).not.toContain(path);
+      expect(result.conflicts, `${path} should not conflict`).not.toContain(path);
+    }
+
+    // Manifest byte-identical after the second update.
+    const manifestAfter = await readFile(manifestPath(tempDir), "utf-8");
+    expect(manifestAfter).toBe(manifestBefore);
+  });
+
+  it("legacy arc-methods.md / arc-extensions.md on disk are no-op on update — not deleted, not tracked", async () => {
+    const recipe = await loadRecipe();
+
+    // Simulate an adopter who once had the legacy aggregate files but upgraded
+    // to the post-restructure layout. The aggregate files are no longer in the
+    // recipe or manifest, but may linger on disk. PRD § Won't Do excludes
+    // migration code — `arc update` must leave them untouched.
+    const legacyMethodsPath = join(tempDir, ".arc/system/methods/arc-methods.md");
+    const legacyExtensionsPath = join(
+      tempDir, ".arc/system/extensions/arc-extensions.md",
+    );
+    const legacyMethodsContent = "# Legacy aggregate methods file\n";
+    const legacyExtensionsContent = "# Legacy aggregate extensions file\n";
+
+    await writeFile(legacyMethodsPath, legacyMethodsContent, "utf-8");
+    await writeFile(legacyExtensionsPath, legacyExtensionsContent, "utf-8");
+
+    const result = await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: realTemplateDir,
+      recipe,
+    });
+
+    // Update reports nothing about the legacy files.
+    expect(result.added).not.toContain("system/methods/arc-methods.md");
+    expect(result.added).not.toContain("system/extensions/arc-extensions.md");
+    expect(result.removed).not.toContain("system/methods/arc-methods.md");
+    expect(result.removed).not.toContain("system/extensions/arc-extensions.md");
+    expect(result.keptForReview).not.toContain("system/methods/arc-methods.md");
+    expect(result.keptForReview).not.toContain(
+      "system/extensions/arc-extensions.md",
+    );
+
+    // Files still on disk, content unchanged.
+    expect(await readFile(legacyMethodsPath, "utf-8")).toBe(legacyMethodsContent);
+    expect(await readFile(legacyExtensionsPath, "utf-8")).toBe(
+      legacyExtensionsContent,
+    );
+
+    // Not registered in manifest.
+    const manifest = await readManifestFile(tempDir);
+    expect(manifest.files["system/methods/arc-methods.md"]).toBeUndefined();
+    expect(manifest.files["system/extensions/arc-extensions.md"]).toBeUndefined();
+  });
 });
 
 describe("update integration — downgrade prevention", () => {
