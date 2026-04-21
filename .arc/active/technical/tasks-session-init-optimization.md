@@ -741,8 +741,8 @@ discipline applies throughout — every file change touches `packages/arc-framew
     **Design correction mid-task:** Initial implementation classified all 18 entries as Framework,
     following the as-written task description. Surfaced during cross-check that
     `packages/arc-framework/arc/system/extensions/pre-merge-review.md` shipped with `active: true`
-    + CodeRabbit `.actions` body (local-repo leak from commit `43e7749` Task 1.4.b–f migration —
-    see § Phase 3.7 addendum below). The leak forced a semantic choice: Configurable is the
+    and a CodeRabbit `.actions` body (local-repo leak from commit `43e7749` Task 1.4.b–f
+    migration — see § Phase 3.7 addendum below). The leak forced a semantic choice: Configurable is the
     correct classification for method/extension bodies because the adopter-toggleable frontmatter
     (`active`, `override-active`) and fillable sections (`.override`, `.actions`) are exactly what
     three-way merge handles. Keeping them Framework would either trip the drift test the moment
@@ -996,57 +996,53 @@ discipline applies throughout — every file change touches `packages/arc-framew
       surface before gating Phase 4.
     - Verify zero regressions before Phase 4.
 
-- [ ] **3.13 Package-source neutrality guard (follow-on from 3.7 leak discovery)**
+- [x] **3.13 Package-source neutrality guard (follow-on from 3.7 leak discovery)**
 
-    **Goal:** Pre-commit hook mechanically blocks personal-repo content from leaking into package source
-    per-file methods/extensions. Complements the informal two-copy sync fence in DEV-RULES.PROJECT §
-    Package-Project Sync — the fence has failed under authoring volume (Task 1.4 migrated 72 files at once,
-    one leaked); this hook catches the exact pattern before it reaches a commit.
+    **Outcome:** Pre-commit CHECK 14 now blocks the exact leak pattern that reached main in `43e7749`.
+    Package-source per-file methods/extensions must ship `override-active: false` / `active: false`
+    frontmatter AND `[No override configured]` / `[No extension configured]` placeholder bodies; any
+    deviation fails the commit with a file-path-and-field-specific diagnostic. `.arc/` copies are
+    silently skipped (local customization allowed); READMEs and legacy aggregates are out of scope.
 
-    **Context:** 3.7's addendum documents the leak forensics. Two distinct failure modes both reached main
-    in `43e7749`:
-    - **Frontmatter leak**: `active: true` (extension) / `override-active: true` (method) in a package-source
-      file — ARC ships no opinion about adopter toggles
-    - **Body leak**: non-placeholder `.actions` / `.override` body in a package-source file — adopter
-      customizations (CodeRabbit config, Jira ceremony, etc.) belong only in `.arc/`
+    **Implementation:**
+    - `packages/arc-framework/src/scripts/validate-package-neutrality.ts` — new validator. Classifies
+      staged paths (`package-method` / `package-extension` / `other`), reuses
+      `parseMethodFrontmatter` / `parseExtensionFrontmatter` from `lib/frontmatter/` for the toggle
+      check, and `extractSectionBody` (new helper) for the placeholder body check. Frontmatter parse
+      failures suppress neutrality diagnostics — CHECK 12 owns schema errors; this check declines to
+      pile on.
+    - `packages/arc-framework/arc/system/githooks/pre-commit` + `.arc/system/githooks/pre-commit`
+      (two-copy sync) — CHECK 14 appended after CHECK 13. Grep-filters staged files to the target
+      path pattern before invoking the validator, so commits touching no per-file extensions/methods
+      skip the `npx tsx` call entirely (no false-positive overhead).
 
-    **Scope note:** Checks apply to `packages/arc-framework/arc/system/{extensions,methods}/*.md`. The
-    aggregate files (`arc-methods.md`, `arc-extensions.md`) are out of scope — they're being retired in
-    3.8.d. READMEs in those directories are out of scope — they have no frontmatter toggle or body
-    placeholder. Post-3.8.d deletion, the hook continues to operate only on the per-file directories.
+    **Test coverage:**
+    `packages/arc-framework/__tests__/unit/scripts/validate-package-neutrality.test.ts` — 20 tests
+    covering: path classification (package-method, package-extension, .arc/-skip, README-skip,
+    legacy-aggregate-skip, unrelated-skip), section-body extraction (H2-to-H2 boundary, H2-to-`---`
+    boundary, blank-line stripping, missing-header), neutral-file pass, each failure mode (active:true,
+    override-active:true, custom `.actions` body, custom `.override` body, combined toggle+body on
+    same file), `.arc/` local-customization pass, README + unrelated-path pass, frontmatter-parse
+    failure suppression, missing section header.
 
-    **Execution order:** Flexible within Phase 3. Must land before 3.12 closes the phase (Tier 3 gates need
-    the new hooks live and passing). Recommended: 3.13 before 3.8.a so the sweep lands with guard rails
-    already in place, but no strict dependency — 3.8's work doesn't touch per-file method/extension files.
+    **Acceptance verification** (all 8 criteria from the original task body):
+    - (a)–(d) blocking behaviors: unit tests `flags ... active: true`, `flags ... override-active: true`,
+      `flags ... .actions body`, `flags ... .override body` — each asserts `result.pass === false` and
+      diagnostic mentions the path + specific field
+    - (e) `.arc/` customization pass: `silently skips .arc/ copies even when they carry the exact leak
+      pattern` — stages an `.arc/` file with active:true + custom body, asserts pass + empty
+      diagnostics
+    - (f) READMEs + unrelated paths pass: `silently skips package-source READMEs and unrelated paths`
+    - (g) Fast short-circuit: hook-level `grep -E '...' || true` produces empty candidates → `if [
+      -n "$neutrality_candidates" ]` skips the validator invocation entirely. Structurally identical
+      to CHECK 12's pattern
+    - (h) Full suite + typecheck: 49 files / 693 tests pass (unit+integration, +1 file / +20 tests
+      from this work) + 8 files / 43 tests pass (e2e); `typecheck` + `typecheck:test` + `lint:ts` +
+      `lint:sh` + `lint:md` + `build` all clean
 
-    - **CHECK (frontmatter neutrality)**: Pre-commit hook scans any staged file matching
-      `packages/arc-framework/arc/system/(extensions|methods)/[^/]+\.md$` (excluding `README.md`). If
-      `^active: true$` appears in frontmatter for an extension file, or `^override-active: true$` for a
-      method file, fail the commit with a clear message:
-      `Package source must ship neutral defaults: <path> has <field>: true. Set to false and move local
-      config to the .arc/ copy only.`
-    - **CHECK (body placeholder)**: Same path filter. Parse the `## <name>.actions` section (extensions) or
-      `## <name>.override` section (methods); the contents between the section header and the next `##` /
-      `---` must be exactly `[No extension configured]` (extensions) or `[No override configured]`
-      (methods), surrounded only by blank lines. If the body contains anything else, fail with:
-      `Package source must ship placeholder bodies: <path> <section> contains non-placeholder content.
-      Move the local customization to .arc/<path> only.`
-    - **Location**: Extend `.arc/system/githooks/pre-commit` (both copies). Two-copy discipline applies —
-      edit package source, mirror to `.arc/`.
-    - **Test coverage**: Add integration-level hook tests under
-      `packages/arc-framework/__tests__/integration/` that stage synthetic package-source files exercising
-      each failure mode and assert the commit is blocked with the expected message. Positive cases
-      (`active: false`, placeholder body) must pass. Negative on `.arc/` copies (e.g., `.arc/` file with
-      `active: true` — that's valid local customization) must NOT trigger the block.
-    - **Acceptance**:
-        - (a) Staging a package-source extension with `active: true` blocks the commit
-        - (b) Staging a package-source method with `override-active: true` blocks the commit
-        - (c) Staging a package-source extension with non-placeholder `.actions` body blocks the commit
-        - (d) Staging a package-source method with non-placeholder `.override` body blocks the commit
-        - (e) Staging a `.arc/` extension with `active: true` and custom `.actions` passes (local customization OK)
-        - (f) Staging a package-source README or unrelated file passes (path filter correct)
-        - (g) The hook terminates fast when no matching paths are staged (no false-positive overhead on ordinary commits)
-        - (h) Full test suite (unit + integration + e2e) remains green; typecheck clean
+    **Execution order note (superseded):** Originally queued with flexible position within Phase 3.
+    Pulled forward to immediately follow 3.7 — guardrails now protect the remaining Phase 3 sweep
+    (though 3.8's work doesn't author new per-file files, so no real race condition).
 
 ---
 

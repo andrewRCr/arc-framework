@@ -385,6 +385,33 @@ if [ -n "$link_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK 14: Package-source neutrality (per-file methods / extensions)
+# ============================================================================
+# Framework package source must ship neutral defaults: per-file methods and
+# extensions under packages/arc-framework/arc/system/{methods,extensions}/
+# must have `override-active: false` / `active: false` frontmatter and
+# `[No override configured]` / `[No extension configured]` placeholder bodies.
+# Local customization belongs only in the .arc/ copy — this hook blocks
+# personal-repo content from leaking into the package. Complements CHECK 12
+# (frontmatter schema) with a semantic gate on values and body content.
+neutrality_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^packages/arc-framework/arc/system/(methods|extensions)/[^/]+\.md$' | \
+    grep -v '/README\.md$' || true)
+
+if [ -n "$neutrality_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! neutrality_output=$(npx tsx packages/arc-framework/src/scripts/validate-package-neutrality.ts $neutrality_candidates 2>&1); then
+        echo -e "${RED}Error: Package-source neutrality check failed:${NC}"
+        echo "$neutrality_output" | sed 's/^/   /'
+        echo ""
+        echo "   Package source must ship neutral defaults. Local customization"
+        echo "   (active: true, override-active: true, or populated body sections)"
+        echo "   belongs only in the .arc/ copy."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""
