@@ -92,6 +92,17 @@ validate_target() {
     esac
 
     if [ ! -e "$resolved" ]; then
+        # Package source convention: rendered output paths (`<file>.md`) may be
+        # backed by `<file>.template.md` in `packages/arc-framework/arc/`. Try the
+        # templated form before reporting a broken link. See
+        # `src/lib/classification.ts` `toOutputPath()` for the rename canonical.
+        case "$resolved" in
+            *.md)
+                if [ -e "${resolved%.md}.template.md" ]; then
+                    return 0
+                fi
+                ;;
+        esac
         diagnostic "$source_file: broken link -> $target"
     fi
 }

@@ -200,6 +200,36 @@ describe("validate-links.sh", () => {
     expect(r.stderr).toContain("does-not-exist.md");
   });
 
+  it("resolves a `.md` link to a `.template.md` file when only the templated version exists", async () => {
+    // Package source convention: rendered output paths (`session-init.md`) are backed by
+    // `session-init.template.md` in `packages/arc-framework/arc/`. The script must accept either
+    // form so links written against the rendered paths still pass when checked in package source.
+    const dir = join(tmp, "case-template-fallback");
+    await writeFixture(dir, "target.template.md", "# Target template\n");
+    await writeFixture(
+      dir,
+      "source.md",
+      "See [the target](target.md) for details.\n",
+    );
+    const r = await runScript(dir, ["source.md"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
+  it("still fails when neither plain nor `.template.md` form of the target exists", async () => {
+    // Confirms the template fallback doesn't mask legitimately broken links — it only resolves
+    // when a corresponding `.template.md` file actually exists.
+    const dir = join(tmp, "case-template-fallback-broken");
+    await writeFixture(
+      dir,
+      "source.md",
+      "See [missing](nonexistent.md) for details.\n",
+    );
+    const r = await runScript(dir, ["source.md"]);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("nonexistent.md");
+  });
+
   it("emits diagnostics for multiple broken links in one run", async () => {
     const dir = join(tmp, "case-multi");
     await writeFixture(
