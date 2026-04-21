@@ -162,6 +162,8 @@ described. Captured during the session-init-optimization work unit:
   original approach would have required.
 
 The original decision's direction holds: on-demand loading via workflow-embedded triggers, with session-init
-performing an override-presence scan only. This amendment concretizes the implementation — workflow-embedded
-triggers became frontmatter arrays; the override scan became an aggregated frontmatter-only read across ~16
-per-file entries; compliance reliability is now backed by a CI gate rather than relying on agent discipline alone.
+doing minimal init-time work. This amendment concretizes the implementation — workflow-embedded triggers became
+frontmatter arrays; the original override-presence scan split asymmetrically under the landed model (methods
+carry no init read — bodies load at workflow trigger; extensions are enumerated by a single
+`grep -l "^active: true"` producing the active-extensions list consumed by fire-point directives); compliance
+reliability is now backed by a CI gate rather than relying on agent discipline alone.

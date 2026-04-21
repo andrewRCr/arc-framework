@@ -13,32 +13,36 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.10 — ADR-013 sanity check, PRD refresh, and finalize (line ~1022)
-- **Last Completed:** Task 3.9 — CLI test coverage for per-file restructure. 7 new test cases plus
-  3 extra classification assertions across 5 test files. Unit: extension path and READMEs
-  pinned to landed classification (`Configurable` for per-file methods/extensions, `Framework`
-  for READMEs) — the planning-phase "all 18 Framework" framing was rejected because Framework
-  wholesale-replaces on update, which would obliterate adopter `.override` / `.actions` content.
-  Integration (init): fresh install verifies 18 files on disk + manifest 16/2 Configurable/Framework
-  split. Integration (update): idempotent re-update (manifest byte-identical, zero churn on
-  per-file paths) + legacy aggregate no-op (seeded `arc-methods.md`/`arc-extensions.md` survive
-  `arc update` untouched, never enter manifest). E2E: `arc init --yes` layout + classification;
-  `arc init --reconfigure` snapshots confirm per-file content byte-identical across reconfigure.
-  Hook cross-flow bullet dropped as duplicate — CHECK 12/13/14 validator logic covered by
-  dedicated unit/integration tests; routing negative path owned by Task 3.12. Tier 1 gates clean
-  (lint:ts, typecheck:test, markdown lint on the edited task list; targeted vitest: 52 unit / 63
-  integration / 22 E2E pass). Previous: `79162d1` Task 3.8.d — Delete aggregates + install-pipeline
-  cleanup + grep-verify.
+- **Next Task:** Task 3.11 — Link-validator hardening + stale-ref cleanups (line ~1075)
+- **Last Completed:** Task 3.10 — ADR-013 sanity check, PRD refresh, and finalize. ADR-013
+  amendment L164–167 rewrite: "performing an override-presence scan only" and "aggregated
+  frontmatter-only read across ~16 per-file entries" replaced with asymmetric-split
+  description (methods no init read; extensions enumerated via `grep -l "^active: true"`
+  producing the active-extensions list consumed by fire-point directives). PRD refresh: 7
+  locations updated — P0.2 historical parenthetical trimmed; P0.5 dropped `workflow` field,
+  renamed `has-override` → `override-active`, added rationale for omitted `workflow`; P0.6
+  renamed `has-steps` → `active`, noted `.steps` → `.actions`; P0.8 retitled and rewrote to
+  describe the asymmetric split; P1.13 tightened to match shipped Step 2 (Batch 1/2 structure,
+  grep location, Step 4 simplification, imperative-citation safety pass); § Architectural
+  Shape and § Session-Init Consumption Model both retired thin-index framing for methods with
+  extensions-only enumeration retained. Notes-file § Compliance-Reliability Grounding middle
+  paragraph rewritten to reflect landed mechanism (first/third/fourth paragraphs retained).
+  5-point amendment checklist verified — (a) per-file structure, (b) schema field names,
+  (d) `pre-merge-review` → `diff-review` rename, (e) CI invariant at `lint:arc:triggers` /
+  `ci.yml:21` all accurate; (c) the one rewrite target. No literal "draft marker" existed in
+  ADR text (Phase 2.3 "draft" status was conceptual). No strategy edits needed — strategy
+  content already matched landed state. ADR-013 single-copy confirmed (no package copy
+  exists). Tier 1 gates clean (markdown lint on all four edited files). Previous:
+  `5e0b1c3` Task 3.9 — CLI test coverage for per-file restructure.
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.10 — ADR-013 sanity check, PRD refresh, and finalize. Read full
-  PRD; verify ADR-013 amendment matches landed state on the five checklist points (per-file
-  structure, schema field names, session-init Step 2 split mechanism, `pre-merge-review` →
-  `diff-review` rename, CI-enforced reliable-trigger invariant); rewrite L164–167 of the
-  amendment if the "aggregated frontmatter scan" language still appears; refresh PRD bullets
-  (P0.5 drop `workflow` + rename `has-override` → `override-active`, P0.6 rename `has-steps` →
-  `active`, P0.8 rewrite the session-init consumption model to the split mechanism, P1.13 verify
-  against shipped Step 2, narrow "Session-Init Consumption Model" § and "Constitutional Rule
-  Framing" § per the 3.5.b safety pass, audit other P0.x bullets for stale schema references);
-  decide whether the notes-file § Compliance-Reliability Grounding folds into scope (persistent
-  context flag from SESSION-NOTES) or stays as historical record; remove amendment draft marker;
-  two-copy sync ADR + strategy files.
+- **Next Action:** Begin Task 3.11 — Link-validator hardening + stale-ref cleanups. Extend
+  `system/scripts/validate-links.sh` `validate_file()` to skip (a) source files matching
+  `*.template.md` or `template-*.md` and (b) files under `reference/archive/**` (both copies
+  — package source + `.arc/`). Add integration test cases to
+  `packages/arc-framework/__tests__/integration/validate-links.test.ts` covering the three
+  skip paths. Remove the `validate-links.sh` template-skip item from
+  `.arc/user/andrew/ATOMIC-INBOX.md` (promoted into this WU). Apply inline stale-ref cleanups:
+  `.arc/backlog/feature/BACKLOG-FEATURE.md` → `plan-arc-lite.md` (Lite mode removed during
+  Work-Status Restructure WU), and restore `[arc-ext-post-context-load]` ref-def in
+  `.arc/reference/analysis/analysis-workflow-clarity-audit.md`. Verify: full-tree scan
+  post-change yields only `.arc/backlog/feature/**` cross-WU hits.

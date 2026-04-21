@@ -46,9 +46,11 @@ Research identified production tools' trigger-reliability problems as specific t
 workflow prose ("follow the commit-format method") — structurally closer to link resolution than intent classification,
 and empirically reliable in current ARC use.
 
-The thin front-loaded index serves **awareness and compliance reassurance, NOT dispatch.** ARC's value remains the
-explicit workflow model; methods and extensions remain framework-fixed (adopter-dropped files would be orphaned without
-corresponding workflow references).
+Methods rely purely on the constitutional rule (DEV-RULES.ARC § Method and extension loading) plus reliable
+workflow-declared triggers — no init-time enumeration. Extensions add minimal init-time work: a single
+`grep -l "^active: true"` produces the active-extensions list consulted by fire-point directives, avoiding repeated
+placeholder reads at fire time. ARC's value remains the explicit workflow model; methods and extensions remain
+framework-fixed (adopter-dropped files would be orphaned without corresponding workflow references).
 
 **Constitutional rule framing — absolute, no hedges.** Compliance-reliability research (AGENTIF instruction-following
 benchmarks, constitutional-rule audits, motivated-reasoning studies) found conditional hedges on compliance rules create

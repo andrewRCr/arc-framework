@@ -1019,39 +1019,58 @@ discipline applies throughout — every file change touches `packages/arc-framew
     - Quality gates: `lint:ts` + `typecheck:test` clean; targeted vitest runs pass — 52 unit / 63 integration (init+update)
       / 22 E2E (init+reconfigure).
 
-- [ ] **3.10 ADR-013 sanity check, PRD refresh, and finalize**
+- [x] **3.10 ADR-013 sanity check, PRD refresh, and finalize**
 
-    **Goal:** Amendment drafted in Phase 2.3 matches the concrete implemented model; tweak wording if needed; mark
-    the amendment as accepted. Co-located PRD refresh since the schema reconciliation visits the same ground.
+    **Outcome:** ADR-013 amendment and PRD brought into alignment with the landed split mechanism. Notes-file
+    § Compliance-Reliability Grounding middle paragraph rewritten to reflect the landed state (Persistent Context
+    trigger met). No strategy edits — strategy-session-operations.md § Per-file Frontmatter Schema and
+    § Session-Init Consumption already match landed state (verified during evaluation). No literal "draft marker"
+    existed in the ADR text; the Phase 2.3 "draft" status was conceptual, so no text removal needed.
 
-    **Amendment checklist (each must match implemented state):**
-    - (a) Per-file structure matches amendment description — `system/methods/` and `system/extensions/` with 8 files
-      each plus README.
-    - (b) Schema field names match implemented form post-3.1.a: `name`, `description`, `related`, `override-active`
-      (methods) / `active` (extensions). No `workflow` field; no `has-override`; no `has-steps`.
-    - (c) Session-init Step 2 behavior matches post-3.5 state — **the landed mechanism is split**: methods
-      no-init-read; extensions grep-enumerate via `^active: true`. ADR-013 amendment L164–167 currently reads
-      "aggregated frontmatter scan" / "aggregated frontmatter-only read across ~16 per-file entries" — rewrite to
-      reflect the split.
-    - (d) `pre-merge-review` method → `diff-review` rename complete (per Task 1.4.a).
-    - (e) CI-enforced reliable-trigger invariant is wired (per Task 1.6).
+    **5-point amendment checklist — verification results:**
+    - (a) Per-file structure: ✓ 8 methods + 8 extensions + 2 READMEs on disk; aggregate files retired.
+    - (b) Schema field names: ✓ `name`, `description`, `related`, `override-active` (methods) / `active`
+      (extensions) verified against `commit-format.md`, `diff-review.md`, `post-task-quality.md` and
+      strategy-session-operations.md § Per-file Frontmatter Schema.
+    - (c) Session-init Step 2 split mechanism: stale amendment text at L164–167 rewrote — "the override scan
+      became an aggregated frontmatter-only read across ~16 per-file entries" → asymmetric split (methods no init
+      read, bodies load at workflow trigger; extensions enumerated via `grep -l "^active: true"` producing the
+      active-extensions list consumed by fire-point directives). Preamble at L165 "performing an override-presence
+      scan only" also replaced with "doing minimal init-time work."
+    - (d) `pre-merge-review` method → `diff-review` rename: ✓ verified on disk (file exists, contract
+      broadened, related link to `review-triage`).
+    - (e) CI-enforced reliable-trigger invariant: ✓ `audit-method-triggers.ts` exists at
+      `packages/arc-framework/src/scripts/`, `lint:arc:triggers` npm script at `package.json:24`, runs in
+      `.github/workflows/ci.yml:21`.
 
-    **PRD refresh (read the full PRD — SESSION-NOTES bullet list is starter scope, not exhaustive):**
-    - P0.5: drop `workflow`, rename `has-override` → `override-active`.
-    - P0.6: rename `has-steps` → `active`.
-    - P0.8: "Session-init reads aggregated frontmatter only" — rewrite to the post-3.5 split mechanism
-      (methods: no init read; extensions: grep enumeration producing the active-extensions list).
-    - P1.13: Step 2 restructure wording — verify against what actually shipped in 3.5.b (active-extensions grep
-      block; no strategy-doc "See X for Y" citations, per the imperative-citation safety pass).
-    - "Session-Init Consumption Model" § (around L349–355): "Thin front-loaded index serves awareness and
-      compliance reassurance" — retire the thin-index framing for methods; narrow to extensions-only enumeration.
-    - "Constitutional Rule Framing" §: verify against the 3.5.b imperative-citation safety pass (strategy-doc
-      citations removed from Step 2 and Step 4).
-    - Other P0.x bullets audited for stale schema-field references.
+    **PRD refresh — applied:**
+    - P0.2: dropped "(or legacy aggregate sections during interim)" parenthetical — historical interim now gone.
+    - P0.5: dropped `workflow` field; renamed `has-override` → `override-active`; added one-clause rationale for
+      the omitted `workflow` field (duplicates, lossy on fan-out; reverse index lives in strategy).
+    - P0.6: renamed `has-steps` → `active`; noted `.steps` → `.actions` section rename.
+    - P0.8: retitled "Session-init consumption — asymmetric split"; rewrote body to describe methods-no-init-read
+      vs. extensions-grep-enumerate mechanism explicitly.
+    - P1.13: tightened to match shipped Step 2 — Batch 1/2 structure, active-extensions grep location, Step 4
+      simplification (non-defaults only, no method-override survey), imperative-citation safety pass
+      (strategy-doc "See X for Y" citations removed from Step 2 and Step 4).
+    - § Architectural Shape (Technical Considerations): updated from "thin awareness index" framing to the
+      asymmetric-split description.
+    - § Session-Init Consumption Model: retired thin-index framing for methods; narrowed to extensions-only
+      enumeration with fire-point-directive rationale retained.
+    - § Constitutional Rule Framing: verified against shipped Step 2 and Step 4 — no "See X for Y" strategy
+      citations present; content unchanged.
+    - Other P0.x bullets audited: P0.1 / P0.3 / P0.7 / P0.9 / P0.10–P0.13 all accurate as written.
 
-    **Close:**
-    - Apply any minor wording adjustments to the amendment.
-    - Remove draft marker; two-copy sync on ADR and strategy files (PRD single-copy per work-unit convention).
+    **Notes-file § Compliance-Reliability Grounding:** middle paragraph ("The thin front-loaded index serves
+    awareness and compliance reassurance, NOT dispatch") rewritten to reflect landed mechanism. First paragraph
+    (intent-matching vs. named-reference distinction), third paragraph (absolute-framing rationale), and fourth
+    paragraph (baseline scope of reliability claim) retained as still-valid planning-phase grounding.
+
+    **Sync notes:** ADR-013 is single-copy in `.arc/` (`packages/arc-framework/arc/reference/adr/` contains only
+    `README.md`) — single-write confirmed; PRD and notes-file are single-copy per WU convention; no strategy
+    edits this task, so no two-copy sync work.
+
+    **Quality gates:** Tier 1 markdown lint clean on all three edited files (ADR-013, PRD, notes).
 
 - [ ] **3.11 Link-validator hardening + stale-ref cleanups**
 

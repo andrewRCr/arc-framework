@@ -73,10 +73,9 @@ uses the D7a link convention.
 method/extension dependencies via YAML frontmatter (`arc.methods`, `arc.extensions` arrays).
 All `system/workflows/**/*.md` files migrate to this schema; body-level "Method dependencies
 (load on first reference):" prose preambles retire. CI script enumerates method/extension
-files (or legacy aggregate sections during interim), parses workflow frontmatter, fails CI if
-any method or extension lacks ≥1 declaration. Placement: CI (whole-repo frontmatter parse).
-Scope is workflows only — constitution and strategies are informational, not trigger
-declarations.
+files, parses workflow frontmatter, fails CI if any method or extension lacks ≥1 declaration.
+Placement: CI (whole-repo frontmatter parse). Scope is workflows only — constitution and
+strategies are informational, not trigger declarations.
 
 **P0.3 Constitutional rule pair.** Paired rules anchor the frontmatter trigger contract, each
 placed by load-frequency tier:
@@ -106,19 +105,26 @@ verify the amendment matches the concrete restructured model; tweak if needed.
 **P0.5 Per-file methods restructure.** `arc-methods.md` retired. Each method becomes
 `system/methods/{name}.md` in both `packages/arc-framework/arc/` and `.arc/`. Files carry
 triple-dash YAML frontmatter with fields: `name`, `description` (one-line operational purpose),
-`workflow` (triggering workflow name), `related` (related method names),
-`has-override` (populated status signal).
+`related` (related method names), `override-active` (populated status signal; `true` when the
+file's override body is populated, `false` when the default is in effect). The reverse index
+(method→workflows) lives in `strategy-session-operations.md § Method classification by trigger`
+— no per-file `workflow` field, which would duplicate and go lossy when methods fan out.
 
 **P0.6 Per-file extensions restructure.** `arc-extensions.md` retired. Each extension becomes
-`system/extensions/{name}.md`. Same frontmatter contract, with `has-steps` in place of
-`has-override`.
+`system/extensions/{name}.md`. Same frontmatter contract, with `active` in place of
+`override-active` (`true` when the extension's `.actions` section is populated, `false` when
+the extension is an empty placeholder). Section heading convention: `.actions` (renamed from
+legacy `.steps`).
 
 **P0.7 Directory READMEs.** `system/methods/README.md` and `system/extensions/README.md`
 provide whole-system human-facing reading; Method Dependencies table derived from frontmatter.
 READMEs are not agent-init-loaded.
 
-**P0.8 Session-init reads aggregated frontmatter only.** Full method/extension bodies no
-longer loaded at init. Session-init Step 2 adjusted accordingly.
+**P0.8 Session-init consumption — asymmetric split.** Methods carry no init read; bodies
+load at workflow trigger per the calling workflow's `arc.methods` frontmatter and the
+agent-side compliance rule. Extensions are enumerated by a single `grep -l "^active: true"`
+across `system/extensions/*.md`, producing the active-extensions list consulted by fire-point
+directives at their workflows. Session-init Step 2 adjusted accordingly.
 
 **P0.9 Cross-reference updates.** All workflow / DEV-RULES / strategy references to
 `arc-methods.md#anchor` and `arc-extensions.md#anchor` updated to point at new file paths
@@ -193,10 +199,15 @@ ARC CLI Commands, anti-patterns load on-demand via workflow references.
 Scope + current phase preamble + current task section. Skips completed phases' preambles.
 Graduated triple-anchor lookup continues to resolve under the narrower read.
 
-**P1.13 Session-init workflow restructuring.** Step 2 parallel batch shrinks post-P0; Step 4
-configuration check simplifies post-audit; Step 7 mismatch-handling prose tightened. Semantic
-flow preserved (no reordering of gated steps). Embedded examples and freshness-check guidance
-updated to match new batch structure.
+**P1.13 Session-init workflow restructuring.** Step 2 parallel batch shrinks post-P0 — the
+active-extensions grep joins identity/role resolution and item 1–8 reads in Batch 1;
+SESSION-NOTES + task list + conditional task-execution-workflow land in Batch 2. Step 4
+configuration check simplifies post-audit (non-defaults only; no method-override survey).
+Step 7 mismatch-handling prose tightened. Strategy-doc "See X for Y" citations removed from
+Step 2 and Step 4 per the imperative-citation safety pass — agents receive the directive at
+the venue where it fires, not an out-of-workflow pointer. Semantic flow preserved (no
+reordering of gated steps). Embedded examples and freshness-check guidance updated to match
+new batch structure.
 
 **P1.14 DEV-RULES section-level partial-reading (reliability-gated per rule).** Apply the
 partial-read pattern to DEV-RULES.ARC and DEV-RULES.PROJECT at section granularity
@@ -301,9 +312,12 @@ synthetic test material.
 ### Architectural Shape
 
 Per-file methods/extensions with file-level YAML frontmatter is the central structural change.
-Session-init consumes the aggregated frontmatter (~1k tokens for ~10 methods) as a thin
-awareness index; full bodies load when workflows explicitly reference them. This matches the
-Claude Skills progressive-disclosure production idiom.
+Session-init consumption is asymmetric: methods carry no init read — bodies load at workflow
+trigger per the calling workflow's `arc.methods` declaration — and extensions are enumerated
+by a single `grep -l "^active: true"` across `system/extensions/*.md`, producing the
+active-extensions list consulted by fire-point directives. Full method and extension bodies
+load only when their workflows reference them. This matches the Claude Skills
+progressive-disclosure production idiom.
 
 File-level frontmatter is standard (Jekyll, Hugo, Astro, Obsidian, Cursor rules, Claude Code
 skills) and parseable by standard tools. Per-section mid-file metadata would require custom
@@ -348,11 +362,16 @@ Applied opportunistically as files are touched during the Phase 4 audit. No swee
 
 ### Session-Init Consumption Model
 
-Thin front-loaded index serves **awareness and compliance reassurance**, not dispatch. ARC's
-value remains the explicit workflow model — methods and extensions load when workflows
-reference them by name. External research (AGENTIF, IFEval, compliance-reliability
-literature) validated this split: ARC's explicit-reference triggers are structurally closer
-to link resolution than intent classification, and empirically reliable in current use.
+Session-init does the minimum work to unblock downstream workflows. Methods carry no init
+read — bodies load at the calling workflow's trigger point per the agent-side compliance rule
+(DEV-RULES.ARC § Method and extension loading). Extensions are enumerated via a single
+`grep -l "^active: true"` producing the active-extensions list; fire-point directives consult
+the list by name and skip invocation for extensions not on it, avoiding repeated placeholder
+reads across a session in default installs where most extensions are empty. ARC's value
+remains the explicit workflow model — methods and extensions load when workflows reference
+them by name. External research (AGENTIF, IFEval, compliance-reliability literature)
+validated this direction: ARC's explicit-reference triggers are structurally closer to link
+resolution than intent classification, and empirically reliable in current use.
 
 ### Constitutional Rule Framing
 
