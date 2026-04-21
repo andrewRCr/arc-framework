@@ -1072,37 +1072,38 @@ discipline applies throughout — every file change touches `packages/arc-framew
 
     **Quality gates:** Tier 1 markdown lint clean on all three edited files (ADR-013, PRD, notes).
 
-- [ ] **3.11 Link-validator hardening + stale-ref cleanups**
+- [x] **3.11 Link-validator hardening + stale-ref cleanups**
 
-    **Goal:** Full-tree broken-link scan produces only expected-stale hits (backlog cross-WU refs that refresh at
-    activation). Live-operational refs and template false-positives clear via a structural validator fix, not
-    one-off content edits. Archive/ content stays untouched (historical-by-design).
+    **Outcome:** Full-tree broken-link scan now yields only the expected backlog cross-WU bucket (6 hits across
+    `plan-arc-modes.md`, `plan-expanded-planning-path.md`, `plan-post-release-methodology.md`,
+    `plan-work-unit-mobility.md` — all tracked to specific future WU activations). Template and archive
+    false-positives cleared structurally in the validator; two surviving live stale refs resolved inline.
 
-    - **`system/scripts/validate-links.sh` template-skip + archive-skip** (both copies): extend `validate_file()`
-      to skip (a) source files matching `*.template.md` or `template-*.md` and (b) files under
-      `reference/archive/**`. Rationale:
-        - Template files carry post-install-relative sibling paths (`AGENT-BRIEFING.ARC.md` from
-          `template-agent.md`, `[ARCHIVE_PATH]` / `[PLAN_PATH]` placeholders in `PROJECT-STATUS.template.md`)
-          that resolve correctly at install destination but not at storage location. Post-install correctness
-          is owned by install-integration tests.
-        - Archive content documents prior state at archival; rewriting violates "document what *is*, not what
-          *was*" (DEV-RULES.ARC § Documentation Boundaries).
-    - **Test coverage**: add cases to `packages/arc-framework/__tests__/integration/validate-links.test.ts` —
-      (a) file matching `*.template.md` with a broken link is skipped; (b) file matching `template-*.md` with a
-      broken link is skipped; (c) file under `reference/archive/` with a broken link is skipped.
-    - **ATOMIC-INBOX cleanup**: remove the "Teach `validate-links.sh` to skip template source files" item from
-      `.arc/user/andrew/ATOMIC-INBOX.md` (promoted into this WU; delivered here).
-    - **Atomic stale-ref cleanups** (inline — 1-line each, no companion-file capture needed):
-        - `.arc/backlog/feature/BACKLOG-FEATURE.md` → `plan-arc-lite.md`: Lite mode was removed during the
-          Work-Status Restructure WU. Resolve (remove the reference, or redirect to the current equivalent doc
-          if one exists).
-        - `.arc/reference/analysis/analysis-workflow-clarity-audit.md` undefined reference
-          `[arc-ext-post-context-load]`: restore the ref-def pointing at
-          `system/extensions/post-context-load.md`, or inline the link at usage.
-    - **Verify**: full-tree scan post-change yields only `.arc/backlog/feature/**` cross-WU hits (~7 expected,
-      all tracked to specific future WU activations — `plan-arc-modes.md`, `plan-expanded-planning-path.md`,
-      `plan-post-release-methodology.md`, `plan-work-unit-mobility.md`). Exact final count depends on what 3.8
-      introduced/removed.
+    - **`validate-links.sh` extended** (both copies, byte-identical): `validate_file()` now short-circuits
+      before target validation for (a) basename matching `*.template.md` or `template-*.md` and (b) any path
+      under `reference/archive/`. Case-based early-exit pattern matches the existing `.md` extension guard.
+      Comments cite the post-install-relative rationale and DEV-RULES.ARC § Documentation Boundaries
+      "document what *is*, not what *was*".
+    - **Test coverage**: 3 new cases in `packages/arc-framework/__tests__/integration/validate-links.test.ts` —
+      (a) `agent.template.md` with broken link exits 0; (b) `template-agent.md` with broken link exits 0;
+      (c) `reference/archive/old-plan.md` with broken link exits 0. Full suite: 16 / 16 tests pass.
+    - **ATOMIC-INBOX cleanup**: removed the "Teach `validate-links.sh` to skip template source files" entry
+      from `.arc/user/andrew/ATOMIC-INBOX.md` (delivered by this task).
+    - **BACKLOG-FEATURE.md `plan-arc-lite.md` → `plan-arc-modes.md`**: Lite concept now lives as Mode 1 of the
+      broader ARC Operating Modes plan (PRD-ready draft per `plan-arc-modes.md` L7). Replaced the "ARC Lite —
+      Lightweight Project Mode" entry with an "ARC Operating Modes" entry covering Lite, Local, shift
+      lifecycle, and mode-aware config template scaffolding.
+    - **analysis-workflow-clarity-audit.md undefined `[arc-ext-post-context-load]`**: added ref-def at end
+      of file (after existing `---` separator per DEV-RULES.PROJECT § Documentation style) pointing at
+      `../../system/extensions/post-context-load.md`. Preserves the historical Fix-proposal prose as-is;
+      only the reference target is made current.
+    - **Full-tree verification**:
+      `find .arc packages/arc-framework/arc -name '*.md' -type f | xargs .arc/system/scripts/validate-links.sh`
+      returns exactly 6 `.arc/backlog/feature/**` cross-WU hits — zero live-ref, zero template false-positive,
+      zero archive hits. All 6 hits fall inside the expected allow-list.
+    - **Quality gates**: Tier 1 clean — markdown lint on 3 edited content files + updated task list;
+      shellcheck on both script copies; `lint:ts` on the test file; targeted vitest (validate-links
+      integration: 16/16 pass).
 
 - [ ] **3.12 Phase 3 close — Tier 3 quality gates**
     - Full markdown lint, code lint (TS + sh), typecheck, test suite, build, framework-sync.

@@ -15,14 +15,16 @@ the standard workflow.
 
 ## Medium Priority
 
-### ARC Lite — Lightweight Project Mode
+### ARC Operating Modes
 
-Lightweight ARC variant for small, bounded projects (hours to days). Preserves execution discipline
-(task lists, commit standards, hooks, session management) while eliminating lifecycle ceremony
-(PRDs, work unit activation/archival, backlog pipeline). Core boundary: projects modeled as a single
-evolving task list rather than a stream of work units.
+Expand ARC's mode architecture beyond the single tracked-Full default. Two modes under one plan:
+**Lite** — lightweight mode for small, bounded projects (preserves execution discipline, drops
+lifecycle ceremony; projects modeled as one evolving task list rather than a stream of work units);
+**Local** — untracked ARC for constrained environments (repos the developer can't modify),
+orthogonal to Lite/Full. Includes the shift-lifecycle mechanism for paused work units and
+mode-aware config template scaffolding.
 
-Plan doc: [`plan-arc-lite.md`](plan-arc-lite.md)
+Plan doc: [`plan-arc-modes.md`](plan-arc-modes.md)
 
 ---
 

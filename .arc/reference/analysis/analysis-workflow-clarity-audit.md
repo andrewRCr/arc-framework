@@ -605,3 +605,5 @@ Run Tier 1 (per-file lint) on each modified file. Run Tier 3 (full lint suite) a
 changes are complete.
 
 ---
+
+[arc-ext-post-context-load]: ../../system/extensions/post-context-load.md

@@ -113,6 +113,24 @@ validate_file() {
     [ -f "$source_file" ] || return 0
     case "$source_file" in *.md) ;; *) return 0 ;; esac
 
+    # Skip template source files. Their links use post-install-relative
+    # paths (e.g., `AGENT-BRIEFING.ARC.md` from `template-agent.md`, or
+    # `[ARCHIVE_PATH]` placeholders) that resolve at install destination,
+    # not at storage location. Install-integration tests validate the
+    # rendered output.
+    local basename
+    basename=$(basename "$source_file")
+    case "$basename" in
+        *.template.md|template-*.md) return 0 ;;
+    esac
+
+    # Skip archived content. Archives document prior state at archival
+    # time; rewriting links violates "document what is, not what was"
+    # (DEV-RULES.ARC § Documentation Boundaries).
+    case "$source_file" in
+        */reference/archive/*|reference/archive/*) return 0 ;;
+    esac
+
     local source_dir
     source_dir=$(dirname "$source_file")
 

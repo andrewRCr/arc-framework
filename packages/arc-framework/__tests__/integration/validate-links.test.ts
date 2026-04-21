@@ -230,6 +230,42 @@ describe("validate-links.sh", () => {
     expect(r.stderr).toContain("nonexistent.md");
   });
 
+  it("skips source files matching `*.template.md` — post-install-relative links don't resolve at storage location", async () => {
+    const dir = join(tmp, "case-template-suffix-skip");
+    await writeFixture(
+      dir,
+      "agent.template.md",
+      "See [briefing](AGENT-BRIEFING.ARC.md) for details.\n",
+    );
+    const r = await runScript(dir, ["agent.template.md"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
+  it("skips source files matching `template-*.md` — same post-install-relative rationale", async () => {
+    const dir = join(tmp, "case-template-prefix-skip");
+    await writeFixture(
+      dir,
+      "template-agent.md",
+      "See [briefing](AGENT-BRIEFING.ARC.md) for details.\n",
+    );
+    const r = await runScript(dir, ["template-agent.md"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
+  it("skips files under `reference/archive/` — archives document historical state, not current links", async () => {
+    const dir = join(tmp, "case-archive-skip");
+    await writeFixture(
+      dir,
+      "reference/archive/old-plan.md",
+      "See [the superseded doc](does-not-exist.md) for historical context.\n",
+    );
+    const r = await runScript(dir, ["reference/archive/old-plan.md"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
   it("emits diagnostics for multiple broken links in one run", async () => {
     const dir = join(tmp, "case-multi");
     await writeFixture(
