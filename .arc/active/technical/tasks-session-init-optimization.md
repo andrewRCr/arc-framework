@@ -463,10 +463,12 @@ directories; retire legacy aggregate files; add CLI test coverage; close with AD
 **Note:** Tier 2 gates run at sub-phase boundaries (3.6 cross-reference sweep close), not only at phase end. Two-copy
 discipline applies throughout — every file change touches `packages/arc-framework/arc/` and `.arc/`.
 
-- [ ] **3.1 Frontmatter schema finalization + parsing utility**
+- [x] **3.1 Frontmatter schema finalization + parsing utility**
 
-    Parent task. 3.1.a locks in the final field name before 3.1.b builds the parser against it, so the parser and
-    its test cases never reference an intermediate name.
+    Parent task. 3.1.a locked in the final field name (`override-active`), then 3.1.b built the parser against
+    it with no intermediate-name detour. Schema-name + validator + audit-script refactor landed as a coherent
+    unit; all downstream Phase 3 tasks (3.3 schema validation hook, 3.5 aggregated-index generation) now have
+    the shared scaffold to build on.
 
     - [x] **3.1.a Rename method schema field `has-override` → `override-active`**
 
@@ -480,27 +482,30 @@ discipline applies throughout — every file change touches `packages/arc-framew
         `has-`-prefix plural awkwardness. Self-documenting: the field answers "is the override turned on?" —
         method-side counterpart to the extension-side "is the extension turned on?".
 
-    - [ ] **3.1.b Frontmatter parsing utility (test-first)**
+    - [x] **3.1.b Frontmatter parsing utility (test-first)**
 
-        **Goal:** Shared parsing logic for validation hooks (3.3) and aggregated-index generation (3.5).
-        - Placement: `packages/arc-framework/src/lib/frontmatter/` (new module; slot alongside existing `lib/`
-          utilities)
-        - **Scope decision — Option A (extract shared scaffold):** Extract the triple-dash + `yaml.load` boilerplate
-          currently embedded in `src/scripts/audit-method-triggers.ts` (`parseWorkflowFrontmatter`, lines ~78–114)
-          into the new `lib/frontmatter/` module as a generic parser. Build the method/extension-file schema
-          parser on top. Refactor the audit script to consume the shared layer — removes duplication, prevents
-          silent drift between the two parsers.
+        **Outcome:** New `src/lib/frontmatter/` module with generic extractor + method and extension schema
+        parsers; barrel re-exports everything. Refactored `src/scripts/audit-method-triggers.ts` to consume
+        the shared generic parser (removes the inline triple-dash + `yaml.load` boilerplate, eliminates the
+        drift risk between parsers). All 9 task-listed behaviors covered by 21 new unit tests
+        (`__tests__/unit/frontmatter/`: 3 generic, 10 method, 8 extension). Full unit suite green (538 tests);
+        `lint:ts`, `typecheck`, `typecheck:test`, and the audit script (`npx tsx …/audit-method-triggers.ts`)
+        all clean.
 
-        Build `test-first` (one behavior at a time):
-        - Parses valid triple-dash YAML frontmatter correctly (generic layer)
-        - Returns null/empty result for files without frontmatter (safe default)
-        - Reports parse errors without crashing (malformed YAML)
-        - Method schema: required fields `name`, `description`, `override-active`; optional `related` (array)
-        - Extension schema: required fields `name`, `description`, `active`; optional `related` (array)
-        - Rejects missing required fields with field-name diagnostic
-        - Rejects type mismatches (e.g., `related` not an array, `override-active` not a boolean)
-        - `name` field must match file basename (e.g., `issue-triage.md` requires `name: issue-triage`)
-        - Audit script still passes after refactor (workflow frontmatter parsing behavior unchanged)
+        **Implementation notes:**
+        - Generic: `parseFrontmatter(content)` → `{ data: unknown, parseError?: string }`. Absent block →
+          `data: null, no error`. Malformed YAML → `data: null, parseError: <message>`.
+        - Schema parsers return `{ frontmatter, errors: string[] }`; `frontmatter` is populated only when
+          `errors` is empty. Diagnostics name the offending field (e.g., `` missing or invalid `override-active`
+          (expected boolean) ``). Basename mismatch on `name` fires a separate diagnostic including both
+          declared and expected values.
+        - Package-source only — no `.arc/` mirror. Two-copy discipline applies to doc content, not TS source.
+
+        **Batching judgment (per test-first method):** The 8 method-schema tests and 8 extension-schema tests
+        were batched after the first RED-GREEN cycle rather than sliced one-at-a-time. Rationale: all cover
+        field validation on a single function over a shared struct — strict slicing would mean rewriting the
+        parser 5+ times with no discovery value. One test per field category kept the diagnostic failure modes
+        distinct; generic-layer cycles 1–3 were sliced normally.
 
 - [ ] **3.2 Enhance directory READMEs with derived tables**
 

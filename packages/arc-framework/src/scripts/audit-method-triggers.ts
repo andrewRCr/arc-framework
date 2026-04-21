@@ -15,7 +15,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+
+import { parseFrontmatter } from "../lib/frontmatter/index.js";
 
 /** Declarations extracted from a single workflow file's frontmatter. */
 export interface WorkflowDeclarations {
@@ -78,21 +79,11 @@ export function enumerateExtensions(dir: string): string[] {
 export function parseWorkflowFrontmatter(
   content: string,
 ): WorkflowDeclarations {
-  const match = /^---\n([\s\S]*?)\n---/.exec(content);
-  if (!match?.[1]) {
-    return { methods: [], extensions: [] };
+  const { data, parseError } = parseFrontmatter(content);
+  if (parseError !== undefined) {
+    return { methods: [], extensions: [], parseError };
   }
-  let parsed: unknown;
-  try {
-    parsed = yaml.load(match[1]);
-  } catch (err) {
-    return {
-      methods: [],
-      extensions: [],
-      parseError: err instanceof Error ? err.message : String(err),
-    };
-  }
-  const arc = extractArcBlock(parsed);
+  const arc = extractArcBlock(data);
   return {
     methods: toStringArray(arc?.methods),
     extensions: toStringArray(arc?.extensions),

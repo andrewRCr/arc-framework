@@ -13,18 +13,19 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.1.b — Frontmatter parsing utility, test-first
-  (line ~485)
-- **Last Completed:** Task 3.1.a — renamed method schema field
-  `has-override` → `override-active` across 25 occurrences in 21 files
-  (16 method files × 2 copies, 2 READMEs, `strategy-session-operations.md`
-  × 2 copies with 3 occurrences each, ADR-013 § Amendments). Status file,
-  task list, and PRD P0.5 occurrences intentionally deferred — PRD bundles
-  with Task 3.10 ADR-013 sanity check.
+- **Next Task:** Task 3.2 — Enhance directory READMEs with derived tables
+  (line ~507)
+- **Last Completed:** Task 3.1 (coherent unit — 3.1.a schema rename +
+  3.1.b frontmatter parser). New `src/lib/frontmatter/` module with
+  generic extractor + method/extension schema validators; refactored
+  `src/scripts/audit-method-triggers.ts` to consume the shared layer.
+  21 new unit tests; full Tier 2 gates green (lint:md 189/0, lint:ts,
+  lint:sh, typecheck, typecheck:test, 684 tests pass, tsup build, audit
+  script clean).
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.1.b — build shared `lib/frontmatter/`
-  parsing module (Option A: extract the triple-dash + `yaml.load` scaffold
-  from `src/scripts/audit-method-triggers.ts` into a generic parser, then
-  layer method/extension schema parsers on top). Test-first: valid
-  frontmatter, missing/malformed handling, schema field presence and types,
-  `name` matches basename, audit-script regression.
+- **Next Action:** Begin Task 3.2 — add derived tables to directory
+  READMEs (`system/methods/README.md`: Method Dependencies table with
+  Coupling column, only 3 pairs; `system/extensions/README.md`: extension
+  points sorted by workflow lifecycle order, columns name/workflow/fire
+  moment/contract précis). Two-copy sync. Files exist from 1.4.c —
+  this adds the tables.
