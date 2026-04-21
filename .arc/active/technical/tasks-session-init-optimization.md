@@ -1105,19 +1105,41 @@ discipline applies throughout — every file change touches `packages/arc-framew
       shellcheck on both script copies; `lint:ts` on the test file; targeted vitest (validate-links
       integration: 16/16 pass).
 
-- [ ] **3.12 Phase 3 close — Tier 3 quality gates**
-    - Full markdown lint, code lint (TS + sh), typecheck, test suite, build, framework-sync.
-    - **Hook false-positive surface check:** Confirm CHECK 12 (3.3 schema validation), CHECK 13 (3.4
-      link-resolution), and the new 3.13 hook check(s) don't fire on unrelated staged files — stage a handful
-      of non-method/non-extension / non-markdown files (e.g., `tsconfig.json`, `.gitignore`, a random
-      `src/*.ts` file) and verify hooks short-circuit cleanly. The hooks must gate on path pattern before
-      running validation.
+- [x] **3.12 Phase 3 close — Tier 3 quality gates**
+
+    **Outcome:** Phase 3 closes clean. All Tier 3 gates green, all hooks short-circuit correctly on
+    non-matching paths, full-tree link scan at the expected `backlog/feature/**` steady state. No
+    regressions; ready to gate Phase 4.
+
+    - **Tier 3 gates — all green:**
+        - `npm run -s lint:md` — 195 files, 0 errors.
+        - `npm run lint:ts` — clean (no output = no ESLint violations).
+        - `npm run lint:sh` — clean (shellcheck on both hook scripts + `arc/system/scripts/*.sh`).
+        - `npm run typecheck` — clean (source `tsc --noEmit`).
+        - `npm run typecheck:test` — clean (test `tsc --noEmit --project tsconfig.test.json`).
+        - `npm test` — 752 tests pass (50 unit+integration files / 707 tests + 8 E2E files / 45 tests).
+        - `npm run build` — tsup success (cli.js 129.30 KB, declarations emitted).
+        - Framework-sync: `__tests__/integration/framework-sync.test.ts` passes standalone (1/1) —
+          part of the full `npm test` run, re-verified individually.
+    - **Hook false-positive surface check:** Path-gating patterns for CHECK 12, CHECK 13, CHECK 14
+      verified against a synthetic "non-methods/non-extensions/non-markdown" staged set
+      (`tsconfig.json`, `.gitignore`, `packages/arc-framework/src/cli.ts`,
+      `packages/arc-framework/src/lib/classification.ts`, `package.json`,
+      `packages/arc-framework/package.json`). All three `grep -E` gates produce empty candidate
+      lists, so their `if [ -n "$candidates" ]` guards short-circuit without invoking any
+      validator. Positive-path mirror (`commit-format.md` + `post-task-quality.md` + README.md +
+      QUICK-REFERENCE.md + tsconfig.json) confirms correct targeting: CHECK 12 fires on all three
+      methods/extensions/agent paths, CHECK 13 fires on all four `.md` files, CHECK 14 fires only
+      on the package-source non-README extension. Path gating is correct in both directions.
     - **Full-tree link-scan invariant:**
       `find .arc packages/arc-framework/arc -name '*.md' -type f | xargs .arc/system/scripts/validate-links.sh`
-      yields only `.arc/backlog/feature/**` cross-WU hits. Zero live-ref, zero template false-positive,
-      zero archive hits (archive is validator-skipped post-3.11). If any hit falls outside the allowed bucket,
-      surface before gating Phase 4.
-    - Verify zero regressions before Phase 4.
+      yields exactly 6 `.arc/backlog/feature/**` cross-WU hits across `plan-arc-modes.md`,
+      `plan-expanded-planning-path.md`, `plan-post-release-methodology.md`, and
+      `plan-work-unit-mobility.md`. Zero live-ref hits, zero template false-positives, zero
+      archive hits (post-3.11 validator hardening). All 6 hits fall inside the allowed allow-list
+      bucket — expected steady-state.
+    - **Regression check:** Working tree clean, last 2 commits aggregate the Phase 3 close diff
+      (10 files changed, 245 insertions / 127 deletions) — no unstaged drift.
 
 - [x] **3.13 Package-source neutrality guard (follow-on from 3.7 leak discovery)**
 

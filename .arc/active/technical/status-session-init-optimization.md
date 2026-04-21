@@ -13,31 +13,30 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.12 — Phase 3 close, Tier 3 quality gates (line ~1107)
-- **Last Completed:** Task 3.11 — Link-validator hardening + stale-ref cleanups.
-  `validate-links.sh` (both copies, byte-identical) extended with two early-exit guards in
-  `validate_file()`: basename matching `*.template.md` or `template-*.md` (post-install-
-  relative paths don't resolve at storage) and any path under `reference/archive/`
-  (historical-by-design). 3 new integration test cases in `validate-links.test.ts` covering
-  the three skip paths (full suite 16/16). Stale refs resolved: BACKLOG-FEATURE.md "ARC Lite"
-  entry replaced with "ARC Operating Modes" pointing at `plan-arc-modes.md` (Lite is now
-  Mode 1 of the broader plan); `analysis-workflow-clarity-audit.md` undefined
-  `[arc-ext-post-context-load]` resolved by adding ref-def at file end pointing at
-  `../../system/extensions/post-context-load.md`. ATOMIC-INBOX entry "Teach validate-links.sh
-  to skip template source files" removed (delivered by this task). Full-tree scan post-change
-  yields only 6 `.arc/backlog/feature/**` cross-WU hits across `plan-arc-modes.md`,
-  `plan-expanded-planning-path.md`, `plan-post-release-methodology.md`, and
-  `plan-work-unit-mobility.md` — all tracked to specific future WU activations. Tier 1 gates
-  clean (markdown lint × 4, shellcheck × 2 copies, lint:ts, targeted vitest 16/16).
-  Previous: `b6da19d` Task 3.10 — ADR-013 amendment sanity check + PRD refresh.
+- **Next Task:** Task 4.1 — Staging infrastructure (line ~1208)
+- **Last Completed:** Task 3.12 — Phase 3 close, Tier 3 quality gates. All Tier 3 gates
+  green: markdown lint 195/195 files clean; `lint:ts` / `lint:sh` / `typecheck` /
+  `typecheck:test` all clean; `npm test` 752 tests pass (707 unit+integration + 45 E2E);
+  build succeeds (cli.js 129.30 KB + declarations); framework-sync integration test passes
+  standalone. Hook false-positive surface check verified path gating both directions —
+  negative set (tsconfig.json, .gitignore, src/*.ts, package.json) produces empty candidate
+  lists for CHECK 12/13/14 (all short-circuit without invoking validators); positive mirror
+  set correctly targets methods/extensions/agent frontmatter (CHECK 12), all markdown
+  (CHECK 13), and package-source non-README methods/extensions only (CHECK 14 — `.arc/` and
+  README excluded as designed). Full-tree link-scan invariant confirms steady state: 6 hits,
+  all in `.arc/backlog/feature/**` cross-WU bucket (`plan-arc-modes.md`,
+  `plan-expanded-planning-path.md`, `plan-post-release-methodology.md`,
+  `plan-work-unit-mobility.md`). Zero live-ref, zero template false-positive, zero archive
+  false-positive post-3.11. Phase 3 closes implicitly — 3.1–3.13 all `[x]` (3.13 landed
+  out-of-order as CHECK 14 follow-on from 3.7). Ready to gate Phase 4. Previous:
+  `b6e2649` Task 3.11 — validate-links template/archive skips + stale refs.
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.12 — Phase 3 close, Tier 3 quality gates. Run full markdown
-  lint, code lint (TS + sh), typecheck (source + test), test suite, build, framework-sync.
-  Execute hook false-positive surface check: stage a handful of non-method/non-extension and
-  non-markdown files (e.g., `tsconfig.json`, `.gitignore`, a random `src/*.ts`) and verify
-  CHECK 12 (3.3 schema validation), CHECK 13 (3.4 link-resolution), and CHECK 14 hooks
-  short-circuit cleanly on path pattern. Run the full-tree link-scan invariant —
-  `find .arc packages/arc-framework/arc -name '*.md' -type f | xargs .arc/system/scripts/validate-links.sh`
-  must yield only `.arc/backlog/feature/**` cross-WU hits (zero live-ref, zero template
-  false-positive, zero archive hits post-3.11). Any hit outside the allowed bucket surfaces
-  before gating Phase 4.
+- **Next Action:** Begin Phase 4 with Task 4.1 — Staging infrastructure. Create
+  `.arc/backlog/technical/notes-docs-content-sweep.md` if not present with the extraction
+  schema (source file anchor, content block verbatim, suggested docs-IA destination,
+  stylistic notes). Verify `plan-docs-content-sweep.md` references the staging file and
+  update if needed. Document the `[TODO-docs-site]` reference-style placeholder convention
+  in-repo (one section in the staging file or the strategy doc). This task is light
+  infrastructure preparation ahead of the multi-tier audit in Tasks 4.2–4.4 — no content
+  extraction yet; just set up the staging surface so Phase 4 work has a consistent landing
+  target.
