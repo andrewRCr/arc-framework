@@ -168,9 +168,8 @@ Update project management documents to reflect the completed and archived work u
 
 ### 6) Post-Archival Extensions · `#post-work-unit-archive`
 
-If [post-work-unit-archive extensions][arc-ext-post-archive] are configured, execute them now.
-
-See: [`arc-extensions.md` § post-work-unit-archive][arc-ext-post-archive]
+If `post-work-unit-archive` appears in the active-extensions list (established at session init), load
+and execute its [`.actions`][arc-ext-post-archive]. Otherwise, skip.
 
 ### 7) Commit Archive Changes
 

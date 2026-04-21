@@ -65,8 +65,8 @@ arc:
          See [Quality Gates Strategy][quality-gates] for boundaries and escalation.
        - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
          use judgment on whether changes warrant extra validation
-     - **Extensions** · `#post-task-quality`: If [post-task-quality extensions][arc-ext-task-quality] are configured,
-       execute them before proceeding. See [`arc-extensions.md` § post-task-quality][arc-ext-task-quality]
+     - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
+       (established at session init), load and execute its [`.actions`][arc-ext-task-quality]. Otherwise, skip.
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
@@ -82,10 +82,11 @@ arc:
          ADR-011"). This distinguishes deliberate deferrals from incomplete work (`[ ]`).
        - **Do not update `status-{name}.md` at this step.** The status file updates at commit prep
          (step 4, "Await user instructions"), triggered by the user's commit request — not task completion.
-     - **Extensions** · `#post-task-completion`: If [post-task-completion extensions][arc-ext-task-completion] are
-       configured, execute them now. Teams using external trackers (Jira, Linear, GitHub Issues) use this
-       extension to sync task completion status — see [Team Coordination Strategy][team-coordination]
-       § External Tracker Integration. See [`arc-extensions.md` § post-task-completion][arc-ext-task-completion]
+     - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
+       list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
+       Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
+       sync task completion status — see [Team Coordination Strategy][team-coordination] § External Tracker
+       Integration.
      - **Third**: Verify completion before reporting (use pre-report checklist below)
      - **Fourth**: **REPORT** completed work to user with summary of changes
      - **Fifth**: ⛔ **MANDATORY STOP** - Wait for user approval before proceeding
@@ -138,8 +139,8 @@ arc:
       reflect completion)
     - **Second**: Ensure new code has appropriate test coverage for new or modified logic
     - **Third**: Run quality gates — **Tier 2** — using the [quality-gate-commands method][arc-methods-qg]
-    - **Extensions** · `#post-unit-quality`: If [post-unit-quality extensions][arc-ext-unit-quality] are configured,
-      execute them before proceeding. See [`arc-extensions.md` § post-unit-quality][arc-ext-unit-quality]
+    - **Extensions** · `#post-unit-quality`: If `post-unit-quality` appears in the active-extensions list
+      (established at session init), load and execute its [`.actions`][arc-ext-unit-quality]. Otherwise, skip.
     - **Fourth**: Verify completion before reporting (use pre-report checklist below)
 
   3. Report completion to user

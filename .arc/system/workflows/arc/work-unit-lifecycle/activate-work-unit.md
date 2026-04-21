@@ -151,9 +151,8 @@ Update project management documents to reflect the newly active work unit:
 
 ### Step 6: Post-Activation Extensions · `#post-work-unit-activate`
 
-If [post-work-unit-activate extensions][arc-ext-post-activate] are configured, execute them now.
-
-See: [`arc-extensions.md` § post-work-unit-activate][arc-ext-post-activate]
+If `post-work-unit-activate` appears in the active-extensions list (established at session init), load
+and execute its [`.actions`][arc-ext-post-activate]. Otherwise, skip.
 
 ### Step 7: Commit Activation
 

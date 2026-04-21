@@ -4,13 +4,17 @@ Per-file extension points for ARC workflows. Each extension defines a contract (
 do) and an `active` gate — workflows check the gate at the fire point and skip invocation if `false`.
 
 **How extensions work:** Each preset extension defines a contract and starts empty (`active: false`). To add
-behavior, populate the extension's `.actions` section with your team's actions and set `active: true`. The
-workflow reads `active` at the fire point — if `true`, it executes the actions; if `false`, it skips and
-continues. Extensions add behavior to workflows; they do not replace existing steps.
+behavior, populate the extension's `.actions` section with your team's actions and set `active: true`.
+Session-init enumerates files where `active: true` into the active-extensions list; fire-point directives
+consult the list by name and execute `.actions` for listed extensions, skipping the rest. Extensions add
+behavior to workflows; they do not replace existing steps.
 
-**Loading model:** Extensions are architecturally on-demand — workflows check the relevant extension at the fire
-point, not at session initialization. Workflow documents declare extension dependencies in frontmatter
-(`arc.extensions`) — see [Workflow Authoring Strategy][workflow-authoring] and
+**Loading model:** Session-init runs a single `grep -l "^active: true" .arc/system/extensions/*.md` to produce
+the **active-extensions list** — the set of extensions with populated `.actions` in the current install.
+Fire-point directives in workflows consult the list by name and skip invocation for extensions not on it.
+Extension bodies load only when a fire-point executes an active extension's `.actions`. Workflow documents
+declare extension dependencies in frontmatter (`arc.extensions`) — see
+[Workflow Authoring Strategy][workflow-authoring] and
 [Session Operations Strategy § Method and Extension Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full

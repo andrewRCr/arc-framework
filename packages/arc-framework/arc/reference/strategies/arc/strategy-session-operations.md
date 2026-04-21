@@ -151,9 +151,11 @@ constitute the trigger.
 ### Per-file Frontmatter Schema
 
 Methods and extensions live as per-file entries under `system/methods/` and `system/extensions/`, each with a
-fixed YAML frontmatter block. The schema is the structural contract: session-init reads `override-active` /
-`active` to produce the override-presence index without parsing bodies, and the framework-repo CI audit
-reads the directories and workflow frontmatter to enforce corpus-wide coverage.
+fixed YAML frontmatter block. The schema has two consumers: session-init reads the `active` field on each
+`system/extensions/*.md` file via a single `grep` to produce the **active-extensions list** (see
+§ Session-Init Consumption); the framework-repo CI audit reads the directories and workflow frontmatter to
+enforce corpus-wide coverage. Method frontmatter is not consumed at init — method bodies always load at
+workflow trigger.
 
 **Method schema** (`system/methods/<name>.md`):
 
@@ -186,11 +188,14 @@ active: false
 - `description` — one-line operational purpose. What it does, not where it fires
 - `related` — array of coupled method or extension names within the same kind. Overriding one should prompt
   review of the others. Omit when empty
-- `override-active` (methods only) — `true` when the file's override body is populated; `false` when the default
-  is in effect. Session-init reads this to produce the override-presence index without parsing method bodies
+- `override-active` (methods only) — `true` when the file's override body is populated; `false` when the
+  default is in effect. Consumed by the framework-repo CI audit, docs generation, and authoring tooling —
+  not by session-init. Method bodies (both `.override` and `.default`) always load at workflow trigger, so
+  init-time override-presence surfacing serves no agent decision
 - `active` (extensions only) — `true` when the extension's `.actions` section is populated; `false` when the
-  extension is an empty placeholder. Workflows checking `active: false` skip the extension invocation at its
-  fire point
+  extension is an empty placeholder. Session-init enumerates files where `active: true` via `grep -l` to
+  produce the active-extensions list (see § Session-Init Consumption). Fire-point directives consult the
+  list by name and skip invocation for extensions not on it
 
 **Why no `workflow` field:** The workflow→method/extension trigger contract lives in workflow frontmatter
 (`arc.methods` / `arc.extensions`) — that's the mechanical coverage guarantee enforced by the framework-repo
@@ -237,15 +242,34 @@ continuation indent after the `>` so the wrapped text aligns with the character 
 **Ref-defs:** Collected after a trailing `---` separator per [DEV-RULES.PROJECT][dev-rules-project]. Link
 targets resolve via paths relative to the file's directory (`system/methods/` or `system/extensions/`).
 
-### arc-methods.md
+### Session-Init Consumption
 
-Session initialization scans arc-methods.md for override *presence* only — which methods have
-active overrides. The agent does not read `.default` or `.override` content at init. It produces
-a brief index: "Methods with overrides: [list]" or "all methods at defaults."
+Methods and extensions have asymmetric init-time treatment.
 
-Method content loads on-demand when the agent reaches a workflow step that references the method.
+**Methods — no init read.** Method bodies (`.override` + `.default`) always load at the workflow trigger
+point declared in the calling workflow's `arc.methods` frontmatter. Session-init does not inspect
+`override-active` — the agent-side compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method and extension
+loading) plus reliable workflow-declared triggers make init-time override-presence surfacing unnecessary.
 
-**Method classification by trigger:**
+**Extensions — minimal init enumeration via grep.** Session-init runs:
+
+```bash
+grep -l "^active: true" .arc/system/extensions/*.md
+```
+
+The filenames returned (basenames, `.md` stripped) form the **active-extensions list** — a named
+session-context artifact available to downstream workflow steps. An empty list means no extensions are
+configured. Fire-point directives in the calling workflows consult the list by name instead of re-reading
+the extension file at fire time. In default installs most extensions are empty placeholders, so the
+single init-time grep avoids repeated placeholder reads across a session.
+
+**Related pattern — agent-file active-gate.** A similar `active` frontmatter flag applies to agent-specific
+files that session-init loads unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading
+the body, and the body is read only when `active: true`. That pattern gates whether a single known file's
+body is consumed; the active-extensions list pattern enumerates which files from a directory are active.
+Both avoid unnecessary body reads at init, but they serve different decisions and are not interchangeable.
+
+### Method Classification by Trigger
 
 | Method                | Trigger Workflow    | Session Applicability                      |
 |-----------------------|---------------------|--------------------------------------------|
@@ -257,12 +281,6 @@ Method content loads on-demand when the agent reaches a workflow step that refer
 | diff-review           | integrate-work-unit | Integration phase only                     |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
-
-### arc-extensions.md
-
-Extensions are architecturally on-demand — workflows check their specific extension section at
-the fire point, not at session init. The process-task-loop checks `post-task-quality` after task
-completion; the integrate-work-unit workflow checks `pre-merge-review` before merging.
 
 ---
 
@@ -347,5 +365,6 @@ directory are automatically included without additional plumbing.
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
+[dev-rules-arc]: ../../constitution/DEV-RULES.ARC.md
 [dev-rules-project]: ../../constitution/DEV-RULES.PROJECT.md
 [git-notes]: https://git-scm.com/docs/git-notes

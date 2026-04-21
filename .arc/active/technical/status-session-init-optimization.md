@@ -13,27 +13,21 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.5.a — define "active-extensions list"
-  vocabulary in strategy doc (line ~627)
-- **Last Completed:** Task 3.4 — D7a link-resolution pre-commit hook
-  (committed `366b7c8`). Since then: Task 3.5 rescoped during a
-  pre-implementation audit + discussion. Original plan (read frontmatter
-  of all 16 method/extension files at init) revised to a cleaner
-  architecture: methods retire from init-time reading entirely (body
-  always loads at workflow trigger; override-presence surfacing serves
-  no decision); extensions enumerate via single `grep -l "^active:
-  true"` producing an **active-extensions list** carried in session
-  context, with fire-point directives consulting the list by name to
-  avoid re-reading placeholder extension files mid-session. Task list
-  updated accordingly: 3.5 now has 3.5.a–d subtasks (strategy doc,
-  session-init, 6 fire-point workflows, READMEs); 5.5.a narrowed to
-  agent-file-only scope with precise `grep -m 1 "^active:"` read;
-  5.5.b, 5.6.b, 6.4, and success criteria updated to match. PRD +
-  notes + ADR-013 refresh folded into Task 3.10 sweep (not
-  mid-stream).
+- **Next Task:** Task 3.6 — cross-reference sweep (line ~698)
+- **Last Completed:** Task 3.5 (parent + subtasks 3.5.a–d) — active-extensions list
+  mechanism implemented end-to-end. Strategy doc § Method and Extension Loading rewritten
+  (per-file frontmatter intro split for two consumers; field semantics for `override-active`
+  and `active` updated; new Session-Init Consumption section + preserved Method
+  Classification table). Session-init.md gained an "Enumerate active extensions" Batch-1
+  block in Step 2; Step 4 trimmed (method-overrides item removed); Step 6 orientation
+  include/exclude bullets updated. Seven fire-point directives across six workflows
+  (3_process-task-loop ×3, prepare-commits, integrate-work-unit, activate-work-unit,
+  archive-work-unit, session-init Step 3) rewritten to consult the active-extensions list by
+  name. methods/extensions READMEs updated to match. Followup safety pass removed
+  imperative-style "See [strategy]" / "per [strategy]" cross-references from session-init
+  Step 2 and Step 4 (and the orphaned ref-def) to eliminate the risk of an over-literal
+  agent loading the strategy doc at init. Two-copy sync clean. Tier 2 quality gates green:
+  lint:md (197 files), lint:ts, lint:sh, typecheck, typecheck:test, 714 tests pass, build,
+  framework-sync.
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.5.a — add canonical definition of
-  "active-extensions list" to `strategy-session-operations.md §
-  Method and Extension Loading`. Retire the existing sentence about
-  reading `override-active` / `active` at init. Cross-reference Task
-  5.5.a's agent-file pattern as related-but-distinct. Two-copy sync.
+- **Next Action:** Begin Task 3.6 — cross-reference sweep.

@@ -51,13 +51,13 @@ in full EXCEPT the active task list (item 10 — reference material, often 500+ 
 minimal by design — there's more value in having complete context upfront than discovering missing rules
 mid-session.
 
-**Execution strategy:** Items 1–8, identity resolution, and configuration reads (Step 4) are independent —
-batch them into a single parallel read. SESSION-NOTES (needs identity), the task list (needs the resolved
-active status file), and conditionally the task execution workflow (item 11, needs the resolved active
-status file) form a second batch after the first completes. Within batches, `.ARC` files are listed before
-their `.PROJECT` counterparts for comprehension order. Sequential execution (follow item numbers) is fine if
-your platform doesn't support parallel reads. Full-mode many-file status-file disambiguation is the one
-exception to strict batch ordering — see Item 8's many-file case.
+**Execution strategy:** Items 1–8, identity/role resolution, the active-extensions grep, and configuration
+reads (Step 4) are independent — batch them into a single parallel read. SESSION-NOTES (needs identity),
+the task list (needs the resolved active status file), and conditionally the task execution workflow (item
+11, needs the resolved active status file) form a second batch after the first completes. Within batches,
+`.ARC` files are listed before their `.PROJECT` counterparts for comprehension order. Sequential execution
+(follow item numbers) is fine if your platform doesn't support parallel reads. Full-mode many-file
+status-file disambiguation is the one exception to strict batch ordering — see Item 8's many-file case.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
@@ -154,6 +154,16 @@ session-state, follow the override instead.
 2. If the value is `contributor`: follow the **Contributor Session Path** below — skip items
    8, 10–11, Step 5, and the maintainer orientation format in Step 6.
 3. If empty or `maintainer`: continue with the standard document set below.
+
+**Enumerate active extensions** (run in Batch 1, alongside identity and role):
+
+1. Run `grep -l "^active: true" .arc/system/extensions/*.md`
+2. Map returned paths to extension basenames (strip `.arc/system/extensions/` prefix and `.md` suffix) —
+   this set is the **active-extensions list**, a named session-context artifact consulted by fire-point
+   directives in downstream workflows (process-task-loop, prepare-commits, integrate-work-unit,
+   activate-work-unit, archive-work-unit, and Step 3 of this workflow)
+3. If the grep returns no matches, the active-extensions list is empty — fire-point directives
+   short-circuit without reading placeholder extension files
 
 > **Contributor Session Path**
 >
@@ -258,35 +268,28 @@ session-state, follow the override instead.
 
 ### 3. Post-Context-Load Extensions · `#post-context-load`
 
-If the `post-context-load` section in [`arc-extensions.md`][arc-ext-post-context-load] has steps
-(not the default placeholder), follow those steps now. Use for team-specific documents, external
+If `post-context-load` appears in the active-extensions list (established at Step 2), load and execute
+its [`.actions`][arc-ext-post-context-load]. Otherwise, skip. Use for team-specific documents, external
 tool state, or environment checks before orientation.
-
-See: [`arc-extensions.md` § post-context-load][arc-ext-post-context-load]
 
 ### 4. Check Active Configuration
 
-The reads in this step (arc-config.yml, arc-methods.md) have no dependency on context documents —
-batch them with Batch 1 in Step 2 where your platform supports parallel reads, then process the
-results here.
+The read in this step (arc-config.yml) has no dependency on context documents — batch it with Batch 1
+in Step 2 where your platform supports parallel reads, then process the result here.
 
-Read `arc-config.yml` and scan `arc-methods.md` for active overrides. This is a read-and-note step — carry
-the awareness through the session and apply it when encountering method references or platform-specific
-operations.
+Read `arc-config.yml`. This is a read-and-note step — carry the awareness through the session and apply
+it when encountering platform-specific operations or non-default settings. Method overrides are not
+surveyed at init; method bodies (both `.override` and `.default`) always load at workflow trigger.
 
 1. **Config values**: Read `.arc/system/arc-config.yml`. Note any settings that differ from defaults
    (defaults are documented as inline comments in the file)
-2. **Method overrides**: Scan `.arc/system/workflows/arc-methods.md`. For each method, check if the
-   `.override` section is populated — if so, follow the override instead of the default when that
-   method is encountered in workflows
-3. **Platform awareness**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for
+2. **Platform awareness**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for
    platform-appropriate commands
-4. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
+3. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
    active patterns from `commit.custom_pattern` / `commit.context_pattern`
 
-**Do not mention defaults in the orientation.** Only surface non-default config values and active
-method overrides. "All methods at defaults" and "all config at defaults" are the expected state —
-reporting them is noise.
+**Do not mention defaults in the orientation.** Only surface non-default config values. "All config at
+defaults" is the expected state — reporting it is noise.
 
 ### 5. Assess Readiness
 
@@ -379,10 +382,10 @@ The orientation should surface *problems and decisions*, not a log of checks tha
 - **Always include**: active work state, next action, blockers, and discovery results
   (when between work units)
 - **Include only if non-default or actionable**: configuration overrides, freshness gaps,
-  method overrides, missing identity, environment issues
+  active-extensions list (only when non-empty), missing identity, environment issues
 - **Never include**: confirmation that defaults are active, that freshness is clean, that
-  no overrides were found, that extensions had no steps, or that environment checks passed.
-  These are the expected state — reporting them is noise.
+  the active-extensions list is empty, or that environment checks passed. These are the
+  expected state — reporting them is noise.
 
 ### 7. If Context Seems Mismatched
 

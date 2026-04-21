@@ -187,7 +187,8 @@ If `review.pre_merge` is enabled (default) in [`arc-config.yml`][arc-config]:
 
 1. Execute the [diff-review method][arc-methods-diff-review] — review the aggregate diff, classify
    findings using the [review-triage method][arc-methods-rt] (fix/defer/reject/silent-fix)
-2. If [pre-merge-review extensions][arc-ext-pre-merge-review] are configured, execute them
+2. If `pre-merge-review` appears in the active-extensions list (established at session init), load and
+   execute its [`.actions`][arc-ext-pre-merge-review]. Otherwise, skip this sub-step.
 3. Commit any fixes with the `(code review)` context footer
 
 When disabled, proceed directly to push and PR creation.

@@ -7,10 +7,10 @@ Per-file method defaults and overrides. Each method defines a contract (what mus
 implementation. For each method, the agent checks `.override` first — if populated, follow the override and skip
 `.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
 
-**Loading model:** Method defaults and overrides load on-demand at workflow trigger points, not at session
-initialization. Session-init scans the `override-active` frontmatter field for override *presence* without reading
-method bodies. Workflow documents declare their method dependencies in frontmatter (`arc.methods`) — see
-[Workflow Authoring Strategy][workflow-authoring] and
+**Loading model:** Method defaults and overrides always load on-demand at workflow trigger points. Session-init
+does not read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs
+generation, and authoring tooling, not by session-init. Workflow documents declare their method dependencies in
+frontmatter (`arc.methods`) — see [Workflow Authoring Strategy][workflow-authoring] and
 [Session Operations Strategy § Method and Extension Loading][session-ops-methods].
 
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full

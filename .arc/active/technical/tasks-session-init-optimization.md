@@ -610,7 +610,7 @@ discipline applies throughout — every file change touches `packages/arc-framew
     - [x] Inline code-span backticks containing link-like strings are ignored
     - [x] Broken reference-style link (undefined `[ref]`) fails with diagnostic
 
-- [ ] **3.5 Session-init mechanism: method scan retired, active-extensions list introduced**
+- [x] **3.5 Session-init mechanism: method scan retired, active-extensions list introduced**
 
     **Goal:** Eliminate session-init method/extension bulk scan. Methods load entirely at workflow trigger (body reads
     contain both `.override` and `.default` sections — init-time override-presence surfacing serves no agent decision).
@@ -624,49 +624,76 @@ discipline applies throughout — every file change touches `packages/arc-framew
     placeholders; one grep at init is cheaper than 10–15 fire-point reads per session in a default install. See
     `notes-session-init-optimization.md` companion entry at Task 3.10 for the full architecture discussion.
 
-    - [ ] **3.5.a Define "active-extensions list" vocabulary in strategy doc**
-        - Add canonical definition to `strategy-session-operations.md § Method and Extension Loading`: the list is
-          produced by session-init via `grep -l "^active: true" .arc/system/extensions/*.md`; filenames returned are
-          the active extensions for the session; empty list means no extensions configured
-        - Retire the existing sentence "session-init reads `override-active` / `active` to produce the
-          override-presence index without parsing bodies." Methods no longer read at init; extensions enumerate via
-          grep, not parsed frontmatter
-        - Cross-reference Task 5.5.a's agent-file `active` gate as a related-but-distinct pattern
-        - Two-copy sync
+    - [x] **3.5.a Define "active-extensions list" vocabulary in strategy doc**
+        - `strategy-session-operations.md § Method and Extension Loading` updated:
+            - Per-file Frontmatter Schema intro paragraph rewritten — schema now described as having two
+              consumers (session-init grep for extensions; CI audit for both), with methods explicitly no-init-read
+            - `override-active` field semantic updated — consumed by CI/docs/authoring tooling; not by session-init
+            - `active` field semantic updated — session-init enumerates via `grep -l`; fire points consult the
+              active-extensions list by name
+            - Stale `### arc-methods.md` and `### arc-extensions.md` subsections replaced with
+              `### Session-Init Consumption` (methods: no init read; extensions: grep enumeration; related
+              agent-file active-gate pattern noted) plus preserved `### Method Classification by Trigger` table
+        - `[dev-rules-arc]` ref-def added to support the agent-side-compliance cross-reference
+        - Two-copy sync applied to both `.arc/` and `packages/arc-framework/arc/` copies
 
-    - [ ] **3.5.b Session-init.md Step 2/4/6 updates**
-        - **Step 2:** Drop `system/methods/*.md` from the load set entirely. For `system/extensions/*.md`, replace
-          with a single `grep -l "^active: true" .arc/system/extensions/*.md` invocation producing the
-          active-extensions list. Document the list as a named session-context artifact available to downstream
-          workflow steps
-        - **Step 4:** Retire item 4.2 (method overrides). Remaining Step 4 scope: config values, platform awareness,
-          custom commit patterns
-        - **Step 6 (orientation):** Drop method-override surfacing. Add conditional active-extensions surfacing — only
-          when the list is non-empty. Empty list produces no orientation line (noise suppression consistent with
-          existing "defaults not reported" guidance)
-        - Two-copy sync
+    - [x] **3.5.b Session-init.md Step 2/4/6 updates**
+        - **Step 2:** Execution-strategy paragraph updated to name the active-extensions grep as Batch-1-eligible
+          alongside identity/role and config reads. New "Enumerate active extensions" block inserted after
+          "Resolve role" (before the Contributor blockquote so it runs universally). Block specifies the
+          `grep -l "^active: true" .arc/system/extensions/*.md` invocation, basename-mapping convention, the
+          named session-context artifact, and the empty-list short-circuit semantics. Methods-at-init removal
+          was no-op (methods were never in Step 2's document set)
+        - **Step 4:** Intro paragraph rewritten — `arc-methods.md` scan removed from the "reads in this step"
+          list and from the "read and scan" instruction; replaced with a one-sentence pointer to the strategy
+          doc's Session-Init Consumption section. Item 2 (Method overrides) removed; items renumbered (config
+          values / platform awareness / custom commit patterns). Closing "Do not mention defaults" paragraph
+          trimmed to drop "active method overrides" clause
+        - **Step 6 (orientation):** Include/exclude bullets updated — "method overrides" replaced with
+          "active-extensions list (only when non-empty)" in the include list; "that no overrides were found"
+          and "that extensions had no steps" replaced with "that the active-extensions list is empty" in the
+          exclude list
+        - Two-copy sync applied to both `.arc/` and package-source `.template.md`
+        - **Imperative-citation safety pass (post-3.5.d review):** the trailing
+          "See [Session Operations Strategy] § Session-Init Consumption for the loading model" line in
+          the Step 2 enumerate-extensions block, and the "per [Session Operations Strategy] § Session-Init
+          Consumption" citation in Step 4's intro, were both removed. Inside Step 2's load-the-context flow
+          a "See X for Y" sentence reads as an imperative load directive to over-literal agents and could
+          trigger an unintended strategy-doc read at init; Step 4's citation served only as an
+          appeal-to-authority for a self-evident rule. Workflow stays self-sufficient; rationale remains
+          discoverable via STRATEGY-INDEX. Orphaned `[session-ops-extensions]` ref-def removed from both
+          copies as a result
 
-    - [ ] **3.5.c Fire-point directive updates (6 workflows, two-copy)**
-        - Update extension-point directives to reference the active-extensions list by name instead of re-reading
-          the extension file at fire time
-        - Template: "If `<extension-name>` appears in the active-extensions list (established at session init), load
-          and execute its `.actions`. Otherwise, skip."
-        - Sites:
-            - `3_process-task-loop.md` × 3 (post-task-quality, post-unit-quality, post-task-completion)
-            - `prepare-commits.md` × 1 (pre-stage-review)
-            - `integrate-work-unit.md` × 1 (pre-merge-review)
-            - `activate-work-unit.md` × 1 (post-work-unit-activate)
-            - `archive-work-unit.md` × 1 (post-work-unit-archive)
-            - `session-init.md` Step 3 × 1 (post-context-load — at-init fire point, same phrasing)
-        - Two-copy sync per file
+    - [x] **3.5.c Fire-point directive updates (6 workflows, two-copy)**
+        - All 7 sites rewritten to consult the active-extensions list by name rather than re-reading the
+          extension file at fire time. Literal template applied: "If `<extension-name>` appears in the
+          active-extensions list (established at session init), load and execute its `.actions`.
+          Otherwise, skip."
+        - `3_process-task-loop.md` — 3 sites: `#post-task-quality`, `#post-task-completion` (external-tracker
+          context sentence preserved post-directive), `#post-unit-quality`
+        - `prepare-commits.md` — 1 site: `#pre-stage-review` in Quick Commit Reference step 5
+        - `integrate-work-unit.md` — 1 site: `#pre-merge-review` sub-step 2 under Section 6, with the
+          "Otherwise, skip this sub-step" variant (preserving the surrounding numbered-list structure)
+        - `activate-work-unit.md` — 1 site: `#post-work-unit-activate` Step 6
+        - `archive-work-unit.md` — 1 site: `#post-work-unit-archive` Section 6
+        - `session-init.md` — 1 site: `#post-context-load` Step 3 with the "(established at Step 2)"
+          variant (self-referential within the same workflow)
+        - Two-copy sync applied: project copies + package-source counterparts (`.template.md` for
+          3_process-task-loop and session-init; plain `.md` for the other four)
+        - Duplicate "See `arc-extensions.md` § ..." pointer lines dropped everywhere — the directive's
+          inline link is the single reference path now
 
-    - [ ] **3.5.d READMEs update (methods + extensions)**
-        - `system/methods/README.md` — retire the "Session-init scans the `override-active` frontmatter field for
-          override *presence*..." paragraph. Replace with: methods load at workflow trigger only; `override-active` is
-          consumed by CI, docs generation, and authoring UX, not by session-init
-        - `system/extensions/README.md` — confirm/adjust init-time description to match the active-extensions-list
-          mechanism
-        - Two-copy sync
+    - [x] **3.5.d READMEs update (methods + extensions)**
+        - `system/methods/README.md` — Loading-model paragraph rewritten: methods always load at workflow
+          trigger; `override-active` is consumed by CI audit, docs generation, and authoring tooling, not by
+          session-init. Sentence "Session-init scans the `override-active` frontmatter field for override
+          *presence*" retired
+        - `system/extensions/README.md` — both "How extensions work" and "Loading model" paragraphs
+          rewritten. "How extensions work" replaces the old "workflow reads `active` at the fire point"
+          mechanism with session-init enumeration + fire-point list-consultation. "Loading model" describes
+          the single `grep -l "^active: true"` invocation producing the active-extensions list and
+          fire-point behavior
+        - Two-copy sync applied to both `.arc/` and package-source README copies
 
 - [ ] **3.6 Cross-reference sweep**
 
