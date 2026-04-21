@@ -730,44 +730,62 @@ discipline applies throughout — every file change touches `packages/arc-framew
     "Verify no remaining references" step picks up the resolution (either per-file README redirect with matching
     prose update, or larger prose restructure in those setup workflows). Out of strict 3.6 scope (anchor-form only).
 
-- [ ] **3.7 Framework-sync + install pipeline: register per-file entries**
+- [x] **3.7 Framework-sync + install pipeline: register per-file entries**
 
-    **Goal:** Drift between package source and `.arc/` on methods/extensions is caught by CI via the existing
-    manifest-driven framework-sync test, and fresh `arc init` installs the new per-file structure correctly.
+    **Outcome:** 18 new per-file paths (8 methods + 8 extensions + 2 READMEs) registered in both
+    `.arc/system/.internal/manifest.json` and `packages/arc-framework/init-recipe.json`. Per-file
+    method/extension bodies (16 paths — not READMEs) classified as `Configurable`; READMEs remain
+    `Framework`. Pristine hashes computed from package-source content via `sha256sum` on UTF-8
+    bytes (matches `hashContent` byte-for-byte).
 
-    **Context:** The install pipeline tracks installable paths in three places: `packages/arc-framework/init-recipe.json`
-    (the ship list consumed by `arc init`), `packages/arc-framework/src/lib/classification.ts` (classifies each path at
-    install time), and `.arc/system/.internal/manifest.json` (installed-state record consumed by `arc status`, `arc diff`,
-    and the framework-sync test). The 1.4.c–e per-file files never registered in any of these, and the aggregates still
-    ship from the recipe. Fresh `arc init` currently can't produce the new directories, and drift isn't caught. This
-    task closes all three — the aggregates stay in classification/recipe/manifest until 3.8.d deletes them.
+    **Design correction mid-task:** Initial implementation classified all 18 entries as Framework,
+    following the as-written task description. Surfaced during cross-check that
+    `packages/arc-framework/arc/system/extensions/pre-merge-review.md` shipped with `active: true`
+    + CodeRabbit `.actions` body (local-repo leak from commit `43e7749` Task 1.4.b–f migration —
+    see § Phase 3.7 addendum below). The leak forced a semantic choice: Configurable is the
+    correct classification for method/extension bodies because the adopter-toggleable frontmatter
+    (`active`, `override-active`) and fillable sections (`.override`, `.actions`) are exactly what
+    three-way merge handles. Keeping them Framework would either trip the drift test the moment
+    any adopter (including us) toggled a switch, or force package source to carry local opinion
+    (as happened here). Fix:
+    - 16 per-file paths added to `CONFIGURABLE_FILES` in
+      `packages/arc-framework/src/lib/classification.ts`
+    - 16 manifest entries flipped to `"Configurable"`
+    - `packages/arc-framework/arc/system/extensions/pre-merge-review.md` corrected:
+      `active: false`, `.actions` body replaced with `[No extension configured]` placeholder
+      (matching 7 other extensions)
+    - Pristine_hash recomputed from corrected package source:
+      `3dd9dbc...` → `7540f37...`
 
-    **`.arc/system/.internal/manifest.json` registration:**
-    - Add 18 entries under `files`, one per new path (8 methods + 8 extensions + 2 READMEs). Each entry:
-      `classification: "Framework"`, `layer: "core"`, `pristine_hash: <sha256-hex>`.
-    - Compute `pristine_hash` as the sha256 hex digest of the file's UTF-8 content. These files are plain (no template
-      substitution), so `sha256sum` matches the framework's `hashContent` helper
-      (`packages/arc-framework/src/lib/manifest/hash.ts`) byte-for-byte. Recipe:
-      `cd .arc/system && sha256sum methods/*.md extensions/*.md` — paste each hash into the corresponding entry.
-    - Sort new entries by path to match the manifest's existing ordering.
-    - Existing framework-sync test (`packages/arc-framework/__tests__/integration/framework-sync.test.ts`) then
-      provides drift coverage automatically. `loadPackageSource` (test:42) already handles non-template files via
-      the `readFile(plain, ...)` fallback — confirm against the new directories.
-    - Two-copy discipline does not apply to `.arc/system/.internal/manifest.json` — that file is project-local
-      install state, not framework content. Package source has no `.internal/` directory.
+    **Manifest ordering:** Inserted extensions/ block after `system/README.md` and methods/ block
+    after `system/githooks/README.md`, mirroring the recipe's directory-grouped convention
+    (subdirectory blocks alphabetical, README last within each block). Placement reached by
+    alphabetical subdirectory order: `agent/ < arc-config.yml < README.md < extensions/ < githooks/
+    < methods/ < scripts/ < skills/ < workflows/`.
 
-    **`packages/arc-framework/init-recipe.json` updates:**
-    - Add the 18 new paths to the `include_files` array (alphabetical placement within the `system/` grouping).
-    - Leave `system/workflows/arc-methods.md` and `system/workflows/arc-extensions.md` in place — 3.8.d removes
-      them atomically with the file deletion.
+    **Aggregate entries untouched:** `system/workflows/arc-methods.md` and
+    `system/workflows/arc-extensions.md` remain in recipe L55–56, `CONFIGURABLE_FILES`
+    (classification.ts L87–88), and manifest L270/L275 — 3.8.d removes atomically.
 
-    **`packages/arc-framework/src/lib/classification.ts` updates:**
-    - No positive entry needed for the new per-file paths — they fall through `CONFIGURABLE_FILES` and
-      `SCAFFOLDED_FILES` to the default `"Framework"` classification.
-    - Leave aggregate entries in `CONFIGURABLE_FILES` (L87–88) in place — 3.8.d removes them atomically.
-    - Unit tests that reference the aggregates (`__tests__/unit/init.test.ts:40`, `__tests__/unit/manifest/apply.test.ts:282`,
-      `__tests__/unit/removal-prompts.test.ts:158,168`) remain valid until 3.8.d — updated there alongside the
-      aggregate removal.
+    **Phase 3.7 addendum — leak forensics (feeds Task 3.13):**
+    - Origin: commit `43e7749` (2026-04-20), Tasks 1.4.b–f, single migration commit creating 36
+      per-file files across two copies
+    - Blast radius: 1 file. Other 7 extensions and all 8 methods in package source are clean
+      (`active: false`, `override-active: false`, neutral `[No ... configured]` bodies). No other
+      `CodeRabbit`/`WSL`/`/home/andrew` occurrences in `packages/arc-framework/arc/`
+    - Why undetected: framework-sync test skips Configurable — and classification was Framework
+      but both copies were identical, so no drift. Pre-commit hooks have no pattern check for
+      package-source `active: true` or non-placeholder bodies
+    - Guardrails captured in Task 3.13 — pre-commit hook checks targeting the exact leak pattern
+
+    **Verification:**
+    - JSON parse: both files load cleanly; all 18 new paths present in `manifest.files` and
+      `recipe.include_files`
+    - `framework-sync.test.ts` passes in isolation (41ms post-reclassification)
+    - Full test suite: 48 files / 673 tests pass (unit + integration) and 8 files / 43 tests pass
+      (e2e) — 716 total. Init integration, update integration, status-diff, reconfigure,
+      classification assertions all green with new Configurable entries
+    - Typecheck clean
 
 - [ ] **3.8 Retire legacy aggregate files**
 
@@ -966,16 +984,69 @@ discipline applies throughout — every file change touches `packages/arc-framew
 
 - [ ] **3.12 Phase 3 close — Tier 3 quality gates**
     - Full markdown lint, code lint (TS + sh), typecheck, test suite, build, framework-sync.
-    - **Hook false-positive surface check:** Confirm CHECK 12 (3.3 schema validation) and CHECK 13 (3.4
-      link-resolution) don't fire on unrelated staged files — stage a handful of non-method/non-extension /
-      non-markdown files (e.g., `tsconfig.json`, `.gitignore`, a random `src/*.ts` file) and verify hooks
-      short-circuit cleanly. The hooks must gate on path pattern before running validation.
+    - **Hook false-positive surface check:** Confirm CHECK 12 (3.3 schema validation), CHECK 13 (3.4
+      link-resolution), and the new 3.13 hook check(s) don't fire on unrelated staged files — stage a handful
+      of non-method/non-extension / non-markdown files (e.g., `tsconfig.json`, `.gitignore`, a random
+      `src/*.ts` file) and verify hooks short-circuit cleanly. The hooks must gate on path pattern before
+      running validation.
     - **Full-tree link-scan invariant:**
       `find .arc packages/arc-framework/arc -name '*.md' -type f | xargs .arc/system/scripts/validate-links.sh`
       yields only `.arc/backlog/feature/**` cross-WU hits. Zero live-ref, zero template false-positive,
       zero archive hits (archive is validator-skipped post-3.11). If any hit falls outside the allowed bucket,
       surface before gating Phase 4.
     - Verify zero regressions before Phase 4.
+
+- [ ] **3.13 Package-source neutrality guard (follow-on from 3.7 leak discovery)**
+
+    **Goal:** Pre-commit hook mechanically blocks personal-repo content from leaking into package source
+    per-file methods/extensions. Complements the informal two-copy sync fence in DEV-RULES.PROJECT §
+    Package-Project Sync — the fence has failed under authoring volume (Task 1.4 migrated 72 files at once,
+    one leaked); this hook catches the exact pattern before it reaches a commit.
+
+    **Context:** 3.7's addendum documents the leak forensics. Two distinct failure modes both reached main
+    in `43e7749`:
+    - **Frontmatter leak**: `active: true` (extension) / `override-active: true` (method) in a package-source
+      file — ARC ships no opinion about adopter toggles
+    - **Body leak**: non-placeholder `.actions` / `.override` body in a package-source file — adopter
+      customizations (CodeRabbit config, Jira ceremony, etc.) belong only in `.arc/`
+
+    **Scope note:** Checks apply to `packages/arc-framework/arc/system/{extensions,methods}/*.md`. The
+    aggregate files (`arc-methods.md`, `arc-extensions.md`) are out of scope — they're being retired in
+    3.8.d. READMEs in those directories are out of scope — they have no frontmatter toggle or body
+    placeholder. Post-3.8.d deletion, the hook continues to operate only on the per-file directories.
+
+    **Execution order:** Flexible within Phase 3. Must land before 3.12 closes the phase (Tier 3 gates need
+    the new hooks live and passing). Recommended: 3.13 before 3.8.a so the sweep lands with guard rails
+    already in place, but no strict dependency — 3.8's work doesn't touch per-file method/extension files.
+
+    - **CHECK (frontmatter neutrality)**: Pre-commit hook scans any staged file matching
+      `packages/arc-framework/arc/system/(extensions|methods)/[^/]+\.md$` (excluding `README.md`). If
+      `^active: true$` appears in frontmatter for an extension file, or `^override-active: true$` for a
+      method file, fail the commit with a clear message:
+      `Package source must ship neutral defaults: <path> has <field>: true. Set to false and move local
+      config to the .arc/ copy only.`
+    - **CHECK (body placeholder)**: Same path filter. Parse the `## <name>.actions` section (extensions) or
+      `## <name>.override` section (methods); the contents between the section header and the next `##` /
+      `---` must be exactly `[No extension configured]` (extensions) or `[No override configured]`
+      (methods), surrounded only by blank lines. If the body contains anything else, fail with:
+      `Package source must ship placeholder bodies: <path> <section> contains non-placeholder content.
+      Move the local customization to .arc/<path> only.`
+    - **Location**: Extend `.arc/system/githooks/pre-commit` (both copies). Two-copy discipline applies —
+      edit package source, mirror to `.arc/`.
+    - **Test coverage**: Add integration-level hook tests under
+      `packages/arc-framework/__tests__/integration/` that stage synthetic package-source files exercising
+      each failure mode and assert the commit is blocked with the expected message. Positive cases
+      (`active: false`, placeholder body) must pass. Negative on `.arc/` copies (e.g., `.arc/` file with
+      `active: true` — that's valid local customization) must NOT trigger the block.
+    - **Acceptance**:
+        - (a) Staging a package-source extension with `active: true` blocks the commit
+        - (b) Staging a package-source method with `override-active: true` blocks the commit
+        - (c) Staging a package-source extension with non-placeholder `.actions` body blocks the commit
+        - (d) Staging a package-source method with non-placeholder `.override` body blocks the commit
+        - (e) Staging a `.arc/` extension with `active: true` and custom `.actions` passes (local customization OK)
+        - (f) Staging a package-source README or unrelated file passes (path filter correct)
+        - (g) The hook terminates fast when no matching paths are staged (no false-positive overhead on ordinary commits)
+        - (h) Full test suite (unit + integration + e2e) remains green; typecheck clean
 
 ---
 

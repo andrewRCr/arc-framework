@@ -1,7 +1,7 @@
 ---
 name: pre-merge-review
 description: Additional review ceremony before merge, on top of the diff-review method
-active: true
+active: false
 ---
 
 # Extension: pre-merge-review
@@ -21,19 +21,7 @@ any review source, use the [review-triage method][review-triage] for classificat
 
 ## pre-merge-review.actions
 
-**CodeRabbit AI code review** — at least one pass, optionally more based on findings.
-
-1. Run CodeRabbit review on the aggregate diff against the parent branch
-2. Process findings using the [review-triage method][review-triage] (fix/defer/reject/silent-fix)
-3. If fixes were made, optionally run a second pass to verify — use judgment based on fix scope
-
-**Invocation options (choose one):**
-
-- **IDE extension** (preferred for smaller diffs): Run CodeRabbit review from VS Code extension
-- **Agent subagent** (preferred for larger diffs or headless): Launch the `coderabbit:code-reviewer`
-  subagent directly — do NOT use the CodeRabbit CLI plugin, which fails on WSL auth
-
-The agent should propose which invocation path based on diff size, but the user decides.
+[No extension configured]
 
 ---
 

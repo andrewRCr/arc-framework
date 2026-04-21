@@ -13,27 +13,22 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.7 — Framework-sync + install pipeline: register per-file entries (line ~730)
-- **Last Completed:** Phase 3 remainder audit + task-list restructure (uncommitted).
-  3.7 expanded to include `init-recipe.json` and `classification.ts` updates alongside
-  the manifest registration, with `pristine_hash` approach specified (`sha256sum` on
-  UTF-8 content — matches the framework's `hashContent` helper byte-for-byte).
-  3.8 broken into 3.8.a (hooks + verify-integrity script rewrite), 3.8.b (Tier 1
-  always-loaded doc refs), 3.8.c (strategy narrative rewrites), 3.8.d (delete +
-  install-pipeline cleanup + grep-verify) — sweep scope is ~74 live files, materially
-  larger than the 3.6 anchor-form sweep. DEV-RULES.ARC L370 ref-def gap from 3.6
-  named explicitly in 3.8.b. 3.9 tightened with a unit-level classification assertion.
-  3.10 PRD refresh scope expanded beyond SESSION-NOTES bullets (P0.8, P1.13, consumption
-  model and constitutional framing sections). New Task 3.11 (link-validator hardening +
-  atomic stale-ref cleanups) added — template-skip + archive-skip structural fix clears
-  the ~10 template false-positives, 2 inline cleanups for genuine stale live refs.
-  Old 3.11 renumbered to 3.12 with a full-tree link-scan invariant added to Tier 3 gates.
-  Previous: `fbe9738` incidental link-hygiene cleanup (10 genuine stale-path fixes across
-  tree + 2 escape-quoted refs in `notes-session-init-optimization.md`; full-tree broken-link
-  count 36 → 24). Previous: `b1398ad` Task 3.6 cross-reference sweep — 44 anchor-form
-  ref-def lines rewritten across 21 files.
+- **Next Task:** Task 3.8.a — Active hooks and integrity scripts (line ~781)
+- **Last Completed:** Task 3.7 — Framework-sync + install pipeline registration (uncommitted).
+  18 per-file paths registered in manifest + recipe. 16 per-file method/extension bodies
+  classified Configurable (not Framework as originally specified); READMEs stay Framework.
+  Design correction surfaced mid-task: `packages/arc-framework/arc/system/extensions/pre-merge-review.md`
+  had been shipping with `active: true` + CodeRabbit `.actions` body (leak from commit `43e7749`,
+  Task 1.4.b–f). Fixed: package-source file neutralized (`active: false`, `[No extension configured]`
+  placeholder); 16 entries reclassified Configurable in both `classification.ts` and manifest;
+  `pre-merge-review.md` pristine_hash updated (`3dd9dbc...` → `7540f37...`). Full suite green
+  (716 tests: 673 unit/integration + 43 e2e), typecheck clean, framework-sync test passes
+  post-reclassification. New Task 3.13 added for pre-commit hooks that block this leak pattern
+  at the source (frontmatter `active: true` / `override-active: true` check + body placeholder
+  check on `packages/arc-framework/arc/system/{extensions,methods}/*.md`).
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.7 — expanded scope: manifest entries (18 new paths with
-  sha256 pristine_hash values), `init-recipe.json` additions, `classification.ts`
-  fall-through coverage. Aggregates stay in classification/recipe/manifest until 3.8.d
-  removes them atomically.
+- **Next Action:** Begin Task 3.8.a — rewrite `verify-integrity.sh` §7 (both copies) to enumerate
+  per-file methods/extensions and validate YAML frontmatter instead of grepping aggregate sections;
+  update `verify-arc-integrity.md` prose; retarget `commit-msg` L313 error at
+  `system/methods/commit-context-format.md`. Two-copy sync applied throughout. Task 3.13 (leak
+  guardrails) has flexible position within Phase 3 but must land before 3.12 closes.
