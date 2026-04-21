@@ -507,55 +507,70 @@ discipline applies throughout — every file change touches `packages/arc-framew
         parser 5+ times with no discovery value. One test per field category kept the diagnostic failure modes
         distinct; generic-layer cycles 1–3 were sliced normally.
 
-- [ ] **3.2 Enhance directory READMEs with derived tables**
+- [x] **3.2 Enhance directory READMEs with derived tables**
 
-    **Goal:** Add the whole-system reading surfaces missing from the 1.4.c skeletons. Files and overview content
-    already exist — this task adds the tables. Files are not loaded at agent init; these are human browsing
-    surfaces.
+    **Outcome:** Both READMEs gained their derived tables; two-copy sync preserved.
+    - `system/methods/README.md` — added **Method Dependencies** section after Index: 3-row
+      Method / Related Methods / Coupling table (commit-format ↔ commit-context-format shown
+      both directions + diff-review → review-triage) with note that unlisted methods are
+      independent. Mirrors the original aggregate table's coupled-only rows.
+    - `system/extensions/README.md` — added **Extension Points** section after Index:
+      8-row lifecycle-ordered table with columns Extension / Workflow / Fires / Purpose.
+      Order: post-context-load → post-task-quality → post-task-completion →
+      post-unit-quality → pre-stage-review → pre-merge-review → post-work-unit-activate →
+      post-work-unit-archive. Table alignment run through `markdown-table-prettify`; Tier 1
+      `lint:md` clean.
+    - Two-copy sync verified (diff -q) after prettifier pass.
+    - Spec reconciliation: "Only 3 coupling pairs" in the task description — 2 unique
+      semantic pairs, but 3 rows when the bidirectional pair is shown both directions (as
+      the original aggregate did). Kept 3 rows for readability parity with the retired
+      aggregate.
 
-    - `system/methods/README.md` — add **Method Dependencies table with a "Coupling" column**. Table value comes
-      from the rationale column ("Both govern the commit message", "Uses review-triage for findings"), not from
-      mirroring the per-file `related` field alone. Only 3 coupling pairs total (commit-format↔commit-context-format,
-      diff-review→review-triage) — a 3-row table with one-line rationale each. If the rationale column is dropped,
-      skip the table — the frontmatter already carries the pair signal.
-    - `system/extensions/README.md` — add **extension-point summary table sorted by workflow lifecycle order**
-      (post-context-load → post-task-quality → post-task-completion → post-unit-quality → pre-stage-review →
-      pre-merge-review → post-work-unit-activate → post-work-unit-archive). Columns: name, workflow, fire moment,
-      contract précis. Lifecycle ordering is the value — alphabetical ordering doesn't answer the adopter
-      question "when should my extension fire?".
-    - Two-copy sync — edit each README in both copies
-    - Non-goal: file creation (done in 1.4.c)
+- [x] **3.3 Frontmatter schema validation hook (test-first)**
 
-- [ ] **3.3 Frontmatter schema validation hook (test-first)**
-
-    **Goal:** Pre-commit hook rejects staged method, extension, or agent files with missing or malformed
-    frontmatter.
-    - Placement: slots into `.arc/system/githooks/pre-commit` after CHECK 11, before the Summary block (line ~347
-      as of audit; verify against current file). Labeled `CHECK 12:`, same output style as existing checks,
-      short-circuit on failure.
-    - **Delegation decision — node via `tsx` (using the Phase 3.1 parser):** Pure shell can't reasonably validate
-      YAML schema constraints (type mismatches, boolean fields, name-matches-basename). CI already uses `tsx` for
-      `lint:arc:triggers`, so the dependency is not net-new. Hook invokes the 3.1 parser as a thin CLI entry (add
-      a guarded `fileURLToPath(import.meta.url) === process.argv[1]` entry in the parser module, mirroring
-      `audit-method-triggers.ts`).
-    - **Schema coverage:** methods (`system/methods/*.md`), extensions (`system/extensions/*.md`), and agent
-      files (`system/agent/*.ARC.md`). Method and extension schemas are implemented in Phase 3.1; agent-file
-      schema is minimal (`active: boolean` only — no `name`, `description`, or `related` fields required).
-      Extend the Phase 3.1 parser with an agent-file schema validator as part of this task. Consumed by Phase
-      5.5 (agent file conditional load).
-    - Two-copy sync per hook edit
+    **Outcome:** CHECK 12 wired into both pre-commit copies; TypeScript dispatcher
+    validates staged methods/extensions/agent files against their schemas; 19 new unit tests
+    (7 agent + 12 dispatcher). Current agent files lack frontmatter — hook blocks agent-file
+    commits until 5.5.b deploys the schema (expected per spec sequencing).
+    - **Agent schema parser** — `packages/arc-framework/src/lib/frontmatter/agent.ts` plus
+      exports via `index.ts`. Minimal schema (`active: boolean` only); delegates to the
+      generic layer for triple-dash extraction and malformed-YAML surfacing.
+    - **CLI dispatcher** — `packages/arc-framework/src/scripts/validate-frontmatter.ts`.
+      `classifyPath(path)` returns `method | extension | agent | other` using regexes that
+      require the `system/<dir>/` prefix in either `.arc/` or package-source tree; agent
+      files match `^[A-Z][A-Z0-9]*\.ARC\.md$` (CLAUDE/CODEX/GEMINI) — hyphenated briefings
+      and READMEs route to `other`. `validateFiles(paths, readFile)` is the pure
+      entry point for tests; `main()` is the `fileURLToPath`-guarded CLI. Passes full
+      staged file list to avoid double-filtering between shell and TS.
+    - **CHECK 12 in pre-commit** — shell-filters staged files under
+      `^(\.arc|packages/arc-framework/arc)/system/(methods|extensions|agent)/` and invokes
+      `npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts <paths>`. Short-
+      circuits on success; captures stderr and surfaces with 3-space indent on failure.
+      Two-copy sync verified.
+    - **Test coverage (test-first, sliced then batched where tightly coupled):**
+      agent schema — 7 tests sliced one-per-behavior (active:true pass, active:false pass,
+      missing active, non-boolean active, ignores extra fields, missing block, malformed
+      YAML). CLI dispatcher — 12 tests batched after first RED-GREEN since behaviors are
+      tightly coupled around one small dispatcher function; `validateFiles` uses
+      dependency-injected `readFile` so tests use an in-memory map without tmp dirs.
+    - **Sequencing note with Phase 5.5.b:** 3.3 enforces agent-file schema now; existing
+      `{AGENT}.ARC.md` files ship without frontmatter and would be blocked if staged.
+      Acceptable per spec — 5.5.b adds frontmatter to templates + existing files before
+      this branch merges, and this WU does not otherwise touch agent files.
+    - Tier 2 green: lint:md (197 files, 0 err), lint:ts, lint:sh, typecheck,
+      typecheck:test, 703 tests (19 new), lint:arc:triggers, build.
 
     Build `test-first` (one behavior at a time):
-    - Valid frontmatter passes (method, extension, and agent schemas)
-    - Missing `name` field fails with diagnostic naming the file and field (method/extension)
-    - Missing `description` fails (method/extension)
-    - Missing `override-active` on a method file fails
-    - Missing `active` on an extension file fails
-    - Missing `active` on an agent file fails
-    - `active` not boolean on an agent file fails
-    - `related` not an array fails (method/extension)
-    - `name` not matching file basename fails (method/extension)
-    - Non-method/extension/agent files staged do not trigger the check
+    - [x] Valid frontmatter passes (method, extension, and agent schemas)
+    - [x] Missing `name` field fails with diagnostic naming the file and field (method/extension)
+    - [x] Missing `description` fails (method/extension)
+    - [x] Missing `override-active` on a method file fails
+    - [x] Missing `active` on an extension file fails
+    - [x] Missing `active` on an agent file fails
+    - [x] `active` not boolean on an agent file fails
+    - [x] `related` not an array fails (method/extension)
+    - [x] `name` not matching file basename fails (method/extension)
+    - [x] Non-method/extension/agent files staged do not trigger the check
 
 - [ ] **3.4 D7a link-resolution pre-commit hook (test-first)**
 
