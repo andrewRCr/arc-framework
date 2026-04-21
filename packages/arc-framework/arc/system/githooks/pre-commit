@@ -344,6 +344,27 @@ if [ "$team_mode" = "true" ]; then
 fi
 
 # ============================================================================
+# CHECK 12: Frontmatter schema validation (methods / extensions / agent files)
+# ============================================================================
+# Delegates to validate-frontmatter.ts via tsx — schema logic lives in
+# TypeScript where it is unit-tested; this hook is a thin invoker. Catches
+# missing or malformed frontmatter on staged files under system/methods/,
+# system/extensions/, and agent-specific files (system/agent/{AGENT}.ARC.md).
+frontmatter_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions|agent)/' || true)
+
+if [ -n "$frontmatter_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! frontmatter_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $frontmatter_candidates 2>&1); then
+        echo -e "${RED}Error: Frontmatter schema validation failed:${NC}"
+        echo "$frontmatter_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the frontmatter in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

@@ -4,8 +4,9 @@
  * Consumers:
  * - `parseFrontmatter`: schema-neutral extraction used by the audit script
  *   and as the first step inside each schema parser.
- * - `parseMethodFrontmatter` / `parseExtensionFrontmatter`: validate per-file
- *   method and extension frontmatter against their respective schemas.
+ * - `parseMethodFrontmatter` / `parseExtensionFrontmatter` / `parseAgentFrontmatter`:
+ *   validate per-file method, extension, and agent-file frontmatter against
+ *   their respective schemas.
  */
 
 export { parseFrontmatter } from "./generic.js";
@@ -22,3 +23,9 @@ export type {
   ExtensionFrontmatter,
   ExtensionParseResult,
 } from "./extension.js";
+
+export { parseAgentFrontmatter } from "./agent.js";
+export type {
+  AgentFrontmatter,
+  AgentParseResult,
+} from "./agent.js";
