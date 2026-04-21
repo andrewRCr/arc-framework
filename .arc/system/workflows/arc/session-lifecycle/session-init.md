@@ -164,6 +164,8 @@ session-state, follow the override instead.
    activate-work-unit, archive-work-unit, and Step 3 of this workflow)
 3. If the grep returns no matches, the active-extensions list is empty — fire-point directives
    short-circuit without reading placeholder extension files
+4. **Filenames only.** Extension bodies load at their consuming fire point — Step 3 here for
+   `post-context-load`, downstream workflows for the rest.
 
 > **Contributor Session Path**
 >
@@ -288,8 +290,9 @@ surveyed at init; method bodies (both `.override` and `.default`) always load at
 3. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
    active patterns from `commit.custom_pattern` / `commit.context_pattern`
 
-**Do not mention defaults in the orientation.** Only surface non-default config values. "All config at
-defaults" is the expected state — reporting it is noise.
+**Do not surface configuration in the orientation.** This step is read-and-note for behavioral awareness;
+settings reach the user when they affect a specific operation, not as init-time status. The developer
+already knows what's in `arc-config.yml`.
 
 ### 5. Assess Readiness
 
@@ -324,13 +327,6 @@ A freshness gap doesn't mean state is wrong — it means verify more carefully b
 session documents. **Only mention gaps in the orientation if they exist.** A clean check
 produces no output.
 
-#### ATOMIC-INBOX check
-
-If identity resolved and `user/{identity}/ATOMIC-INBOX.md` exists and has incomplete items, note the count in the
-orientation summary (e.g., "3 inbox items pending triage"). This is a lightweight reminder —
-the primary triage point is during [integration][integrate-work-unit], but surfacing the count
-at session start prevents items from accumulating unnoticed across many small work units.
-
 #### Next work unit discovery
 
 **Skip if** an active status file was resolved and its `**Task List:**` field is not `[none]` —
@@ -341,10 +337,8 @@ assess readiness for the next work unit:
 
 1. Read ROADMAP.md — identify the next queued or suggested item
 2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
-3. If identity resolved, check `user/{identity}/ATOMIC-INBOX.md` — if it exists with items, note the count
-   (e.g., "3 inbox items pending triage")
-4. Report what exists and its readiness state in the orientation summary
-5. Propose next steps based on what was found — ask for confirmation before proceeding
+3. Report what exists and its readiness state in the orientation summary
+4. Propose next steps based on what was found — ask for confirmation before proceeding
 
 Planning readiness varies: a completed PRD may be ready for task generation, a draft PRD may
 need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
@@ -381,11 +375,10 @@ The orientation should surface *problems and decisions*, not a log of checks tha
 
 - **Always include**: active work state, next action, blockers, and discovery results
   (when between work units)
-- **Include only if non-default or actionable**: configuration overrides, freshness gaps,
-  active-extensions list (only when non-empty), missing identity, environment issues
-- **Never include**: confirmation that defaults are active, that freshness is clean, that
-  the active-extensions list is empty, or that environment checks passed. These are the
-  expected state — reporting them is noise.
+- **Include only if actionable**: freshness gaps, missing identity, environment issues
+- **Never include**: configuration overrides, active-extensions list (any state), defaults
+  active, freshness clean, environment checks passed. The developer already knows their
+  configuration; reference state belongs in `arc-config.yml`, not orientation.
 
 ### 7. If Context Seems Mismatched
 
@@ -443,4 +436,3 @@ Examples:
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
-[integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md
