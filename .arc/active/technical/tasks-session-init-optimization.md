@@ -610,18 +610,63 @@ discipline applies throughout — every file change touches `packages/arc-framew
     - [x] Inline code-span backticks containing link-like strings are ignored
     - [x] Broken reference-style link (undefined `[ref]`) fails with diagnostic
 
-- [ ] **3.5 Session-init Step 2 — aggregated frontmatter scan**
+- [ ] **3.5 Session-init mechanism: method scan retired, active-extensions list introduced**
 
-    **Goal:** Session-init reads only frontmatter across all method/extension files (~1k tokens for ~16 files), not full
-    bodies.
-    - Update `system/workflows/arc/session-lifecycle/session-init.md` Step 2 — replace current "Scan `arc-methods.md`
-      for active overrides" with "Aggregate frontmatter from `system/methods/*.md` and `system/extensions/*.md`"
-    - **Step 4 semantic replacement (not just a reference update):** Current Step 4.2 reads "Scan
-      `.arc/system/workflows/arc-methods.md`. For each method, check if the `.override` section is populated."
-      Replace with: "Read the `override-active` field from each `system/methods/*.md` frontmatter (parsed during
-      Step 2 aggregation); surface active overrides in the orientation." Same for extensions: read `active` field
-      from `system/extensions/*.md` frontmatter. This is a mechanism change, not wording polish.
-    - Two-copy sync
+    **Goal:** Eliminate session-init method/extension bulk scan. Methods load entirely at workflow trigger (body reads
+    contain both `.override` and `.default` sections — init-time override-presence surfacing serves no agent decision).
+    Extensions gain a minimal init-time enumeration via single `grep` for `^active: true`, producing a named
+    **active-extensions list** carried in session context and consulted at fire points (avoids re-reading placeholder
+    extension files mid-session in default installs).
+
+    **Rationale:** Previous work established reliable workflow-frontmatter-declared triggers (Tasks 1.1, 1.3, 1.5) and
+    the agent-side compliance rule (Task 2.1). With those in place, methods need no init-time awareness — body always
+    loads at trigger. Extensions need minimal init-time awareness so fire-point checks short-circuit without re-reading
+    placeholders; one grep at init is cheaper than 10–15 fire-point reads per session in a default install. See
+    `notes-session-init-optimization.md` companion entry at Task 3.10 for the full architecture discussion.
+
+    - [ ] **3.5.a Define "active-extensions list" vocabulary in strategy doc**
+        - Add canonical definition to `strategy-session-operations.md § Method and Extension Loading`: the list is
+          produced by session-init via `grep -l "^active: true" .arc/system/extensions/*.md`; filenames returned are
+          the active extensions for the session; empty list means no extensions configured
+        - Retire the existing sentence "session-init reads `override-active` / `active` to produce the
+          override-presence index without parsing bodies." Methods no longer read at init; extensions enumerate via
+          grep, not parsed frontmatter
+        - Cross-reference Task 5.5.a's agent-file `active` gate as a related-but-distinct pattern
+        - Two-copy sync
+
+    - [ ] **3.5.b Session-init.md Step 2/4/6 updates**
+        - **Step 2:** Drop `system/methods/*.md` from the load set entirely. For `system/extensions/*.md`, replace
+          with a single `grep -l "^active: true" .arc/system/extensions/*.md` invocation producing the
+          active-extensions list. Document the list as a named session-context artifact available to downstream
+          workflow steps
+        - **Step 4:** Retire item 4.2 (method overrides). Remaining Step 4 scope: config values, platform awareness,
+          custom commit patterns
+        - **Step 6 (orientation):** Drop method-override surfacing. Add conditional active-extensions surfacing — only
+          when the list is non-empty. Empty list produces no orientation line (noise suppression consistent with
+          existing "defaults not reported" guidance)
+        - Two-copy sync
+
+    - [ ] **3.5.c Fire-point directive updates (6 workflows, two-copy)**
+        - Update extension-point directives to reference the active-extensions list by name instead of re-reading
+          the extension file at fire time
+        - Template: "If `<extension-name>` appears in the active-extensions list (established at session init), load
+          and execute its `.actions`. Otherwise, skip."
+        - Sites:
+            - `3_process-task-loop.md` × 3 (post-task-quality, post-unit-quality, post-task-completion)
+            - `prepare-commits.md` × 1 (pre-stage-review)
+            - `integrate-work-unit.md` × 1 (pre-merge-review)
+            - `activate-work-unit.md` × 1 (post-work-unit-activate)
+            - `archive-work-unit.md` × 1 (post-work-unit-archive)
+            - `session-init.md` Step 3 × 1 (post-context-load — at-init fire point, same phrasing)
+        - Two-copy sync per file
+
+    - [ ] **3.5.d READMEs update (methods + extensions)**
+        - `system/methods/README.md` — retire the "Session-init scans the `override-active` frontmatter field for
+          override *presence*..." paragraph. Replace with: methods load at workflow trigger only; `override-active` is
+          consumed by CI, docs generation, and authoring UX, not by session-init
+        - `system/extensions/README.md` — confirm/adjust init-time description to match the active-extensions-list
+          mechanism
+        - Two-copy sync
 
 - [ ] **3.6 Cross-reference sweep**
 
@@ -930,23 +975,30 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
     session for content that may be purely placeholder. An `active` flag gated by reliable frontmatter-only
     read recovers those tokens.
 
-    - [ ] **5.5.a Codify the frontmatter-only read pattern**
-        - Add instruction to `session-init.md` for agent file loading: "Read only the first N lines (frontmatter
-          block); if `active: false`, do not read further." N sized to cover frontmatter plus small buffer
-          (e.g., 10).
-        - Empirically validate before finalizing — one session with `active: false`, one with `active: true`.
-          Confirm the body is actually skipped (measure via tool-call observation, not self-report).
-        - Record the pattern in `strategy-session-operations.md` as the canonical "conditional-load via
-          frontmatter flag" mechanism, available for reuse.
+    - [ ] **5.5.a Codify the frontmatter-only read pattern (agent files)**
+        - **Scope clarification (post-3.5):** the "conditional-load via frontmatter flag" pattern applies specifically
+          to agent files — session-init unconditionally loads them, and the `active` flag gates whether the body is
+          read. Methods (always load at trigger, no init read) and extensions (grep-based init enumeration producing
+          active-extensions list; per Task 3.5) use different mechanisms and are not covered by this pattern
+        - Add instruction to `session-init.md` for agent file loading: use `grep -m 1 "^active:" <file>` (or
+          equivalent precise field read) to retrieve the `active` value without reading the body. Order-independent
+          and schema-growth-safe vs a fixed line-limit read. If `active: false`, do not read further; if `active:
+          true`, read the full file
+        - Empirically validate before finalizing — one session with `active: false`, one with `active: true`. Confirm
+          the body is actually skipped (measure via tool-call observation, not self-report)
+        - Record the pattern in `strategy-session-operations.md` as the canonical "conditional-load via frontmatter
+          flag at session init" mechanism, scoped explicitly to agent-file-style unconditional init-loads.
+          Cross-reference the active-extensions list mechanism (Task 3.5.a) as the distinct extension-point pattern
 
     - [ ] **5.5.b Apply to `{AGENT}.ARC.md`**
-        - Add `active: boolean` to frontmatter schema for agent files; ships as `active: false` when `arc init`
-          / `arc join` creates the file — templates are unpopulated at install time, so `false` is the honest
-          default. Adopter flips to `true` when they actually populate the file; self-evident from the
-          frontmatter field, no CLI automation needed at init time.
-        - Update `session-init.md` Item 3 (agent-specific file) to use the conditional-load pattern
-        - Phase 3.3 schema-validation hook already covers agent files (scope added there); verify coverage
-          holds after template update
+        - Add `active: boolean` to frontmatter schema for agent files; ships as `active: false` when `arc init` /
+          `arc join` creates the file — templates are unpopulated at install time, so `false` is the honest default.
+          Adopter flips to `true` when they actually populate the file; self-evident from the frontmatter field, no
+          CLI automation needed at init time
+        - Update `session-init.md` Item 3 (agent-specific file) to use the precise grep-for-field read
+          (`grep -m 1 "^active:" <file>`) — order-independent and schema-growth-safe vs a fixed line-limit read
+        - Phase 3.3 schema-validation hook already covers agent files (scope added there); verify coverage holds
+          after template update
         - Two-copy sync on `session-init.md`; agent file templates live in `packages/arc-framework/templates/`
 
     - [ ] **5.5.c Scan for other `active`-gate candidates**
@@ -971,9 +1023,12 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
           SESSION-NOTES content (persistent context, session-type prefix, one-off instructions)? If yes,
           promote; if no, current Batch 2 placement is fine.
 
-    - [ ] **5.6.b Step 4 simplification**
-        - Configuration check simplifies post-audit (fewer defaults to scan, overrides surface the same way but against
-          the slimmer content set)
+    - [ ] **5.6.b Step 4 simplification (reduced scope after Task 3.5)**
+        - Task 3.5.b already retired item 4.2 (method overrides). Remaining Step 4 scope: config values, platform
+          awareness, custom commit patterns
+        - Evaluate whether any further simplification is warranted post-Phase 4 audit (e.g., inline rationale that
+          can move to staging). If none, collapse this task to a notes-file entry confirming Step 4 is at minimal
+          scope
 
     - [ ] **5.6.c Step 7 tightening**
         - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to auto-recover vs.
@@ -1038,10 +1093,11 @@ definition plus a notes-file entry.
 
 - [ ] **6.4 Per-type load set implementation**
 
-    **Goal:** session-init Step 2 branches on resolved session type; loadset matches PRD table.
+    **Goal:** session-init Step 2 branches on resolved session type; loadset matches updated load model.
     - Update `session-init.md` Step 2 to key load decisions off the resolved session type
-    - Loadset specification (per PRD P2.3):
-        - All types: Items 1–7, methods/extensions frontmatter index, SESSION-NOTES, active status file if present
+    - Loadset specification (updated post-3.5 — PRD P2.3 table refresh folded into Task 3.10):
+        - All types: Items 1–7, active-extensions list (single grep per 3.5.b), SESSION-NOTES, active status file
+          if present. Methods not loaded at init for any session type — they load at workflow trigger only
         - Execution + Integration only: Item 10 (task list partial read)
         - Core workflow: execution → `3_process-task-loop.md`; integration → `integrate-work-unit.md`; planning → none
           today, forward-compatible with `refine-plan-loop.md` if Expanded Planning Path WU lands
@@ -1084,8 +1140,9 @@ definition plus a notes-file entry.
 
 - [ ] `arc-methods.md` and `arc-extensions.md` retired; replaced by per-file directories in `system/methods/` and
       `system/extensions/` (both copies)
-- [ ] Session-init Step 2 loads aggregated frontmatter index only; full method and extension bodies load on-demand at
-      workflow references
+- [ ] Session-init Step 2: methods not loaded at init (trigger-time only); extensions enumerated via single `grep`
+      for `^active: true` producing the active-extensions list carried in session context; fire-point directives
+      consult the list by name; method and extension bodies load on-demand at workflow trigger / fire point
 - [ ] Reliable-trigger CI check (`npm run lint:arc`) active and passing on `main`; reads workflow frontmatter only
 - [ ] All workflows under `system/workflows/**/*.md` carry schema-conformant YAML frontmatter (`audience`, `purpose`,
       `arc.methods`, `arc.extensions`); body-level "Method dependencies" prose preambles retired
