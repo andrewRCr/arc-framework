@@ -147,7 +147,7 @@ task list.
 **Commit message format:** Follow DEV-RULES.ARC.md § Commit format.
 Documentation prep commits use type/scope `docs(arc)` or `docs({category})` with the `(integration)`
 context footer pattern — e.g., `Context: tasks-{name}.md (integration)`. Review-fix commits during
-integration use the `(code review)` footer instead — see `arc-methods.md` § commit-context-format.
+integration use the `(code review)` footer instead — see the [commit-context-format method][arc-methods-ccf].
 
 **⛔ CHECKPOINT:** Phase 1 complete. Proceed to Phase 2 for code review before creating the PR.
 
@@ -347,9 +347,10 @@ and completion doc — not on the task list header.
 
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[arc-methods-rt]: ../../arc-methods.md#review-triage
-[arc-methods-diff-review]: ../../arc-methods.md#diff-review
-[arc-ext-pre-merge-review]: ../../arc-extensions.md#pre-merge-review
+[arc-methods-rt]: ../../../methods/review-triage.md
+[arc-methods-diff-review]: ../../../methods/diff-review.md
+[arc-methods-ccf]: ../../../methods/commit-context-format.md
+[arc-ext-pre-merge-review]: ../../../extensions/pre-merge-review.md
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
 [template-status]: ../../../../reference/templates/template-status.md

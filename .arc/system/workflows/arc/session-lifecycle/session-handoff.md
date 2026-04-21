@@ -452,6 +452,6 @@ confirmation for the human — the session state files are the durable artifacts
 - **Next session** is standalone and prominent — same scanning target as init's
   "Next action"
 
-[arc-methods-session]: ../../arc-methods.md#session-state
+[arc-methods-session]: ../../../methods/session-state.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md

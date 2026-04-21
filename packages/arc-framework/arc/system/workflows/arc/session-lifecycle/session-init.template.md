@@ -479,8 +479,8 @@ Examples:
 
 [activate-planning-branch]: ../work-unit-lifecycle/planning/activate-planning-branch.md
 [create-prd]: ../1_create-prd.md
-[arc-methods-session]: ../../arc-methods.md#session-state
-[arc-ext-post-context-load]: ../../arc-extensions.md#post-context-load
+[arc-methods-session]: ../../../methods/session-state.md
+[arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 <!-- arc:if pm.mode == arc-in-git -->
 [integrate-work-unit]: ../work-unit-lifecycle/integrate-work-unit.md

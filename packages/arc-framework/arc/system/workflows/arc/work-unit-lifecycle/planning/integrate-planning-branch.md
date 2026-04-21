@@ -147,6 +147,6 @@ yet — `activate-work-unit.md` Step 5 creates it at activation time.
 [create-prd]: ../../1_create-prd.md
 [generate-tasks]: ../../2_generate-tasks.md
 [arc-config]: ../../../../arc-config.yml
-[arc-ext-post-archive]: ../../../arc-extensions.md#post-work-unit-archive
+[arc-ext-post-archive]: ../../../../extensions/post-work-unit-archive.md
 [session-handoff]: ../../session-lifecycle/session-handoff.md
 [dev-rules-arc]: ../../../../../reference/constitution/DEV-RULES.ARC.md

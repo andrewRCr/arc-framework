@@ -223,7 +223,7 @@ With the work unit activated, proceed to task execution:
 
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
-[arc-ext-post-activate]: ../../arc-extensions.md#post-work-unit-activate
+[arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [arc-config]: ../../../arc-config.yml
 [deactivate]: deactivate-work-unit.md
 [integrate-planning-branch]: planning/integrate-planning-branch.md

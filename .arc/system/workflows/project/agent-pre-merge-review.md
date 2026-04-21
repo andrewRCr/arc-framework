@@ -233,6 +233,6 @@ reply.
 
 ---
 
-[arc-methods-rt]: ../../../../.arc/system/workflows/arc-methods.md#review-triage
-[arc-ext-pre-merge-review]: ../../../../.arc/system/workflows/arc-extensions.md#pre-merge-review
+[arc-methods-rt]: ../../methods/review-triage.md
+[arc-ext-pre-merge-review]: ../../extensions/pre-merge-review.md
 [integrate-work-unit]: ../arc/work-unit-lifecycle/integrate-work-unit.md

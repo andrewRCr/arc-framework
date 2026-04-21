@@ -152,6 +152,6 @@ git status               # Verify clean state
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
 [manage-incidental]: manage-incidental-work.md
-[arc-ext-pre-stage]: ../../arc-extensions.md#pre-stage-review
-[arc-methods-cf]: ../../arc-methods.md#commit-format
-[arc-methods-ccf]: ../../arc-methods.md#commit-context-format
+[arc-ext-pre-stage]: ../../../extensions/pre-stage-review.md
+[arc-methods-cf]: ../../../methods/commit-format.md
+[arc-methods-ccf]: ../../../methods/commit-context-format.md

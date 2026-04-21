@@ -152,7 +152,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-[arc-methods-tf]: ../../workflows/arc-methods.md#test-first
+[arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md

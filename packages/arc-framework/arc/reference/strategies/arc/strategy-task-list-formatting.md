@@ -704,6 +704,6 @@ should map to a verifiable criterion. These checkboxes are checked during the
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
-[arc-methods-it]: ../../../system/workflows/arc-methods.md#issue-triage
-[arc-methods-tf]: ../../../system/workflows/arc-methods.md#test-first
+[arc-methods-it]: ../../../system/methods/issue-triage.md
+[arc-methods-tf]: ../../../system/methods/test-first.md
 [team-coordination]: strategy-team-coordination.md

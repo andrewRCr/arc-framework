@@ -256,10 +256,10 @@ permanent record committed to git — always update it before reporting completi
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [rotate-branch]: work-unit-lifecycle/rotate-branch.md
-[arc-ext-task-quality]: ../arc-extensions.md#post-task-quality
-[arc-ext-task-completion]: ../arc-extensions.md#post-task-completion
-[arc-ext-unit-quality]: ../arc-extensions.md#post-unit-quality
-[arc-methods-tf]: ../arc-methods.md#test-first
-[arc-methods-it]: ../arc-methods.md#issue-triage
-[arc-methods-qg]: ../arc-methods.md#quality-gate-commands
+[arc-ext-task-quality]: ../../extensions/post-task-quality.md
+[arc-ext-task-completion]: ../../extensions/post-task-completion.md
+[arc-ext-unit-quality]: ../../extensions/post-unit-quality.md
+[arc-methods-tf]: ../../methods/test-first.md
+[arc-methods-it]: ../../methods/issue-triage.md
+[arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md

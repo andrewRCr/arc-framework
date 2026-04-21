@@ -271,5 +271,5 @@ for feature vs technical vs incidental decision rules.
 [generate-tasks]: ../2_generate-tasks.md
 [activate-planning-branch]: planning/activate-planning-branch.md
 [integrate-planning-branch]: planning/integrate-planning-branch.md
-[arc-ext-post-archive]: ../../arc-extensions.md#post-work-unit-archive
+[arc-ext-post-archive]: ../../../extensions/post-work-unit-archive.md
 [incidental]: ../supplemental/manage-incidental-work.md

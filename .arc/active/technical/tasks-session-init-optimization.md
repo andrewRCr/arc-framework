@@ -695,20 +695,37 @@ discipline applies throughout — every file change touches `packages/arc-framew
           fire-point behavior
         - Two-copy sync applied to both `.arc/` and package-source README copies
 
-- [ ] **3.6 Cross-reference sweep**
+- [x] **3.6 Cross-reference sweep**
 
-    **Goal:** All anchor-form references to `arc-methods.md#anchor` / `arc-extensions.md#anchor` updated to new
-    per-file paths using D7a link convention.
-    - **Actual match count (audit-verified):** 80 anchor-form matches across both copies, 28 in `.arc/` active
-      surface alone. PRD's original "53+" estimate was low.
-    - **Scope:** `.arc/` + `packages/arc-framework/arc/` — workflows, constitution, strategies, AGENT-BRIEFING
-      files, CLAUDE.ARC.md. Exclude `reference/adr/` (history), `reference/archive/` (per "document what is" —
-      historical docs describe the name that was current at the time), `active/technical/` session-init-opt WU
-      docs (refresh naturally via Phase 3 edits), and `backlog/` (per Task 1.4.a precedent — backlog
-      reconciliation happens at each backlog WU's activation via persistent context).
-    - Grep-and-replace pass (automatable but each match manually verified — ensures anchor points map to the
-      right per-file destination)
-    - Run the Phase 3.4 link-resolution hook against the full repo to catch residual broken links
+    **Outcome:** All anchor-form `arc-methods.md#anchor` / `arc-extensions.md#anchor` ref definitions rewritten
+    to per-file paths across 21 files (11 under `.arc/` + 10 package-source mirrors; `agent-pre-merge-review.md`
+    is project-only). Total: 44 anchor-form ref-def lines updated. Link resolver passes on all modified files;
+    full-tree scan shows zero net change in broken-link count (36 pre-existing broken links in out-of-scope
+    areas — `reference/archive/`, `backlog/`, `reference/research/`, `reference/analysis/`, template
+    placeholders — none caused by this sweep).
+
+    **Additional cleanup (flagged in notes-session-init-optimization.md § Judgment calls #4):** Rewrote the
+    `integrate-work-unit.md` L150 plain-prose pointer ("see arc-methods.md § commit-context-format") into a
+    reference-style link pointing at the new `methods/commit-context-format.md` file, adding a matching
+    `arc-methods-ccf` ref definition to the file's link block (both copies).
+
+    **Path depth adjustments applied:**
+    - `../../workflows/arc-methods.md` → `../../methods/[name].md` (from `arc/` depth)
+    - `../arc-{methods,extensions}.md` → `../../{methods,extensions}/[name].md` (from `arc/` depth, one level in)
+    - `../../arc-{methods,extensions}.md` → `../../../{methods,extensions}/[name].md` (from `arc/subdir/` depth)
+    - `../../../arc-extensions.md` → `../../../../extensions/[name].md` (from `arc/wul/planning/` depth)
+    - `../../../system/workflows/arc-methods.md` → `../../../system/methods/[name].md` (from `reference/strategies/arc/`)
+    - `../../../../.arc/system/workflows/arc-methods.md` → `../../methods/[name].md` (simplified the
+      convoluted 4-up-back-through-`.arc/` path in `agent-pre-merge-review.md`)
+
+    **Deferred to Task 3.8 (explicit gap — not a regression):** Two non-anchor link-def pairs
+    (`[arc-methods]: ../../arc-methods.md` / `[arc-extensions]: ../../arc-extensions.md`) remain in
+    `supplemental/integrate-external-content.md` (both trees) and `initial-setup/03_configure-external-integration.md`
+    (package-only). These require prose rewrites at their usages (L74, L80, L87 / L77, L96, L132 respectively)
+    because the prose frames `arc-methods.md` and `arc-extensions.md` as conceptual single-file catalogs —
+    after Phase 3.8 deletes the aggregates, both the link targets and the semantic framing break. Task 3.8's
+    "Verify no remaining references" step picks up the resolution (either per-file README redirect with matching
+    prose update, or larger prose restructure in those setup workflows). Out of strict 3.6 scope (anchor-form only).
 
 - [ ] **3.7 Framework-sync: register per-file entries in the manifest**
 
@@ -737,6 +754,14 @@ discipline applies throughout — every file change touches `packages/arc-framew
       `system/workflows/arc-extensions.md` entries from `.arc/system/.internal/manifest.json` (currently at
       lines 270, 275 as of audit — verify). Without this, the framework-sync test fails because the manifest
       references files that no longer exist.
+    - **Resolve the 3.6 deferred gap:** Two non-anchor link-def pairs
+      (`[arc-methods]: ../../arc-methods.md` / `[arc-extensions]: ../../arc-extensions.md`) remain in
+      `supplemental/integrate-external-content.md` (both trees) and `initial-setup/03_configure-external-integration.md`
+      (package-only). Their usages frame the aggregates as conceptual single-file catalogs — after this
+      deletion both link targets and the prose framing break. See Task 3.6 § "Deferred to Task 3.8" for
+      the exact usage line numbers. Options: redirect to `methods/README.md` / `extensions/README.md` with
+      matching prose tweak, or escalate to a small prose restructure if the "single catalog" framing needs
+      revision. Pick one before running the final grep-verify.
     - Verify no remaining references (run grep for filename matches across both trees)
 
 - [ ] **3.9 CLI test coverage — per-file restructure**
