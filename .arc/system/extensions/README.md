@@ -27,6 +27,22 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [post-work-unit-activate](post-work-unit-activate.md) — actions after work unit activation
 - [post-work-unit-archive](post-work-unit-archive.md) — actions after work unit archival
 
+## Extension Points
+
+Sorted by workflow lifecycle order — when each extension fires across a session. Alphabetical ordering doesn't
+answer the adopter question "when should my extension fire?"; lifecycle ordering does.
+
+| Extension               | Workflow            | Fires                    | Purpose                                  |
+|-------------------------|---------------------|--------------------------|------------------------------------------|
+| post-context-load       | session-init        | Step 2 → orientation     | Load additional context at session start |
+| post-task-quality       | process-task-loop   | Tier 1 pass → mark `[x]` | Supplement Tier 1 after each task        |
+| post-task-completion    | process-task-loop   | Mark `[x]` → report      | External tracker sync / notifications    |
+| post-unit-quality       | process-task-loop   | Tier 2 at unit boundary  | Supplement Tier 2 at unit boundaries     |
+| pre-stage-review        | prepare-commits     | Staging → commit         | Verify staged content before commit      |
+| pre-merge-review        | integrate-work-unit | diff-review → push/PR    | Ceremony on top of diff-review method    |
+| post-work-unit-activate | activate-work-unit  | After core activation    | PM layer interface after activation      |
+| post-work-unit-archive  | archive-work-unit   | After core archival      | PM layer interface after archival        |
+
 ---
 
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md

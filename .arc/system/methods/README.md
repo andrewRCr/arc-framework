@@ -27,6 +27,17 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [review-triage](review-triage.md) — classifying and acting on review findings
 - [quality-gate-commands](quality-gate-commands.md) — project quality gate definitions
 
+## Method Dependencies
+
+Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
+when populating any `.override` section. Methods not listed here are independent.
+
+| Method                | Related Methods       | Coupling                        |
+| --------------------- | --------------------- | ------------------------------- |
+| commit-format         | commit-context-format | Both govern the commit message  |
+| commit-context-format | commit-format         | Both govern the commit message  |
+| diff-review           | review-triage         | Uses review-triage for findings |
+
 ---
 
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
