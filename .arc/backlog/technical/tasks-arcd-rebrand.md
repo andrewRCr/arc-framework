@@ -588,8 +588,18 @@ Covers PRD R1, R3.
           `@arc-framework/cli@0.1.1`). Record the decision in commit message
         - Verify `name: @arcd/cli`, `bin: arcd`
         - Description reflects ARCd branding (swept in Phase 2, but verify)
-        - `repository.url`, `homepage`, `bugs.url` all point to `andrewRCr/ARCd-framework`
-        - `files` array covers `dist/`, `arc/`, `init-recipe.json`, `README.md` — no stale entries
+        - `repository.url` and `bugs.url` point to `andrewRCr/ARCd-framework`
+        - `homepage` switches to `https://arcd.dev` (docs site, live by this publish) — supersedes
+          the pre-rebrand repo-README homepage set on 2026-04-21. npm surfaces homepage as the
+          primary user-facing link; docs site is a better first landing than the repo README
+        - Verify `author: "Andrew Creekmore"` persists (added 2026-04-21 metadata refresh)
+        - Verify `engines.node: ">=24"` persists (bumped from `>=18` on 2026-04-21 to match Node 24
+          Active LTS; confirm still current LTS floor at publish time — if Node 24 has entered
+          maintenance-only, bump to whatever is then Active LTS)
+        - `files` array covers `dist/`, `arc/`, `templates/`, `init-recipe.json`, `changelog/`,
+          and `README.md` once the CLI README lands — no stale entries. Current source has
+          `dist, arc, templates, init-recipe.json, changelog` (no README yet — tracked as a
+          separate ATOMIC-INBOX item)
 
     - [ ] **4.2.b Smoke-build locally**
         - `npm run build` from repo root

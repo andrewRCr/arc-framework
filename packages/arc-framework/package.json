@@ -19,7 +19,7 @@
     "lint:sh": "shellcheck -x --source-path=SCRIPTDIR arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
@@ -54,7 +54,12 @@
     "development",
     "methodology"
   ],
+  "author": "Andrew Creekmore",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/andrewRCr/arc-framework#readme",
+  "bugs": {
+    "url": "https://github.com/andrewRCr/arc-framework/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/andrewRCr/arc-framework.git",
