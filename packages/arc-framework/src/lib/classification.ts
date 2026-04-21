@@ -84,8 +84,6 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "reference/constitution/DEV-RULES.PROJECT.md",
   "reference/strategies/STRATEGY-INDEX.md",
   "reference/archive/README.md",
-  "system/workflows/arc-methods.md",
-  "system/workflows/arc-extensions.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
   "system/methods/commit-context-format.md",
   "system/methods/commit-format.md",

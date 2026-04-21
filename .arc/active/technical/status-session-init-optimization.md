@@ -13,21 +13,25 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.8.d — Delete aggregates + install-pipeline cleanup + grep-verify
-  (line ~893)
-- **Last Completed:** Task 3.8.c — Strategy narrative rewrites across 7 docs
-  (strategy-configurability-architecture 8 sites incl. § Agent discovery substantive rewrite;
-  strategy-team-coordination 4 per-file ext ref-defs; strategy-file-classification,
-  strategy-workflow-authoring, project/README two-copy; strategy-package-project-sync and
-  TECHNICAL-OVERVIEW `.arc/`-only). Previous: `6e401cd` Task 3.8.b — Tier 1 always-loaded
-  doc references.
+- **Next Task:** Task 3.9 — CLI test coverage — per-file restructure (line ~981)
+- **Last Completed:** Task 3.8.d — Delete aggregates + install-pipeline cleanup + grep-verify.
+  Parent Task 3.8 now complete. Deleted 4 aggregate files across both trees; removed entries
+  from `init-recipe.json`, `classification.ts`, `manifest.json`, and (gitignored) `pristine.json`;
+  updated 4 unit test files (including defensive `validate-package-neutrality` "retired in 3.8.d"
+  case removal); rewrote deferred link-def pairs in `integrate-external-content.md` (both trees)
+  and `03_configure-external-integration.md` (package-only). Scope-expansion from grep-verify:
+  9 additional residual body references across 5 files (session-init/handoff + templates,
+  01_verify-and-configure both trees, agent-pre-merge-review) rewritten — not enumerated in
+  planning but mandated by the zero-operational-references grep requirement. Full Tier 2 quality
+  gates pass (lint:md 195 files clean, lint:ts clean, typecheck clean, 626 tests pass, build
+  succeeds). Previous: `6de83dc` Task 3.8.c — Strategy narrative rewrites across 7 docs.
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.8.d — delete the two aggregate files (both trees), remove
-  their entries from `init-recipe.json`, `classification.ts` CONFIGURABLE_FILES, and
-  `.arc/system/.internal/manifest.json`. Update 3 unit test references
-  (init.test.ts L40, manifest/apply.test.ts L282, removal-prompts.test.ts L158/L168).
-  Rewrite deferred non-anchor link-def pairs in
-  `integrate-external-content.md` (both trees L74/L80/L87) and
-  `03_configure-external-integration.md` (package-only L77/L96/L132). Final full-tree grep
-  to confirm zero operational references remain outside WU artifacts / ADRs / archives /
-  analysis / backlog.
+- **Next Action:** Begin Task 3.9 — CLI test coverage for per-file restructure. Adds
+  classification assertions for representative per-file method and extension paths; integration
+  test verifying fresh `arc init` produces `system/methods/` + `system/extensions/` with all 18
+  files (8 methods + 8 extensions + 2 READMEs) registered as Framework in the resulting
+  `manifest.json`; integration test asserting `arc update` on a repo with legacy aggregate
+  layout is an explicit no-op on the legacy files (PRD § Won't Do excludes migration code);
+  idempotent re-update test; E2E `arc init --yes` layout check; E2E `arc init --reconfigure`
+  regression check. Hook cross-flow coverage decision (call at implementation — specify or
+  drop as duplicate).

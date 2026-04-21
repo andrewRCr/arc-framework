@@ -71,25 +71,27 @@ the system.
 
 ## Step 3a: Wire as Method Override
 
-1. Identify which method in [`arc-methods.md`][arc-methods] this content replaces
+1. Identify which method in [`system/methods/`][arc-methods] this content replaces
    (e.g., `commit-format`, `diff-review`, `session-state`)
 2. Read the method's **contract** — your override should satisfy the same invariant
 3. Adapt the content to fit the override format:
-    - Populate the `### {method-name}.override` section with the new implementation
+    - Populate the `## {method-name}.override` section with the new implementation
+    - Toggle `override-active: true` in the method's frontmatter
     - The agent will follow the override instead of the `.default` section
-4. Check the [Method Dependencies table][arc-methods] — if the method has related methods,
+4. Check related methods in [`system/methods/`][arc-methods] — if the method has dependencies,
    review those for consistency
 5. If the source content is a Skill or external file, keep the original as a reference alongside
    the override (e.g., in a project docs directory) or note its provenance in a comment
 
 ## Step 3b: Wire as ARC Extension
 
-1. Identify which extension point in [`arc-extensions.md`][arc-extensions] this content augments
+1. Identify which extension point in [`system/extensions/`][arc-extensions] this content augments
    (e.g., `post-task-quality`, `pre-merge-review`, `post-context-load`)
-2. Read the extension's **contract** — your steps must satisfy the stated constraints
+2. Read the extension's **contract** — your actions must satisfy the stated constraints
 3. Adapt the content to fit the extension format:
-    - Replace `[No extension configured]` in the `### {extension-name}.steps` section
-    - Write clear steps the agent can follow
+    - Replace `[No extension configured]` in the `## {extension-name}.actions` section
+    - Toggle `active: true` in the extension's frontmatter
+    - Write clear actions the agent can follow
 4. Extensions *add to* existing workflow behavior — they don't replace it. If the content needs
    to replace behavior, it's a method override (Step 3a), not an extension
 
@@ -123,6 +125,6 @@ the system.
 
 ---
 
-[arc-methods]: ../../arc-methods.md
-[arc-extensions]: ../../arc-extensions.md
+[arc-methods]: ../../../methods/README.md
+[arc-extensions]: ../../../extensions/README.md
 [strategy-index]: ../../../../reference/strategies/STRATEGY-INDEX.md

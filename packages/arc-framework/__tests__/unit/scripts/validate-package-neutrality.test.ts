@@ -101,19 +101,6 @@ describe("classifyPackagePath", () => {
     ).toBe("other");
   });
 
-  it("does NOT classify legacy aggregate files — out of scope (retired in 3.8.d)", () => {
-    expect(
-      classifyPackagePath(
-        "packages/arc-framework/arc/system/workflows/arc-methods.md",
-      ),
-    ).toBe("other");
-    expect(
-      classifyPackagePath(
-        "packages/arc-framework/arc/system/workflows/arc-extensions.md",
-      ),
-    ).toBe("other");
-  });
-
   it("classifies unrelated paths as other", () => {
     expect(classifyPackagePath("src/lib/frontmatter/method.ts")).toBe("other");
     expect(classifyPackagePath(".arc/active/technical/tasks-foo.md")).toBe(

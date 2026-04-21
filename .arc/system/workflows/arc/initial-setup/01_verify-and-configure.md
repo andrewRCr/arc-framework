@@ -104,12 +104,15 @@ the file's inline comments) are a better fit.
 
 ### Customization Beyond Config
 
-ARC has two additional customization files worth knowing about:
+ARC has two additional customization surfaces worth knowing about:
 
-- **`arc-methods.md`** — replaces *how* ARC does something. Example: a team using Jira
-  overrides `commit-context-format` to reference tickets instead of task lists.
-- **`arc-extensions.md`** — adds *extra steps* at workflow points. Example: running a
-  security scan after every task, or syncing task completion to an external tracker.
+- **`system/methods/`** — one file per method, each replacing *how* ARC does something.
+  Example: a team using Jira populates the `.override` section in
+  `commit-context-format.md` to reference tickets instead of task lists.
+- **`system/extensions/`** — one file per extension point, each adding *extra steps* at
+  workflow points. Example: populate `.actions` in `post-task-quality.md` to run a security
+  scan after every task, or `post-task-completion.md` to sync task completion to an external
+  tracker.
 
 Both ship with placeholders that work out of the box. They're configured on-demand as
 specific workflows reference them — not during initial setup.

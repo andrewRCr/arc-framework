@@ -279,7 +279,7 @@ describe("classifyFile", () => {
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
     expect(classifyFile("system/agent/CLAUDE.ARC.md")).toBe("Configurable");
-    expect(classifyFile("system/workflows/arc-methods.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("reference/constitution/DEV-RULES.PROJECT.md")).toBe("Configurable");
     expect(classifyFile("system/agent/AGENT-BRIEFING.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");

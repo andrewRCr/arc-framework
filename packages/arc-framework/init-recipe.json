@@ -70,8 +70,6 @@
     "system/skills/arc-task-review/SKILL.md",
     "system/skills/arc-verify/SKILL.md",
     "system/skills/README.md",
-    "system/workflows/arc-extensions.md",
-    "system/workflows/arc-methods.md",
     "system/workflows/arc/1_create-prd.md",
     "system/workflows/arc/2_generate-tasks.template.md",
     "system/workflows/arc/3_process-task-loop.template.md",

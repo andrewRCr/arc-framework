@@ -357,16 +357,6 @@
       "layer": "core",
       "pristine_hash": "89eed70534d49fbb0fea6212423ebba82ddcb8caf8e2f3d5a0c5eb2de3be766a"
     },
-    "system/workflows/arc-extensions.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "46c5bc26f632ab6df61d9d59e99aa6ce45c3f245f0abd60b9e6dcd85064fbc36"
-    },
-    "system/workflows/arc-methods.md": {
-      "classification": "Configurable",
-      "layer": "core",
-      "pristine_hash": "4e0385eec559e49a1ac4df02addd9cd0bc6b15616745b985c8960db942a5ff4b"
-    },
     "system/workflows/arc/1_create-prd.md": {
       "classification": "Framework",
       "layer": "core",

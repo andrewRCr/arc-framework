@@ -13,7 +13,7 @@ arc:
 **Design context**: This workflow is optimized for agents with ephemeral context — capturing state that would
 otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff ceremonies; the
 principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
-via [`arc-methods.md` § session-state][arc-methods-session].
+via the [session-state method][arc-methods-session].
 
 ## Handoff Protocol
 

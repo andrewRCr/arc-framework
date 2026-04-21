@@ -37,7 +37,7 @@ describe("resolveRemovalsNonInteractive", () => {
 
   it("auto-keeps Configurable files", () => {
     const removals: PlannedRemoval[] = [
-      { outputPath: "system/arc-methods.md", classification: "Configurable" },
+      { outputPath: "system/methods/commit-format.md", classification: "Configurable" },
     ];
     const decisions = resolveRemovalsNonInteractive(removals);
     expect(decisions).toHaveLength(1);

@@ -8,8 +8,8 @@ arc:
 
 # Workflow: Agent Pre-Merge Review (Project-Specific)
 
-This project-specific workflow populates the `pre-merge-review` extension point in
-[arc-extensions.md][arc-ext-pre-merge-review]. It supplements the canonical
+This project-specific workflow populates the `.actions` section in the
+[pre-merge-review extension][arc-ext-pre-merge-review]. It supplements the canonical
 [review-triage method][arc-methods-rt], which governs finding classification.
 
 1. **Pass 1 (Local)**: Run agent review locally before creating PR — catch the majority of issues

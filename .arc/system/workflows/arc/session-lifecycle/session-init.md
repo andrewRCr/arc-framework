@@ -19,8 +19,8 @@ is to complete the current work item and hand off, not to compact or summarize p
 
 **Design context**: Sessions implement P5 (Context Preservation) — structured document loading for agents with
 ephemeral context. Agents with persistent memory may need lighter ceremonies; the principle (work context must
-be recoverable) still applies. The session state mechanism is overridable via
-[`arc-methods.md` § session-state][arc-methods-session].
+be recoverable) still applies. The session state mechanism is overridable via the
+[session-state method][arc-methods-session].
 
 ## Steps
 

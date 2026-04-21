@@ -787,7 +787,7 @@ discipline applies throughout — every file change touches `packages/arc-framew
       classification assertions all green with new Configurable entries
     - Typecheck clean
 
-- [ ] **3.8 Retire legacy aggregate files**
+- [x] **3.8 Retire legacy aggregate files**
 
     Parent task. Scoped sweep of all remaining references to the aggregates (hooks, scripts, always-loaded docs,
     strategy narratives), then delete + grep-verify. Reference scope is materially larger than the anchor-form
@@ -914,38 +914,66 @@ discipline applies throughout — every file change touches `packages/arc-framew
           was L202–203 (not L52). `TECHNICAL-OVERVIEW.md` template counterpart had no aggregate references
           to mirror — the project's rendered copy is the only place they existed.
 
-    - [ ] **3.8.d Delete aggregates + install-pipeline cleanup + grep-verify**
+    - [x] **3.8.d Delete aggregates + install-pipeline cleanup + grep-verify**
 
         **Goal:** Aggregate files are gone; install pipeline, manifest, and tests are clean; full-tree grep
         confirms zero operational references remain.
-        - Delete `.arc/system/workflows/arc-methods.md`, `.arc/system/workflows/arc-extensions.md`,
-          `packages/arc-framework/arc/system/workflows/arc-methods.md`,
-          `packages/arc-framework/arc/system/workflows/arc-extensions.md`.
-        - Remove `system/workflows/arc-methods.md` and `system/workflows/arc-extensions.md` from
-          `packages/arc-framework/init-recipe.json` `include_files` (L55–56 at audit time — verify).
-        - Remove `system/workflows/arc-methods.md` and `system/workflows/arc-extensions.md` from
-          `packages/arc-framework/src/lib/classification.ts` `CONFIGURABLE_FILES` set (L87–88 at audit time —
-          verify).
-        - Update or remove the 3 unit tests referencing aggregate paths: `__tests__/unit/init.test.ts` L40
-          (installable-file fixture), `__tests__/unit/manifest/apply.test.ts` L282 (classification assertion),
-          `__tests__/unit/removal-prompts.test.ts` L158, L168 (removal-prompt fixture). Replace each aggregate
-          reference with a representative new per-file path, or drop if the specific assertion no longer applies.
-        - Remove `system/workflows/arc-methods.md` and `system/workflows/arc-extensions.md` entries from
-          `.arc/system/.internal/manifest.json` (L270, L275 at audit time — verify). These entries are
-          `classification: "Configurable"`, so the framework-sync test skips them — removal is hygiene, not
-          required to pass the test.
-        - **Deferred from Task 3.6 — resolve here:** non-anchor link-def pairs remain in
-          `system/workflows/arc/supplemental/integrate-external-content.md` (both trees) at usages L74, L80, L87
-          and `system/workflows/arc/initial-setup/03_configure-external-integration.md` (package-only) at
-          usages L77, L96, L132. Prose frames the aggregates as conceptual single-file catalogs — rewrite to
-          reference the per-file directories, or redirect to `methods/README.md` / `extensions/README.md` if
-          the single-catalog framing still reads naturally.
-        - Full-tree grep: `grep -rn 'arc-methods\.md\|arc-extensions\.md' .arc/ packages/arc-framework/arc/
-          docs/ packages/arc-framework/src/ packages/arc-framework/__tests__/`. Remaining hits acceptable only
-          in: this WU's artifacts (`.arc/active/technical/*`), ADRs (`.arc/reference/adr/adr-013*.md` plus
-          historical mentions in 003/005/008/010/012), archives (`.arc/reference/archive/**`), analysis files
-          (`.arc/reference/analysis/**`), and backlog planning docs (`.arc/backlog/**`). Live docs / code /
-          scripts / tests must be clean.
+        - Deleted the 4 aggregate files: `.arc/system/workflows/arc-methods.md`,
+          `.arc/system/workflows/arc-extensions.md`, and both `packages/arc-framework/arc/system/workflows/`
+          counterparts.
+        - `packages/arc-framework/init-recipe.json` — removed both aggregate entries (actual L73–74, not L55–56
+          as stated in planning; entries had drifted during the per-file additions).
+        - `packages/arc-framework/src/lib/classification.ts` — removed both entries from `CONFIGURABLE_FILES`
+          (L87–88, matches planning).
+        - `.arc/system/.internal/manifest.json` — removed both entries (actual L360, L365, not L270, L275;
+          drift similar to init-recipe). Per-file methods/extensions manifest entries ship unchanged.
+        - Also cleaned `.arc/system/.internal/pristine.json` (gitignored, two-copy snapshot store): removed
+          the two aggregate keys to keep manifest/pristine pairing consistent locally.
+        - Unit tests updated (line numbers in planning were stale — resolved from actual references):
+            - `__tests__/unit/init.test.ts:282` — replaced `"system/workflows/arc-methods.md"` with
+              `"system/methods/commit-format.md"` in the `classifyFile` "Configurable" assertion (per-file
+              methods remain Configurable; aggregate path now falls through to Framework).
+            - `__tests__/unit/manifest/apply.test.ts:158,168` — replaced `"system/arc-methods.md"` (stand-in
+              path for Configurable-class removal fixture) with `"system/methods/commit-format.md"`.
+            - `__tests__/unit/removal-prompts.test.ts:40` — same replacement, fixture role only.
+            - `__tests__/unit/scripts/validate-package-neutrality.test.ts` — deleted the `it("does NOT
+              classify legacy aggregate files — out of scope (retired in 3.8.d)")` case outright; the
+              in-file comment explicitly scheduled this test for removal at 3.8.d, now that the source
+              files no longer exist in the package tree.
+        - Deferred-from-3.6 link-def pair rewrites:
+            - `system/workflows/arc/supplemental/integrate-external-content.md` (both trees) — Steps 3a/3b
+              rewritten to reference `system/methods/` and `system/extensions/` directories; section-name
+              references updated to current field names (`.actions` not `.steps`); added `override-active`
+              / `active` frontmatter toggle guidance. Ref-defs `[arc-methods]` / `[arc-extensions]` now
+              point at `../../methods/README.md` / `../../extensions/README.md`.
+            - `system/workflows/arc/initial-setup/03_configure-external-integration.md` (package-only) —
+              L77/L96/L132 + Step 4 Summary bullets rewritten to reference the directories and specific
+              per-file paths where a single target is named (`post-task-completion.md`). Ref-defs updated;
+              added `[arc-ext-post-task-completion]` for the direct per-file link.
+        - **Scope expansion from grep-verification (not enumerated in planning):** the initial grep after
+          the above changes surfaced 9 additional live operational references in 5 files — all pre-existing
+          narrative hits that were not caught by Tasks 3.6/3.8.a–c. Rewrote each:
+            - `system/workflows/arc/session-lifecycle/session-init.md` + `.template.md` (both trees, 4
+              files) — "The session state mechanism is overridable via `` [`arc-methods.md` §
+              session-state][…] ``" → "… via the `[session-state method][…]`" (ref-defs already pointed
+              at per-file method path).
+            - `system/workflows/arc/session-lifecycle/session-handoff.md` + `.template.md` (both trees,
+              4 files) — same pattern, same rewrite.
+            - `system/workflows/arc/initial-setup/01_verify-and-configure.md` (both trees, 2 files) —
+              § Customization Beyond Config: rewrote the "two additional customization files" narrative
+              to describe `system/methods/` and `system/extensions/` directories with concrete per-file
+              examples (`commit-context-format.md` Jira override, `post-task-quality.md` security scan,
+              `post-task-completion.md` tracker sync).
+            - `system/workflows/project/agent-pre-merge-review.md` — body rewrite: "populates the
+              `pre-merge-review` extension point in [arc-extensions.md]…" → "populates the `.actions`
+              section in the [pre-merge-review extension]…" (ref-def already correct).
+        - Full-tree grep post-cleanup: `grep -rn 'arc-methods\.md\|arc-extensions\.md' .arc/
+          packages/arc-framework/arc/ packages/arc-framework/src/ packages/arc-framework/__tests__/`
+          filtered against the allowed-zones list (WU artifacts, ADRs, archives, analysis, backlog,
+          `.internal/`) returns **zero hits**. Live docs / code / scripts / tests are clean.
+        - Quality gates: Tier 1 + Tier 2 full suite passed on modified files (5 `.arc/` workflow files
+          lint clean; full `lint:md` across 195 files 0 errors; `lint:ts` / `typecheck` / `typecheck:test`
+          clean; 583 unit tests + 43 e2e/integration tests passing; `build` succeeds).
         - **Docs and backlog:** Out of scope this WU. `docs/` handling is covered by the separate
           docs-content-sweep WU. Backlog plan-doc references (ROADMAP, `plan-arc-modes.md`, etc.) refresh at
           activation of their respective WUs.
