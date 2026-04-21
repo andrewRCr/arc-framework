@@ -43,7 +43,9 @@ and task list integration.
 2. **Code Linting**: Zero violations
     - TypeScript: `npm run lint:ts` — config: `packages/arc-framework/eslint.config.js`
       (typescript-eslint recommended-type-checked)
-    - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts
+    - Shell: `npm run lint:sh` — shellcheck on githooks and system scripts. Requires
+      system-installed `shellcheck` (`apt-get install shellcheck`, `brew install shellcheck`,
+      or equivalent) on developer machines; CI runners provide it preinstalled.
 
 3. **TypeScript Type Checking**: Zero errors
     - Command: `npm run typecheck`
