@@ -528,7 +528,8 @@ discipline applies throughout — every file change touches `packages/arc-framew
 
 - [ ] **3.3 Frontmatter schema validation hook (test-first)**
 
-    **Goal:** Pre-commit hook rejects staged method/extension files with missing or malformed frontmatter.
+    **Goal:** Pre-commit hook rejects staged method, extension, or agent files with missing or malformed
+    frontmatter.
     - Placement: slots into `.arc/system/githooks/pre-commit` after CHECK 11, before the Summary block (line ~347
       as of audit; verify against current file). Labeled `CHECK 12:`, same output style as existing checks,
       short-circuit on failure.
@@ -537,17 +538,24 @@ discipline applies throughout — every file change touches `packages/arc-framew
       `lint:arc:triggers`, so the dependency is not net-new. Hook invokes the 3.1 parser as a thin CLI entry (add
       a guarded `fileURLToPath(import.meta.url) === process.argv[1]` entry in the parser module, mirroring
       `audit-method-triggers.ts`).
+    - **Schema coverage:** methods (`system/methods/*.md`), extensions (`system/extensions/*.md`), and agent
+      files (`system/agent/*.ARC.md`). Method and extension schemas are implemented in Phase 3.1; agent-file
+      schema is minimal (`active: boolean` only — no `name`, `description`, or `related` fields required).
+      Extend the Phase 3.1 parser with an agent-file schema validator as part of this task. Consumed by Phase
+      5.5 (agent file conditional load).
     - Two-copy sync per hook edit
 
     Build `test-first` (one behavior at a time):
-    - Valid frontmatter passes (both method and extension schemas)
-    - Missing `name` field fails with diagnostic naming the file and field
-    - Missing `description` fails
+    - Valid frontmatter passes (method, extension, and agent schemas)
+    - Missing `name` field fails with diagnostic naming the file and field (method/extension)
+    - Missing `description` fails (method/extension)
     - Missing `override-active` on a method file fails
     - Missing `active` on an extension file fails
-    - `related` not an array fails
-    - `name` not matching file basename fails
-    - Non-method/extension files staged do not trigger the check
+    - Missing `active` on an agent file fails
+    - `active` not boolean on an agent file fails
+    - `related` not an array fails (method/extension)
+    - `name` not matching file basename fails (method/extension)
+    - Non-method/extension/agent files staged do not trigger the check
 
 - [ ] **3.4 D7a link-resolution pre-commit hook (test-first)**
 
@@ -797,8 +805,37 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
 
 **Strategies:** `strategy-session-operations.md`
 
-**Purpose:** Shrink remaining upfront-read surface. Per-rule reliability gate for DEV-RULES is the cautious path —
-default to up-front load; shift to conditional only where trigger is clear.
+**Purpose:** Shrink remaining upfront-read surface, add remote-sync awareness at session start, and restructure
+session-init Step 2/4/7 to reflect Phase 4 audit outcomes and Phase 5 changes. Per-rule reliability gate for
+DEV-RULES is the cautious path — default to up-front load; shift to conditional only where trigger is clear.
+
+- [ ] **5.0 Remote sync check at session-init**
+
+    **Goal:** Session-init fetches origin (code + git notes) and surfaces divergence in the orientation; pulling is
+    always user-confirmed via a prompt separate from the standard "proceed" prompt — no auto-pull.
+
+    **Rationale:** No current ARC mechanism detects remote changes at session start. Developers moving between
+    machines, or pulling teammates' work, must remember `git fetch && git pull` and `arc user pull` manually.
+    Surfacing divergence early prevents stale-branch work and stale SESSION-NOTES; separating the pull prompt
+    from the proceed prompt avoids "yes" ambiguity when both are presented.
+
+    - Add `session.remote_sync: enabled | disabled` (default `enabled`) to `arc-config.yml`; comment clarifies
+      fetching is automatic, pulling is always user-confirmed — never auto-pull
+    - Add Step 1.5 "Sync Remote State" to `session-init.md`:
+        - Skip when `session.remote_sync: disabled`
+        - `git fetch origin` + `git fetch origin 'refs/notes/arc/user/*'`, bounded timeout ~10s, parallel with
+          Batch 1 where platform allows
+        - Graceful degradation on failure (offline, no remote, auth error) — single-line note, continue
+        - Results feed Step 5 freshness check and Step 6 orientation
+    - Update Step 6 — when divergence exists, prepend a labeled block to the orientation (above active work
+      state) listing `{branch}: N commits behind origin/{branch}` and `git notes ({identity}): N notes ahead
+      on origin`; suppress entirely when clean
+    - Update Step 6 prompt sequence — on divergence:
+        1. `Pull from origin? (y/n)` — combined when both code + notes divergent; individual otherwise
+        2. On "y": run `git pull --ff-only` (code), `arc user pull` (notes); report results
+        3. Standard `Proceed to Next Action?` prompt follows
+      Common case (no divergence): only the standard proceed prompt, unchanged
+    - Two-copy sync on `session-init.md` and `arc-config.yml`
 
 - [ ] **5.1 QUICK-REFERENCE partial-read at session-init**
 
@@ -853,32 +890,75 @@ default to up-front load; shift to conditional only where trigger is clear.
     **Note:** Default remains up-front load; shifting is opportunistic. "Up-front load remains correct" is always a
     valid disposition.
 
-- [ ] **5.5 Session-init workflow Step 2/4/7 restructure**
+- [ ] **5.5 Agent file conditional load via `active` frontmatter**
+
+    **Goal:** Session-init skips the body of `{AGENT}.ARC.md` when frontmatter declares `active: false`.
+    Template-only agent files (installed but never populated) stop costing tokens every session.
+
+    **Rationale:** `arc init` / `arc join` create `{AGENT}.ARC.md` when the adopter selects that agent, but the
+    file ships as a template — adopter populates later, or never. Always-loading it costs tokens on every
+    session for content that may be purely placeholder. An `active` flag gated by reliable frontmatter-only
+    read recovers those tokens.
+
+    - [ ] **5.5.a Codify the frontmatter-only read pattern**
+        - Add instruction to `session-init.md` for agent file loading: "Read only the first N lines (frontmatter
+          block); if `active: false`, do not read further." N sized to cover frontmatter plus small buffer
+          (e.g., 10).
+        - Empirically validate before finalizing — one session with `active: false`, one with `active: true`.
+          Confirm the body is actually skipped (measure via tool-call observation, not self-report).
+        - Record the pattern in `strategy-session-operations.md` as the canonical "conditional-load via
+          frontmatter flag" mechanism, available for reuse.
+
+    - [ ] **5.5.b Apply to `{AGENT}.ARC.md`**
+        - Add `active: boolean` to frontmatter schema for agent files; ships as `active: false` when `arc init`
+          / `arc join` creates the file — templates are unpopulated at install time, so `false` is the honest
+          default. Adopter flips to `true` when they actually populate the file; self-evident from the
+          frontmatter field, no CLI automation needed at init time.
+        - Update `session-init.md` Item 3 (agent-specific file) to use the conditional-load pattern
+        - Phase 3.3 schema-validation hook already covers agent files (scope added there); verify coverage
+          holds after template update
+        - Two-copy sync on `session-init.md`; agent file templates live in `packages/arc-framework/templates/`
+
+    - [ ] **5.5.c Scan for other `active`-gate candidates**
+        - Audit always-loaded docs for files that ship as templates or have highly conditional content —
+          candidates for the same `active`-gated pattern
+        - Record dispositions in notes file: candidate / eligible / reason not eligible
+        - Apply inline to any eligible candidates, or spin out as follow-on tasks if substantial
+        - If audit returns nothing, collapse to a single notes-file entry ("no additional candidates") —
+          don't force the pattern where it doesn't fit
+
+- [ ] **5.6 Session-init workflow Step 2/4/7 restructure**
 
     **Goal:** Batching structure, configuration check, and mismatch-handling prose all match Phase 4 audit outcomes and
-    Phase 5.1–5.4 partial-reads.
-    - [ ] **5.5.a Step 2 batching**
+    Phase 5.0–5.5 changes (remote sync step, partial-reads, agent file conditional load).
+    - [ ] **5.6.a Step 2 batching**
         - Re-express Batch 1 / Batch 2 ordering given slimmed loadset
         - Update embedded examples (e.g., many-file disambiguation prompt) if they reference content that moved
+        - Evaluate promoting SESSION-NOTES into Batch 1 (or a pre-batch slot after identity resolves).
+          SESSION-NOTES carries persistent context and ad-hoc session guidance that can influence subsequent
+          reads — loading it in Batch 2 may be structurally late. Identity-resolution prerequisite is already
+          satisfied in Batch 1. Decision criteria: does any later load realistically change based on
+          SESSION-NOTES content (persistent context, session-type prefix, one-off instructions)? If yes,
+          promote; if no, current Batch 2 placement is fine.
 
-    - [ ] **5.5.b Step 4 simplification**
+    - [ ] **5.6.b Step 4 simplification**
         - Configuration check simplifies post-audit (fewer defaults to scan, overrides surface the same way but against
           the slimmer content set)
 
-    - [ ] **5.5.c Step 7 tightening**
+    - [ ] **5.6.c Step 7 tightening**
         - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to auto-recover vs.
           stop-and-ask tiers
 
     **Note:** Audit session-init.md for speed considerations alongside the structural restructure. Baseline:
     ~2 minutes from `/arc-resume` invocation to orientation summary (pre-optimization). Phase 1–4 reductions
-    shrink wall-clock time naturally (less content to read and process); 5.5 is the moment to also evaluate
+    shrink wall-clock time naturally (less content to read and process); 5.6 is the moment to also evaluate
     structural speed wins independent of load-set size — unexploited batching opportunities, redundant checks,
     steps whose cost is dominated by serial tool calls rather than content. Apply low-risk wins inline during
-    5.5.a–c; record larger opportunities as follow-ons.
+    5.6.a–c; record larger opportunities as follow-ons.
 
     - Two-copy sync
 
-- [ ] **5.6 Phase 5 close — Tier 2 quality gates**
+- [ ] **5.7 Phase 5 close — Tier 2 quality gates**
     - Markdown lint, framework-sync, targeted re-run of session-init against a representative active task list (if
       available) to spot-check regressions
 
