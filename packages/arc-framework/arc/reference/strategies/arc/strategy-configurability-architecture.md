@@ -34,8 +34,8 @@ mechanisms handle different kinds of customization, and existing project documen
 | Mechanism       | What It Does              | File                 | Example                                    |
 |-----------------|---------------------------|----------------------|--------------------------------------------|
 | Config          | Toggles enforcement       | `arc-config.yml`     | `commit.format: any` disables hook check   |
-| Extension       | Adds steps to workflows   | `arc-extensions.md`  | Post-task quality: also run security scan  |
-| Method override | Replaces default behavior | `arc-methods.md`     | Session state: custom format, not default  |
+| Extension       | Adds steps to workflows   | `system/extensions/` | Post-task quality: also run security scan  |
+| Method override | Replaces default behavior | `system/methods/`    | Session state: custom format, not default  |
 | QUICK-REFERENCE | Environment/tool commands | `QUICK-REFERENCE.md` | `glab mr create` instead of `gh pr create` |
 
 ### Which mechanism do I use?
@@ -126,9 +126,9 @@ a configurability path (how teams adapt it).
 
 - **Config setting** — A value in `arc-config.yml` that hooks, workflows, or agents read at runtime to change
   behavior. See [Configuration](#configuration).
-- **Method override** — A structured replacement in `arc-methods.md` that substitutes ARC's default
-  implementation with the team's alternative. See [Method Overrides](#method-overrides).
-- **Extension** — Additional steps added at preset workflow points via `arc-extensions.md`. See
+- **Method override** — A populated `.override` section in a file under `system/methods/` that substitutes
+  ARC's default implementation with the team's alternative. See [Method Overrides](#method-overrides).
+- **Extension** — Additional steps added at preset workflow points via files under `system/extensions/`. See
   [Extension Points](#extension-points).
 - **File-customizable** — The convention is configured by editing Configurable project-level files.
   DEV-RULES.PROJECT, QUICK-REFERENCE, agent-specific files — the file itself is the configuration. Changes
@@ -142,17 +142,18 @@ a configurability path (how teams adapt it).
 ### Agent discovery
 
 The agent learns about the active configuration during session initialization. After loading standard documents,
-the agent reads `arc-config.yml` and scans `arc-methods.md` for override presence:
+the agent reads `arc-config.yml` and enumerates active extensions:
 
 1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for platform-appropriate
    commands
-2. **Method override presence**: Scan `arc-methods.md` `.override` headings to note which methods have active
-   overrides — a list of names, not content. Method defaults and override content load on-demand when workflows
-   reference them (see [Session Operations Strategy][session-ops])
+2. **Active extensions**: Run `grep -l "^active: true" system/extensions/*.md` and map hits to extension
+   basenames — this is the active-extensions list consulted by fire-point directives in downstream workflows.
+   Methods are not enumerated at session init; method defaults and overrides always load on-demand when
+   workflows reference them (see [Session Operations Strategy][session-ops])
 3. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
 
 This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies
-it when encountering method references or platform-specific operations.
+it when encountering method references, extension fire points, or platform-specific operations.
 
 ---
 
@@ -267,30 +268,32 @@ additional context loading, pre-commit verification — without modifying framew
 
 ### Mechanism
 
-Extension content lives in `arc-extensions.md` at `system/workflows/`. This file is framework-owned and
-project-filled: ARC provides the structure and preset section scaffolding, teams add their content. The file is
-classified as Configurable — preserved through three-way merge during framework updates.
+Each extension has its own file under `system/extensions/`. Files are framework-owned and project-filled: ARC
+provides the structure (YAML frontmatter plus an `.actions` section), teams populate `.actions` with their steps
+and flip `active: true` in the frontmatter. Classified Configurable — preserved through three-way merge during
+framework updates.
 
-Each preset section includes: which workflow it extends, when it fires, what the contract allows, and a
-`[No extension configured]` placeholder.
+Each preset file includes: which workflow it extends, when it fires, what the contract allows, and an empty
+`.actions` section.
 
 ### References in workflows
 
 Extension points appear as conditional steps in workflow documents, with a backtick anchor tag for grep-ability:
 
 ```markdown
-- **Extensions** · `#post-task-quality`: If [post-task-quality
-  extensions][arc-ext-task-quality] are configured, execute them
-  before proceeding.
+- **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions
+  list (established at session init), load and execute its [`.actions`][arc-ext-task-quality].
+  Otherwise, skip.
 ```
 
-The agent encounters the reference, follows the link to `arc-extensions.md`, reads the section, executes any
-steps found (or skips if placeholder), and returns to the workflow.
+The agent checks the active-extensions list (enumerated at session init via `grep -l "^active: true"` on
+`system/extensions/*.md`). If the extension is active, the agent reads its `.actions` section and executes;
+otherwise the step short-circuits.
 
 ### Preset vs. custom
 
 **Preset (convention, tier 2):** ARC defines these at specific, tested locations in workflow docs. They have
-defined contracts and corresponding sections in `arc-extensions.md`. This is the expected customization path.
+defined contracts and corresponding files in `system/extensions/`. This is the expected customization path.
 
 **Custom (escape hatch, tier 3):** Teams may add their own extension points elsewhere in workflow docs. ARC does
 not block this, but custom points are outside the framework's design envelope — framework updates may conflict,
@@ -306,8 +309,9 @@ same principle.
 
 ### Mechanism
 
-Override content lives in `arc-methods.md` at `system/workflows/`, co-located with `arc-extensions.md`. Same
-classification (Configurable), same ownership model (framework-owned structure, project-filled content).
+Each method has its own file under `system/methods/`, co-located with `system/extensions/`. Same
+classification (Configurable), same ownership model (framework-owned structure, project-filled `.override`
+sections).
 
 Each preset method defines a contract — the invariant that both the default and any override must satisfy.
 Contracts are advisory, not mechanically enforced.
@@ -354,7 +358,7 @@ escape hatch territory, not guaranteed compatible across updates.
 ARC handles platform-specific tool commands through QUICK-REFERENCE rather than the method override system.
 Platform commands and behavioral methods are distinct concerns:
 
-- **Behavioral methods** (what to do) → `arc-methods.md`
+- **Behavioral methods** (what to do) → `system/methods/`
 - **Tool commands** (which CLI to run) → QUICK-REFERENCE
 
 QUICK-REFERENCE is the project-specific environment context and command patterns document. It is Configurable

@@ -867,31 +867,52 @@ discipline applies throughout — every file change touches `packages/arc-framew
           `arc-extensions.md` references.
         - Two-copy sync applied throughout.
 
-    - [ ] **3.8.c Strategy narrative rewrites**
+    - [x] **3.8.c Strategy narrative rewrites**
 
         **Goal:** Strategy docs accurately describe the current per-file customization model. These are content
         rewrites, not link swaps — the old narratives frame customization as writing into the aggregates.
-        - `reference/strategies/arc/strategy-configurability-architecture.md` (both copies) — most extensive:
-          L37–38 table ("Location" column names aggregates), L129 ("Method override — structured replacement in
-          `arc-methods.md`..."), L131 ("Extension — steps added via `arc-extensions.md`..."), L145–149
-          (session-init scan description), L270–287 (extension content mechanism), L293 (customization path),
-          L309–325 (override content mechanism), L357 (behavioral methods location). Rewrite narrative to
-          describe per-file directories as the home for both overrides and extension steps.
-        - `reference/strategies/arc/strategy-team-coordination.md` (both copies) L326 body link + L360 ref-def:
-          the `post-task-completion` / `post-work-unit-activate` / `post-work-unit-archive` extension section —
-          update to three per-file extension paths.
-        - `reference/strategies/arc/strategy-file-classification.md` (both copies) L147: aggregate example in
-          the prose about suffix conventions — replace with a current per-file example or a different live example.
-        - `reference/strategies/arc/strategy-workflow-authoring.md` (both copies) L52: prose references
-          "## section-name heading in arc-methods.md / arc-extensions.md" — update to describe matching the
-          `name:` frontmatter field in the per-file files.
-        - `reference/strategies/project/strategy-package-project-sync.md` L52: single prose reference — inspect
-          and update.
-        - `reference/strategies/project/README.md` (both copies): grep first to confirm scope; update any prose
-          naming the aggregates.
-        - `reference/TECHNICAL-OVERVIEW.md` L21, L40–41, L77–79: top-level architecture doc. Rewrite to
-          reference the per-file directories.
-        - Two-copy sync applied where both copies exist.
+        - `strategy-configurability-architecture.md` (both copies) — 8 rewrite sites landed: (a) mechanisms
+          table rows for Extension/Method override → `system/extensions/` / `system/methods/`; (b) `§
+          Configurability path definitions` Method override bullet (now describes `.override` section in a
+          file under `system/methods/`) + Extension bullet (files under `system/extensions/`); (c) `§ Agent
+          discovery` substantively rewritten — dropped the obsolete "scan `arc-methods.md` for override
+          presence" mechanism, replaced with current state (grep `active: true` on `system/extensions/*.md`
+          → active-extensions list; methods not enumerated at init); (d) `§ Extension Points § Mechanism`
+          rewritten to describe per-file structure with frontmatter + `.actions` section, and `References in
+          workflows` code sample updated to the active-extensions-list fire-point pattern; (e) `§ Preset vs.
+          custom` "corresponding files in `system/extensions/`"; (f) `§ Method Overrides § Mechanism`
+          rewritten to describe per-file co-location with `system/extensions/`; (g) `§ Platform commands`
+          behavioral-methods bullet → `system/methods/`.
+        - `strategy-team-coordination.md` (both copies) § Integration Mechanism: body rewritten — now names
+          `.actions` section populated in the relevant per-file extension; single `[arc-extensions]` ref-def
+          replaced with 4 per-file refs (`-dir`, `-task-completion`, `-wu-activate`, `-wu-archive`) linking
+          the three named extensions + the directory.
+        - `strategy-file-classification.md` (both copies) § Template suffix convention: aggregate example
+          replaced with `system/methods/commit-format.md` — preserves the "ships as functional content,
+          customized in place" framing with a current live example.
+        - `strategy-workflow-authoring.md` (both copies) `arc:` namespace § final bullet rewritten — drops the
+          "when methods and extensions migrate" forward-looking framing (migration is complete); names match
+          file basename in `system/methods/` / `system/extensions/` stated directly.
+        - `strategy-package-project-sync.md` (.arc/ only — project-specific strategy, not mirrored):
+          Configurable files list expanded — the two aggregate entries replaced with 16 per-file entries
+          (8 methods + 8 extensions) in alphabetical order. Directory-glob alternative rejected for
+          consistency with the rest of the list, which enumerates specific files.
+        - `strategy-project/README.md` (both copies) § Drop zone routing bullets: Method override bullet now
+          reads "populate `.override` in the method's file under `system/methods/`"; Extension bullet reads
+          "populate `.actions` in the extension's file under `system/extensions/`". Note: corrected `.steps`
+          → `.actions` (the current extension field name).
+        - `TECHNICAL-OVERVIEW.md` (.arc/ only — template counterpart is generic placeholder content without
+          these references) — 3 sites rewritten: Key characteristics bullet, Workflows component description,
+          and Customization Layer section (per-file methods listed with the full post-restructure catalogue:
+          commit-format, commit-context-format, issue-triage, test-first, session-state, diff-review,
+          review-triage, quality-gate-commands).
+        - Quality gates: `lint:md` clean on all 7 `.arc/` files; package-source mirrors byte-identical for
+          the 5 mirrored docs.
+        - Full-file grep across all 12 modified files confirms zero remaining `arc-methods.md` /
+          `arc-extensions.md` references.
+        - Line-number drift from task description noted: actual target in `strategy-package-project-sync.md`
+          was L202–203 (not L52). `TECHNICAL-OVERVIEW.md` template counterpart had no aggregate references
+          to mirror — the project's rendered copy is the only place they existed.
 
     - [ ] **3.8.d Delete aggregates + install-pipeline cleanup + grep-verify**
 

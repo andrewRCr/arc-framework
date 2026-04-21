@@ -49,8 +49,7 @@ arc:                              # omit if this workflow loads no methods/exten
 
 - `arc.methods` — array of method names the workflow loads
 - `arc.extensions` — array of extension names the workflow checks
-- Names match the method or extension `## section-name` heading in `arc-methods.md` / `arc-extensions.md`. When
-  methods and extensions migrate to per-file directories, names continue to match the file basename.
+- Names match the file basename in `system/methods/` / `system/extensions/`.
 
 ---
 

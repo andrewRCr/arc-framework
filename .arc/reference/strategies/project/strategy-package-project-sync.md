@@ -199,8 +199,22 @@ arc-in-git files are annotated explicitly.
 - `system/agent/CLAUDE.ARC.md`
 - `system/agent/CODEX.ARC.md`
 - `system/arc-config.yml`
-- `system/workflows/arc-extensions.md`
-- `system/workflows/arc-methods.md`
+- `system/extensions/post-context-load.md`
+- `system/extensions/post-task-completion.md`
+- `system/extensions/post-task-quality.md`
+- `system/extensions/post-unit-quality.md`
+- `system/extensions/post-work-unit-activate.md`
+- `system/extensions/post-work-unit-archive.md`
+- `system/extensions/pre-merge-review.md`
+- `system/extensions/pre-stage-review.md`
+- `system/methods/commit-context-format.md`
+- `system/methods/commit-format.md`
+- `system/methods/diff-review.md`
+- `system/methods/issue-triage.md`
+- `system/methods/quality-gate-commands.md`
+- `system/methods/review-triage.md`
+- `system/methods/session-state.md`
+- `system/methods/test-first.md`
 
 ### Package-only files (not in `.arc/` — expected)
 

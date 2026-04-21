@@ -13,14 +13,21 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.8.c — Strategy narrative rewrites (line ~867)
-- **Last Completed:** Task 3.8.b — Tier 1 always-loaded doc references (DEV-RULES.ARC.md: 4
-  per-file ref-defs + directory ref, 6 body-usage rewrites; AGENT-BRIEFING.ARC.md Methods &
-  Extensions paragraph; arc-commit/SKILL.md commit-format pointers; arc-config.yml L120 comment).
-  Previous: `a6c1c6d` Task 3.8.a — verify-integrity + commit-msg rewire for per-file structure.
+- **Next Task:** Task 3.8.d — Delete aggregates + install-pipeline cleanup + grep-verify
+  (line ~893)
+- **Last Completed:** Task 3.8.c — Strategy narrative rewrites across 7 docs
+  (strategy-configurability-architecture 8 sites incl. § Agent discovery substantive rewrite;
+  strategy-team-coordination 4 per-file ext ref-defs; strategy-file-classification,
+  strategy-workflow-authoring, project/README two-copy; strategy-package-project-sync and
+  TECHNICAL-OVERVIEW `.arc/`-only). Previous: `6e401cd` Task 3.8.b — Tier 1 always-loaded
+  doc references.
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.8.c — strategy narrative rewrites across seven docs (both
-  copies where mirrored). Most extensive: `strategy-configurability-architecture.md` (8 sites
-  L37–L357, content rewrites not link swaps). Also: `strategy-team-coordination.md`,
-  `strategy-file-classification.md`, `strategy-workflow-authoring.md`,
-  `strategy-package-project-sync.md`, `project/README.md`, `TECHNICAL-OVERVIEW.md`.
+- **Next Action:** Begin Task 3.8.d — delete the two aggregate files (both trees), remove
+  their entries from `init-recipe.json`, `classification.ts` CONFIGURABLE_FILES, and
+  `.arc/system/.internal/manifest.json`. Update 3 unit test references
+  (init.test.ts L40, manifest/apply.test.ts L282, removal-prompts.test.ts L158/L168).
+  Rewrite deferred non-anchor link-def pairs in
+  `integrate-external-content.md` (both trees L74/L80/L87) and
+  `03_configure-external-integration.md` (package-only L77/L96/L132). Final full-tree grep
+  to confirm zero operational references remain outside WU artifacts / ADRs / archives /
+  analysis / backlog.

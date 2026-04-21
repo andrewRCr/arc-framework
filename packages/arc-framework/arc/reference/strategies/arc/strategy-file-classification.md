@@ -144,7 +144,7 @@ suffix. The suffix is stripped at init time: `ROADMAP.template.md` becomes `ROAD
 The suffix marks render-engine input, not classification. Both Configurable and Scaffolded files
 can carry it — the common trait is that the source file contains placeholders that produce a
 different output file. Configurable files that ship as functional content and are customized in
-place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `arc-methods.md`) don't use the suffix
+place (e.g., `DEV-RULES.PROJECT.md`, `STRATEGY-INDEX.md`, `system/methods/commit-format.md`) don't use the suffix
 because no rendering transformation occurs — they're copied as-is during init and edited directly
 by adopters.
 

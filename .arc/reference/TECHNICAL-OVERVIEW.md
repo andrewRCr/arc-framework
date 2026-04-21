@@ -18,7 +18,7 @@ files in adopter projects.
 - **Template-first** — Rich, copy-ready documents with inline guidance and framework defaults
 - **Self-hosting** — Framework development follows its own ARC methodology
 - **Configurable conventions** — 11 non-negotiable principles with strong defaults that teams
-  adapt via `arc-config.yml`, `arc-methods.md`, and `arc-extensions.md`
+  adapt via `arc-config.yml`, `system/methods/`, and `system/extensions/`
 
 ## 2. Architecture Components
 
@@ -37,8 +37,8 @@ customized, and committed to their repositories.
 - **Archive** (`reference/archive/`) — Completed work by category, quarterly as volume grows
 - **Workflows** (`system/workflows/`) — Numbered lifecycle workflows (create-prd →
   generate-tasks → process-task-loop) plus supplemental workflows (archival, commits,
-  sessions, incidental work). Customization via `arc-methods.md` (overridable defaults)
-  and `arc-extensions.md` (hook points)
+  sessions, incidental work). Customization via `system/methods/` (overridable defaults)
+  and `system/extensions/` (hook points)
 - **Configuration** (`system/arc-config.yml`) — Flat key-value project settings (branch model,
   commit format, hooks, PM mode)
 - **Agent files** (`system/agent/`) — Per-agent instruction files (CLAUDE, CODEX, GEMINI,
@@ -74,10 +74,11 @@ commands or prompts.
 Three mechanisms allow teams to adapt ARC without forking:
 
 - **`arc-config.yml`** — Settings: branch protection, commit format, hook toggles, PM mode
-- **`arc-methods.md`** — Overridable defaults for commit format, issue-triage,
-  test-first assessment, session state, quality gate commands
-- **`arc-extensions.md`** — Hook points for team-specific automation at task, unit, and
-  work-unit lifecycle boundaries
+- **`system/methods/`** — Per-file overridable defaults for commit format, commit context
+  format, issue-triage, test-first assessment, session state, diff-review, review-triage,
+  and quality gate commands
+- **`system/extensions/`** — Per-file hook points for team-specific automation at task,
+  unit, and work-unit lifecycle boundaries
 
 ## 3. Infrastructure
 
