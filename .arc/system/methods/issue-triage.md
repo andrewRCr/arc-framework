@@ -1,7 +1,7 @@
 ---
 name: issue-triage
 description: Severity-based triage for pre-existing issues encountered in files being modified
-has-override: false
+override-active: false
 ---
 
 # Method: issue-triage

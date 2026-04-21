@@ -3,7 +3,7 @@ name: diff-review
 description: Aggregate diff review activity — generic contract invokable from any composable moment
 related:
   - review-triage
-has-override: false
+override-active: false
 ---
 
 # Method: diff-review

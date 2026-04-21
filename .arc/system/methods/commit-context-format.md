@@ -3,7 +3,7 @@ name: commit-context-format
 description: Context footer format linking each commit to its task or work context
 related:
   - commit-format
-has-override: false
+override-active: false
 ---
 
 # Method: commit-context-format

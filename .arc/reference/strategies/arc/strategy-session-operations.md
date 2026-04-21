@@ -151,7 +151,7 @@ constitute the trigger.
 ### Per-file Frontmatter Schema
 
 Methods and extensions live as per-file entries under `system/methods/` and `system/extensions/`, each with a
-fixed YAML frontmatter block. The schema is the structural contract: session-init reads `has-override` /
+fixed YAML frontmatter block. The schema is the structural contract: session-init reads `override-active` /
 `active` to produce the override-presence index without parsing bodies, and the framework-repo CI audit
 reads the directories and workflow frontmatter to enforce corpus-wide coverage.
 
@@ -163,7 +163,7 @@ name: <method-name>
 description: <one-line operational purpose>
 related:
   - <related-method-name>
-has-override: false
+override-active: false
 ---
 ```
 
@@ -186,7 +186,7 @@ active: false
 - `description` — one-line operational purpose. What it does, not where it fires
 - `related` — array of coupled method or extension names within the same kind. Overriding one should prompt
   review of the others. Omit when empty
-- `has-override` (methods only) — `true` when the file's override body is populated; `false` when the default
+- `override-active` (methods only) — `true` when the file's override body is populated; `false` when the default
   is in effect. Session-init reads this to produce the override-presence index without parsing method bodies
 - `active` (extensions only) — `true` when the extension's `.actions` section is populated; `false` when the
   extension is an empty placeholder. Workflows checking `active: false` skip the extension invocation at its

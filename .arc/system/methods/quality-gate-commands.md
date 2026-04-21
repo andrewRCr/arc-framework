@@ -1,7 +1,7 @@
 ---
 name: quality-gate-commands
 description: Project-defined quality gate commands — Tier 1, 2, 3
-has-override: false
+override-active: false
 ---
 
 # Method: quality-gate-commands

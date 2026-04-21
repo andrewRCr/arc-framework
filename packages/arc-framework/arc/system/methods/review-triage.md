@@ -1,7 +1,7 @@
 ---
 name: review-triage
 description: Four-way classification of review findings — fix-now, defer, reject, silent-fix
-has-override: false
+override-active: false
 ---
 
 # Method: review-triage

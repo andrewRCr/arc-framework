@@ -8,7 +8,7 @@ implementation. For each method, the agent checks `.override` first — if popul
 `.default`. Contracts are advisory: your override should satisfy the same invariant as the default.
 
 **Loading model:** Method defaults and overrides load on-demand at workflow trigger points, not at session
-initialization. Session-init scans the `has-override` frontmatter field for override *presence* without reading
+initialization. Session-init scans the `override-active` frontmatter field for override *presence* without reading
 method bodies. Workflow documents declare their method dependencies in frontmatter (`arc.methods`) — see
 [Workflow Authoring Strategy][workflow-authoring] and
 [Session Operations Strategy § Method and Extension Loading][session-ops-methods].

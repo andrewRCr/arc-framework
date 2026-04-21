@@ -1,7 +1,7 @@
 ---
 name: test-first
 description: Decision tree for test-first vs test-after by change type
-has-override: false
+override-active: false
 ---
 
 # Method: test-first

@@ -3,7 +3,7 @@ name: commit-format
 description: Commit message format — structure, types, scope, body conventions
 related:
   - commit-context-format
-has-override: false
+override-active: false
 ---
 
 # Method: commit-format

@@ -135,7 +135,7 @@ described. Captured during the session-init-optimization work unit:
 
 - **Per-file restructure replaces aggregate files.** `arc-methods.md` and `arc-extensions.md` were retired; methods
   and extensions now live as per-file entries under `system/methods/` and `system/extensions/`. Each file carries
-  YAML frontmatter with fields `name`, `description`, `related`, plus `has-override` (methods) or `active`
+  YAML frontmatter with fields `name`, `description`, `related`, plus `override-active` (methods) or `active`
   (extensions). Extension terminology reconciled — legacy `has-steps`/`.steps` became `active`/`.actions`. The
   `workflow` field was deliberately omitted (no mechanical consumer, lossy on fan-out; the reverse index stays in
   the strategy's classification table). Per-file body conventions are codified in

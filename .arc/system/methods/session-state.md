@@ -1,7 +1,7 @@
 ---
 name: session-state
 description: Read and write session state across handoffs via tracked and gitignored files plus git notes
-has-override: false
+override-active: false
 ---
 
 # Method: session-state

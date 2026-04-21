@@ -468,19 +468,17 @@ discipline applies throughout — every file change touches `packages/arc-framew
     Parent task. 3.1.a locks in the final field name before 3.1.b builds the parser against it, so the parser and
     its test cases never reference an intermediate name.
 
-    - [ ] **3.1.a Rename method schema field `has-override` → `override-active`**
+    - [x] **3.1.a Rename method schema field `has-override` → `override-active`**
 
-        **Goal:** Parallelize semantics with extensions' `active` field and drop the `has-`-prefix plural
-        awkwardness. Self-documenting: the field answers "is the override turned on?" — method-side counterpart to
-        the extension-side "is the extension turned on?".
+        **Outcome:** Field renamed across 25 occurrences in 21 files — all 16 method files (8 × 2 copies),
+        both README copies, both `strategy-session-operations.md` copies (3 occurrences each: schema spec,
+        field-semantics bullet, code-block example), and ADR-013 § Amendments. Status-file, task-list, and
+        PRD occurrences intentionally deferred (status/task list refresh on commit; PRD P0.5 bundled with
+        Task 3.10 ADR-013 sanity check). Tier 1 `lint:md` clean.
 
-        **Scope (30 occurrences across 21 files, PRD and this task list excluded):**
-        - 16 method files (8 × 2 copies): frontmatter field rename
-        - 2 README files (`.arc/system/methods/README.md` + package copy): loading-model callout
-        - `strategy-session-operations.md` × 2 copies: schema spec, field semantics, and any prose references
-        - `adr-013-adopt-on-demand-method-loading.md`: single-copy per ADR convention
-        - PRD P0.5 deferred to Task 3.10 (refresh bundled with ADR-013 sanity check)
-        - This task list's descriptions refresh naturally via Phase 3 edits
+        **Rationale carried forward:** Parallelizes semantics with extensions' `active` field and drops the
+        `has-`-prefix plural awkwardness. Self-documenting: the field answers "is the override turned on?" —
+        method-side counterpart to the extension-side "is the extension turned on?".
 
     - [ ] **3.1.b Frontmatter parsing utility (test-first)**
 
