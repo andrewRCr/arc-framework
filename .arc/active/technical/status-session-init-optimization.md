@@ -14,7 +14,7 @@
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
 - **Next Task:** Task 3.2 — Enhance directory READMEs with derived tables
-  (line ~507)
+  (line ~510)
 - **Last Completed:** Task 3.1 (coherent unit — 3.1.a schema rename +
   3.1.b frontmatter parser). New `src/lib/frontmatter/` module with
   generic extractor + method/extension schema validators; refactored
