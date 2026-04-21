@@ -52,9 +52,6 @@ rationale, risks, research references).
 
 ### **Phase 1:** Workflow Trigger Contract + Per-File Restructure + CI Enforcement
 
-**Strategies:** `strategy-session-operations.md`, `strategy-configurability-architecture.md`,
-`strategy-package-project-sync.md`
-
 **Purpose:** Establish the workflow→method/extension trigger contract end-to-end: define a structural YAML frontmatter
 schema, codify the author-side declaration rule, migrate all in-scope workflows, pull forward the per-file
 methods/extensions restructure (so the audit script lands on final structure with no legacy-aggregate fallback), rename
@@ -403,8 +400,6 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
 
 ### **Phase 2:** Constitutional Rule + ADR-013 Amendment Draft
 
-**Strategies:** `strategy-session-operations.md`, `strategy-adr-methodology.md`
-
 **Purpose:** Anchor compliance behavior before Phase 3 removes the always-loaded bodies. Constitutional framing is
 absolute — no hedges — per compliance-reliability research.
 
@@ -451,9 +446,6 @@ absolute — no hedges — per compliance-reliability research.
 ---
 
 ### **Phase 3:** Validation, Integration, and Finalization
-
-**Strategies:** `strategy-package-project-sync.md`, `strategy-session-operations.md`,
-`strategy-configurability-architecture.md`, `strategy-quality-gates.md`, `strategy-testing-methodology.md`
 
 **Purpose:** Landing phase for the per-file structure established in Phase 1. Build the frontmatter parser utility;
 write schema + link-resolution validation hooks; restructure session-init to the post-aggregate mechanism (methods:
@@ -1193,12 +1185,9 @@ discipline applies throughout — every file change touches `packages/arc-framew
 
 ### **Phase 4:** Operational-Context Audit + Task-List-Formatting Restructure + D7b
 
-**Strategies:** `strategy-session-operations.md` (content-tiering lens), `strategy-task-list-formatting.md` (for P1.4
-restructure target), `strategy-package-project-sync.md`
-
 **Purpose:** Apply the "operational context only" lens across always-loaded docs and workflows; stage extractions for
-the future docs-content-sweep WU; formalize D7b shape-boundary wrappers opportunistically. Ordering is Tier 1 → Tier 2 →
-Tier 3 so the highest-leverage content is audited first.
+the future docs-content-sweep WU; land the D7b extension-point match hook against the existing anchor-suffix
+convention. Ordering is Tier 1 → Tier 2 → Tier 3 so the highest-leverage content is audited first.
 
 **Heuristic reminder (apply throughout 4.2–4.5):** keep content that helps conceptual flow, is counterintuitive, or
 would confuse if absent. Target ~80–90% extraction on rationale/background/overflow-example content with case-by-case
@@ -1207,12 +1196,10 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
 
 - [ ] **4.1 Staging infrastructure**
 
-    **Goal:** `notes-docs-content-sweep.md` is ready to receive extractions; cross-references from
-    `plan-docs-content-sweep.md` are current.
+    **Goal:** `notes-docs-content-sweep.md` is ready to receive extractions; placeholder convention documented in-repo.
     - Create `.arc/backlog/technical/notes-docs-content-sweep.md` if not present
-    - Schema per extraction: source file anchor, content block (verbatim), suggested destination in docs IA
-      (Starlight-bound), stylistic notes
-    - Verify `plan-docs-content-sweep.md` references this staging file; update if needed
+    - Schema per extraction (mirrors `plan-docs-content-sweep.md` § Content Contributions wording): source-file +
+      section anchor, extracted content, suggested destination in docs/ IA, stylistic integration notes
     - Document the `[TODO-docs-site]` reference-style placeholder convention in-repo (one section in the staging file or
       the strategy doc)
 
@@ -1222,6 +1209,7 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
     - Files:
         - `.arc/system/agent/AGENT-BRIEFING.ARC.md`
         - `.arc/system/agent/AGENT-BRIEFING.PROJECT.md`
+        - `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (role-conditional load — Tier 1 on contributor sessions)
         - `.arc/system/agent/CLAUDE.ARC.md` (and any other agent-specific files present)
         - `.arc/reference/constitution/DEV-RULES.ARC.md`
         - `.arc/reference/constitution/DEV-RULES.PROJECT.md`
@@ -1246,26 +1234,36 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
     - Files:
         - `.arc/system/workflows/arc/1_create-prd.md`
         - `.arc/system/workflows/arc/2_generate-tasks.md`
-        - All `work-unit-lifecycle/*.md` (activate, integrate, archive, verify, planning/\*)
-        - Remaining `supplemental/*.md` (manage-incidental-work, maintain-project-docs, add-agent, verify-arc-integrity,
-          integrate-external-content)
+        - All `work-unit-lifecycle/*.md` — `activate-work-unit.md`, `archive-work-unit.md`, `clean-work-unit.md`,
+          `deactivate-work-unit.md`, `integrate-work-unit.md`, `rotate-branch.md`, `verify-work-unit.md`, plus
+          `planning/activate-planning-branch.md` and `planning/integrate-planning-branch.md`
+        - Remaining `supplemental/*.md` — `manage-incidental-work.md`, `maintain-project-docs.md`, `add-agent.md`,
+          `verify-arc-integrity.md`, `integrate-external-content.md`
+    - **Out of Tier 3 scope (excluded explicitly for visibility):** `initial-setup/*.md` (one-off install workflows,
+      not loaded per-session), `session-lifecycle/session-loop.md` (`audience: human`, not agent-loaded)
     - Same protocol
 
 - [ ] **4.5 Task-list-formatting restructure (P1.4 — three moves)**
 
     **Goal:** `strategy-task-list-formatting.md` trimmed to rules-only catalogue; templates extracted; Quick Format
     Checklist relocated to point of use.
-    - [ ] **4.5.a Extract templates to `template-tasks.md`**
+    - [ ] **4.5.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
         - New file: `.arc/reference/templates/template-tasks.md`
         - Move: feature/technical header template, incidental header template, verification phase block, atomic
           companion file template, success criteria block
         - Two-copy sync (`packages/arc-framework/arc/reference/templates/template-tasks.md`)
-        - **Evaluate per-phase `**Strategies:**` convention** — phase headers in recent task lists carry a
-          `**Strategies:** ...` line listing potentially relevant strategy docs. Original intent was per-phase
-          awareness, but in practice across many work units it reads as noise — STRATEGY-INDEX already provides
-          session-init awareness, and executing agents consult strategies on demand by domain, not by phase header.
-          Decide keep / trim / replace before finalizing the phase-header template shape here; if removed, consider
-          a sweep of existing active and backlog task lists as part of this task or a follow-up.
+        - **Resolved (pre-Phase-4): `**Strategies:**` convention is task-level-only.** Phase-header variant dropped
+          — in practice across many work units it read as noise (STRATEGY-INDEX already provides session-init
+          awareness, and agents consult strategies on demand by domain). Task-level annotation retained for cases
+          where a specific task's domain relevance isn't obvious from its title. Apply this resolution here:
+            - `template-tasks.md` phase-header template ships without a `**Strategies:**` field
+            - Update `.arc/system/workflows/arc/2_generate-tasks.md` Step 3 (lines ~65–69): remove the "under the
+              phase header" option from the `**Strategies:**` wording; keep the task-level option, framed as "use
+              when the connection isn't obvious from the task title"
+            - Sweep `.arc/backlog/technical/tasks-arcd-rebrand.md` to remove phase-header `**Strategies:**` lines.
+              `tasks-session-init-optimization.md` was swept during the Phase 4 prep edit; archived task lists left
+              alone (historical record)
+            - Two-copy sync on `2_generate-tasks.md`
 
     - [ ] **4.5.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
         - Move checklist from `strategy-task-list-formatting.md` § Quick Format Checklist into the appropriate point in
@@ -1275,41 +1273,71 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
     - [ ] **4.5.c Trim `strategy-task-list-formatting.md` to rules-only**
         - Remove moved content
         - Apply operational-context audit on the trimmed result (rationale text → staging)
+        - Target shape: rules-only catalogue aligned with `strategy-workflow-authoring.md` (~70 lines) — rough
+          guide, not hard ceiling; current file is 709 lines
         - Update cross-references (from DEV-RULES.ARC, 2_generate-tasks.md, etc.) if links broke
 
-- [ ] **4.6 D7b extension-point wrappers — opportunistic application**
+- [ ] **4.6 D7b extension-point match pre-commit hook (test-first)**
 
-    **Goal:** Formalize existing anchor-ID convention in workflows using
-    `<extension-point name="...">...</extension-point>` tags. No sweeping retrofit — applied only where files are
-    touched in 4.2–4.5.
-    - Produce a running list of files touched in 4.2–4.5 that contain extension-point anchors
-    - For each: wrap the existing anchor region with the D7b tag
-    - Also opportunistically wrap `<template>...</template>` and `<output-format>...</output-format>` where relevant
+    **Goal:** Hook validates every extension-point reference in a workflow file has a matching extension file in
+    `system/extensions/`. No new tag syntax — the check greps the existing anchor-suffix convention that Phase 3
+    already ships.
 
-- [ ] **4.7 D7b extension-point match pre-commit hook (test-first)**
+    **Convention recap (unchanged from Phase 3 landed state):** workflows mark extension points with a trailing
+    `` · `#<name>` `` on a section heading (e.g., `` ### 3. Post-Context-Load Extensions · `#post-context-load` ``)
+    or as an inline bold prefix (e.g., `` **Extensions** · `#post-task-quality`: ``). Both forms carry the extension's
+    basename between backticks after `#`. Extension files in `system/extensions/` use `active: true|false` (not
+    `has-steps:`) per Task 3.5; placeholder bodies use `[No extension configured]` per Task 3.13's CHECK 14.
 
-    **Goal:** Hook validates every `<extension-point name="X">` tag in workflows has a matching populated definition in
-    `system/extensions/`.
-    - Placement: CHECK 14 in `.arc/system/githooks/pre-commit`
-    - Per-staged-workflow-file; grep for `<extension-point name="X">` → verify `system/extensions/X.md` exists and has
-      populated `has-steps: true` OR matches the existing placeholder convention
-    - Two-copy sync
+    **Tag-convention decision (resolved pre-Phase-4):** earlier draft proposed wrapping extension regions with
+    `<extension-point name="X">...</extension-point>` tags. Rejected: GitHub strips unknown HTML tags on render
+    (delimiter invisible to readers), inline sites can't accommodate block tags without restructuring, and the D7b
+    check's grep target works equally well against the existing anchor-suffix convention. The visible
+    human-readable suffix stays; no new syntax introduced.
+
+    **Implementation:**
+    - Placement: CHECK 15 in `.arc/system/githooks/pre-commit` (CHECK 14 is Task 3.13's package-source neutrality
+      guard)
+    - Target: staged workflow files under `.arc/system/workflows/**` and
+      `packages/arc-framework/arc/system/workflows/**` (dual-copy, matches CHECK 12/13's scope; distinct from
+      CHECK 14 which is package-source-only by design)
+    - Per staged workflow: grep `` ·\s*`#([a-z][a-z0-9-]*)` `` to extract extension-point names → for each, verify
+      the corresponding `system/extensions/<name>.md` exists in the same copy (`.arc/` workflow → `.arc/` extension;
+      package-source workflow → package-source extension). File existence is the pass criterion; `active:` value is
+      not checked (placeholder state must remain valid, per the existing CHECK 14 neutrality contract)
+    - Interaction with CHECK 14: CHECK 15 asserts *reference has a target*; CHECK 14 asserts *package-source target
+      is placeholder-neutral*. No overlap — CHECK 14 does not inspect workflow references; CHECK 15 does not inspect
+      extension body/frontmatter. Both can fire independently on the same commit without redundant diagnostics
+    - Fast short-circuit: hook-level `grep -E '...' || true` against staged paths produces empty candidate list →
+      `if [ -n "$candidates" ]` skips validator invocation entirely. Structurally identical to CHECK 12/13/14
+    - Two-copy sync on `pre-commit`
 
     Build `test-first` (one behavior at a time):
-    - Tag with matching populated extension passes
-    - Tag referencing nonexistent extension fails with diagnostic
-    - Tag referencing extension with `has-steps: false` is allowed (placeholder state)
-    - Multiple tags in one file all checked
+    - Header-suffix reference (`` ### Foo · `#foo` ``) with matching extension file passes
+    - Inline-prefix reference (`` **Extensions** · `#foo` ``) with matching extension file passes
+    - Reference to nonexistent extension fails with diagnostic naming workflow path + extension name
+    - Reference to extension with `active: false` + placeholder body (neutral package-source state) passes
+      (existence-only check)
+    - Reference to extension with `active: true` + populated body (adopter-customized `.arc/` state) passes
+    - Multiple references in one file all checked (all must resolve)
+    - Empty backtick reference (`` · `#` ``) or malformed reference produces no false positive (pattern requires
+      `[a-z]` start)
+    - Reference in a non-workflow `.md` file (strategy, README) is not checked — only staged workflow paths
+    - Fast short-circuit when no workflow files staged (mirror CHECK 12/13/14 behavior)
+    - `.arc/` workflow reference resolves against `.arc/` extension; package-source workflow resolves against
+      package-source extension (same-copy lookup)
 
-- [ ] **4.8 Phase 4 close — Tier 3 quality gates**
-    - Full quality gate pass; verify extractions staged correctly (spot-check 3–5 entries); verify link placeholders are
-      greppable by a fixed pattern
+- [ ] **4.7 Phase 4 close — Tier 3 quality gates**
+    - Full quality gate pass; verify extractions staged correctly (spot-check 3–5 entries); verify link placeholders
+      are greppable by a fixed pattern
+    - **Hook false-positive surface check for CHECK 15** (mirrors 3.12 discipline): synthetic negative-path staged
+      set (non-workflow `.md` files, `.ts`, `.yml`) produces empty candidate list so CHECK 15 short-circuits without
+      invoking validator; positive mirror set (workflow file with resolvable reference + workflow file with
+      unresolvable reference) fires correctly in both directions
 
 ---
 
 ### **Phase 5:** Partial-Read Narrowing + Session-Init Workflow Restructure
-
-**Strategies:** `strategy-session-operations.md`
 
 **Purpose:** Shrink remaining upfront-read surface, add remote-sync awareness at session start, and restructure
 session-init Step 2/4/7 to reflect Phase 4 audit outcomes and Phase 5 changes. Per-rule reliability gate for
@@ -1481,8 +1509,6 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
 ---
 
 ### **Phase 6:** Session-Type Conditional Loading
-
-**Strategies:** `strategy-testing-methodology.md`, `strategy-session-operations.md`
 
 **Purpose:** Planning, execution, and integration sessions have different needs. The `Working On:` type prefix +
 auto-inference delivers a per-type load set without forcing user ceremony. Empirical validation during the phase's own

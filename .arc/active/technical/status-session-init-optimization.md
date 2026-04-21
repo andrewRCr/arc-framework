@@ -32,11 +32,12 @@
   `b6e2649` Task 3.11 — validate-links template/archive skips + stale refs.
 - **Blockers:** [none]
 - **Next Action:** Begin Phase 4 with Task 4.1 — Staging infrastructure. Create
-  `.arc/backlog/technical/notes-docs-content-sweep.md` if not present with the extraction
-  schema (source file anchor, content block verbatim, suggested docs-IA destination,
-  stylistic notes). Verify `plan-docs-content-sweep.md` references the staging file and
-  update if needed. Document the `[TODO-docs-site]` reference-style placeholder convention
-  in-repo (one section in the staging file or the strategy doc). This task is light
-  infrastructure preparation ahead of the multi-tier audit in Tasks 4.2–4.4 — no content
-  extraction yet; just set up the staging surface so Phase 4 work has a consistent landing
-  target.
+  `.arc/backlog/technical/notes-docs-content-sweep.md` (if not present) with the extraction
+  schema mirroring `plan-docs-content-sweep.md` § Content Contributions wording: source-file +
+  section anchor, extracted content, suggested destination in docs/ IA, stylistic integration
+  notes. Document the `[TODO-docs-site]` reference-style placeholder convention in-repo (one
+  section in the staging file or the strategy doc). Light infrastructure prep ahead of the
+  multi-tier audit in Tasks 4.2–4.4 — no content extraction yet. Phase 4 task descriptions
+  were restructured pre-execution this session (tag convention dropped, `**Strategies:**`
+  decision resolved, CHECK 15 placement corrected) — see latest commit on this branch for
+  the diff.
