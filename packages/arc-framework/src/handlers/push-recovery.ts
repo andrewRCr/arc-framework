@@ -1,7 +1,7 @@
 /**
- * Interactive push with divergence recovery.
+ * Interactive push with conflict recovery.
  *
- * Wraps `runUserPush` with the "remote diverged" recovery flow used by both
+ * Wraps `runUserPush` with the "remote conflict" recovery flow used by both
  * `arc user push` and `arc sync`. Returns a discriminated result so callers
  * can render context-appropriate messaging without the helper knowing about
  * its embedding.
@@ -29,13 +29,13 @@ function isDivergentPushError(msg: string): boolean {
 }
 
 /**
- * Push user notes with interactive recovery on divergence.
+ * Push user notes with interactive recovery on conflict.
  *
  * On non-fast-forward rejection, prompts the user to force-push, merge, or
  * cancel. The merge option aligns the local ref with remote, re-saves the
  * current disk state on top of the new base, and pushes the combined state —
  * avoiding the silent-discard bug the former "pull first" option exhibited.
- * Non-divergence errors are returned as `{ kind: "failed" }` or
+ * Non-conflict errors are returned as `{ kind: "failed" }` or
  * `{ kind: "no-remote" }` for the caller to render.
  */
 export async function pushWithInteractiveRecovery(
@@ -57,12 +57,12 @@ export async function pushWithInteractiveRecovery(
 
     if (!isDivergentPushError(msg)) return { kind: "failed", error: err };
 
-    // Divergence requires an interactive choice. In non-interactive environments,
+    // Conflict requires an interactive choice. In non-interactive environments,
     // surface an explicit discriminant so callers can render a dedicated
     // "save preserved; push skipped" banner instead of a generic failure.
     if (isNonInteractiveEnvironment()) return { kind: "failed-nontty-conflict" };
 
-    p.log.warn("Push rejected — remote has diverged from local notes.");
+    p.log.warn("Push rejected — local and remote notes conflict (both moved since common ancestor).");
     const action = await p.select({
       message: "How would you like to resolve this?",
       options: [

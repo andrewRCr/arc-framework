@@ -233,7 +233,7 @@ export async function runUserSessionInitStatus(
         state: "conflict",
         summary: `${identity}: session-init remote notes conflict`,
         detailLines: [
-          "Local and remote notes have diverged.",
+          "Local and remote notes conflict (both moved since common ancestor).",
           "Next step: ask whether to run `arc user pull` and replace local notes before continuing.",
         ],
         actionHint: "run `arc user pull` to replace local notes before continuing session-init",

@@ -3,7 +3,7 @@
  *
  * Inspects remote notes, local notes, and the on-disk user directory to choose
  * the correct sync direction: push local state, pull remote state, or prompt
- * when refs have diverged.
+ * on conflict.
  *
  * @module
  */
@@ -112,7 +112,7 @@ async function handleConflict(params: DirectionParams): Promise<void> {
     return;
   }
 
-  p.log.warn("Local and remote notes have diverged.");
+  p.log.warn("Local and remote notes conflict (both moved since common ancestor).");
   const action = await p.select({
     message: "How would you like to resolve sync?",
     options: [

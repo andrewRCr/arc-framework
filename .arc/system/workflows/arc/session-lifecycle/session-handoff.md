@@ -409,10 +409,12 @@ For manual control outside of handoff (ad-hoc save, push, or force-push), `arc u
 
 **Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
 
-- **Push rejected (non-fast-forward):** Remote notes diverged from local. The CLI offers
-  force-push (overwrite remote) or pull-first (overwrite local). Choose based on which
-  version is authoritative. This commonly happens when the same developer works from two
-  machines without syncing, or in team mode when two developers share an identity by mistake.
+- **Push rejected (non-fast-forward):** Local and remote notes conflict (both moved since
+  common ancestor). The CLI offers force-push (overwrite remote with local) or merge
+  (fetch remote, re-save local state on top, then push). Choose force-push when your
+  local state is authoritative; merge when both sides have real content. This commonly
+  happens when the same developer works from two machines without syncing, or in team
+  mode when two developers share an identity by mistake.
 - **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
   save` — push is a convenience for portability. The local save still happened; push later
   when a remote is available.

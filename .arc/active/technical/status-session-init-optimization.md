@@ -13,20 +13,20 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.j.b — `conflict` vs `divergence` canonical language (line ~1591)
-- **Last Completed:** 3.R.j.a — Status vocabulary rename + detail enrichment. Renamed
-  `disk ahead` → `local unsaved` across `UserStatusHeadline` and callers; cold-open
-  audit of remaining headlines passed with no further renames. Added three new detail
-  lines to `buildUserStatusResult`: direction hint for `local unsaved`
-  (`edits`/`missing`/`mixed` via new `computeUnsavedDirection` over disk vs. note
-  manifests), relative save timestamp (new `formatRelativeTime` helper; `runUserStatus`
-  reads commit date via `git show -s --format=%at`), and "N commit(s) back" replacing
-  the old "not current HEAD" phrasing when ancestorDistance > 0. Surfaced a pre-existing
-  bug in `determineUserStatusAction` (wrong hint when headline triggered by
-  `refState === "local-ahead"` alone) — captured in 3.R.j.c. Surfaced a pre-existing
-  subdir-cwd footgun in `arc user status` — captured as new subtask 3.R.l.e
-  (`resolveArcRoot` walk-up). 772 unit+integration tests green (up from 768); 45 E2E green.
+- **Next Task:** Task 3.R.j.c — Label + spinner + summary consistency (line ~1599)
+- **Last Completed:** 3.R.j.b — `conflict` vs `divergence` canonical language. Canonicalized
+  `conflict` as the user-facing term for "refs both moved from common ancestor"; added
+  presentation-mapping JSDoc on `UserSyncRefState` flagging `"diverged"` as code-level-only and
+  pointing at `UserStatusHeadline`. Swept user-facing strings across `push-recovery.ts`,
+  `handleConflict`, session-init detail line, `cli.ts --force` help text, and the two
+  `UserPushOptions.force` / `UserFetchOptions.force` JSDoc siblings. Module/function JSDoc in
+  `push-recovery.ts` and `sync.ts` updated ("divergence" → "conflict"). `isDivergentPushError`
+  helper retained (names git topology, not user-facing). `UserUnsavedDirection` JSDoc moved off
+  overloaded "divergence" → "mismatch" (disk-vs-note, different semantic domain). Tests updated.
+  Two-copy sync on `session-handoff.md` — folded in stale "pull-first" option reference
+  (replaced with current "merge" option added in a prior task).
 - **Blockers:** none
-- **Next Action:** Begin 3.R.j.b — canonicalize `conflict` over `divergence` in user-facing
-  strings (map `UserSyncRefState.diverged` to `"conflict"` at presentation layer; JSDoc;
-  sweep call sites like `pushWithInteractiveRecovery`'s "Push rejected — remote has diverged…").
+- **Next Action:** Begin 3.R.j.c — unify `handlePullDirection` spinner/label verb ("Pulled");
+  document verb-tense convention in `runWithSpinner` JSDoc; split
+  `determineUserStatusAction` for `local unsaved` sub-cases (save vs push);
+  `session-handoff.md` exit-code paragraph; two-copy sync.

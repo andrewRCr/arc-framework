@@ -132,7 +132,7 @@ describe("handleUserPush divergence resolution", () => {
     await handleUserPush({});
 
     expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("remote has diverged"),
+      expect.stringContaining("notes conflict"),
     );
     expect(mockSelect).toHaveBeenCalledTimes(1);
     // Force push retry

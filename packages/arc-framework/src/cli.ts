@@ -93,7 +93,7 @@ userCmd
 userCmd
   .command("push")
   .description("Push user notes to remote")
-  .option("--force", "Force-push even when remote has diverged")
+  .option("--force", "Force-push even when remote and local notes conflict")
   .action(handleUserPush);
 
 userCmd

@@ -90,7 +90,7 @@ export interface UserAddOptions {
 export interface UserPushOptions {
   io: UserIOContext;
   identity: string;
-  /** Force-push even when remote has diverged. */
+  /** Force-push even when remote and local notes conflict. */
   force?: boolean;
 }
 
@@ -99,7 +99,7 @@ export interface UserFetchOptions {
   io: UserIOContext;
   /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;
-  /** Force-fetch even when local ref has diverged from remote. */
+  /** Force-fetch even when local and remote refs conflict. */
   force?: boolean;
 }
 
@@ -111,6 +111,14 @@ export interface UserPullOptions extends UserFetchOptions {
   onWalkExhausted?: (walked: number, maxWalk: number) => void;
 }
 
+/**
+ * Internal ref-relation state between local and remote notes.
+ *
+ * The `"diverged"` variant names the git-level topology (both refs moved from a
+ * common ancestor) and is mapped to `"conflict"` at every presentation layer —
+ * see {@link UserStatusHeadline} for canonical user-facing vocabulary. Never
+ * surface `diverged` directly to users; keep it as a code-level type name.
+ */
 export type UserSyncRefState =
   | "same"
   | "local-ahead"
@@ -158,7 +166,7 @@ export interface UserStatusRemoteIdentity {
 }
 
 /**
- * Direction of divergence between the disk manifest and the saved note when
+ * Direction of mismatch between the disk manifest and the saved note when
  * headline is `local unsaved`.
  *
  * - `edits`   — disk has content the saved note doesn't (new/modified files).

@@ -1588,13 +1588,32 @@ clean enough that inconsistency across the three remaining session-init discover
         `typecheck:test`, `lint:ts`, and `lint:sh` all pass. Live `npx arc user status`
         confirms rendering end-to-end.
 
-    - [ ] **3.R.j.b `conflict` vs `divergence` canonical language**
-        - Pick `conflict` as canonical user-facing term for "refs both moved from common ancestor."
-        - Retain `diverged`/`divergence` only when paraphrasing would hide git's own error output verbatim.
-        - Keep `UserSyncRefState.diverged` in the type (renaming breaks no caller logic worth the churn), but map
-          to `"conflict"` at every presentation layer. Add JSDoc pointing to canonical presentation term.
-        - Sweep user-facing strings (e.g., `pushWithInteractiveRecovery`'s "Push rejected — remote has diverged..."
-          → "Push rejected — local and remote notes conflict (both moved since common ancestor).")
+    - [x] **3.R.j.b `conflict` vs `divergence` canonical language**
+
+        **Outcome:** Canonicalized `conflict` as the user-facing term for "refs both moved from common
+        ancestor." Added presentation-mapping JSDoc to `UserSyncRefState` in
+        `commands/user/types.ts` flagging the `diverged` variant as code-level-only and pointing at
+        `UserStatusHeadline` for canonical vocabulary. Swept user-facing strings:
+        `pushWithInteractiveRecovery`'s "Push rejected — remote has diverged from local notes."
+        → "Push rejected — local and remote notes conflict (both moved since common ancestor)."; same
+        phrasing adopted in `handleConflict` (`sync.ts:115`) and in the session-init conflict detail
+        (`sync-status.ts:236`). `cli.ts --force` help text and the two JSDoc siblings on
+        `UserPushOptions.force` / `UserFetchOptions.force` updated to "conflict" wording. Module-level
+        and function-level JSDoc in `push-recovery.ts` and `sync.ts` updated ("divergence" →
+        "conflict", "Non-divergence" → "Non-conflict"). Internal helper `isDivergentPushError` retained
+        — names the git-level topology, matches `UserSyncRefState.diverged` kept-for-code-clarity
+        principle. Disk-vs-note vocabulary in `UserUnsavedDirection` JSDoc moved off the overloaded
+        "divergence" term to "mismatch" (different semantic domain from ref-conflict). Tests updated:
+        `sync.test.ts` literal string assertion + `user-handlers.test.ts` substring from
+        "remote has diverged" → "notes conflict". Doc touch: `session-handoff.md § Save to Git Notes`
+        error-handling bullet rewritten with conflict vocabulary, and folded in the stale
+        "pull-first" option reference (no such option exists in current `pushWithInteractiveRecovery`
+        — replaced with "merge (fetch remote, re-save local state on top, then push)"). Two-copy
+        sync applied (`.arc/` + `packages/arc-framework/arc/` template).
+
+        **Quality gates:** lint:ts, typecheck, `lint:md:file` on both session-handoff copies,
+        targeted unit tests (`sync`, `user-handlers`, `user-status`, `push-recovery`) all green —
+        77 tests pass.
 
     - [ ] **3.R.j.c Label + spinner + summary consistency**
         - `handlePullDirection` spinner "Pulling" / result-box label "Loaded" — pick one verb, apply file-wide.

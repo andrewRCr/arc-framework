@@ -267,7 +267,9 @@ describe("handleSync direction handling", () => {
 
     await handleSync();
 
-    expect(mockLog.warn).toHaveBeenCalledWith("Local and remote notes have diverged.");
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "Local and remote notes conflict (both moved since common ancestor).",
+    );
     expect(mockSelect).toHaveBeenCalledTimes(1);
     expect(mockRunUserPull).toHaveBeenCalledTimes(1);
     expect(mockRunUserSave).not.toHaveBeenCalled();
