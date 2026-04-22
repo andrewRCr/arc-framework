@@ -1183,6 +1183,198 @@ discipline applies throughout — every file change touches `packages/arc-framew
 
 ---
 
+### **Phase 3.R:** CLI Vocabulary Alignment + Session-Init Remote-Sync
+
+**Purpose:** Align `arc user` / `arc sync` command vocabulary with developer muscle memory (git fetch/pull semantics),
+add an `arc user status` inspection surface, and land session-init's remote-sync awareness — absorbing Phase 5.0. The
+rename and workflow integration land together so Phase 4 and Phase 5 are authored once against the final surface.
+
+**Origin:** Follow-on to Phase 3 close, surfaced while debugging multi-machine git-notes staleness. `arc user pull`
+semantically only fetched (ref updated, disk untouched); the true `git pull`-equivalent lived behind `arc sync --load`.
+No status/inspection surface existed. Session-init had no remote-sync check. A full audit of `arc user` commands vs
+dev muscle-memory produced the rename plan and demonstrated Phase 5.0 couldn't be cleanly expressed until vocabulary
+stabilized.
+
+**Convention note:** Uses phase-level `X.R` as an extension of the documented task-level `X.Y.R` revision scheme; the
+extension is documented in 3.R.h.
+
+- [ ] **3.R.a CLI rename + test coverage**
+
+    **Goal:** Primitives align with git muscle memory; `arc sync` becomes bidirectional smart porcelain.
+
+    - Rename current `arc user pull` → `arc user fetch` (existing semantic retained: remote notes ref → local ref, no
+      disk write)
+    - New `arc user pull` = fetch + load (matches `git pull` mental model); inherits the `.pre-load-backup.json`
+      safety net from `runUserLoad` without additional wiring
+    - Rewrite `arc sync` as bidirectional: detect direction from the `(local-ref vs remote-ref) × (disk vs local-ref)`
+      matrix; always print `→ Pushing ...` / `→ Pulling ...` before acting; conflict case (both diverged) prompts the
+      user rather than guessing a winner
+    - Drop `arc sync --load` flag (redundant with new pull semantic)
+    - Keep `arc user push`, `save`, `load`, `add` unchanged — names already align with dev expectations
+    - Update `cli.ts` command wiring, `handlers/user.ts`, `handlers/sync.ts`, `commands/user.ts` exports
+    - Update `__tests__/unit/sync.test.ts` and `__tests__/unit/user-handlers.test.ts`; add tests for sync's 2×2
+      direction matrix including the conflict prompt path
+
+- [ ] **3.R.b `arc user status` command**
+
+    **Goal:** Three-way comparison (local-ref × remote-ref × disk) with actionable output; online-by-default since
+    the primary question is "am I in sync with the other machine?"
+
+    - New `arc user status` command; default behavior runs `git ls-remote origin refs/notes/arc/user/{identity}` for
+      the remote check (sub-second cost in practice)
+    - Flags: `--offline` (skip `ls-remote`), `--all` (list all identities' notes refs on remote — maintainer/team
+      inspection)
+    - Output shapes: clean (one-line up-to-date), remote-ahead (→ `arc user pull`), disk-edited-after-save (→ `arc
+      user save`), conflict (both diverged — present options including `arc user fetch` for non-destructive remote
+      inspection)
+    - Surface dangling `.pre-load-backup.json` (or timestamped backups from 3.R.c) if present
+    - Surface freshness gap when HEAD has drifted from the saved-on commit (mirrors session-init Step 5 semantic)
+    - Unit + integration tests for each output shape; CLI integration test verifying exit-zero on clean, non-zero
+      exit code discussion (probably zero in all cases since this is informational, but confirm in implementation)
+
+- [ ] **3.R.c Multi-snapshot backup hardening**
+
+    **Goal:** `.pre-load-backup.json` is no longer single-shot; successive pulls preserve the last N pre-load
+    snapshots so a second pull-before-review doesn't lose the first pre-load state.
+
+    - Timestamped backup filename scheme: `.pre-load-backup-{ISO-timestamp}.json` (or ring-buffer equivalent — pick
+      simplest that survives code review)
+    - Retention: keep last N (default N=3; evaluate whether to add `user.backup_retention` config key or hardcode)
+    - Dotfile convention continues to exclude all `.pre-load-backup-*.json` from serialization — no change to
+      manifest behavior
+    - `arc user status` (3.R.b) lists all present backups, latest first
+    - Tests cover backup creation, retention trimming on Nth+1 pull, status visibility, and that existing
+      single-shot backups are handled gracefully during transition
+
+- [ ] **3.R.d `session.remote_sync` config addition**
+
+    **Goal:** New config key exists in both `arc-config.yml` copies with inline documentation; no behavior yet
+    (consumed by 3.R.e).
+
+    - Add `session.remote_sync: enabled | disabled` (default `enabled`) to `arc-config.yml`
+    - Inline comment clarifies: fetching at session-init is automatic; pulling is always user-confirmed via an
+      explicit prompt (no auto-pull)
+    - Two-copy sync: `packages/arc-framework/arc/system/arc-config.yml` and `.arc/system/arc-config.yml`
+
+- [ ] **3.R.e Session-init workflow — Step 1.5 + Step 6 rewrite (absorbs Phase 5.0)**
+
+    **Goal:** Session-init fetches remote at start, surfaces divergence in the orientation, and prompts — separately
+    from the standard proceed prompt — to resolve, with actionable guidance including the out-of-range-ancestor case
+    that 5.0's original spec missed.
+
+    - Add Step 1.5 "Sync Remote State" to `session-init.md`:
+        - Skip when `session.remote_sync: disabled`
+        - Run `git fetch origin` + `git fetch origin 'refs/notes/arc/user/*'` (or invoke `arc user fetch` — pick
+          during implementation based on subprocess-roundtrip cost); bounded timeout ~10s; parallel with Batch 1
+          where platform allows
+        - Graceful degradation on failure (offline, no remote, auth error) — single-line note, continue
+        - Results feed Step 5 freshness check and Step 6 orientation
+    - Step 6 divergence block: when divergence exists, prepend a labeled block above active work state listing
+      `{branch}: N commits behind origin/{branch}` and `git notes ({identity}): N notes ahead on origin`; suppress
+      entirely when clean
+    - Step 6 prompt sequence on divergence:
+        1. `Pull from origin? (y/n)` — combined when both code + notes divergent; individual otherwise
+        2. On "y": run `git pull --ff-only` (code) and `arc user pull` (notes — new fetch+load semantic); report
+           results
+        3. Standard `Proceed to Next Action?` prompt follows
+      Common case (no divergence): only the standard proceed prompt, unchanged.
+    - **Unbounded ancestor check** for the notes lookup: during session-init's pull resolution (and in `arc user
+      pull` / `arc user load` more generally, if the option is plumbed), perform an unbounded `rev-list HEAD`
+      intersection with noted commits to detect whether *any* noted ancestor exists before reporting "no saved user
+      dir found." The current `maxAncestorWalk: 20` is the failure vector caught today's multi-machine debug.
+    - **Actionable depth guidance** when a noted ancestor is found outside the default walk window: report depth
+      explicitly (`nearest noted save is N commits back from HEAD`) and name remediation options (raise walk via
+      `--max-ancestors N` if CLI flag exposed; fetch/merge the branch where the save was made; or accept and
+      re-save)
+    - Expose `--max-ancestors <n>` flag on `arc user load` and new `arc user pull` (plumb the existing
+      `UserLoadOptions.maxAncestorWalk` through the CLI handler — currently dead-ended at
+      `handlers/user.ts:107-111`)
+    - Two-copy sync on `session-init.md` (and `arc-config.yml` if touched beyond 3.R.d)
+
+- [ ] **3.R.f Two-copy doc sync for remaining CLI references**
+
+    **Goal:** Template + installed copies reflect the new command vocabulary.
+
+    - `session-handoff.md` (both copies): update any `arc user pull` / `arc sync --load` references; verify handoff
+      still invokes the save+push direction explicitly (not via smart `sync` — per session-lifecycle decision)
+    - `strategy-session-operations.md` (both copies)
+    - `strategy-team-coordination.md` (both copies) — audit line 142's `arc user pull --identity {outgoing}` for
+      semantic accuracy under new pull (fetch+load); may need to switch to `arc user fetch --identity {outgoing}`
+      if bootstrapping intent is ref-only
+    - `QUICK-REFERENCE.md` (both copies)
+    - `user/README.md` (both copies)
+    - Grep-verify no remaining stale references in `packages/arc-framework/arc/**` and `.arc/**` (excluding
+      `reference/archive/**` and `reference/analysis/**` — historical)
+
+- [ ] **3.R.g Single-copy doc sync + ADR-012 amendment + Phase 5.0 retirement pointer**
+
+    **Goal:** Non-two-copy docs updated; ADR records the vocabulary evolution with preserved decision history;
+    Phase 5.0 struck with a pointer to 3.R.e.
+
+    - Single-copy doc updates: `plan-arc-modes.md`, `plan-work-unit-mobility.md`, `docs/the-framework.md`,
+      `docs/reference/team-coordination.md`, `docs/index.md`, `docs/faq.md`
+    - ADR-012 amendment: append dated "## Amendment YYYY-MM-DD — CLI Vocabulary Realignment" section at the end;
+      preserve original decision body unchanged; describe the rename (pull→fetch; new pull=fetch+load; sync as
+      bidirectional porcelain), the rationale (git muscle memory alignment surfaced by multi-machine dogfooding),
+      and the new sync 2×2 direction matrix
+    - QUICK-REFERENCE links/points to the ADR amendment for durable reference
+    - Strike Phase 5.0 body in this task list with a `(superseded by 3.R.e)` pointer — content preserved only as
+      cross-reference anchor (already handled in 3.R scope; just verify final state)
+    - **Leave alone:** `.arc/reference/archive/**` and `.arc/reference/analysis/**` (historical record — no
+      rewriting)
+
+- [ ] **3.R.h Shell-script executability on install (follow-on from multi-machine dogfooding)**
+
+    **Goal:** `.arc/system/scripts/*.sh` are executable on every fresh clone/install without
+    manual intervention. Surfaced today when `validate-links.sh` (mode 644 in git, invoked
+    directly by the pre-commit hook) blocked a commit on the secondary laptop — same "new
+    machine, install state incomplete" shape as the git-notes staleness that motivated this
+    phase.
+
+    **Root cause:** Every file in `.arc/system/scripts/` and `.arc/system/githooks/` is
+    tracked as `100644`. Husky handles chmod for hooks at install, but the `scripts/`
+    directory isn't in husky's purview. Pre-commit hook invokes `validate-links.sh` directly
+    (`.arc/system/githooks/pre-commit:378`), requiring the exec bit.
+
+    **Pick one fix (evaluate during implementation):**
+    - **Option A — bash-prefix invocation:** update `pre-commit` (and any other hook
+      invoking scripts directly) to `bash "$(dirname "$0")/../scripts/validate-links.sh" …`
+      Sidesteps the exec-bit question entirely. Simplest; two-copy sync the hook change.
+    - **Option B — install-time chmod:** add a post-install step to the init/join/update
+      recipe that `chmod +x .arc/system/scripts/*.sh`. Requires recipe changes and handles
+      the executable state persistently.
+    - **Option C — tracked mode bump:** `git update-index --chmod=+x` on the scripts so git
+      tracks them as `100755`. Clean in principle, but collides with `core.fileMode` being
+      `true` on dev clones — mode changes surface as modifications until configured away.
+
+    **Recommended:** Option A (bash-prefix) — smallest diff, no install-pipeline coupling,
+    robust across `core.fileMode` values. Option C is worth the audit if we want tracked
+    exec state to be the durable contract, but it's a bigger surface change.
+
+    - Two-copy sync for any `pre-commit` / hook edits
+    - Grep-verify no remaining direct-invocation of non-executable `.sh` files in hooks or
+      workflows
+    - Add a smoke test (or doc note) covering fresh-clone behavior
+
+- [ ] **3.R.i Phase 3.R close — quality gates + strategy doc addendum**
+
+    **Goal:** Close gate with all quality gates green; document the phase-level `X.R` extension so future uses of
+    the pattern have a clear precedent.
+
+    - Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`, `test` (unit
+      + integration), `test:e2e`
+    - Manual smoke on the full renamed surface: `arc user add`, `save`, `load`, `fetch`, `pull` (new semantic),
+      `push`, `status` (clean / remote-ahead / disk-edited / conflict shapes), `sync` (each cell of the 2×2
+      direction matrix, including conflict prompt)
+    - **Live divergence-detection test**: reproduce today's original failure mode on the secondary laptop (save on
+      laptop A, push, arc-resume on laptop B) and verify Step 1.5 fetch + Step 6 divergence block + confirm-pull +
+      load succeeds end-to-end — this is the dogfooding gate that motivated the phase
+    - **Strategy addendum:** update `strategy-task-list-formatting.md` § Revision Numbering to document the
+      phase-level `X.R` form for cross-cutting follow-on work; optionally tighten the `3.1.R.1/3.1.R.2` example to
+      `3.1.R.a/3.1.R.b` to align the doc with actual archive precedent (one-line fix)
+
+---
+
 ### **Phase 4:** Operational-Context Audit + Task-List-Formatting Restructure + D7b
 
 **Purpose:** Apply the "operational context only" lens across always-loaded docs and workflows; stage extractions for
@@ -1339,37 +1531,17 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
 
 ### **Phase 5:** Partial-Read Narrowing + Session-Init Workflow Restructure
 
-**Purpose:** Shrink remaining upfront-read surface, add remote-sync awareness at session start, and restructure
-session-init Step 2/4/7 to reflect Phase 4 audit outcomes and Phase 5 changes. Per-rule reliability gate for
-DEV-RULES is the cautious path — default to up-front load; shift to conditional only where trigger is clear.
+**Purpose:** Shrink remaining upfront-read surface and restructure session-init Step 2/4/7 to reflect Phase 4
+audit outcomes. Remote-sync awareness pulled forward to Phase 3.R.e (dogfooded during multi-machine work). Per-rule
+reliability gate for DEV-RULES is the cautious path — default to up-front load; shift to conditional only where
+trigger is clear.
 
-- [ ] **5.0 Remote sync check at session-init**
+- [ ] **5.0 Remote sync check at session-init — superseded by Phase 3.R.e**
 
-    **Goal:** Session-init fetches origin (code + git notes) and surfaces divergence in the orientation; pulling is
-    always user-confirmed via a prompt separate from the standard "proceed" prompt — no auto-pull.
-
-    **Rationale:** No current ARC mechanism detects remote changes at session start. Developers moving between
-    machines, or pulling teammates' work, must remember `git fetch && git pull` and `arc user pull` manually.
-    Surfacing divergence early prevents stale-branch work and stale SESSION-NOTES; separating the pull prompt
-    from the proceed prompt avoids "yes" ambiguity when both are presented.
-
-    - Add `session.remote_sync: enabled | disabled` (default `enabled`) to `arc-config.yml`; comment clarifies
-      fetching is automatic, pulling is always user-confirmed — never auto-pull
-    - Add Step 1.5 "Sync Remote State" to `session-init.md`:
-        - Skip when `session.remote_sync: disabled`
-        - `git fetch origin` + `git fetch origin 'refs/notes/arc/user/*'`, bounded timeout ~10s, parallel with
-          Batch 1 where platform allows
-        - Graceful degradation on failure (offline, no remote, auth error) — single-line note, continue
-        - Results feed Step 5 freshness check and Step 6 orientation
-    - Update Step 6 — when divergence exists, prepend a labeled block to the orientation (above active work
-      state) listing `{branch}: N commits behind origin/{branch}` and `git notes ({identity}): N notes ahead
-      on origin`; suppress entirely when clean
-    - Update Step 6 prompt sequence — on divergence:
-        1. `Pull from origin? (y/n)` — combined when both code + notes divergent; individual otherwise
-        2. On "y": run `git pull --ff-only` (code), `arc user pull` (notes); report results
-        3. Standard `Proceed to Next Action?` prompt follows
-      Common case (no divergence): only the standard proceed prompt, unchanged
-    - Two-copy sync on `session-init.md` and `arc-config.yml`
+    **Status:** Pulled forward into Phase 3.R for dogfooding during the multi-machine work that surfaced the
+    git-notes staleness failure mode. Active spec lives at 3.R.e (session-init Step 1.5 + Step 6 rewrite, plus
+    unbounded-ancestor-check and actionable depth-guidance additions introduced during scope review). Retained
+    here as a cross-reference anchor only — to be checked `[x]` in lockstep with 3.R.e completion.
 
 - [ ] **5.1 QUICK-REFERENCE partial-read at session-init**
 
