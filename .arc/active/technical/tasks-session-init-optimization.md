@@ -1787,45 +1787,43 @@ clean enough that inconsistency across the three remaining session-init discover
         - `--json` flag added to `arc user status` in `src/cli.ts`; `handleUserStatus` branches on
           the flag to emit JSON and suppress Clack ceremony
 
-    - [ ] **3.R.k.c `arc config status` probe**
+    - [x] **3.R.k.c `arc config status` probe**
 
-        **Goal:** Structured key-value read of `arc-config.yml`, stripping human-facing comments the agent
-        doesn't consume. Full mode returns all agent-consumable settings; `--session-init` narrows to the
-        init-gating subset.
+        **Outcome:** `arc config status` probe delivered at `src/commands/config/` with shared reader at
+        `src/lib/config/status-reader.ts`. Handler at `src/handlers/config.ts`; CLI wired as
+        `arc config status [--session-init] [--json]`. Full mode emits 13 agent-consumable settings
+        (everything except `hooks.*`, which is shell-only). `--session-init` narrows to the 5-key
+        init-gating subset: `session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`,
+        `commit.context_footer`. Both scopes expose `defaultsApplied` (keys where the on-disk value was
+        absent and a documented default was substituted) and `errors` (file-access diagnostics).
 
-        **Rationale:** `arc-config.yml` is ~170 lines but ~85% inline comments (documentation for human
-        editors). The agent needs key-value pairs only. Current Batch 1 reads the whole file; the probe
-        reduces that to ~10 JSON fields (full) or ~5 (session-init). `hooks.*` excluded entirely — those
-        are shell-consumed by git hooks, never read by the agent.
+        **Reader:** `readConfigSettings(cwd)` generalizes the narrow readers in `handlers/shared.ts`
+        (`readPmMode`, `readSessionRemoteSyncEnabled`) into a single settings-map read with defaults
+        applied. Depends on `parseArcConfig` from `lib/config/index.ts`. `AGENT_CONSUMABLE_KEYS` is the
+        exported list of 13 keys excluding `hooks.*`.
 
-        Build `test-first` (one behavior at a time):
-        - Parser handles the flat key-value format (hook-compatible grep/cut shape — no nested structures)
-        - Full-mode `ConfigStatusResult` includes: `branch.base`, `branch.protection`, `commit.format`,
-          `commit.context_footer`, `commit.custom_pattern`, `commit.context_pattern`, `merge.strategy`,
-          `review.pre_merge`, `platform.type`, `pm.mode`, `team.mode`, `session.remote_sync`,
-          `user.sync_push`
-        - `--session-init` narrows to `session.remote_sync`, `branch.protection`, `pm.mode`,
-          `commit.format`, `commit.context_footer` — the fields that gate decisions before a dedicated
-          workflow/method loads. Others load lazily at their consuming site
-        - `--json` shape: typed discriminated union on `mode` — `ConfigStatusResult` (full) vs
-          `ConfigSessionInitResult` (scoped)
-        - Missing file → typed error result (not crash); malformed YAML → typed error result
-        - Missing keys resolve to documented defaults (already captured as inline comments in
-          `arc-config.yml`; parser carries a fallback map mirroring them)
+        **Layout delivered:**
+        - `src/lib/config.ts` → `src/lib/config/index.ts` (migration; 8 import-path updates, pure rename)
+        - `src/lib/config/status-reader.ts` (new — `readConfigSettings` + `AGENT_CONSUMABLE_KEYS`)
+        - `src/commands/config/{types,status,format}.ts` (new — types, probe runners, Clack formatters)
+        - `src/commands/config.ts` facade (new — re-exports)
+        - `src/handlers/config.ts` (new)
+        - `src/cli.ts` — new `arc config status` command wired
 
-        **Layout:**
-        - Shared reader helper in `src/lib/config/` parsing the flat arc-config.yml format. Consume and
-          extend existing `readPmMode` / `readSessionRemoteSyncEnabled` from `handlers/shared.ts` (3.R.l.b
-          will relocate those to `lib/config-readers.ts` — may co-land with this task or stay on the
-          3.R.l.b timeline; decide during implementation)
-        - Command module in `src/commands/config/`
-        - Handler in `src/handlers/config.ts`; CLI wiring in `src/cli.ts`
+        **Tier 1 green:** typecheck / typecheck:test / lint:ts / test:unit (694 tests, +20 new: 8 reader,
+        12 format) / build. Integration suite adds 6 new tests under `__tests__/integration/config.test.ts`.
 
-        **Tests:**
-        - Unit tests on the parser (valid flat config, missing file, malformed YAML, unknown keys
-          ignored, whitespace/comment handling, default fallback for missing keys)
-        - Unit tests on the formatter (Clack + JSON, full + session-init shapes)
-        - Integration test against a real arc-config.yml fixture
+        **Deferred to 3.R.l.b:** `readPmMode` / `readSessionRemoteSyncEnabled` stay in `handlers/shared.ts`
+        for now — still consumed by `handlers/user.ts` (×2) and `handlers/join.ts`. 3.R.l.b updated
+        mid-implementation to retire both narrow readers in favor of `readConfigSettings` (supersedes
+        the earlier "relocate to `lib/config-readers.ts`" plan — relocation is moot once the
+        generalized reader already lives in `lib/config/`). No call-site churn added to this task's
+        scope; retirement + migration lands with 3.R.l.b.
+
+        **End-to-end sanity:** `npx arc config status --session-init --json` against this repo returns
+        the 5-key init-gating subset with zero defaults applied. `npx arc config status --json` returns
+        all 13 keys; `commit.custom_pattern` and `commit.context_pattern` correctly flagged as defaulted
+        (empty-value fall-through per parseArcConfig's shell-aligned behavior).
 
     - [ ] **3.R.k.d `arc active status` probe**
 
@@ -1984,15 +1982,25 @@ clean enough that inconsistency across the three remaining session-init discover
           has a clean injection point.
         - Pure cleanup; no behavior change from this subtask alone.
 
-    - [ ] **3.R.l.b Module relocation**
+    - [ ] **3.R.l.b Module relocation + narrow-reader retirement**
         - `runUserPush`, `hasRemoteNotes`, `hasLocalNotes`, `runUserFetch`, `runUserPull` move from
           `commands/user/sync-status.ts` to a new `commands/user/push-fetch.ts` (push/fetch primitives, not
           status). `inspectUserSyncState`, `runUserSessionInitStatus`, `runUserStatus`, `buildUserStatusResult`
           stay in `sync-status.ts`.
-        - `readPmMode` + `readSessionRemoteSyncEnabled` move from `handlers/shared.ts` to a new
-          `lib/config-readers.ts` (config helpers, not handler shared utilities).
+        - **Retire `readPmMode` + `readSessionRemoteSyncEnabled`.** The generalized `readConfigSettings`
+          at `lib/config/status-reader.ts` (delivered in 3.R.k.c) supersedes both. Migrate the three
+          active call sites — `handlers/user.ts:62`, `handlers/user.ts:433`, `handlers/join.ts:49` — to
+          consume `readConfigSettings` and derive the needed key (`settings["pm.mode"]` or
+          `settings["session.remote_sync"] === "enabled"`). Delete the two exports from
+          `handlers/shared.ts`; update the mock surface in `__tests__/unit/user-handlers.test.ts`
+          (currently mocks `readPmMode` / `readSessionRemoteSyncEnabled` individually — switch to
+          mocking `readConfigSettings` directly, or fold into handler-level mocks). Supersedes the
+          earlier "relocate to `lib/config-readers.ts`" plan — relocation is moot once the generalized
+          reader already lives in `lib/config/`.
         - `commands/user.ts` facade updated; no public API surface change.
-        - Tests move with their target modules; no content change.
+        - Tests move with their target modules; no content change for sync-status moves. Narrow-reader
+          retirement updates `user-handlers.test.ts` mocks and may require minor call-site-assertion
+          adjustments.
 
     - [ ] **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
         - New integration test exercising the full flow end-to-end against real git notes: local save → remote

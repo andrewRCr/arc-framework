@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 
 import { renderTokens, renderConditionals } from "../../src/lib/template/render.js";
 import { readManifest } from "../../src/lib/manifest/index.js";
-import { buildConfigMap, buildTokenMap } from "../../src/lib/config.js";
+import { buildConfigMap, buildTokenMap } from "../../src/lib/config/index.js";
 import type { Manifest } from "../../src/lib/types.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));

@@ -27,7 +27,7 @@ import {
   buildPostInitMessage,
 } from "../../src/commands/init.js";
 import type { IOContext, InitResult } from "../../src/commands/init.js";
-import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../../src/lib/config.js";
+import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../../src/lib/config/index.js";
 import {
   resolveFileList, toOutputPath, classifyFile, fileLayer, buildManifestFiles, needsRendering,
 } from "../../src/lib/classification.js";

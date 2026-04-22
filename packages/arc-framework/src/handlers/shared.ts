@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { resolveIdentity, isGitRepo } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { UserSaveError } from "../commands/user.js";
-import { parseArcConfig } from "../lib/config.js";
+import { parseArcConfig } from "../lib/config/index.js";
 import {
   ARC_CONFIG_SEGMENTS,
   CONFIG_KEY_PM_MODE,

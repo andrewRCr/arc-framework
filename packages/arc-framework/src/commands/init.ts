@@ -26,7 +26,7 @@ import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
   MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
-import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
+import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config/index.js";
 import {
   resolveFileList, toOutputPath, classifyFile, buildManifestFiles, needsRendering,
 } from "../lib/classification.js";

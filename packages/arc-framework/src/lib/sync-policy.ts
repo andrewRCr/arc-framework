@@ -10,7 +10,7 @@
 
 import { join } from "node:path";
 
-import { parseArcConfig } from "./config.js";
+import { parseArcConfig } from "./config/index.js";
 import { ARC_CONFIG_SEGMENTS } from "./constants.js";
 import { gitConfigGet } from "./git/index.js";
 import type { GitExec } from "./git/index.js";

@@ -1,0 +1,165 @@
+/**
+ * Unit tests for `arc config status` formatters.
+ *
+ * Covers Clack summaries (full + session-init) and verifies the typed JSON
+ * shape round-trips cleanly through JSON.stringify so the harness gets
+ * exactly the fields the type declares.
+ */
+
+import { describe, it, expect } from "vitest";
+
+import {
+  buildConfigSessionInitSummary,
+  buildConfigStatusSummary,
+} from "../../src/commands/config/format.js";
+import type {
+  ConfigSessionInitResult,
+  ConfigSessionInitSettings,
+  ConfigSettings,
+  ConfigStatusResult,
+} from "../../src/commands/config/types.js";
+
+const FULL_SETTINGS: ConfigSettings = {
+  "branch.base": "main",
+  "branch.protection": "full",
+  "commit.format": "conventional",
+  "commit.context_footer": "required",
+  "commit.custom_pattern": "",
+  "commit.context_pattern": "",
+  "merge.strategy": "merge",
+  "review.pre_merge": "enabled",
+  "platform.type": "github",
+  "pm.mode": "arc-in-git",
+  "team.mode": "false",
+  "session.remote_sync": "enabled",
+  "user.sync_push": "always",
+};
+
+const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
+  "session.remote_sync": "enabled",
+  "branch.protection": "full",
+  "pm.mode": "arc-in-git",
+  "commit.format": "conventional",
+  "commit.context_footer": "required",
+};
+
+function fullResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatusResult {
+  return {
+    mode: "full",
+    settings: { ...FULL_SETTINGS },
+    defaultsApplied: [],
+    errors: [],
+    ...overrides,
+  };
+}
+
+function sessionInitResult(
+  overrides: Partial<ConfigSessionInitResult> = {},
+): ConfigSessionInitResult {
+  return {
+    mode: "session-init",
+    settings: { ...SESSION_INIT_SETTINGS },
+    defaultsApplied: [],
+    errors: [],
+    ...overrides,
+  };
+}
+
+describe("buildConfigStatusSummary — counts + keys", () => {
+  it("renders the agent-consumable headline with 13 settings", () => {
+    const summary = buildConfigStatusSummary(fullResult());
+    expect(summary.split("\n")[0]).toBe("13 agent-consumable settings (hooks.* excluded):");
+  });
+
+  it("lists every setting key with its value", () => {
+    const summary = buildConfigStatusSummary(fullResult());
+    expect(summary).toContain("pm.mode: arc-in-git");
+    expect(summary).toContain("branch.protection: full");
+    expect(summary).toContain("user.sync_push: always");
+  });
+
+  it("marks defaulted keys with a (default) suffix", () => {
+    const summary = buildConfigStatusSummary(
+      fullResult({ defaultsApplied: ["pm.mode", "branch.protection"] }),
+    );
+    expect(summary).toContain("pm.mode: arc-in-git (default)");
+    expect(summary).toContain("branch.protection: full (default)");
+    expect(summary).toContain("user.sync_push: always");
+    expect(summary).not.toContain("user.sync_push: always (default)");
+  });
+
+  it("does not include a (default) suffix when no defaults were applied", () => {
+    const summary = buildConfigStatusSummary(fullResult());
+    expect(summary).not.toContain("(default)");
+  });
+
+  it("appends an Errors section when errors are present", () => {
+    const summary = buildConfigStatusSummary(
+      fullResult({ errors: ["Unable to read arc-config.yml: ENOENT"] }),
+    );
+    expect(summary).toContain("Errors:");
+    expect(summary).toContain("Unable to read arc-config.yml: ENOENT");
+  });
+
+  it("omits the Errors section when no errors", () => {
+    const summary = buildConfigStatusSummary(fullResult());
+    expect(summary).not.toContain("Errors:");
+  });
+});
+
+describe("buildConfigSessionInitSummary — narrow subset", () => {
+  it("renders the init-gating headline", () => {
+    const summary = buildConfigSessionInitSummary(sessionInitResult());
+    expect(summary.split("\n")[0]).toBe("Init-gating settings:");
+  });
+
+  it("lists only the 5 init-gating keys", () => {
+    const summary = buildConfigSessionInitSummary(sessionInitResult());
+    expect(summary).toContain("session.remote_sync: enabled");
+    expect(summary).toContain("branch.protection: full");
+    expect(summary).toContain("pm.mode: arc-in-git");
+    expect(summary).toContain("commit.format: conventional");
+    expect(summary).toContain("commit.context_footer: required");
+    expect(summary).not.toContain("branch.base:");
+    expect(summary).not.toContain("user.sync_push:");
+  });
+
+  it("marks defaulted keys", () => {
+    const summary = buildConfigSessionInitSummary(
+      sessionInitResult({ defaultsApplied: ["session.remote_sync"] }),
+    );
+    expect(summary).toContain("session.remote_sync: enabled (default)");
+    expect(summary).toContain("pm.mode: arc-in-git");
+    expect(summary).not.toContain("pm.mode: arc-in-git (default)");
+  });
+
+  it("appends Errors when present", () => {
+    const summary = buildConfigSessionInitSummary(
+      sessionInitResult({ errors: ["boom"] }),
+    );
+    expect(summary).toContain("Errors:");
+    expect(summary).toContain("- boom");
+  });
+});
+
+describe("JSON round-trip — typed result shape is stable", () => {
+  it("full-mode result preserves all fields through JSON.stringify/parse", () => {
+    const result = fullResult({
+      defaultsApplied: ["branch.base"],
+      errors: ["Unable to read arc-config.yml"],
+    });
+    const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigStatusResult;
+    expect(roundTripped.mode).toBe("full");
+    expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
+    expect(roundTripped.defaultsApplied).toEqual(["branch.base"]);
+    expect(roundTripped.errors).toEqual(["Unable to read arc-config.yml"]);
+  });
+
+  it("session-init result preserves fields through JSON.stringify/parse", () => {
+    const result = sessionInitResult({ defaultsApplied: ["pm.mode"] });
+    const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigSessionInitResult;
+    expect(roundTripped.mode).toBe("session-init");
+    expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
+    expect(roundTripped.defaultsApplied).toEqual(["pm.mode"]);
+  });
+});

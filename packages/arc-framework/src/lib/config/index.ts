@@ -6,7 +6,7 @@
  * during join mode.
  */
 
-import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "./constants.js";
+import { CONFIG_KEY_PM_MODE, CONFIG_KEY_TEAM_MODE } from "../constants.js";
 
 // --- Config Key Overrides ---
 

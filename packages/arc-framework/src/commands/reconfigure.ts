@@ -11,7 +11,7 @@
 import { join } from "node:path";
 
 import type { IOContext } from "./init.js";
-import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config.js";
+import { buildConfigMap, buildConfigKeyOverrides, buildTokenMap } from "../lib/config/index.js";
 import { resolveFileList } from "../lib/classification.js";
 import {
   readManifest,

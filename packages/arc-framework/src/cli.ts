@@ -17,6 +17,7 @@ import {
   handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
+import { handleConfigStatus } from "./handlers/config.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
@@ -134,6 +135,19 @@ extensionsCmd
   .option("--all", "Include the full orphan-reference detail list")
   .option("--json", "Emit the typed result as JSON")
   .action(handleExtensionsStatus);
+
+// --- Config ---
+
+const configCmd = program
+  .command("config")
+  .description("Inspect ARC configuration state");
+
+configCmd
+  .command("status")
+  .description("Show arc-config.yml settings (agent-consumable; hooks.* excluded)")
+  .option("--session-init", "Emit the init-gating subset consumed by session-init")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleConfigStatus);
 
 // --- Sync ---
 
