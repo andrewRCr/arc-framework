@@ -44,5 +44,6 @@
   after `return` in the walk loop (`save-load.ts` ~line 190); collapse the double-return to a
   single `return null`; extract the rev-list walk into a named helper (`walkAncestorsForNote`)
   so 3.R.i.d's cap + diagnostic has a clean injection point. Pure cleanup; no behavior change
-  from this subtask alone. Part of 3.R.l (structural cleanup + test coverage) closing
-  review-surfaced code quality items.
+  from this subtask alone. Part of 3.R.l (structural cleanup + test coverage), which now also
+  includes 3.R.l.f for sandbox-aware session-init remote-probe degradation and recovery-path
+  follow-up.

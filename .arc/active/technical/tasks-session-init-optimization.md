@@ -2113,6 +2113,43 @@ clean enough that inconsistency across the three remaining session-init discover
           initialized repo — confirms the status result matches a root-cwd invocation of the
           same command. Guards against regression.
 
+    - [ ] **3.R.l.f Sandbox-aware remote-probe degradation + session-init recovery path**
+
+        **Origin:** Surfaced while resuming this WU under Codex's sandbox. `npx arc status --session-init --json`
+        reported `user.state: "remote-unavailable"` even though repo config and local notes were healthy. In this
+        environment the remote probe fails for sandbox reasons (`git ls-remote` blocked by network policy; fetch-based
+        probe also blocked by `.git/FETCH_HEAD` write restrictions). The current state bucket is safe but too coarse,
+        and the workflow lacks an explicit "continue locally vs retry with remote-capable execution" recovery branch.
+
+        **Goal:** Make session-init robust in sandboxed environments without weakening the correctness bar for
+        full remote comparisons.
+
+        - [ ] **3.R.l.f.1 Probe path split: read-only remote visibility before fetch fallback**
+            - Rework `inspectUserSyncRefsDetailed` so session-init/status first uses a read-only remote probe
+              (`ls-remote` / equivalent) to answer the easy cases without temp-ref fetch bookkeeping:
+              remote missing, remote present with same hash, remote present when no local ref exists.
+            - Preserve fetch-based ancestry comparison for the genuinely ambiguous case: both refs exist and hashes
+              differ.
+            - If the fetch fallback is blocked after read-only remote visibility succeeded, surface a distinct
+              partial-comparison state only if the extra precision is worth the blast radius; otherwise document why
+              `remote-unavailable` remains the pragmatic coarse bucket.
+
+        - [ ] **3.R.l.f.2 Session-init workflow recovery branch for sandbox-limited environments**
+            - Update `session-init.md` (both copies) so `remote-unavailable` / any new partial-comparison state does
+              not read like a dead end. The workflow should explicitly tell the agent to offer:
+              continue with local tracked state, or retry session-init in a remote-capable environment before loading
+              context.
+            - Orientation wording should clearly distinguish "remote notes unreachable here" from actual note
+              divergence.
+
+        - [ ] **3.R.l.f.3 Tests and documentation**
+            - Add unit coverage for the new probe behavior and state shaping.
+            - Add an integration-level harness case for sandbox-like probe failure where read-only remote visibility
+              works but fetch fallback is unavailable, or document why that case remains unit-only if the harness
+              cannot model the exec failure cleanly.
+            - Capture the operational guidance in the relevant reference surface (`QUICK-REFERENCE`, strategy, or
+              workflow notes) so sandbox-preferring users understand the expected recovery path.
+
         **Risk flags:**
         - Symlinks: if the cwd is through a symlink (e.g., `~/dev -> /mnt/data/dev`), realpath
           resolution may or may not be desired. Recommend: walk the given path as-is without
