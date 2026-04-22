@@ -1361,8 +1361,8 @@ extension is documented in 3.R.h.
     **Goal:** Close gate with all quality gates green; document the phase-level `X.R` extension so future uses of
     the pattern have a clear precedent.
 
-    - Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`, `test` (unit
-      + integration), `test:e2e`
+    - Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`,
+      `test` (unit + integration), `test:e2e`
     - Manual smoke on the full renamed surface: `arc user add`, `save`, `load`, `fetch`, `pull` (new semantic),
       `push`, `status` (clean / remote-ahead / disk-edited / conflict shapes), `sync` (each cell of the 2×2
       direction matrix, including conflict prompt)
