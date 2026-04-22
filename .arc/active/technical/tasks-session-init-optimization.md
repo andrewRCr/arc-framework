@@ -1678,13 +1678,31 @@ clean enough that inconsistency across the three remaining session-init discover
     hook state at init time). Worth a future work unit if hook health surfaces as a need; its landing site is
     the composite.
 
-    - [ ] **3.R.k.a `arc status` → `arc health` rename (command surface cleanup)**
+    - [x] **3.R.k.a `arc status` → `arc health` rename (command surface cleanup)**
 
         **Goal:** Free the `arc status` name for the composite probe by renaming the existing framework-
         installation-health command. Pure rename; no behavior change to the underlying command.
 
         **Transplanted from:** ARCd Rebrand WU Task 1.5 (subtasks .a, .b, .c, .e, .f). Subtask 1.5.d
         (`arcd version` subcommand) stays in the rebrand WU as rebrand-era work.
+
+        **Outcome:** Source and tests renamed via `git mv` (status.ts → health.ts; status.test.ts →
+        health.test.ts; status-diff.test.ts → health-diff.test.ts; status-diff.e2e.test.ts →
+        health-diff.e2e.test.ts). Identifier renames applied: `runStatus` → `runHealth`,
+        `buildStatusSummary` → `buildHealthSummary`, `StatusResult` → `HealthResult`, `StatusIOContext` →
+        `HealthIOContext`, `StatusOptions` → `HealthOptions`, `handleStatus` → `handleHealth`,
+        `makeStatusIO` (integration test helper) → `makeHealthIO`. `FileState` / `FileStatus` preserved
+        per task spec. CLI binding moved from `.command("status")` → `.command("health")`; description
+        updated. `manifestMissingError("status")` → `manifestMissingError("health")` (user-facing
+        `The health command requires...` error text). Doc sweep touched two files only: `init.e2e.test.ts`
+        (`runArc(["status"])` → `runArc(["health"])` in manifest-missing test), `lifecycle.e2e.test.ts`
+        (three golden-path invocations + related variable/comment updates), `smoke.e2e.test.ts`
+        (help-output assertion), `errors.ts` JSDoc example, and
+        `strategy-testing-methodology.md` (project-only file; no two-copy counterpart). QUICK-REFERENCE
+        never referenced `arc status` so no change there. Tier 1 gates all green: `typecheck`,
+        `typecheck:test`, `lint:ts`, `test:unit` (643 tests, 20 in the renamed `health.test.ts`), `build`.
+        Cross-WU refs in `.arc/active/` notes/tasks and `.arc/backlog/` files intentionally left intact
+        (they describe the rename itself or ARCd Rebrand WU coordination).
 
         - `git mv packages/arc-framework/src/commands/status.ts packages/arc-framework/src/commands/health.ts`
         - Apply the rename to test files: `__tests__/unit/status.test.ts` → `health.test.ts`;
@@ -1789,11 +1807,17 @@ clean enough that inconsistency across the three remaining session-init discover
         - Partial-failure behavior: if one probe errors, its slot in the result contains a typed error
           field; other probes' results are unaffected. Composite exits 0 (individual errors surfaced via
           result shape, not via process exit — session-init decides what to do)
+        - Composite result includes a top-level `config` field — `{ identity, role }` — populated by
+          direct `git config arc.identity` / `git config arc.role` reads in the composite handler (not
+          a fourth probe module; cheap two-call lookups logically parallel to the probe slots). Empty
+          values normalize to `null`; session-init consumes these in place of its own Batch 1 git
+          config reads
 
         **Layout:**
         - Command module in `src/commands/status/` (the old `status.ts` is now `health.ts` per 3.R.k.a)
         - Composite handler in `src/handlers/status.ts` (new)
-        - Type for the composite result in `src/commands/status/types.ts`
+        - Type for the composite result in `src/commands/status/types.ts` — includes
+          `config: { identity: string | null; role: string | null }` alongside the three probe result slots
         - CLI wiring in `src/cli.ts` — `arc status` with `-y`-style flag additions
 
         **Tests:**
@@ -1801,6 +1825,8 @@ clean enough that inconsistency across the three remaining session-init discover
           Promise.all, stable result ordering, per-probe error isolation)
         - Integration test: real fixture tree end-to-end — clean state, conflict state (user-sync), multi-WU
           state, mixed (one probe errors, others succeed)
+        - Unit test: `config` field resolves correctly (identity/role present, absent, empty strings
+          normalized to `null`)
 
     - [ ] **3.R.k.e Session-init workflow integration + strategy pointer**
 
@@ -1811,6 +1837,8 @@ clean enough that inconsistency across the three remaining session-init discover
         - Remove the `grep -l "^active: true" .arc/system/extensions/*.md` line — covered by the composite
         - Remove the standalone Step 1.5 `arc user status --session-init` invocation — covered by the
           composite's `user` result field
+        - Remove the `git config arc.identity` and `git config arc.role` reads from Batch 1 — covered by
+          the composite's `config` result field
         - Add a single `arc status --session-init --json` call at the same point in Batch 1
         - Update agent-side result-consumption instructions for the composite JSON shape (which fields go
           where in orientation)

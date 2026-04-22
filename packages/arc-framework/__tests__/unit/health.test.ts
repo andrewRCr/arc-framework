@@ -1,14 +1,14 @@
 /**
- * Unit tests for the status command.
+ * Unit tests for the health command.
  *
  * Tests file state detection (unmodified, modified, missing), manifest
  * validation, and version comparison using injectable I/O dependencies.
  */
 
 import { describe, it, expect } from "vitest";
-import { runStatus, buildStatusSummary } from "../../src/commands/status.js";
+import { runHealth, buildHealthSummary } from "../../src/commands/health.js";
 import { hashContent } from "../../src/lib/manifest/index.js";
-import type { StatusIOContext } from "../../src/commands/status.js";
+import type { HealthIOContext } from "../../src/commands/health.js";
 import type { Manifest } from "../../src/lib/types.js";
 import { buildManifest } from "../helpers/factories.js";
 
@@ -20,7 +20,7 @@ const FILE_CONTENT = "hello world\n";
 /** SHA-256 of FILE_CONTENT (precomputed). */
 const FILE_HASH = hashContent(FILE_CONTENT);
 
-/** Build a mock StatusIOContext with controllable filesystem state. */
+/** Build a mock HealthIOContext with controllable filesystem state. */
 function buildIO(opts: {
   manifest?: Manifest | null;
   manifestError?: Error;
@@ -28,7 +28,7 @@ function buildIO(opts: {
   files?: Record<string, string>;
   /** Files returned by readdir (relative paths under .arc/). */
   arcFiles?: string[];
-}): StatusIOContext {
+}): HealthIOContext {
   const files = opts.files ?? {};
   return {
     readFile: async (path: string) => {
@@ -47,13 +47,13 @@ function buildIO(opts: {
 
 // --- Tests ---
 
-describe("runStatus", () => {
+describe("runHealth", () => {
   const CWD = "/fake/project";
 
   it("throws UserFacingError when manifest is missing", async () => {
     const io = buildIO({ manifest: null });
 
-    await expect(runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" }))
+    await expect(runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" }))
       .rejects.toMatchObject({ code: "MANIFEST_MISSING" });
   });
 
@@ -85,7 +85,7 @@ describe("runStatus", () => {
       ],
     });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     expect(result.fileStatuses).toHaveLength(2);
     expect(result.fileStatuses.every((f) => f.state === "unmodified")).toBe(true);
@@ -113,7 +113,7 @@ describe("runStatus", () => {
       arcFiles: ["system/arc-config.yml"],
     });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     expect(result.fileStatuses).toHaveLength(1);
     expect(result.fileStatuses[0]!.path).toBe("system/arc-config.yml");
@@ -134,7 +134,7 @@ describe("runStatus", () => {
     // No files on disk, no arcFiles entries
     const io = buildIO({ manifest, files: {}, arcFiles: [] });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     expect(result.fileStatuses).toHaveLength(1);
     expect(result.fileStatuses[0]!.path).toBe("system/arc-config.yml");
@@ -146,7 +146,7 @@ describe("runStatus", () => {
 
     const io = buildIO({ manifest, arcFiles: [] });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     expect(result.versionInstalled).toBe("0.9.0");
     expect(result.versionCurrent).toBe("1.0.0");
@@ -173,7 +173,7 @@ describe("runStatus", () => {
       arcFiles: ["system/arc-config.yml", "custom/my-file.md"],
     });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     const newFile = result.fileStatuses.find((f) => f.path === "custom/my-file.md");
     expect(newFile).toBeDefined();
@@ -205,7 +205,7 @@ describe("runStatus", () => {
       arcFiles: ["reference/META-PRD.md", "system/arc-config.yml"],
     });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     const scaffolded = result.fileStatuses.find((f) => f.path === "reference/META-PRD.md");
     expect(scaffolded).toBeDefined();
@@ -221,7 +221,7 @@ describe("runStatus", () => {
     const manifest = buildManifest({ framework_version: "0.10.0" });
     const io = buildIO({ manifest, arcFiles: [] });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "0.10.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "0.10.0" });
     expect(result.updateAvailable).toBe(false);
   });
 
@@ -229,7 +229,7 @@ describe("runStatus", () => {
     const manifest = buildManifest({ framework_version: "0.2.0-beta.1" });
     const io = buildIO({ manifest, arcFiles: [] });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "0.2.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "0.2.0" });
     expect(result.updateAvailable).toBe(true);
   });
 
@@ -237,7 +237,7 @@ describe("runStatus", () => {
     const manifest = buildManifest({ framework_version: "1.0.0" });
     const io = buildIO({ manifest, arcFiles: [] });
 
-    const result = await runStatus({
+    const result = await runHealth({
       cwd: CWD,
       io,
       frameworkVersion: "1.0.0",
@@ -251,7 +251,7 @@ describe("runStatus", () => {
     const manifest = buildManifest();
     const io = buildIO({ manifest, arcFiles: [] });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
 
     expect(result.latestVersion).toBeNull();
   });
@@ -275,7 +275,7 @@ describe("runStatus", () => {
       arcFiles: ["system/arc-config.yml"],
     });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
     expect(result.fileStatuses[0]!.classification).toBe("Configurable");
   });
 
@@ -287,15 +287,15 @@ describe("runStatus", () => {
       arcFiles: ["custom/my-file.md"],
     });
 
-    const result = await runStatus({ cwd: CWD, io, frameworkVersion: "1.0.0" });
+    const result = await runHealth({ cwd: CWD, io, frameworkVersion: "1.0.0" });
     const newFile = result.fileStatuses.find((f) => f.path === "custom/my-file.md");
     expect(newFile?.classification).toBeNull();
   });
 });
 
-describe("buildStatusSummary", () => {
+describe("buildHealthSummary", () => {
   it("includes Latest line when latestVersion is present", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [],
       versionInstalled: "1.0.0",
       versionCurrent: "1.0.0",
@@ -307,7 +307,7 @@ describe("buildStatusSummary", () => {
   });
 
   it("omits Latest line when latestVersion is null", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [],
       versionInstalled: "1.0.0",
       versionCurrent: "1.0.0",
@@ -319,7 +319,7 @@ describe("buildStatusSummary", () => {
   });
 
   it("shows classification label for modified files", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [
         { path: "system/arc-config.yml", state: "modified", classification: "Configurable" },
       ],
@@ -333,7 +333,7 @@ describe("buildStatusSummary", () => {
   });
 
   it("omits classification for new files", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [
         { path: "custom/file.md", state: "new", classification: null },
       ],
@@ -348,7 +348,7 @@ describe("buildStatusSummary", () => {
   });
 
   it("shows legend when non-unmodified files exist", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [
         { path: "README.md", state: "modified", classification: "Framework" },
       ],
@@ -362,7 +362,7 @@ describe("buildStatusSummary", () => {
   });
 
   it("shows scaffolded files with S label and count", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [
         { path: "reference/META-PRD.md", state: "scaffolded", classification: "Scaffolded" },
         { path: "system/arc-config.yml", state: "unmodified", classification: "Configurable" },
@@ -378,7 +378,7 @@ describe("buildStatusSummary", () => {
   });
 
   it("omits legend when all files are unmodified", () => {
-    const summary = buildStatusSummary({
+    const summary = buildHealthSummary({
       fileStatuses: [
         { path: "README.md", state: "unmodified", classification: "Framework" },
       ],

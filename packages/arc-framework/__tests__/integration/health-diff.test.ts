@@ -1,7 +1,7 @@
 /**
- * Integration tests for the status and diff commands.
+ * Integration tests for the health and diff commands.
  *
- * Runs `runStatus` and `runDiff` against real temporary directories created
+ * Runs `runHealth` and `runDiff` against real temporary directories created
  * by `arc init`. Tests exercise the full I/O path: real filesystem reads,
  * manifest parsing, hash comparison, directory walking, and git diff.
  */
@@ -20,8 +20,8 @@ import {
   execFileAsync,
   manifestPath,
 } from "../helpers/integration.js";
-import { runStatus } from "../../src/commands/status.js";
-import type { StatusIOContext } from "../../src/commands/status.js";
+import { runHealth } from "../../src/commands/health.js";
+import type { HealthIOContext } from "../../src/commands/health.js";
 import { runDiff } from "../../src/commands/diff.js";
 import type { DiffIOContext } from "../../src/commands/diff.js";
 import { readManifest } from "../../src/lib/manifest/index.js";
@@ -31,7 +31,7 @@ const readFileFn = (path: string): Promise<string> => readFile(path, "utf-8");
 
 // --- Helpers ---
 
-function makeStatusIO(): StatusIOContext {
+function makeHealthIO(): HealthIOContext {
   return {
     readFile: (path) => readFile(path, "utf-8"),
     readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),
@@ -62,11 +62,11 @@ function makeDiffIO(): DiffIOContext {
   };
 }
 
-const prompts = { ...DEFAULT_PROMPTS, project_name: "Status Diff Test", tools: [] as string[] };
+const prompts = { ...DEFAULT_PROMPTS, project_name: "Health Diff Test", tools: [] as string[] };
 
 // --- Tests ---
 
-describe("status and diff integration", () => {
+describe("health and diff integration", () => {
   let tempDir: string;
 
   beforeAll(async () => {
@@ -77,11 +77,11 @@ describe("status and diff integration", () => {
     await cleanupTempDir(tempDir);
   });
 
-  describe("status", () => {
+  describe("health", () => {
     it("reports all files unmodified on fresh init", async () => {
-      const result = await runStatus({
+      const result = await runHealth({
         cwd: tempDir,
-        io: makeStatusIO(),
+        io: makeHealthIO(),
         frameworkVersion: "0.0.0",
       });
 
@@ -110,9 +110,9 @@ describe("status and diff integration", () => {
       await writeFile(filePath, original + "\n# Modified by test\n", "utf-8");
 
       try {
-        const result = await runStatus({
+        const result = await runHealth({
           cwd: tempDir,
-          io: makeStatusIO(),
+          io: makeHealthIO(),
           frameworkVersion: "0.0.0",
         });
 
@@ -132,9 +132,9 @@ describe("status and diff integration", () => {
       await writeFile(newFilePath, "# Untracked file\n", "utf-8");
 
       try {
-        const result = await runStatus({
+        const result = await runHealth({
           cwd: tempDir,
-          io: makeStatusIO(),
+          io: makeHealthIO(),
           frameworkVersion: "0.0.0",
         });
 
@@ -194,14 +194,14 @@ describe("status and diff integration", () => {
   });
 
   describe("missing manifest", () => {
-    it("status throws UserFacingError", async () => {
+    it("health throws UserFacingError", async () => {
       const emptyDir = join(tempDir, "empty-subdir");
       await mkdir(emptyDir, { recursive: true });
 
       await expect(
-        runStatus({
+        runHealth({
           cwd: emptyDir,
-          io: makeStatusIO(),
+          io: makeHealthIO(),
           frameworkVersion: "0.0.0",
         }),
       ).rejects.toThrow(UserFacingError);

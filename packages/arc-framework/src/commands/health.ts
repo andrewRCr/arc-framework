@@ -1,5 +1,5 @@
 /**
- * Status command — show status of installed ARC framework files.
+ * Health command — show health of installed ARC framework files.
  *
  * Reads the manifest, computes current file hashes, and reports per-file
  * state (unmodified, modified, missing, new). Also compares the installed
@@ -18,7 +18,7 @@ import type { Classification, Manifest, ReadIO } from "../lib/types.js";
 
 // --- Types ---
 
-/** File state as detected by the status command. */
+/** File state as detected by the health command. */
 export type FileState = "unmodified" | "modified" | "missing" | "new" | "scaffolded";
 
 /** Per-file status entry. */
@@ -29,8 +29,8 @@ export interface FileStatus {
   classification: Classification | null;
 }
 
-/** Result from a successful status run. */
-export interface StatusResult {
+/** Result from a successful health run. */
+export interface HealthResult {
   /** Per-file statuses sorted by path. */
   fileStatuses: FileStatus[];
   /** Version recorded in the manifest (what was installed). */
@@ -43,17 +43,17 @@ export interface StatusResult {
   latestVersion: string | null;
 }
 
-/** I/O dependencies for the status command. */
-export interface StatusIOContext extends ReadIO {
+/** I/O dependencies for the health command. */
+export interface HealthIOContext extends ReadIO {
   readManifest: (path: string) => Promise<Manifest | null>;
   /** List files under .arc/ (relative paths, no system/.internal/). */
   readdir: (arcDir: string) => Promise<string[]>;
 }
 
-/** Options for the status orchestrator. */
-export interface StatusOptions {
+/** Options for the health orchestrator. */
+export interface HealthOptions {
   cwd: string;
-  io: StatusIOContext;
+  io: HealthIOContext;
   frameworkVersion: string;
   /** Latest version from npm registry (pre-fetched by caller), or null. */
   latestVersion?: string | null;
@@ -62,16 +62,16 @@ export interface StatusOptions {
 // --- Orchestrator ---
 
 /**
- * Run the status command.
+ * Run the health command.
  *
  * Reads the manifest, checks each tracked file's hash against the pristine
  * baseline, detects untracked files in `.arc/`, and compares versions.
  *
- * @param options - Status options with all dependencies injected
- * @returns Status result with per-file states and version info
+ * @param options - Health options with all dependencies injected
+ * @returns Health result with per-file states and version info
  * @throws UserFacingError if the manifest is missing
  */
-export async function runStatus(options: StatusOptions): Promise<StatusResult> {
+export async function runHealth(options: HealthOptions): Promise<HealthResult> {
   const { cwd, io, frameworkVersion } = options;
   const manifestPath = join(cwd, ".arc", ...INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME);
   const arcDir = join(cwd, ".arc");
@@ -79,7 +79,7 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
   // Read manifest — hard fail if missing
   const manifest = await io.readManifest(manifestPath);
   if (!manifest) {
-    throw manifestMissingError("status");
+    throw manifestMissingError("health");
   }
 
   const fileStatuses: FileStatus[] = [];
@@ -136,12 +136,12 @@ export async function runStatus(options: StatusOptions): Promise<StatusResult> {
 // --- Result reporting ---
 
 /**
- * Build the user-facing summary message for a status result.
+ * Build the user-facing summary message for a health result.
  *
- * @param result - Result from a successful status run
+ * @param result - Result from a successful health run
  * @returns Formatted summary string for terminal display
  */
-export function buildStatusSummary(result: StatusResult): string {
+export function buildHealthSummary(result: HealthResult): string {
   const lines: string[] = [];
 
   // Version info

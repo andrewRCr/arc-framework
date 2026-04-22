@@ -12,7 +12,7 @@ import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
-import { handleUpdate, handleStatus, handleDiff } from "./handlers/lifecycle.js";
+import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
@@ -58,9 +58,9 @@ program
   .action(handleUpdate);
 
 program
-  .command("status")
-  .description("Show status of installed ARC framework files")
-  .action(handleStatus);
+  .command("health")
+  .description("Show health of installed ARC framework files")
+  .action(handleHealth);
 
 program
   .command("diff")

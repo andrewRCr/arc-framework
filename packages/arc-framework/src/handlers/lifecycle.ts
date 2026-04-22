@@ -1,5 +1,5 @@
 /**
- * Handlers for installation lifecycle commands: update, status, diff.
+ * Handlers for installation lifecycle commands: update, health, diff.
  *
  * @module
  */
@@ -8,7 +8,7 @@ import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
 
 import { runUpdate, buildUpdateSummary } from "../commands/update.js";
-import { runStatus, buildStatusSummary } from "../commands/status.js";
+import { runHealth, buildHealthSummary } from "../commands/health.js";
 import { runDiff, buildDiffOutput } from "../commands/diff.js";
 import { loadRecipeFile } from "../lib/template/index.js";
 import { readManifest } from "../lib/manifest/index.js";
@@ -61,16 +61,16 @@ export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<v
   p.outro("Done.");
 }
 
-// --- Status ---
+// --- Health ---
 
-export async function handleStatus(): Promise<void> {
-  p.intro("arc status");
+export async function handleHealth(): Promise<void> {
+  p.intro("arc health");
 
   try {
     const cwd = process.cwd();
-    // Check npm registry in parallel with status computation (non-blocking)
+    // Check npm registry in parallel with health computation (non-blocking)
     const latestVersionPromise = checkLatestVersion("@arc-framework/cli");
-    const result = await runStatus({
+    const result = await runHealth({
       cwd,
       io: {
         readFile: (path) => readFile(path, "utf-8"),
@@ -81,7 +81,7 @@ export async function handleStatus(): Promise<void> {
       latestVersion: await latestVersionPromise,
     });
 
-    p.note(buildStatusSummary(result), "Status");
+    p.note(buildHealthSummary(result), "Health");
 
     if (result.updateAvailable) {
       p.log.warn("Run 'arc update' to apply framework changes.");

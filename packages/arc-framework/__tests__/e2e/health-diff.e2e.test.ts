@@ -1,7 +1,7 @@
 /**
- * Status and diff command E2E tests.
+ * Health and diff command E2E tests.
  *
- * Exercises `arc status` and `arc diff` after clean init and after
+ * Exercises `arc health` and `arc diff` after clean init and after
  * file modifications, verifying correct state reporting and diff output.
  */
 
@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
-describe("status", () => {
+describe("health", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
@@ -24,7 +24,7 @@ describe("status", () => {
   });
 
   it("after clean init all files show as unmodified", async () => {
-    const result = await runArc(["status"], tmpDir);
+    const result = await runArc(["health"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
@@ -40,7 +40,7 @@ describe("status", () => {
     const original = await readFile(readmePath, "utf-8");
     await writeFile(readmePath, original + "\nCustom addition.\n", "utf-8");
 
-    const result = await runArc(["status"], tmpDir);
+    const result = await runArc(["health"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;

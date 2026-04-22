@@ -77,7 +77,7 @@ Full CLI invocation in temporary git repos. Exercises the complete user-facing p
 
 - `arc init` in a fresh repo → verify complete installed state
 - Init → modify → `arc update` → verify customizations preserved
-- Init → `arc status` / `arc diff` → verify output accuracy
+- Init → `arc health` / `arc diff` → verify output accuracy
 - `arc session save/load/push/pull` round-trips
 - Round-trip: init → customize → update → verify
 

@@ -264,8 +264,8 @@ describe("init", () => {
     expect(output).toContain("arc init");
   });
 
-  it("arc status before init exits non-zero with user-facing message", async () => {
-    const result = await runArc(["status"], tmpDir);
+  it("arc health before init exits non-zero with user-facing message", async () => {
+    const result = await runArc(["health"], tmpDir);
 
     expect(result.exitCode).not.toBe(0);
     const output = result.stdout + result.stderr;

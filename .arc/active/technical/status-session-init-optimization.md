@@ -13,19 +13,21 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.k.a — `arc status` → `arc health` rename (line ~1681)
-- **Last Completed:** 3.R.j.c — Label + spinner + summary consistency. Unified the `arc sync`
-  pull-direction and `arc user pull` result-box label from "Loaded" → "Pulled" so the verb
-  chain (spinner "Pulling" → stop "Pull complete." → note "Pulled") reads as one action;
-  `arc user load` keeps "Loaded". Verb-tense convention documented in `runWithSpinner` JSDoc
-  (first use). Split `determineUserStatusAction` for the `local unsaved` headline —
-  `diskState === "different"` → "run `arc user save`"; otherwise (implies
-  `refState === "local-ahead"`) → "run `arc user push` (or `arc sync`)" — with inline
-  invariant comment. Added 2 new `buildUserStatusResult` unit tests for the sub-cases.
-  Session-handoff doc touch: new paragraph directing the agent to surface `arc sync` exit
-  code in the end-of-session summary (closes "work didn't land but user thought it did"
-  gap). Two-copy sync on `session-handoff.md`. 774 unit+integration tests green (+2 new);
-  45 E2E green.
+- **Next Task:** Task 3.R.k.b — `arc extensions status` probe + shared lib + `arc user status
+  --json` retrofit (line ~1723)
+- **Last Completed:** 3.R.k.a — `arc status` → `arc health` rename. Source + three test tiers
+  renamed via `git mv`; `Status*` → `Health*` identifiers swept (including `runStatus`/
+  `buildStatusSummary`/`handleStatus`/`makeStatusIO` and the three interface types);
+  `FileState`/`FileStatus` preserved. CLI binding moved to `.command("health")`;
+  `manifestMissingError("status")` → `manifestMissingError("health")`. Doc sweep covered four
+  e2e tests (`init`, `lifecycle`, `smoke`, `health-diff`), `errors.ts` JSDoc, and
+  `strategy-testing-methodology.md` (project-only file). Cross-WU refs in notes/tasks/backlog
+  left intact (describe the rename itself). Scope-captured on 3.R.k.d during pre-work
+  discussion: composite result gains a top-level `config: { identity, role }` field (direct
+  `git config arc.identity`/`arc.role` reads in handler); 3.R.k.e Batch 1 drops the two
+  session-init git config reads. Tier 1 green: typecheck/lint:ts/test:unit (643 tests, 20 in
+  renamed `health.test.ts`)/build.
 - **Blockers:** none
-- **Next Action:** Begin 3.R.k.a — `arc status` → `arc health` rename (prerequisite to
-  free the `arc status` name for the 3.R.k.d composite probe command).
+- **Next Action:** Begin 3.R.k.b — `arc extensions status` probe + shared lib in
+  `lib/extensions/{point-scanner,orphan-detector}.ts` + `arc user status --json` retrofit
+  establishing the `--json` contract across session-init probes.
