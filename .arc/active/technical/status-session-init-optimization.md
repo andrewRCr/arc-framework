@@ -28,15 +28,4 @@
   45 E2E green.
 - **Blockers:** none
 - **Next Action:** Begin 3.R.k.a — `arc status` → `arc health` rename (prerequisite to
-  free the `arc status` name for the 3.R.k.d composite probe command). Then .b
-  (extensions probe + shared lib + `arc user status --json` retrofit), .c (active probe),
-  .d (composite), .e (session-init workflow integration + strategy pointer).
-
-> **Task 3.R.k restructured (2026-04-22, pre-implementation).** Audit resolved five design
-> decisions: hybrid `--session-init` / `--json` wire format, dropped methods probe (no
-> session-init consumer), shared `lib/extensions/` for probe and D7b hook, composite `arc status`
-> command (invokes three probe helpers via Promise.all), and transplanted the `arc status` to
-> `arc health` rename from ARCd Rebrand Task 1.5. Final subtask shape: .a rename, .b extensions
-> with lib and user-status retrofit, .c active, .d composite, .e session-init integration.
-> Decision record in `notes-session-init-optimization.md` § Phase 3.R Second-Pass Decisions.
-> Cross-WU edits: rebrand PRD, rebrand tasks, and plan-arc-modes naming references.
+  free the `arc status` name for the 3.R.k.d composite probe command).
