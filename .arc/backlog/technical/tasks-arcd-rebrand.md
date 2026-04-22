@@ -203,48 +203,25 @@ filenames and identifiers. Atomic commits for each logical change per PRD § Ord
         - `scripts/check-package-sync.sh` update is deferred to Task 2.5 (R26)
         - Check `.arc/system/scripts/` and `packages/arcd/arc/system/scripts/` for other offenders
 
-- [ ] **1.5 Command surface cleanup**
+- [ ] **1.5 Explicit `arcd version` subcommand**
 
-    **Goal:** Rename `status` → `health` (pure rename — current `status.ts` already does framework
-    health checking per its module doc) and add an explicit `version` subcommand. Covers PRD R14,
-    R15, R16.
+    **Goal:** Add an explicit `arcd version` subcommand alongside the existing `--version` flag —
+    idiomatic across developer tooling (`git version`, `docker version`, `kubectl version`) and
+    improves discoverability. Covers PRD R15.
 
-    - [ ] **1.5.a Rename command and test files**
-        - `git mv packages/arcd/src/commands/status.ts packages/arcd/src/commands/health.ts`
-        - `git mv packages/arcd/__tests__/unit/status.test.ts packages/arcd/__tests__/unit/health.test.ts`
-        - `git mv packages/arcd/__tests__/integration/status-diff.test.ts` →
-          `packages/arcd/__tests__/integration/health-diff.test.ts`
-        - `git mv packages/arcd/__tests__/e2e/status-diff.e2e.test.ts` →
-          `packages/arcd/__tests__/e2e/health-diff.e2e.test.ts`
+    **Scope change (2026-04-22):** The former Task 1.5 also covered the `status` → `health` command
+    rename (PRD R14 + R16). That rename was transplanted to the Session-Init Optimization WU
+    (`tasks-session-init-optimization.md` Task 3.R.k.a) where it lives alongside the session-init probe
+    work that motivates it. The global `arc` → `arcd` binary sweep in this WU absorbs the follow-on
+    rename (`arc health` → `arcd health`) as part of its normal pass — no dedicated rename subtasks
+    remain here. See `prd-arcd-rebrand.md` § CLI command surface cleanup for the reframed R14/R16
+    items.
 
-    - [ ] **1.5.b Rename internal identifiers in renamed files**
-        - Function / export: `statusCommand` → `healthCommand` (match actual current name)
-        - Type aliases: `StatusResult` → `HealthResult`, `StatusIOContext` → `HealthIOContext`
-        - JSDoc / comments referring to "status" update to "health" where semantically the command
-        - **Keep** `FileState` and `FileStatus` type names as-is — they describe per-file state, not
-          a command identity
-
-    - [ ] **1.5.c Update handler registration**
-        - `src/handlers/lifecycle.ts` — rename handler export; grep for callers
-        - `src/cli.ts` — update `.command('status')` → `.command('health')`; update description
-
-    - [ ] **1.5.d Add explicit `arcd version` subcommand**
+    - [ ] **1.5.a Add explicit `arcd version` subcommand**
         - `src/cli.ts` — add `.command('version').description('Print version').action(...)` that
           prints the same string as `--version`
         - Keep existing `.version()` call (supports `--version` flag)
         - Add a small unit test verifying `arcd version` outputs the expected version string
-
-    - [ ] **1.5.e Update test imports and string literals**
-        - Renamed test files have stale imports — update to new module paths
-        - Grep tests for `'status'` / `"status"` and rename where referring to the CLI command
-          (NOT where the word appears in unrelated context like file status strings)
-        - Grep e2e tests for literal command invocations — `arc status` → `arcd health`
-
-    - [ ] **1.5.f Tier 1 quality gates on command rename**
-        - `npm run typecheck`
-        - `npm run lint:ts`
-        - `npm run test:unit`
-        - `npm run build`
 
 - [ ] **1.6 Manifest schema version bump**
 

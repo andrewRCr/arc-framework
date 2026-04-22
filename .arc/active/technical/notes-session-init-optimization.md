@@ -7,6 +7,10 @@
 - [Phase Sequencing Rationale](#phase-sequencing-rationale)
 - [Risks and Mitigations](#risks-and-mitigations)
 - [Research References](#research-references)
+- [Phase 1 Trigger Coverage Audit](#phase-1-trigger-coverage-audit)
+- [Phase 1 Classification (Task 1.1.b)](#phase-1-classification-task-11b)
+- [Phase 2 Decisions](#phase-2-decisions)
+- [Phase 3.R Second-Pass Decisions](#phase-3r-second-pass-decisions)
 
 ---
 
@@ -716,3 +720,104 @@ can revisit if the rubric is tightened later.
 **Implementing agent perspective (recorded during implementation):** From an init-reader
 standpoint, the DEV-RULES subsection is sufficient. The rule is concrete and actionable at
 workflow-step execution; there's no operational benefit to seeing it twice at init.
+
+---
+
+## Phase 3.R Second-Pass Decisions
+
+### Task 3.R.k — Command surface cleanup + probe-pattern extension (pre-implementation audit)
+
+**Origin:** Pre-implementation audit of 3.R.k surfaced five design decisions that the original
+task shape masked. Resolved in a series of iterations with the user; final shape captured here
+for the implementing session.
+
+**Wire format — hybrid `--session-init` + `--json`.**
+
+The 3.R.e.1 precedent (`arc user status --session-init`) emitted human-readable Clack only. The
+harness parsed rendered markdown. That's fragile at scale and asymmetric once multiple probes
+exist. Resolved: `--session-init` is a scope flag, `--json` is a format flag, both orthogonal
+and composable. Default (no-flag) = Clack. The session-init harness calls
+`arc status --session-init --json` for a typed wire contract. `arc user status` retrofit to
+accept `--json` in the same pass so no first-mover is grandfathered.
+
+**Dropped: `arc methods status` probe.**
+
+The original 3.R.k.b was "enumerate methods with `override-active: true`." Session-init does
+not inspect method override state at init time — methods load at workflow trigger, not at init.
+The proposed 3.R.k.d session-init integration step had no "init-time method-inspection
+language" to replace. Consumer-less probe; dropped. If a future consumer emerges, add then.
+
+**Shared lib for extensions scan.**
+
+`arc extensions status --all` and Task 4.6 (D7b pre-commit hook) would each implement the
+same scan: find extension-point references (` · `#name` `) in workflow files and
+cross-reference against the extensions directory. Resolved: shared lib
+`src/lib/extensions/{point-scanner,orphan-detector}.ts`. 3.R.k.b ships the lib; 4.6 consumes.
+Detector takes an explicit file list — probe scans all workflows, hook scans staged only.
+
+**Composite `arc status` command.**
+
+Two probes + the user-status retrofit = three potential orchestration calls at session-init.
+Discussed: speed savings are near-zero (process-startup parallelizes at OS level), but the UX
+win for a human watching session-init execute is real — one tool call in the trace vs. three.
+Forward compat is also real — future probes slot into the composite without session-init
+workflow prose changes. Resolved: ship the composite at `arc status`, which requires renaming
+the existing `arc status` (install health) to `arc health` (3.R.k.a).
+
+**Rename hosting — SIO not Rebrand.**
+
+The `arc status` → `arc health` rename was originally scoped in the ARCd Rebrand WU (Task 1.5)
+as "absorbed Operating Modes CLI command cleanup." The rename's motivation is `/arc-status`
+skill collision plus semantic hygiene — both session-init/orientation concerns, not binary
+rebrand concerns. With SIO already touching the CLI status-command surface for the probe work,
+co-located edits are cheaper than two-step rename coordination. Resolved: transplant subtasks
+1.5.a, .b, .c, .e, .f to SIO as 3.R.k.a. Task 1.5.d (`arcd version` subcommand) stays in the
+rebrand WU as rebrand-era idiom alignment. Rebrand's follow-on `arc health` → `arcd health`
+rename is absorbed into its global `arc` → `arcd` binary sweep with no dedicated subtask.
+
+**`arc active` naming.**
+
+Considered: `arc work-units`, `arc wu`, or unification under an `arc inspect` umbrella. Kept
+`arc active` because `.arc/active/` houses WUs as bundles of co-named files (prd/notes/atomic/
+tasks/status), and `arc active status` = "for each in-flight WU, show its state marker"
+parallels `arc user status` (sync state of the user bundle). Directory and command agree on
+scope; no rename cost.
+
+**`arc active status` full-mode output contract — `**State:**` field verbatim.**
+
+Future `/arc-status` skill (see `plan-arc-modes.md`) needs paused/waiting-for visibility. If
+`arc active status` in full mode filtered to in-progress WUs, the skill would duplicate the
+scan. Resolved: full mode returns all WUs with the `**State:**` field value populated verbatim
+(In Progress / Paused / Waiting-For / etc.); consumers filter client-side. `--session-init`
+mode keeps its narrow shape for harness use.
+
+**Composite command design.**
+
+- Parallel invocation of three probe helpers via `Promise.all`
+- Typed composite result (`StatusResult` full; `SessionInitProbeResult` scoped)
+- Per-probe error isolation: one probe's failure becomes a typed error field in its slot;
+  other probes unaffected; process exit code 0 (individual errors surfaced via result shape,
+  not via exit — session-init decides what to do)
+- Extensible slot: `arc hooks status` or any future probe drops into the Promise.all without
+  session-init workflow changes. In the post-rebrand world, the composite becomes
+  `arcd status` via the global binary sweep
+
+### Subtask structure (final)
+
+- **3.R.k.a** — `arc status` → `arc health` rename (prerequisite for the composite slot)
+- **3.R.k.b** — `arc extensions status` probe + shared `lib/extensions/` + `arc user status --json` retrofit
+- **3.R.k.c** — `arc active status` probe
+- **3.R.k.d** — composite `arc status` command
+- **3.R.k.e** — session-init workflow integration + `strategy-session-operations.md` probe-pattern section
+
+### Coordinated edits (2026-04-22 pre-implementation pass)
+
+- `tasks-arcd-rebrand.md` Task 1.5 slimmed to just the `arcd version` subcommand concern; rename
+  subtasks transplanted here
+- `prd-arcd-rebrand.md` goals bullet + R14/R16 reframed; callout added above § CLI command
+  surface cleanup
+- `plan-arc-modes.md` naming note (line ~4509) + Shift Lifecycle CLI naming coordination row
+  updated to reflect two-step rename path
+
+No rebrand tasks beyond Task 1.5 needed editing — the global `arc` → `arcd` sweep naturally
+covers the follow-on `arc health` → `arcd health` without special handling.

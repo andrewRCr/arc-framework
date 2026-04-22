@@ -1640,47 +1640,195 @@ clean enough that inconsistency across the three remaining session-init discover
         **Quality gates:** lint:ts, typecheck, typecheck:test, `lint:md:file` on session-handoff,
         full unit+integration (774 tests green; +2 new) and E2E (45 green).
 
-- [ ] **3.R.k Probe-pattern extension — extensions, methods, active status**
+- [ ] **3.R.k Command surface cleanup + probe-pattern extension**
 
     **Goal:** Non-destructive CLI probes returning structured state for session-init's harness layer to consume.
-    Pattern established by 3.R.e.1's `arc user status --session-init` extended consistently across the three
-    remaining session-init discovery points. Probes stay stateless and fast; no state mutation.
+    Two individual probes (extensions, active) plus a composite `arc status` that orchestrates them alongside
+    the retrofitted `arc user status`. Session-init calls the composite once instead of three separate probes.
+    Individual probes remain available standalone.
 
-    **Scope note:** `arc hooks status` is out of scope for this work unit (session-init doesn't discover hook
-    state at init time). Worth a future work unit if hook health surfaces as a need.
+    **Design decisions (resolved pre-implementation):**
 
-    - [ ] **3.R.k.a `arc extensions status` probe**
-        - Enumerate active extensions (replaces the `grep -l "^active: true" .arc/system/extensions/*.md` in
-          session-init Step 2's identity/role/extensions batch).
-        - Return: active basenames, inactive basenames, orphaned extension-point references (workflow anchor
-          suffixes pointing at non-existent extension files — surfaced only for `--all` mode; `--session-init`
-          mode returns only the active list).
-        - Unit tests on formatter; integration test against a fixture tree.
+    - **Wire format is hybrid.** `--session-init` is a scope flag (session-init-filtered state); `--json` is a
+      format flag (machine-parseable output). Orthogonal and composable. Default (no-flag) = human-readable
+      Clack. `arc user status --session-init` is retrofit to accept `--json` in the same pass for uniformity —
+      no asymmetric first-mover on the wire contract.
+    - **Composite lives at `arc status`.** The `arc status` → `arc health` rename (3.R.k.a) frees the
+      `arc status` name. The freed slot hosts a composite that invokes the three probe helpers via
+      `Promise.all` and emits a unified result. Session-init calls `arc status --session-init --json` once;
+      agent parses one output. Standalone individuals remain for debugging, CI, and future consumers.
+    - **No methods probe.** Session-init does not inspect method override state at init time — methods load
+      at workflow trigger, not at init. Dropped from the original 3.R.k scope.
+    - **Shared lib for extensions scan.** `lib/extensions/{point-scanner,orphan-detector}.ts` serves both the
+      extensions probe's `--all` mode and Task 4.6 (D7b pre-commit hook). Shipped here; 4.6 consumes.
+    - **`arc active` naming holds.** `.arc/active/` houses WUs as bundles of co-named files (prd/notes/atomic/
+      tasks/status). `arc active status` = "for each in-flight WU, show its state marker" — parallels
+      `arc user status` (sync state of the user bundle). Directory and command agree on scope.
+    - **Rename hosted here, not in ARCd Rebrand WU.** The rename's motivation is `/arc-status` skill collision
+      plus semantic hygiene (status-command should mean work state, not install health). Both themes belong
+      with session-init orientation work, not with the binary rebrand. Rebrand WU absorbs the follow-on
+      `arc health` → `arcd health` sweep as part of its global `arc` → `arcd` binary rename — no dedicated
+      rename task left in that WU for this concern. Transplanted from ARCd Rebrand Task 1.5.
+    - **Forward-compat slot.** Future probes (e.g., `arc hooks status`) drop into the composite's internal
+      `Promise.all` without changing session-init workflow prose or adopter-facing CLI surface.
+    - **`arc version` subcommand NOT pulled forward.** That's pure rebrand-era work (idiomatic alignment with
+      `arcd version`), stays in ARCd Rebrand Task 1.5.
 
-    - [ ] **3.R.k.b `arc methods status` probe**
-        - Enumerate methods with `override-active: true` (project has overridden the ARC default).
-        - Return: override-active methods, defaults-active methods. `--session-init` mode returns only the
-          override-active list since defaults don't affect loading behavior.
-        - Same test shape as `.k.a`.
+    **Scope note:** `arc hooks status` remains out of scope for this work unit (session-init doesn't discover
+    hook state at init time). Worth a future work unit if hook health surfaces as a need; its landing site is
+    the composite.
+
+    - [ ] **3.R.k.a `arc status` → `arc health` rename (command surface cleanup)**
+
+        **Goal:** Free the `arc status` name for the composite probe by renaming the existing framework-
+        installation-health command. Pure rename; no behavior change to the underlying command.
+
+        **Transplanted from:** ARCd Rebrand WU Task 1.5 (subtasks .a, .b, .c, .e, .f). Subtask 1.5.d
+        (`arcd version` subcommand) stays in the rebrand WU as rebrand-era work.
+
+        - `git mv packages/arc-framework/src/commands/status.ts packages/arc-framework/src/commands/health.ts`
+        - Apply the rename to test files: `__tests__/unit/status.test.ts` → `health.test.ts`;
+          `__tests__/integration/status-diff.test.ts` → `health-diff.test.ts`;
+          `__tests__/e2e/status-diff.e2e.test.ts` → `health-diff.e2e.test.ts`
+        - Internal identifier renames in the renamed files: `statusCommand` → `healthCommand`,
+          `StatusResult` → `HealthResult`, `StatusIOContext` → `HealthIOContext`. **Keep** `FileState` /
+          `FileStatus` — those describe per-file state, not command identity
+        - `src/handlers/lifecycle.ts` — rename `handleStatus` → `handleHealth`; grep for callers and update
+        - `src/cli.ts` — `.command("status")` → `.command("health")`; update description
+        - Sweep test imports and literal command invocations — `arc status` → `arc health` where the
+          reference is specifically to the CLI command (not unrelated `status` words in file state strings
+          or similar)
+        - Doc sweep: `QUICK-REFERENCE.md` (two-copy), any `.arc/` doc referencing `arc status` meaning
+          install health. Two-copy sync on framework-file doc edits
+        - Tier 1 quality gates: `npm run typecheck`, `npm run lint:ts`, `npm run test:unit`, `npm run build`
+
+    - [ ] **3.R.k.b `arc extensions status` probe + shared lib + `arc user status --json` retrofit**
+
+        **Goal:** Replace session-init's extensions grep with a structured probe; extract the extension-point
+        scan into a shared lib that Task 4.6 (D7b hook) also consumes; establish the `--json` contract
+        across all session-init probes by retrofitting `arc user status`.
+
+        Build `test-first` (one behavior at a time):
+        - `point-scanner` extracts `{ workflowPath, lineNumber, extensionName }` from header-suffix and
+          inline-prefix reference forms
+        - `point-scanner` takes an explicit workflow file list (caller filters — probe scans all, hook scans
+          staged)
+        - `orphan-detector` classifies refs against the extensions directory listing, returns
+          `{ orphans, resolved }`
+        - `arc extensions status` (no flag) renders active/inactive counts + orphan count in Clack
+        - `arc extensions status --session-init` returns only the active extensions list (structural
+          replacement for `grep -l "^active: true" .arc/system/extensions/*.md`)
+        - `arc extensions status --all` includes orphaned extension-point references (calls
+          `orphan-detector`)
+        - `arc extensions status --json` emits typed `ExtensionsStatusResult` (shape defined in
+          `commands/extensions/types.ts`)
+        - `--session-init --json` and `--all --json` combinations both valid
+        - `arc user status --json` emits the already-typed `UserStatusResult` as JSON, bypassing the Clack
+          formatter
+        - `arc user status --session-init --json` emits the typed `UserSessionInitStatusResult` as JSON
+
+        **Layout:**
+        - Shared lib in `packages/arc-framework/src/lib/extensions/{point-scanner.ts,orphan-detector.ts}`
+        - New command module in `packages/arc-framework/src/commands/extensions/` (per-group directory,
+          matching `commands/user/` pattern)
+        - New handler wiring in `src/handlers/extensions.ts` and `src/cli.ts`
+        - `--json` flag added to `arc user status` in `src/cli.ts`; `handleUserStatus` in `handlers/user.ts`
+          branches on the flag to emit JSON instead of calling the Clack formatter
+
+        **Tests:**
+        - Unit tests on `point-scanner` (various reference forms, malformed refs, multi-file scans) and
+          `orphan-detector` (orphan/resolved classification) in `__tests__/unit/extensions/`
+        - Unit tests on the extensions formatter (Clack + JSON) in `__tests__/unit/`
+        - Unit tests on the `arc user status --json` retrofit
+        - Integration test against a fixture tree covering active/inactive/orphan states
 
     - [ ] **3.R.k.c `arc active status` probe**
-        - Full mode: enumerate `.arc/active/**/status-*.md`, parse Branch / State / Next Task / Task List fields,
-          return candidates for disambiguation.
-        - Lite mode: single fixed-path check against `.arc/active/status.md`.
-        - Zero-file / one-file / many-file cases map to existing session-init disambiguation logic from
-          session-init.md Step 2, Item 8.
-        - `--session-init` mode returns either the resolved path (one-file case), `null` (zero-file), or a
-          structured candidate list (many-file case for agent-side disambiguation).
-        - Integration test against a fixture with multiple status files covering all three cases.
 
-    - [ ] **3.R.k.d Session-init workflow integration**
-        - Replace `grep -l "^active: true"` in session-init Step 2 with `arc extensions status --session-init`.
-        - Replace any init-time method-inspection language with `arc methods status --session-init`.
-        - Replace the Full-mode many-file status disambiguation logic in Step 2 Item 8 with
-          `arc active status --session-init`, retaining the user-prompt fallback for many-file cases.
-        - Add a short section to `strategy-session-operations.md § Context Loading Model` describing the probe
-          pattern — non-destructive, harness-consumes, when to reach for it in future extensions.
-        - Two-copy sync on `session-init.md`.
+        **Goal:** Structured enumeration of in-flight work units — full state per WU for general consumers,
+        session-init-scoped resolution for the harness.
+
+        Build `test-first` (one behavior at a time):
+        - Full-mode scan enumerates `.arc/active/**/status-*.md` and parses Branch / **State** / Next Task /
+          Task List fields per WU
+        - Full-mode output includes the **full `**State:**` field value** per WU (not filtered to
+          in-progress) — downstream consumers like the future `/arc-status` skill can filter client-side
+          for Paused / Waiting-For without re-scanning
+        - Lite-mode scan checks the single fixed-path `.arc/active/status.md` (at most one candidate)
+        - Zero-file, one-file, and many-file cases all render correctly (Clack + JSON)
+        - `--session-init` mode returns: resolved path (one-file case), `null` (zero-file), or structured
+          candidate list (many-file case) — maps to session-init.md Step 2 Item 8's existing disambiguation
+          precedence
+        - `--json` shape: typed discriminated union on `mode` — `ActiveStatusResult` (full) vs
+          `ActiveSessionInitResult` (scoped)
+
+        **Layout:**
+        - Shared reader helper in `src/lib/active/` that both the full and session-init modes call — parses
+          status files, returns typed candidate list. Caller (handler) applies mode-specific shaping
+        - Command module in `src/commands/active/`
+        - Handler in `src/handlers/active.ts`; CLI wiring in `src/cli.ts`
+
+        **Tests:**
+        - Unit tests on the status-file parser (valid fields, missing fields, malformed frontmatter)
+        - Unit tests on the formatter (Clack + JSON, full + session-init shapes)
+        - Integration test against fixture trees: zero-file, one-file, many-file (Full); single-file (Lite)
+
+    - [ ] **3.R.k.d Composite `arc status` command**
+
+        **Goal:** One orchestration call that session-init consumes in place of three separate probes.
+        Extensible slot for future probes without session-init-workflow churn.
+
+        **Depends on:** 3.R.k.a (frees the `arc status` name), 3.R.k.b (extensions probe helper +
+        `runUserStatus --json`), 3.R.k.c (active probe helper).
+
+        Build `test-first` (one behavior at a time):
+        - Composite invokes the three probe helpers in parallel via `Promise.all`
+        - Composite returns typed result — `StatusResult` (full) or `SessionInitProbeResult` (scoped)
+        - Default (no-flag) renders three Clack sections — one per probe — in a stable order
+        - `--session-init` narrows each probe to its session-init-scoped shape
+        - `--json` emits the composite as JSON (both full and scoped)
+        - Partial-failure behavior: if one probe errors, its slot in the result contains a typed error
+          field; other probes' results are unaffected. Composite exits 0 (individual errors surfaced via
+          result shape, not via process exit — session-init decides what to do)
+
+        **Layout:**
+        - Command module in `src/commands/status/` (the old `status.ts` is now `health.ts` per 3.R.k.a)
+        - Composite handler in `src/handlers/status.ts` (new)
+        - Type for the composite result in `src/commands/status/types.ts`
+        - CLI wiring in `src/cli.ts` — `arc status` with `-y`-style flag additions
+
+        **Tests:**
+        - Unit tests: mock the three probe helpers, assert orchestration (all invoked, parallel via
+          Promise.all, stable result ordering, per-probe error isolation)
+        - Integration test: real fixture tree end-to-end — clean state, conflict state (user-sync), multi-WU
+          state, mixed (one probe errors, others succeed)
+
+    - [ ] **3.R.k.e Session-init workflow integration + strategy pointer**
+
+        **Goal:** Session-init calls one composite instead of orchestrating three probes; the probe pattern
+        is documented in the session-operations strategy for future extension.
+
+        **Session-init.md Batch 1 changes:**
+        - Remove the `grep -l "^active: true" .arc/system/extensions/*.md` line — covered by the composite
+        - Remove the standalone Step 1.5 `arc user status --session-init` invocation — covered by the
+          composite's `user` result field
+        - Add a single `arc status --session-init --json` call at the same point in Batch 1
+        - Update agent-side result-consumption instructions for the composite JSON shape (which fields go
+          where in orientation)
+
+        **Session-init.md Step 2 Item 8 changes:**
+        - Full-mode many-file disambiguation: the candidate list comes from the composite's `active` result
+          field (not an agent-side `find` scan). User-prompt fallback for the many-file case retained
+        - Zero-file and one-file cases resolve from the same composite result without extra calls
+
+        **Strategy documentation:**
+        - Add a short "Probe pattern" subsection to
+          `strategy-session-operations.md § Context Loading Model`. Content: non-destructive, harness-
+          consumes, composite-first (`arc status --session-init --json`), standalone individuals for
+          debugging/CI. Note the Promise.all orchestration, the `--session-init --json` default for harness
+          consumers, and the future-composite extension slot (hooks and future probes without workflow prose
+          changes)
+
+        **Two-copy sync:** `session-init.md` (framework-file; two copies).
 
 - [ ] **3.R.l Structural cleanup + test coverage**
 
@@ -1942,6 +2090,8 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
     human-readable suffix stays; no new syntax introduced.
 
     **Implementation:**
+    - Consume the shared scan helpers from `src/lib/extensions/` shipped by Task 3.R.k.b (`point-scanner` +
+      `orphan-detector`). Do not duplicate the scan — the hook filters to staged workflow paths and delegates
     - Placement: CHECK 15 in `.arc/system/githooks/pre-commit` (CHECK 14 is Task 3.13's package-source neutrality
       guard)
     - Target: staged workflow files under `.arc/system/workflows/**` and
