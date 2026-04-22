@@ -13,9 +13,9 @@ arc:
 **When to use**: User-triggered at the start of every session (resuming features, starting new work, handling
 incidental tasks, etc.). The agent does not initiate this workflow on its own.
 
-**Session lifecycle assumption**: ARC sessions are bounded — they begin with this initialization workflow and end
-with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct response
-is to complete the current work item and hand off, not to compact or summarize prior context.
+**Session lifecycle assumption**: ARC sessions are bounded — they begin with this initialization workflow and
+end with an explicit handoff (see `session-handoff.md`). If an agent's context fills mid-session, the correct
+response is to complete the current work item and hand off, not to compact or summarize prior context.
 
 **Design context**: Sessions implement P5 (Context Preservation) — structured document loading for agents with
 ephemeral context. Agents with persistent memory may need lighter ceremonies; the principle (work context must
@@ -26,199 +26,188 @@ be recoverable) still applies. The session state mechanism is overridable via th
 
 ### 1. Verify Environment
 
-**Check working directory:**
-
 ```bash
 pwd
 # Expected: {{REPO_ROOT}} (repo root)
-# Or: relevant subdirectories if working in specific context
 ```
 
-**Verify runtime status (if applicable):**
+Adopters: add project-specific runtime checks here if needed (services, build tools, env vars). If
+working-directory verification is sufficient, leave as-is.
+
+### 2. Probe ARC Domain
+
+Run the composite probe:
 
 ```bash
-# Check whatever your project requires before work can begin (examples):
-# Build tools: Verify compiler, bundler, or linter is available
-# Services: Confirm databases, containers, or dev servers are running
-# Environments: Confirm expected tools are on PATH
-# Some projects (documentation-only, config repos) may need nothing beyond git
+arc status --session-init --json
 ```
 
-### 1.5 Sync Remote State
+Non-destructive. Returns a single JSON envelope the agent consumes:
 
-After Batch 1 resolves `{identity}` and reads `arc-config.yml`, probe remote notes state before final orientation:
+| Field        | Contents                                                                                                                                      |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `identity`   | `{identity, role}` — either may be `null`                                                                                                     |
+| `user`       | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                                           |
+| `extensions` | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                   |
+| `config`     | `value.settings`: session-relevant settings (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`) |
+| `active`     | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                |
 
-- **Skip** if `{identity}` did not resolve — user-note paths are identity-scoped
-- Run the session-init remote probe command: `arc user status --session-init`
-  (self-hosting repo: `npx arc user status --session-init`)
-- The command respects `session.remote_sync` and performs a non-destructive temp-ref probe only
-- If it reports `remote-ahead` or `conflict`, surface that in the orientation and ask whether to run
-  `arc user pull` **before** the normal "Proceed to Next Action?" prompt
-- If it reports `remote-unavailable`, note the degraded state and continue with local tracked state
-- If it reports `disabled` or `clean`, continue without extra prompting
+Carry `config` values forward as behavioral awareness. Do not surface configuration in orientation — the
+developer already knows their own settings; defaults and overrides reach the user at the operation that
+consumes them, not as init-time status.
 
-**Do not let the CLI own the prompt.** The agent runs the probe, incorporates the result into the orientation, and
-asks the user whether to pull.
+**Identity absent** (`identity.identity === null`): Skip all user workspace access — SESSION-NOTES,
+ATOMIC-INBOX, and git notes all depend on identity for path resolution. Surface a warning in orientation (new
+machine or incomplete setup). Sessions without identity cannot perform handoff.
 
-### 2. Load AI Context
+**Role is `contributor`**: Follow the **Contributor Session Path** below — skip items 8, 10–11 in Step 4, skip
+Step 6, and use the contributor orientation format in Step 7.
 
-**CRITICAL PRINCIPLE**: All documents are maintained to be lean, non-overlapping, and essential. Read everything
-in full EXCEPT the active task list (item 10 — reference material, often 500+ lines). These docs are kept
-minimal by design — there's more value in having complete context upfront than discovering missing rules
-mid-session.
+**Probe failure fallback**: If the composite call fails (CLI not on PATH, fresh clone pre-build), fall back to
+direct commands: `git config arc.identity` / `arc.role`, `grep -l "^active: true" .arc/system/extensions/*.md`,
+and a scan of `.arc/active/**/status-*.md`. Skip Step 3 (no user-sync state available) and note the
+degradation in orientation. Downstream workflows load the config they need at their own trigger points.
 
-**Execution strategy:** Items 1–8, identity/role resolution, the active-extensions grep, and configuration
-reads (Step 4) are independent — batch them into a single parallel read. SESSION-NOTES (needs identity),
-the task list (needs the resolved active status file), and conditionally the task execution workflow (item
-11, needs the resolved active status file) form a second batch after the first completes. Within batches,
-`.ARC` files are listed before their `.PROJECT` counterparts for comprehension order. Sequential execution
-(follow item numbers) is fine if your platform doesn't support parallel reads. Full-mode many-file
-status-file disambiguation is the one exception to strict batch ordering — see Item 8's many-file case.
+### 3. Conditional Sync Pull
+
+Inspect `user.value.state` from Step 2:
+
+- `remote-ahead` or `conflict`: Surface in orientation and ask whether to run `arc user pull`. **Pull before
+  Step 4** — context-doc loading reads SESSION-NOTES, which will be stale if the remote note has newer content.
+- `remote-unavailable`: Note the degraded state; continue with local tracked state.
+- `clean`, `disabled`, or identity absent: Continue without prompting.
+
+The agent owns the prompt — do not defer it to the CLI.
+
+### 4. Load Context Documents
+
+**Reading rule**: Read every document in the list below in full EXCEPT the active task list (item 10 —
+reference material, often 500+ lines, strategic partial read).
+
+**Parallelism**: Framework docs (items 1–7), SESSION-NOTES (item 9), and — when `active.resolution === "single"` —
+the active status file can load in parallel. Task list (item 10) and task execution workflow (item 11) wait
+for the status file to resolve. Sequential execution is fine if your platform doesn't support parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
 
 **Project identity and agent context:**
 
-1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` - **MUST READ IN FULL**
-   - ARC framework orientation — methodology, key documents, directory structure
-
-2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` - **MUST READ IN FULL**
-   - Project overview, technology stack, and collaboration context
-
-3. **Agent-specific file** - **MUST READ IN FULL** (if one exists)
-   - Path: `.arc/system/agent/[AGENT].ARC.md` (e.g., CLAUDE.ARC.md, GEMINI.ARC.md, CODEX.ARC.md)
-   - Agent-specific operational guidance (context window thresholds, capabilities, deferred review notes)
-   - **If no agent-specific file exists**: Skip — the framework is agent-agnostic by default
+1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` — ARC framework orientation
+2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` — project overview, tech stack, collaboration context
+3. Agent-specific file `.arc/system/agent/[AGENT].ARC.md` (e.g., CLAUDE.ARC.md) — **if one exists**. Skip if
+   absent (framework is agent-agnostic by default)
 
 **Constitutional and process context:**
 
-4. `.arc/reference/constitution/DEV-RULES.ARC.md` - **MUST READ IN FULL**
-   - Framework development methodology: commit standards, verification, session/task management
-
-5. `.arc/reference/constitution/DEV-RULES.PROJECT.md` - **MUST READ IN FULL**
-   - Project quality gates, testing requirements, code quality, and architecture rules
-   - **Domain rule files**: Scan `constitution/` for additional `DEV-RULES.*.md` files (e.g.,
-     `DEV-RULES.FRONTEND.md`). Note their domains — load on-demand when a task touches the
-     relevant domain, not at init time.
-
-6. `.arc/reference/strategies/STRATEGY-INDEX.md` - **MUST READ IN FULL**
-   - Index of codified strategy guidance; establishes what domain-specific patterns exist
-
-7. `.arc/reference/QUICK-REFERENCE.md` - **MUST READ IN FULL**
-   - Environment context, command patterns, and quality gate commands
+4. `.arc/reference/constitution/DEV-RULES.ARC.md`
+5. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+    - Scan `constitution/` for additional `DEV-RULES.*.md` domain files (e.g., `DEV-RULES.FRONTEND.md`). Note
+      their domains — load on-demand when a task touches the relevant domain, not at init time
+6. `.arc/reference/strategies/STRATEGY-INDEX.md`
+7. `.arc/reference/QUICK-REFERENCE.md`
 
 **Active work context:**
 
-8. **Active work status file** - **MUST RESOLVE, THEN READ IN FULL**
-   - Project state: state, branch, task list path, next task, blockers, and next action
-   - **Full mode**: Scan `.arc/active/**/status-*.md`
-       - **Zero-file case**: No active work unit. Skip item 10 (task list loading). Session
-         orientation will report this state and surface the next work-unit discovery result in
-         Step 5.
-       - **One-file case**: Load it directly — this is the active status file for the session.
-       - **Many-file case**: The scan completes in Batch 1. If multiple candidates match, defer
-         the load until SESSION-NOTES (Item 9, Batch 2) is available — step 1 of the precedence
-         below reads `**Working On:**` from it. Zero/one-file cases resolve in Batch 1 without
-         needing SESSION-NOTES. Apply disambiguation precedence in order:
-           1. SESSION-NOTES `**Working On:**` value matches a candidate filename
-           2. Candidate `**Branch:**` matches the current git branch
-           3. Candidate `**State:** In Progress`
-           4. Prompt the user
-       - **Prompt format** (if disambiguation reaches step 4):
+8. **Active status file** — resolve from `active.value` and read in full:
+    - `resolution: "single"`: path is `active.value.path`
+    - `resolution: "none"`: no active work unit. Skip items 10–11; Step 6 handles next-work discovery
+    - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 9) —
+      precedence:
+        1. SESSION-NOTES `**Working On:**` value matches a candidate filename
+        2. Candidate `**Branch:**` matches the current git branch
+        3. Candidate `**State:** In Progress`
+        4. Prompt the user:
 
-         ```text
-         Multiple status files matched. Select one:
-           [1] status-work-status-restructure.md · technical/work-status-restructure
-               Next Task: 2.2 — Status file template (new) — retire the old
-               State:    In Progress
-           [2] status-arcd-rebrand.md · feature/arcd-rebrand
-               Next Task: 1.3 — Rename CLI package
-               State:    Paused (2026-04-12) — waiting for restructure
-           [q] Abort session-init
-         Your choice:
-         ```
+            ```text
+            Multiple status files matched. Select one:
+              [1] status-work-status-restructure.md · technical/work-status-restructure
+                  Next Task: 2.2 — Status file template (new) — retire the old
+                  State:    In Progress
+              [2] status-arcd-rebrand.md · feature/arcd-rebrand
+                  Next Task: 1.3 — Rename CLI package
+                  State:    Paused (2026-04-12) — waiting for restructure
+              [q] Abort session-init
+            Your choice:
+            ```
 
-       - Each candidate shows filename, `**Branch:**`, truncated `**Next Task:**`, and
-         `**State:**`
-       - If the user aborts or dismisses the prompt, abort session-init and surface the
-         candidate list so they can resolve it manually
-   - **Lite mode**: Fixed path `.arc/active/status.md`
-       - **Zero-file case**: No active work unit. Skip item 10 and proceed to next work-unit
-         discovery in Step 5
-       - **One-file case**: Load it directly
-       - No many-file case exists under Lite mode
-   - **Task reference format**: `**Next Task:**` uses triple-anchor format —
-     `Task 5.5 — Implement validation (line ~1903)`: task number, title, approximate line.
-     All three anchors should be present; any two are sufficient for reliable lookup.
+        Each candidate shows filename, `**Branch:**`, truncated `**Next Task:**`, and `**State:**`. If the
+        user aborts, surface the candidate list and halt session-init.
+    - **Task reference format**: `**Next Task:**` uses triple-anchor format —
+      `Task 5.5 — Implement validation (line ~1903)`. All three anchors should be present; any two are
+      sufficient for reliable lookup.
 
 <!-- arc:if team.mode == true -->
-**Team mode — resolve personal next task** (after resolving the active status file and loading the task list):
-
-The active status file shows work-unit state (one "Next Task" for the active work unit). In team mode,
-your personal next task may differ. After loading the task list (item 10), scan it for
+**Team mode — resolve personal next task** (after loading the task list): The active status file shows
+work-unit state (one "Next Task"). In team mode, your personal task may differ. Scan the task list for
 `(@name)` markers matching your `{identity}`:
 
-1. Find incomplete tasks (`[ ]`) with your `(@identity)` marker
-2. If found, your next task is the first incomplete owned task — this overrides the
-   active status file `**Next Task:**` for your session orientation
-3. If no `(@name)` markers exist, fall back to the active status file `**Next Task:**` (ownership not
-   yet assigned for this task list)
-4. If markers exist but none match your identity, note this in orientation — you may
-   need to claim a task or check with the team
+1. Find incomplete tasks (`[ ]`) with your `(@identity)` marker — first match wins and overrides the active
+   status file `**Next Task:**` for your orientation
+2. If no `(@name)` markers exist, fall back to the active status file `**Next Task:**`
+3. If markers exist but none match your identity, note this in orientation — you may need to claim a task
 
-See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(@name)`
-convention.
+See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(@name)` convention.
 <!-- arc:endif -->
 
-**Resolve identity** (run in Batch 1):
+9. `.arc/user/{identity}/SESSION-NOTES.md` — **read if exists**. Uses `{identity}` from Step 2
+    - Personal working context from prior session: approach, decisions, things tried, known risks
+    - **Persistent context**: The `## Persistent Context` section carries entries that survive across handoffs
+      (each has an explicit removal trigger). Treat these as active constraints for this session
+    - **If absent or stale**: Try `arc user load` (walks ancestors for `refs/notes/arc/user/{identity}`). If no
+      notes either, fall back to `git log --oneline -10`. Tracked state (active status file + task list) plus
+      git history is sufficient
+    - **Load errors:**
+        - **No note found** (null result): Normal on first session, re-clone without notes, or when the noted
+          commit is beyond the shallow clone boundary. Proceed with tracked state
+        - **Corrupt note** (JSON parse error): Run `arc user save` to overwrite, or inspect
+          `git notes --ref arc/user/{identity} list` for a different ancestor
+        - **Pull failure** (remote ref not found): Identity may not have pushed, or the name may be wrong.
+          Verify via `git ls-remote origin 'refs/notes/arc/user/*'`
+        - **Stale file warnings**: Load reports local files absent from the saved manifest. Preserved in
+          `.pre-load-backup.json` — review and either re-create or discard
 
-1. Run `git config arc.identity`
-2. If non-empty, use this value as `{identity}`
-3. If empty: **skip all user workspace access** — SESSION-NOTES (item 9), ATOMIC-INBOX, and
-   git notes all depend on identity for path resolution. A wrong identity silently points at
-   the wrong directory. Surface a warning in the orientation summary: `arc.identity` is
-   configured during initial setup — if absent, the developer may be on a new machine or setup
-   was incomplete. Proceed with tracked state only (active status file + task list).
-   **Note:** Sessions without identity cannot perform handoff — SESSION-NOTES.md and git notes
-   both require identity for path resolution. Flag this in the orientation if work is underway.
+> **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their git notes
+> namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
+> § Person-to-Person Task Handoff for the incoming bootstrap protocol.
 
-**Resolve role** (run in Batch 1, alongside identity):
+10. **Active task list** — **strategic partial read** (often 500+ lines).
 
-1. Run `git config arc.role`
-2. If the value is `contributor`: follow the **Contributor Session Path** below — skip items
-   8, 10–11, Step 5, and the maintainer orientation format in Step 6.
-3. If empty or `maintainer`: continue with the standard document set below.
+    **Skip if** the active status file is not resolved or shows `**Task List:** [none]`.
 
-**Enumerate active extensions** (run in Batch 1, alongside identity and role):
+    - Path from the active status file (e.g., `.arc/active/feature/tasks-[name].md`)
+    - **Always read**: overview + current phase summary (first ~100 lines) and the current task section
+    - **Graduated lookup** using the triple-anchor reference from `**Next Task:**`:
+        1. Jump to the line hint (`line ~N`) — if the task number matches there, done
+        2. Search for the task number (e.g., `**4.2`) if the line hint is stale
+        3. Search for the title fragment if the task was renumbered
+        4. If none resolve, report the mismatch (Step 8)
+    - **Why partial read OK**: Reference material too large to internalize upfront. Read other sections
+      on-demand during work
+    - **Companion file awareness**: Check the task list directory for `notes-[name].md` / `atomic-[name].md`.
+      Note their existence so references during execution resolve immediately. **Do not read these at init** —
+      on-demand reference material, often large
 
-1. Run `grep -l "^active: true" .arc/system/extensions/*.md`
-2. Map returned paths to extension basenames (strip `.arc/system/extensions/` prefix and `.md` suffix) —
-   this set is the **active-extensions list**, a named session-context artifact consulted by fire-point
-   directives in downstream workflows (process-task-loop, prepare-commits, integrate-work-unit,
-   activate-work-unit, archive-work-unit, and Step 3 of this workflow)
-3. If the grep returns no matches, the active-extensions list is empty — fire-point directives
-   short-circuit without reading placeholder extension files
-4. **Filenames only.** Extension bodies load at their consuming fire point — Step 3 here for
-   `post-context-load`, downstream workflows for the rest.
+11. **Task execution workflow** `.arc/system/workflows/arc/3_process-task-loop.md` — **read in full**.
+
+    **Skip if** the active status file is not resolved or shows `**Task List:** [none]`.
+
+    - Procedural content (T3) that promotes to session-init when the active status file confirms active task
+      work. Without it, the agent skips completion protocol and quality gates. Sessions without an active task
+      list (planning, exploratory) skip this — if the session pivots to task execution later, load it then
 
 > **Contributor Session Path**
 >
-> When `arc.role = contributor`, the session loads a reduced document set. Items 1–7 (project
-> identity, constitution, strategies, quick reference) are universal — load them normally.
-> Then:
+> When `arc.role = contributor`, the session loads a reduced document set. Items 1–7 are universal — load them
+> normally. Then:
 >
-> - **Load** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` — contributor role orientation
->   (boundaries, commit convention, session workflow differences)
-> - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and file exists —
->   personal context is role-agnostic
-> - **Check** `.arc/user/{identity}/status-contributor.md` if identity resolved — optional local
->   planning state. If present, note it in the orientation; if absent, that's normal
->   (contributors often don't maintain one)
-> - **Skip** items 8, 10–11 (project-level active status file, task list, task execution workflow)
-> - **Skip** Step 5 (next work unit discovery — maintainer concern)
-> - **Proceed to** Step 3 (extensions), Step 4 (configuration), then Step 6 with contributor
->   orientation format:
+> - **Load** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`
+> - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and the file exists
+> - **Check** `.arc/user/{identity}/status-contributor.md` if identity resolved — optional local planning
+>   state; note in orientation if present
+> - **Skip** items 8, 10–11
+> - **Skip** Step 6 (next-work discovery — maintainer concern)
+> - **Proceed to** Step 5 (extensions) → Step 7 with contributor orientation format:
 >
 > **Contributor orientation format:**
 >
@@ -228,185 +217,81 @@ convention.
 >
 > **Next action:** Ready for work. Use `Context: contribution (...)` commit footer.
 >
-> If local status-contributor.md exists, include its state. If blockers or configuration issues were
-> detected, include them. Otherwise, keep it minimal — contributors don't need the full
-> maintainer state summary.
+> Include status-contributor.md state if present and any blockers or configuration issues detected. Otherwise
+> keep it minimal — contributors don't need the full maintainer state summary.
 
-9. `.arc/user/{identity}/SESSION-NOTES.md` - **READ IF EXISTS** (Batch 2 — gitignored, may not be present)
-   - Uses `{identity}` resolved above
-   - Personal working context from prior session: approach, decisions, things tried, known risks
-   - **Persistent context**: The `## Persistent Context` section carries entries that survive across
-     handoffs (each with an explicit removal trigger). Treat these as active constraints for this session.
-   - **If file doesn't exist or is stale**: Try restoring from git notes — run `arc user load` (or
-     check `refs/notes/arc/user/{identity}` on HEAD, walking ancestors if needed). If no notes
-     exist either, fall back to `git log --oneline -10` for recent commit context — commit
-     messages and context footers provide a lightweight record of recent work. The session
-     starts with tracked state (active status file + task list) supplemented by git history.
-   - **Load error handling:**
-       - **No note found** (null result): Normal on first session, after repo re-clone without
-         pulling notes, or when the noted commit is beyond the shallow clone boundary. Proceed
-         with tracked state only — active status file and task list are sufficient.
-       - **Corrupt note** (JSON parse error): The note was manually edited or partially written.
-         Run `arc user save` to overwrite with current local state, or try loading from a
-         different ancestor by inspecting `git notes --ref arc/user/{identity} list`.
-       - **Pull failure** (remote ref not found): The identity may not have pushed notes, or the
-         identity name may be incorrect. Verify with `git ls-remote origin 'refs/notes/arc/user/*'`
-         to see which identities have pushed notes. Use `--identity` to pull another developer's
-         notes for bootstrapping.
-       - **Stale file warnings**: Load reports local files not present in the saved manifest. These
-         files are preserved in `.pre-load-backup.json` — review and either re-create them or
-         discard the backup.
+### 5. Post-Context-Load Extensions · `#post-context-load`
 
-> **Person-to-person handoff:** If bootstrapping from another developer's handoff, fetch their
-> git notes namespace (`refs/notes/arc/user/{their-identity}`). See
-> [Team Coordination Strategy][team-coordination] § Person-to-Person Task Handoff for the full
-> incoming bootstrap protocol.
+If `post-context-load` appears in the active-extensions list (from Step 2), load and execute its
+[`.actions`][arc-ext-post-context-load]. Otherwise, skip. Use for team-specific documents, external tool
+state, or environment checks before orientation.
 
-10. **Active task list** - **STRATEGIC PARTIAL READ** (Batch 2 — often 500+ lines)
+### 6. Assess Readiness
 
-    **Skip if**: The resolved active status file shows `**Task List:** [none]`, or no active status file
-    was resolved — no task list to load.
-
-    - Path referenced in the active status file
-    - Example: `.arc/active/feature/tasks-[work-unit-name].md`
-    - **Reading strategy**:
-        - **ALWAYS read**: Overview section + current phase summary (first ~100 lines)
-        - **ALWAYS read**: Current task section identified in the active status file (the specific task
-          being worked on)
-            - **Graduated lookup** using the triple-anchor reference from `**Next Task:**`:
-                1. Jump to line hint (`line ~N`) — if task number matches at that location, done
-                2. Search for task number (e.g., `**4.2`) if line hint is stale
-                3. Search for title fragment if task was renumbered
-            - If none of the anchors resolve, report the mismatch (Step 6)
-        - **Read on-demand**: Other phases and tasks as needed during work
-    - **Why partial read OK**: This is the ONLY exception — reference material, often 500+ lines,
-      too large to internalize upfront. But you MUST read the overview + current task context.
-    - **What to extract**: Current phase, task details, acceptance criteria
-    - **Companion file awareness**: Check the task list's directory for companion files
-      (`notes-[name].md`, `atomic-[name].md`). Note their existence so task references to
-      "notes file" or "atomic companion" resolve immediately during execution. **Do NOT read
-      these files during init** — they are on-demand reference material, often large, loaded
-      only when a specific task references them or SESSION-NOTES indicates context from them
-      is needed for the current task.
-
-11. **Task execution workflow** - **READ IN FULL** (Batch 2 — conditional)
-
-    **Skip if**: The resolved active status file shows `**Task List:** [none]`, or no active
-    status file was resolved — no task execution expected.
-
-    - Path: `.arc/system/workflows/arc/3_process-task-loop.md`
-    - Contains: completion protocol, quality gate checkpoints, mandatory stops, deferred review,
-      incidental work routing, and method dependency triggers (issue-triage, quality-gate-commands,
-      test-first)
-    - **Why conditional**: This is procedural content (T3) that promotes to session-init when
-      the active status file confirms active task work. Without it, the agent skips completion
-      protocol and quality gates. Sessions without an active task list (planning, exploratory)
-      skip this — if the session pivots to task execution later, load it then.
-
-### 3. Post-Context-Load Extensions · `#post-context-load`
-
-If `post-context-load` appears in the active-extensions list (established at Step 2), load and execute
-its [`.actions`][arc-ext-post-context-load]. Otherwise, skip. Use for team-specific documents, external
-tool state, or environment checks before orientation.
-
-### 4. Check Active Configuration
-
-The read in this step (arc-config.yml) has no dependency on context documents — batch it with Batch 1
-in Step 2 where your platform supports parallel reads, then process the result here.
-
-Read `arc-config.yml`. This is a read-and-note step — carry the awareness through the session and apply
-it when encountering platform-specific operations or non-default settings. Method overrides are not
-surveyed at init; method bodies (both `.override` and `.default`) always load at workflow trigger.
-
-1. **Config values**: Read `.arc/system/arc-config.yml`. Note any settings that differ from defaults
-   (defaults are documented as inline comments in the file)
-2. **Platform awareness**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for
-   platform-appropriate commands
-3. **Custom commit patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the
-   active patterns from `commit.custom_pattern` / `commit.context_pattern`
-
-**Do not surface configuration in the orientation.** This step is read-and-note for behavioral awareness;
-settings reach the user when they affect a specific operation, not as init-time status. The developer
-already knows what's in `arc-config.yml`.
-
-### 5. Assess Readiness
-
-**Skip this step entirely** when `arc.role = contributor` — freshness checks and work unit
-discovery are maintainer concerns. Proceed directly to Step 6.
-
-Run the freshness check and, when no active work exists, discover what's next. Both feed
-into the orientation summary in Step 6.
+**Skip entirely** when `identity.role === "contributor"` — freshness and work-unit discovery are maintainer
+concerns. Proceed directly to Step 7.
 
 #### Freshness check
 
 **Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
 
-Otherwise, or if no handoff hash exists (first session, crash, new clone without notes):
+Otherwise, or if no handoff hash exists (first session, crash, fresh clone without notes):
 
 ```bash
-# Get current HEAD hash
+# Current HEAD
 git log -1 --format=%h
 
-# Count commits since SESSION-NOTES handoff (substitute the actual hash)
-# Skip this command if no handoff hash exists — there's no baseline to compare against.
-# Instead, rely on the active status file freshness check below.
+# Commits since handoff (skip if no handoff hash — no baseline)
 git log --oneline <handoff-hash>..HEAD
 
-# Check active status file freshness
-# Skip this command if no active status file was resolved (zero-file case) — no path to check.
-git log -1 --format=%h -- <resolved-status-file-path>
-# If this differs from HEAD, the active status file hasn't been updated across recent commits
+# Active status file freshness (skip if no status file resolved)
+git log -1 --format=%h -- <status-file-path>
+# Differing from HEAD means the status file hasn't been updated across recent commits
 ```
 
-A freshness gap doesn't mean state is wrong — it means verify more carefully before trusting
-session documents. **Only mention gaps in the orientation if they exist.** A clean check
-produces no output.
+A gap doesn't mean state is wrong — it means verify more carefully before trusting session documents. **Only
+mention gaps in orientation if they exist.** A clean check produces no output.
 
 <!-- arc:if team.mode == true -->
-**Concurrent activity:** In team mode, freshness gaps may also indicate concurrent developer
-activity rather than stale session state. If the active status file was updated by a different author
-since your last session, note this in orientation — another developer may be actively working
-on the same branch.
+**Concurrent activity:** In team mode, freshness gaps may also indicate concurrent developer activity rather
+than stale session state. If the active status file was updated by a different author since your last
+session, note this in orientation — another developer may be actively working on the same branch.
 <!-- arc:endif -->
 
 #### Next work unit discovery
 
-**Skip if** an active status file was resolved and its `**Task List:**` field is not `[none]` —
-discovery only applies between work units.
+**Skip if** an active status file was resolved and its `**Task List:**` is not `[none]` — discovery only
+applies between work units.
 
-When no active status file was resolved, or the resolved active status file shows `**Task List:** [none]`,
-assess readiness for the next work unit:
+When no active status file was resolved, or the resolved file shows `**Task List:** [none]`, assess readiness
+for the next unit:
 
 <!-- arc:if pm.mode == arc-in-git -->
 1. Read ROADMAP.md — identify the next queued or suggested item
-2. Check the backlog directory for existing artifacts matching that item (PRDs, `plan-*` docs)
-3. Report what exists and its readiness state in the orientation summary
-4. Propose next steps based on what was found — ask for confirmation before proceeding
+2. Check the backlog directory for existing artifacts (PRDs, `plan-*` docs) matching that item
+3. Report what exists and its readiness state in orientation
+4. Propose next steps; ask for confirmation before proceeding
 
-Planning readiness varies: a completed PRD may be ready for task generation, a draft PRD may
-need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
-entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
-and reports — the user decides how to proceed.
+Planning readiness varies: a completed PRD may be ready for task generation, a draft PRD may need refinement,
+a `plan-*` doc may need development before a PRD can be created, a roadmap entry may have no artifacts yet,
+or there may be no roadmap entry at all. The agent discovers and reports — the user decides how to proceed.
 <!-- arc:endif -->
 
 <!-- arc:if pm.mode != arc-in-git -->
-1. Check `active/` for any existing planning artifacts (PRDs, `plan-*` docs, task lists)
-2. If artifacts exist, report their readiness state (draft PRD → needs refinement; complete
-   PRD → ready for task generation; task list present → ready for activation) and propose
-   next steps
-3. If no artifacts exist, the next action is to create a PRD when ready →
-   [1_create-prd.md][create-prd]
+1. Check `active/` for existing planning artifacts (PRDs, `plan-*` docs, task lists)
+2. If artifacts exist, report readiness state (draft PRD → needs refinement; complete PRD → ready for task
+   generation; task list present → ready for activation) and propose next steps
+3. If no artifacts exist, the next action is to create a PRD when ready → [1_create-prd.md][create-prd]
 <!-- arc:endif -->
 
-> **Full protection (`branch.protection: full`):** Planning work requires a branch. When the
-> user confirms next steps, run [activate-planning-branch][activate-planning-branch] before
-> creating plan documents or PRDs. Under partial protection (the default), proceed directly
-> to [1_create-prd.md][create-prd] — no planning branch needed.
+> **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
+> next steps, run [activate-planning-branch][activate-planning-branch] before creating plan documents or PRDs.
+> Under partial protection (the default), proceed directly to [1_create-prd.md][create-prd] — no planning
+> branch needed.
 
-### 6. Confirm Orientation
+### 7. Confirm Orientation
 
-Produce the orientation summary. This is the user's first view of session state — keep it
-focused on what matters and suppress anything that resolved cleanly.
+Produce the orientation summary — the user's first view of session state. Keep it focused on what matters.
 
 **Output format:**
 
@@ -418,26 +303,20 @@ focused on what matters and suppress anything that resolved cleanly.
 - **Current task**: Task being worked on per the active status file (or "none" between work units)
 - **Blockers**: Any blockers or mismatches detected during initialization, or "none"
 
-**Next action:** What comes next per the active status file (or next-work discovery when between work units)
+**Next action:** What comes next per the active status file (or discovery result when between work units)
 
 Awaiting direction — proceed to Next Action?
 
-**What to include and what to suppress:**
+**Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
+`clean`, probe-failure fallback.
 
-The orientation should surface *problems and decisions*, not a log of checks that passed.
+**Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
+clean, environment checks passed. The developer already knows their configuration; reference state belongs in
+`arc-config.yml`, not orientation.
 
-- **Always include**: active work state, next action, blockers, and discovery results
-  (when between work units)
-- **Include only if actionable**: freshness gaps, missing identity, environment issues, session-init remote-sync
-  results other than `clean`
-- **Never include**: configuration overrides, active-extensions list (any state), defaults
-  active, freshness clean, environment checks passed. The developer already knows their
-  configuration; reference state belongs in `arc-config.yml`, not orientation.
+### 8. If Context Seems Mismatched
 
-### 7. If Context Seems Mismatched
-
-If documented state doesn't match reality during initialization, use the trust hierarchy to
-determine the correct response.
+If documented state doesn't match reality during initialization, use the trust hierarchy.
 
 **Trust hierarchy** (highest to lowest):
 
@@ -448,40 +327,38 @@ determine the correct response.
 
 **Tier 1 — Auto-recover with notice:**
 
-When higher-trust sources agree and a lower-trust source is the outlier, proceed with the
-ground truth and report the discrepancy in the orientation summary.
+When higher-trust sources agree and a lower-trust source is the outlier, proceed with the ground truth and
+report the discrepancy in orientation.
 
 Report format: "Active status file said X. Git/task list show Y. Proceeding with Y."
 
 Examples:
 
-- Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log
-  confirms the commit → proceed with Task 3.4 as current
-- SESSION-NOTES describes uncommitted work but `git status` is clean and git log shows
-  the work committed → proceed with committed state
-- Active status file says "Last Completed: Task 3.2" but task list shows 3.3 also marked `[x]` →
-  proceed with 3.3 as last completed
-- (Team mode) Active status file shows "Next Task: 3.4" but task list shows 3.4 marked `[x]` by
-  a teammate's commit → another developer completed it; proceed with 3.5 as current
+- Active status file says "Task 3.3 in progress" but task list shows 3.3 marked `[x]` and git log confirms the
+  commit → proceed with Task 3.4 as current
+- SESSION-NOTES describes uncommitted work but `git status` is clean and git log shows it committed → proceed
+  with committed state
+- Active status file says "Last Completed: Task 3.2" but task list shows 3.3 also marked `[x]` → proceed with
+  3.3 as last completed
+- (Team mode) Active status file shows "Next Task: 3.4" but task list shows 3.4 marked `[x]` by a teammate's
+  commit → another developer completed it; proceed with 3.5 as current
 
 **Tier 2 — Stop and ask:**
 
-When the mismatch is ambiguous — multiple plausible explanations, or sources at the same
-trust tier disagree with each other.
+When the mismatch is ambiguous — multiple plausible explanations, or sources at the same trust tier disagree.
 
 1. **Stop immediately** — do not proceed with work
 2. **Report the mismatch** with specific details from each source
-3. **Ask for guidance** on how to resolve the discrepancy
-4. **Wait for explicit direction** before taking any corrective action
+3. **Ask for guidance**; wait for explicit direction before taking any corrective action
 
 Examples:
 
-- Git shows uncommitted changes to files not mentioned in any session doc — could be
-  co-development work, a partial task, or an interrupted session
-- The active status file references a task that doesn't exist in the task list — task may have
-  been renumbered, removed, or the status file points to the wrong task list
-- Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
-  conflicting signals at the same trust tier
+- Git shows uncommitted changes to files not mentioned in any session doc — could be co-development, a
+  partial task, or an interrupted session
+- The active status file references a task that doesn't exist in the task list — renumbered, removed, or the
+  status file points to the wrong task list
+- Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 — conflicting signals at
+  the same trust tier
 
 ---
 
@@ -490,5 +367,3 @@ Examples:
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
-<!-- arc:if pm.mode == arc-in-git -->
-<!-- arc:endif -->

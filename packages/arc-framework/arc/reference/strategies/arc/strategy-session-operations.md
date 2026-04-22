@@ -72,6 +72,24 @@ Content meeting these criteria promotes from T3 to the session-init load set:
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
 dense procedural content. The state signal loads it precisely when relevant.
 
+### Probe pattern
+
+Session-init consumes ARC state through a **composite probe** rather than orchestrating individual file reads
+and subprocess calls:
+
+- **Non-destructive** — read-only, no mutations, no user prompts
+- **Harness-first** — agent-consumed via `--json`, not CLI-interactive
+- **Composite-first** — `arc status --session-init --json` returns identity, user-sync, extensions, config,
+  and active-status-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
+  wraps into a typed `Probe<T>` union so one slot's failure doesn't invalidate the others
+
+Standalone probe commands (`arc user status`, `arc config status`, `arc extensions status`, `arc active
+status`) share the same implementations and are available for debugging and CI. Session-init uses only the
+composite.
+
+**Extension slot.** New probes add to the composite by registering a slot — no session-init workflow prose
+changes required, since the workflow consumes the envelope uniformly.
+
 ---
 
 ## Classification Criteria
@@ -251,17 +269,19 @@ point declared in the calling workflow's `arc.methods` frontmatter. Session-init
 `override-active` — the agent-side compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method and extension
 loading) plus reliable workflow-declared triggers make init-time override-presence surfacing unnecessary.
 
-**Extensions — minimal init enumeration via grep.** Session-init runs:
+**Extensions — minimal init enumeration.** Session-init consumes the **active-extensions list** from the
+composite `arc status --session-init --json` probe (see § Probe pattern). Internally, the probe enumerates
+`system/extensions/*.md` files where frontmatter declares `active: true`:
 
 ```bash
 grep -l "^active: true" .arc/system/extensions/*.md
 ```
 
-The filenames returned (basenames, `.md` stripped) form the **active-extensions list** — a named
-session-context artifact available to downstream workflow steps. An empty list means no extensions are
-configured. Fire-point directives in the calling workflows consult the list by name instead of re-reading
-the extension file at fire time. In default installs most extensions are empty placeholders, so the
-single init-time grep avoids repeated placeholder reads across a session.
+The filenames returned (basenames, `.md` stripped) form the list — a named session-context artifact available
+to downstream workflow steps. An empty list means no extensions are configured. Fire-point directives in the
+calling workflows consult the list by name instead of re-reading the extension file at fire time. In default
+installs most extensions are empty placeholders, so the single init-time enumeration avoids repeated
+placeholder reads across a session.
 
 **Related pattern — agent-file active-gate.** A similar `active` frontmatter flag applies to agent-specific
 files that session-init loads unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading

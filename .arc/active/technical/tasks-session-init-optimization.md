@@ -1640,7 +1640,7 @@ clean enough that inconsistency across the three remaining session-init discover
         **Quality gates:** lint:ts, typecheck, typecheck:test, `lint:md:file` on session-handoff,
         full unit+integration (774 tests green; +2 new) and E2E (45 green).
 
-- [ ] **3.R.k Command surface cleanup + probe-pattern extension**
+- [x] **3.R.k Command surface cleanup + probe-pattern extension**
 
     **Goal:** Non-destructive CLI probes returning structured state for session-init's harness layer to consume.
     Three individual probes (extensions, active, config) plus a composite `arc status` that orchestrates them
@@ -1926,81 +1926,70 @@ clean enough that inconsistency across the three remaining session-init discover
         orchestrator function and share mock-probe setup; one-at-a-time slicing had no independent
         discovery value.
 
-    - [ ] **3.R.k.f Session-init workflow integration + strategy pointer**
+    - [x] **3.R.k.f Session-init workflow integration + strategy pointer**
 
-        **Goal:** Session-init calls one composite instead of orchestrating four probes; the probe pattern
-        is documented in the session-operations strategy for future extension.
+        **Completed in tandem with 3.R.k.g** — both edit the same workflow; `.f` content change without
+        `.g`'s ordering pass leaves Step 1.5's "After Batch 1" prose more broken, not less. Combining
+        avoided an incoherent intermediate commit state.
 
-        **Session-init.md Batch 1 changes:**
-        - Remove the `grep -l "^active: true" .arc/system/extensions/*.md` line — covered by the composite's
-          `extensions` result field
-        - Remove the standalone Step 1.5 `arc user status --session-init` invocation — covered by the
-          composite's `user` result field
-        - Remove the direct `arc-config.yml` file read (Step 4 + Batch 1 Step 2 inclusion) — covered by the
-          composite's `config` result field; the agent consumes key-value pairs from the JSON instead of
-          parsing the commented YAML
-        - Remove the `git config arc.identity` and `git config arc.role` reads from Batch 1 — covered by
-          the composite's `identity` result field
-        - Add a single `arc status --session-init --json` call at the same point in Batch 1
-        - Update agent-side result-consumption instructions for the composite JSON shape (which fields go
-          where in orientation)
+        **Outcome:** Session-init calls one composite (`arc status --session-init --json`) instead of
+        orchestrating four probes. Probe table in Step 2 documents the five-slot envelope
+        (`identity` / `user` / `extensions` / `config` / `active`). Item 8 many-file disambiguation now
+        sources candidates from `active.value.candidates`; single / none resolve from the same composite
+        response. Direct `arc-config.yml` read retired — `config.value.settings` exposes the session-relevant
+        whitelist (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`,
+        `commit.context_footer`); `platform.type` and custom commit patterns drop out of init and surface at
+        the workflow that consumes them. Probe-failure fallback added (not in original scope — keeps
+        session-init survivable on a fresh clone pre-build). `strategy-session-operations.md § Context
+        Loading Model` picks up a new **Probe pattern** subsection (non-destructive, harness-first,
+        composite-first, `Promise.all` fan-out, standalone individuals for debug/CI, future-composite
+        extension slot); § Method and Extension Loading § Session-Init Consumption aligned to "session-init
+        consumes from the composite" framing.
 
-        **Session-init.md Step 2 Item 8 changes:**
-        - Full-mode many-file disambiguation: the candidate list comes from the composite's `active` result
-          field (not an agent-side `find` scan). User-prompt fallback for the many-file case retained
-        - Zero-file and one-file cases resolve from the same composite result without extra calls
+        **Files:** `session-init.template.md` (package source, preserving `{{REPO_ROOT}}` +
+        `team.mode` / `pm.mode` conditionals); `session-init.md` (rendered for `pm.mode: arc-in-git`,
+        `team.mode: false`); `strategy-session-operations.md` (both copies, identical).
 
-        **Strategy documentation:**
-        - Add a short "Probe pattern" subsection to
-          `strategy-session-operations.md § Context Loading Model`. Content: non-destructive, harness-
-          consumes, composite-first (`arc status --session-init --json`), standalone individuals for
-          debugging/CI. Note the Promise.all orchestration, the `--session-init --json` default for harness
-          consumers, and the future-composite extension slot (hooks and future probes without workflow prose
-          changes)
+    - [x] **3.R.k.g Session-init ordering review + workflow reorder**
 
-        **Two-copy sync:** `session-init.md` (framework-file; two copies).
+        **Completed in tandem with 3.R.k.f.** See `.f` for combining rationale.
 
-    - [ ] **3.R.k.g Session-init ordering review + workflow reorder**
+        **Outcome — linear 8-step ordering delivered:** 1. Verify Environment · 2. Probe ARC Domain · 3.
+        Conditional Sync Pull · 4. Load Context Documents · 5. Post-Context-Load Extensions · 6. Assess
+        Readiness · 7. Confirm Orientation · 8. If Context Seems Mismatched. Dependencies are explicit; no
+        "Step 1.5 actually fires after Batch 1" derived ordering.
 
-        **Goal:** Restructure session-init.md Steps 1–6 into a linear ordering that expresses dependencies
-        explicitly — no implicit "Step 1.5 actually fires after Batch 1" reorderings readers derive from
-        prose.
+        **Stale-SESSION-NOTES race closed.** Step 3 (Conditional Sync Pull) fires between the probe and
+        context-doc loading — any pull happens *before* SESSION-NOTES reads, not after as the previous
+        wording allowed.
 
-        **Depends on:** 3.R.k.c–f (config probe + active probe + composite + session-init integration
-        land first so the restructure operates on the final command surface, not intermediate states).
+        **Design adjustments applied during implementation:**
+        - Standalone "Check Active Configuration" step retired (was pre-restructure Step 4). Config
+          consumption folded into Step 2 as "carry config forward as behavioral awareness"; platform /
+          custom-commit paragraphs removed from init (consumed at the workflow that needs them)
+        - "Batch 1 / Batch 2" naming dropped — artifact of four-probe orchestration no longer useful.
+          Step 4's "Parallelism" paragraph names the parallel-load group and the status-file serialization
+          explicitly
 
-        **Scope:** Ordering only. Phase 5 owns the deeper load-set restructure (session-type conditional
-        loading, partial-read narrowing). This task addresses the dependency-ordering defect and nothing
-        more.
+        **Post-implementation review follow-ons (same commit):**
+        - Step 1 trimmed to `pwd` only. Runtime-verify comment block retired — template scaffolding that was
+          never customized for this project and offered no operational value at init. Template carries a
+          one-line adopter hint for where to add project-specific checks
+        - Step 2 self-hosting-prefix comment retired. Template shows the plain `arc ...` command (adopters
+          don't self-host); `.arc/` rendered copy shows the literal `npx arc ...` command (concrete for this
+          repo). Accepted drift — no comment asking the agent to mentally transform the command
+        - Broader init-time content audit (Contributor Session Path, Trust Hierarchy, Load Errors, probe
+          fallback) captured as Task 5.6.d for Phase 5 scope
 
-        **Problem:** Current Step 1.5 ("Sync Remote State") precedes Step 2 but references "After Batch 1
-        resolves `{identity}`" — Batch 1 fires inside Step 2. The workflow patches this via prose, so the
-        reader must reconstruct the real order. Separately, the "pull before the 'Proceed to Next Action?'
-        prompt" language allows a user pull to run after Batch 2 has already loaded stale SESSION-NOTES.
+        **Downstream step-number references scanned:** ADR-013 and `analysis/`, `archive/`, and
+        non-activated `backlog/plan-arc-modes.md` are the only hits. ADRs stable once accepted (step
+        numbering is ephemeral content-reference drift, not a decision change); archive and analysis are
+        historical by nature; the `plan-arc-modes.md` staleness is already flagged in SESSION-NOTES
+        persistent context for Arc Modes activation. No live workflow references needed updating.
 
-        **Proposed linear order** (validate during implementation; 3.R.k.f integration may surface
-        refinements):
-        1. Verify environment (existing Step 1, unchanged)
-        2. Probe arc domain: one `arc status --session-init --json` call — returns identity/role + config
-           settings + user-sync state + active-status candidates + extensions list
-        3. Conditional sync pull: if composite's user-sync result is `remote-ahead` or `conflict`, ask
-           user; pull before context-doc loading begins (closes the stale-SESSION-NOTES race)
-        4. Load context docs (Batch 1 static framework docs + Batch 2 SESSION-NOTES/task list) — now
-           guaranteed fresh
-        5. Post-context-load extensions fire point (existing Step 3)
-        6. Assess readiness (freshness check + next-work discovery when between units) (existing Step 5)
-        7. Confirm orientation (existing Step 6)
-        8. Mismatch handling guidance (existing Step 7, unchanged)
-
-        **Deliverables:**
-        - `session-init.md` restructure (framework-file; two-copy sync with package source)
-        - Downstream prose updates in any workflow that references session-init step numbers (if any)
-        - No method/extension changes; no task-list formatting changes
-
-        **Tests:** Read-only doc restructure; markdown linting + internal link check (CI) cover it. No
-        new unit/integration tests.
-
-        **Two-copy sync:** `session-init.md` (framework-file; two copies).
+        **Tier 1 green:** markdown lint clean on all linted files (`.arc/` rendered session-init +
+        strategy, both copies identical). Template copy is excluded from lint globs
+        (`packages/arc-framework/arc/**`) but was run through the same table-prettifier for parity.
 
 - [ ] **3.R.l Structural cleanup + test coverage**
 
@@ -2450,6 +2439,42 @@ trigger is clear.
     - [ ] **5.6.c Step 7 tightening**
         - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to auto-recover vs.
           stop-and-ask tiers
+
+    - [ ] **5.6.d Init-time content audit — externalize rarely-triggered content**
+
+        **Origin:** 3.R.k.f+g review observations. Post-restructure the 8-step workflow is structurally
+        cleaner, but ~30-40% of its body is scaffolding or rarely-triggered branches loading every session
+        for no operational benefit. Externalization candidates (per-candidate evaluation — not all warrant
+        extraction):
+
+        - **"Session lifecycle assumption" + "Design context" + "When to use" paragraphs** (~12 lines) —
+          meta-commentary, zero init-time operational value. Fold load-bearing bits into
+          `AGENT-BRIEFING.ARC § How ARC Works` (already every-session, appropriate home); drop from
+          session-init
+        - **Contributor Session Path blockquote (~25 lines)** — only fires when `role === "contributor"`.
+          Maintainer sessions (most) read and discard. Candidate for extraction to separate doc loaded
+          conditionally from Step 2's `identity.role` result
+        - **Step 8 Trust Hierarchy (~45 lines)** — only fires when a mismatch is detected during init.
+          Most sessions have none. Candidate for on-demand load; risk is latency when it IS needed.
+          Consider lean stub in session-init ("if mismatch detected, load
+          `session-init-mismatch-handling.md`") with full content externalized
+        - **Item 9 "Load errors" sub-bullets** — detailed recovery for rare error classes (no note /
+          corrupt / pull failure / stale file warnings). Candidate for on-demand load keyed on
+          SESSION-NOTES load-error signal
+        - **Step 2 probe-failure fallback** — only fires when the composite CLI call fails (CLI not on
+          PATH, fresh clone pre-build). Lean stub + externalized detail
+
+        **Evaluation factors per candidate:** frequency (how often the branch fires), urgency (can the agent
+        tolerate an on-demand round-trip when it IS needed), size (is extraction worth the conditional-load
+        overhead), cohesion (does the content form a coherent external unit).
+
+        **Deliverables per extracted candidate:** new external doc or section in an existing every-session
+        doc; session-init stub with named trigger referencing it; `strategy-session-operations.md` pattern
+        documentation updates if the conditional-load mechanism itself evolves.
+
+        **Scope note on 5.6.a / 5.6.b:** Those subtasks reference Batch 1/Batch 2 naming and separate
+        Step 4 "Check Active Configuration" structures that 3.R.k.f+g retired. Phase 5 activation should
+        refresh or consolidate their scope against the post-restructure workflow before executing.
 
     **Note:** Audit session-init.md for speed considerations alongside the structural restructure. Baseline:
     ~2 minutes from `/arc-resume` invocation to orientation summary (pre-optimization). Phase 1–4 reductions
