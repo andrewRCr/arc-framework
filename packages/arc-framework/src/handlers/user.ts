@@ -411,10 +411,12 @@ export interface UserStatusOptions {
   offline?: boolean;
   all?: boolean;
   sessionInit?: boolean;
+  json?: boolean;
 }
 
 export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
-  p.intro("arc user status");
+  const json = Boolean(opts.json);
+  if (!json) p.intro("arc user status");
 
   let identity: string;
   try {
@@ -435,6 +437,10 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
       identity,
       remoteSyncEnabled,
     });
+    if (json) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return;
+    }
     p.note(buildUserSessionInitStatusSummary(result), "Session Init");
     p.outro("Done.");
     return;
@@ -447,6 +453,11 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     offline: opts.offline,
     all: opts.all,
   });
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
 
   p.note(buildUserStatusSummary(result), "Status");
   p.outro("Done.");

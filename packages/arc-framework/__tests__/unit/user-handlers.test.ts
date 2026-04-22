@@ -5,7 +5,7 @@
  * the fetch/pull overwrite flows in the user portability handlers.
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
 // --- Mocks ---
 
@@ -562,5 +562,88 @@ describe("handleUserStatus", () => {
     );
     expect(mockRunUserStatus).not.toHaveBeenCalled();
     expect(mockNote).toHaveBeenCalledWith("andrew: session-init remote notes ahead", "Session Init");
+  });
+});
+
+describe("handleUserStatus --json retrofit", () => {
+  const originalWrite = process.stdout.write.bind(process.stdout);
+  let writes: string[];
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    process.exitCode = undefined;
+    writes = [];
+    process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+      writes.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString());
+      return true;
+    }) as typeof process.stdout.write;
+  });
+
+  afterEach(() => {
+    process.stdout.write = originalWrite;
+  });
+
+  it("writes the full status result as JSON to stdout and skips Clack ceremony", async () => {
+    const result = {
+      identity: "andrew",
+      headline: "in sync",
+      summary: "andrew: in sync",
+      actionHint: null,
+      detailLines: [],
+      remoteChecked: true,
+      refState: "same",
+      diskState: "same",
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: null,
+      unsavedDirection: null,
+      backupFiles: [],
+      remoteIdentities: [],
+    };
+    mockRunUserStatus.mockResolvedValue(result);
+
+    await handleUserStatus({ json: true });
+
+    expect(mockIntro).not.toHaveBeenCalled();
+    expect(mockOutro).not.toHaveBeenCalled();
+    expect(mockNote).not.toHaveBeenCalled();
+
+    const out = writes.join("");
+    const parsed = JSON.parse(out.trim()) as typeof result;
+    expect(parsed).toEqual(result);
+  });
+
+  it("writes the session-init result as JSON when --json and --session-init are combined", async () => {
+    const result = {
+      identity: "andrew",
+      state: "clean",
+      summary: "andrew: session-init remote state clean",
+      detailLines: ["Remote notes match local notes."],
+      actionHint: null,
+      shouldPromptToPull: false,
+    };
+    mockRunUserSessionInitStatus.mockResolvedValue(result);
+
+    await handleUserStatus({ json: true, sessionInit: true });
+
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockRunUserStatus).not.toHaveBeenCalled();
+
+    const out = writes.join("");
+    const parsed = JSON.parse(out.trim()) as typeof result;
+    expect(parsed).toEqual(result);
+  });
+
+  it("passes offline and all flags through alongside --json", async () => {
+    mockRunUserStatus.mockResolvedValue({ identity: "andrew", summary: "" });
+
+    await handleUserStatus({ json: true, offline: true, all: true });
+
+    expect(mockRunUserStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ offline: true, all: true }),
+    );
   });
 });

@@ -1720,45 +1720,62 @@ clean enough that inconsistency across the three remaining session-init discover
           install health. Two-copy sync on framework-file doc edits
         - Tier 1 quality gates: `npm run typecheck`, `npm run lint:ts`, `npm run test:unit`, `npm run build`
 
-    - [ ] **3.R.k.b `arc extensions status` probe + shared lib + `arc user status --json` retrofit**
+    - [x] **3.R.k.b `arc extensions status` probe + shared lib + `arc user status --json` retrofit**
 
         **Goal:** Replace session-init's extensions grep with a structured probe; extract the extension-point
         scan into a shared lib that Task 4.6 (D7b hook) also consumes; establish the `--json` contract
         across all session-init probes by retrofitting `arc user status`.
 
-        Build `test-first` (one behavior at a time):
-        - `point-scanner` extracts `{ workflowPath, lineNumber, extensionName }` from header-suffix and
-          inline-prefix reference forms
-        - `point-scanner` takes an explicit workflow file list (caller filters — probe scans all, hook scans
-          staged)
+        **Outcome:** Shared lib lives at `src/lib/extensions/{point-scanner,orphan-detector}.ts`.
+        The scanner recognizes the single anchor form (middle-dot + backtick-delimited hashtag
+        marker) serving both header-suffix and inline-bullet forms — no separate patterns needed
+        since the anchor uniquely disambiguates extension-point markers from other inline-code
+        mentions. The detector returns resolved and orphan buckets at reference-level granularity,
+        preserving input order within each. Command module landed at `src/commands/extensions/`
+        with `types.ts` / `status.ts` / `format.ts`; handler at `src/handlers/extensions.ts`; CLI
+        wiring in `src/cli.ts`. Flag matrix: default Clack renders counts plus active/inactive
+        lists plus orphan count; `--all` adds orphan detail entries; `--session-init` narrows to
+        the active-list and skips the workflow walk; `--json` emits typed results via
+        discriminated union on the `mode` field. The user-status retrofit adds a `--json` flag
+        that suppresses Clack intro/outro/note and writes JSON to stdout; works across all three
+        existing scopes (default, `--offline`, `--session-init`). Probe uses `fs/promises`
+        directly — no IO injection, since scanners/formatter are pure and unit-tested and the fs
+        side is covered by integration. Malformed extension frontmatter surfaces a warning and
+        still resolves refs by basename so parse errors don't cascade into orphan noise.
+        End-to-end sanity check against the repo: the session-init probe emits
+        `{"active":["pre-merge-review"]}` (matches the current grep output); the `--all` probe
+        surfaces one pre-existing orphan (`pre-merge-inbox-review` at
+        `integrate-work-unit.md:166`) — a content issue for Phase 3 sweep, not this task.
+
+        **Tier 1 green:** `typecheck` / `typecheck:test` / `lint:ts` / `test:unit` (674, +31 new:
+        8 `point-scanner` + 6 `orphan-detector` + 14 `extensions-format` + 3 `user-handlers` json
+        retrofit) / `build`. Integration suite adds 10 new tests under
+        `__tests__/integration/extensions.test.ts` against synthetic fixture trees
+        (active/inactive, orphans, malformed frontmatter, nested workflows, session-init fast path).
+
+        - `point-scanner` extracts `{ workflowPath, lineNumber, extensionName }` — single anchor
+          pattern (`· \`#<kebab-name>\``) serves both header-suffix and inline-bullet forms
+        - `point-scanner` accepts an explicit workflow file list (caller filters — probe scans all,
+          hook will scan staged)
         - `orphan-detector` classifies refs against the extensions directory listing, returns
-          `{ orphans, resolved }`
+          `{ orphans, resolved }` at reference-level granularity
         - `arc extensions status` (no flag) renders active/inactive counts + orphan count in Clack
         - `arc extensions status --session-init` returns only the active extensions list (structural
           replacement for `grep -l "^active: true" .arc/system/extensions/*.md`)
-        - `arc extensions status --all` includes orphaned extension-point references (calls
-          `orphan-detector`)
-        - `arc extensions status --json` emits typed `ExtensionsStatusResult` (shape defined in
+        - `arc extensions status --all` includes orphaned extension-point references
+        - `arc extensions status --json` emits typed `ExtensionsStatusResult` (shape in
           `commands/extensions/types.ts`)
         - `--session-init --json` and `--all --json` combinations both valid
-        - `arc user status --json` emits the already-typed `UserStatusResult` as JSON, bypassing the Clack
-          formatter
-        - `arc user status --session-init --json` emits the typed `UserSessionInitStatusResult` as JSON
+        - `arc user status --json` emits typed `UserStatusResult` as JSON, bypassing Clack
+        - `arc user status --session-init --json` emits typed `UserSessionInitStatusResult` as JSON
 
-        **Layout:**
+        **Layout delivered:**
         - Shared lib in `packages/arc-framework/src/lib/extensions/{point-scanner.ts,orphan-detector.ts}`
-        - New command module in `packages/arc-framework/src/commands/extensions/` (per-group directory,
-          matching `commands/user/` pattern)
-        - New handler wiring in `src/handlers/extensions.ts` and `src/cli.ts`
-        - `--json` flag added to `arc user status` in `src/cli.ts`; `handleUserStatus` in `handlers/user.ts`
-          branches on the flag to emit JSON instead of calling the Clack formatter
-
-        **Tests:**
-        - Unit tests on `point-scanner` (various reference forms, malformed refs, multi-file scans) and
-          `orphan-detector` (orphan/resolved classification) in `__tests__/unit/extensions/`
-        - Unit tests on the extensions formatter (Clack + JSON) in `__tests__/unit/`
-        - Unit tests on the `arc user status --json` retrofit
-        - Integration test against a fixture tree covering active/inactive/orphan states
+        - Command module in `packages/arc-framework/src/commands/extensions/` + facade
+          `src/commands/extensions.ts` (matching `commands/user.ts` pattern)
+        - Handler at `src/handlers/extensions.ts`; CLI wiring in `src/cli.ts`
+        - `--json` flag added to `arc user status` in `src/cli.ts`; `handleUserStatus` branches on
+          the flag to emit JSON and suppress Clack ceremony
 
     - [ ] **3.R.k.c `arc active status` probe**
 

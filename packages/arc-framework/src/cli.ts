@@ -16,6 +16,7 @@ import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js"
 import {
   handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
+import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
@@ -117,7 +118,22 @@ userCmd
   .option("--offline", "Skip the remote probe and inspect only local snapshot vs disk")
   .option("--all", "List all remote user-note identities when a remote is available")
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
+  .option("--json", "Emit the typed result as JSON")
   .action(handleUserStatus);
+
+// --- Extensions ---
+
+const extensionsCmd = program
+  .command("extensions")
+  .description("Inspect ARC extensions state");
+
+extensionsCmd
+  .command("status")
+  .description("Show active/inactive extensions and orphaned references")
+  .option("--session-init", "Emit the active-extensions list consumed by session-init")
+  .option("--all", "Include the full orphan-reference detail list")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleExtensionsStatus);
 
 // --- Sync ---
 
