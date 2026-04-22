@@ -210,6 +210,43 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines.some((line) => line.startsWith("Disk "))).toBe(false);
   });
 
+  it("picks 'arc user save' hint for local-unsaved when disk differs from saved note", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "edits",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("local unsaved");
+    expect(result.actionHint).toBe("run `arc user save`");
+    expect(result.detailLines).toContain("Next step: run `arc user save`");
+  });
+
+  it("picks 'arc user push' hint for local-unsaved when disk matches but local ref is ahead", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "local-ahead",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("local unsaved");
+    expect(result.actionHint).toBe("run `arc user push` (or `arc sync`)");
+    expect(result.detailLines).toContain("Next step: run `arc user push` (or `arc sync`)");
+  });
+
   it("includes remote identities when requested", () => {
     const result = buildUserStatusResult({
       identity: "andrew",

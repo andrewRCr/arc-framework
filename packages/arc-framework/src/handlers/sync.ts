@@ -212,7 +212,7 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
     }
 
     spinner.stop("Pull complete.");
-    p.note(buildLoadSummary(result), "Loaded");
+    p.note(buildLoadSummary(result), "Pulled");
     p.outro("Done.");
   } catch (err) {
     spinner.stop("Pull failed.");

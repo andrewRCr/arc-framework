@@ -401,7 +401,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   }
 
   spinner.stop("Pull complete.");
-  p.note(buildLoadSummary(result), "Loaded");
+  p.note(buildLoadSummary(result), "Pulled");
   p.outro("Done.");
 }
 

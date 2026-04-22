@@ -13,20 +13,20 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.j.c — Label + spinner + summary consistency (line ~1599)
-- **Last Completed:** 3.R.j.b — `conflict` vs `divergence` canonical language. Canonicalized
-  `conflict` as the user-facing term for "refs both moved from common ancestor"; added
-  presentation-mapping JSDoc on `UserSyncRefState` flagging `"diverged"` as code-level-only and
-  pointing at `UserStatusHeadline`. Swept user-facing strings across `push-recovery.ts`,
-  `handleConflict`, session-init detail line, `cli.ts --force` help text, and the two
-  `UserPushOptions.force` / `UserFetchOptions.force` JSDoc siblings. Module/function JSDoc in
-  `push-recovery.ts` and `sync.ts` updated ("divergence" → "conflict"). `isDivergentPushError`
-  helper retained (names git topology, not user-facing). `UserUnsavedDirection` JSDoc moved off
-  overloaded "divergence" → "mismatch" (disk-vs-note, different semantic domain). Tests updated.
-  Two-copy sync on `session-handoff.md` — folded in stale "pull-first" option reference
-  (replaced with current "merge" option added in a prior task).
+- **Next Task:** Task 3.R.k.a — `arc extensions status` probe (line ~1652)
+- **Last Completed:** 3.R.j.c — Label + spinner + summary consistency. Unified the `arc sync`
+  pull-direction and `arc user pull` result-box label from "Loaded" → "Pulled" so the verb
+  chain (spinner "Pulling" → stop "Pull complete." → note "Pulled") reads as one action;
+  `arc user load` keeps "Loaded". Verb-tense convention documented in `runWithSpinner` JSDoc
+  (first use). Split `determineUserStatusAction` for the `local unsaved` headline —
+  `diskState === "different"` → "run `arc user save`"; otherwise (implies
+  `refState === "local-ahead"`) → "run `arc user push` (or `arc sync`)" — with inline
+  invariant comment. Added 2 new `buildUserStatusResult` unit tests for the sub-cases.
+  Session-handoff doc touch: new paragraph directing the agent to surface `arc sync` exit
+  code in the end-of-session summary (closes "work didn't land but user thought it did"
+  gap). Two-copy sync on `session-handoff.md`. 774 unit+integration tests green (+2 new);
+  45 E2E green.
 - **Blockers:** none
-- **Next Action:** Begin 3.R.j.c — unify `handlePullDirection` spinner/label verb ("Pulled");
-  document verb-tense convention in `runWithSpinner` JSDoc; split
-  `determineUserStatusAction` for `local unsaved` sub-cases (save vs push);
-  `session-handoff.md` exit-code paragraph; two-copy sync.
+- **Next Action:** Begin 3.R.k — probe-pattern extension. Start with 3.R.k.a
+  (`arc extensions status`), then .b (`arc methods status`), .c (`arc active status`),
+  and .d (session-init workflow integration + strategy-session-operations pointer).

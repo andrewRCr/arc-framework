@@ -528,7 +528,14 @@ function determineUserStatusAction(
     case "remote ahead":
       return "run `arc user pull`";
     case "local unsaved":
-      return "run `arc user save`";
+      // The "local unsaved" headline covers two distinct remediations:
+      //   (a) diskState === "different" → work isn't in a local note yet → save first.
+      //   (b) diskState === "same" (implies refState === "local-ahead", per
+      //       `determineUserStatusHeadline`) → work IS saved locally, just not pushed.
+      //   Picking by diskState keeps the split tight to the observable cause.
+      return diskState === "different"
+        ? "run `arc user save`"
+        : "run `arc user push` (or `arc sync`)";
     case "conflict":
       return "run `arc user fetch` for non-destructive inspection";
     case "remote unavailable":

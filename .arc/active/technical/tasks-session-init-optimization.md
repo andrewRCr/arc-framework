@@ -1615,23 +1615,30 @@ clean enough that inconsistency across the three remaining session-init discover
         targeted unit tests (`sync`, `user-handlers`, `user-status`, `push-recovery`) all green —
         77 tests pass.
 
-    - [ ] **3.R.j.c Label + spinner + summary consistency**
-        - `handlePullDirection` spinner "Pulling" / result-box label "Loaded" — pick one verb, apply file-wide.
-        - Audit verb tense across all `p.log.info` / `p.spinner` / `p.note` calls in sync / user command layer.
-          Document the chosen convention in a short comment near the first use.
-        - Doc touch: `session-handoff.md § Save to Git Notes` gains one paragraph telling agents to surface
-          `arc sync` exit code in the end-of-session summary so success/failure is visible (addresses the
-          "work didn't land but user thought it did" class of confusion from the review).
-        - Two-copy sync on `session-handoff.md`.
-        - **`local unsaved` action-hint split (semantic accuracy):** `determineUserStatusAction` currently
-          returns `"run \`arc user save\`"` for the entire `local unsaved` headline, but the headline covers
-          two cases with different remediations: (a) `diskState === "different"` → save is correct, and
-          (b) `refState === "local-ahead"` with `diskState === "same"` → work IS saved to a local note,
-          just not pushed, so the correct hint is `"run \`arc user push\`"` (or `arc sync`). Split the
-          switch to pick the hint based on the underlying state, not the headline alone. Update the
-          `buildUserStatusResult` unit tests in `user-status.test.ts` to cover both sub-cases. Pre-existing
-          bug surfaced during 3.R.j.a; scoped here because it's a naming-semantics fix rather than new
-          behavior. Flagged by review of 3.R.j.a.
+    - [x] **3.R.j.c Label + spinner + summary consistency**
+
+        **Outcome:** Unified the `arc sync` pull direction (`handlePullDirection`) and `arc user
+        pull` (`handleUserPull`) result-box label from "Loaded" → "Pulled" so spinner ("Pulling")
+        → stop ("Pull complete.") → note ("Pulled") read as one verb. `arc user load` keeps
+        "Loaded" (matches its own outer command). Verb-tense audit across `p.log` / `p.spinner` /
+        `p.note` calls in `sync.ts`, `user.ts`, and `push-recovery.ts` found all other labels
+        already consistent — no further renames. Convention documented in the `runWithSpinner`
+        JSDoc in `handlers/shared.ts` (first use of the spinner helper): present-continuous for
+        in-progress label, completed-adjective for done label, past-tense for `p.note` matching
+        the outer command verb. Split `determineUserStatusAction` to branch on `diskState` for
+        the `local unsaved` headline: `diskState === "different"` → "run `arc user save`";
+        `diskState === "same"` (implies `refState === "local-ahead"` per the headline
+        derivation) → "run `arc user push` (or `arc sync`)". Inline comment records the
+        invariant. Kept `refState` out of the signature — diskState alone is sufficient given
+        the `determineUserStatusHeadline` logic; adding the param just to document intent would
+        invite drift. Two new `buildUserStatusResult` unit tests assert the exact hint for each
+        sub-case. Doc touch in `session-handoff.md § Save to Git Notes`: new paragraph directing
+        the agent to check `arc sync` exit code and report the outcome in the end-of-session
+        summary, closing the "work didn't land but user thought it did" gap flagged in review.
+        Two-copy sync applied across `.arc/` + `packages/arc-framework/arc/` template.
+
+        **Quality gates:** lint:ts, typecheck, typecheck:test, `lint:md:file` on session-handoff,
+        full unit+integration (774 tests green; +2 new) and E2E (45 green).
 
 - [ ] **3.R.k Probe-pattern extension — extensions, methods, active status**
 

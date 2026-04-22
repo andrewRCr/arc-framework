@@ -422,6 +422,13 @@ For manual control outside of handoff (ad-hoc save, push, or force-push), `arc u
   confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
   prior state if needed.
 
+**Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must
+report whether the save and push succeeded — check the exit code and include a one-line
+result in the end-of-session summary (e.g., "session state synced to remote" or "sync
+failed, state preserved locally — re-run `arc sync` after resolving"). The CLI's
+interactive output is easy to miss when scrolling or in non-TTY contexts; an explicit
+outcome line prevents the "work didn't land but user thought it did" failure mode.
+
 If save itself fails (empty user directory, filesystem permissions), the session state is
 only in SESSION-NOTES.md on disk. Resolve the issue and re-run `arc user save`.
 
