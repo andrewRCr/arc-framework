@@ -8,7 +8,8 @@ import * as p from "@clack/prompts";
 
 import {
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
-  buildSaveSummary, buildLoadSummary,
+  runUserStatus,
+  buildSaveSummary, buildLoadSummary, buildUserStatusSummary,
   hasLocalNotes,
 } from "../commands/user.js";
 import { slugifyIdentity } from "../lib/git/index.js";
@@ -341,5 +342,36 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
 
   spinner.stop("Pull complete.");
   p.note(buildLoadSummary(result), "Loaded");
+  p.outro("Done.");
+}
+
+// --- Status ---
+
+export interface UserStatusOptions {
+  offline?: boolean;
+  all?: boolean;
+}
+
+export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
+  p.intro("arc user status");
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const io = createUserIOContext();
+  const result = await runUserStatus({
+    cwd: process.cwd(),
+    io,
+    identity,
+    offline: opts.offline,
+    all: opts.all,
+  });
+
+  p.note(buildUserStatusSummary(result), "Status");
   p.outro("Done.");
 }

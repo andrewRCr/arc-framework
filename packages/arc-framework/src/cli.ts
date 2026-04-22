@@ -14,7 +14,7 @@ import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleUpdate, handleStatus, handleDiff } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull,
+  handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
@@ -105,6 +105,13 @@ userCmd
   .description("Fetch user notes from remote and restore them to disk")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .action(handleUserPull);
+
+userCmd
+  .command("status")
+  .description("Inspect local, remote, and on-disk user sync state")
+  .option("--offline", "Skip the remote probe and inspect only local snapshot vs disk")
+  .option("--all", "List all remote user-note identities when a remote is available")
+  .action(handleUserStatus);
 
 // --- Sync ---
 

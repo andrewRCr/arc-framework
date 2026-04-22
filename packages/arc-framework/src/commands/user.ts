@@ -5,6 +5,7 @@
  * portability of the `user/{identity}/` directory.
  */
 
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ensureDir,
@@ -102,6 +103,9 @@ export class UserSaveError extends Error {
 
 /** Backup filename for pre-load snapshot of local state. */
 export const BACKUP_FILENAME = ".pre-load-backup.json";
+const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
+const BACKUP_TIMESTAMPED_SUFFIX = ".json";
+const BACKUP_RETENTION = 3;
 
 /** Result of a user load operation. */
 export interface UserLoadResult {
@@ -177,17 +181,18 @@ export async function runUserLoad(
     const localFiles = localResult.manifest.files;
 
     if (Object.keys(localFiles).length > 0) {
-      // Write backup as dotfile (excluded from serialization by dotfile convention)
+      const backupFilename = createTimestampedBackupFilename();
       await io.writeFile(
-        join(userDir, BACKUP_FILENAME),
+        join(userDir, backupFilename),
         JSON.stringify(localResult.manifest),
       );
+      await pruneTimestampedBackups(userDir, io.readDir);
 
       // Detect stale files: local files not present in the incoming manifest
       const manifestNames = new Set(Object.keys(manifest.files));
       staleWarnings = Object.keys(localFiles)
         .filter((name) => !manifestNames.has(name))
-        .map((name) => `Local file "${name}" not in saved manifest — preserved in ${BACKUP_FILENAME}`);
+        .map((name) => `Local file "${name}" not in saved manifest — preserved in ${backupFilename}`);
     }
   } catch {
     // User dir doesn't exist yet — nothing to back up, skip gracefully
@@ -433,6 +438,42 @@ export interface InspectUserSyncOptions {
 
 const TEMP_SYNC_REF_PREFIX = "refs/arc-sync-temp";
 
+export type UserStatusHeadline =
+  | "in sync"
+  | "remote ahead"
+  | "disk ahead"
+  | "conflict"
+  | "remote unavailable";
+
+export interface UserStatusRemoteIdentity {
+  identity: string;
+  ref: string;
+  hash: string;
+}
+
+export interface UserStatusResult {
+  identity: string;
+  headline: UserStatusHeadline;
+  summary: string;
+  actionHint: string | null;
+  detailLines: string[];
+  remoteChecked: boolean;
+  refState: UserSyncRefState | null;
+  diskState: UserSyncDiskState;
+  savedCommit: string | null;
+  savedFromAncestor: boolean;
+  backupFiles: string[];
+  remoteIdentities: UserStatusRemoteIdentity[];
+}
+
+export interface UserStatusOptions {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  offline?: boolean;
+  all?: boolean;
+}
+
 /**
  * Inspect local/remote note refs and on-disk state for sync direction decisions.
  *
@@ -451,10 +492,52 @@ export async function inspectUserSyncState(
   return { refState, diskState };
 }
 
+/**
+ * Inspect the current user portability state and shape it for `arc user status`.
+ *
+ * @param options - Status options
+ * @returns User status summary plus actionable detail lines
+ */
+export async function runUserStatus(
+  options: UserStatusOptions,
+): Promise<UserStatusResult> {
+  const { cwd, io, identity, offline = false, all = false } = options;
+  const [diskState, note, backupFiles, remoteIdentities, refInspection] = await Promise.all([
+    inspectDiskVsLocalSnapshot(cwd, io, identity),
+    findNearestUserNote({ cwd, io, identity }),
+    listBackupFiles(cwd, io, identity),
+    all ? listRemoteUserIdentities(io) : Promise.resolve([]),
+    offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
+  ]);
+
+  return buildUserStatusResult({
+    identity,
+    diskState,
+    refState: refInspection?.state ?? null,
+    remoteChecked: !offline,
+    savedCommit: note ? note.commit.slice(0, 7) : null,
+    savedFromAncestor: note ? note.fromAncestor : false,
+    backupFiles,
+    remoteIdentities,
+  });
+}
+
 async function inspectUserSyncRefs(
   io: UserIOContext,
   identity: string,
 ): Promise<UserSyncRefState> {
+  const result = await inspectUserSyncRefsDetailed(io, identity);
+  return result.state;
+}
+
+interface UserSyncRefInspection {
+  state: UserSyncRefState;
+}
+
+async function inspectUserSyncRefsDetailed(
+  io: UserIOContext,
+  identity: string,
+): Promise<UserSyncRefInspection> {
   const localRef = `refs/notes/${notesRef(identity)}`;
   const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}`;
 
@@ -465,23 +548,23 @@ async function inspectUserSyncRefs(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("couldn't find remote ref")) {
-      return localHash ? "local-ahead" : "same";
+      return { state: localHash ? "local-ahead" : "same" };
     }
-    return "remote-unavailable";
+    return { state: "remote-unavailable" };
   }
 
   try {
     const remoteHash = await readRefHash(io, tempRef);
 
-    if (!localHash && !remoteHash) return "same";
-    if (!localHash && remoteHash) return "remote-ahead";
-    if (localHash && !remoteHash) return "local-ahead";
-    if (!localHash || !remoteHash) return "same";
-    if (localHash === remoteHash) return "same";
+    if (!localHash && !remoteHash) return { state: "same" };
+    if (!localHash && remoteHash) return { state: "remote-ahead" };
+    if (localHash && !remoteHash) return { state: "local-ahead" };
+    if (!localHash || !remoteHash) return { state: "same" };
+    if (localHash === remoteHash) return { state: "same" };
 
-    if (await isAncestor(io, localHash, remoteHash)) return "remote-ahead";
-    if (await isAncestor(io, remoteHash, localHash)) return "local-ahead";
-    return "diverged";
+    if (await isAncestor(io, localHash, remoteHash)) return { state: "remote-ahead" };
+    if (await isAncestor(io, remoteHash, localHash)) return { state: "local-ahead" };
+    return { state: "diverged" };
   } finally {
     await deleteRef(io, tempRef);
   }
@@ -577,6 +660,188 @@ function normalizeManifest(
   };
 }
 
+function createTimestampedBackupFilename(): string {
+  const timestamp = new Date().toISOString().replaceAll(":", "-");
+  return `${BACKUP_TIMESTAMPED_PREFIX}${timestamp}${BACKUP_TIMESTAMPED_SUFFIX}`;
+}
+
+function isTimestampedBackupFile(name: string): boolean {
+  return name.startsWith(BACKUP_TIMESTAMPED_PREFIX) && name.endsWith(BACKUP_TIMESTAMPED_SUFFIX);
+}
+
+async function pruneTimestampedBackups(
+  userDir: string,
+  readDir: UserIOContext["readDir"],
+): Promise<void> {
+  const entries = await readDir(userDir);
+  const timestamped = entries
+    .map((entry) => entry.name)
+    .filter(isTimestampedBackupFile)
+    .sort((left, right) => right.localeCompare(left));
+
+  const toDelete = timestamped.slice(BACKUP_RETENTION);
+  for (const filename of toDelete) {
+    try {
+      await rm(join(userDir, filename), { force: true });
+    } catch {
+      // Best-effort pruning; backup creation already succeeded.
+    }
+  }
+}
+
+async function listBackupFiles(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<string[]> {
+  const userDir = join(cwd, ".arc", "user", identity);
+
+  try {
+    const entries = await io.readDir(userDir);
+    const backupFiles = entries
+      .map((entry) => entry.name)
+      .filter((name) => name === BACKUP_FILENAME || isTimestampedBackupFile(name));
+    const legacy = backupFiles.filter((name) => name === BACKUP_FILENAME);
+    const timestamped = backupFiles
+      .filter((name) => isTimestampedBackupFile(name))
+      .sort((left, right) => right.localeCompare(left));
+    return [...timestamped, ...legacy];
+  } catch {
+    return [];
+  }
+}
+
+async function listRemoteUserIdentities(
+  io: UserIOContext,
+): Promise<UserStatusRemoteIdentity[]> {
+  try {
+    const { stdout } = await io.exec("git", ["ls-remote", "origin"]);
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => line.split(/\s+/u))
+      .filter((parts): parts is [string, string] => parts.length >= 2)
+      .filter(([, ref]) => ref.startsWith("refs/notes/arc/user/"))
+      .map(([hash, ref]) => ({
+        identity: ref.slice("refs/notes/arc/user/".length),
+        ref,
+        hash: hash.slice(0, 7),
+      }))
+      .sort((left, right) => left.identity.localeCompare(right.identity));
+  } catch {
+    return [];
+  }
+}
+
+interface BuildUserStatusInput {
+  identity: string;
+  diskState: UserSyncDiskState;
+  refState: UserSyncRefState | null;
+  remoteChecked: boolean;
+  savedCommit: string | null;
+  savedFromAncestor: boolean;
+  backupFiles: string[];
+  remoteIdentities: UserStatusRemoteIdentity[];
+}
+
+export function buildUserStatusResult(
+  input: BuildUserStatusInput,
+): UserStatusResult {
+  const {
+    identity,
+    diskState,
+    refState,
+    remoteChecked,
+    savedCommit,
+    savedFromAncestor,
+    backupFiles,
+    remoteIdentities,
+  } = input;
+
+  const headline = determineUserStatusHeadline(refState, diskState);
+  const summary = remoteChecked
+    ? `${identity}: ${headline}`
+    : `${identity}: ${headline} (offline)`;
+
+  const detailLines: string[] = [];
+  const actionHint = determineUserStatusAction(headline, diskState, remoteChecked);
+
+  if (!remoteChecked) {
+    detailLines.push("Remote check skipped (`--offline`).");
+  }
+
+  if (savedCommit) {
+    if (savedFromAncestor) {
+      detailLines.push(`Saved snapshot is from ${savedCommit}, not current HEAD.`);
+    }
+  } else if (diskState === "different") {
+    detailLines.push("No saved snapshot exists yet for this identity.");
+  }
+
+  if (backupFiles.length > 0) {
+    detailLines.push(`Pre-load backup present: ${backupFiles.join(", ")}`);
+  }
+
+  if (remoteIdentities.length > 0) {
+    const identities = remoteIdentities
+      .map((entry) => `${entry.identity} (${entry.hash})`)
+      .join(", ");
+    detailLines.push(`Remote identities: ${identities}`);
+  }
+
+  if (actionHint) {
+    detailLines.push(`Next step: ${actionHint}`);
+  }
+
+  return {
+    identity,
+    headline,
+    summary,
+    actionHint,
+    detailLines,
+    remoteChecked,
+    refState,
+    diskState,
+    savedCommit,
+    savedFromAncestor,
+    backupFiles,
+    remoteIdentities,
+  };
+}
+
+function determineUserStatusHeadline(
+  refState: UserSyncRefState | null,
+  diskState: UserSyncDiskState,
+): UserStatusHeadline {
+  if (refState === "remote-unavailable") return "remote unavailable";
+  if (refState === "diverged") return "conflict";
+  if (refState === "remote-ahead") return "remote ahead";
+  if (diskState === "different" || refState === "local-ahead") return "disk ahead";
+  return "in sync";
+}
+
+function determineUserStatusAction(
+  headline: UserStatusHeadline,
+  diskState: UserSyncDiskState,
+  remoteChecked: boolean,
+): string | null {
+  switch (headline) {
+    case "remote ahead":
+      return "run `arc user pull`";
+    case "disk ahead":
+      return "run `arc user save`";
+    case "conflict":
+      return "run `arc user fetch` for non-destructive inspection";
+    case "remote unavailable":
+      return diskState === "different"
+        ? "run `arc user save`, then retry online when the remote is reachable"
+        : "retry online to confirm remote status";
+    case "in sync":
+      return remoteChecked ? null : "rerun without `--offline` to confirm remote status";
+  }
+}
+
 // --- Result Formatting ---
 
 /**
@@ -624,5 +889,16 @@ export function buildLoadSummary(result: UserLoadResult): string {
     }
   }
 
+  return lines.join("\n");
+}
+
+/**
+ * Build user-facing summary for `arc user status`.
+ *
+ * @param result - Status result
+ * @returns Formatted message for terminal display
+ */
+export function buildUserStatusSummary(result: UserStatusResult): string {
+  const lines = [result.summary, ...result.detailLines];
   return lines.join("\n");
 }

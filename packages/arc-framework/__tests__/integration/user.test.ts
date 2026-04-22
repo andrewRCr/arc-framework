@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -27,13 +27,21 @@ import {
   runUserAdd,
   runUserPush,
   runUserPull,
+  runUserStatus,
   UserSaveError,
   BACKUP_FILENAME,
   hasLocalNotes,
   hasRemoteNotes,
+  buildUserStatusSummary,
 } from "../../src/commands/user.js";
 
 // --- Tests ---
+
+async function listBackupFiles(userDir: string): Promise<string[]> {
+  return (await readdir(userDir))
+    .filter((name) => name === BACKUP_FILENAME || /^\.pre-load-backup-.*\.json$/u.test(name))
+    .sort();
+}
 
 describe("user save and load", () => {
   let tempDir: string;
@@ -239,7 +247,7 @@ describe("user save and load", () => {
     await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
 
     const shallowIO = makeUserIO(shallowDir);
-    await runUserPull({ io: shallowIO, identity: "test-user" });
+    await runUserPull({ cwd: shallowDir, io: shallowIO, identity: "test-user" });
 
     const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
     await mkdir(shallowUserDir, { recursive: true });
@@ -283,7 +291,7 @@ describe("user save and load", () => {
     await execFileAsync("git", ["config", "user.name", "Shallow User"], { cwd: shallowDir });
 
     const shallowIO = makeUserIO(shallowDir);
-    await runUserPull({ io: shallowIO, identity: "test-user" });
+    await runUserPull({ cwd: shallowDir, io: shallowIO, identity: "test-user" });
 
     const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
     await mkdir(shallowUserDir, { recursive: true });
@@ -327,8 +335,14 @@ describe("user load — backup and stale detection", () => {
     // Load — should create backup of "Modified locally" state
     await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
 
+    const backups = await listBackupFiles(userDir);
+    expect(backups).toHaveLength(1);
+    expect(backups[0]).toMatch(/^\.pre-load-backup-.*\.json$/u);
+    const [backupPath] = backups;
+    expect(backupPath).toBeDefined();
+
     // Verify backup exists and contains the pre-load state
-    const backupRaw = await readFile(join(userDir, BACKUP_FILENAME), "utf-8");
+    const backupRaw = await readFile(join(userDir, backupPath!), "utf-8");
     const backup = JSON.parse(backupRaw) as { version: number; files: Record<string, string> };
     expect(backup.files["SESSION-NOTES.md"]).toBe("# Modified locally");
   });
@@ -399,10 +413,63 @@ describe("user load — backup and stale detection", () => {
     // Load — backup should not include .some-dotfile
     await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
 
-    const backupRaw = await readFile(join(userDir, BACKUP_FILENAME), "utf-8");
+    const backups = await listBackupFiles(userDir);
+    expect(backups).toHaveLength(1);
+    const [backupPath] = backups;
+    expect(backupPath).toBeDefined();
+
+    const backupRaw = await readFile(join(userDir, backupPath!), "utf-8");
     const backup = JSON.parse(backupRaw) as { files: Record<string, string> };
     expect(backup.files[".some-dotfile"]).toBeUndefined();
     expect(backup.files["SESSION-NOTES.md"]).toBe("# Second");
+  });
+
+  it("retains only the latest three timestamped backups", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    for (let i = 1; i <= 4; i++) {
+      await writeFile(join(userDir, "SESSION-NOTES.md"), `# Local ${i}`, "utf-8");
+      await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    }
+
+    const backups = await listBackupFiles(userDir);
+    const timestamped = backups.filter((name) => name !== BACKUP_FILENAME);
+    expect(timestamped).toHaveLength(3);
+    expect(timestamped.every((name) => /^\.pre-load-backup-.*\.json$/u.test(name))).toBe(true);
+
+    const manifests = await Promise.all(
+      timestamped.map(async (name) => {
+        const raw = await readFile(join(userDir, name), "utf-8");
+        return JSON.parse(raw) as { files: Record<string, string> };
+      }),
+    );
+    expect(manifests.map((manifest) => manifest.files["SESSION-NOTES.md"]).sort()).toEqual([
+      "# Local 2",
+      "# Local 3",
+      "# Local 4",
+    ]);
+  });
+
+  it("keeps legacy backup files visible while pruning timestamped snapshots", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, BACKUP_FILENAME), JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "# Legacy" } }));
+
+    for (let i = 1; i <= 4; i++) {
+      await writeFile(join(userDir, "SESSION-NOTES.md"), `# Local ${i}`, "utf-8");
+      await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    }
+
+    const backups = await listBackupFiles(userDir);
+    expect(backups).toContain(BACKUP_FILENAME);
+    expect(backups.filter((name) => name !== BACKUP_FILENAME)).toHaveLength(3);
   });
 });
 
@@ -563,7 +630,7 @@ describe("user push and pull", () => {
     const cloneIO = makeUserIO(cloneDir);
 
     // Pull the notes ref
-    await runUserPull({ io: cloneIO, identity: "test-user" });
+    await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
 
     // Load from the pulled note
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
@@ -616,7 +683,7 @@ describe("user push and pull", () => {
     await runUserPush({ io, identity: "test-user", force: true });
 
     // Verify remote has our version (force pull — refs diverged)
-    await runUserPull({ io: cloneIO, identity: "test-user", force: true });
+    await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user", force: true });
     await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
     expect(restoredInClone).toBe("# Version 3 local");
@@ -640,7 +707,7 @@ describe("user push and pull", () => {
     const cloneIO = makeUserIO(cloneDir);
 
     // Pull other-dev's notes (not our own identity)
-    await runUserPull({ io: cloneIO, identity: "other-dev" });
+    await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "other-dev" });
 
     // Load under other-dev identity
     const cloneOtherDir = join(cloneDir, ".arc", "user", "other-dev");
@@ -666,7 +733,7 @@ describe("user push and pull", () => {
 
     // Pull without remote should fail with clear diagnostic
     await expect(
-      runUserPull({ io, identity: "test-user" }),
+      runUserPull({ cwd: tempDir, io, identity: "test-user" }),
     ).rejects.toThrow(/origin/);
   });
 
@@ -698,5 +765,90 @@ describe("user push and pull", () => {
     await runUserPush({ io, identity: "test-user" });
 
     expect(await hasRemoteNotes(io, "test-user")).toBe(true);
+  });
+});
+
+describe("user status", () => {
+  let tempDir: string;
+  let remoteDir: string;
+  let cloneDir: string | undefined;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+    remoteDir = await addBareRemote(tempDir);
+    cloneDir = undefined;
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+    await cleanupTempDir(remoteDir);
+    if (cloneDir) await cleanupTempDir(cloneDir);
+  });
+
+  it("reports remote-ahead status with an actionable pull hint", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "clone@test.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+
+    const result = await runUserStatus({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.headline).toBe("remote ahead");
+    expect(summary).toContain("test-user: remote ahead");
+    expect(summary).toContain("Next step: run `arc user pull`");
+  });
+
+  it("reports disk-ahead status offline and surfaces backup presence", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified after load", "utf-8");
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.headline).toBe("disk ahead");
+    expect(summary).toContain("test-user: disk ahead (offline)");
+    expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
+    expect(summary).toContain("Next step: run `arc user save`");
+  });
+
+  it("lists remote identities when --all-style inspection is requested", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const otherDir = join(tempDir, ".arc", "user", "other-dev");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Test user", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    await mkdir(otherDir, { recursive: true });
+    await writeFile(join(otherDir, "SESSION-NOTES.md"), "# Other dev", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "other-dev" });
+    await runUserPush({ io, identity: "other-dev" });
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", all: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(summary).toContain("Remote identities:");
+    expect(summary).toContain("other-dev");
+    expect(summary).toContain("test-user");
   });
 });

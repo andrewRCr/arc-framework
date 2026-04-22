@@ -32,6 +32,7 @@ vi.mock("@clack/prompts", () => ({
 const mockRunUserPush = vi.fn();
 const mockRunUserFetch = vi.fn();
 const mockRunUserPull = vi.fn();
+const mockRunUserStatus = vi.fn();
 const mockHasLocalNotes = vi.fn();
 
 vi.mock("../../src/commands/user.js", () => ({
@@ -41,9 +42,11 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
+  runUserStatus: (...args: unknown[]) => mockRunUserStatus(...args),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
   buildSaveSummary: vi.fn(() => ""),
   buildLoadSummary: vi.fn(() => ""),
+  buildUserStatusSummary: vi.fn((result: { summary?: string }) => result.summary ?? ""),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -75,7 +78,7 @@ vi.mock("../../src/lib/git/index.js", () => ({
   slugifyIdentity: (s: string) => s.toLowerCase(),
 }));
 
-const { handleUserPush, handleUserFetch, handleUserPull } = await import("../../src/handlers/user.js");
+const { handleUserPush, handleUserFetch, handleUserPull, handleUserStatus } = await import("../../src/handlers/user.js");
 
 // --- handleUserPush tests ---
 
@@ -286,5 +289,39 @@ describe("handleUserPull fetch+load flow", () => {
       expect.stringContaining("No saved user directory"),
     );
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleUserStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    process.exitCode = undefined;
+  });
+
+  it("renders the status summary from the command layer", async () => {
+    mockRunUserStatus.mockResolvedValue({
+      summary: "andrew: remote ahead",
+    });
+
+    await handleUserStatus({});
+
+    expect(mockRunUserStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: process.cwd(), identity: "andrew", offline: undefined, all: undefined }),
+    );
+    expect(mockNote).toHaveBeenCalledWith("andrew: remote ahead", "Status");
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
+  });
+
+  it("passes offline and all flags through to the status command", async () => {
+    mockRunUserStatus.mockResolvedValue({
+      summary: "andrew: in sync (offline)",
+    });
+
+    await handleUserStatus({ offline: true, all: true });
+
+    expect(mockRunUserStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ offline: true, all: true }),
+    );
   });
 });

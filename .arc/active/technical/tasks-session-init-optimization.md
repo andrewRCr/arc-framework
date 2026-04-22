@@ -1209,7 +1209,7 @@ extension is documented in 3.R.h.
     exports/CLI wiring and refreshed unit coverage in `sync.test.ts`, `user-handlers.test.ts`, and the affected
     `push-recovery.test.ts` mock surface.
 
-- [ ] **3.R.b `arc user status` command**
+- [x] **3.R.b `arc user status` command**
 
     **Goal:** Three-way comparison (local-ref × remote-ref × disk) with actionable output; online-by-default since
     the primary question is "am I in sync with the other machine?"
@@ -1234,12 +1234,16 @@ extension is documented in 3.R.h.
     - Backup presence from 3.R.c is surfaced in the status detail area without overwhelming the summary line
     - Freshness gap between HEAD and the saved-on commit is surfaced in the status detail area
 
-    **Implementation notes:**
-    - New `arc user status` command; default remote behavior probes `refs/notes/arc/user/{identity}`
-    - Flags: `--offline`, `--all`
-    - Add unit coverage for the inspection/result-shaping logic and integration coverage for user-visible output
+    **Outcome:** Added `arc user status` to the CLI plus a command-layer inspection/formatting surface shared across
+    the handler and future session-init work. Default mode probes remote notes and reports `in sync`, `remote ahead`,
+    `disk ahead`, `conflict`, or `remote unavailable` with action hints toward `arc user pull`, `arc user save`, or
+    non-destructive `arc user fetch` inspection as appropriate. `--offline` skips the remote probe while preserving
+    coherent local-vs-disk reporting, `--all` enumerates remote identities for maintainer inspection, and detail lines
+    now surface saved-snapshot freshness gaps plus legacy/current pre-load backup presence without bloating the summary
+    line. Coverage added in new unit tests for result shaping, handler tests for flag/summary wiring, and integration
+    tests for remote-ahead, offline disk-ahead, and `--all` output paths.
 
-- [ ] **3.R.c Multi-snapshot backup hardening**
+- [x] **3.R.c Multi-snapshot backup hardening**
 
     **Goal:** `.pre-load-backup.json` is no longer single-shot; successive pulls preserve the last N pre-load
     snapshots so a second pull-before-review doesn't lose the first pre-load state.
@@ -1258,10 +1262,13 @@ extension is documented in 3.R.h.
     - Dotfile serialization rules continue to exclude both legacy and timestamped backup files
     - Backup metadata surfaces correctly in `arc user status`
 
-    **Implementation notes:**
-    - Filename scheme: `.pre-load-backup-{ISO-timestamp}.json`
-    - Preserve newest-first ordering semantics for any status/reporting surface
-    - Keep transition handling explicit rather than silently deleting legacy files
+    **Outcome:** `runUserLoad` now writes timestamped pre-load snapshots instead of overwriting the single-shot
+    legacy backup file, retains only the latest three timestamped snapshots immediately after each new write, and
+    leaves any existing legacy `.pre-load-backup.json` in place for explicit transition visibility. Backup discovery
+    used by `arc user status` now reports timestamped snapshots newest-first with legacy files still surfaced, and
+    backup-related stale-file warnings point at the specific snapshot created during the load. Integration coverage now
+    verifies timestamped snapshot creation, retention pruning on the fourth snapshot, legacy coexistence, dotfile
+    exclusion, and status-surface backup reporting.
 
 - [ ] **3.R.d `session.remote_sync` config addition**
 
