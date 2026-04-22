@@ -121,7 +121,7 @@ export async function handleUserLoad(): Promise<void> {
 
   if (!result) {
     spinner.stop("No note found.");
-    p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+    p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
     return;
   }
 
@@ -335,7 +335,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
 
   if (!result) {
     spinner.stop("No note found.");
-    p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+    p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
     process.exitCode = 1;
     return;
   }

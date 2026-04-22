@@ -22,6 +22,7 @@ interface NearestUserNote {
   content: string;
   commit: string;
   fromAncestor: boolean;
+  ancestorDistance: number;
 }
 
 /**
@@ -133,6 +134,7 @@ export async function runUserLoad(
     commit: foundCommit.slice(0, 7),
     fileCount: Object.keys(manifest.files).length,
     fromAncestor,
+    ancestorDistance: note.ancestorDistance,
     warnings: staleWarnings,
   };
 }
@@ -141,7 +143,6 @@ export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestUserNote | null> {
   const { io, identity } = options;
-  const maxWalk = options.maxAncestorWalk ?? 20;
   const ref = notesRef(identity);
 
   let foundCommit = "";
@@ -168,14 +169,22 @@ export async function findNearestUserNote(
   }
 
   try {
-    const { stdout: ancestorList } = await io.exec("git", [
-      "rev-list", "--max-count", String(maxWalk), "HEAD",
-    ]);
-    for (const commit of ancestorList.split("\n")) {
+    const revListArgs = options.maxAncestorWalk === undefined
+      ? ["rev-list", "HEAD"]
+      : ["rev-list", "--max-count", String(options.maxAncestorWalk), "HEAD"];
+    const { stdout: ancestorList } = await io.exec("git", revListArgs);
+    const commits = ancestorList.split("\n").filter((commit) => commit.length > 0);
+    for (const [index, commit] of commits.entries()) {
       if (commit && notedCommits.has(commit)) {
         noteContent = await io.readNote(ref, commit);
         if (noteContent) {
           foundCommit = commit;
+          return {
+            content: noteContent,
+            commit: foundCommit,
+            fromAncestor: foundCommit !== headHash,
+            ancestorDistance: index,
+          };
           break;
         }
       }
@@ -187,12 +196,7 @@ export async function findNearestUserNote(
   if (!noteContent || !foundCommit) {
     return null;
   }
-
-  return {
-    content: noteContent,
-    commit: foundCommit,
-    fromAncestor: foundCommit !== headHash,
-  };
+  return null;
 }
 
 export async function listBackupFiles(
@@ -245,4 +249,3 @@ async function pruneTimestampedBackups(
     }
   }
 }
-

@@ -39,7 +39,7 @@ export function buildLoadSummary(result: UserLoadResult): string {
   lines.push(`Identity: ${result.identity}`);
 
   if (result.fromAncestor) {
-    lines.push("Note: loaded from an ancestor commit (no note on HEAD).");
+    lines.push(`Note: loaded from a reachable ancestor ${result.ancestorDistance} commit(s) behind HEAD.`);
   }
 
   if (result.warnings.length > 0) {

@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  buildLoadSummary,
   buildUserSessionInitStatusSummary,
   buildUserStatusResult,
   buildUserStatusSummary,
@@ -143,5 +144,20 @@ describe("buildUserSessionInitStatusSummary", () => {
 
     expect(summary).toContain("andrew: session-init remote notes ahead");
     expect(summary).toContain("Next step: ask whether to run `arc user pull`");
+  });
+});
+
+describe("buildLoadSummary", () => {
+  it("surfaces ancestor distance when a note is loaded from history", () => {
+    const summary = buildLoadSummary({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 2,
+      fromAncestor: true,
+      ancestorDistance: 25,
+      warnings: [],
+    });
+
+    expect(summary).toContain("reachable ancestor 25 commit(s) behind HEAD");
   });
 });

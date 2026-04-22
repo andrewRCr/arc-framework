@@ -127,7 +127,7 @@ async function handlePullDirection(
     const result = await runUserPull({ cwd, io, identity, force: true });
     if (!result) {
       spinner.stop("No note found.");
-      p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+      p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
       process.exitCode = 1;
       return;
     }

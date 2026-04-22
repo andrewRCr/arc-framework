@@ -1285,7 +1285,7 @@ extension is documented in 3.R.h.
     integration coverage to assert the new default key is rendered for both solo and team-mode installs. No runtime
     behavior consumes the setting yet; 3.R.e remains the first behavioral task.
 
-- [ ] **3.R.e Session-init remote-sync integration**
+- [x] **3.R.e Session-init remote-sync integration**
 
     **Goal:** Land the session-init/runtime pieces needed for remote-sync awareness without bundling them into one
     oversized review increment.
@@ -1320,7 +1320,7 @@ extension is documented in 3.R.h.
         `sync`, framework-sync), targeted `user.test.ts` integration coverage, `lint:ts`, `typecheck`, and task-file
         markdown lint all clean.
 
-    - [ ] **3.R.e.2 Ancestor-walk hardening for `arc user load` / `arc user pull`**
+    - [x] **3.R.e.2 Ancestor-walk hardening for `arc user load` / `arc user pull`**
 
         **Goal:** Remove the fragile default-walk failure mode that motivated this phase so "no saved user directory
         found" only appears when there truly is no reachable noted ancestor.
@@ -1336,9 +1336,13 @@ extension is documented in 3.R.h.
         - Guidance message distinguishes "note exists but is far back" from "no saved note exists"
         - `arc user pull` inherits the same hardened lookup behavior as `arc user load`
 
-        **Implementation notes:**
-        - Remove the current false negative caused by `maxAncestorWalk: 20`
-        - Keep the behavior internal to the loader/pull path unless a real CLI need emerges later
+        **Outcome:** Removed the default `maxAncestorWalk: 20` false negative by making nearest-note lookup scan all
+        reachable ancestors unless an explicit cap is passed for a targeted test. `runUserLoad` now records how far
+        back the loaded note was found, and load summaries surface that distance so a far-back reachable note is
+        distinguished from the true no-note case. Updated load/pull/sync handler copy from "recent ancestors" to
+        "any reachable ancestor" so the null path only claims what the search actually checked. Verification: targeted
+        unit coverage for user status/handlers/sync, targeted `user.test.ts` integration coverage including a
+        >20-commit ancestor case, plus `lint:ts` and `typecheck` all clean.
 
 - [ ] **3.R.f Documentation + ADR sync**
 

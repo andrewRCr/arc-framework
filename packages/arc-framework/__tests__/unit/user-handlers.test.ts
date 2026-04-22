@@ -255,6 +255,7 @@ describe("handleUserPull fetch+load flow", () => {
       commit: "abc1234",
       fileCount: 1,
       fromAncestor: false,
+      ancestorDistance: 0,
       warnings: [],
     });
 
@@ -274,6 +275,7 @@ describe("handleUserPull fetch+load flow", () => {
       commit: "abc1234",
       fileCount: 1,
       fromAncestor: false,
+      ancestorDistance: 0,
       warnings: [],
     });
 

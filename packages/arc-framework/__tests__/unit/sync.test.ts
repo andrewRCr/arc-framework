@@ -134,6 +134,7 @@ describe("handleSync direction handling", () => {
       commit: "abc1234",
       fileCount: 1,
       fromAncestor: false,
+      ancestorDistance: 0,
       warnings: [],
     });
 
@@ -154,6 +155,7 @@ describe("handleSync direction handling", () => {
       commit: "abc1234",
       fileCount: 1,
       fromAncestor: false,
+      ancestorDistance: 0,
       warnings: [],
     });
 

@@ -13,18 +13,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.e.2 — Ancestor-walk hardening for `arc user load` / `arc user pull` (line ~1318)
-- **Last Completed:** Task 3.R.e.1 — added a helper-style `arc user status --session-init`
-  probe that respects `session.remote_sync`, performs a non-destructive temp-ref remote
-  comparison, and reports coarse session-init states plus whether the agent should prompt
-  the user to pull before continuing. Updated the user-status CLI/handler surface, added
-  targeted unit and integration coverage, and documented Step 1.5 in both session-init
-  workflow copies so the agent keeps the pull prompt in the harness layer. Verification:
-  targeted `user-status`, `user-handlers`, `sync`, and framework-sync tests, targeted
-  `user.test.ts` integration coverage, `lint:ts`, `typecheck`, and task/workflow markdown
-  lint all clean.
-- **Blockers:** [none]
-- **Next Action:** Begin Task 3.R.e.2 — harden the loader/pull ancestor walk so reachable
-  notes beyond the old default window are still found, and make the resulting guidance
-  distinguish "no saved note exists" from "the nearest note is far back in reachable
-  history."
+- **Next Task:** Task 3.R.f.1 — Two-copy doc sync for remaining CLI references (line ~1350)
+- **Last Completed:** Tasks 3.R.e.1-3.R.e.2 — added a helper-style
+  `arc user status --session-init` probe for agent-driven remote-state checks, documented
+  session-init Step 1.5 in both workflow copies, removed the default 20-commit
+  ancestor-walk cap, and surfaced loaded-note ancestor distance in user load summaries.
+- **Blockers:** Tier 2 not fully green on this secondary laptop — `npm run lint:sh`
+  fails when the shellcheck wrapper tries to download from `api.github.com` (DNS/network),
+  and `npm test` still hits the pre-existing `__tests__/integration/skills.test.ts`
+  timeout in "update regenerates skills with canonical content after modification".
+- **Next Action:** Investigate the secondary-laptop Tier 2 failures to determine whether
+  they are environment-only, then begin Task 3.R.f.1 to sync remaining two-copy CLI
+  references and bootstrap semantics docs.

@@ -121,11 +121,35 @@ describe("user save and load", () => {
     });
     expect(loadResult).not.toBeNull();
     expect(loadResult!.fromAncestor).toBe(true);
+    expect(loadResult!.ancestorDistance).toBe(2);
 
     const restored = await readFile(
       join(userDir, "SESSION-NOTES.md"), "utf-8",
     );
     expect(restored).toBe("# Ancestor content");
+  });
+
+  it("load finds a reachable note beyond the old 20-commit window", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Deep reachable note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    for (let i = 0; i < 25; i++) {
+      await makeCommit(tempDir, `post-note commit ${i}`);
+    }
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user",
+    });
+
+    expect(loadResult).not.toBeNull();
+    expect(loadResult!.fromAncestor).toBe(true);
+    expect(loadResult!.ancestorDistance).toBe(25);
+
+    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    expect(restored).toBe("# Deep reachable note");
   });
 
   it("returns null when no note found anywhere", async () => {

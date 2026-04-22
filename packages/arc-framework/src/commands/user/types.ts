@@ -44,6 +44,8 @@ export interface UserLoadResult {
   fileCount: number;
   /** Whether the note was found on an ancestor rather than HEAD. */
   fromAncestor: boolean;
+  /** Number of commits between HEAD and the loaded ancestor note (0 when on HEAD). */
+  ancestorDistance: number;
   /** Warnings about local files not present in the loaded manifest. */
   warnings: string[];
 }
