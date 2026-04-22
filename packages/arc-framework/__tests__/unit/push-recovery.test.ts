@@ -57,7 +57,7 @@ const cwd = "/repo";
 
 describe("pushWithInteractiveRecovery", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockIsCancel.mockReturnValue(false);
     mockIsNonInteractive.mockReturnValue(false);
   });

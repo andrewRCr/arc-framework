@@ -34,25 +34,29 @@ const mockRunUserPush = vi.fn();
 const mockRunUserFetch = vi.fn();
 const mockRunUserPull = vi.fn();
 const mockRunUserLoad = vi.fn();
+const mockRunUserAdd = vi.fn();
 const mockRunUserStatus = vi.fn();
 const mockRunUserSessionInitStatus = vi.fn();
 const mockHasLocalNotes = vi.fn();
+const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
+const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
+const mockBuildUserStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
 vi.mock("../../src/commands/user.js", () => ({
   runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
   runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
-  runUserAdd: vi.fn(),
+  runUserAdd: (...args: unknown[]) => mockRunUserAdd(...args),
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
   runUserStatus: (...args: unknown[]) => mockRunUserStatus(...args),
   runUserSessionInitStatus: (...args: unknown[]) => mockRunUserSessionInitStatus(...args),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
-  buildSaveSummary: vi.fn(() => ""),
-  buildLoadSummary: vi.fn(() => ""),
+  buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
+  buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
   buildUserSessionInitStatusSummary: (result: { summary?: string }) => mockBuildUserSessionInitStatusSummary(result),
-  buildUserStatusSummary: vi.fn((result: { summary?: string }) => result.summary ?? ""),
+  buildUserStatusSummary: (result: { summary?: string }) => mockBuildUserStatusSummary(result),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -63,6 +67,8 @@ const mockRunWithSpinner = vi.fn(
 );
 
 const mockIsNonInteractive = vi.fn(() => false);
+const mockReadPmMode = vi.fn(async () => "none");
+const mockReadSessionRemoteSyncEnabled = vi.fn(async () => true);
 
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
@@ -71,8 +77,8 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
-  readPmMode: vi.fn(async () => "none"),
-  readSessionRemoteSyncEnabled: vi.fn(async () => true),
+  readPmMode: (...args: unknown[]) => mockReadPmMode(...(args as [])),
+  readSessionRemoteSyncEnabled: (...args: unknown[]) => mockReadSessionRemoteSyncEnabled(...(args as [])),
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({
@@ -89,17 +95,31 @@ vi.mock("../../src/lib/git/index.js", () => ({
 
 const { handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus } = await import("../../src/handlers/user.js");
 
+/**
+ * Re-establish construction-time defaults after `vi.resetAllMocks()`.
+ * See DEV-RULES.PROJECT § Mock hygiene.
+ */
+function resetMockDefaults() {
+  mockIsCancel.mockReturnValue(false);
+  mockIsNonInteractive.mockReturnValue(false);
+  mockRunWithSpinner.mockImplementation(
+    async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
+  );
+  mockBuildSaveSummary.mockReturnValue("");
+  mockBuildLoadSummary.mockReturnValue("");
+  mockBuildUserStatusSummary.mockImplementation((result: { summary?: string }) => result.summary ?? "");
+  mockBuildUserSessionInitStatusSummary.mockImplementation((result: { summary?: string }) => result.summary ?? "");
+  mockReadPmMode.mockResolvedValue("none");
+  mockReadSessionRemoteSyncEnabled.mockResolvedValue(true);
+}
+
 // --- handleUserPush tests ---
 
 describe("handleUserPush divergence resolution", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
-    mockRunWithSpinner.mockImplementation(
-      async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
-    );
     process.exitCode = undefined;
   });
 
@@ -203,14 +223,10 @@ describe("handleUserPush divergence resolution", () => {
 
 describe("handleUserFetch overwrite flow", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockHasLocalNotes.mockResolvedValue(false);
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
-    mockRunWithSpinner.mockImplementation(
-      async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
-    );
     process.exitCode = undefined;
   });
 
@@ -292,11 +308,10 @@ describe("handleUserFetch overwrite flow", () => {
 
 describe("handleUserPull fetch+load flow", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockHasLocalNotes.mockResolvedValue(false);
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
     process.exitCode = undefined;
   });
 
@@ -401,10 +416,9 @@ describe("handleUserPull fetch+load flow", () => {
 
 describe("handleUserLoad walk-exhausted diagnostic", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
     process.exitCode = undefined;
   });
 
@@ -463,11 +477,10 @@ describe("handleUserLoad walk-exhausted diagnostic", () => {
 
 describe("handleUserPull walk-exhausted diagnostic", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockHasLocalNotes.mockResolvedValue(false);
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
     process.exitCode = undefined;
   });
 
@@ -505,7 +518,8 @@ describe("handleUserPull walk-exhausted diagnostic", () => {
 
 describe("handleUserStatus", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
   });

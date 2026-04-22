@@ -31,8 +31,8 @@ const mockInspectUserSyncState = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockRunUserPull = vi.fn();
 const mockHasLocalNotes: Mock<(...args: unknown[]) => Promise<boolean>> = vi.fn();
-const mockBuildSaveSummary: (result: unknown) => string = vi.fn(() => "save summary");
-const mockBuildLoadSummary: (result: unknown) => string = vi.fn(() => "load summary");
+const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "save summary");
+const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "load summary");
 
 vi.mock("../../src/commands/user.js", () => ({
   inspectUserSyncState: (opts: unknown) => mockInspectUserSyncState(opts),
@@ -86,6 +86,18 @@ function setPolicy(policy: "always" | "prompt" | "manual") {
   mockResolvePolicy.mockResolvedValue({ policy, source: "default" });
 }
 
+/**
+ * Re-establish construction-time defaults after `vi.resetAllMocks()`.
+ * See DEV-RULES.PROJECT § Mock hygiene.
+ */
+function resetMockDefaults() {
+  mockIsCancel.mockReturnValue(false);
+  mockIsNonInteractive.mockReturnValue(false);
+  mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
+  mockBuildSaveSummary.mockReturnValue("save summary");
+  mockBuildLoadSummary.mockReturnValue("load summary");
+}
+
 describe("decideSyncAction", () => {
   it("maps the sync matrix to push/pull/noop/conflict", () => {
     expect(decideSyncAction({ refState: "same", diskState: "same" })).toBe("noop");
@@ -99,10 +111,9 @@ describe("decideSyncAction", () => {
 
 describe("handleSync direction handling", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
     mockHasLocalNotes.mockResolvedValue(false);
     process.exitCode = undefined;
   });
@@ -323,10 +334,9 @@ describe("handleSync direction handling", () => {
 
 describe("handleSync push policy", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockIsCancel.mockReturnValue(false);
-    mockIsNonInteractive.mockReturnValue(false);
     setSyncState("local-ahead", "same");
     process.exitCode = undefined;
   });
@@ -382,9 +392,9 @@ describe("handleSync push policy", () => {
 
 describe("handleSync non-TTY conflict degradation", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockIsCancel.mockReturnValue(false);
     mockIsNonInteractive.mockReturnValue(true);
     process.exitCode = undefined;
   });
