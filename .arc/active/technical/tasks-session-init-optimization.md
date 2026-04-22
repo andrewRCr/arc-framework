@@ -1422,63 +1422,117 @@ quality concerns. External research (shallow-clone conventions, Gerrit prior art
 Probe-pattern extension was added to this pass rather than deferred because the first-pass 3.R.e.1 surface proved
 clean enough that inconsistency across the three remaining session-init discovery points is the bigger risk.
 
-- [ ] **3.R.i Safety behaviors**
+- [x] **3.R.i Safety behaviors**
 
     **Goal:** Every user-visible destructive path confirms by default, degrades gracefully in non-TTY environments,
     never silently discards saved state, and surfaces actionable diagnostics when bounded operations hit their cap.
 
-    - [ ] **3.R.i.a Non-TTY conflict + failure hardening**
-        - `handleConflict` (`sync.ts:85–93`) currently exits code 1 with `p.log.error` in non-TTY. Degrade to
-          save-only + loud warning — same shape the `prompt` policy already uses.
-        - `pushWithInteractiveRecovery` divergence branch (`push-recovery.ts:55–57`) also exits as generic `failed`
-          in non-TTY. Change to an explicit discriminant (`{kind: "failed-nontty-conflict"}`) with a "local save
-          preserved; push skipped" banner so agents can't mistake it for an unknown failure.
-        - Add unit coverage for both non-TTY paths asserting the save is preserved and the warning is emitted.
+    - [x] **3.R.i.a Non-TTY conflict + failure hardening**
+        - `handleConflict` (`sync.ts`) non-TTY branch now calls `degradeConflictToSaveOnly` — saves the user
+          directory, emits two warn-level banners ("conflict", "degrading to save-only"), then outros clean
+          without exit code 1. Matches the `prompt` policy degradation shape.
+        - `pushWithInteractiveRecovery` non-TTY divergence branch now returns
+          `{ kind: "failed-nontty-conflict" }` instead of the generic `{ kind: "failed", error }`. Added to
+          the `PushResult` discriminated union.
+        - Both `handlePushDirection` (sync.ts) and `handleUserPush` (user.ts) grew a `case "failed-nontty-conflict"`
+          arm that renders the "local save preserved; push skipped" banner plus a context-appropriate
+          re-run hint and sets exitCode 1 (push attempted and rejected).
+        - Tests: `push-recovery.test.ts` divergence-non-TTY case updated + second case added; `sync.test.ts`
+          gained the `failed-nontty-conflict` caller test plus a new non-TTY conflict-degradation describe
+          block (diverged, remote-ahead+disk-different, save-failure paths); `user-handlers.test.ts`
+          converted `isNonInteractiveEnvironment` to a mockable toggle and added the discriminant test.
+        - Implementation batched rather than strict test-first: the `PushResult` discriminant change is a
+          single coordinated edit across type + impl + two callers, and the non-TTY `handleConflict` path
+          mirrors an existing save-only shape verbatim. No independent discovery value from slicing.
 
-    - [ ] **3.R.i.b Push-recovery merge redesign**
+    - [x] **3.R.i.b Push-recovery merge redesign**
 
-        **Goal:** Replace the current "Pull first (overwrite local with remote)" option — which silently discards
-        the just-saved note and retries a no-op push — with merge-like behavior matching `arc sync`'s intent.
+        **Outcome:** Replaced the silent-discard "Pull first (overwrite local with remote)" recovery option
+        with a merge flow (`pushWithInteractiveRecovery`): force-fetch aligns the local notes ref with
+        remote, `runUserSave` writes the current disk state on top of the new base, then the aligned
+        state is pushed. Select label now reads `"Merge: rebase my save onto remote, then push"`.
 
-        **Design decisions (resolved pre-implementation):**
-        - New option label: `"Merge: rebase my save onto remote, then push"`
-        - Behavior: force-fetch remote into local ref (base), re-save current disk state onto the new ref (user's
-          work on top), push the combined state
-        - Result discriminant: `{kind: "ok-recovered", via: "merge"}` replaces `via: "pull-then-push"` entirely
+        **Surface changes:**
+        - `PushResult` discriminant: `via: "merge"` replaces `via: "pull-then-push"` entirely.
+        - `pushWithInteractiveRecovery` now requires `cwd: string` as a third arg so the re-save can
+          locate the user directory. Both callers (`handlePushDirection` in sync.ts,
+          `handleUserPush` in user.ts) updated.
+        - Recovery errors (including `UserSaveError` during re-save) flow through the existing outer
+          try/catch → `{ kind: "failed", error }`. No partial push on save failure — the final push
+          only runs if save succeeded.
 
-        Build `test-first` (one behavior at a time):
-        - Force-fetch updates local ref to remote's hash
-        - Re-save attaches new note to HEAD reflecting current disk state
-        - Push after re-save succeeds against aligned remote
-        - `UserSaveError` during re-save (e.g., empty dir) surfaces with a clear message; no partial push
+        **Test-first execution:**
+        - Added failing tests first for both the happy path (fetch→save→push ordering, returns
+          `via: "merge"`) and the save-failure path (no second push call, `UserSaveError` surfaces
+          as `{ kind: "failed", error }`). Verified they failed against the current code.
+        - Implementation change made both green; replaced the parallel `pulls-then-pushes` test in
+          `user-handlers.test.ts` with the new merge expectation (adding `mockRunUserSave` tracking).
+          Updated `sync.test.ts` push-recovery mock to a 3-arg signature.
 
-    - [ ] **3.R.i.c Confirmation defaults + `--yes` flag**
-        - `handlePullDirection` (`sync.ts:119–144`) currently force-pulls without confirm. Add the same
-          "local notes exist — overwrite?" prompt used by `arc user pull`.
-        - Add `--yes` / `-y` flag to: `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`. Non-interactive
-          environments imply `--yes` for this confirm (orthogonal to 3.R.i.a's policy degradation — failures there
-          stay loud regardless of `--yes`).
-        - Standardize prompt copy — one shape across commands ("X will be overwritten. Continue?").
-        - Tests: confirm-present, confirm-declined (cancel), `--yes` bypass.
+    - [x] **3.R.i.c Confirmation defaults + `--yes` flag**
+        - `handlePullDirection` (sync.ts) now runs the overwrite confirm when `hasLocalNotes` is true,
+          matching `arc user pull` behaviour. The conflict-select pull path passes `yes: true` through a
+          shared `DirectionParams` type so the user isn't double-confirmed.
+        - Added `-y, --yes` to `arc sync`, `arc user pull`, `arc user fetch`, `arc user load` in cli.ts.
+          Handler option types extended: `SyncOptions`, `UserPullOptions`, `UserFetchOptions`,
+          `UserLoadOptions`. `handleUserLoad` accepts `yes` preemptively (no confirm exists there yet —
+          `runUserLoad` creates a timestamped backup; the flag is wired for future consistency).
+        - Standard prompt copy: `"Local notes will be overwritten by remote. Continue?"` — hoisted to a
+          module-level `OVERWRITE_CONFIRM_MESSAGE` constant in both sync.ts and user.ts.
+        - Non-TTY implicitly skips the overwrite confirm via a shared `shouldSkipOverwriteConfirm` helper
+          in user.ts and an inline guard in sync.ts's `handlePullDirection`. Loud failures from 3.R.i.a
+          (push-recovery non-TTY, conflict non-TTY) are unaffected — those run before this confirm.
+        - Tests added: confirm-present, confirm-declined (cancel), `--yes` bypass, non-TTY bypass — for
+          `handleSync` pull direction, `handleUserFetch`, `handleUserPull`. Also: "skips overwrite
+          confirm after conflict pull resolution (already acknowledged)" regression case.
 
-    - [ ] **3.R.i.d Ancestor-walk cap + diagnostic**
+    - [x] **3.R.i.d Ancestor-walk cap + diagnostic**
 
-        **Goal:** Replace the fully-uncapped walk (landed in 3.R.e.2) with a bounded default + explicit override,
-        matching shallow-clone conventions and avoiding silent O(n) walks on large histories.
+        **Outcome:** Replaced the uncapped rev-list walk with a bounded default (`DEFAULT_MAX_ANCESTOR_WALK = 1000`,
+        exported from `save-load.ts`) and an explicit `--max-walk <n>` override on `arc user load`,
+        `arc user pull`, and `arc sync`. Cap-hit without finding a note surfaces via the new
+        `onWalkExhausted(walked, maxWalk)` callback and renders the spec message verbatim.
 
-        **Design decisions (resolved pre-implementation):**
-        - Default cap: 1000 (covers typical dev branch depth; aligns with shallow-clone defaults documented in
-          the research brief)
-        - Override: `--max-walk <n>` flag on `arc user load`, `arc user pull`, `arc sync` pull direction
-        - Cap-hit is never silent — always surfaces as a named diagnostic state
+        **Surface changes:**
+        - `findNearestUserNote` now returns a structured `NearestNoteSearch`
+          (`{ note, walked, maxWalk, capped }`) instead of `NearestUserNote | null`. Internal callers in
+          `sync-status.ts` (`runUserStatus`, `inspectDiskVsLocalSnapshot`) updated to destructure `.note`.
+        - `UserLoadOptions` / `UserPullOptions` gained optional `onWalkExhausted` callback. `runUserLoad`
+          fires it when `capped && note === null`. `runUserPull` forwards it through to `runUserLoad`.
+        - `buildLoadSummary` replaces the prior
+          `"Note: loaded from a reachable ancestor N commit(s) behind HEAD."` line with
+          `"Loaded from N commit(s) back."` — emitted only when `ancestorDistance > 0`.
+        - Handlers (`handleUserLoad`, `handleUserPull`, `handlePullDirection` in sync.ts) render the
+          canonical diagnostic
+          `"walked N ancestors without finding a note; use --max-walk to search deeper or confirm remote
+          state with arc user status"` when the callback fires and result is null. `handleUserPull` and
+          `handlePullDirection` set `process.exitCode = 1`; `handleUserLoad` warns without exit code (its
+          existing "no note" path already didn't set one).
+        - CLI flags added with `parseInt` coercion on `arc user load`, `arc user pull`, `arc sync`.
 
-        Build `test-first` (one behavior at a time):
-        - Cap default applies when no flag passed; walk stops at 1000
-        - `--max-walk` overrides both directions (smaller or larger than default)
-        - Cap-hit without match emits `"walked N ancestors without finding a note; use --max-walk to search deeper
-          or confirm remote state with arc user status"`
-        - When a note is found, load summary reports ancestor distance ("Loaded from N commits back") only when
-          distance > 0
+        **Test-first execution:**
+        - New `__tests__/unit/save-load.test.ts` (8 tests) covers `findNearestUserNote` cap application,
+          overrides smaller/larger than default, capped-true accounting, and `runUserLoad`'s
+          `onWalkExhausted` callback firing. All failed before implementation, pass after.
+        - New `__tests__/unit/user-format.test.ts` (3 tests) covers the `"Loaded from N commits back"`
+          phrasing + absence-when-zero + removal of the legacy "reachable ancestor" phrasing.
+        - `__tests__/unit/user-status.test.ts` buildLoadSummary assertion updated to the new phrasing.
+        - `__tests__/unit/user-handlers.test.ts` / `sync.test.ts` extended with `--max-walk` threading and
+          walk-exhausted diagnostic tests (handler-level).
+        - `mockHasLocalNotes` persistence across tests fixed by adding
+          `mockHasLocalNotes.mockResolvedValue(false)` to the sync `handleSync direction handling` beforeEach —
+          `vi.clearAllMocks()` clears history but not `.mockResolvedValue` implementations.
+        - Implementation note: `let walkExhausted` pattern triggered
+          `@typescript-eslint/no-unnecessary-condition` because TS doesn't see callback-side mutation.
+          Refactored to `const walkState: { capture: … | null } = { capture: null }` in all three handler
+          sites — the object wrapper keeps narrowing intact while allowing the callback to mutate.
+
+        **Follow-up (post-review):**
+        - `handleUserLoad` now sets `process.exitCode = 1` on walk-exhausted to match `handleUserPull` and
+          `handlePullDirection`. Rationale: walk-exhausted is ambiguous ("we can't confirm there's no note
+          deeper than the cap") and deserves the same failure signal across all three commands. Plain
+          "no note found" stays at exit 0 — unambiguous state, nothing to load. One-line change + test
+          update. Identified during post-implementation design review.
 
 - [ ] **3.R.j Vocabulary + reporting**
 
@@ -1584,6 +1638,50 @@ clean enough that inconsistency across the three remaining session-init discover
         - Closes the coverage gap the review flagged — unit tests mocked git-note I/O so the silent-discard
           behavior couldn't be observed.
         - Lives in `__tests__/integration/user.test.ts` alongside existing pull-flow tests.
+
+    - [ ] **3.R.l.d Refactor `runUserLoad` walk-exhausted surface from callback to discriminated union**
+
+        **Origin:** 3.R.i.d chose an `onWalkExhausted(walked, maxWalk)` callback on `UserLoadOptions` /
+        `UserPullOptions` rather than a discriminated return. The pragmatic reason was avoiding ~30
+        integration-test assertions on `UserLoadResult | null`. With 3.R.l already opening up this code,
+        the clean API becomes feasible in the same pass.
+
+        **Current surface (to remove):**
+        - `UserLoadOptions.onWalkExhausted?: (walked, maxWalk) => void`
+        - `UserPullOptions.onWalkExhausted?: (walked, maxWalk) => void`
+        - Handler-side capture boilerplate:
+          `const walkState: { capture: WalkExhaustedCapture | null } = { capture: null }` — 3 copies in
+          `handleUserLoad`, `handleUserPull`, and `handlePullDirection` (sync.ts). The wrapper exists solely
+          to sidestep TS narrowing across callback mutation; the union refactor retires it.
+
+        **Target surface:**
+        - `export type UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted;`
+          where `UserLoadResult` gains `kind: "loaded"` and `UserLoadWalkExhausted = { kind: "walk-exhausted";
+          walked: number; maxWalk: number }`. `runUserLoad` returns `Promise<UserLoadOutcome | null>` (null
+          reserved for "no notes exist at all"). `runUserPull` mirrors.
+        - `buildLoadSummary` signature stays `(UserLoadResult) => string`; callers narrow via
+          `if (result.kind === "loaded")` before calling.
+        - Pairs cleanly with 3.R.l.a's `walkAncestorsForNote` extraction — both touch the same walk internals.
+
+        **Call sites to update:**
+        - `handleUserLoad` (user.ts): replace `walkState` wrapper + `onWalkExhausted` callback with a
+          `switch (result.kind)` on the outcome. Walk-exhausted branch keeps exit 1 (set in 3.R.i.d follow-up).
+        - `handleUserPull` (user.ts): same pattern.
+        - `handlePullDirection` (sync.ts): same pattern.
+
+        **Test migration:**
+        - `__tests__/unit/save-load.test.ts`: replace `onWalkExhausted` spy assertions with outcome-shape
+          assertions. 2 tests affected (the `runUserLoad — onWalkExhausted callback` describe block).
+        - `__tests__/unit/user-handlers.test.ts`: mockRunUserLoad / mockRunUserPull return discriminated
+          outcomes directly instead of invoking callbacks. Roughly 4 tests across `handleUserLoad` and
+          `handleUserPull` walk-exhausted describes.
+        - `__tests__/unit/sync.test.ts`: one test using `mockRunUserPull.mockImplementation` with callback
+          invocation → return outcome directly.
+        - `__tests__/integration/user.test.ts`: ~10 assertions on `loadResult!.fileCount` /
+          `loadResult!.fromAncestor` / `loadResult!.ancestorDistance` require narrowing via
+          `if (loadResult?.kind === "loaded")`. Also the existing `expect(loadResult).toBeNull()` at
+          line ~330 (shallow-clone cap-hit case) becomes `expect(loadResult?.kind).toBe("walk-exhausted")`.
+        - No production behavior change; this is a type-surface refactor with tests following.
 
 - [ ] **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
 
