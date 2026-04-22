@@ -131,10 +131,23 @@ export interface InspectUserSyncOptions {
   identity: string;
 }
 
+/**
+ * Canonical user-facing status vocabulary.
+ *
+ * - `in sync`           — local and remote notes match; disk matches saved note.
+ * - `remote ahead`      — remote has newer notes that local doesn't have yet.
+ * - `local unsaved`     — disk has unsaved edits, or local notes are ahead of remote.
+ * - `conflict`          — local and remote notes both moved from a common ancestor.
+ * - `remote unavailable` — remote could not be reached for comparison.
+ *
+ * These terms must round-trip cleanly from user mental model to behavior — if
+ * a new condition needs a headline, extend this union rather than overloading
+ * an existing term.
+ */
 export type UserStatusHeadline =
   | "in sync"
   | "remote ahead"
-  | "disk ahead"
+  | "local unsaved"
   | "conflict"
   | "remote unavailable";
 
@@ -143,6 +156,16 @@ export interface UserStatusRemoteIdentity {
   ref: string;
   hash: string;
 }
+
+/**
+ * Direction of divergence between the disk manifest and the saved note when
+ * headline is `local unsaved`.
+ *
+ * - `edits`   — disk has content the saved note doesn't (new/modified files).
+ * - `missing` — saved note has content the disk doesn't (files deleted locally).
+ * - `mixed`   — both directions apply simultaneously.
+ */
+export type UserUnsavedDirection = "edits" | "missing" | "mixed";
 
 export interface UserStatusResult {
   identity: string;
@@ -155,6 +178,12 @@ export interface UserStatusResult {
   diskState: UserSyncDiskState;
   savedCommit: string | null;
   savedFromAncestor: boolean;
+  /** Commits between HEAD and the saved note (0 when the note is at HEAD). */
+  ancestorDistance: number;
+  /** Human-readable "N ago" phrasing for the note commit's author date, when known. */
+  savedAtRelative: string | null;
+  /** Direction hint for `local unsaved`; null when not applicable. */
+  unsavedDirection: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
 }

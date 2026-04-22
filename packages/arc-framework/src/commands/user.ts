@@ -15,6 +15,7 @@ export {
 export {
   runUserSessionInitStatus,
   buildUserStatusResult,
+  computeUnsavedDirection,
   hasLocalNotes,
   hasRemoteNotes,
   inspectUserSyncState,
@@ -52,4 +53,5 @@ export {
   type UserSyncDiskState,
   type UserSyncRefState,
   type UserSyncState,
+  type UserUnsavedDirection,
 } from "./user/types.js";

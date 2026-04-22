@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { serialize, type SyncManifest } from "../../lib/git/index.js";
+import { formatRelativeTime } from "./relative-time.js";
 import { findNearestUserNote, listBackupFiles, runUserLoad } from "./save-load.js";
 import { notesRef } from "./shared.js";
 import type {
@@ -17,6 +18,7 @@ import type {
   UserSyncDiskState,
   UserSyncRefState,
   UserSyncState,
+  UserUnsavedDirection,
 } from "./types.js";
 
 const TEMP_SYNC_REF_PREFIX = "refs/arc-sync-temp";
@@ -104,12 +106,12 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
-  const [refState, diskState] = await Promise.all([
+  const [refState, diskInspection] = await Promise.all([
     inspectUserSyncRefs(io, identity),
     inspectDiskVsLocalSnapshot(cwd, io, identity),
   ]);
 
-  return { refState, diskState };
+  return { refState, diskState: diskInspection.state };
 }
 
 /**
@@ -122,7 +124,7 @@ export async function runUserStatus(
   options: UserStatusOptions,
 ): Promise<UserStatusResult> {
   const { cwd, io, identity, offline = false, all = false } = options;
-  const [diskState, search, backupFiles, remoteIdentities, refInspection] = await Promise.all([
+  const [diskInspection, search, backupFiles, remoteIdentities, refInspection] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity),
     findNearestUserNote({ cwd, io, identity }),
     listBackupFiles(cwd, io, identity),
@@ -131,17 +133,35 @@ export async function runUserStatus(
   ]);
 
   const note = search.note;
+  const savedAtRelative = note ? await readCommitRelativeAge(io, note.commit) : null;
 
   return buildUserStatusResult({
     identity,
-    diskState,
+    diskState: diskInspection.state,
     refState: refInspection?.state ?? null,
     remoteChecked: !offline,
     savedCommit: note ? note.commit.slice(0, 7) : null,
     savedFromAncestor: note ? note.fromAncestor : false,
+    ancestorDistance: note?.ancestorDistance ?? 0,
+    savedAtRelative,
+    unsavedDirection: diskInspection.direction,
     backupFiles,
     remoteIdentities,
   });
+}
+
+async function readCommitRelativeAge(
+  io: UserIOContext,
+  commit: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["show", "-s", "--format=%at", commit]);
+    const seconds = Number.parseInt(stdout.trim(), 10);
+    if (!Number.isFinite(seconds)) return null;
+    return formatRelativeTime(new Date(seconds * 1000));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -245,6 +265,9 @@ interface BuildUserStatusInput {
   remoteChecked: boolean;
   savedCommit: string | null;
   savedFromAncestor: boolean;
+  ancestorDistance?: number;
+  savedAtRelative?: string | null;
+  unsavedDirection?: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
 }
@@ -262,6 +285,9 @@ export function buildUserStatusResult(
     backupFiles,
     remoteIdentities,
   } = input;
+  const ancestorDistance = input.ancestorDistance ?? 0;
+  const savedAtRelative = input.savedAtRelative ?? null;
+  const unsavedDirection = input.unsavedDirection ?? null;
 
   const headline = determineUserStatusHeadline(refState, diskState);
   const summary = remoteChecked
@@ -275,8 +301,18 @@ export function buildUserStatusResult(
     detailLines.push("Remote check skipped (`--offline`).");
   }
 
-  if (savedCommit && savedFromAncestor) {
-    detailLines.push(`Saved snapshot is from ${savedCommit}, not current HEAD.`);
+  if (headline === "local unsaved" && unsavedDirection) {
+    detailLines.push(renderUnsavedDirectionHint(unsavedDirection));
+  }
+
+  if (savedAtRelative) {
+    detailLines.push(`Saved ${savedAtRelative}.`);
+  }
+
+  if (savedCommit && ancestorDistance > 0) {
+    detailLines.push(
+      `Saved snapshot is from ${savedCommit}, ${ancestorDistance} commit(s) back.`,
+    );
   } else if (!savedCommit && diskState === "different") {
     detailLines.push("No saved snapshot exists yet for this identity.");
   }
@@ -307,9 +343,23 @@ export function buildUserStatusResult(
     diskState,
     savedCommit,
     savedFromAncestor,
+    ancestorDistance,
+    savedAtRelative,
+    unsavedDirection,
     backupFiles,
     remoteIdentities,
   };
+}
+
+function renderUnsavedDirectionHint(direction: UserUnsavedDirection): string {
+  switch (direction) {
+    case "edits":
+      return "Disk has unsaved edits not yet in the saved note.";
+    case "missing":
+      return "Disk is missing updates from the saved note.";
+    case "mixed":
+      return "Disk has unsaved edits and is missing updates from the saved note.";
+  }
 }
 
 async function inspectUserSyncRefs(
@@ -356,11 +406,16 @@ async function inspectUserSyncRefsDetailed(
   }
 }
 
+interface DiskVsSnapshotInspection {
+  state: UserSyncDiskState;
+  direction: UserUnsavedDirection | null;
+}
+
 async function inspectDiskVsLocalSnapshot(
   cwd: string,
   io: UserIOContext,
   identity: string,
-): Promise<UserSyncDiskState> {
+): Promise<DiskVsSnapshotInspection> {
   const userDir = join(cwd, ".arc", "user", identity);
   let diskManifest: SyncManifest | null = null;
 
@@ -375,21 +430,59 @@ async function inspectDiskVsLocalSnapshot(
 
   const { note } = await findNearestUserNote({ cwd, io, identity });
   if (!note) {
-    return diskManifest ? "different" : "same";
+    return { state: diskManifest ? "different" : "same", direction: null };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(note.content) as unknown;
   } catch {
-    return "different";
+    return { state: "different", direction: null };
   }
+
+  const noteManifest = parsed as SyncManifest;
 
   if (!diskManifest) {
-    return "different";
+    return { state: "different", direction: "missing" };
   }
 
-  return manifestsEqual(parsed as SyncManifest, diskManifest) ? "same" : "different";
+  if (manifestsEqual(noteManifest, diskManifest)) {
+    return { state: "same", direction: null };
+  }
+
+  return {
+    state: "different",
+    direction: computeUnsavedDirection(diskManifest, noteManifest),
+  };
+}
+
+export function computeUnsavedDirection(
+  diskManifest: SyncManifest,
+  noteManifest: SyncManifest,
+): UserUnsavedDirection {
+  const diskKeys = new Set(Object.keys(diskManifest.files));
+  const noteKeys = new Set(Object.keys(noteManifest.files));
+
+  let hasEdits = false;
+  for (const key of diskKeys) {
+    const noteValue = noteManifest.files[key];
+    if (noteValue === undefined || noteValue !== diskManifest.files[key]) {
+      hasEdits = true;
+      break;
+    }
+  }
+
+  let diskMissing = false;
+  for (const key of noteKeys) {
+    if (!diskKeys.has(key)) {
+      diskMissing = true;
+      break;
+    }
+  }
+
+  if (hasEdits && diskMissing) return "mixed";
+  if (hasEdits) return "edits";
+  return "missing";
 }
 
 async function listRemoteUserIdentities(
@@ -422,7 +515,7 @@ function determineUserStatusHeadline(
   if (refState === "remote-unavailable") return "remote unavailable";
   if (refState === "diverged") return "conflict";
   if (refState === "remote-ahead") return "remote ahead";
-  if (diskState === "different" || refState === "local-ahead") return "disk ahead";
+  if (diskState === "different" || refState === "local-ahead") return "local unsaved";
   return "in sync";
 }
 
@@ -434,7 +527,7 @@ function determineUserStatusAction(
   switch (headline) {
     case "remote ahead":
       return "run `arc user pull`";
-    case "disk ahead":
+    case "local unsaved":
       return "run `arc user save`";
     case "conflict":
       return "run `arc user fetch` for non-destructive inspection";

@@ -836,7 +836,7 @@ describe("user status", () => {
     expect(summary).toContain("Next step: run `arc user pull`");
   });
 
-  it("reports disk-ahead status offline and surfaces backup presence", async () => {
+  it("reports local-unsaved status offline and surfaces backup presence", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -849,10 +849,13 @@ describe("user status", () => {
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     const summary = buildUserStatusSummary(result);
 
-    expect(result.headline).toBe("disk ahead");
-    expect(summary).toContain("test-user: disk ahead (offline)");
+    expect(result.headline).toBe("local unsaved");
+    expect(summary).toContain("test-user: local unsaved (offline)");
     expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
     expect(summary).toContain("Next step: run `arc user save`");
+    expect(result.unsavedDirection).toBe("edits");
+    expect(summary).toContain("Disk has unsaved edits not yet in the saved note.");
+    expect(result.savedAtRelative).toMatch(/^(just now|\d+ (minute|hour|day)s? ago)$/u);
   });
 
   it("lists remote identities when --all-style inspection is requested", async () => {

@@ -1539,15 +1539,54 @@ clean enough that inconsistency across the three remaining session-init discover
     **Goal:** CLI output matches user mental models without requiring code-level translation. Single canonical
     terms across layers. Reporting surfaces enough context that a cold-open user doesn't have to guess.
 
-    - [ ] **3.R.j.a Status vocabulary rename + detail enrichment**
-        - `disk ahead` → `local unsaved` across `UserStatusHeadline` and all user-facing strings.
-        - Audit remaining headlines (`in sync`, `remote ahead`, `conflict`, `remote unavailable`) — change any that
-          fail the cold-open-interpretation test. Document canonical terms in a short comment in `types.ts`.
-        - Status detail output additions: (1) ancestor distance when > 0 (threads through from 3.R.i.d's load
-          summary work), (2) save timestamp relative-format ("saved 11 hours ago") from the noted commit's author
-          date, (3) when `local unsaved`: direction hint ("disk has unsaved edits" vs "disk missing updates from
-          saved note" — requires manifest comparison to determine).
-        - Update `3.R.b` assertions in `user-status.test.ts` that check the old `disk ahead` string.
+    - [x] **3.R.j.a Status vocabulary rename + detail enrichment**
+
+        **Outcome:** `disk ahead` renamed to `local unsaved` across `UserStatusHeadline` union, the
+        `determineUserStatusHeadline` / `determineUserStatusAction` branches, and all consuming
+        tests. Cold-open audit of the other headlines (`in sync`, `remote ahead`, `conflict`,
+        `remote unavailable`) — all pass; no further renames. Canonical vocabulary documented as a
+        JSDoc block on `UserStatusHeadline` in `types.ts`.
+
+        **Surface changes:**
+        - `UserStatusResult` gained `ancestorDistance: number`, `savedAtRelative: string | null`,
+          and `unsavedDirection: UserUnsavedDirection | null`. New `UserUnsavedDirection` union
+          (`"edits" | "missing" | "mixed"`) added to `types.ts` with JSDoc distinguishing each case.
+        - `BuildUserStatusInput` accepts the three new fields as optional; callers keep working
+          unchanged. `runUserStatus` populates all three.
+        - `buildUserStatusResult` renders three new detail lines when data is present:
+            - Direction hint (only when headline is `local unsaved`):
+              `"Disk has unsaved edits not yet in the saved note."` /
+              `"Disk is missing updates from the saved note."` /
+              `"Disk has unsaved edits and is missing updates from the saved note."`
+            - Save timestamp: `"Saved 11 hours ago."`
+            - Ancestor distance (distance > 0): replaces the prior
+              `"Saved snapshot is from abc1234, not current HEAD."` with
+              `"Saved snapshot is from abc1234, N commit(s) back."`
+        - New `commands/user/relative-time.ts` exporting `formatRelativeTime(past, now?)` — buckets
+          seconds → minutes → hours → days with singular/plural handling and future-date clamping.
+          `runUserStatus` calls `git show -s --format=%at <commit>` via `io.exec` when a note exists
+          and passes the formatted relative string through to `buildUserStatusResult`.
+        - `inspectDiskVsLocalSnapshot` refactored from returning `UserSyncDiskState` to a
+          `DiskVsSnapshotInspection { state, direction }`. `inspectUserSyncState` destructures
+          `.state` to preserve its public contract. New `computeUnsavedDirection` helper
+          (exported via `user.ts` barrel for testability) compares manifest file-key sets plus
+          content diffs to pick the direction.
+
+        **Test coverage added:**
+        - `__tests__/unit/user-status.test.ts`: 4 new `buildUserStatusResult` tests (direction hint
+          rendering for each case + suppression when headline is not `local unsaved`), 2 save-timestamp
+          tests (present/absent), 1 ancestor-distance-at-HEAD suppression test, 4 `computeUnsavedDirection`
+          tests (edits / edits via modified content / missing / mixed). Updated the pre-existing
+          3.R.b "disk-ahead" assertions to the new `local unsaved` + `"N commit(s) back"` phrasing.
+        - `__tests__/unit/relative-time.test.ts` (new, 5 tests): bucket boundaries, singular/plural,
+          future-date clamping.
+        - `__tests__/integration/user.test.ts`: existing local-unsaved test extended to assert
+          `unsavedDirection === "edits"` + direction-hint line + regex-matched `savedAtRelative`
+          (shape, not literal). Integration summary tests updated for the renamed headline.
+
+        **Quality gates:** 772 unit+integration tests green; 45 E2E green; `typecheck`,
+        `typecheck:test`, `lint:ts`, and `lint:sh` all pass. Live `npx arc user status`
+        confirms rendering end-to-end.
 
     - [ ] **3.R.j.b `conflict` vs `divergence` canonical language**
         - Pick `conflict` as canonical user-facing term for "refs both moved from common ancestor."
@@ -1565,6 +1604,15 @@ clean enough that inconsistency across the three remaining session-init discover
           `arc sync` exit code in the end-of-session summary so success/failure is visible (addresses the
           "work didn't land but user thought it did" class of confusion from the review).
         - Two-copy sync on `session-handoff.md`.
+        - **`local unsaved` action-hint split (semantic accuracy):** `determineUserStatusAction` currently
+          returns `"run \`arc user save\`"` for the entire `local unsaved` headline, but the headline covers
+          two cases with different remediations: (a) `diskState === "different"` → save is correct, and
+          (b) `refState === "local-ahead"` with `diskState === "same"` → work IS saved to a local note,
+          just not pushed, so the correct hint is `"run \`arc user push\`"` (or `arc sync`). Split the
+          switch to pick the hint based on the underlying state, not the headline alone. Update the
+          `buildUserStatusResult` unit tests in `user-status.test.ts` to cover both sub-cases. Pre-existing
+          bug surfaced during 3.R.j.a; scoped here because it's a naming-semantics fix rather than new
+          behavior. Flagged by review of 3.R.j.a.
 
 - [ ] **3.R.k Probe-pattern extension — extensions, methods, active status**
 
@@ -1682,6 +1730,50 @@ clean enough that inconsistency across the three remaining session-init discover
           `if (loadResult?.kind === "loaded")`. Also the existing `expect(loadResult).toBeNull()` at
           line ~330 (shallow-clone cap-hit case) becomes `expect(loadResult?.kind).toBe("walk-exhausted")`.
         - No production behavior change; this is a type-surface refactor with tests following.
+
+    - [ ] **3.R.l.e `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`**
+
+        **Origin:** Surfaced during 3.R.j.a manual verification. `arc user status` invoked from a
+        subdirectory (e.g., `packages/arc-framework/`) silently treats `.arc/user/{identity}/` as
+        absent, which flows through `inspectDiskVsLocalSnapshot` to `state: "different"`,
+        `direction: "missing"`, headline `"local unsaved"`, action hint `"run arc user save"`.
+        All three are wrong — the user hasn't actually lost content, and `arc user save` would
+        fail in that state with `"No eligible files found in user directory to save."` (pre-existing,
+        highlighted more by the new direction-hint phrasing but not caused by 3.R.j.a). Git, npm,
+        cargo all walk up from cwd to find their project marker; ARC should match.
+
+        **Change:**
+        - Add `resolveArcRoot(startDir?: string): string | null` in `lib/paths.ts` (or equivalent
+          existing location). Walks upward from `startDir` (defaults to `process.cwd()`) looking
+          for a directory containing `.arc/`. Returns the absolute path on success, `null` when
+          the walk reaches filesystem root without finding one.
+        - Wire it into every CLI handler that currently takes `cwd: process.cwd()` and uses it
+          to resolve `.arc/` paths. Initial audit targets (from `commands/user.ts` + sync: the
+          known set touched by this WU):
+          `handleUserAdd`, `handleUserSave`, `handleUserLoad`, `handleUserFetch`, `handleUserPull`,
+          `handleUserPush`, `handleUserStatus`, `handleSync`. Broader sweep in the same pass
+          for other commands that take `cwd` (init/update/join/status/diff/log/reconfigure etc.) —
+          full list surfaced by grepping `process.cwd()` in `src/commands/` and `src/handlers/`.
+        - On `null` return, handlers emit a single canonical error via `p.log.error` (or the
+          project's error primitive) and `process.exit(1)`:
+          `"Not inside an ARC project (no .arc/ directory found walking up from cwd)."`
+        - Do NOT walk up for commands that operate on the current directory by design (e.g.,
+          `arc init` — creates `.arc/` at cwd). Those remain explicit.
+
+        **Tests:**
+        - Unit tests on `resolveArcRoot`: finds at cwd, finds one level up, finds two levels
+          up, returns null when absent, handles filesystem root boundary cleanly, respects
+          `startDir` when provided.
+        - Integration: one new e2e test exercising `arc user status` from a subdir of an
+          initialized repo — confirms the status result matches a root-cwd invocation of the
+          same command. Guards against regression.
+
+        **Risk flags:**
+        - Symlinks: if the cwd is through a symlink (e.g., `~/dev -> /mnt/data/dev`), realpath
+          resolution may or may not be desired. Recommend: walk the given path as-is without
+          `fs.realpathSync`, matching git's default behavior. Document the choice.
+        - Monorepos with nested `.arc/` (unlikely but possible): the first `.arc/` found wins.
+          Acceptable since nested ARC projects are out of scope for now.
 
 - [ ] **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
 
