@@ -1996,32 +1996,25 @@ clean enough that inconsistency across the three remaining session-init discover
     **Goal:** Close review-surfaced code quality items; close the integration coverage gap that let
     push-recovery's silent-discard slip past unit tests.
 
-    - [ ] **3.R.l.a `findNearestUserNote` cleanup**
-        - Remove unreachable `break` after `return` in the walk loop (`save-load.ts` ~line 190).
-        - Collapse `if (!noteContent || !foundCommit) return null; return null;` to a single `return null`.
-        - Extract the rev-list walk into a named helper (`walkAncestorsForNote`) so 3.R.i.d's cap + diagnostic
-          has a clean injection point.
-        - Pure cleanup; no behavior change from this subtask alone.
+    - [x] **3.R.l.a `findNearestUserNote` cleanup**
+        - Extracted the rev-list ancestor scan into `walkAncestorsForNote`, leaving `findNearestUserNote`
+          responsible for note discovery orchestration and cap/result shaping.
+        - Removed the dead branch in the walk loop (`if (commit && ...)`) while preserving the existing
+          walk-count semantics for found vs. exhausted searches.
+        - The duplicate null-return cleanup noted in planning had already landed before execution; no
+          equivalent branch remained in `save-load.ts` to simplify further.
+        - Pure cleanup only; targeted unit suite stays green (`npm run test:unit -- save-load.test.ts`).
 
-    - [ ] **3.R.l.b Module relocation + narrow-reader retirement**
-        - `runUserPush`, `hasRemoteNotes`, `hasLocalNotes`, `runUserFetch`, `runUserPull` move from
-          `commands/user/sync-status.ts` to a new `commands/user/push-fetch.ts` (push/fetch primitives, not
-          status). `inspectUserSyncState`, `runUserSessionInitStatus`, `runUserStatus`, `buildUserStatusResult`
-          stay in `sync-status.ts`.
-        - **Retire `readPmMode` + `readSessionRemoteSyncEnabled`.** The generalized `readConfigSettings`
-          at `lib/config/status-reader.ts` (delivered in 3.R.k.c) supersedes both. Migrate the three
-          active call sites — `handlers/user.ts:62`, `handlers/user.ts:433`, `handlers/join.ts:49` — to
-          consume `readConfigSettings` and derive the needed key (`settings["pm.mode"]` or
-          `settings["session.remote_sync"] === "enabled"`). Delete the two exports from
-          `handlers/shared.ts`; update the mock surface in `__tests__/unit/user-handlers.test.ts`
-          (currently mocks `readPmMode` / `readSessionRemoteSyncEnabled` individually — switch to
-          mocking `readConfigSettings` directly, or fold into handler-level mocks). Supersedes the
-          earlier "relocate to `lib/config-readers.ts`" plan — relocation is moot once the generalized
-          reader already lives in `lib/config/`.
-        - `commands/user.ts` facade updated; no public API surface change.
-        - Tests move with their target modules; no content change for sync-status moves. Narrow-reader
-          retirement updates `user-handlers.test.ts` mocks and may require minor call-site-assertion
-          adjustments.
+    - [x] **3.R.l.b Module relocation + narrow-reader retirement**
+        - Moved `runUserPush`, `hasRemoteNotes`, `hasLocalNotes`, `runUserFetch`, and `runUserPull` into new
+          `commands/user/push-fetch.ts`; `sync-status.ts` now keeps only sync inspection/status shaping.
+        - Updated the `commands/user.ts` facade to re-export the moved primitives from the new module, so the
+          public command surface stays unchanged for handlers and tests.
+        - Retired `readPmMode` and `readSessionRemoteSyncEnabled` from `handlers/shared.ts`. `handlers/user.ts`,
+          `handlers/join.ts`, and the still-live `handlers/status.ts` session-init path now read
+          `readConfigSettings()` and derive `pm.mode` / `session.remote_sync` from the returned settings map.
+        - Updated `__tests__/unit/user-handlers.test.ts` to mock `readConfigSettings` directly instead of the
+          bespoke shared readers; focused handler/config tests stay green under direct Vitest invocation.
 
     - [ ] **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
         - New integration test exercising the full flow end-to-end against real git notes: local save → remote

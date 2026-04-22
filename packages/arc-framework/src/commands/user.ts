@@ -13,15 +13,17 @@ export {
   runUserSave,
 } from "./user/save-load.js";
 export {
-  runUserSessionInitStatus,
-  buildUserStatusResult,
-  computeUnsavedDirection,
   hasLocalNotes,
   hasRemoteNotes,
-  inspectUserSyncState,
   runUserFetch,
   runUserPull,
   runUserPush,
+} from "./user/push-fetch.js";
+export {
+  runUserSessionInitStatus,
+  buildUserStatusResult,
+  computeUnsavedDirection,
+  inspectUserSyncState,
   runUserStatus,
 } from "./user/sync-status.js";
 export {

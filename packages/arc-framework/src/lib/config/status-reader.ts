@@ -2,9 +2,9 @@
  * Reader for `arc config status` — reads arc-config.yml, applies documented
  * defaults for absent keys, and returns the agent-consumable settings set.
  *
- * Generalizes the narrow single-key readers in handlers/shared.ts
- * (`readPmMode`, `readSessionRemoteSyncEnabled`) into a settings-map read.
- * `hooks.*` keys are excluded — shell-consumed by git hooks, not by agents.
+ * Shared by config status and handler code that needs session-relevant config
+ * without maintaining bespoke one-key readers. `hooks.*` keys are excluded —
+ * shell-consumed by git hooks, not by agents.
  *
  * @module
  */

@@ -174,31 +174,64 @@ export async function findNearestUserNote(
     return { note: null, walked: 0, maxWalk, capped: false };
   }
 
-  let walked = 0;
   try {
-    const revListArgs = ["rev-list", "--max-count", String(maxWalk), "HEAD"];
-    const { stdout: ancestorList } = await io.exec("git", revListArgs);
-    const commits = ancestorList.split("\n").filter((commit) => commit.length > 0);
-    walked = commits.length;
-    for (const [index, commit] of commits.entries()) {
-      if (commit && notedCommits.has(commit)) {
-        const content = await io.readNote(ref, commit);
-        if (content) {
-          const note: NearestUserNoteRef = {
-            content,
-            commit,
-            fromAncestor: commit !== headHash,
-            ancestorDistance: index,
-          };
-          return { note, walked: index + 1, maxWalk, capped: false };
-        }
-      }
+    const walkResult = await walkAncestorsForNote(
+      io,
+      ref,
+      notedCommits,
+      headHash,
+      maxWalk,
+    );
+
+    if (walkResult.note) {
+      return { note: walkResult.note, walked: walkResult.walked, maxWalk, capped: false };
     }
+
+    return {
+      note: null,
+      walked: walkResult.walked,
+      maxWalk,
+      capped: walkResult.walked >= maxWalk,
+    };
   } catch {
     // rev-list failure (shouldn't happen after successful rev-parse)
+    return { note: null, walked: 0, maxWalk, capped: false };
+  }
+}
+
+async function walkAncestorsForNote(
+  io: UserIOContext,
+  ref: string,
+  notedCommits: Set<string>,
+  headHash: string,
+  maxWalk: number,
+): Promise<{ note: NearestUserNoteRef | null; walked: number }> {
+  const revListArgs = ["rev-list", "--max-count", String(maxWalk), "HEAD"];
+  const { stdout: ancestorList } = await io.exec("git", revListArgs);
+  const commits = ancestorList.split("\n").filter((commit) => commit.length > 0);
+
+  for (const [index, commit] of commits.entries()) {
+    if (!notedCommits.has(commit)) {
+      continue;
+    }
+
+    const content = await io.readNote(ref, commit);
+    if (!content) {
+      continue;
+    }
+
+    return {
+      note: {
+        content,
+        commit,
+        fromAncestor: commit !== headHash,
+        ancestorDistance: index,
+      },
+      walked: index + 1,
+    };
   }
 
-  return { note: null, walked, maxWalk, capped: walked >= maxWalk };
+  return { note: null, walked: commits.length };
 }
 
 export async function listBackupFiles(

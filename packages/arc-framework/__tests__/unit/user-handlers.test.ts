@@ -60,6 +60,7 @@ vi.mock("../../src/commands/user.js", () => ({
 }));
 
 const mockResolveUserIdentity = vi.fn();
+const mockReadConfigSettings = vi.fn();
 
 // Mock runWithSpinner to just call the fn directly (skip spinner ceremony)
 const mockRunWithSpinner = vi.fn(
@@ -67,8 +68,6 @@ const mockRunWithSpinner = vi.fn(
 );
 
 const mockIsNonInteractive = vi.fn(() => false);
-const mockReadPmMode = vi.fn(async () => "none");
-const mockReadSessionRemoteSyncEnabled = vi.fn(async () => true);
 
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
@@ -77,8 +76,10 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
-  readPmMode: (...args: unknown[]) => mockReadPmMode(...(args as [])),
-  readSessionRemoteSyncEnabled: (...args: unknown[]) => mockReadSessionRemoteSyncEnabled(...(args as [])),
+}));
+
+vi.mock("../../src/lib/config/status-reader.js", () => ({
+  readConfigSettings: (...args: unknown[]) => mockReadConfigSettings(...args),
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({
@@ -109,8 +110,25 @@ function resetMockDefaults() {
   mockBuildLoadSummary.mockReturnValue("");
   mockBuildUserStatusSummary.mockImplementation((result: { summary?: string }) => result.summary ?? "");
   mockBuildUserSessionInitStatusSummary.mockImplementation((result: { summary?: string }) => result.summary ?? "");
-  mockReadPmMode.mockResolvedValue("none");
-  mockReadSessionRemoteSyncEnabled.mockResolvedValue(true);
+  mockReadConfigSettings.mockResolvedValue({
+    settings: {
+      "branch.base": "main",
+      "branch.protection": "partial",
+      "commit.format": "conventional",
+      "commit.context_footer": "required",
+      "commit.custom_pattern": "",
+      "commit.context_pattern": "",
+      "merge.strategy": "merge",
+      "review.pre_merge": "enabled",
+      "platform.type": "github",
+      "pm.mode": "none",
+      "team.mode": "false",
+      "session.remote_sync": "enabled",
+      "user.sync_push": "always",
+    },
+    defaultsApplied: [],
+    errors: [],
+  });
 }
 
 // --- handleUserPush tests ---

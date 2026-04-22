@@ -43,8 +43,8 @@ import {
   runUserStatus,
 } from "../commands/user.js";
 import { gitConfigGet } from "../lib/git/index.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
-import { readSessionRemoteSyncEnabled } from "./shared.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -79,7 +79,8 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const { identity, role } = await readIdentityPointers();
 
   if (opts.sessionInit) {
-    const remoteSyncEnabled = await readSessionRemoteSyncEnabled(cwd);
+    const { settings } = await readConfigSettings(cwd);
+    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
     const probes: SessionInitProbes = {
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),

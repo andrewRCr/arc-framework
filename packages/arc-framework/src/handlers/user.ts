@@ -16,10 +16,10 @@ import { slugifyIdentity } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment, resolveUserIdentity, isRemoteError,
-  readPmMode, readSessionRemoteSyncEnabled,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -59,7 +59,8 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
 
   const cwd = process.cwd();
   const io = createUserIOContext();
-  const pmMode = await readPmMode(cwd);
+  const { settings } = await readConfigSettings(cwd);
+  const pmMode = settings["pm.mode"];
 
   try {
     await runWithSpinner(
@@ -430,7 +431,8 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
   const cwd = process.cwd();
 
   if (opts.sessionInit) {
-    const remoteSyncEnabled = await readSessionRemoteSyncEnabled(cwd);
+    const { settings } = await readConfigSettings(cwd);
+    const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
     const result = await runUserSessionInitStatus({
       cwd,
       io,
