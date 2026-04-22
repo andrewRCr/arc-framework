@@ -11,6 +11,7 @@
 import * as p from "@clack/prompts";
 
 import {
+  hasLocalNotes,
   inspectUserSyncState,
   runUserSave,
   runUserPull,
@@ -26,9 +27,30 @@ import {
   isHandledError, isNonInteractiveEnvironment, resolveUserIdentity,
 } from "./shared.js";
 
+/** Uniform overwrite-confirm prompt copy shared with the user handlers. */
+const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
+
 type SyncAction = "noop" | "push" | "pull" | "conflict";
 
-export async function handleSync(): Promise<void> {
+export interface SyncOptions {
+  yes?: boolean;
+  maxWalk?: number;
+}
+
+type DirectionParams = {
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+  identity: string;
+  yes: boolean;
+  maxWalk?: number;
+};
+
+function walkExhaustedMessage(walked: number): string {
+  return `walked ${walked} ancestors without finding a note; `
+    + "use --max-walk to search deeper or confirm remote state with arc user status";
+}
+
+export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   p.intro("arc sync");
 
   let identity: string;
@@ -43,6 +65,8 @@ export async function handleSync(): Promise<void> {
   const cwd = process.cwd();
   const state = await inspectUserSyncState({ cwd, io, identity });
   const action = decideSyncAction(state);
+  const yes = Boolean(opts.yes);
+  const maxWalk = opts.maxWalk;
 
   switch (action) {
     case "noop":
@@ -55,14 +79,14 @@ export async function handleSync(): Promise<void> {
       return;
     case "push":
       p.log.info("→ Pushing local user directory to remote notes.");
-      await handlePushDirection({ cwd, io, identity });
+      await handlePushDirection({ cwd, io, identity, yes, maxWalk });
       return;
     case "pull":
       p.log.info("→ Pulling remote notes into the local user directory.");
-      await handlePullDirection({ cwd, io, identity });
+      await handlePullDirection({ cwd, io, identity, yes, maxWalk });
       return;
     case "conflict":
-      await handleConflict({ cwd, io, identity });
+      await handleConflict({ cwd, io, identity, yes, maxWalk });
       return;
   }
 }
@@ -82,12 +106,9 @@ export function decideSyncAction(state: UserSyncState): SyncAction {
   }
 }
 
-async function handleConflict(
-  params: { cwd: string; io: ReturnType<typeof createUserIOContext>; identity: string },
-): Promise<void> {
+async function handleConflict(params: DirectionParams): Promise<void> {
   if (isNonInteractiveEnvironment()) {
-    p.log.error("Sync conflict requires an interactive choice. Re-run `arc sync` in a terminal.");
-    process.exitCode = 1;
+    await degradeConflictToSaveOnly(params);
     return;
   }
 
@@ -106,26 +127,84 @@ async function handleConflict(
     return;
   }
 
+  // User explicitly chose the direction via the conflict select — skip the
+  // redundant overwrite confirm in the downstream handler.
+  const confirmed: DirectionParams = { ...params, yes: true };
+
   if (action === "push") {
     p.log.info("→ Pushing local user directory to remote notes.");
-    await handlePushDirection(params);
+    await handlePushDirection(confirmed);
     return;
   }
 
   p.log.info("→ Pulling remote notes into the local user directory.");
-  await handlePullDirection(params);
+  await handlePullDirection(confirmed);
 }
 
-async function handlePullDirection(
-  params: { cwd: string; io: ReturnType<typeof createUserIOContext>; identity: string },
-): Promise<void> {
+async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void> {
   const { cwd, io, identity } = params;
+  p.log.warn("Local and remote notes conflict (both moved since common ancestor).");
+  p.log.warn("Non-interactive environment detected — degrading to save-only.");
+
+  const saveSpinner = p.spinner();
+  saveSpinner.start("Saving user directory...");
+  try {
+    const result = await runUserSave({ cwd, io, identity });
+    saveSpinner.stop("Save complete.");
+    if (result.warnings.length > 0) {
+      p.note(buildSaveSummary(result), "Saved");
+    }
+  } catch (err) {
+    saveSpinner.stop("Save failed.");
+    if (err instanceof UserSaveError) {
+      p.log.error(err.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  }
+
+  p.log.warn(
+    "Local save preserved; push skipped. Re-run `arc sync` in a terminal to resolve.",
+  );
+  p.outro("Done.");
+}
+
+async function handlePullDirection(params: DirectionParams): Promise<void> {
+  const { cwd, io, identity, yes, maxWalk } = params;
+
+  const hasLocal = await hasLocalNotes(io, identity);
+  if (hasLocal && !yes && !isNonInteractiveEnvironment()) {
+    const proceed = await p.confirm({
+      message: OVERWRITE_CONFIRM_MESSAGE,
+      initialValue: true,
+    });
+    if (p.isCancel(proceed) || !proceed) {
+      p.log.info("Pull cancelled.");
+      return;
+    }
+  }
+
   const spinner = p.spinner();
   spinner.start("Pulling user notes...");
 
+  const walkState: { walked: number | null } = { walked: null };
   try {
-    const result = await runUserPull({ cwd, io, identity, force: true });
+    const result = await runUserPull({
+      cwd,
+      io,
+      identity,
+      force: true,
+      maxAncestorWalk: maxWalk,
+      onWalkExhausted: (walked) => { walkState.walked = walked; },
+    });
     if (!result) {
+      if (walkState.walked !== null) {
+        spinner.stop("Walk exhausted.");
+        p.log.warn(walkExhaustedMessage(walkState.walked));
+        process.exitCode = 1;
+        return;
+      }
       spinner.stop("No note found.");
       p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
       process.exitCode = 1;
@@ -143,9 +222,7 @@ async function handlePullDirection(
   }
 }
 
-async function handlePushDirection(
-  params: { cwd: string; io: ReturnType<typeof createUserIOContext>; identity: string },
-): Promise<void> {
+async function handlePushDirection(params: DirectionParams): Promise<void> {
   const { cwd, io, identity } = params;
 
   const resolved = await resolveSyncPushPolicy({
@@ -200,7 +277,7 @@ async function handlePushDirection(
     }
   }
 
-  const pushResult = await pushWithInteractiveRecovery(io, identity);
+  const pushResult = await pushWithInteractiveRecovery(io, identity, cwd);
   switch (pushResult.kind) {
     case "ok":
     case "ok-recovered":
@@ -213,6 +290,16 @@ async function handlePushDirection(
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
+    case "failed-nontty-conflict":
+      p.log.warn(
+        "Push rejected — local and remote notes conflict (both moved since common ancestor), "
+        + "and the environment is non-interactive.",
+      );
+      p.log.warn(
+        "Local save preserved; push skipped. Re-run `arc sync` in a terminal to resolve.",
+      );
       process.exitCode = 1;
       return;
     case "failed": {

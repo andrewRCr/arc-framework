@@ -30,6 +30,7 @@ vi.mock("@clack/prompts", () => ({
 const mockInspectUserSyncState = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockRunUserPull = vi.fn();
+const mockHasLocalNotes: Mock<(...args: unknown[]) => Promise<boolean>> = vi.fn();
 const mockBuildSaveSummary: (result: unknown) => string = vi.fn(() => "save summary");
 const mockBuildLoadSummary: (result: unknown) => string = vi.fn(() => "load summary");
 
@@ -37,6 +38,7 @@ vi.mock("../../src/commands/user.js", () => ({
   inspectUserSyncState: (opts: unknown) => mockInspectUserSyncState(opts),
   runUserSave: (opts: unknown) => mockRunUserSave(opts),
   runUserPull: (opts: unknown) => mockRunUserPull(opts),
+  hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
   buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
   buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
   UserSaveError: class UserSaveError extends Error {
@@ -54,7 +56,8 @@ vi.mock("../../src/lib/sync-policy.js", () => ({
 
 const mockPushWithRecovery = vi.fn();
 vi.mock("../../src/handlers/push-recovery.js", () => ({
-  pushWithInteractiveRecovery: (io: unknown, identity: unknown) => mockPushWithRecovery(io, identity),
+  pushWithInteractiveRecovery: (io: unknown, identity: unknown, cwd: unknown) =>
+    mockPushWithRecovery(io, identity, cwd),
 }));
 
 const mockResolveUserIdentity = vi.fn();
@@ -70,6 +73,7 @@ vi.mock("../../src/lib/io-context.js", () => ({
 }));
 
 const { handleSync, decideSyncAction } = await import("../../src/handlers/sync.js");
+const { UserSaveError } = await import("../../src/commands/user.js");
 
 function setSyncState(
   refState: "same" | "local-ahead" | "remote-ahead" | "diverged" | "remote-unavailable",
@@ -99,6 +103,7 @@ describe("handleSync direction handling", () => {
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockIsCancel.mockReturnValue(false);
     mockIsNonInteractive.mockReturnValue(false);
+    mockHasLocalNotes.mockResolvedValue(false);
     process.exitCode = undefined;
   });
 
@@ -147,6 +152,96 @@ describe("handleSync direction handling", () => {
     expect(mockRunUserSave).not.toHaveBeenCalled();
   });
 
+  it("confirms overwrite on pull direction when local notes exist", async () => {
+    setSyncState("remote-ahead", "same");
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockConfirm.mockResolvedValue(true);
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("overwritten") }),
+    );
+    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels pull cleanly when user declines overwrite confirm", async () => {
+    setSyncState("remote-ahead", "same");
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockConfirm.mockResolvedValue(false);
+
+    await handleSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith("Pull cancelled.");
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+  });
+
+  it("bypasses overwrite confirm when --yes is passed", async () => {
+    setSyncState("remote-ahead", "same");
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync({ yes: true });
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
+  });
+
+  it("bypasses overwrite confirm in non-TTY environments", async () => {
+    setSyncState("remote-ahead", "same");
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockIsNonInteractive.mockReturnValue(true);
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips overwrite confirm after conflict pull resolution (already acknowledged)", async () => {
+    setSyncState("diverged", "same");
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockSelect.mockResolvedValue("pull");
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockSelect).toHaveBeenCalledTimes(1);
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
+  });
+
   it("prompts on conflict and respects pull resolution", async () => {
     setSyncState("diverged", "same");
     mockSelect.mockResolvedValue("pull");
@@ -191,6 +286,39 @@ describe("handleSync direction handling", () => {
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
   });
+
+  it("threads --max-walk through to runUserPull", async () => {
+    setSyncState("remote-ahead", "same");
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync({ maxWalk: 300 });
+
+    expect(mockRunUserPull).toHaveBeenCalledWith(
+      expect.objectContaining({ maxAncestorWalk: 300 }),
+    );
+  });
+
+  it("emits walk-exhausted diagnostic when pull direction hits cap without match", async () => {
+    setSyncState("remote-ahead", "same");
+    mockRunUserPull.mockImplementation((options: { onWalkExhausted?: (walked: number, maxWalk: number) => void }) => {
+      options.onWalkExhausted?.(1000, 1000);
+      return Promise.resolve(null);
+    });
+
+    await handleSync();
+
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("walked 1000 ancestors without finding a note"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
 });
 
 describe("handleSync push policy", () => {
@@ -233,6 +361,72 @@ describe("handleSync push policy", () => {
     await handleSync();
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("couldn't find remote ref"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("renders failed-nontty-conflict banner when push recovery surfaces that discriminant", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("always");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "failed-nontty-conflict" });
+
+    await handleSync();
+
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("conflict"));
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("non-interactive"));
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleSync non-TTY conflict degradation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockIsCancel.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(true);
+    process.exitCode = undefined;
+  });
+
+  it("degrades to save-only with loud warning when refs have diverged", async () => {
+    setSyncState("diverged", "same");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+
+    await handleSync();
+
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("conflict"));
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("degrading to save-only"));
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("degrades to save-only when remote is ahead and disk differs", async () => {
+    setSyncState("remote-ahead", "different");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+
+    await handleSync();
+
+    expect(mockRunUserSave).toHaveBeenCalledTimes(1);
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("sets exitCode when save fails during non-TTY conflict degradation", async () => {
+    setSyncState("diverged", "same");
+    mockRunUserSave.mockRejectedValue(new UserSaveError("No eligible files found in user directory to save."));
+
+    await handleSync();
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("No eligible files"));
     expect(process.exitCode).toBe(1);
   });
 });

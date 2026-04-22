@@ -89,9 +89,9 @@ export async function runUserFetch(options: UserFetchOptions): Promise<void> {
 export async function runUserPull(
   options: UserPullOptions,
 ) {
-  const { cwd, io, identity, force, maxAncestorWalk } = options;
+  const { cwd, io, identity, force, maxAncestorWalk, onWalkExhausted } = options;
   await runUserFetch({ io, identity, force });
-  return runUserLoad({ cwd, io, identity, maxAncestorWalk });
+  return runUserLoad({ cwd, io, identity, maxAncestorWalk, onWalkExhausted });
 }
 
 /**
@@ -122,13 +122,15 @@ export async function runUserStatus(
   options: UserStatusOptions,
 ): Promise<UserStatusResult> {
   const { cwd, io, identity, offline = false, all = false } = options;
-  const [diskState, note, backupFiles, remoteIdentities, refInspection] = await Promise.all([
+  const [diskState, search, backupFiles, remoteIdentities, refInspection] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity),
     findNearestUserNote({ cwd, io, identity }),
     listBackupFiles(cwd, io, identity),
     all ? listRemoteUserIdentities(io) : Promise.resolve([]),
     offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
   ]);
+
+  const note = search.note;
 
   return buildUserStatusResult({
     identity,
@@ -371,7 +373,7 @@ async function inspectDiskVsLocalSnapshot(
     diskManifest = null;
   }
 
-  const note = await findNearestUserNote({ cwd, io, identity });
+  const { note } = await findNearestUserNote({ cwd, io, identity });
   if (!note) {
     return diskManifest ? "different" : "same";
   }

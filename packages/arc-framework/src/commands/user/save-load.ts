@@ -7,6 +7,8 @@ import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
   UserSaveError,
+  type NearestNoteSearch,
+  type NearestUserNoteRef,
   type UserIOContext,
   type UserLoadOptions,
   type UserLoadResult,
@@ -18,12 +20,8 @@ const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
 
-interface NearestUserNote {
-  content: string;
-  commit: string;
-  fromAncestor: boolean;
-  ancestorDistance: number;
-}
+/** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
+export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
 
 /**
  * Save the user directory to a git note on HEAD.
@@ -73,11 +71,14 @@ export async function runUserLoad(
 ): Promise<UserLoadResult | null> {
   const { cwd, io, identity } = options;
   const userDir = join(cwd, ".arc", "user", identity);
-  const note = await findNearestUserNote(options);
-  if (!note) {
+  const search = await findNearestUserNote(options);
+  if (!search.note) {
+    if (search.capped && options.onWalkExhausted) {
+      options.onWalkExhausted(search.walked, search.maxWalk);
+    }
     return null;
   }
-  const { content: noteContent, commit: foundCommit, fromAncestor } = note;
+  const { content: noteContent, commit: foundCommit, fromAncestor } = search.note;
 
   let parsed: unknown;
   try {
@@ -134,19 +135,24 @@ export async function runUserLoad(
     commit: foundCommit.slice(0, 7),
     fileCount: Object.keys(manifest.files).length,
     fromAncestor,
-    ancestorDistance: note.ancestorDistance,
+    ancestorDistance: search.note.ancestorDistance,
     warnings: staleWarnings,
   };
 }
 
+/**
+ * Walk HEAD's ancestors (up to the configured cap) looking for a note.
+ *
+ * Returns a structured result so callers can distinguish "no notes exist at
+ * all", "notes exist but not reachable within cap" (cap-hit), and "found" —
+ * and render the right diagnostic for each case.
+ */
 export async function findNearestUserNote(
   options: UserLoadOptions,
-): Promise<NearestUserNote | null> {
+): Promise<NearestNoteSearch> {
   const { io, identity } = options;
+  const maxWalk = options.maxAncestorWalk ?? DEFAULT_MAX_ANCESTOR_WALK;
   const ref = notesRef(identity);
-
-  let foundCommit = "";
-  let noteContent: string | null = null;
 
   const { stdout: head } = await io.exec("git", ["rev-parse", "HEAD"]);
   const headHash = head;
@@ -165,27 +171,26 @@ export async function findNearestUserNote(
   }
 
   if (notedCommits.size === 0) {
-    return null;
+    return { note: null, walked: 0, maxWalk, capped: false };
   }
 
+  let walked = 0;
   try {
-    const revListArgs = options.maxAncestorWalk === undefined
-      ? ["rev-list", "HEAD"]
-      : ["rev-list", "--max-count", String(options.maxAncestorWalk), "HEAD"];
+    const revListArgs = ["rev-list", "--max-count", String(maxWalk), "HEAD"];
     const { stdout: ancestorList } = await io.exec("git", revListArgs);
     const commits = ancestorList.split("\n").filter((commit) => commit.length > 0);
+    walked = commits.length;
     for (const [index, commit] of commits.entries()) {
       if (commit && notedCommits.has(commit)) {
-        noteContent = await io.readNote(ref, commit);
-        if (noteContent) {
-          foundCommit = commit;
-          return {
-            content: noteContent,
-            commit: foundCommit,
-            fromAncestor: foundCommit !== headHash,
+        const content = await io.readNote(ref, commit);
+        if (content) {
+          const note: NearestUserNoteRef = {
+            content,
+            commit,
+            fromAncestor: commit !== headHash,
             ancestorDistance: index,
           };
-          break;
+          return { note, walked: index + 1, maxWalk, capped: false };
         }
       }
     }
@@ -193,10 +198,7 @@ export async function findNearestUserNote(
     // rev-list failure (shouldn't happen after successful rev-parse)
   }
 
-  if (!noteContent || !foundCommit) {
-    return null;
-  }
-  return null;
+  return { note: null, walked, maxWalk, capped: walked >= maxWalk };
 }
 
 export async function listBackupFiles(

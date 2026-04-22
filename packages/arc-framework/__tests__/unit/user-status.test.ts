@@ -158,6 +158,6 @@ describe("buildLoadSummary", () => {
       warnings: [],
     });
 
-    expect(summary).toContain("reachable ancestor 25 commit(s) behind HEAD");
+    expect(summary).toContain("Loaded from 25 commit(s) back.");
   });
 });

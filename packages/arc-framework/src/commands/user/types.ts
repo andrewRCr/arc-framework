@@ -55,8 +55,26 @@ export interface UserLoadOptions {
   cwd: string;
   io: UserIOContext;
   identity: string;
-  /** Maximum number of ancestor commits to walk. */
+  /** Maximum number of ancestor commits to walk. Defaults to DEFAULT_MAX_ANCESTOR_WALK. */
   maxAncestorWalk?: number;
+  /** Invoked when the ancestor walk hit its cap without finding a note. */
+  onWalkExhausted?: (walked: number, maxWalk: number) => void;
+}
+
+/** Structured return from the ancestor walk helper. */
+export interface NearestNoteSearch {
+  note: NearestUserNoteRef | null;
+  walked: number;
+  maxWalk: number;
+  capped: boolean;
+}
+
+/** A reachable note discovered by the ancestor walk. */
+export interface NearestUserNoteRef {
+  content: string;
+  commit: string;
+  fromAncestor: boolean;
+  ancestorDistance: number;
 }
 
 /** Options for the add operation. */
@@ -89,6 +107,8 @@ export interface UserFetchOptions {
 export interface UserPullOptions extends UserFetchOptions {
   cwd: string;
   maxAncestorWalk?: number;
+  /** Invoked when the ancestor walk hit its cap without finding a note. */
+  onWalkExhausted?: (walked: number, maxWalk: number) => void;
 }
 
 export type UserSyncRefState =

@@ -29,17 +29,19 @@ vi.mock("@clack/prompts", () => ({
   spinner: () => mockSpinnerInstance,
 }));
 
+const mockRunUserSave = vi.fn();
 const mockRunUserPush = vi.fn();
 const mockRunUserFetch = vi.fn();
 const mockRunUserPull = vi.fn();
+const mockRunUserLoad = vi.fn();
 const mockRunUserStatus = vi.fn();
 const mockRunUserSessionInitStatus = vi.fn();
 const mockHasLocalNotes = vi.fn();
 const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
 vi.mock("../../src/commands/user.js", () => ({
-  runUserSave: vi.fn(),
-  runUserLoad: vi.fn(),
+  runUserSave: (...args: unknown[]) => mockRunUserSave(...args),
+  runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
   runUserAdd: vi.fn(),
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
@@ -60,13 +62,15 @@ const mockRunWithSpinner = vi.fn(
   async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
 );
 
+const mockIsNonInteractive = vi.fn(() => false);
+
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
   runWithSpinner: (...args: unknown[]) => mockRunWithSpinner(...(args as [string, () => Promise<unknown>, string])),
   isHandledError: () => false,
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
-  isNonInteractiveEnvironment: () => false,
+  isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   readPmMode: vi.fn(async () => "none"),
   readSessionRemoteSyncEnabled: vi.fn(async () => true),
 }));
@@ -83,7 +87,7 @@ vi.mock("../../src/lib/git/index.js", () => ({
   slugifyIdentity: (s: string) => s.toLowerCase(),
 }));
 
-const { handleUserPush, handleUserFetch, handleUserPull, handleUserStatus } = await import("../../src/handlers/user.js");
+const { handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus } = await import("../../src/handlers/user.js");
 
 // --- handleUserPush tests ---
 
@@ -92,6 +96,7 @@ describe("handleUserPush divergence resolution", () => {
     vi.clearAllMocks();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockIsCancel.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(false);
     mockRunWithSpinner.mockImplementation(
       async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
     );
@@ -117,18 +122,23 @@ describe("handleUserPush divergence resolution", () => {
     );
   });
 
-  it("pulls then pushes when user chooses pull resolution", async () => {
+  it("merges (fetch → re-save → push) when user chooses merge resolution", async () => {
     mockRunUserPush
       .mockRejectedValueOnce(new Error("[rejected]"))
       .mockResolvedValueOnce(undefined);
     mockRunUserFetch.mockResolvedValue(undefined);
-    mockSelect.mockResolvedValue("pull");
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    mockSelect.mockResolvedValue("merge");
 
     await handleUserPush({});
 
-    // Pull with force (diverged refs)
+    // Fetch with force (aligns local with remote)
     expect(mockRunUserFetch).toHaveBeenCalledWith(
       expect.objectContaining({ force: true }),
+    );
+    // Re-save writes current disk state on top of the aligned base
+    expect(mockRunUserSave).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", cwd: process.cwd() }),
     );
     // Then push (no force — refs should now be aligned)
     expect(mockRunUserPush).toHaveBeenCalledTimes(2);
@@ -173,6 +183,20 @@ describe("handleUserPush divergence resolution", () => {
     );
     expect(process.exitCode).toBe(1);
   });
+
+  it("renders failed-nontty-conflict banner without prompting when non-interactive", async () => {
+    mockRunUserPush.mockRejectedValueOnce(new Error("non-fast-forward"));
+    mockIsNonInteractive.mockReturnValue(true);
+
+    await handleUserPush({});
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("conflict"));
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("non-interactive"));
+    expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining("save preserved"));
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
 });
 
 // --- handleUserFetch tests ---
@@ -183,6 +207,7 @@ describe("handleUserFetch overwrite flow", () => {
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockHasLocalNotes.mockResolvedValue(false);
     mockIsCancel.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(false);
     mockRunWithSpinner.mockImplementation(
       async (label: string, fn: () => Promise<unknown>, done: string) => { void label; void done; return fn(); },
     );
@@ -224,6 +249,31 @@ describe("handleUserFetch overwrite flow", () => {
     expect(mockRunUserFetch).not.toHaveBeenCalled();
   });
 
+  it("bypasses overwrite confirm when --yes is passed", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockRunUserFetch.mockResolvedValue(undefined);
+
+    await handleUserFetch({ yes: true });
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true }),
+    );
+  });
+
+  it("bypasses overwrite confirm in non-TTY environments", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockIsNonInteractive.mockReturnValue(true);
+    mockRunUserFetch.mockResolvedValue(undefined);
+
+    await handleUserFetch({});
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true }),
+    );
+  });
+
   it("reports missing remote ref with identity hint", async () => {
     mockRunUserFetch.mockRejectedValueOnce(
       new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
@@ -246,6 +296,7 @@ describe("handleUserPull fetch+load flow", () => {
     mockResolveUserIdentity.mockResolvedValue("andrew");
     mockHasLocalNotes.mockResolvedValue(false);
     mockIsCancel.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(false);
     process.exitCode = undefined;
   });
 
@@ -287,6 +338,55 @@ describe("handleUserPull fetch+load flow", () => {
     );
   });
 
+  it("cancels cleanly when user declines overwrite", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockConfirm.mockResolvedValue(false);
+
+    await handleUserPull({});
+
+    expect(mockLog.info).toHaveBeenCalledWith("Pull cancelled.");
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+  });
+
+  it("bypasses overwrite confirm when --yes is passed", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleUserPull({ yes: true });
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserPull).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true }),
+    );
+  });
+
+  it("bypasses overwrite confirm in non-TTY environments", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockIsNonInteractive.mockReturnValue(true);
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleUserPull({});
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockRunUserPull).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true }),
+    );
+  });
+
   it("sets exitCode when pull returns no note after fetch", async () => {
     mockRunUserPull.mockResolvedValue(null);
 
@@ -294,6 +394,110 @@ describe("handleUserPull fetch+load flow", () => {
 
     expect(mockLog.warn).toHaveBeenCalledWith(
       expect.stringContaining("No saved user directory"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleUserLoad walk-exhausted diagnostic", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockIsCancel.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(false);
+    process.exitCode = undefined;
+  });
+
+  it("threads --max-walk through to runUserLoad", async () => {
+    mockRunUserLoad.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleUserLoad({ maxWalk: 500 });
+
+    expect(mockRunUserLoad).toHaveBeenCalledWith(
+      expect.objectContaining({ maxAncestorWalk: 500 }),
+    );
+  });
+
+  it("emits the walk-exhausted diagnostic and exits 1 when onWalkExhausted fires and result is null", async () => {
+    mockRunUserLoad.mockImplementation((options: { onWalkExhausted?: (walked: number, maxWalk: number) => void }) => {
+      options.onWalkExhausted?.(1000, 1000);
+      return Promise.resolve(null);
+    });
+
+    await handleUserLoad({});
+
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("walked 1000 ancestors without finding a note"),
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("--max-walk"),
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("arc user status"),
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("falls back to 'No saved user directory' without setting exit code when no onWalkExhausted signal", async () => {
+    mockRunUserLoad.mockResolvedValue(null);
+
+    await handleUserLoad({});
+
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("No saved user directory"),
+    );
+    expect(mockLog.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("walked"),
+    );
+    // Plain "no note" stays at exit 0 — unambiguous state, nothing to load.
+    expect(process.exitCode).toBeUndefined();
+  });
+});
+
+describe("handleUserPull walk-exhausted diagnostic", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockHasLocalNotes.mockResolvedValue(false);
+    mockIsCancel.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(false);
+    process.exitCode = undefined;
+  });
+
+  it("threads --max-walk through to runUserPull", async () => {
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleUserPull({ maxWalk: 250 });
+
+    expect(mockRunUserPull).toHaveBeenCalledWith(
+      expect.objectContaining({ maxAncestorWalk: 250 }),
+    );
+  });
+
+  it("emits walk-exhausted diagnostic and sets exitCode 1 when cap hit without find", async () => {
+    mockRunUserPull.mockImplementation((options: { onWalkExhausted?: (walked: number, maxWalk: number) => void }) => {
+      options.onWalkExhausted?.(50, 50);
+      return Promise.resolve(null);
+    });
+
+    await handleUserPull({});
+
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining("walked 50 ancestors without finding a note"),
     );
     expect(process.exitCode).toBe(1);
   });

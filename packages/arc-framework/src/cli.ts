@@ -86,6 +86,8 @@ userCmd
 userCmd
   .command("load")
   .description("Restore user directory from a git note")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserLoad);
 
 userCmd
@@ -98,12 +100,15 @@ userCmd
   .command("fetch")
   .description("Fetch user notes from remote")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(handleUserFetch);
 
 userCmd
   .command("pull")
   .description("Fetch user notes from remote and restore them to disk")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserPull);
 
 userCmd
@@ -119,6 +124,8 @@ userCmd
 program
   .command("sync")
   .description("Synchronize user directory with remote notes")
+  .option("-y, --yes", "Skip overwrite confirmation prompts")
+  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleSync);
 
 // --- Log ---

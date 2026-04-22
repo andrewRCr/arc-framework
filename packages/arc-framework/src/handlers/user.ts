@@ -18,8 +18,29 @@ import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
-  runWithSpinner, isHandledError, resolveUserIdentity, isRemoteError, readPmMode, readSessionRemoteSyncEnabled,
+  runWithSpinner, isHandledError, isNonInteractiveEnvironment, resolveUserIdentity, isRemoteError,
+  readPmMode, readSessionRemoteSyncEnabled,
 } from "./shared.js";
+
+/** Uniform overwrite-confirm prompt copy. */
+const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
+
+/** Returns true when the overwrite confirm should be skipped (--yes or non-interactive). */
+function shouldSkipOverwriteConfirm(yes: boolean | undefined): boolean {
+  return Boolean(yes) || isNonInteractiveEnvironment();
+}
+
+/** Shape of a walk-exhausted observation captured via the onWalkExhausted callback. */
+interface WalkExhaustedCapture {
+  walked: number;
+  maxWalk: number;
+}
+
+/** Build the canonical "walked N ancestors" diagnostic line. */
+function walkExhaustedMessage(capture: WalkExhaustedCapture): string {
+  return `walked ${capture.walked} ancestors without finding a note; `
+    + "use --max-walk to search deeper or confirm remote state with arc user status";
+}
 
 // --- Add ---
 
@@ -89,7 +110,12 @@ export async function handleUserSave(): Promise<void> {
 
 // --- Load ---
 
-export async function handleUserLoad(): Promise<void> {
+export interface UserLoadOptions {
+  yes?: boolean;
+  maxWalk?: number;
+}
+
+export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> {
   p.intro("arc user load");
 
   let identity: string;
@@ -103,12 +129,15 @@ export async function handleUserLoad(): Promise<void> {
   const spinner = p.spinner();
   spinner.start("Loading user directory...");
 
+  const walkState: { capture: WalkExhaustedCapture | null } = { capture: null };
   let result;
   try {
     result = await runUserLoad({
       cwd: process.cwd(),
       io,
       identity,
+      maxAncestorWalk: opts.maxWalk,
+      onWalkExhausted: (walked, maxWalk) => { walkState.capture = { walked, maxWalk }; },
     });
   } catch (err) {
     spinner.stop("Load failed.");
@@ -120,6 +149,15 @@ export async function handleUserLoad(): Promise<void> {
   }
 
   if (!result) {
+    if (walkState.capture) {
+      // Walk-exhausted is distinct from plain "no note" — we can't confirm
+      // whether a note exists deeper than the cap. Exit 1 signals the
+      // ambiguity; user can retry with --max-walk.
+      spinner.stop("Walk exhausted.");
+      p.log.warn(walkExhaustedMessage(walkState.capture));
+      process.exitCode = 1;
+      return;
+    }
     spinner.stop("No note found.");
     p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
     return;
@@ -172,7 +210,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery(io, identity);
+  const result = await pushWithInteractiveRecovery(io, identity, process.cwd());
   switch (result.kind) {
     case "ok":
     case "ok-recovered":
@@ -186,6 +224,16 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
       p.log.info("Set up a remote with: git remote add origin <url>");
       process.exitCode = 1;
       return;
+    case "failed-nontty-conflict":
+      p.log.warn(
+        "Push rejected — local and remote notes conflict (both moved since common ancestor), "
+        + "and the environment is non-interactive.",
+      );
+      p.log.warn(
+        "Local save preserved; push skipped. Re-run `arc user push` in a terminal to resolve.",
+      );
+      process.exitCode = 1;
+      return;
     case "failed":
       if (isHandledError(result.error)) return;
       throw result.error;
@@ -196,6 +244,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
 
 export interface UserFetchOptions {
   identity?: string;
+  yes?: boolean;
 }
 
 export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
@@ -219,9 +268,9 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   const hasLocal = await hasLocalNotes(io, identity);
 
   // Warn if local notes exist that would be overwritten
-  if (hasLocal) {
+  if (hasLocal && !shouldSkipOverwriteConfirm(opts.yes)) {
     const proceed = await p.confirm({
-      message: "Local notes exist and will be overwritten by remote. Continue?",
+      message: OVERWRITE_CONFIRM_MESSAGE,
       initialValue: true,
     });
     if (p.isCancel(proceed) || !proceed) {
@@ -265,6 +314,8 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
 
 export interface UserPullOptions {
   identity?: string;
+  yes?: boolean;
+  maxWalk?: number;
 }
 
 export async function handleUserPull(opts: UserPullOptions): Promise<void> {
@@ -286,9 +337,9 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   const io = createUserIOContext();
   const hasLocal = await hasLocalNotes(io, identity);
 
-  if (hasLocal) {
+  if (hasLocal && !shouldSkipOverwriteConfirm(opts.yes)) {
     const proceed = await p.confirm({
-      message: "Local notes exist and will be overwritten by remote. Continue?",
+      message: OVERWRITE_CONFIRM_MESSAGE,
       initialValue: true,
     });
     if (p.isCancel(proceed) || !proceed) {
@@ -300,6 +351,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   const spinner = p.spinner();
   spinner.start("Pulling user notes...");
 
+  const walkState: { capture: WalkExhaustedCapture | null } = { capture: null };
   let result;
   try {
     result = await runUserPull({
@@ -307,6 +359,8 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       io,
       identity,
       force: hasLocal,
+      maxAncestorWalk: opts.maxWalk,
+      onWalkExhausted: (walked, maxWalk) => { walkState.capture = { walked, maxWalk }; },
     });
   } catch (err) {
     spinner.stop("Pull failed.");
@@ -334,6 +388,12 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   }
 
   if (!result) {
+    if (walkState.capture) {
+      spinner.stop("Walk exhausted.");
+      p.log.warn(walkExhaustedMessage(walkState.capture));
+      process.exitCode = 1;
+      return;
+    }
     spinner.stop("No note found.");
     p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
     process.exitCode = 1;
