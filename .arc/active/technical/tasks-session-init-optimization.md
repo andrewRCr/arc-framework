@@ -1344,37 +1344,53 @@ extension is documented in 3.R.h.
         unit coverage for user status/handlers/sync, targeted `user.test.ts` integration coverage including a
         >20-commit ancestor case, plus `lint:ts` and `typecheck` all clean.
 
-- [ ] **3.R.f Documentation + ADR sync**
+- [ ] **3.R.f Documentation + ADR sync (runs after 3.R.m and 3.R.g)**
 
-    **Goal:** Split the docs follow-through into two bounded increments: framework two-copy surfaces first, then
-    single-copy docs and ADR history.
+    **Goal:** Framework two-copy surfaces first, then single-copy docs and ADR history. Scope expanded by the
+    second pass to cover new probe commands, vocabulary rename, merge-recovery behavior, and `--yes` /
+    `--max-walk` flags. Runs after second pass so doc churn happens once against the final surface.
 
     - [ ] **3.R.f.1 Two-copy doc sync for remaining CLI references**
 
-        **Goal:** Template + installed copies reflect the finalized command vocabulary and bootstrap semantics.
+        **Goal:** Template + installed copies reflect the finalized command vocabulary, bootstrap semantics,
+        and second-pass additions.
 
         - Update both-copy references in:
           `session-handoff.md`, `strategy-session-operations.md`, `strategy-team-coordination.md`,
           `QUICK-REFERENCE.md`, and `user/README.md`
         - Replace stale `arc sync --load` references with the new command model
-        - Where person-to-person bootstrap is ref-only, switch guidance from `arc user pull --identity {outgoing}` to
-          `arc user fetch --identity {outgoing}` rather than implicitly overwriting local disk state
+        - Where person-to-person bootstrap is ref-only, switch guidance from `arc user pull --identity {outgoing}`
+          to `arc user fetch --identity {outgoing}` rather than implicitly overwriting local disk state
+        - Second-pass additions to sweep in:
+            - New probe commands (`arc extensions status`, `arc methods status`, `arc active status`, each with
+              `--session-init` mode) — primarily in QUICK-REFERENCE and session-init.md
+            - Vocabulary: `disk ahead` → `local unsaved`; canonicalize `conflict` over `divergence` in user-facing
+              phrasing
+            - Merge-recovery label (`"Merge: rebase my save onto remote, then push"`) wherever push recovery is
+              discussed
+            - `--yes` flag on `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`
+            - `--max-walk` flag on `arc user load`, `arc user pull`, `arc sync` pull direction
         - Grep-verify no remaining stale command references in `.arc/**` and `packages/arc-framework/arc/**`,
           excluding `reference/archive/**` and `reference/analysis/**`
 
     - [ ] **3.R.f.2 Single-copy docs + ADR-012 amendment + Phase 5.0 retirement pointer**
 
-        **Goal:** Single-copy docs reflect the final command surface, ADR-012 records the vocabulary realignment, and
-        the old Phase 5.0 pointer is formally retired.
+        **Goal:** Single-copy docs reflect the final command surface; ADR-012 captures the full Phase 3.R
+        vocabulary realignment (both passes); the old Phase 5.0 pointer retires formally.
 
         - Single-copy docs to update:
           `plan-arc-modes.md`, `plan-work-unit-mobility.md`, `docs/the-framework.md`,
           `docs/reference/team-coordination.md`, `docs/index.md`, `docs/faq.md`
-        - ADR-012 amendment: append a dated amendment section; preserve the original decision body unchanged
-        - Amendment content covers `pull → fetch`, new `pull = fetch + load`, and `sync` as direction-aware porcelain
-          with the durable 2×2 sync-state matrix reference
+        - ADR-012 amendment — append a dated amendment section; preserve the original decision body unchanged.
+          Content covers both passes:
+            - First pass: `pull → fetch`, `pull = fetch + load`, `sync` as direction-aware porcelain, durable
+              2×2 sync-state matrix
+            - Second pass: three new probes (extensions/methods/active status), vocabulary rename
+              (`local unsaved`, canonical `conflict`), merge-recovery semantics, bounded ancestor walk with
+              `--max-walk` override, confirmation-by-default + `--yes` policy
         - QUICK-REFERENCE should point to the amendment for durable semantics context
-        - Verify the old Phase 5.0 pointer now resolves entirely through 3.R.e / 3.R.f
+        - Verify the old Phase 5.0 pointer now resolves entirely through 3.R.e / 3.R.f (confirm no second-pass
+          addition introduced a 5.0-adjacent reference)
         - Leave `reference/archive/**` and `reference/analysis/**` untouched as historical record
 
 - [ ] **3.R.g Hook invocation fix for non-executable shell scripts**
@@ -1393,21 +1409,207 @@ extension is documented in 3.R.h.
     - Two-copy sync any hook changes
     - Acceptance is explicit fresh-clone safety, not a doc-note-only fallback
 
-- [ ] **3.R.h Phase 3.R close — quality gates + strategy doc addendum**
+**Second Pass — Post-Review Remediation**
 
-    **Goal:** Close gate with all quality gates green; document the phase-level `X.R` extension so future uses of
-    the pattern have a clear precedent.
+**Purpose:** Address findings from the post-implementation review of 3.R.a–h. Four groupings: safety behaviors
+(user-visible correctness on destructive paths), vocabulary + reporting (CLI output matches mental models),
+probe-pattern extension (consistent coverage across extensions / methods / active-status, not a one-off), and
+structural cleanup + test coverage (the integration gap that let silent-discard slip past unit tests).
+
+**Origin:** `/arc-task-review` on 3.R.a–h surfaced three warrants-discussion items (non-TTY conflict exits silently,
+push-recovery "pull first" discards just-saved note, sync pull path skips overwrite confirm) and a set of smaller
+quality concerns. External research (shallow-clone conventions, Gerrit prior art) fed the ancestor-walk strategy.
+Probe-pattern extension was added to this pass rather than deferred because the first-pass 3.R.e.1 surface proved
+clean enough that inconsistency across the three remaining session-init discovery points is the bigger risk.
+
+- [ ] **3.R.i Safety behaviors**
+
+    **Goal:** Every user-visible destructive path confirms by default, degrades gracefully in non-TTY environments,
+    never silently discards saved state, and surfaces actionable diagnostics when bounded operations hit their cap.
+
+    - [ ] **3.R.i.a Non-TTY conflict + failure hardening**
+        - `handleConflict` (`sync.ts:85–93`) currently exits code 1 with `p.log.error` in non-TTY. Degrade to
+          save-only + loud warning — same shape the `prompt` policy already uses.
+        - `pushWithInteractiveRecovery` divergence branch (`push-recovery.ts:55–57`) also exits as generic `failed`
+          in non-TTY. Change to an explicit discriminant (`{kind: "failed-nontty-conflict"}`) with a "local save
+          preserved; push skipped" banner so agents can't mistake it for an unknown failure.
+        - Add unit coverage for both non-TTY paths asserting the save is preserved and the warning is emitted.
+
+    - [ ] **3.R.i.b Push-recovery merge redesign**
+
+        **Goal:** Replace the current "Pull first (overwrite local with remote)" option — which silently discards
+        the just-saved note and retries a no-op push — with merge-like behavior matching `arc sync`'s intent.
+
+        **Design decisions (resolved pre-implementation):**
+        - New option label: `"Merge: rebase my save onto remote, then push"`
+        - Behavior: force-fetch remote into local ref (base), re-save current disk state onto the new ref (user's
+          work on top), push the combined state
+        - Result discriminant: `{kind: "ok-recovered", via: "merge"}` replaces `via: "pull-then-push"` entirely
+
+        Build `test-first` (one behavior at a time):
+        - Force-fetch updates local ref to remote's hash
+        - Re-save attaches new note to HEAD reflecting current disk state
+        - Push after re-save succeeds against aligned remote
+        - `UserSaveError` during re-save (e.g., empty dir) surfaces with a clear message; no partial push
+
+    - [ ] **3.R.i.c Confirmation defaults + `--yes` flag**
+        - `handlePullDirection` (`sync.ts:119–144`) currently force-pulls without confirm. Add the same
+          "local notes exist — overwrite?" prompt used by `arc user pull`.
+        - Add `--yes` / `-y` flag to: `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`. Non-interactive
+          environments imply `--yes` for this confirm (orthogonal to 3.R.i.a's policy degradation — failures there
+          stay loud regardless of `--yes`).
+        - Standardize prompt copy — one shape across commands ("X will be overwritten. Continue?").
+        - Tests: confirm-present, confirm-declined (cancel), `--yes` bypass.
+
+    - [ ] **3.R.i.d Ancestor-walk cap + diagnostic**
+
+        **Goal:** Replace the fully-uncapped walk (landed in 3.R.e.2) with a bounded default + explicit override,
+        matching shallow-clone conventions and avoiding silent O(n) walks on large histories.
+
+        **Design decisions (resolved pre-implementation):**
+        - Default cap: 1000 (covers typical dev branch depth; aligns with shallow-clone defaults documented in
+          the research brief)
+        - Override: `--max-walk <n>` flag on `arc user load`, `arc user pull`, `arc sync` pull direction
+        - Cap-hit is never silent — always surfaces as a named diagnostic state
+
+        Build `test-first` (one behavior at a time):
+        - Cap default applies when no flag passed; walk stops at 1000
+        - `--max-walk` overrides both directions (smaller or larger than default)
+        - Cap-hit without match emits `"walked N ancestors without finding a note; use --max-walk to search deeper
+          or confirm remote state with arc user status"`
+        - When a note is found, load summary reports ancestor distance ("Loaded from N commits back") only when
+          distance > 0
+
+- [ ] **3.R.j Vocabulary + reporting**
+
+    **Goal:** CLI output matches user mental models without requiring code-level translation. Single canonical
+    terms across layers. Reporting surfaces enough context that a cold-open user doesn't have to guess.
+
+    - [ ] **3.R.j.a Status vocabulary rename + detail enrichment**
+        - `disk ahead` → `local unsaved` across `UserStatusHeadline` and all user-facing strings.
+        - Audit remaining headlines (`in sync`, `remote ahead`, `conflict`, `remote unavailable`) — change any that
+          fail the cold-open-interpretation test. Document canonical terms in a short comment in `types.ts`.
+        - Status detail output additions: (1) ancestor distance when > 0 (threads through from 3.R.i.d's load
+          summary work), (2) save timestamp relative-format ("saved 11 hours ago") from the noted commit's author
+          date, (3) when `local unsaved`: direction hint ("disk has unsaved edits" vs "disk missing updates from
+          saved note" — requires manifest comparison to determine).
+        - Update `3.R.b` assertions in `user-status.test.ts` that check the old `disk ahead` string.
+
+    - [ ] **3.R.j.b `conflict` vs `divergence` canonical language**
+        - Pick `conflict` as canonical user-facing term for "refs both moved from common ancestor."
+        - Retain `diverged`/`divergence` only when paraphrasing would hide git's own error output verbatim.
+        - Keep `UserSyncRefState.diverged` in the type (renaming breaks no caller logic worth the churn), but map
+          to `"conflict"` at every presentation layer. Add JSDoc pointing to canonical presentation term.
+        - Sweep user-facing strings (e.g., `pushWithInteractiveRecovery`'s "Push rejected — remote has diverged..."
+          → "Push rejected — local and remote notes conflict (both moved since common ancestor).")
+
+    - [ ] **3.R.j.c Label + spinner + summary consistency**
+        - `handlePullDirection` spinner "Pulling" / result-box label "Loaded" — pick one verb, apply file-wide.
+        - Audit verb tense across all `p.log.info` / `p.spinner` / `p.note` calls in sync / user command layer.
+          Document the chosen convention in a short comment near the first use.
+        - Doc touch: `session-handoff.md § Save to Git Notes` gains one paragraph telling agents to surface
+          `arc sync` exit code in the end-of-session summary so success/failure is visible (addresses the
+          "work didn't land but user thought it did" class of confusion from the review).
+        - Two-copy sync on `session-handoff.md`.
+
+- [ ] **3.R.k Probe-pattern extension — extensions, methods, active status**
+
+    **Goal:** Non-destructive CLI probes returning structured state for session-init's harness layer to consume.
+    Pattern established by 3.R.e.1's `arc user status --session-init` extended consistently across the three
+    remaining session-init discovery points. Probes stay stateless and fast; no state mutation.
+
+    **Scope note:** `arc hooks status` is out of scope for this work unit (session-init doesn't discover hook
+    state at init time). Worth a future work unit if hook health surfaces as a need.
+
+    - [ ] **3.R.k.a `arc extensions status` probe**
+        - Enumerate active extensions (replaces the `grep -l "^active: true" .arc/system/extensions/*.md` in
+          session-init Step 2's identity/role/extensions batch).
+        - Return: active basenames, inactive basenames, orphaned extension-point references (workflow anchor
+          suffixes pointing at non-existent extension files — surfaced only for `--all` mode; `--session-init`
+          mode returns only the active list).
+        - Unit tests on formatter; integration test against a fixture tree.
+
+    - [ ] **3.R.k.b `arc methods status` probe**
+        - Enumerate methods with `override-active: true` (project has overridden the ARC default).
+        - Return: override-active methods, defaults-active methods. `--session-init` mode returns only the
+          override-active list since defaults don't affect loading behavior.
+        - Same test shape as `.k.a`.
+
+    - [ ] **3.R.k.c `arc active status` probe**
+        - Full mode: enumerate `.arc/active/**/status-*.md`, parse Branch / State / Next Task / Task List fields,
+          return candidates for disambiguation.
+        - Lite mode: single fixed-path check against `.arc/active/status.md`.
+        - Zero-file / one-file / many-file cases map to existing session-init disambiguation logic from
+          session-init.md Step 2, Item 8.
+        - `--session-init` mode returns either the resolved path (one-file case), `null` (zero-file), or a
+          structured candidate list (many-file case for agent-side disambiguation).
+        - Integration test against a fixture with multiple status files covering all three cases.
+
+    - [ ] **3.R.k.d Session-init workflow integration**
+        - Replace `grep -l "^active: true"` in session-init Step 2 with `arc extensions status --session-init`.
+        - Replace any init-time method-inspection language with `arc methods status --session-init`.
+        - Replace the Full-mode many-file status disambiguation logic in Step 2 Item 8 with
+          `arc active status --session-init`, retaining the user-prompt fallback for many-file cases.
+        - Add a short section to `strategy-session-operations.md § Context Loading Model` describing the probe
+          pattern — non-destructive, harness-consumes, when to reach for it in future extensions.
+        - Two-copy sync on `session-init.md`.
+
+- [ ] **3.R.l Structural cleanup + test coverage**
+
+    **Goal:** Close review-surfaced code quality items; close the integration coverage gap that let
+    push-recovery's silent-discard slip past unit tests.
+
+    - [ ] **3.R.l.a `findNearestUserNote` cleanup**
+        - Remove unreachable `break` after `return` in the walk loop (`save-load.ts` ~line 190).
+        - Collapse `if (!noteContent || !foundCommit) return null; return null;` to a single `return null`.
+        - Extract the rev-list walk into a named helper (`walkAncestorsForNote`) so 3.R.i.d's cap + diagnostic
+          has a clean injection point.
+        - Pure cleanup; no behavior change from this subtask alone.
+
+    - [ ] **3.R.l.b Module relocation**
+        - `runUserPush`, `hasRemoteNotes`, `hasLocalNotes`, `runUserFetch`, `runUserPull` move from
+          `commands/user/sync-status.ts` to a new `commands/user/push-fetch.ts` (push/fetch primitives, not
+          status). `inspectUserSyncState`, `runUserSessionInitStatus`, `runUserStatus`, `buildUserStatusResult`
+          stay in `sync-status.ts`.
+        - `readPmMode` + `readSessionRemoteSyncEnabled` move from `handlers/shared.ts` to a new
+          `lib/config-readers.ts` (config helpers, not handler shared utilities).
+        - `commands/user.ts` facade updated; no public API surface change.
+        - Tests move with their target modules; no content change.
+
+    - [ ] **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
+        - New integration test exercising the full flow end-to-end against real git notes: local save → remote
+          force-reset to diverge → `arc sync` → conflict detected → merge recovery (3.R.i.b) runs → verify final
+          state: local disk reflects user's work, local ref contains new save on top of remote's base, remote ref
+          equals local ref post-push.
+        - Closes the coverage gap the review flagged — unit tests mocked git-note I/O so the silent-discard
+          behavior couldn't be observed.
+        - Lives in `__tests__/integration/user.test.ts` alongside existing pull-flow tests.
+
+- [ ] **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
+
+    **Goal:** Second-pass remediation lands cleanly. Phase 3.R quality gates (final, covering both passes) run
+    here; the strategy-doc addendum from retired 3.R.h lands here. First-pass residual items (3.R.g, 3.R.f) run
+    after, not before — second pass would have churned 3.R.f's target files and 3.R.g's hook fix would have been
+    redone against a moving surface.
 
     - Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`,
       `test` (unit + integration), `test:e2e`
-    - Required local smoke on the finalized command surface:
-      `arc user add`, `save`, `load`, `fetch`, `pull`, `push`, `status`, `sync`
-    - Required local smoke for `status` and `sync` covers the actionable state shapes landed in 3.R.b and 3.R.e
-    - Optional manual dogfooding: reproduce the original multi-machine divergence scenario on the secondary laptop
-      once the full phase is in place
-    - Strategy addendum: update `strategy-task-list-formatting.md` § Revision Numbering to document the phase-level
-      `X.R` form for cross-cutting follow-on work; tighten the old `3.1.R.1/3.1.R.2` example to
-      `3.1.R.a/3.1.R.b` if that keeps the doc aligned with current numbering rules
+    - Required local smoke on the full Phase 3.R command surface (both passes):
+      `arc user add`, `save`, `load`, `fetch`, `pull`, `push`, `status`, `sync`,
+      `arc extensions status`, `arc methods status`, `arc active status`
+    - Required local smoke on second-pass behavior additions: `arc sync` merge-recovery path,
+      `arc user load --max-walk` flag + cap-hit diagnostic, status output carrying `local unsaved` headline,
+      ancestor-distance, and save-timestamp detail lines
+    - Optional manual dogfooding: reproduce the original multi-machine divergence scenario on the secondary
+      laptop once both passes are in place
+    - Strategy addendum (moved from retired 3.R.h): update `strategy-task-list-formatting.md` § Revision
+      Numbering to document the phase-level `X.R` form for cross-cutting follow-on work; tighten the old
+      `3.1.R.1/3.1.R.2` example to `3.1.R.a/3.1.R.b` to align with current numbering rules
+    - Confirm `atomic-session-init-optimization.md` has no remaining items deferred from either pass
+    - Update `status-session-init-optimization.md`: Last Completed = 3.R.m; Next Task = 3.R.g; Next Action =
+      begin 3.R.g
+
+    **Next action (after close):** 3.R.g → 3.R.f → Phase 3.R archive + begin Phase 4.1.
 
 ---
 
