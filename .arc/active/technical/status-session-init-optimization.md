@@ -21,8 +21,11 @@
   `.pre-load-backup.json` visibility during transition. Updated `cli.ts`,
   `commands/user.ts`, `handlers/user.ts`, `__tests__/unit/user-handlers.test.ts`,
   new `__tests__/unit/user-status.test.ts`, and `__tests__/integration/user.test.ts`.
-  Verification: `lint:ts`, `typecheck`, `typecheck:test`, targeted user/status vitest
-  suites, and task-list markdown lint all clean.
+  Follow-up incidental cleanup split `commands/user.ts` behind the same public import
+  surface into focused `user/` modules (`add`, `save-load`, `sync-status`, `format`,
+  `types`, `shared`) to pull the public file back from ~900 lines without changing
+  handler/test call sites. Verification: `lint:ts`, `typecheck`, `typecheck:test`,
+  targeted user/status vitest suites, and task-list markdown lint all clean.
 - **Blockers:** [none]
 - **Next Action:** Begin Task 3.R.d — add `session.remote_sync: enabled | disabled`
   to both `arc-config.yml` copies with inline documentation only; no behavior change yet.
