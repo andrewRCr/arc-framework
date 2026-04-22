@@ -1,0 +1,260 @@
+/**
+ * Unit tests for `arc status` Clack summary formatters.
+ *
+ * Covers the composite's per-slot rendering (ok → delegated formatter,
+ * error → single-line "unavailable" marker) and the identity pointer
+ * block. Per-slot ok rendering is already exhaustively covered by each
+ * probe's own format tests (active-format.test.ts etc.); this suite
+ * checks the composite glue — section headers, stable order, error
+ * fallback, and that each probe's formatter is actually invoked.
+ */
+
+import { describe, it, expect } from "vitest";
+
+import {
+  buildSessionInitStatusSummary,
+  buildStatusSummary,
+} from "../../src/commands/status.js";
+import type {
+  Probe,
+  SessionInitProbeResult,
+  StatusResult,
+} from "../../src/commands/status.js";
+import type { ActiveStatusResult } from "../../src/commands/active/types.js";
+import type { ConfigStatusResult } from "../../src/commands/config/types.js";
+import type { ExtensionsStatusResult } from "../../src/commands/extensions/types.js";
+import type { UserStatusResult } from "../../src/commands/user/types.js";
+
+function okUser(): Probe<UserStatusResult> {
+  return {
+    ok: true,
+    value: {
+      identity: "andrew",
+      headline: "in sync",
+      summary: "andrew: in sync",
+      actionHint: null,
+      detailLines: [],
+      remoteChecked: true,
+      refState: "same",
+      diskState: "same",
+      savedCommit: null,
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      savedAtRelative: null,
+      unsavedDirection: null,
+      backupFiles: [],
+      remoteIdentities: [],
+    },
+  };
+}
+
+function okExtensions(): Probe<ExtensionsStatusResult> {
+  return {
+    ok: true,
+    value: {
+      mode: "full",
+      extensions: [{ name: "pre-merge-review", active: true, description: "d" }],
+      activeCount: 1,
+      inactiveCount: 0,
+      orphanCount: 0,
+      orphans: [],
+      includeOrphanDetails: false,
+      warnings: [],
+    },
+  };
+}
+
+function okConfig(): Probe<ConfigStatusResult> {
+  return {
+    ok: true,
+    value: {
+      mode: "full",
+      settings: {
+        "branch.base": "main",
+        "branch.protection": "partial",
+        "commit.format": "conventional",
+        "commit.context_footer": "required",
+        "commit.custom_pattern": "",
+        "commit.context_pattern": "",
+        "merge.strategy": "merge",
+        "review.pre_merge": "enabled",
+        "platform.type": "github",
+        "pm.mode": "none",
+        "team.mode": "false",
+        "session.remote_sync": "enabled",
+        "user.sync_push": "always",
+      },
+      defaultsApplied: [],
+      errors: [],
+    },
+  };
+}
+
+function okActive(): Probe<ActiveStatusResult> {
+  return {
+    ok: true,
+    value: { mode: "full", layout: "full", candidates: [], warnings: [] },
+  };
+}
+
+function makeFullResult(overrides: Partial<StatusResult> = {}): StatusResult {
+  return {
+    mode: "full",
+    identity: { identity: "andrew", role: "maintainer" },
+    user: okUser(),
+    extensions: okExtensions(),
+    config: okConfig(),
+    active: okActive(),
+    ...overrides,
+  };
+}
+
+function makeSessionInitResult(
+  overrides: Partial<SessionInitProbeResult> = {},
+): SessionInitProbeResult {
+  return {
+    mode: "session-init",
+    identity: { identity: "andrew", role: "maintainer" },
+    user: {
+      ok: true,
+      value: {
+        identity: "andrew",
+        state: "clean",
+        summary: "andrew: session-init remote state clean",
+        detailLines: ["Remote notes match local notes."],
+        actionHint: null,
+        shouldPromptToPull: false,
+      },
+    },
+    extensions: { ok: true, value: { mode: "session-init", active: ["pre-merge-review"] } },
+    config: {
+      ok: true,
+      value: {
+        mode: "session-init",
+        settings: {
+          "session.remote_sync": "enabled",
+          "branch.protection": "partial",
+          "pm.mode": "none",
+          "commit.format": "conventional",
+          "commit.context_footer": "required",
+        },
+        defaultsApplied: [],
+        errors: [],
+      },
+    },
+    active: {
+      ok: true,
+      value: {
+        mode: "session-init",
+        layout: "full",
+        resolution: "single",
+        path: ".arc/active/technical/status-foo.md",
+        candidates: [],
+        warnings: [],
+      },
+    },
+    ...overrides,
+  };
+}
+
+describe("buildStatusSummary — full mode", () => {
+  it("includes all section headers in stable order", () => {
+    const summary = buildStatusSummary(makeFullResult());
+    // Top-level headers are at column 0; sub-sections (e.g., the
+    // extensions formatter's own "Active:" list header) are indented,
+    // so line-anchored matching is the discriminator.
+    const lines = summary.split("\n");
+    const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
+    const identityIdx = idxOfLine("Identity:");
+    const userIdx = idxOfLine("User:");
+    const extIdx = idxOfLine("Extensions:");
+    const configIdx = idxOfLine("Config:");
+    const activeIdx = idxOfLine("Active:");
+    expect(identityIdx).toBeGreaterThanOrEqual(0);
+    expect(userIdx).toBeGreaterThan(identityIdx);
+    expect(extIdx).toBeGreaterThan(userIdx);
+    expect(configIdx).toBeGreaterThan(extIdx);
+    expect(activeIdx).toBeGreaterThan(configIdx);
+  });
+
+  it("renders the identity block with arc.identity and arc.role values", () => {
+    const summary = buildStatusSummary(makeFullResult());
+    expect(summary).toContain("arc.identity: andrew");
+    expect(summary).toContain("arc.role:     maintainer");
+  });
+
+  it("renders (unset) for null identity and role", () => {
+    const summary = buildStatusSummary(
+      makeFullResult({ identity: { identity: null, role: null } }),
+    );
+    expect(summary).toContain("arc.identity: (unset)");
+    expect(summary).toContain("arc.role:     (unset)");
+  });
+
+  it("delegates each slot to its probe's formatter", () => {
+    const summary = buildStatusSummary(makeFullResult());
+    // User formatter output: "andrew: in sync"
+    expect(summary).toContain("andrew: in sync");
+    // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
+    expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
+    // Config formatter: "13 agent-consumable settings"
+    expect(summary).toContain("13 agent-consumable settings");
+    // Active formatter: "0 active work units"
+    expect(summary).toContain("0 active work units");
+  });
+
+  it("renders an (unavailable) marker for an errored slot", () => {
+    const summary = buildStatusSummary(
+      makeFullResult({
+        extensions: { ok: false, error: { kind: "runtime", message: "dir missing" } },
+      }),
+    );
+    expect(summary).toContain("Extensions:");
+    expect(summary).toContain("(unavailable) dir missing");
+    // Other slots still render
+    expect(summary).toContain("Config:");
+    expect(summary).toContain("Active:");
+  });
+
+  it("renders the identity-missing marker for a user slot short-circuit", () => {
+    const summary = buildStatusSummary(
+      makeFullResult({
+        identity: { identity: null, role: null },
+        user: {
+          ok: false,
+          error: { kind: "identity-missing", message: "no arc.identity" },
+        },
+      }),
+    );
+    expect(summary).toContain("User:");
+    expect(summary).toContain("(unavailable) no arc.identity");
+  });
+});
+
+describe("buildSessionInitStatusSummary — scoped mode", () => {
+  it("includes identity block plus all four probe sections", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    expect(summary).toContain("Identity:");
+    expect(summary).toContain("User:");
+    expect(summary).toContain("Extensions:");
+    expect(summary).toContain("Config:");
+    expect(summary).toContain("Active:");
+  });
+
+  it("delegates each slot to its session-init formatter", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    expect(summary).toContain("session-init remote state clean");
+    expect(summary).toContain("1 active extensions");
+    expect(summary).toContain("Init-gating settings");
+    expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
+  });
+
+  it("renders an (unavailable) marker for an errored session-init slot", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        user: { ok: false, error: { kind: "runtime", message: "git config fetch failed" } },
+      }),
+    );
+    expect(summary).toContain("(unavailable) git config fetch failed");
+  });
+});

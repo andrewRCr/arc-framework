@@ -1871,44 +1871,60 @@ clean enough that inconsistency across the three remaining session-init discover
         `taskList` parsed cleanly (inline backticks stripped from `Task 3.R.k.d — arc active status probe`
         and from the task-list path).
 
-    - [ ] **3.R.k.e Composite `arc status` command**
+    - [x] **3.R.k.e Composite `arc status` command**
 
-        **Goal:** One orchestration call that session-init consumes in place of four separate probes.
-        Extensible slot for future probes without session-init-workflow churn.
+        **Orchestrator:** `runStatus` / `runSessionInitStatus` at `src/commands/status/run.ts` fan out via
+        `Promise.all` over four injected probe slots (`user`, `extensions`, `config`, `active`), wrapping
+        each probe's resolution or rejection into a typed `Probe<T>` union (`{ ok: true; value } | { ok:
+        false; error: { kind: "identity-missing" | "runtime"; message } }`). Rejections never bubble —
+        the composite always resolves with a typed envelope and `process.exit` stays untouched. User-slot
+        short-circuit: when `identity === null`, the slot resolves synchronously to `identity-missing`
+        without invoking the user probe (user notes are identity-scoped; per session-init.md Step 1.5).
 
-        **Depends on:** 3.R.k.a (frees the `arc status` name), 3.R.k.b (extensions probe helper +
-        `runUserStatus --json`), 3.R.k.c (config probe helper), 3.R.k.d (active probe helper).
+        **Types:** `src/commands/status/types.ts` — `StatusResult` (full) and `SessionInitProbeResult`
+        (scoped) discriminated on `mode`, with per-slot `Probe<T>` wrapper. `StatusProbes` /
+        `SessionInitProbes` interfaces bind cwd and I/O at construction so the orchestrator sees simple
+        `() => Promise<T>` functions — enables trivial test mocking without `vi.mock`. Top-level
+        `identity: { identity: string | null; role: string | null }` resolves in the handler via two
+        parallel `git config --get` reads through `gitConfigGet`; empty/whitespace normalize to `null`
+        via the exported `normalizeGitConfigValue` helper.
 
-        Build `test-first` (one behavior at a time):
-        - Composite invokes the four probe helpers in parallel via `Promise.all`
-        - Composite returns typed result — `StatusResult` (full) or `SessionInitProbeResult` (scoped)
-        - Default (no-flag) renders four Clack sections — one per probe — in a stable order
-        - `--session-init` narrows each probe to its session-init-scoped shape
-        - `--json` emits the composite as JSON (both full and scoped)
-        - Partial-failure behavior: if one probe errors, its slot in the result contains a typed error
-          field; other probes' results are unaffected. Composite exits 0 (individual errors surfaced via
-          result shape, not via process exit — session-init decides what to do)
-        - Composite result includes a top-level `identity` field — `{ identity, role }` — populated by
-          direct `git config arc.identity` / `git config arc.role` reads in the composite handler (cheap
-          two-call lookups logically parallel to the probe slots; not a separate probe module). Empty
-          values normalize to `null`; session-init consumes these in place of its own Batch 1 git config
-          reads. The `config` slot hosts the arc-config probe result (3.R.k.c) — distinct concern
+        **Format:** `src/commands/status/format.ts` — `buildStatusSummary` /
+        `buildSessionInitStatusSummary` render five stably-ordered sections (Identity, User, Extensions,
+        Config, Active). Each slot delegates to the probe's own `build*Summary` formatter on ok;
+        errored slots render `(unavailable) <message>` so one probe's failure doesn't obscure the
+        others. Session-init variant delegates to the `*SessionInitSummary` formatters.
 
-        **Layout:**
-        - Command module in `src/commands/status/` (the old `status.ts` is now `health.ts` per 3.R.k.a)
-        - Composite handler in `src/handlers/status.ts` (new)
-        - Type for the composite result in `src/commands/status/types.ts` — four probe result slots
-          (`user`, `extensions`, `active`, `config`) plus top-level `identity: { identity: string | null;
-          role: string | null }` for the inline git-config reads
-        - CLI wiring in `src/cli.ts` — `arc status` with `-y`-style flag additions
+        **Handler:** `src/handlers/status.ts` — constructs the real probe bundle from
+        `createUserIOContext()` + per-probe imports, reads identity/role via parallel `gitConfigGet`
+        calls, and branches on `opts.sessionInit` / `opts.json`. `--json` writes the typed envelope via
+        `process.stdout.write` with a trailing newline; default mode renders Clack `intro` / `note` /
+        `outro`.
 
-        **Tests:**
-        - Unit tests: mock the four probe helpers, assert orchestration (all invoked, parallel via
-          Promise.all, stable result ordering, per-probe error isolation)
-        - Integration test: real fixture tree end-to-end — clean state, conflict state (user-sync), multi-WU
-          state, mixed (one probe errors, others succeed)
-        - Unit test: `identity` field resolves correctly (identity/role present, absent, empty strings
-          normalized to `null`)
+        **CLI:** `src/cli.ts` — `arc status` registered after `arc active status` with `--session-init`
+        and `--json` flags (matches the individual probe commands' surface).
+
+        **Layout delivered:**
+        - `src/commands/status/{types,run,format}.ts` (new)
+        - `src/commands/status.ts` facade (new — re-exports)
+        - `src/handlers/status.ts` (new)
+        - `src/cli.ts` — composite `arc status` command wired
+
+        **Tier 1 green:** typecheck / typecheck:test / lint:ts / lint:sh / test:unit (757, +32: 19
+        orchestrator + 5 normalizer + 8 format) / build. Integration suite adds 4 new tests under
+        `__tests__/integration/status.test.ts` (clean state, multi-WU session-init resolution, mixed
+        partial-failure, identity-missing short-circuit).
+
+        **End-to-end sanity:** `npx arc status --session-init --json` on this repo returns
+        `{mode:"session-init",identity:{identity:"andrew",role:"maintainer"},user:{ok:true,…},…}` with
+        all four slots `ok:true` and active `resolution:"single"` pointing at the current WU's status
+        file. Default-mode `npx arc status` renders the five Clack sections in stable order with the
+        identity pointers + full probe summaries.
+
+        **Batching rationale:** Orchestrator / format / handler-normalizer tests batched per the
+        test-first method's batching-judgment clause — behaviors are tightly coupled to a single
+        orchestrator function and share mock-probe setup; one-at-a-time slicing had no independent
+        discovery value.
 
     - [ ] **3.R.k.f Session-init workflow integration + strategy pointer**
 

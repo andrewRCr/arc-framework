@@ -19,6 +19,7 @@ import {
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus } from "./handlers/active.js";
+import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
@@ -162,6 +163,15 @@ activeCmd
   .option("--session-init", "Emit resolved path / null / candidate list for session-init")
   .option("--json", "Emit the typed result as JSON")
   .action(handleActiveStatus);
+
+// --- Status (composite) ---
+
+program
+  .command("status")
+  .description("Composite probe: identity + user-sync + extensions + config + active state")
+  .option("--session-init", "Emit the session-init-scoped subset for harness consumption")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleStatus);
 
 // --- Sync ---
 
