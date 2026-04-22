@@ -1643,9 +1643,9 @@ clean enough that inconsistency across the three remaining session-init discover
 - [ ] **3.R.k Command surface cleanup + probe-pattern extension**
 
     **Goal:** Non-destructive CLI probes returning structured state for session-init's harness layer to consume.
-    Two individual probes (extensions, active) plus a composite `arc status` that orchestrates them alongside
-    the retrofitted `arc user status`. Session-init calls the composite once instead of three separate probes.
-    Individual probes remain available standalone.
+    Three individual probes (extensions, active, config) plus a composite `arc status` that orchestrates them
+    alongside the retrofitted `arc user status`. Session-init calls the composite once instead of four separate
+    probes. Individual probes remain available standalone.
 
     **Design decisions (resolved pre-implementation):**
 
@@ -1654,13 +1654,23 @@ clean enough that inconsistency across the three remaining session-init discover
       Clack. `arc user status --session-init` is retrofit to accept `--json` in the same pass for uniformity —
       no asymmetric first-mover on the wire contract.
     - **Composite lives at `arc status`.** The `arc status` → `arc health` rename (3.R.k.a) frees the
-      `arc status` name. The freed slot hosts a composite that invokes the three probe helpers via
-      `Promise.all` and emits a unified result. Session-init calls `arc status --session-init --json` once;
-      agent parses one output. Standalone individuals remain for debugging, CI, and future consumers.
+      `arc status` name. The freed slot hosts a composite that invokes the four probe helpers (user,
+      extensions, active, config) via `Promise.all` and emits a unified result. Session-init calls
+      `arc status --session-init --json` once; agent parses one output. Standalone individuals remain for
+      debugging, CI, and future consumers.
     - **No methods probe.** Session-init does not inspect method override state at init time — methods load
       at workflow trigger, not at init. Dropped from the original 3.R.k scope.
     - **Shared lib for extensions scan.** `lib/extensions/{point-scanner,orphan-detector}.ts` serves both the
       extensions probe's `--all` mode and Task 4.6 (D7b pre-commit hook). Shipped here; 4.6 consumes.
+    - **arc-config probe added mid-WU.** `arc-config.yml` is ~170 lines but ~85% inline comments (documentation
+      for human editors); the agent consumes key-value pairs only. Probe (`arc config status`, 3.R.k.c) emits
+      typed settings as JSON — full scope returns all agent-consumable settings, `--session-init` narrows to
+      init-gating fields. Replaces Batch 1's whole-file read. `hooks.*` excluded entirely — shell-consumed by
+      git hooks, never read by the agent.
+    - **Session-init ordering review (3.R.k.g) runs last.** Current Step 1.5 ("Sync Remote State") precedes
+      Step 2 but references "After Batch 1 resolves `{identity}`" — Batch 1 fires inside Step 2. The reorder
+      depends on all probes + composite integration landing first so it restructures against final command
+      surface, not intermediate states.
     - **`arc active` naming holds.** `.arc/active/` houses WUs as bundles of co-named files (prd/notes/atomic/
       tasks/status). `arc active status` = "for each in-flight WU, show its state marker" — parallels
       `arc user status` (sync state of the user bundle). Directory and command agree on scope.
@@ -1777,7 +1787,47 @@ clean enough that inconsistency across the three remaining session-init discover
         - `--json` flag added to `arc user status` in `src/cli.ts`; `handleUserStatus` branches on
           the flag to emit JSON and suppress Clack ceremony
 
-    - [ ] **3.R.k.c `arc active status` probe**
+    - [ ] **3.R.k.c `arc config status` probe**
+
+        **Goal:** Structured key-value read of `arc-config.yml`, stripping human-facing comments the agent
+        doesn't consume. Full mode returns all agent-consumable settings; `--session-init` narrows to the
+        init-gating subset.
+
+        **Rationale:** `arc-config.yml` is ~170 lines but ~85% inline comments (documentation for human
+        editors). The agent needs key-value pairs only. Current Batch 1 reads the whole file; the probe
+        reduces that to ~10 JSON fields (full) or ~5 (session-init). `hooks.*` excluded entirely — those
+        are shell-consumed by git hooks, never read by the agent.
+
+        Build `test-first` (one behavior at a time):
+        - Parser handles the flat key-value format (hook-compatible grep/cut shape — no nested structures)
+        - Full-mode `ConfigStatusResult` includes: `branch.base`, `branch.protection`, `commit.format`,
+          `commit.context_footer`, `commit.custom_pattern`, `commit.context_pattern`, `merge.strategy`,
+          `review.pre_merge`, `platform.type`, `pm.mode`, `team.mode`, `session.remote_sync`,
+          `user.sync_push`
+        - `--session-init` narrows to `session.remote_sync`, `branch.protection`, `pm.mode`,
+          `commit.format`, `commit.context_footer` — the fields that gate decisions before a dedicated
+          workflow/method loads. Others load lazily at their consuming site
+        - `--json` shape: typed discriminated union on `mode` — `ConfigStatusResult` (full) vs
+          `ConfigSessionInitResult` (scoped)
+        - Missing file → typed error result (not crash); malformed YAML → typed error result
+        - Missing keys resolve to documented defaults (already captured as inline comments in
+          `arc-config.yml`; parser carries a fallback map mirroring them)
+
+        **Layout:**
+        - Shared reader helper in `src/lib/config/` parsing the flat arc-config.yml format. Consume and
+          extend existing `readPmMode` / `readSessionRemoteSyncEnabled` from `handlers/shared.ts` (3.R.l.b
+          will relocate those to `lib/config-readers.ts` — may co-land with this task or stay on the
+          3.R.l.b timeline; decide during implementation)
+        - Command module in `src/commands/config/`
+        - Handler in `src/handlers/config.ts`; CLI wiring in `src/cli.ts`
+
+        **Tests:**
+        - Unit tests on the parser (valid flat config, missing file, malformed YAML, unknown keys
+          ignored, whitespace/comment handling, default fallback for missing keys)
+        - Unit tests on the formatter (Clack + JSON, full + session-init shapes)
+        - Integration test against a real arc-config.yml fixture
+
+    - [ ] **3.R.k.d `arc active status` probe**
 
         **Goal:** Structured enumeration of in-flight work units — full state per WU for general consumers,
         session-init-scoped resolution for the harness.
@@ -1807,55 +1857,60 @@ clean enough that inconsistency across the three remaining session-init discover
         - Unit tests on the formatter (Clack + JSON, full + session-init shapes)
         - Integration test against fixture trees: zero-file, one-file, many-file (Full); single-file (Lite)
 
-    - [ ] **3.R.k.d Composite `arc status` command**
+    - [ ] **3.R.k.e Composite `arc status` command**
 
-        **Goal:** One orchestration call that session-init consumes in place of three separate probes.
+        **Goal:** One orchestration call that session-init consumes in place of four separate probes.
         Extensible slot for future probes without session-init-workflow churn.
 
         **Depends on:** 3.R.k.a (frees the `arc status` name), 3.R.k.b (extensions probe helper +
-        `runUserStatus --json`), 3.R.k.c (active probe helper).
+        `runUserStatus --json`), 3.R.k.c (config probe helper), 3.R.k.d (active probe helper).
 
         Build `test-first` (one behavior at a time):
-        - Composite invokes the three probe helpers in parallel via `Promise.all`
+        - Composite invokes the four probe helpers in parallel via `Promise.all`
         - Composite returns typed result — `StatusResult` (full) or `SessionInitProbeResult` (scoped)
-        - Default (no-flag) renders three Clack sections — one per probe — in a stable order
+        - Default (no-flag) renders four Clack sections — one per probe — in a stable order
         - `--session-init` narrows each probe to its session-init-scoped shape
         - `--json` emits the composite as JSON (both full and scoped)
         - Partial-failure behavior: if one probe errors, its slot in the result contains a typed error
           field; other probes' results are unaffected. Composite exits 0 (individual errors surfaced via
           result shape, not via process exit — session-init decides what to do)
-        - Composite result includes a top-level `config` field — `{ identity, role }` — populated by
-          direct `git config arc.identity` / `git config arc.role` reads in the composite handler (not
-          a fourth probe module; cheap two-call lookups logically parallel to the probe slots). Empty
-          values normalize to `null`; session-init consumes these in place of its own Batch 1 git
-          config reads
+        - Composite result includes a top-level `identity` field — `{ identity, role }` — populated by
+          direct `git config arc.identity` / `git config arc.role` reads in the composite handler (cheap
+          two-call lookups logically parallel to the probe slots; not a separate probe module). Empty
+          values normalize to `null`; session-init consumes these in place of its own Batch 1 git config
+          reads. The `config` slot hosts the arc-config probe result (3.R.k.c) — distinct concern
 
         **Layout:**
         - Command module in `src/commands/status/` (the old `status.ts` is now `health.ts` per 3.R.k.a)
         - Composite handler in `src/handlers/status.ts` (new)
-        - Type for the composite result in `src/commands/status/types.ts` — includes
-          `config: { identity: string | null; role: string | null }` alongside the three probe result slots
+        - Type for the composite result in `src/commands/status/types.ts` — four probe result slots
+          (`user`, `extensions`, `active`, `config`) plus top-level `identity: { identity: string | null;
+          role: string | null }` for the inline git-config reads
         - CLI wiring in `src/cli.ts` — `arc status` with `-y`-style flag additions
 
         **Tests:**
-        - Unit tests: mock the three probe helpers, assert orchestration (all invoked, parallel via
+        - Unit tests: mock the four probe helpers, assert orchestration (all invoked, parallel via
           Promise.all, stable result ordering, per-probe error isolation)
         - Integration test: real fixture tree end-to-end — clean state, conflict state (user-sync), multi-WU
           state, mixed (one probe errors, others succeed)
-        - Unit test: `config` field resolves correctly (identity/role present, absent, empty strings
+        - Unit test: `identity` field resolves correctly (identity/role present, absent, empty strings
           normalized to `null`)
 
-    - [ ] **3.R.k.e Session-init workflow integration + strategy pointer**
+    - [ ] **3.R.k.f Session-init workflow integration + strategy pointer**
 
-        **Goal:** Session-init calls one composite instead of orchestrating three probes; the probe pattern
+        **Goal:** Session-init calls one composite instead of orchestrating four probes; the probe pattern
         is documented in the session-operations strategy for future extension.
 
         **Session-init.md Batch 1 changes:**
-        - Remove the `grep -l "^active: true" .arc/system/extensions/*.md` line — covered by the composite
+        - Remove the `grep -l "^active: true" .arc/system/extensions/*.md` line — covered by the composite's
+          `extensions` result field
         - Remove the standalone Step 1.5 `arc user status --session-init` invocation — covered by the
           composite's `user` result field
+        - Remove the direct `arc-config.yml` file read (Step 4 + Batch 1 Step 2 inclusion) — covered by the
+          composite's `config` result field; the agent consumes key-value pairs from the JSON instead of
+          parsing the commented YAML
         - Remove the `git config arc.identity` and `git config arc.role` reads from Batch 1 — covered by
-          the composite's `config` result field
+          the composite's `identity` result field
         - Add a single `arc status --session-init --json` call at the same point in Batch 1
         - Update agent-side result-consumption instructions for the composite JSON shape (which fields go
           where in orientation)
@@ -1872,6 +1927,48 @@ clean enough that inconsistency across the three remaining session-init discover
           debugging/CI. Note the Promise.all orchestration, the `--session-init --json` default for harness
           consumers, and the future-composite extension slot (hooks and future probes without workflow prose
           changes)
+
+        **Two-copy sync:** `session-init.md` (framework-file; two copies).
+
+    - [ ] **3.R.k.g Session-init ordering review + workflow reorder**
+
+        **Goal:** Restructure session-init.md Steps 1–6 into a linear ordering that expresses dependencies
+        explicitly — no implicit "Step 1.5 actually fires after Batch 1" reorderings readers derive from
+        prose.
+
+        **Depends on:** 3.R.k.c–f (config probe + active probe + composite + session-init integration
+        land first so the restructure operates on the final command surface, not intermediate states).
+
+        **Scope:** Ordering only. Phase 5 owns the deeper load-set restructure (session-type conditional
+        loading, partial-read narrowing). This task addresses the dependency-ordering defect and nothing
+        more.
+
+        **Problem:** Current Step 1.5 ("Sync Remote State") precedes Step 2 but references "After Batch 1
+        resolves `{identity}`" — Batch 1 fires inside Step 2. The workflow patches this via prose, so the
+        reader must reconstruct the real order. Separately, the "pull before the 'Proceed to Next Action?'
+        prompt" language allows a user pull to run after Batch 2 has already loaded stale SESSION-NOTES.
+
+        **Proposed linear order** (validate during implementation; 3.R.k.f integration may surface
+        refinements):
+        1. Verify environment (existing Step 1, unchanged)
+        2. Probe arc domain: one `arc status --session-init --json` call — returns identity/role + config
+           settings + user-sync state + active-status candidates + extensions list
+        3. Conditional sync pull: if composite's user-sync result is `remote-ahead` or `conflict`, ask
+           user; pull before context-doc loading begins (closes the stale-SESSION-NOTES race)
+        4. Load context docs (Batch 1 static framework docs + Batch 2 SESSION-NOTES/task list) — now
+           guaranteed fresh
+        5. Post-context-load extensions fire point (existing Step 3)
+        6. Assess readiness (freshness check + next-work discovery when between units) (existing Step 5)
+        7. Confirm orientation (existing Step 6)
+        8. Mismatch handling guidance (existing Step 7, unchanged)
+
+        **Deliverables:**
+        - `session-init.md` restructure (framework-file; two-copy sync with package source)
+        - Downstream prose updates in any workflow that references session-init step numbers (if any)
+        - No method/extension changes; no task-list formatting changes
+
+        **Tests:** Read-only doc restructure; markdown linting + internal link check (CI) cover it. No
+        new unit/integration tests.
 
         **Two-copy sync:** `session-init.md` (framework-file; two copies).
 

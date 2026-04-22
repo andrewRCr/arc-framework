@@ -802,13 +802,39 @@ mode keeps its narrow shape for harness use.
   session-init workflow changes. In the post-rebrand world, the composite becomes
   `arcd status` via the global binary sweep
 
+**arc-config probe added mid-WU.**
+
+`arc-config.yml` was not initially considered for probe treatment. Reviewing what session-init
+actually consumes from the file: ~85% of the 170 lines are inline comments documenting each
+setting for human editors — the agent reads key-value pairs only. Moving to a typed probe
+replaces the whole-file read with ~10 JSON fields (full scope) or ~5 (session-init scope).
+`hooks.*` excluded entirely since those are shell-consumed by git hooks, not by the agent.
+Named `config` to pair with the directory/command naming already established (`arc user`,
+`arc extensions`, `arc active`). The composite's existing identity/role slot — originally
+named `config` in 3.R.k.d's spec — renames to `identity` to free the `config` slot for the
+arc-config probe result. Pattern: probe module per concern, inline reads only for trivially
+cheap scoped lookups (identity/role = two `git config` calls).
+
+**Session-init ordering review (3.R.k.g).**
+
+Surfaced while planning the arc-config probe: session-init.md Step 1.5 precedes Step 2 but
+its content references "After Batch 1 resolves `{identity}`" — Batch 1 fires inside Step 2.
+The workflow patches this via prose, so the reader reconstructs the real order. Separately,
+the "pull before the 'Proceed to Next Action?' prompt" language allows a user pull to run
+after Batch 2 has already loaded stale SESSION-NOTES — no guarantee Batch 2 sees fresh
+content post-pull. 3.R.k.g runs last (after all probes + composite integration land) so the
+restructure operates on the final command surface, not intermediate states. Scope is limited
+to ordering; Phase 5 owns the deeper load-set restructure.
+
 ### Subtask structure (final)
 
 - **3.R.k.a** — `arc status` → `arc health` rename (prerequisite for the composite slot)
 - **3.R.k.b** — `arc extensions status` probe + shared `lib/extensions/` + `arc user status --json` retrofit
-- **3.R.k.c** — `arc active status` probe
-- **3.R.k.d** — composite `arc status` command
-- **3.R.k.e** — session-init workflow integration + `strategy-session-operations.md` probe-pattern section
+- **3.R.k.c** — `arc config status` probe
+- **3.R.k.d** — `arc active status` probe
+- **3.R.k.e** — composite `arc status` command
+- **3.R.k.f** — session-init workflow integration + `strategy-session-operations.md` probe-pattern section
+- **3.R.k.g** — session-init ordering review + workflow reorder
 
 ### Coordinated edits (2026-04-22 pre-implementation pass)
 
