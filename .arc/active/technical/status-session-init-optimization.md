@@ -13,26 +13,27 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.k.d — `arc active status` probe (line ~1828)
-- **Last Completed:** 3.R.k.c — `arc config status` probe. Shared reader at
-  `src/lib/config/status-reader.ts` (`readConfigSettings` generalizes the narrow readers in
-  `handlers/shared.ts`; `AGENT_CONSUMABLE_KEYS` lists the 13 keys excluding `hooks.*`). Command
-  module at `src/commands/config/` (types/status/format) with handler + CLI wiring: default
-  Clack (13-key listing with `(default)` markers), `--session-init` (5-key init-gating subset:
-  `session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`),
-  `--json` (typed discriminated union on `mode`). Library migration `lib/config.ts` →
-  `lib/config/index.ts` landed as prerequisite (8 import-path updates, pure rename) to honor
-  the `src/lib/config/` directory layout. Tier 1 green: typecheck / typecheck:test / lint:ts /
-  test:unit (694, +20 new: 8 reader + 12 format) / build; 6 new integration tests. End-to-end
-  sanity: `npx arc config status --session-init --json` returns the 5-key scoped JSON clean;
-  full mode flags `commit.custom_pattern` + `commit.context_pattern` as defaulted
-  (empty-value fall-through). Task-list discovery: 3.R.l.b revised mid-task to retire
-  `readPmMode` / `readSessionRemoteSyncEnabled` in favor of `readConfigSettings`, superseding
-  the earlier "relocate to `lib/config-readers.ts`" plan (call-site migration lands with
-  3.R.l.b, not this commit).
+- **Next Task:** Task 3.R.k.e — Composite `arc status` command (line ~1874)
+- **Last Completed:** 3.R.k.d — `arc active status` probe. Reader at
+  `src/lib/active/status-reader.ts` (`readActiveStatusCandidates` scans `.arc/active/`,
+  detects Lite vs Full layout, parses Branch / State / Next Task / Task List per WU;
+  exported `parseStatusFile` is regex-driven, tolerates list-bullet / bare / blockquote forms,
+  strips inline backticks, takes the first match on repeats). Probe runners at
+  `src/commands/active/status.ts` (`runActiveStatus` full enumeration; `runActiveSessionInitStatus`
+  applies the none/single/multiple resolution discriminant — SESSION-NOTES/branch/state
+  precedence stays agent-side). Command module `src/commands/active/{types,status,format}.ts`,
+  facade `src/commands/active.ts`, handler `src/handlers/active.ts`, CLI wiring for
+  `arc active status` with `--session-init` / `--json`. Tier 1 green: typecheck /
+  typecheck:test / lint:ts / lint:sh / test:unit (725, +31: 16 reader + 15 format) / build;
+  9 new integration tests. End-to-end sanity on this repo: `--session-init --json` returns
+  `resolution:"single"` with the resolved status path; full-mode JSON returns all four parsed
+  fields with backticks stripped. Parser / reader / formatter tests batched per test-first
+  batching-judgment clause (tightly coupled to a single regex-driven parser + layout detector).
 - **Blockers:** none
-- **Next Action:** Begin 3.R.k.d — `arc active status` probe. Shared status-file reader in
-  `src/lib/active/`, command module in `src/commands/active/`, handler + CLI wiring. Full-mode
-  (per-WU state enumeration with full `**State:**` field value), `--session-init` (resolved
-  path / null / disambiguation candidate list per session-init Step 2 Item 8 precedence),
-  `--json` (typed discriminated union on `mode`).
+- **Next Action:** Begin 3.R.k.e — Composite `arc status` command. Orchestrator invokes
+  the four probe helpers in parallel via `Promise.all`, returns a typed discriminated
+  union on `mode` (`StatusResult` full vs `SessionInitProbeResult` scoped), surfaces
+  per-probe errors via result shape (not process exit), and includes a top-level
+  `identity: { identity, role }` populated by direct `git config` reads. Command module
+  in `src/commands/status/` (slot opened by 3.R.k.a's rename of `status.ts` → `health.ts`);
+  composite handler in `src/handlers/status.ts`.

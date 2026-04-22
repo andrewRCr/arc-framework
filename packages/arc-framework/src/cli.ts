@@ -18,6 +18,7 @@ import {
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
+import { handleActiveStatus } from "./handlers/active.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
@@ -148,6 +149,19 @@ configCmd
   .option("--session-init", "Emit the init-gating subset consumed by session-init")
   .option("--json", "Emit the typed result as JSON")
   .action(handleConfigStatus);
+
+// --- Active ---
+
+const activeCmd = program
+  .command("active")
+  .description("Inspect ARC active work state");
+
+activeCmd
+  .command("status")
+  .description("Enumerate in-flight work units and their status-file fields")
+  .option("--session-init", "Emit resolved path / null / candidate list for session-init")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleActiveStatus);
 
 // --- Sync ---
 

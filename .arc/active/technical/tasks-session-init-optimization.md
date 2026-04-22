@@ -1825,35 +1825,51 @@ clean enough that inconsistency across the three remaining session-init discover
         all 13 keys; `commit.custom_pattern` and `commit.context_pattern` correctly flagged as defaulted
         (empty-value fall-through per parseArcConfig's shell-aligned behavior).
 
-    - [ ] **3.R.k.d `arc active status` probe**
+    - [x] **3.R.k.d `arc active status` probe**
 
         **Goal:** Structured enumeration of in-flight work units — full state per WU for general consumers,
         session-init-scoped resolution for the harness.
 
-        Build `test-first` (one behavior at a time):
-        - Full-mode scan enumerates `.arc/active/**/status-*.md` and parses Branch / **State** / Next Task /
-          Task List fields per WU
-        - Full-mode output includes the **full `**State:**` field value** per WU (not filtered to
-          in-progress) — downstream consumers like the future `/arc-status` skill can filter client-side
-          for Paused / Waiting-For without re-scanning
-        - Lite-mode scan checks the single fixed-path `.arc/active/status.md` (at most one candidate)
-        - Zero-file, one-file, and many-file cases all render correctly (Clack + JSON)
-        - `--session-init` mode returns: resolved path (one-file case), `null` (zero-file), or structured
-          candidate list (many-file case) — maps to session-init.md Step 2 Item 8's existing disambiguation
-          precedence
-        - `--json` shape: typed discriminated union on `mode` — `ActiveStatusResult` (full) vs
-          `ActiveSessionInitResult` (scoped)
+        **Reader:** `readActiveStatusCandidates(cwd)` at `src/lib/active/status-reader.ts` scans `.arc/active/`,
+        detects layout (Lite when `.arc/active/status.md` exists; Full otherwise, enumerating
+        `.arc/active/*/status-*.md`), and parses Branch / State / Next Task / Task List per candidate.
+        Exported `parseStatusFile(content)` returns `{ branch, state, nextTask, taskList }` nullable —
+        tolerant of list-bullet and bare `**Field:** value` forms, blockquote prefixes, and inline
+        backticks; takes the first match on repeats; returns `null` for absent or empty values.
 
-        **Layout:**
-        - Shared reader helper in `src/lib/active/` that both the full and session-init modes call — parses
-          status files, returns typed candidate list. Caller (handler) applies mode-specific shaping
-        - Command module in `src/commands/active/`
-        - Handler in `src/handlers/active.ts`; CLI wiring in `src/cli.ts`
+        **Probe runners:** `runActiveStatus` (full enumeration) and `runActiveSessionInitStatus`
+        (session-init resolution shaping) at `src/commands/active/status.ts`. Session-init applies a thin
+        none/single/multiple discriminant over the raw candidate list — zero-file → `{ resolution: "none",
+        path: null }`, one-file → `{ resolution: "single", path }`, many-file → `{ resolution: "multiple",
+        candidates: [...] }`. The probe does not apply Step 2 Item 8's SESSION-NOTES/branch/state precedence —
+        SESSION-NOTES lives in the identity-scoped user workspace and remains an agent-side concern.
 
-        **Tests:**
-        - Unit tests on the status-file parser (valid fields, missing fields, malformed frontmatter)
-        - Unit tests on the formatter (Clack + JSON, full + session-init shapes)
-        - Integration test against fixture trees: zero-file, one-file, many-file (Full); single-file (Lite)
+        **Layout delivered:**
+        - `src/lib/active/status-reader.ts` (new — reader + parser + `ReaderResult` / `ParsedStatusFields`)
+        - `src/commands/active/{types,status,format}.ts` (new — types, probe runners, Clack formatters)
+        - `src/commands/active.ts` facade (new — re-exports)
+        - `src/handlers/active.ts` (new)
+        - `src/cli.ts` — new `arc active status` command wired (alongside `arc active` parent group)
+
+        **Types:** `ActiveStatusResult` (full) and `ActiveSessionInitResult` (session-init) form a
+        discriminated union on `mode`; `ActiveSessionInitResolution` is `"none" | "single" | "multiple"`.
+        `StatusFileCandidate` carries `{ path, filename, branch, state, nextTask, taskList }` with paths
+        normalized to forward-slash form relative to cwd.
+
+        **Tier 1 green:** typecheck / typecheck:test / lint:ts / test:unit (725, +31: 16 reader + 15 format)
+        / build. Integration suite adds 9 new tests under `__tests__/integration/active.test.ts` (zero-file,
+        one-file with full field population, many-file across categories, Lite-layout detection, and the
+        three session-init resolution states plus missing-directory warning propagation).
+
+        **Batching rationale:** Reader/parser/formatter tests were batched per the test-first method's
+        batching-judgment clause — behaviors are tightly coupled to a single regex-driven parser and a
+        single layout detector; one-at-a-time slicing had no independent discovery value.
+
+        **End-to-end sanity:** `npx arc active status --session-init --json` returns
+        `{mode:"session-init",layout:"full",resolution:"single",path:".arc/active/technical/status-session-init-optimization.md",…}`;
+        `npx arc active status --json` returns the full candidate with `branch`, `state`, `nextTask`,
+        `taskList` parsed cleanly (inline backticks stripped from `Task 3.R.k.d — arc active status probe`
+        and from the task-list path).
 
     - [ ] **3.R.k.e Composite `arc status` command**
 
