@@ -1,7 +1,7 @@
 /**
  * User subcommand — manage ARC user directory and portability.
  *
- * Subcommands: add, save, load, push, pull. Uses git notes for cross-machine
+ * Subcommands: add, save, load, push, fetch, pull. Uses git notes for cross-machine
  * portability of the `user/{identity}/` directory.
  */
 
@@ -137,64 +137,12 @@ export async function runUserLoad(
   options: UserLoadOptions,
 ): Promise<UserLoadResult | null> {
   const { cwd, io, identity } = options;
-  const maxWalk = options.maxAncestorWalk ?? 20;
   const userDir = join(cwd, ".arc", "user", identity);
-  const ref = notesRef(identity);
-
-  // Find the nearest ancestor with a note using batched git calls:
-  // 1. List all commits with notes (single call)
-  // 2. Walk ancestors from HEAD in topological order (single call, follows merges)
-  // 3. First intersection = nearest noted ancestor
-  let noteContent: string | null = null;
-  let foundCommit = "";
-  let fromAncestor = false;
-
-  // Get HEAD
-  const { stdout: head } = await io.exec("git", ["rev-parse", "HEAD"]);
-  const headHash = head;
-
-  // 1. Get all commits that have notes for this identity
-  const notedCommits = new Set<string>();
-  try {
-    const { stdout: notesList } = await io.exec("git", [
-      "notes", "--ref", ref, "list",
-    ]);
-    for (const line of notesList.split("\n")) {
-      const commit = line.split(" ")[1];
-      if (commit) notedCommits.add(commit);
-    }
-  } catch {
-    // No notes ref exists — no notes at all
-  }
-
-  if (notedCommits.size === 0) {
+  const note = await findNearestUserNote(options);
+  if (!note) {
     return null;
   }
-
-  // 2. Walk ancestors from HEAD (includes HEAD) in topological order
-  // rev-list follows all parent paths (handles merge commits) and
-  // stops naturally at shallow clone boundaries
-  try {
-    const { stdout: ancestorList } = await io.exec("git", [
-      "rev-list", "--max-count", String(maxWalk), "HEAD",
-    ]);
-    for (const commit of ancestorList.split("\n")) {
-      if (commit && notedCommits.has(commit)) {
-        noteContent = await io.readNote(ref, commit);
-        if (noteContent) {
-          foundCommit = commit;
-          fromAncestor = commit !== headHash;
-          break;
-        }
-      }
-    }
-  } catch {
-    // rev-list failure (shouldn't happen after successful rev-parse)
-  }
-
-  if (!noteContent) {
-    return null;
-  }
+  const { content: noteContent, commit: foundCommit, fromAncestor } = note;
 
   // Parse and validate — noteContent is external data, so validate before narrowing
   let parsed: unknown;
@@ -254,6 +202,70 @@ export async function runUserLoad(
     fileCount: Object.keys(manifest.files).length,
     fromAncestor,
     warnings: staleWarnings,
+  };
+}
+
+interface NearestUserNote {
+  content: string;
+  commit: string;
+  fromAncestor: boolean;
+}
+
+async function findNearestUserNote(
+  options: UserLoadOptions,
+): Promise<NearestUserNote | null> {
+  const { io, identity } = options;
+  const maxWalk = options.maxAncestorWalk ?? 20;
+  const ref = notesRef(identity);
+
+  let foundCommit = "";
+  let noteContent: string | null = null;
+
+  const { stdout: head } = await io.exec("git", ["rev-parse", "HEAD"]);
+  const headHash = head;
+
+  const notedCommits = new Set<string>();
+  try {
+    const { stdout: notesList } = await io.exec("git", [
+      "notes", "--ref", ref, "list",
+    ]);
+    for (const line of notesList.split("\n")) {
+      const commit = line.split(" ")[1];
+      if (commit) notedCommits.add(commit);
+    }
+  } catch {
+    // No notes ref exists — no notes at all
+  }
+
+  if (notedCommits.size === 0) {
+    return null;
+  }
+
+  try {
+    const { stdout: ancestorList } = await io.exec("git", [
+      "rev-list", "--max-count", String(maxWalk), "HEAD",
+    ]);
+    for (const commit of ancestorList.split("\n")) {
+      if (commit && notedCommits.has(commit)) {
+        noteContent = await io.readNote(ref, commit);
+        if (noteContent) {
+          foundCommit = commit;
+          break;
+        }
+      }
+    }
+  } catch {
+    // rev-list failure (shouldn't happen after successful rev-parse)
+  }
+
+  if (!noteContent || !foundCommit) {
+    return null;
+  }
+
+  return {
+    content: noteContent,
+    commit: foundCommit,
+    fromAncestor: foundCommit !== headHash,
   };
 }
 
@@ -357,8 +369,8 @@ export async function hasLocalNotes(
 
 // --- Pull ---
 
-/** Options for the pull operation. */
-export interface UserPullOptions {
+/** Options for the fetch operation. */
+export interface UserFetchOptions {
   io: UserIOContext;
   /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;
@@ -371,12 +383,198 @@ export interface UserPullOptions {
  *
  * @param options - Pull options
  */
-export async function runUserPull(options: UserPullOptions): Promise<void> {
+export async function runUserFetch(options: UserFetchOptions): Promise<void> {
   const { io, identity, force } = options;
   const ref = `refs/notes/${notesRef(identity)}`;
   // '+' prefix forces local ref update even if not fast-forward
   const refspec = force ? `+${ref}:${ref}` : `${ref}:${ref}`;
   await io.exec("git", ["fetch", "origin", refspec]);
+}
+
+/** Options for the pull operation. */
+export interface UserPullOptions extends UserFetchOptions {
+  cwd: string;
+  maxAncestorWalk?: number;
+}
+
+/**
+ * Fetch user notes from remote and restore them to disk.
+ *
+ * @param options - Pull options
+ * @returns Load result, or null if no note was found after fetch
+ */
+export async function runUserPull(
+  options: UserPullOptions,
+): Promise<UserLoadResult | null> {
+  const { cwd, io, identity, force, maxAncestorWalk } = options;
+  await runUserFetch({ io, identity, force });
+  return runUserLoad({ cwd, io, identity, maxAncestorWalk });
+}
+
+export type UserSyncRefState =
+  | "same"
+  | "local-ahead"
+  | "remote-ahead"
+  | "diverged"
+  | "remote-unavailable";
+
+export type UserSyncDiskState = "same" | "different";
+
+export interface UserSyncState {
+  refState: UserSyncRefState;
+  diskState: UserSyncDiskState;
+}
+
+export interface InspectUserSyncOptions {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+}
+
+const TEMP_SYNC_REF_PREFIX = "refs/arc-sync-temp";
+
+/**
+ * Inspect local/remote note refs and on-disk state for sync direction decisions.
+ *
+ * @param options - Inspection options
+ * @returns Ref relation and whether disk differs from the current local snapshot
+ */
+export async function inspectUserSyncState(
+  options: InspectUserSyncOptions,
+): Promise<UserSyncState> {
+  const { cwd, io, identity } = options;
+  const [refState, diskState] = await Promise.all([
+    inspectUserSyncRefs(io, identity),
+    inspectDiskVsLocalSnapshot(cwd, io, identity),
+  ]);
+
+  return { refState, diskState };
+}
+
+async function inspectUserSyncRefs(
+  io: UserIOContext,
+  identity: string,
+): Promise<UserSyncRefState> {
+  const localRef = `refs/notes/${notesRef(identity)}`;
+  const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}`;
+
+  const localHash = await readRefHash(io, localRef);
+
+  try {
+    await io.exec("git", ["fetch", "origin", `+${localRef}:${tempRef}`]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("couldn't find remote ref")) {
+      return localHash ? "local-ahead" : "same";
+    }
+    return "remote-unavailable";
+  }
+
+  try {
+    const remoteHash = await readRefHash(io, tempRef);
+
+    if (!localHash && !remoteHash) return "same";
+    if (!localHash && remoteHash) return "remote-ahead";
+    if (localHash && !remoteHash) return "local-ahead";
+    if (!localHash || !remoteHash) return "same";
+    if (localHash === remoteHash) return "same";
+
+    if (await isAncestor(io, localHash, remoteHash)) return "remote-ahead";
+    if (await isAncestor(io, remoteHash, localHash)) return "local-ahead";
+    return "diverged";
+  } finally {
+    await deleteRef(io, tempRef);
+  }
+}
+
+async function inspectDiskVsLocalSnapshot(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<UserSyncDiskState> {
+  const userDir = join(cwd, ".arc", "user", identity);
+  let diskManifest: SyncManifest | null = null;
+
+  try {
+    const diskResult = await serialize(userDir, io.readDir, io.readFile);
+    if (Object.keys(diskResult.manifest.files).length > 0) {
+      diskManifest = diskResult.manifest;
+    }
+  } catch {
+    diskManifest = null;
+  }
+
+  const note = await findNearestUserNote({ cwd, io, identity });
+  if (!note) {
+    return diskManifest ? "different" : "same";
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(note.content) as unknown;
+  } catch {
+    return "different";
+  }
+
+  if (!diskManifest) {
+    return "different";
+  }
+
+  return manifestsEqual(parsed as SyncManifest, diskManifest) ? "same" : "different";
+}
+
+async function readRefHash(
+  io: UserIOContext,
+  ref: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
+    return stdout || null;
+  } catch {
+    return null;
+  }
+}
+
+async function isAncestor(
+  io: UserIOContext,
+  maybeAncestor: string,
+  maybeDescendant: string,
+): Promise<boolean> {
+  try {
+    await io.exec("git", ["merge-base", "--is-ancestor", maybeAncestor, maybeDescendant]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteRef(
+  io: UserIOContext,
+  ref: string,
+): Promise<void> {
+  try {
+    await io.exec("git", ["update-ref", "-d", ref]);
+  } catch {
+    // Best-effort cleanup for temp refs.
+  }
+}
+
+function manifestsEqual(
+  left: SyncManifest,
+  right: SyncManifest,
+): boolean {
+  return JSON.stringify(normalizeManifest(left)) === JSON.stringify(normalizeManifest(right));
+}
+
+function normalizeManifest(
+  manifest: SyncManifest,
+): SyncManifest {
+  const sortedEntries = Object.entries(manifest.files)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return {
+    version: manifest.version,
+    files: Object.fromEntries(sortedEntries),
+  };
 }
 
 // --- Result Formatting ---

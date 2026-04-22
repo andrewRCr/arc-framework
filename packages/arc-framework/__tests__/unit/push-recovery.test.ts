@@ -22,11 +22,11 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 const mockRunUserPush = vi.fn();
-const mockRunUserPull = vi.fn();
+const mockRunUserFetch = vi.fn();
 
 vi.mock("../../src/commands/user.js", () => ({
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
-  runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
+  runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
 }));
 
 const mockIsNonInteractive = vi.fn(() => false);
@@ -90,19 +90,20 @@ describe("pushWithInteractiveRecovery", () => {
     mockRunUserPush
       .mockRejectedValueOnce(new Error("[rejected]"))
       .mockResolvedValueOnce(undefined);
-    mockRunUserPull.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue(undefined);
     mockSelect.mockResolvedValue("pull");
 
     const result = await pushWithInteractiveRecovery(io, identity);
 
     expect(result).toEqual({ kind: "ok-recovered", via: "pull-then-push" });
-    expect(mockRunUserPull).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
+    expect(mockRunUserFetch).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
     expect(mockRunUserPush).toHaveBeenNthCalledWith(2, expect.objectContaining({ identity }));
   });
 
   it("returns cancelled when user chooses cancel", async () => {
     mockRunUserPush.mockRejectedValue(new Error("non-fast-forward"));
     mockSelect.mockResolvedValue("cancel");
+    mockIsCancel.mockImplementation((value) => value === "cancel");
 
     const result = await pushWithInteractiveRecovery(io, identity);
 

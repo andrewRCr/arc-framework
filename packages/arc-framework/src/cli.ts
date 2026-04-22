@@ -13,7 +13,9 @@ import { formatUnexpectedError } from "./lib/errors.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleUpdate, handleStatus, handleDiff } from "./handlers/lifecycle.js";
-import { handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserPull } from "./handlers/user.js";
+import {
+  handleUserAdd, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull,
+} from "./handlers/user.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleLogAtomic } from "./handlers/log.js";
 
@@ -93,8 +95,14 @@ userCmd
   .action(handleUserPush);
 
 userCmd
-  .command("pull")
+  .command("fetch")
   .description("Fetch user notes from remote")
+  .option("--identity <name>", "Pull another developer's notes instead of your own")
+  .action(handleUserFetch);
+
+userCmd
+  .command("pull")
+  .description("Fetch user notes from remote and restore them to disk")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .action(handleUserPull);
 
@@ -102,8 +110,7 @@ userCmd
 
 program
   .command("sync")
-  .description("Save and push user directory (or --load to pull and restore)")
-  .option("--load", "Pull and load instead of save and push")
+  .description("Synchronize user directory with remote notes")
   .action(handleSync);
 
 // --- Log ---

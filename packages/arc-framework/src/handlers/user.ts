@@ -7,7 +7,7 @@
 import * as p from "@clack/prompts";
 
 import {
-  runUserSave, runUserLoad, runUserAdd, runUserPush, runUserPull,
+  runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   buildSaveSummary, buildLoadSummary,
   hasLocalNotes,
 } from "../commands/user.js";
@@ -191,6 +191,75 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
   }
 }
 
+// --- Fetch ---
+
+export interface UserFetchOptions {
+  identity?: string;
+}
+
+export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
+  p.intro("arc user fetch");
+
+  let identity: string;
+  if (opts.identity) {
+    identity = opts.identity;
+    p.log.info(`Fetching notes for identity: ${identity}`);
+  } else {
+    try {
+      identity = await resolveUserIdentity();
+    } catch (err) {
+      if (isHandledError(err)) return;
+      throw err;
+    }
+  }
+  const io = createUserIOContext();
+
+  // Check once — reused for the prompt and the force flag
+  const hasLocal = await hasLocalNotes(io, identity);
+
+  // Warn if local notes exist that would be overwritten
+  if (hasLocal) {
+    const proceed = await p.confirm({
+      message: "Local notes exist and will be overwritten by remote. Continue?",
+      initialValue: true,
+    });
+    if (p.isCancel(proceed) || !proceed) {
+      p.log.info("Fetch cancelled.");
+      return;
+    }
+  }
+  try {
+    await runWithSpinner(
+      "Fetching user notes...",
+      () => runUserFetch({ io, identity, force: hasLocal }),
+      "Fetch complete.",
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+
+    // Detect missing remote
+    if (isRemoteError(msg)) {
+      p.log.error("No remote configured. Fetch requires a remote repository.");
+      p.log.info("Set up a remote with: git remote add origin <url>");
+      process.exitCode = 1;
+      return;
+    }
+
+    // Detect remote ref not found (no notes on remote for this identity)
+    if (msg.includes("couldn't find remote ref")) {
+      p.log.warn(`No notes found on remote for identity "${identity}".`);
+      p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
+      process.exitCode = 1;
+      return;
+    }
+
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  p.outro("Done.");
+}
+
 // --- Pull ---
 
 export interface UserPullOptions {
@@ -212,12 +281,10 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       throw err;
     }
   }
-  const io = createUserIOContext();
 
-  // Check once — reused for the prompt and the force flag
+  const io = createUserIOContext();
   const hasLocal = await hasLocalNotes(io, identity);
 
-  // Warn if local notes exist that would be overwritten
   if (hasLocal) {
     const proceed = await p.confirm({
       message: "Local notes exist and will be overwritten by remote. Continue?",
@@ -228,16 +295,22 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       return;
     }
   }
+
+  const spinner = p.spinner();
+  spinner.start("Pulling user notes...");
+
+  let result;
   try {
-    await runWithSpinner(
-      "Pulling user notes...",
-      () => runUserPull({ io, identity, force: hasLocal }),
-      "Pull complete.",
-    );
+    result = await runUserPull({
+      cwd: process.cwd(),
+      io,
+      identity,
+      force: hasLocal,
+    });
   } catch (err) {
+    spinner.stop("Pull failed.");
     const msg = err instanceof Error ? err.message : String(err);
 
-    // Detect missing remote
     if (isRemoteError(msg)) {
       p.log.error("No remote configured. Pull requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
@@ -245,7 +318,6 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       return;
     }
 
-    // Detect remote ref not found (no notes on remote for this identity)
     if (msg.includes("couldn't find remote ref")) {
       p.log.warn(`No notes found on remote for identity "${identity}".`);
       p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
@@ -253,9 +325,21 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       return;
     }
 
-    if (isHandledError(err)) return;
+    if (err instanceof UserFacingError) {
+      p.log.error(formatError(err));
+      return;
+    }
     throw err;
   }
 
+  if (!result) {
+    spinner.stop("No note found.");
+    p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+    process.exitCode = 1;
+    return;
+  }
+
+  spinner.stop("Pull complete.");
+  p.note(buildLoadSummary(result), "Loaded");
   p.outro("Done.");
 }

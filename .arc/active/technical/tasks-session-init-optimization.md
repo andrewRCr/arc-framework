@@ -1198,22 +1198,16 @@ stabilized.
 **Convention note:** Uses phase-level `X.R` as an extension of the documented task-level `X.Y.R` revision scheme; the
 extension is documented in 3.R.h.
 
-- [ ] **3.R.a CLI rename + test coverage**
+- [x] **3.R.a CLI rename + test coverage**
 
     **Goal:** Primitives align with git muscle memory; `arc sync` becomes bidirectional smart porcelain.
 
-    - Rename current `arc user pull` → `arc user fetch` (existing semantic retained: remote notes ref → local ref, no
-      disk write)
-    - New `arc user pull` = fetch + load (matches `git pull` mental model); inherits the `.pre-load-backup.json`
-      safety net from `runUserLoad` without additional wiring
-    - Rewrite `arc sync` as bidirectional: detect direction from the `(local-ref vs remote-ref) × (disk vs local-ref)`
-      matrix; always print `→ Pushing ...` / `→ Pulling ...` before acting; conflict case (both diverged) prompts the
-      user rather than guessing a winner
-    - Drop `arc sync --load` flag (redundant with new pull semantic)
-    - Keep `arc user push`, `save`, `load`, `add` unchanged — names already align with dev expectations
-    - Update `cli.ts` command wiring, `handlers/user.ts`, `handlers/sync.ts`, `commands/user.ts` exports
-    - Update `__tests__/unit/sync.test.ts` and `__tests__/unit/user-handlers.test.ts`; add tests for sync's 2×2
-      direction matrix including the conflict prompt path
+    **Outcome:** Added `arc user fetch` for the existing fetch-only semantic and rewired `arc user pull` to fetch +
+    load in one step, preserving `runUserLoad`'s backup behavior. Reworked `arc sync` into a direction-aware
+    porcelain that inspects local-vs-remote note refs plus disk-vs-local snapshot state, prints an explicit push/pull
+    banner before acting, and prompts on divergence instead of guessing. Removed `arc sync --load`. Updated command
+    exports/CLI wiring and refreshed unit coverage in `sync.test.ts`, `user-handlers.test.ts`, and the affected
+    `push-recovery.test.ts` mock surface.
 
 - [ ] **3.R.b `arc user status` command**
 

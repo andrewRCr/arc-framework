@@ -1,12 +1,9 @@
 /**
  * Handler for the `arc sync` command.
  *
- * Performs session-handoff sync according to the resolved `user.sync_push`
- * policy (`always` / `prompt` / `manual`). `arc sync --load` pulls and loads
- * the user directory from git notes.
- *
- * Policy resolution: `git config arc.syncPush` → yaml `user.sync_push` →
- * default (`always`). See `lib/sync-policy.ts`.
+ * Inspects remote notes, local notes, and the on-disk user directory to choose
+ * the correct sync direction: push local state, pull remote state, or prompt
+ * when refs have diverged.
  *
  * @module
  */
@@ -14,9 +11,13 @@
 import * as p from "@clack/prompts";
 
 import {
-  runUserSave, runUserLoad, runUserPull,
-  buildSaveSummary, buildLoadSummary,
+  inspectUserSyncState,
+  runUserSave,
+  runUserPull,
+  buildSaveSummary,
+  buildLoadSummary,
   UserSaveError,
+  type UserSyncState,
 } from "../commands/user.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
@@ -25,11 +26,9 @@ import {
   isHandledError, isNonInteractiveEnvironment, resolveUserIdentity,
 } from "./shared.js";
 
-export interface SyncOptions {
-  load?: boolean;
-}
+type SyncAction = "noop" | "push" | "pull" | "conflict";
 
-export async function handleSync(opts: SyncOptions): Promise<void> {
+export async function handleSync(): Promise<void> {
   p.intro("arc sync");
 
   let identity: string;
@@ -39,57 +38,121 @@ export async function handleSync(opts: SyncOptions): Promise<void> {
     if (isHandledError(err)) return;
     throw err;
   }
+
   const io = createUserIOContext();
   const cwd = process.cwd();
+  const state = await inspectUserSyncState({ cwd, io, identity });
+  const action = decideSyncAction(state);
 
-  if (opts.load) {
-    // Pull + load (force — sync explicitly replaces local with remote)
-    const spinner = p.spinner();
-    spinner.start("Pulling user notes...");
-    try {
-      await runUserPull({ io, identity, force: true });
-      spinner.stop("Pull complete.");
-    } catch (err) {
-      spinner.stop("Pull failed.");
-      const msg = err instanceof Error ? err.message : String(err);
-      p.log.error(`Failed to pull user notes: ${msg}`);
-      process.exitCode = 1;
-      return;
-    }
-
-    const loadSpinner = p.spinner();
-    loadSpinner.start("Loading user directory...");
-    try {
-      const result = await runUserLoad({ cwd, io, identity });
-
-      if (!result) {
-        loadSpinner.stop("No note found.");
-        p.log.warn("No saved user directory found on HEAD or recent ancestors.");
-        process.exitCode = 1;
-        return;
+  switch (action) {
+    case "noop":
+      if (state.refState === "remote-unavailable") {
+        p.log.warn("Remote status unavailable. Local user directory matches the saved snapshot.");
+      } else {
+        p.log.info("User directory already in sync.");
       }
-
-      loadSpinner.stop("Load complete.");
-      p.note(buildLoadSummary(result), "Loaded");
-    } catch (err) {
-      loadSpinner.stop("Load failed.");
-      const msg = err instanceof Error ? err.message : String(err);
-      p.log.error(`Failed to load user directory: ${msg}`);
-      process.exitCode = 1;
+      p.outro("Done.");
       return;
-    }
+    case "push":
+      p.log.info("→ Pushing local user directory to remote notes.");
+      await handlePushDirection({ cwd, io, identity });
+      return;
+    case "pull":
+      p.log.info("→ Pulling remote notes into the local user directory.");
+      await handlePullDirection({ cwd, io, identity });
+      return;
+    case "conflict":
+      await handleConflict({ cwd, io, identity });
+      return;
+  }
+}
 
-    p.outro("Done.");
+export function decideSyncAction(state: UserSyncState): SyncAction {
+  switch (state.refState) {
+    case "remote-unavailable":
+      return state.diskState === "different" ? "push" : "noop";
+    case "diverged":
+      return "conflict";
+    case "local-ahead":
+      return "push";
+    case "remote-ahead":
+      return state.diskState === "same" ? "pull" : "conflict";
+    case "same":
+      return state.diskState === "same" ? "noop" : "push";
+  }
+}
+
+async function handleConflict(
+  params: { cwd: string; io: ReturnType<typeof createUserIOContext>; identity: string },
+): Promise<void> {
+  if (isNonInteractiveEnvironment()) {
+    p.log.error("Sync conflict requires an interactive choice. Re-run `arc sync` in a terminal.");
+    process.exitCode = 1;
     return;
   }
 
-  // --- Save + push, dispatched by resolved policy ---
+  p.log.warn("Local and remote notes have diverged.");
+  const action = await p.select({
+    message: "How would you like to resolve sync?",
+    options: [
+      { value: "push", label: "Push local state to remote" },
+      { value: "pull", label: "Pull remote state to local disk" },
+      { value: "cancel", label: "Cancel" },
+    ],
+  });
+
+  if (p.isCancel(action) || action === "cancel") {
+    p.log.info("Sync cancelled.");
+    return;
+  }
+
+  if (action === "push") {
+    p.log.info("→ Pushing local user directory to remote notes.");
+    await handlePushDirection(params);
+    return;
+  }
+
+  p.log.info("→ Pulling remote notes into the local user directory.");
+  await handlePullDirection(params);
+}
+
+async function handlePullDirection(
+  params: { cwd: string; io: ReturnType<typeof createUserIOContext>; identity: string },
+): Promise<void> {
+  const { cwd, io, identity } = params;
+  const spinner = p.spinner();
+  spinner.start("Pulling user notes...");
+
+  try {
+    const result = await runUserPull({ cwd, io, identity, force: true });
+    if (!result) {
+      spinner.stop("No note found.");
+      p.log.warn("No saved user directory found on HEAD or recent ancestors.");
+      process.exitCode = 1;
+      return;
+    }
+
+    spinner.stop("Pull complete.");
+    p.note(buildLoadSummary(result), "Loaded");
+    p.outro("Done.");
+  } catch (err) {
+    spinner.stop("Pull failed.");
+    const msg = err instanceof Error ? err.message : String(err);
+    p.log.error(`Failed to pull user notes: ${msg}`);
+    process.exitCode = 1;
+  }
+}
+
+async function handlePushDirection(
+  params: { cwd: string; io: ReturnType<typeof createUserIOContext>; identity: string },
+): Promise<void> {
+  const { cwd, io, identity } = params;
 
   const resolved = await resolveSyncPushPolicy({
     exec: io.exec,
     readFile: io.readFile,
     cwd,
-    warn: (m) => { p.log.warn(m); },
+    warn: (message) => { p.log.warn(message); },
   });
 
   let policy = resolved.policy;
@@ -100,9 +163,9 @@ export async function handleSync(opts: SyncOptions): Promise<void> {
     policy = "manual";
   }
 
-  // Save (runs regardless of policy)
   const saveSpinner = p.spinner();
   saveSpinner.start("Saving user directory...");
+
   try {
     const result = await runUserSave({ cwd, io, identity });
     saveSpinner.stop("Save complete.");
@@ -119,7 +182,6 @@ export async function handleSync(opts: SyncOptions): Promise<void> {
     throw err;
   }
 
-  // Push dispatch
   if (policy === "manual") {
     p.log.info("Push skipped (policy: manual). Run `arc user push` when ready.");
     p.outro("Done.");

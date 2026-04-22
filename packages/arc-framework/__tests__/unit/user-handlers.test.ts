@@ -2,7 +2,7 @@
  * Unit tests for user handlers (push/pull).
  *
  * Tests the interactive divergence resolution flow in handleUserPush and
- * the pull overwrite flow in handleUserPull.
+ * the fetch/pull overwrite flows in the user portability handlers.
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
 const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const mockNote = vi.fn();
 const mockSelect = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(val: unknown) => boolean>;
@@ -21,6 +22,7 @@ vi.mock("@clack/prompts", () => ({
   intro: (...args: unknown[]) => mockIntro(...args),
   outro: (...args: unknown[]) => mockOutro(...args),
   log: mockLog,
+  note: (...args: unknown[]) => mockNote(...args),
   select: (opts: unknown) => mockSelect(opts),
   confirm: (opts: unknown) => mockConfirm(opts),
   isCancel: (val: unknown) => mockIsCancel(val),
@@ -28,6 +30,7 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 const mockRunUserPush = vi.fn();
+const mockRunUserFetch = vi.fn();
 const mockRunUserPull = vi.fn();
 const mockHasLocalNotes = vi.fn();
 
@@ -36,6 +39,7 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserLoad: vi.fn(),
   runUserAdd: vi.fn(),
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
+  runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
   buildSaveSummary: vi.fn(() => ""),
@@ -71,7 +75,7 @@ vi.mock("../../src/lib/git/index.js", () => ({
   slugifyIdentity: (s: string) => s.toLowerCase(),
 }));
 
-const { handleUserPush, handleUserPull } = await import("../../src/handlers/user.js");
+const { handleUserPush, handleUserFetch, handleUserPull } = await import("../../src/handlers/user.js");
 
 // --- handleUserPush tests ---
 
@@ -109,13 +113,13 @@ describe("handleUserPush divergence resolution", () => {
     mockRunUserPush
       .mockRejectedValueOnce(new Error("[rejected]"))
       .mockResolvedValueOnce(undefined);
-    mockRunUserPull.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue(undefined);
     mockSelect.mockResolvedValue("pull");
 
     await handleUserPush({});
 
     // Pull with force (diverged refs)
-    expect(mockRunUserPull).toHaveBeenCalledWith(
+    expect(mockRunUserFetch).toHaveBeenCalledWith(
       expect.objectContaining({ force: true }),
     );
     // Then push (no force — refs should now be aligned)
@@ -163,9 +167,9 @@ describe("handleUserPush divergence resolution", () => {
   });
 });
 
-// --- handleUserPull tests ---
+// --- handleUserFetch tests ---
 
-describe("handleUserPull overwrite flow", () => {
+describe("handleUserFetch overwrite flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResolveUserIdentity.mockResolvedValue("andrew");
@@ -177,22 +181,93 @@ describe("handleUserPull overwrite flow", () => {
     process.exitCode = undefined;
   });
 
-  it("pulls without force when no local notes exist", async () => {
+  it("fetches without force when no local notes exist", async () => {
     mockHasLocalNotes.mockResolvedValue(false);
-    mockRunUserPull.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue(undefined);
 
-    await handleUserPull({});
+    await handleUserFetch({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledWith(
+    expect(mockRunUserFetch).toHaveBeenCalledWith(
       expect.objectContaining({ force: false }),
     );
   });
 
-  it("prompts and pulls with force when local notes exist and user confirms", async () => {
+  it("prompts and fetches with force when local notes exist and user confirms", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(true);
-    mockRunUserPull.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue(undefined);
+
+    await handleUserFetch({});
+
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockRunUserFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true }),
+    );
+  });
+
+  it("cancels when user declines overwrite", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockConfirm.mockResolvedValue(false);
+
+    await handleUserFetch({});
+
+    expect(mockLog.info).toHaveBeenCalledWith("Fetch cancelled.");
+    expect(mockRunUserFetch).not.toHaveBeenCalled();
+  });
+
+  it("reports missing remote ref with identity hint", async () => {
+    mockRunUserFetch.mockRejectedValueOnce(
+      new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
+    );
+
+    await handleUserFetch({});
+
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining('No notes found on remote for identity "andrew"'),
+    );
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+// --- handleUserPull tests ---
+
+describe("handleUserPull fetch+load flow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockHasLocalNotes.mockResolvedValue(false);
+    mockIsCancel.mockReturnValue(false);
+    process.exitCode = undefined;
+  });
+
+  it("pulls and renders the load summary when fetch+load succeeds", async () => {
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      warnings: [],
+    });
+
+    await handleUserPull({});
+
+    expect(mockRunUserPull).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: process.cwd(), force: false }),
+    );
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
+  });
+
+  it("prompts before force-pulling when local notes exist", async () => {
+    mockHasLocalNotes.mockResolvedValue(true);
+    mockConfirm.mockResolvedValue(true);
+    mockRunUserPull.mockResolvedValue({
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      warnings: [],
+    });
 
     await handleUserPull({});
 
@@ -202,25 +277,13 @@ describe("handleUserPull overwrite flow", () => {
     );
   });
 
-  it("cancels when user declines overwrite", async () => {
-    mockHasLocalNotes.mockResolvedValue(true);
-    mockConfirm.mockResolvedValue(false);
-
-    await handleUserPull({});
-
-    expect(mockLog.info).toHaveBeenCalledWith("Pull cancelled.");
-    expect(mockRunUserPull).not.toHaveBeenCalled();
-  });
-
-  it("reports missing remote ref with identity hint", async () => {
-    mockRunUserPull.mockRejectedValueOnce(
-      new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
-    );
+  it("sets exitCode when pull returns no note after fetch", async () => {
+    mockRunUserPull.mockResolvedValue(null);
 
     await handleUserPull({});
 
     expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining('No notes found on remote for identity "andrew"'),
+      expect.stringContaining("No saved user directory"),
     );
     expect(process.exitCode).toBe(1);
   });

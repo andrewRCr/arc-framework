@@ -11,7 +11,7 @@
 
 import * as p from "@clack/prompts";
 
-import { runUserPush, runUserPull } from "../commands/user.js";
+import { runUserPush, runUserFetch } from "../commands/user.js";
 import type { UserIOContext } from "../commands/user.js";
 import { isNonInteractiveEnvironment, isRemoteError, runWithSpinner } from "./shared.js";
 
@@ -83,7 +83,7 @@ export async function pushWithInteractiveRecovery(
       // Pull first (force — we know refs have diverged), then retry push
       await runWithSpinner(
         "Pulling user notes...",
-        () => runUserPull({ io, identity, force: true }),
+        () => runUserFetch({ io, identity, force: true }),
         "Pull complete.",
       );
       await runWithSpinner(
