@@ -1270,7 +1270,7 @@ extension is documented in 3.R.h.
     verifies timestamped snapshot creation, retention pruning on the fourth snapshot, legacy coexistence, dotfile
     exclusion, and status-surface backup reporting.
 
-- [ ] **3.R.d `session.remote_sync` config addition**
+- [x] **3.R.d `session.remote_sync` config addition**
 
     **Goal:** New config key exists in both `arc-config.yml` copies with inline documentation; no behavior yet
     (consumed by 3.R.e).
@@ -1279,9 +1279,11 @@ extension is documented in 3.R.h.
     - Flat dotted-key config, matching the rest of `arc-config.yml`
     - Governs session-init remote probing only; does not change handoff behavior or manual CLI command behavior
 
-    **Implementation notes:**
-    - Add `session.remote_sync: enabled | disabled` (default `enabled`) to both config copies
-    - Inline comment clarifies: session-init may fetch/probe automatically; pulling remains explicitly user-confirmed
+    **Outcome:** Added `session.remote_sync: enabled` to both `arc-config.yml` copies under a new Session
+    Initialization section, with inline comments clarifying that session-init may fetch/probe remote notes
+    automatically while restoring user-directory content to disk remains explicitly user-confirmed. Updated init
+    integration coverage to assert the new default key is rendered for both solo and team-mode installs. No runtime
+    behavior consumes the setting yet; 3.R.e remains the first behavioral task.
 
 - [ ] **3.R.e Session-init remote-sync integration**
 

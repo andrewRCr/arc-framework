@@ -153,6 +153,15 @@ pm.mode: arc-in-git
 # See strategy-team-coordination.md for the full coordination protocol.
 team.mode: false
 
+# --- Session Initialization ---
+
+# Automatic remote notes probe during session initialization.
+# Controls whether session-init may fetch/probe remote note state automatically.
+# Pulling user directory content into local files remains explicitly user-confirmed.
+#   enabled  - Session-init may inspect remote notes state automatically. (default)
+#   disabled - Skip remote notes probing during session-init.
+session.remote_sync: enabled
+
 # --- User Directory ---
 
 # Automatic push of user/{identity}/ directory via git notes.

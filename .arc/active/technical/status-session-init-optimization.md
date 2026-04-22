@@ -13,21 +13,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.d — `session.remote_sync` config addition (line ~1250)
-- **Last Completed:** Tasks 3.R.b-3.R.c — added `arc user status` with online-by-default
-  three-way sync reporting, offline and remote-identity inspection modes, freshness and
-  backup detail surfacing, and handler/CLI wiring; then replaced single-shot pre-load
-  backups with timestamped snapshots retained newest-three while preserving legacy
-  `.pre-load-backup.json` visibility during transition. Updated `cli.ts`,
-  `commands/user.ts`, `handlers/user.ts`, `__tests__/unit/user-handlers.test.ts`,
-  new `__tests__/unit/user-status.test.ts`, and `__tests__/integration/user.test.ts`.
-  Follow-up incidental cleanup split `commands/user.ts` behind the same public import
-  surface into focused `user/` modules (`add`, `save-load`, `sync-status`, `format`,
-  `types`, `shared`) to pull the public file back from ~900 lines without changing
-  handler/test call sites. Verification: `lint:ts`, `typecheck`, `typecheck:test`,
-  targeted user/status vitest suites, and task-list markdown lint all clean.
+- **Next Task:** Task 3.R.e.1 — Session-init remote fetch + divergence orientation (line ~1270)
+- **Last Completed:** Task 3.R.d — added `session.remote_sync: enabled` to both
+  `arc-config.yml` copies under a new Session Initialization section, documenting that
+  session-init may probe remote notes automatically while restoring user-directory files
+  remains explicitly user-confirmed. Updated init integration coverage to assert the new
+  default key for solo and team-mode installs. Verification: `lint:ts`, `typecheck`,
+  targeted init integration, and task-list markdown lint all clean.
 - **Blockers:** [none]
-- **Next Action:** Begin Task 3.R.d — add `session.remote_sync: enabled | disabled`
-  to both `arc-config.yml` copies with inline documentation only; no behavior change yet.
-  Keep the key scoped to session-init remote probing so 3.R.e can wire runtime behavior
-  against a stable config surface.
+- **Next Action:** Begin Task 3.R.e.1 — add a session-init remote probe step that
+  respects `session.remote_sync`, surfaces divergence in the orientation, and sequences
+  any remote-resolution prompt before the normal proceed prompt without mutating local
+  notes refs until the user confirms.

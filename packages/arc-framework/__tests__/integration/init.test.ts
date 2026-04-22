@@ -439,6 +439,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "utf-8",
     );
     expect(config).toContain("team.mode: false");
+    expect(config).toContain("session.remote_sync: enabled");
     expect(config).toContain("user.sync_push: always");
   });
 
@@ -606,6 +607,7 @@ describe("init integration (fresh mode, team_mode=true)", () => {
       "utf-8",
     );
     expect(config).toContain("team.mode: true");
+    expect(config).toContain("session.remote_sync: enabled");
     expect(config).toContain("user.sync_push: prompt");
 
     const message = buildPostInitMessage(result!);
