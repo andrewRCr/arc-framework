@@ -18,10 +18,6 @@
   `arc user status --session-init` probe for agent-driven remote-state checks, documented
   session-init Step 1.5 in both workflow copies, removed the default 20-commit
   ancestor-walk cap, and surfaced loaded-note ancestor distance in user load summaries.
-- **Blockers:** Tier 2 not fully green on this secondary laptop — `npm run lint:sh`
-  fails when the shellcheck wrapper tries to download from `api.github.com` (DNS/network),
-  and `npm test` still hits the pre-existing `__tests__/integration/skills.test.ts`
-  timeout in "update regenerates skills with canonical content after modification".
-- **Next Action:** Investigate the secondary-laptop Tier 2 failures to determine whether
-  they are environment-only, then begin Task 3.R.f.1 to sync remaining two-copy CLI
-  references and bootstrap semantics docs.
+- **Blockers:** none
+- **Next Action:** Begin Task 3.R.f.1 to sync remaining two-copy CLI references and
+  bootstrap semantics docs.

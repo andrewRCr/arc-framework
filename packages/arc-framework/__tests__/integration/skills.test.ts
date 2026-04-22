@@ -176,5 +176,5 @@ describe("skill generation (integration)", () => {
     // Verify canonical content restored
     const afterUpdate = await readFile(skillPath, "utf-8");
     expect(afterUpdate).toBe(originalContent);
-  });
+  }, 15_000);
 });

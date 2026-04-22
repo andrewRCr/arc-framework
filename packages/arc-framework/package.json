@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
     "lint:ts": "eslint src/ __tests__/",
-    "lint:sh": "shellcheck -x --source-path=SCRIPTDIR arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
+    "lint:sh": "bash arc/system/scripts/run-shellcheck.sh arc/system/githooks/pre-commit arc/system/githooks/commit-msg arc/system/scripts/*.sh"
   },
   "engines": {
     "node": ">=24"
