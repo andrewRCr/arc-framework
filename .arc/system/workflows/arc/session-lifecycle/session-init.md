@@ -44,6 +44,22 @@ pwd
 # Some projects (documentation-only, config repos) may need nothing beyond git
 ```
 
+### 1.5 Sync Remote State
+
+After Batch 1 resolves `{identity}` and reads `arc-config.yml`, probe remote notes state before final orientation:
+
+- **Skip** if `{identity}` did not resolve — user-note paths are identity-scoped
+- Run the session-init remote probe command: `arc user status --session-init`
+  (self-hosting repo: `npx arc user status --session-init`)
+- The command respects `session.remote_sync` and performs a non-destructive temp-ref probe only
+- If it reports `remote-ahead` or `conflict`, surface that in the orientation and ask whether to run
+  `arc user pull` **before** the normal "Proceed to Next Action?" prompt
+- If it reports `remote-unavailable`, note the degraded state and continue with local tracked state
+- If it reports `disabled` or `clean`, continue without extra prompting
+
+**Do not let the CLI own the prompt.** The agent runs the probe, incorporates the result into the orientation, and
+asks the user whether to pull.
+
 ### 2. Load AI Context
 
 **CRITICAL PRINCIPLE**: All documents are maintained to be lean, non-overlapping, and essential. Read everything
@@ -375,7 +391,8 @@ The orientation should surface *problems and decisions*, not a log of checks tha
 
 - **Always include**: active work state, next action, blockers, and discovery results
   (when between work units)
-- **Include only if actionable**: freshness gaps, missing identity, environment issues
+- **Include only if actionable**: freshness gaps, missing identity, environment issues, session-init remote-sync
+  results other than `clean`
 - **Never include**: configuration overrides, active-extensions list (any state), defaults
   active, freshness clean, environment checks passed. The developer already knows their
   configuration; reference state belongs in `arc-config.yml`, not orientation.

@@ -33,7 +33,9 @@ const mockRunUserPush = vi.fn();
 const mockRunUserFetch = vi.fn();
 const mockRunUserPull = vi.fn();
 const mockRunUserStatus = vi.fn();
+const mockRunUserSessionInitStatus = vi.fn();
 const mockHasLocalNotes = vi.fn();
+const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
 vi.mock("../../src/commands/user.js", () => ({
   runUserSave: vi.fn(),
@@ -43,9 +45,11 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
   runUserStatus: (...args: unknown[]) => mockRunUserStatus(...args),
+  runUserSessionInitStatus: (...args: unknown[]) => mockRunUserSessionInitStatus(...args),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
   buildSaveSummary: vi.fn(() => ""),
   buildLoadSummary: vi.fn(() => ""),
+  buildUserSessionInitStatusSummary: (result: { summary?: string }) => mockBuildUserSessionInitStatusSummary(result),
   buildUserStatusSummary: vi.fn((result: { summary?: string }) => result.summary ?? ""),
 }));
 
@@ -64,6 +68,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
   isNonInteractiveEnvironment: () => false,
   readPmMode: vi.fn(async () => "none"),
+  readSessionRemoteSyncEnabled: vi.fn(async () => true),
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({
@@ -323,5 +328,19 @@ describe("handleUserStatus", () => {
     expect(mockRunUserStatus).toHaveBeenCalledWith(
       expect.objectContaining({ offline: true, all: true }),
     );
+  });
+
+  it("uses the session-init probe surface when requested", async () => {
+    mockRunUserSessionInitStatus.mockResolvedValue({
+      summary: "andrew: session-init remote notes ahead",
+    });
+
+    await handleUserStatus({ sessionInit: true });
+
+    expect(mockRunUserSessionInitStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: process.cwd(), identity: "andrew", remoteSyncEnabled: true }),
+    );
+    expect(mockRunUserStatus).not.toHaveBeenCalled();
+    expect(mockNote).toHaveBeenCalledWith("andrew: session-init remote notes ahead", "Session Init");
   });
 });

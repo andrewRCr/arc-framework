@@ -6,7 +6,12 @@
 
 import { describe, it, expect } from "vitest";
 
-import { buildUserStatusResult, buildUserStatusSummary } from "../../src/commands/user.js";
+import {
+  buildUserSessionInitStatusSummary,
+  buildUserStatusResult,
+  buildUserStatusSummary,
+  runUserSessionInitStatus,
+} from "../../src/commands/user.js";
 
 describe("buildUserStatusResult", () => {
   it("reports in-sync state without an action hint", () => {
@@ -94,5 +99,49 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines).toContain("Remote identities: alice (1111111), andrew (2222222)");
+  });
+});
+
+describe("runUserSessionInitStatus", () => {
+  const io = {
+    exec: async () => ({ stdout: "", stderr: "" }),
+    readDir: async () => [],
+    readFile: async () => "",
+    writeFile: async () => {},
+    mkdir: async () => undefined,
+    writeNote: async () => {},
+    readNote: async () => null,
+  };
+
+  it("returns disabled when session.remote_sync is off", async () => {
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: false,
+    });
+
+    expect(result.state).toBe("disabled");
+    expect(result.shouldPromptToPull).toBe(false);
+    expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
+  });
+});
+
+describe("buildUserSessionInitStatusSummary", () => {
+  it("renders a promptable remote-ahead session-init summary", () => {
+    const summary = buildUserSessionInitStatusSummary({
+      identity: "andrew",
+      state: "remote-ahead",
+      summary: "andrew: session-init remote notes ahead",
+      detailLines: [
+        "Remote notes are newer than local notes.",
+        "Next step: ask whether to run `arc user pull` before continuing session-init.",
+      ],
+      actionHint: "run `arc user pull` before continuing session-init",
+      shouldPromptToPull: true,
+    });
+
+    expect(summary).toContain("andrew: session-init remote notes ahead");
+    expect(summary).toContain("Next step: ask whether to run `arc user pull`");
   });
 });

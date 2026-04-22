@@ -1,4 +1,9 @@
-import type { UserLoadResult, UserSaveResult, UserStatusResult } from "./types.js";
+import type {
+  UserLoadResult,
+  UserSaveResult,
+  UserSessionInitStatusResult,
+  UserStatusResult,
+} from "./types.js";
 
 /**
  * Build user-facing summary for a save result.
@@ -59,3 +64,13 @@ export function buildUserStatusSummary(result: UserStatusResult): string {
   return lines.join("\n");
 }
 
+/**
+ * Build user-facing summary for `arc user status --session-init`.
+ *
+ * @param result - Session-init probe result
+ * @returns Formatted message for terminal display
+ */
+export function buildUserSessionInitStatusSummary(result: UserSessionInitStatusResult): string {
+  const lines = [result.summary, ...result.detailLines];
+  return lines.join("\n");
+}

@@ -36,6 +36,9 @@ export const CONFIG_KEY_PM_MODE = "pm.mode";
 /** Config key for team mode. */
 export const CONFIG_KEY_TEAM_MODE = "team.mode";
 
+/** Config key for session-init remote notes probing. */
+export const CONFIG_KEY_SESSION_REMOTE_SYNC = "session.remote_sync";
+
 // --- PM Mode Values ---
 
 /** PM mode value for ARC's built-in project management. */

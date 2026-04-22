@@ -8,6 +8,8 @@ import type {
   UserFetchOptions,
   UserIOContext,
   UserPullOptions,
+  UserSessionInitStatusOptions,
+  UserSessionInitStatusResult,
   UserStatusHeadline,
   UserStatusOptions,
   UserStatusRemoteIdentity,
@@ -138,6 +140,96 @@ export async function runUserStatus(
     backupFiles,
     remoteIdentities,
   });
+}
+
+/**
+ * Inspect only the remote session-init state for agent-driven session startup.
+ *
+ * This is a non-destructive probe: it respects `session.remote_sync`, compares
+ * against a temp fetched ref when enabled, and reports whether session-init
+ * should ask the user about pulling before continuing.
+ *
+ * @param options - Session-init status options
+ * @returns Session-init-oriented remote state summary
+ */
+export async function runUserSessionInitStatus(
+  options: UserSessionInitStatusOptions,
+): Promise<UserSessionInitStatusResult> {
+  const { io, identity, remoteSyncEnabled } = options;
+
+  if (!remoteSyncEnabled) {
+    return {
+      identity,
+      state: "disabled",
+      summary: `${identity}: session-init remote sync disabled`,
+      detailLines: [
+        "Config: `session.remote_sync: disabled`.",
+        "Next step: skip the remote probe and continue with local tracked state.",
+      ],
+      actionHint: null,
+      shouldPromptToPull: false,
+    };
+  }
+
+  const refState = await inspectUserSyncRefs(io, identity);
+  switch (refState) {
+    case "same":
+      return {
+        identity,
+        state: "clean",
+        summary: `${identity}: session-init remote state clean`,
+        detailLines: ["Remote notes match local notes."],
+        actionHint: null,
+        shouldPromptToPull: false,
+      };
+    case "local-ahead":
+      return {
+        identity,
+        state: "clean",
+        summary: `${identity}: session-init remote state clean`,
+        detailLines: [
+          "Local notes are newer than remote, but no pull is needed before continuing.",
+        ],
+        actionHint: null,
+        shouldPromptToPull: false,
+      };
+    case "remote-ahead":
+      return {
+        identity,
+        state: "remote-ahead",
+        summary: `${identity}: session-init remote notes ahead`,
+        detailLines: [
+          "Remote notes are newer than local notes.",
+          "Next step: ask whether to run `arc user pull` before continuing session-init.",
+        ],
+        actionHint: "run `arc user pull` before continuing session-init",
+        shouldPromptToPull: true,
+      };
+    case "diverged":
+      return {
+        identity,
+        state: "conflict",
+        summary: `${identity}: session-init remote notes conflict`,
+        detailLines: [
+          "Local and remote notes have diverged.",
+          "Next step: ask whether to run `arc user pull` and replace local notes before continuing.",
+        ],
+        actionHint: "run `arc user pull` to replace local notes before continuing session-init",
+        shouldPromptToPull: true,
+      };
+    case "remote-unavailable":
+      return {
+        identity,
+        state: "remote-unavailable",
+        summary: `${identity}: session-init remote probe unavailable`,
+        detailLines: [
+          "Remote notes could not be reached.",
+          "Next step: continue with local tracked state, or retry once the remote is reachable.",
+        ],
+        actionHint: "continue locally or retry once the remote is reachable",
+        shouldPromptToPull: false,
+      };
+  }
 }
 
 interface UserSyncRefInspection {
@@ -406,4 +498,3 @@ function normalizeManifest(
     files: Object.fromEntries(sortedEntries),
   };
 }
-

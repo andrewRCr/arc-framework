@@ -15,7 +15,11 @@ import { resolveIdentity, isGitRepo } from "../lib/git/index.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { UserSaveError } from "../commands/user.js";
 import { parseArcConfig } from "../lib/config.js";
-import { ARC_CONFIG_SEGMENTS, CONFIG_KEY_PM_MODE } from "../lib/constants.js";
+import {
+  ARC_CONFIG_SEGMENTS,
+  CONFIG_KEY_PM_MODE,
+  CONFIG_KEY_SESSION_REMOTE_SYNC,
+} from "../lib/constants.js";
 import { gitExec } from "../lib/io-context.js";
 
 // --- Spinner ---
@@ -139,5 +143,16 @@ export async function readPmMode(cwd: string): Promise<string> {
     return config[CONFIG_KEY_PM_MODE] ?? "none";
   } catch {
     return "none";
+  }
+}
+
+/** Read session.remote_sync from arc-config.yml, defaulting to enabled on any error. */
+export async function readSessionRemoteSyncEnabled(cwd: string): Promise<boolean> {
+  try {
+    const configContent = await readFile(join(cwd, ...ARC_CONFIG_SEGMENTS), "utf-8");
+    const config = parseArcConfig(configContent);
+    return (config[CONFIG_KEY_SESSION_REMOTE_SYNC] ?? "enabled") === "enabled";
+  } catch {
+    return true;
   }
 }

@@ -1290,7 +1290,7 @@ extension is documented in 3.R.h.
     **Goal:** Land the session-init/runtime pieces needed for remote-sync awareness without bundling them into one
     oversized review increment.
 
-    - [ ] **3.R.e.1 Session-init remote fetch + divergence orientation**
+    - [x] **3.R.e.1 Session-init remote fetch + divergence orientation**
 
         **Goal:** Session-init probes remote state early, surfaces actionable divergence in the orientation, and asks
         about remote resolution before the standard proceed prompt.
@@ -1310,11 +1310,15 @@ extension is documented in 3.R.h.
           proceed prompt
         - Accepting the resolution path runs the intended pull actions and reports the result clearly
 
-        **Implementation notes:**
-        - Add Step 1.5 "Sync Remote State" to `session-init.md`
-        - Run bounded remote probes in parallel with Batch 1 where practical
-        - Feed results into Step 6 orientation and prompt sequencing
-        - Two-copy sync on `session-init.md`
+        **Outcome:** Added a non-interactive helper surface, `arc user status --session-init`, that respects
+        `session.remote_sync`, performs the existing temp-ref remote probe without mutating live refs or disk, and
+        reports coarse session-init states (`disabled`, `clean`, `remote-ahead`, `conflict`, `remote-unavailable`)
+        plus whether the agent should prompt the user to pull before continuing. Updated the user-status handler/CLI
+        wiring and summary formatting for the new mode, and documented Step 1.5 in both session-init workflow copies
+        so the agent runs the probe, incorporates the result into orientation, and keeps the pull prompt in the
+        harness layer rather than inside the CLI. Verification: targeted unit tests (`user-status`, `user-handlers`,
+        `sync`, framework-sync), targeted `user.test.ts` integration coverage, `lint:ts`, `typecheck`, and task-file
+        markdown lint all clean.
 
     - [ ] **3.R.e.2 Ancestor-walk hardening for `arc user load` / `arc user pull`**
 

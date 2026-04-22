@@ -8,8 +8,8 @@ import * as p from "@clack/prompts";
 
 import {
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
-  runUserStatus,
-  buildSaveSummary, buildLoadSummary, buildUserStatusSummary,
+  runUserSessionInitStatus, runUserStatus,
+  buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
 } from "../commands/user.js";
 import { slugifyIdentity } from "../lib/git/index.js";
@@ -18,7 +18,7 @@ import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
-  runWithSpinner, isHandledError, resolveUserIdentity, isRemoteError, readPmMode,
+  runWithSpinner, isHandledError, resolveUserIdentity, isRemoteError, readPmMode, readSessionRemoteSyncEnabled,
 } from "./shared.js";
 
 // --- Add ---
@@ -350,6 +350,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
 export interface UserStatusOptions {
   offline?: boolean;
   all?: boolean;
+  sessionInit?: boolean;
 }
 
 export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
@@ -364,8 +365,23 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
   }
 
   const io = createUserIOContext();
+  const cwd = process.cwd();
+
+  if (opts.sessionInit) {
+    const remoteSyncEnabled = await readSessionRemoteSyncEnabled(cwd);
+    const result = await runUserSessionInitStatus({
+      cwd,
+      io,
+      identity,
+      remoteSyncEnabled,
+    });
+    p.note(buildUserSessionInitStatusSummary(result), "Session Init");
+    p.outro("Done.");
+    return;
+  }
+
   const result = await runUserStatus({
-    cwd: process.cwd(),
+    cwd,
     io,
     identity,
     offline: opts.offline,

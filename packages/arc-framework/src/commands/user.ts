@@ -13,6 +13,7 @@ export {
   runUserSave,
 } from "./user/save-load.js";
 export {
+  runUserSessionInitStatus,
   buildUserStatusResult,
   hasLocalNotes,
   hasRemoteNotes,
@@ -25,6 +26,7 @@ export {
 export {
   buildLoadSummary,
   buildSaveSummary,
+  buildUserSessionInitStatusSummary,
   buildUserStatusSummary,
 } from "./user/format.js";
 export {
@@ -40,6 +42,9 @@ export {
   type UserPushOptions,
   type UserSaveOptions,
   type UserSaveResult,
+  type UserSessionInitState,
+  type UserSessionInitStatusOptions,
+  type UserSessionInitStatusResult,
   type UserStatusHeadline,
   type UserStatusOptions,
   type UserStatusRemoteIdentity,

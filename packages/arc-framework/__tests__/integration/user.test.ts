@@ -27,6 +27,7 @@ import {
   runUserAdd,
   runUserPush,
   runUserPull,
+  runUserSessionInitStatus,
   runUserStatus,
   UserSaveError,
   BACKUP_FILENAME,
@@ -850,5 +851,37 @@ describe("user status", () => {
     expect(summary).toContain("Remote identities:");
     expect(summary).toContain("other-dev");
     expect(summary).toContain("test-user");
+  });
+
+  it("reports session-init remote-ahead state without mutating local notes", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "clone@test.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+
+    const result = await runUserSessionInitStatus({
+      cwd: cloneDir,
+      io: cloneIO,
+      identity: "test-user",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("remote-ahead");
+    expect(result.shouldPromptToPull).toBe(true);
+
+    await expect(readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 });

@@ -145,3 +145,25 @@ export interface UserStatusOptions {
   all?: boolean;
 }
 
+export type UserSessionInitState =
+  | "disabled"
+  | "clean"
+  | "remote-ahead"
+  | "conflict"
+  | "remote-unavailable";
+
+export interface UserSessionInitStatusResult {
+  identity: string;
+  state: UserSessionInitState;
+  summary: string;
+  detailLines: string[];
+  actionHint: string | null;
+  shouldPromptToPull: boolean;
+}
+
+export interface UserSessionInitStatusOptions {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  remoteSyncEnabled: boolean;
+}
