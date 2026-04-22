@@ -13,6 +13,18 @@ Atomic Task Completion for the full protocol.
 
 ---
 
+- [x] **Strip spurious extension-point marker from `integrate-work-unit.md` step 5** —
+  Discovery during 3.R.k.b end-to-end sanity: the new `arc extensions status --all`
+  flagged `pre-merge-inbox-review` (at `integrate-work-unit.md:166`) as an orphan.
+  Root cause: step 5's heading carried the extension-point marker suffix
+  (middle-dot plus backtick-hashtag name) for parallel visual structure with step
+  6 (Pre-Merge Review), but step 5 is a PM-mode-conditional step with no
+  `.actions` dispatch and no active-extensions list reference. The marker's
+  contract (extension fire point) didn't apply. Fix: drop the suffix from step
+  5's heading; markdown slug autogeneration preserves the
+  `#pre-merge-inbox-review` anchor for link targets. Two-copy sync across `.arc/`
+  and `packages/arc-framework/arc/`. Scanner now reports 0 orphaned refs repo-wide.
+
 - [x] **D7a `.template.md` fallback in `validate-links.sh`** — D7a (Task 3.4) checked staged
   links against on-disk file existence but had no awareness of the package source's
   `.template.md` rename convention. Surfaced when Task 3.5's edits restaged

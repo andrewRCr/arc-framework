@@ -163,7 +163,7 @@ it only for phase-boundary events (Step 6c below; substantive deliverable change
 review, rare; archival). Cycle-level review context — findings in flight, drafted replies,
 pass numbers — belongs in SESSION-NOTES and the PR itself, not in the status file.
 
-### 5) Pre-Merge Inbox Review · `#pre-merge-inbox-review`
+### 5) Pre-Merge Inbox Review
 
 **arc-in-git mode only** (`pm.mode: arc-in-git`). Skip if inbox is empty or PM mode is `none`/`external`.
 
