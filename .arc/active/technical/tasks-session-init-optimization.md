@@ -2587,19 +2587,279 @@ restructure, not as a Phase 4 audit target.
 
 ---
 
-### **Phase 5:** Partial-Read Narrowing + Session-Init Workflow Restructure
+### **Phase 5:** Worktree-Sync Completion + Partial-Read Narrowing + Session-Init Workflow Restructure
 
-**Purpose:** Shrink remaining upfront-read surface and restructure session-init Step 2/4/7 to reflect Phase 4
-audit outcomes. Remote-sync awareness pulled forward to Phase 3.R.e (dogfooded during multi-machine work). Per-rule
-reliability gate for DEV-RULES is the cautious path — default to up-front load; shift to conditional only where
-trigger is clear.
+**Purpose:** Complete the remote-sync integrity work (worktree channel), then shrink remaining upfront-read surface
+and restructure session-init Step 2/4/7 to reflect Phase 4 audit outcomes. Phase 3.R.e landed the user-notes half of
+Task 5.0; this phase opens with the worktree half before moving to compression work. Per-rule reliability gate for
+DEV-RULES is the cautious path — default to up-front load; shift to conditional only where trigger is clear.
 
-- [~] **5.0 Remote sync check at session-init — superseded by Phase 3.R.e**
+- [ ] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope**
 
-    **Status:** Pulled forward into Phase 3.R for dogfooding during the multi-machine work that surfaced the
-    git-notes staleness failure mode. Active spec lives at 3.R.e / 3.R.g (session-init Step 1.5 + Step 6 rewrite,
-    plus the follow-on doc and ADR sync that retired the old pointer). Marked superseded rather than completed so
-    the task list records that the work moved and the anchor is no longer active.
+    **Goal:** Session-init detects and reports local-vs-remote worktree drift with the same rigor as user-notes
+    drift. Extends the existing `session.remote_sync` gate and Step 1.5 probe architecture to the branch channel,
+    closing the gap where a stale worktree produces a misleadingly-confident orientation.
+
+    **Context:** Phase 3.R.e pulled forward the notes half of the original Task 5.0 scope during the multi-machine
+    dogfooding that surfaced the git-notes staleness failure. The worktree half was not carried forward: session-init
+    reports user-notes drift but remains silent on the underlying branch drift that causes it. In practice, when the
+    local branch is behind origin, (a) the agent loads stale tracked context (status file, task list, PRD, notes) and
+    reports confidently on obsolete state, and (b) the notes probe's "clean" verdict is truthful only with respect to
+    reachable ancestors, so notes attached to unfetched commits are invisible and unreported. The same truthfulness
+    bound affects any notes-status surface run outside a session-init flow — `arc user status`, direction reporting
+    in `arc sync` — so a "clean" verdict there can be misread as "fully up-to-date" when the check is bounded by a
+    stale worktree. External research (2026-04-23, captured in `notes-session-init-optimization.md` § Phase 5.0
+    Worktree-Sync Research) validated the UX shape: fetch-on-init gated by an opt-in config, `prompt` default, no
+    `always` mode for worktree, combined prompt when both channels drift, fast-forward only.
+
+    **Design decisions (resolved pre-implementation):**
+    - Narrow fetch scope: `git fetch origin <current-branch>` only; not a whole-remote fetch
+    - Bounded fetch timeout (3s default) with `remote-unavailable` on timeout; session-init continues
+    - Additive config: new `session.init_pull.worktree` and `session.init_pull.notes`, each
+      `manual | prompt | always`. `always` is not a valid value for `worktree` (validation rejects it).
+      Defaults `prompt` for both
+    - Master gate stays `session.remote_sync` — if disabled, both channels skip entirely
+    - Probe layer reports state only; prompt/pull orchestration lives in the session-init workflow, not in the
+      CLI probe surface
+    - Worktree pull sequence precedes notes pull when both channels drift — notes ancestor walk depends on HEAD
+      being current
+    - Dirty working tree with remote-ahead: prompt warns explicitly; no auto-stash, no auto-pull override
+    - Divergence non-blocking: surfaced as a distinct top-level orientation section (not folded under `Blockers`);
+      session-init continues with local state; agent carries the divergence forward as an active constraint
+    - `local-ahead` on worktree: no prompt (matches the asymmetry in `user.sync_push` — pushing is intentional,
+      not a session-init concern); surfaces as a single informational line in orientation
+    - No widening of `arc sync` — worktree drift is strictly a session-init-time concern; outside sessions users
+      use plain `git` (`git fetch`, `git pull --ff-only`)
+    - Tracking-ref strategy: `git fetch origin <branch>` safely updates `refs/remotes/origin/<branch>` without
+      mutating HEAD or the local branch ref. No temp-ref gymnastics needed (contrast with notes, where temp-ref
+      was required to avoid mutating the live local note ref)
+    - No new persistent state file: worktree state is a pure git comparison (local HEAD vs tracking ref) — git's
+      own refs are the state store. `.sync-state.json` remains user-notes-specific (disk-vs-manifest reconciliation)
+    - Reporting honesty across surfaces: all user-facing notes-status outputs (session-init JSON envelope via
+      5.0.c, `arc user status` and `arc sync` direction reporting via 5.0.d) carry a qualifier when the worktree
+      probe indicates drift. A "clean" notes verdict stays accurate but is no longer misreadable as "fully
+      up-to-date" when the check is bounded by a stale worktree
+
+    - [ ] **5.0.a Worktree sync state inspection (probe)**
+
+        **Goal:** A non-destructive probe function returns the worktree sync state relative to `origin/<current-branch>`,
+        with bounded fetch cost and clear degraded-state reporting.
+
+        **Design decisions (resolved pre-implementation):**
+        - Probe is pure read — no mutating operations beyond the fetch into the standard tracking ref
+        - State enum parallels git's native vocabulary: `clean | remote-ahead | local-ahead | diverged`, plus
+          degraded states `no-upstream | detached-head | no-remote | remote-unavailable`
+        - `ahead` / `behind` commit counts returned alongside state for caller reporting
+        - Timeout implemented via `AbortController` on the subprocess; no blocking shell timeout
+        - Probe respects `session.remote_sync: disabled` by returning a `skipped` state variant without any git
+          invocation
+        - Lives alongside the existing notes probe (`sync-status.ts` or a sibling module); no persistent state file
+
+        Build `test-first` (one behavior at a time):
+        - `session.remote_sync: disabled` short-circuits cleanly without invoking git
+        - Clean state (local HEAD == `origin/<branch>`) returns `clean` with counts `{ahead: 0, behind: 0}`
+        - Remote-ahead state returns `remote-ahead` with correct `behind` count
+        - Local-ahead state returns `local-ahead` with correct `ahead` count
+        - Diverged state (neither is ancestor) returns `diverged` with both `ahead` and `behind` populated
+        - No upstream (`git rev-parse --abbrev-ref @{upstream}` fails) returns `no-upstream` without attempting fetch
+        - Detached HEAD (no current branch) returns `detached-head` without attempting fetch
+        - Repository has no `origin` remote: returns `no-remote` without attempting fetch
+        - Fetch exceeds 3s timeout: returns `remote-unavailable` cleanly, session-init continues
+        - Fetch fails with auth/network error: returns `remote-unavailable` with distinguishing detail
+
+    - [ ] **5.0.b Config schema + types for init_pull channels**
+
+        **Goal:** Config keys `session.init_pull.worktree` and `session.init_pull.notes` parse, validate, and
+        default correctly; TypeScript types cover both the probe outputs and the config shape.
+
+        **Design decisions (resolved pre-implementation):**
+        - Nested config object under `session.init_pull` rather than flat dotted keys — two related channels
+          benefit from co-location
+        - Value type `"manual" | "prompt" | "always"`; `"always"` rejected at parse time for the `worktree`
+          channel with a clear error message that names the valid set
+        - Defaults: `prompt` for both; applied when the keys are absent (existing installs and fresh installs
+          both get safe default)
+        - Two-copy sync in both `arc-config.yml` copies with inline comments explaining the per-channel semantics
+
+        Build `test-first` (one behavior at a time):
+        - Parsing applies `prompt` default for both channels when `session.init_pull` block is absent
+        - Parsing accepts `manual | prompt | always` for notes; `manual | prompt` for worktree
+        - Parsing rejects `always` for worktree with an error that names the valid set
+        - Parsing rejects unknown mode values with an error that names the valid set
+        - Partial config (worktree set, notes absent) fills the missing channel with `prompt` default
+        - Existing `arc-config.yml` files without the new block continue to parse cleanly
+        - `arc init` and `arc init --reconfigure` render the new block with defaults in the Session Initialization
+          section
+
+    - [ ] **5.0.c Composite probe envelope — worktree field + notes qualifier**
+
+        **Goal:** `arc status --session-init --json` adds a `worktree` field alongside `user`; the `user` field
+        carries a qualifier when the worktree is `remote-ahead` so downstream consumers can reason about the
+        incomplete reachability of the notes check.
+
+        **Design decisions (resolved pre-implementation):**
+        - `worktree` is a peer field, not nested under `user` — they're independent channels with independent
+          failure modes
+        - Notes qualifier is a new optional `qualifier` field on `user.value`, not a change to the existing
+          `state` enum — preserves backward compatibility with existing consumers
+        - Probes run in parallel (`Promise.all`) — the worktree probe does not wait on the user probe or vice versa
+        - Envelope shape remains additive — no existing fields renamed or removed
+
+        Build `test-first` (one behavior at a time):
+        - Envelope includes `worktree` field with state and counts on every session-init invocation (regardless
+          of state)
+        - When worktree is `remote-ahead` and user notes are `clean`, the user field carries
+          `qualifier: "clean-at-current-head"`
+        - When worktree is `clean` and user notes are `clean`, the user field has no qualifier (omitted, not
+          `null`)
+        - When worktree is `diverged`, user probe still runs and reports its own independent state
+        - When worktree is `remote-unavailable`, user probe still runs (independent failure modes)
+        - `session.remote_sync: disabled` propagates to both worktree and user fields consistently
+        - Existing consumers of `arc status --session-init --json` continue to parse the envelope without breaking
+          changes
+
+    - [ ] **5.0.d CLI status reporting surfaces — worktree qualifier**
+
+        **Goal:** Human-facing notes-status outputs (`arc user status`, direction reporting in `arc sync`, and any
+        future notes-status surface) carry a concise qualifier line when the worktree is behind origin or diverged.
+        Prevents isolated CLI invocations from being read as "fully up-to-date" when the verdict is truthful only
+        with respect to reachable ancestors.
+
+        **Design decisions (resolved pre-implementation):**
+        - Qualifier is a conditional detail line appended to the existing status output — not a new top-level
+          headline. Preserves current headline vocabulary; extends the detail-lines pattern already used for
+          `Pre-load backup present`, saved-at-relative, and ancestor-distance lines
+        - Emitted when (a) `session.remote_sync: enabled`, (b) worktree probe ran successfully, and (c) worktree
+          state is `remote-ahead` or `diverged`
+        - `--offline` flag (existing on `arc user status`) skips the worktree probe symmetrically with the notes
+          remote probe; when offline, the qualifier is replaced with a softer note acknowledging the bound
+          ("Worktree remote comparison skipped (`--offline`); reported state reflects local refs only")
+        - When the worktree probe itself returns `remote-unavailable` (timeout, network failure), a soft qualifier
+          is emitted instead: "Worktree remote comparison unavailable; reported state may not reflect unreachable
+          remote commits"
+        - Qualifier phrasing is concise: single line where possible, ≤80 chars where the content allows
+        - Extends `runUserStatus` (not `runUserSessionInitStatus` — that surface is covered by 5.0.c). The two
+          share the 5.0.a probe function but build distinct human vs machine outputs
+        - Scope is reporting surfaces only — action commands (`arc user save`, `arc user push`, etc.) are not in
+          scope here. If saving to a stale HEAD warrants its own warning, that is a follow-on consideration, not
+          part of 5.0
+
+        Scope:
+        - `arc user status` — qualifier emitted per the rules above; existing headline and detail lines unchanged
+        - `arc sync` — any status-reporting code path that summarizes notes state picks up the qualifier through
+          the shared `runUserStatus` path or a dedicated hook (decided during implementation based on the sync
+          command's current code shape)
+        - No new headline values in `UserStatusHeadline` — qualifier is a detail line, not a headline change
+
+        Build `test-first` (one behavior at a time):
+        - `arc user status` with worktree clean + notes "git note up to date" → no qualifier appended
+        - `arc user status` with worktree remote-ahead + notes "git note up to date" → qualifier line appended
+          referencing worktree drift (with behind count)
+        - `arc user status` with worktree diverged + notes clean → qualifier line appended with "diverged" phrasing
+          (includes ahead and behind counts)
+        - `arc user status` with worktree remote-ahead + notes "remote note ahead" → qualifier still appended
+          (notes already call out remote-ahead; worktree qualifier remains meaningful as an independent signal)
+        - `arc user status` with worktree remote-ahead + notes "notes conflict" → qualifier still appended
+        - `arc user status --offline` with any notes state → worktree probe not invoked; offline-scope note
+          substitutes for the qualifier
+        - `arc user status` with worktree probe timing out (simulated 3s fetch timeout) → soft "remote comparison
+          unavailable" qualifier emitted; notes probe result preserved
+        - `arc user status` with `session.remote_sync: disabled` → no worktree probe, no qualifier, no offline note
+        - `arc sync` direction-report path emits the qualifier under the same conditions as `arc user status`
+
+    - [ ] **5.0.e Session-init workflow rewrite — Step 2/3/7/8**
+
+        **Goal:** The session-init workflow (both copies) handles both channels, with combined-prompt UX,
+        dirty-tree safeguard, dedicated divergence orientation section, and `local-ahead` informational handling.
+
+        **Design decisions (resolved pre-implementation):**
+        - Step 2 envelope table documents the new `worktree` field alongside existing fields
+        - Step 3 renamed and widened — handles both channels via unified prompt logic
+        - Combined prompt issued when both channels are `remote-ahead`; separate prompts when only one is;
+          prompt text carries ahead/behind counts per channel
+        - Worktree pulls first; the envelope is then re-evaluated so the notes probe walks from the new HEAD
+        - Divergence gets its own top-level orientation section titled `Reconcile required` — not folded under
+          `Blockers`; the agent carries it forward as an active constraint, so commit requests later in the session
+          are flagged against the unresolved divergence
+        - `local-ahead` surfaces as a single informational line in orientation; no prompt
+        - Dirty-tree detection (git status porcelain check) precedes the pull prompt; prompt text warns explicitly
+          when dirty; user resolves stash/commit manually before accepting
+        - No auto-stash, no `--autostash` flag, no clobber-stash fallback
+        - Two-copy sync: `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.md` and
+          `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+
+        Scope:
+        - Step 2 envelope documentation: new `worktree` row in the composite probe table; notes-qualifier note
+          on the `user` row
+        - Step 3 rewrite: combined/separate prompt logic, worktree-first ordering, dirty-tree guard, divergence
+          non-blocking handling
+        - Step 7 orientation format: new conditional `Reconcile required:` section template; `local-ahead`
+          informational line format
+        - Step 8 trust hierarchy addendum: diverged worktree as explicit mismatch example (non-blocking, agent
+          carries forward)
+        - Cross-reference updates if other docs reference the old Step 3 name
+
+    - [ ] **5.0.f Integration and E2E test coverage**
+
+        **Goal:** CLI integration and E2E coverage pressure-tests all documented scenarios against real
+        (temporary) git repos.
+
+        **Design decisions (resolved pre-implementation):**
+        - Integration tests use the temp-dir git fixture pattern already established in `__tests__/integration/`
+        - Scenarios map 1:1 to the state matrix documented in 5.0.a / 5.0.d
+        - Tests verify envelope JSON shape and values, not prose orientation output (prompts live in the agent
+          layer, not the CLI)
+
+        Scenarios covered (fixture repos):
+        - `session.remote_sync: disabled` → envelope shows both channels skipped
+        - Both channels clean → `worktree: clean`, `user: clean`, no qualifiers
+        - Worktree remote-ahead, notes clean-at-head → user field carries `clean-at-current-head` qualifier
+        - Worktree clean, notes remote-ahead → existing path unchanged; worktree field shows `clean`
+        - Both remote-ahead → both fields populated; qualifier on user; envelope is single source for the
+          combined prompt
+        - Worktree local-ahead, notes clean → informational only
+        - Worktree diverged, notes clean → `worktree: diverged` with counts; no prompt expected
+        - Worktree clean, notes diverged → existing path unchanged
+        - Worktree remote-ahead + dirty tree → worktree field populated; dirty flag reported separately
+        - No upstream for current branch → `worktree: no-upstream`; user field independent
+        - Detached HEAD → `worktree: detached-head`; user field independent (identity-scoped ref still resolvable)
+        - Repo has no origin → `worktree: no-remote`; user field handles independently
+        - Fetch timeout (simulated) → `worktree: remote-unavailable`; user probe still runs
+        - Config `session.init_pull.worktree: manual` and `notes: always` → probe-layer behavior unchanged
+          (mode is for workflow-layer consumption)
+        - Invalid `always` mode on worktree at parse → error with valid-set message (covered in 5.0.b; re-verified
+          here in integration context)
+        - `arc user status` online with remote-ahead worktree → qualifier line present in output
+        - `arc user status` online with diverged worktree → qualifier line present with ahead/behind counts
+        - `arc user status --offline` with remote-ahead worktree → offline-scope note substitutes; no fetch attempted
+        - `arc user status` with `session.remote_sync: disabled` → no qualifier, no worktree probe invocation
+        - `arc user status` with worktree probe timing out → soft `remote-unavailable` qualifier emitted
+        - `arc sync` direction-reporting path → qualifier emitted under the same conditions as `arc user status`
+
+    - [ ] **5.0.g Documentation + ADR + config comment sync**
+
+        **Goal:** ADR-012 reflects worktree drift as a distinct channel in the portability/sync model;
+        `arc-config.yml` inline comments document the new keys accurately; release-notes entry captures the
+        surface (new config keys, default behavior).
+
+        **Design decisions (resolved pre-implementation):**
+        - ADR-012 receives a short new section or sub-section distinguishing worktree sync from notes sync,
+          plus a reference to the session-init integration
+        - `arc-config.yml` inline comments explain: purpose of each channel, mode semantics, why `always` is
+          disallowed for worktree, cross-reference to session-init.md for behavior
+        - Release notes call out the new keys under a "Session initialization" heading, with a migration note
+          (no migration needed — defaults are safe; opt-outs via `manual`)
+        - Two-copy sync for both ADR and `arc-config.yml`
+
+        Scope:
+        - ADR-012 update (package source + `.arc/` copy)
+        - `arc-config.yml` inline comment additions (both copies)
+        - `arc user status` CLI help text — document the new worktree qualifier behavior, `--offline` interaction,
+          and the soft `remote-unavailable` fallback
+        - Release-notes entry (if release notes live in-repo; otherwise staged in
+          `notes-session-init-optimization.md` for the release-notes task)
+        - Cross-reference check: any other doc that references the `session.remote_sync` gate or Phase 3.R.e
+          behavior — update to acknowledge the dual-channel model
 
 - [ ] **5.1 QUICK-REFERENCE partial-read at session-init**
 

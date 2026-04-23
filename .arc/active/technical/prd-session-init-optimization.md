@@ -306,6 +306,14 @@ synthetic test material.
 - **arc-config.yml structural changes.** Stays as-is (comments serve human+agent operational
   context; splits damage authoring UX). Content trim applied where individual comments cross
   into rationale territory.
+- **Widening `arc sync` to cover the worktree channel.** Worktree drift detection lives
+  inside session-init only. Outside of session-init, users use plain git (`git fetch`,
+  `git pull --ff-only`). Keeps `arc sync` scoped to notes; preserves the trust boundary
+  between notes (per-identity ref, low-risk) and worktree (affects working tree, hooks, CI).
+- **`always` mode for worktree `init_pull`.** Offered as `manual | prompt` only. Auto-pulling
+  a checked-out branch on session start has no mainstream precedent and introduces
+  categorically larger risk than notes auto-pull (hook triggers, CI webhooks, uncommitted
+  changes, network-hang blocking). Research-validated decision.
 
 ## Technical Considerations
 
@@ -372,6 +380,24 @@ remains the explicit workflow model — methods and extensions load when workflo
 them by name. External research (AGENTIF, IFEval, compliance-reliability literature)
 validated this direction: ARC's explicit-reference triggers are structurally closer to link
 resolution than intent classification, and empirically reliable in current use.
+
+### Remote-Sync Integrity (dual-channel)
+
+Session-init integrity depends on two independent git refs: the checked-out branch
+(`refs/heads/<branch>` vs `refs/remotes/origin/<branch>`) and the per-identity notes ref
+(`refs/notes/arc/user/<identity>`). Phase 3.R.e landed the notes half of the probe and
+orientation machinery; Task 5.0 (Phase 5) completes the scope by adding the worktree
+channel with its own prompt and config. Both channels gated behind `session.remote_sync`.
+Per-channel config `session.init_pull.{worktree,notes}` (`manual | prompt | always`,
+default `prompt`; `always` disallowed for worktree) controls prompt behavior. Worktree
+pulls precede notes pulls when both channels are remote-ahead — the notes ancestor walk
+depends on HEAD being current. Divergence is non-blocking; surfaced as a distinct
+orientation section so the agent can continue session-init while the user decides
+merge-vs-rebase, and carried forward as an active constraint so later commit requests
+are flagged against unresolved divergence. Reporting honesty extends beyond session-init:
+`arc user status` and `arc sync` direction reporting carry a qualifier line when the
+worktree is out of sync, so a "clean" notes verdict run in isolation isn't misread as
+"fully up-to-date" when the check is bounded by a stale worktree.
 
 ### Constitutional Rule Framing
 
@@ -473,3 +499,4 @@ checklist, trim strategy).
 | 2026-04-18 | Initial draft                                                                       |
 | 2026-04-20 | P0.2/P0.3/D7a refined: workflow frontmatter trigger contract; constitutional pair   |
 | 2026-04-20 | P0.3/D7a narrowed at Phase 2.1 landing: frontmatter-triggered rule; T1/T3 split     |
+| 2026-04-23 | Task 5.0 revived; dual-channel remote-sync integrity (worktree + notes)             |

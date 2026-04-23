@@ -847,3 +847,74 @@ to ordering; Phase 5 owns the deeper load-set restructure.
 
 No rebrand tasks beyond Task 1.5 needed editing — the global `arc` → `arcd` sweep naturally
 covers the follow-on `arc health` → `arcd health` without special handling.
+
+## Phase 5.0 Worktree-Sync Research (external research, 2026-04-23)
+
+**Context:** Validated planned UX for worktree-sync detection at session-init before drafting
+Task 5.0. See tasks-session-init-optimization.md § Phase 5 Task 5.0 for the implementation
+scope this shaped. The original Task 5.0 scope in Phase 5 (worktree + notes) was partially
+pulled forward as Phase 3.R.e (notes only) during multi-machine dogfooding; this research
+grounded the revived worktree half.
+
+### Key findings validating the plan
+
+- **Opt-in master gate is idiomatic.** Tools that default to auto-fetch (GitHub Desktop,
+  GitKraken 60s cadence) accumulate trust complaints; VS Code shipped `git.autofetch: false`
+  by default after user pushback. Our `session.remote_sync: enabled` (explicit opt-in) sits
+  in the trust-building regime.
+- **No mainstream tool auto-pulls the checked-out branch on startup.** Fetch-only is the
+  universal pattern (VS Code git extension, JetBrains IDEs, GitHub Desktop, GitKraken, Fork).
+  Auto-pull exists only as third-party add-ons (e.g. curet-dev/auto-pull for VS Code), and
+  even those warn on uncommitted changes. Justifies excluding `always` mode for worktree.
+- **Git's native vocabulary is the lingua franca.** `clean | ahead | behind | diverged`
+  from `git status` is internalized across the ecosystem. No need to invent terms.
+- **Default `prompt` is the Goldilocks zone.** Tools that default to always auto-sync either
+  run slow cadence (JetBrains 20min, low-friction) or accumulate complaints (GitHub Desktop
+  60s). Per-session prompt matches user trust expectations without alert fatigue.
+- **Combined dual-ref prompt is novel but better than sequential.** No direct analog (git
+  submodules sequence but don't combine; package managers don't expose multi-ref UX), but
+  research recommended combining when contextual framing is clear.
+
+### Key findings that shaped design decisions
+
+- **Bounded fetch timeout required.** Blocking tool startup on network I/O is universally
+  reviled (GitHub Desktop and VS Code both have issue threads on this). Selected 3s default
+  with `remote-unavailable` state on timeout; session-init continues rather than blocks.
+- **Context-rich prompts preferred over terse.** Industry pattern: "behind by N commits"
+  phrasing (GitHub Desktop) beats "Sync?" (vague). Drove the decision to surface ahead/behind
+  counts per channel in the combined prompt.
+- **Dirty-tree safeguard is non-negotiable.** Fast-forward pull refuses on dirty tree;
+  autostash introduces its own footguns (pre-commit/pre-commit#1787: hook rewrites conflict
+  with stashed changes, silent failure). Drove the no-auto-stash decision; explicit prompt
+  warning when dirty.
+- **Hook side effects deserve documentation.** Auto-pull can trigger post-merge hooks with
+  side effects (CI webhooks, notifications, linters). Documented for the `always` mode on
+  the notes channel (worktree has no `always` mode, so N/A there).
+- **Force-push-with-lease footgun from auto-fetch.** VS Code issue #23951 documented that
+  silent autofetch changes the local view of `refs/remotes/origin/*` without user knowledge,
+  making `--force-with-lease` unsafe. Reinforced the decision to keep fetches on explicit
+  session-init boundaries, not periodic background intervals.
+
+### Sources
+
+- VS Code `git.autofetch` disabled-by-default decision — microsoft/vscode#8469, #34684
+- VS Code autofetch safety of `--force-with-lease` — microsoft/vscode#23951
+- GitHub Desktop auto-fetch complaints — desktop/desktop#13070, #1128, #8167, #8401, #10687,
+  #12527
+- JetBrains auto-fetch default (20-minute cadence, fetch-only) — JetBrains IDE docs
+- Git `pull.rebase` + `autostash` hook footguns — pre-commit/pre-commit#1787
+- Package-manager analogs (lockfile staleness): Bundler transparent auto-sync, pnpm
+  `--frozen-lockfile`, Cargo lockfile generation on build
+- Git submodule sequencing pattern (no combined UX) — git-scm docs
+- VS Code third-party auto-pull extension — curet-dev/auto-pull (warns on uncommitted
+  changes)
+
+### Anti-patterns explicitly avoided
+
+- **Vague prompts** ("Sync?" without context) — ours show ahead/behind counts per channel
+- **Prompts when no action is needed** — ours skip on `clean`, `no-upstream`, `no-remote`,
+  `detached-head`
+- **Silent failures** — ours surface `remote-unavailable` and `diverged` as explicit states
+- **Settings that don't work** — two-copy config sync + explicit validation catch this
+  (GitHub Desktop issue #12527 is the canonical failure mode)
+- **Periodic background fetches** — ours run at session-init boundary only; no timer
