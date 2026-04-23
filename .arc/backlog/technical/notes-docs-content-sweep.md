@@ -373,6 +373,131 @@ applicable behavioral guidance; flag in the docs page header. Voice adaptation: 
 reader address works well in docs as-is for a "guide" page; convert to third-person if presenting
 as conceptual reference.
 
+## Entry 7 — DEV-RULES.ARC.md § Sub-agent scope — first paragraph
+
+**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 103-108, pre-trim)
+
+**Content:**
+
+> Many agent platforms support sub-agents — supplementary processes that run alongside the primary
+> agent. Sub-agents are valuable for bounded, well-defined work that doesn't need to be in the
+> primary context: parallel investigation, external research, token-heavy analysis that feeds
+> results back for synthesis. The developer remains the continuity thread, directing the primary
+> work while incorporating supplementary results.
+
+**Suggested destination:** `docs/concepts/sub-agents/` or `docs/concepts/agent-collaboration/` §
+When Sub-Agents Are Appropriate — complement to the operational rule ("task-list work stays in
+primary agent") retained in DEV-RULES.ARC § Sub-agent scope. Docs page covers positive case (when
+to use sub-agents); constitution covers the bounding rule (when not to).
+
+**Stylistic integration notes:** Trimmed source retains the operational rule + inline
+`[TODO-docs-site]` pointer. Extracted paragraph is methodology explanation — what sub-agents
+are, what work they suit, why the developer remains continuity thread. Voice adaptation: shift
+from rule-framing to explainer tone suitable for the docs audience. Agents know what sub-agents
+are from their system prompt, so the "many agent platforms support sub-agents" framing is for
+adopters reading the concept page fresh.
+
+## Entry 8 — DEV-RULES.ARC.md § Context quality — session-length rationale
+
+**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 213-216, pre-trim)
+
+**Content:**
+
+> Context quality degrades over session length — not just as windows fill, but as accumulated
+> context pushes early guidance toward weaker retrieval positions. Focused sessions that reset
+> at natural boundaries maintain higher quality than marathon sessions that technically fit in
+> the window.
+
+**Suggested destination:** `docs/concepts/session-operations/` § Session Length and Quality, or
+as supporting prose on the Session Operations Strategy's public-facing docs equivalent. The
+rationale explains *why* ARC prefers shorter sessions — "weaker retrieval positions" is the
+evidence-based framing that differentiates this from a purely stylistic preference.
+
+**Stylistic integration notes:** Trimmed source retains the operational rule ("Prefer shorter,
+focused sessions that reset at natural boundaries") and a pointer. Extracted paragraph is the
+evidence base. If the Session Operations Strategy already carries equivalent content, the sweep
+may de-duplicate rather than absorb; otherwise it's standalone docs content. Voice adaptation:
+unchanged (already reader-facing).
+
+## Entry 9 — DEV-RULES.ARC.md § Write for the reader — overflow examples
+
+**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 332-339, pre-trim) — four of
+six original examples; two retained inline as canonical illustrations.
+
+**Content:**
+
+> - "Removed the FooBar handler" as a code comment (reader doesn't know FooBar)
+> - Explaining why an item is absent from a list (reader only sees the list as it is)
+> - "Plan doc retired with this PRD commit" in a notes file header — reader doesn't need the
+>   workflow context; the file's existence and contents are self-explanatory
+> - "Purpose: detailed rationale carved out to keep the PRD crisp" in a notes file header —
+>   frames the file narrowly as author-side bookkeeping instead of the living scratchpad it is
+
+**Suggested destination:** `docs/concepts/documentation-style/` § Reader-Hostile Patterns, or
+paired with the retained principle statement on the same docs page. Docs page can carry the full
+catalog of examples (retained 2 + extracted 4) without the size pressure of the constitution.
+
+**Stylistic integration notes:** Trimmed source retains the principle + two canonical examples
+(code comment "Previously this section covered X" + PR description "Next action after merge:
+invoke activate-work-unit.md") + `[TODO-docs-site]` pointer to "more reader-hostile patterns."
+Four extracted examples expand the catalog: code-comment variant, list-absence variant, two
+notes-file header variants. The notes-file examples are particularly useful because that
+context (living scratchpad vs author bookkeeping) is specific to ARC-style workflows and
+worth preserving in adopter-facing docs. Voice adaptation: unchanged.
+
+## Entry 10 — DEV-RULES.ARC.md § Preamble — P1-P11 framing + rule→principle mapping table
+
+**Source:** `.arc/reference/constitution/DEV-RULES.ARC.md` (lines 9-17, pre-trim — preamble
+paragraph) plus rule-heading annotations removed throughout the file (17 sites).
+
+**Content:**
+
+> Every rule traces to one of ARC's 11 principles (P1–P11). Rules marked `[configurable]` point
+> to a specific override mechanism in [`arc-config.yml`][arc-config] or a file in
+> [`system/methods/`][arc-methods-dir] — ARC ships a default, your team can replace it. All other
+> rules are followed as stated.
+>
+> For the full principle definitions, see the [Philosophy][core-philosophy] docs.
+
+Rule → Principle mapping (constructed from `· PN` annotations stripped during audit):
+
+| Rule                                 | Principles |
+|--------------------------------------|------------|
+| Commit control                       | P2, P6     |
+| Commit format                        | P6         |
+| Atomicity                            | P6         |
+| One task at a time                   | P2, P7     |
+| Sub-agent scope                      | P2, P3     |
+| Task granularity                     | P7         |
+| Quality gate failure                 | P4         |
+| Leave it cleaner                     | P4         |
+| Test-first assessment                | P4         |
+| Session state control                | P2, P5     |
+| Context quality                      | P5         |
+| Verify before assuming               | P2         |
+| Consult strategy guidance            | P10        |
+| Method and extension loading         | P5         |
+| No meta-project references in code   | P9         |
+| Task references in `.arc/` docs      | P9         |
+| Write for the reader, not the author | P9         |
+
+**Suggested destination:** `docs/reference/rule-principle-mapping/` or
+`docs/methodology/principles/` § Rule Mapping — a dedicated mapping page shown alongside
+principle definitions. Page shows the table with each rule as a link to its DEV-RULES.ARC anchor
+and each principle linking to the Philosophy page principle section. Readers arriving from
+either direction (rule or principle) can trace to the other.
+
+**Stylistic integration notes:** Trimmed constitution no longer carries `· PN` annotations at
+rule headings or the P1-P11 preamble paragraph — constitution focuses on operational rules for
+the agent; the philosophical grounding lives in docs. Mapping preserves traceability without
+inline restatement. The `[core-philosophy]` link was removed from DEV-RULES.ARC's link
+definitions since no inline reference remained; docs page absorbs as the canonical philosophy
+pointer. Configurability annotation (`· [configurable]`) retained in constitution — that's
+operationally meaningful (signals override mechanism exists) rather than philosophical
+traceability. Voice adaptation: mapping table is reference material; surrounding docs prose
+should frame it as "these rules are grounded in ARC's principles" — the coherence signal the
+adopter needs, without restating the rules themselves.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
@@ -380,3 +505,5 @@ as conceptual reference.
      resolves these to final docs URLs alongside [TODO-docs-site] resolution. -->
 
 [arc-config]: ../../system/arc-config.yml
+[arc-methods-dir]: ../../system/methods/README.md
+[core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/

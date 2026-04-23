@@ -2375,8 +2375,60 @@ restructure, not as a Phase 4 audit target.
         `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md`, subdir README rewrite — absorbed into revised
         Task 5.5. Docs-site drift captured in `plan-docs-content-sweep.md` Drift Item #4.
 
-    - [ ] **4.2.b `DEV-RULES.ARC.md`** (385 lines) — constitutional, high stakes. Standalone focused pass; rationale
-      and meta-commentary surface more readily when the file gets dedicated attention
+    - [x] **4.2.b `DEV-RULES.ARC.md` — audited**
+
+        **Outcome:** Trimmed and lint-clean. 385 → 327 lines (15% reduction). Character of the trim was
+        surgical — scattered rationale paragraphs + overflow examples + 4-5 consolidation sites — rather
+        than whole-subsection extractions, reflecting the file's already-tight operational baseline.
+
+        **Extractions (4 staging entries, #7-10 in `notes-docs-content-sweep.md`):**
+        Entry 7 — Sub-agent scope first paragraph (what sub-agents are, when valuable); operational
+        rule "task-list work stays in primary agent" retained with `[TODO-docs-site]` pointer.
+        Entry 8 — Context quality rationale ("weaker retrieval positions" / "marathon sessions that
+        technically fit in the window"); operational rule + pointer retained.
+        Entry 9 — Write for the reader § 4 of 6 examples (kept 2 canonical inline: code-comment +
+        PR-description variants; extracted code-comment-FooBar, list-absence, and two notes-file-header
+        examples).
+        Entry 10 — Preamble P1-P11 framing + rule → principle mapping table (17 rules mapped);
+        paired with file-wide strip of `· PN` heading annotations.
+
+        **Compressions (no extractions):**
+        Preamble callout restructured ("How configurable rules work" — no more P1-P11 framing).
+        Commit control four-bullet "AI controls commits" restatements consolidated to one.
+        Commit format "Format enforcement and traceability are required..." framing dropped.
+        One-task-at-a-time: "(P2 — human-agent co-development)" parenthetical + "checkpoint at
+        checkbox level" redundancy removed; contributor note compressed 4 → 2 lines.
+        Leave-it-cleaner: "Don't pass over an issue..." restatement + method meta-commentary
+        ("The method determines fix-vs-defer thresholds...") dropped.
+        Test-first: major compression 14 → 5 lines. Decision-tree defaults and red-green-refactor
+        restatement dropped — method is authoritative and loaded at trigger time; DEV-RULES.ARC
+        embedding defaults risked contradiction if adopters override. User call.
+        No-meta-project-references: 3 sentences → 2 (restatement dropped).
+        When-to-Load: "method dependencies block triggers loading of..." informational subtext
+        trimmed from process-task-loop and prepare-commits bullets.
+
+        **Removals (pure cut, no docs-site target):**
+        "Re-check core documents" subsection removed entirely. 90% tautology ("if uncertain about X,
+        reread X"); remaining "workflows are authoritative for their domain" insight is implied by
+        § Method and extension loading. User call; replaced Contents TOC entry.
+        "Wrong information is worse than no information." aphorism at § Verify before assuming.
+
+        **P-annotation removal:** 17 `· PN` annotations stripped from rule headings across the file;
+        preamble paragraph "Every rule traces to one of ARC's 11 principles (P1–P11)..." removed
+        and staged (Entry 10). Rule → principle mapping preserved in the staging table for docs-site
+        absorption — adopter-facing methodology coherence retained without inline rule restatement.
+        `· [configurable]` annotations retained (operationally meaningful — signals override mechanism
+        exists). `[core-philosophy]` link definition removed from DEV-RULES.ARC (no remaining
+        inline reference); staged in Entry 10 for docs-site mapping page absorption.
+
+        **Agent-audience lens application:** DEV-RULES.ARC is dual-audience (agent at session-init +
+        adopter reading the constitution), so `[TODO-docs-site]` placeholders are retained at
+        extraction sites per 4.2.a's lens default. Four placeholders added; stub definition added to
+        file bottom.
+
+        **Two-copy sync:** Framework file. Edits in `.arc/` synced to
+        `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md` via cp; `diff` verified
+        identical post-sync.
 
     - [ ] **4.2.c `DEV-RULES.PROJECT.md`** (214 lines) — standalone; project-specific rules with their own rationale
       surface

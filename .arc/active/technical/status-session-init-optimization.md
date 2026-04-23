@@ -13,20 +13,20 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.2.b — DEV-RULES.ARC.md audit (385 lines)
-- **Last Completed:** Task 4.2.a — Agent briefings cluster audited (306 → 203, 34% reduction;
-  largest win AGENT-BRIEFING.CONTRIBUTOR.md 163 → 79). Six staging entries in
-  `notes-docs-content-sweep.md`. Atomic entry for the slash-form skill-syntax cleanup pass.
-  **Follow-on:** `CLAUDE.ARC.md` and `CODEX.ARC.md` deleted from `.arc/system/agent/` after
-  pressure-test concluded the `{AGENT}.ARC.md` surface has no valid ARC-exclusive use case.
-  Task 5.5 reshaped to absorb full mechanism removal (seven package sources, session-init
-  integration, init/add-agent scaffolding, CHECK 12 hook) + directory rename
-  (`system/agent/` → `system/briefs/`) + file rename (`AGENT-BRIEFING.*.md` →
-  `AGENT-BRIEF.*.md`). Docs-site drift captured in `plan-docs-content-sweep.md` Drift Item #4,
-  including harness-level files as the ARC-external pre-session-init surface (new concept).
+- **Next Task:** 4.2.c — DEV-RULES.PROJECT.md audit (214 lines)
+- **Last Completed:** Task 4.2.b — `DEV-RULES.ARC.md` audited (385 → 327 lines, 15% reduction).
+  Surgical trim — scattered rationale + overflow examples + compressions rather than
+  whole-subsection extractions, reflecting the file's tight operational baseline. Four staging
+  entries (#7-10 in `notes-docs-content-sweep.md`): Sub-agent scope first paragraph, Context
+  quality rationale, Write-for-reader overflow examples (4 of 6), Preamble P1-P11 framing +
+  rule→principle mapping table. Judgment calls executed: 17 `· PN` heading annotations
+  stripped (coherence preserved via staged mapping table); Test-first section compressed
+  14 → 5 lines (method is authoritative; defaults-embedded-in-rule risked override
+  contradiction); "Re-check core documents" subsection cut entirely (tautological).
+  Two-copy sync verified identical.
 - **Blockers:** none
-- **Next Action:** Begin 4.2.b — operational-context audit of `DEV-RULES.ARC.md` (385 lines,
-  constitutional weight). Standalone focused pass; rationale and meta-commentary surface more
-  readily when the file gets dedicated attention. Carry the agent-audience lens forward as
-  primary trim heuristic; opportunistic slash-syntax cleanup if encountered. User requested
-  audit-and-discuss before edits for 4.2.b.
+- **Next Action:** Begin 4.2.c — operational-context audit of `DEV-RULES.PROJECT.md`
+  (214 lines). Standalone pass. Project-specific rules have their own rationale patterns;
+  this project's constitution shapes adopter templates, so stay alert to
+  framework-vs-project edit boundaries. Same agent-audience + `[TODO-docs-site]`
+  retention lens as 4.2.a/b.
