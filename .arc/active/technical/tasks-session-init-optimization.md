@@ -1557,7 +1557,7 @@ clean enough that inconsistency across the three remaining session-init discover
           "no note found" stays at exit 0 — unambiguous state, nothing to load. One-line change + test
           update. Identified during post-implementation design review.
 
-- [ ] **3.R.j Vocabulary + reporting**
+- [x] **3.R.j Vocabulary + reporting**
 
     **Goal:** CLI output matches user mental models without requiring code-level translation. Single canonical
     terms across layers. Reporting surfaces enough context that a cold-open user doesn't have to guess.
@@ -2014,7 +2014,7 @@ clean enough that inconsistency across the three remaining session-init discover
         strategy, both copies identical). Template copy is excluded from lint globs
         (`packages/arc-framework/arc/**`) but was run through the same table-prettifier for parity.
 
-- [ ] **3.R.l Structural cleanup + test coverage**
+- [x] **3.R.l Structural cleanup + test coverage**
 
     **Goal:** Close review-surfaced code quality items; close the integration coverage gap that let
     push-recovery's silent-discard slip past unit tests.

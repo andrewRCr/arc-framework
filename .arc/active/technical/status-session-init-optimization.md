@@ -13,10 +13,10 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 3.R.j — Vocabulary + reporting
-- **Last Completed:** 3.R.g — Synced the remaining shipped portability docs to the finalized
-  fetch/pull/sync command surface, added the ADR-012 amendment plus plan-doc follow-up routing,
-  and retired the old Phase 5.0 cross-reference pointer as superseded.
+- **Next Task:** 4.1 — Staging infrastructure
+- **Last Completed:** Phase 3.R closeout bookkeeping — confirmed the remaining Phase 3.R parent
+  tasks (`3.R.j`, `3.R.l`) were already fully delivered by their completed subtasks, marked
+  them complete, and advanced the work unit pointer to Phase 4.
 - **Blockers:** none
-- **Next Action:** Begin 3.R.j — align the remaining user-visible sync/status vocabulary and
-  reporting surfaces to the shipped `local unsaved` / `conflict` model.
+- **Next Action:** Begin 4.1 — create `notes-docs-content-sweep.md` and document the
+  `[TODO-docs-site]` staging convention for the Phase 4 audit.
