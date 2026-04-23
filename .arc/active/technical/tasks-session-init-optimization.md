@@ -1344,7 +1344,7 @@ extension is documented in 3.R.h.
         unit coverage for user status/handlers/sync, targeted `user.test.ts` integration coverage including a
         >20-commit ancestor case, plus `lint:ts` and `typecheck` all clean.
 
-- [ ] **3.R.f Hook invocation fix for non-executable shell scripts**
+- [x] **3.R.f Hook invocation fix for non-executable shell scripts**
 
     **Goal:** Fresh clones do not require manual chmod for hook-invoked shell scripts. Top-level hook entrypoints
     continue to rely on install-time executable bits in adopter repos or the project's hook manager.
@@ -1359,10 +1359,11 @@ extension is documented in 3.R.h.
     - Hook path executes `validate-links.sh` successfully without relying on the exec bit
     - No remaining hook directly invokes `.sh` files that may be non-executable in a fresh clone
 
-    **Implementation notes:**
-    - Update hook invocations to `bash .../script.sh`
-    - Two-copy sync any hook changes
-    - Acceptance is explicit fresh-clone safety for hook-internal shell execution, not a doc-note-only fallback
+    **Outcome:** CHECK 13 in both pre-commit hook copies now invokes `validate-links.sh` through
+    `bash`, removing the nested-script executable-bit dependency that fails in fresh clones where
+    tracked `.sh` files land without `+x`. Added unit regression coverage that locks in the
+    bash-prefixed invocation and asserts the pre-commit hook no longer directly executes nested
+    `.sh` files. Verification: `npm run lint:sh`, `npm run lint:ts`, and `npm run test:unit -- pre-commit-shell-invocation`.
 
 - [ ] **3.R.g Documentation + ADR sync (runs after 3.R.m and 3.R.f)**
 

@@ -375,7 +375,7 @@ link_candidates=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.
 
 if [ -n "$link_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
-    if ! link_output=$("$(dirname "$0")/../scripts/validate-links.sh" $link_candidates 2>&1); then
+    if ! link_output=$(bash "$(dirname "$0")/../scripts/validate-links.sh" $link_candidates 2>&1); then
         echo -e "${RED}Error: Markdown link resolution failed:${NC}"
         echo "$link_output" | sed 's/^/   /'
         echo ""
