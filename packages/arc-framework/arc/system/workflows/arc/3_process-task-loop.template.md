@@ -82,6 +82,10 @@ arc:
      - **Second**: Mark task as `[x]` in task list file (task list reflects completed work when reporting)
        - Update task description to reflect actual work done (not just original plan)
        - Add completion notes with key findings/changes if work deviated from plan
+       - **Prefer outcome-shaped rewrites over append-only updates**: When marking complete, replace
+         planning-oriented text with concise completion-oriented notes unless the abandoned path is
+         itself historically important. The task line should read as a compact record of how the
+         task resolved, not as plan plus outcome pasted together.
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.

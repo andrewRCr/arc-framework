@@ -552,6 +552,13 @@ forces the workflow load.
 covering what was verified. This makes the archived task list self-documenting — a reader
 sees the verification outcome without needing to find the workflow.
 
+For task completion more broadly, completion notes are the per-task historical record for the
+work unit, not a duplicate of the original plan plus a second layer of outcomes. Prefer rewriting
+task text into the final outcome shape: what was delivered, what key decision mattered, and what
+deviation from plan is important to preserve. Use commit history for the stepwise path of atomic
+changes; use task completion notes for the resolved outcome of the task. Keep both only when the
+abandoned path is itself important historical context.
+
 ---
 
 ## Atomic Companion File
