@@ -14,9 +14,10 @@
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
 - **Next Task:** 4.1 — Staging infrastructure
-- **Last Completed:** 3.R.q — user sync provenance hardening. Upgraded local provenance from
-  hash-only state to source-aware save/load metadata, added a safe inspect-first fallback for
-  legacy ambiguous cases, and cleaned up the final duplicated status-detail branch.
+- **Last Completed:** Phase 4 scope refresh per pre-impl audit. Decomposed 4.2/4.3/4.5 into
+  file-weighted subtasks (6/3/4 respectively), swapped 4.4 ↔ 4.5 so the task-list-formatting
+  restructure runs before Tier 3, expanded 4.1 with a locked entry template and source-side
+  placeholder convention, added stopping-rule + strategy-docs exclusion to the phase preamble.
 - **Blockers:** none
-- **Next Action:** Begin 4.1 — create `notes-docs-content-sweep.md` and document the
-  `[TODO-docs-site]` staging convention for the Phase 4 audit.
+- **Next Action:** Begin 4.1 — create `notes-docs-content-sweep.md` with the locked entry
+  template and source-side `[TODO-docs-site]` placeholder convention documented in its header.

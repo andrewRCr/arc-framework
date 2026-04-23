@@ -107,7 +107,7 @@ remain in place until Phase 3 retires them — per-file becomes authoritative fr
     "Method dependencies" preambles with a machine-readable frontmatter block.
 
     **Outcome:** New dedicated `strategy-workflow-authoring.md` houses the schema, author-side declaration
-    rule, and body conventions (rules-only catalogue, ~70 lines — same shape Task 4.5 will leave
+    rule, and body conventions (rules-only catalogue, ~70 lines — same shape Task 4.4 will leave
     `strategy-task-list-formatting.md` in, applied here from creation). New `template-workflow.md` in
     `reference/templates/` gives framework + adopter workflow authors a canonical skeleton. STRATEGY-INDEX
     entry added. `configurability-architecture.md` carries a short pointer in its content-customization
@@ -2286,67 +2286,92 @@ clean enough that inconsistency across the three remaining session-init discover
 
 **Purpose:** Apply the "operational context only" lens across always-loaded docs and workflows; stage extractions for
 the future docs-content-sweep WU; land the D7b extension-point match hook against the existing anchor-suffix
-convention. Ordering is Tier 1 → Tier 2 → Tier 3 so the highest-leverage content is audited first.
+convention. Ordering is Tier 1 → Tier 2 → Task-list-formatting restructure → Tier 3, so Tier 3 audits the
+post-restructure state of `2_generate-tasks.md` and `strategy-task-list-formatting.md`.
 
 **Heuristic reminder (apply throughout 4.2–4.5):** keep content that helps conceptual flow, is counterintuitive, or
 would confuse if absent. Target ~80–90% extraction on rationale/background/overflow-example content with case-by-case
 retention. Hedges with undefined state (`unless already loaded`, `if applicable`, `when relevant`) are eliminated.
 Operational rationale clauses (`because ...`) are single-clause, ≤12 words, inline — anything longer extracts.
 
+**Stopping rule:** After trim, re-read the file — remaining content should read as imperative operational guidance
+with no rationale digressions. That's the signal for "enough."
+
+**Strategy-docs exclusion:** Strategies (`reference/strategies/**/*.md`) are excluded from tiered audit — they're T3
+on-demand, not session-init-loaded. `strategy-task-list-formatting.md` is trimmed in 4.4.c as part of the formatting
+restructure, not as a Phase 4 audit target.
+
 - [ ] **4.1 Staging infrastructure**
 
-    **Goal:** `notes-docs-content-sweep.md` is ready to receive extractions; placeholder convention documented in-repo.
-    - Create `.arc/backlog/technical/notes-docs-content-sweep.md` if not present
-    - Schema per extraction (mirrors `plan-docs-content-sweep.md` § Content Contributions wording): source-file +
-      section anchor, extracted content, suggested destination in docs/ IA, stylistic integration notes
-    - Document the `[TODO-docs-site]` reference-style placeholder convention in-repo (one section in the staging file or
-      the strategy doc)
+    **Goal:** `notes-docs-content-sweep.md` exists with a locked entry template and source-side `[TODO-docs-site]`
+    placeholder convention documented in its header.
+    - Create `.arc/backlog/technical/notes-docs-content-sweep.md` with a header block that pastes a concrete
+      per-entry template (mirrors `plan-docs-content-sweep.md` § Content Contributions). Entry fields:
+        - `## Entry N — <source-basename> § <section-anchor>` heading
+        - `**Source:** <full-path> (lines X–Y)` — line range for reviewer traceability
+        - `**Content:** > <verbatim prose>` — blockquote of extracted text
+        - `**Suggested destination:** <docs/ IA path, or "open — editorial at sweep time">` — advisory, not binding
+        - `**Stylistic integration notes:** <rephrasing needs, audience shift, retained anchors>`
+    - Document the source-side `[TODO-docs-site]` reference-style placeholder convention in the staging file's header.
+      Sweep-side convention already lives in `plan-docs-content-sweep.md § Content Contributions`; source-side lives
+      with the staging it governs. Include: syntax, placement at extraction site (greppable), completion semantics
+      (resolved to final docs URL at sweep time)
 
 - [ ] **4.2 Tier 1 audit — always-loaded docs**
 
-    **Goal:** Operational-context audit applied to every file session-init loads unconditionally.
-    - Files:
-        - `.arc/system/agent/AGENT-BRIEFING.ARC.md`
-        - `.arc/system/agent/AGENT-BRIEFING.PROJECT.md`
-        - `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (role-conditional load — Tier 1 on contributor sessions)
-        - `.arc/system/agent/CLAUDE.ARC.md` (and any other agent-specific files present)
-        - `.arc/reference/constitution/DEV-RULES.ARC.md`
-        - `.arc/reference/constitution/DEV-RULES.PROJECT.md`
-        - `.arc/reference/QUICK-REFERENCE.md`
-        - `.arc/system/workflows/arc/session-lifecycle/session-init.md`
-        - `.arc/reference/templates/template-status.md` (shapes every active status file; instantiated file is read at
-          every session-init, so template-level bloat propagates)
-        - `.arc/system/arc-config.yml` (comment-level audit only; structural changes out of scope)
-    - For each: extract rationale/background/overflow examples to `notes-docs-content-sweep.md`; leave
-      `[TODO-docs-site]` reference-style link placeholders at extraction sites
-    - Two-copy sync per file
+    **Goal:** Operational-context audit applied to every file session-init loads unconditionally. Decomposed by file
+    weight and cohesion so heavy files get dedicated focus and small files batch.
+
+    **Protocol per subtask:** extract rationale/background/overflow examples to `notes-docs-content-sweep.md` per
+    the locked template (Task 4.1); leave `[TODO-docs-site]` reference-style placeholders at extraction sites;
+    two-copy sync per file.
+
+    - [ ] **4.2.a Agent briefings cluster** — `AGENT-BRIEFING.ARC.md` (57 lines), `AGENT-BRIEFING.PROJECT.md` (47),
+      `AGENT-BRIEFING.CONTRIBUTOR.md` (163, contributor-session load only — maintainer sessions don't pay the cost),
+      `CLAUDE.ARC.md` (39). Cohesive cluster; all small; single audit pass
+
+    - [ ] **4.2.b `DEV-RULES.ARC.md`** (385 lines) — constitutional, high stakes. Standalone focused pass; rationale
+      and meta-commentary surface more readily when the file gets dedicated attention
+
+    - [ ] **4.2.c `DEV-RULES.PROJECT.md`** (214 lines) — standalone; project-specific rules with their own rationale
+      surface
+
+    - [ ] **4.2.d `QUICK-REFERENCE.md`** (330 lines) — standalone, heavy. Coordinate with Phase 5.1 partial-read
+      narrowing: `## Environment & Path Context` + `## Runtime Environment` remain in the session-init partial-read
+      set; other sections load on-demand via workflow references. Audit all sections — load-cost lens on the
+      partial-read pair, on-demand-load + docs-hygiene lens elsewhere
+
+    - [ ] **4.2.e `session-init.md`** (344 lines) — standalone, heavy. Reflexive audit of the workflow that directs
+      what gets loaded; deserves dedicated focus
+
+    - [ ] **4.2.f Template + reference + config cluster** — `template-status.md` (56 lines; shapes every active status
+      file, template-level bloat propagates), `STRATEGY-INDEX.md` (80 lines; session-init Item 6 — adding to Tier 1
+      coverage), `arc-config.yml` (173 lines, comments only; structural changes out of scope).
+      **Note on `arc-config.yml`:** 3.R moved session-init consumption to `arc status --session-init --json`; the
+      agent no longer reads the file directly. Audit pressure here is docs-hygiene (rationale-heavy comments belong
+      on the docs site under "operational content only") rather than session-init load-cost
 
 - [ ] **4.3 Tier 2 audit — high-frequency workflows**
-    - Files:
-        - `.arc/system/workflows/arc/3_process-task-loop.md`
-        - `.arc/system/workflows/arc/supplemental/prepare-commits.md`
-        - `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
-        - `.arc/system/workflows/arc/session-lifecycle/session-handoff.md`
-    - Same extraction + placeholder protocol as Tier 1
 
-- [ ] **4.4 Tier 3 audit — remaining workflows**
-    - Files:
-        - `.arc/system/workflows/arc/1_create-prd.md`
-        - `.arc/system/workflows/arc/2_generate-tasks.md`
-        - All `work-unit-lifecycle/*.md` — `activate-work-unit.md`, `archive-work-unit.md`, `clean-work-unit.md`,
-          `deactivate-work-unit.md`, `integrate-work-unit.md`, `rotate-branch.md`, `verify-work-unit.md`, plus
-          `planning/activate-planning-branch.md` and `planning/integrate-planning-branch.md`
-        - Remaining `supplemental/*.md` — `manage-incidental-work.md`, `maintain-project-docs.md`, `add-agent.md`,
-          `verify-arc-integrity.md`, `integrate-external-content.md`
-    - **Out of Tier 3 scope (excluded explicitly for visibility):** `initial-setup/*.md` (one-off install workflows,
-      not loaded per-session), `session-lifecycle/session-loop.md` (`audience: human`, not agent-loaded)
-    - Same protocol
+    **Goal:** Same operational-context audit applied to workflows that fire many times per session. Decomposed by
+    file weight.
 
-- [ ] **4.5 Task-list-formatting restructure (P1.4 — three moves)**
+    **Protocol per subtask:** same as 4.2 — extract to staging, leave placeholders, two-copy sync per file.
+
+    - [ ] **4.3.a Commit/task flow cluster** — `3_process-task-loop.md` (269 lines) + `prepare-commits.md` (157).
+      Cohesive on the commit/task completion loop; reasonable to audit together
+
+    - [ ] **4.3.b `integrate-work-unit.md`** (360 lines) — standalone, heavy
+
+    - [ ] **4.3.c `session-handoff.md`** (468 lines) — standalone, heaviest; peers with session-init for scrutiny
+
+- [ ] **4.4 Task-list-formatting restructure (P1.4 — three moves)**
 
     **Goal:** `strategy-task-list-formatting.md` trimmed to rules-only catalogue; templates extracted; Quick Format
-    Checklist relocated to point of use.
-    - [ ] **4.5.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
+    Checklist relocated to point of use. Runs before Tier 3 audit (4.5) so Tier 3 audits `2_generate-tasks.md` in
+    its post-restructure state.
+
+    - [ ] **4.4.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
         - New file: `.arc/reference/templates/template-tasks.md`
         - Move: feature/technical header template, incidental header template, verification phase block, atomic
           companion file template, success criteria block
@@ -2364,17 +2389,43 @@ Operational rationale clauses (`because ...`) are single-clause, ≤12 words, in
               alone (historical record)
             - Two-copy sync on `2_generate-tasks.md`
 
-    - [ ] **4.5.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
+    - [ ] **4.4.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
         - Move checklist from `strategy-task-list-formatting.md` § Quick Format Checklist into the appropriate point in
           Step 4 ("Write and Save Task List")
         - Cross-reference updates in callers
 
-    - [ ] **4.5.c Trim `strategy-task-list-formatting.md` to rules-only**
+    - [ ] **4.4.c Trim `strategy-task-list-formatting.md` to rules-only**
         - Remove moved content
         - Apply operational-context audit on the trimmed result (rationale text → staging)
         - Target shape: rules-only catalogue aligned with `strategy-workflow-authoring.md` (~70 lines) — rough
           guide, not hard ceiling; current file is 709 lines
         - Update cross-references (from DEV-RULES.ARC, 2_generate-tasks.md, etc.) if links broke
+
+- [ ] **4.5 Tier 3 audit — remaining workflows**
+
+    **Goal:** Operational-context audit applied to remaining session-init-relevant workflows. Runs after 4.4 so
+    `2_generate-tasks.md` is audited in its post-restructure state. Decomposed by domain cluster.
+
+    **Protocol per subtask:** same as 4.2 / 4.3 — extract to staging, leave placeholders, two-copy sync per file.
+
+    - [ ] **4.5.a Planning workflows** — `1_create-prd.md` (138 lines), `2_generate-tasks.md` (160, post-4.4.b
+      relocated-checklist state)
+
+    - [ ] **4.5.b Work-unit lifecycle core** — `activate-work-unit.md` (234 lines), `archive-work-unit.md` (275),
+      `clean-work-unit.md` (374, heavy), `deactivate-work-unit.md` (278). Note: `integrate-work-unit.md` lives in
+      Tier 2 (4.3.b), not here
+
+    - [ ] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md` (155 lines),
+      `verify-work-unit.md` (80), `planning/activate-planning-branch.md` (115),
+      `planning/integrate-planning-branch.md` (152)
+
+    - [ ] **4.5.d Supplemental** — `manage-incidental-work.md` (226 lines), `maintain-project-docs.md` (150),
+      `add-agent.md` (87), `verify-arc-integrity.md` (151), `integrate-external-content.md` (130)
+
+    - **Out of Tier 3 scope (excluded explicitly for visibility):** `initial-setup/*.md` (one-off install workflows,
+      not loaded per-session), `session-lifecycle/session-loop.md` (`audience: human`, not agent-loaded),
+      `reference/strategies/**/*.md` (T3 on-demand; `strategy-task-list-formatting.md` handled in 4.4.c as part of
+      the formatting restructure)
 
 - [ ] **4.6 D7b extension-point match pre-commit hook (test-first)**
 
