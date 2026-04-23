@@ -2196,6 +2196,32 @@ clean enough that inconsistency across the three remaining session-init discover
         - Expanded unit and integration coverage across `user-status`, `sync`, and composite status formatting to pin
           the new vocabulary, detail lines, and action matrix.
 
+- [x] **3.R.o User-internal metadata layout cleanup**
+
+    **Origin:** Follow-on from 3.R.n. The new local-only sync provenance file solved stale-vs-unsaved ambiguity, but
+    together with rotating pre-load backups it increased root-level clutter under `user/{identity}/`. The usability
+    issue is not behavior but signaling: user-authored working files should be visually distinct from ARC-managed local
+    bookkeeping.
+
+    **Outcome:** Local-only user metadata now writes to `user/{identity}/.internal/`, matching the framework's
+    existing `system/.internal/` convention. New writes land in `.internal/`; reads remain backward-compatible with
+    legacy root-level files so existing clones upgrade in place without a migration step. Status output continues to
+    show backup basenames rather than leaking storage layout details.
+
+    - [x] **3.R.o.1 Move local-only portability metadata into `.internal/`**
+        - Moved the local sync provenance file and new pre-load backup writes under `user/{identity}/.internal/`.
+        - Preserved the user-dir portability contract: dot-directories are already excluded from serialization, so the
+          local-only files remain unsynced without additional manifest rules.
+
+    - [x] **3.R.o.2 Backward-compatible reads + retention**
+        - `readLocalSyncState` now checks `.internal/` first and falls back to the legacy root-level path.
+        - Backup listing reads both `.internal/` and legacy root-level files; timestamped retention now prunes only the
+          new `.internal/` location so older root files remain readable without forcing a migration.
+
+    - [x] **3.R.o.3 Coverage + task-state updates**
+        - Updated integration coverage for `.internal/` backup/provenance paths and kept the existing legacy-root backup
+          case as compatibility coverage.
+
 ---
 
 ### **Phase 4:** Operational-Context Audit + Task-List-Formatting Restructure + D7b

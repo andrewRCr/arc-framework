@@ -67,9 +67,21 @@ vi.mock("@clack/prompts", () => ({
 // --- Tests ---
 
 async function listBackupFiles(userDir: string): Promise<string[]> {
-  return (await readdir(userDir))
-    .filter((name) => name === BACKUP_FILENAME || /^\.pre-load-backup-.*\.json$/u.test(name))
-    .sort();
+  const internalDir = join(userDir, ".internal");
+  const names: string[] = [];
+
+  for (const dir of [internalDir, userDir]) {
+    try {
+      names.push(
+        ...(await readdir(dir))
+          .filter((name) => name === BACKUP_FILENAME || /^\.pre-load-backup-.*\.json$/u.test(name)),
+      );
+    } catch {
+      // Directory absent — ignore.
+    }
+  }
+
+  return names.sort();
 }
 
 async function readNotesRefTip(cwd: string, identity: string): Promise<string> {
@@ -408,7 +420,7 @@ describe("user load — backup and stale detection", () => {
     expect(backupPath).toBeDefined();
 
     // Verify backup exists and contains the pre-load state
-    const backupRaw = await readFile(join(userDir, backupPath!), "utf-8");
+    const backupRaw = await readFile(join(userDir, ".internal", backupPath!), "utf-8");
     const backup = JSON.parse(backupRaw) as { version: number; files: Record<string, string> };
     expect(backup.files["SESSION-NOTES.md"]).toBe("# Modified locally");
   });
@@ -438,7 +450,7 @@ describe("user load — backup and stale detection", () => {
     // Verify no backup file created
     let backupExists = true;
     try {
-      await readFile(join(userDir, BACKUP_FILENAME), "utf-8");
+      await readFile(join(userDir, ".internal", BACKUP_FILENAME), "utf-8");
     } catch {
       backupExists = false;
     }
@@ -484,7 +496,7 @@ describe("user load — backup and stale detection", () => {
     const [backupPath] = backups;
     expect(backupPath).toBeDefined();
 
-    const backupRaw = await readFile(join(userDir, backupPath!), "utf-8");
+    const backupRaw = await readFile(join(userDir, ".internal", backupPath!), "utf-8");
     const backup = JSON.parse(backupRaw) as { files: Record<string, string> };
     expect(backup.files[".some-dotfile"]).toBeUndefined();
     expect(backup.files["SESSION-NOTES.md"]).toBe("# Second");
@@ -509,7 +521,7 @@ describe("user load — backup and stale detection", () => {
 
     const manifests = await Promise.all(
       timestamped.map(async (name) => {
-        const raw = await readFile(join(userDir, name), "utf-8");
+        const raw = await readFile(join(userDir, ".internal", name), "utf-8");
         return JSON.parse(raw) as { files: Record<string, string> };
       }),
     );
@@ -954,7 +966,7 @@ describe("user status", () => {
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
     await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
-    await unlink(join(userDir, ".sync-state.json"));
+    await unlink(join(userDir, ".internal", ".sync-state.json"));
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified after load", "utf-8");
 
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });

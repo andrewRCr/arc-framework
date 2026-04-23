@@ -21,6 +21,7 @@ const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
+const USER_INTERNAL_DIRNAME = ".internal";
 
 interface LocalSyncState {
   version: 1;
@@ -124,16 +125,18 @@ export async function runUserLoad(
 
     if (Object.keys(localFiles).length > 0) {
       const backupFilename = createTimestampedBackupFilename();
+      const internalDir = getUserInternalDir(cwd, identity);
+      await ensureDir(internalDir, io.mkdir);
       await io.writeFile(
-        join(userDir, backupFilename),
+        join(internalDir, backupFilename),
         JSON.stringify(localResult.manifest),
       );
-      await pruneTimestampedBackups(userDir, io.readDir);
+      await pruneTimestampedBackups(internalDir, io.readDir);
 
       const manifestNames = new Set(Object.keys(manifest.files));
       staleWarnings = Object.keys(localFiles)
         .filter((name) => !manifestNames.has(name))
-        .map((name) => `Local file "${name}" not in saved manifest — preserved in ${backupFilename}`);
+        .map((name) => `Local file "${name}" not in saved manifest — preserved in .internal/${backupFilename}`);
     }
   } catch {
     // User dir doesn't exist yet — nothing to back up, skip gracefully
@@ -168,28 +171,32 @@ export async function readLocalSyncState(
   io: UserIOContext,
   identity: string,
 ): Promise<LocalSyncState | null> {
-  const syncStatePath = join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME);
-  let raw: string;
-  try {
-    raw = await io.readFile(syncStatePath);
-  } catch {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<LocalSyncState>;
-    if (
-      parsed.version === 1
-      && typeof parsed.materializedManifestHash === "string"
-      && parsed.materializedManifestHash.length > 0
-    ) {
-      return {
-        version: 1,
-        materializedManifestHash: parsed.materializedManifestHash,
-      };
+  for (const syncStatePath of [
+    join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_FILENAME),
+    join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME),
+  ]) {
+    let raw: string;
+    try {
+      raw = await io.readFile(syncStatePath);
+    } catch {
+      continue;
     }
-  } catch {
-    return null;
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<LocalSyncState>;
+      if (
+        parsed.version === 1
+        && typeof parsed.materializedManifestHash === "string"
+        && parsed.materializedManifestHash.length > 0
+      ) {
+        return {
+          version: 1,
+          materializedManifestHash: parsed.materializedManifestHash,
+        };
+      }
+    } catch {
+      return null;
+    }
   }
 
   return null;
@@ -201,9 +208,9 @@ async function writeLocalSyncState(
   identity: string,
   manifest: SyncManifest,
 ): Promise<void> {
-  const userDir = join(cwd, ".arc", "user", identity);
-  const syncStatePath = join(userDir, LOCAL_SYNC_STATE_FILENAME);
-  await ensureDir(userDir, io.mkdir);
+  const internalDir = getUserInternalDir(cwd, identity);
+  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
+  await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
     version: 1,
     materializedManifestHash: hashSyncManifest(manifest),
@@ -321,21 +328,14 @@ export async function listBackupFiles(
   io: UserIOContext,
   identity: string,
 ): Promise<string[]> {
-  const userDir = join(cwd, ".arc", "user", identity);
-
-  try {
-    const entries = await io.readDir(userDir);
-    const backupFiles = entries
-      .map((entry) => entry.name)
-      .filter((name) => name === BACKUP_FILENAME || isTimestampedBackupFile(name));
-    const legacy = backupFiles.filter((name) => name === BACKUP_FILENAME);
-    const timestamped = backupFiles
-      .filter((name) => isTimestampedBackupFile(name))
-      .sort((left, right) => right.localeCompare(left));
-    return [...timestamped, ...legacy];
-  } catch {
-    return [];
-  }
+  const legacyFiles = await readBackupNames(join(cwd, ".arc", "user", identity), io.readDir);
+  const internalFiles = await readBackupNames(getUserInternalDir(cwd, identity), io.readDir);
+  const backupFiles = [...internalFiles, ...legacyFiles];
+  const legacy = backupFiles.filter((name) => name === BACKUP_FILENAME);
+  const timestamped = backupFiles
+    .filter((name) => isTimestampedBackupFile(name))
+    .sort((left, right) => right.localeCompare(left));
+  return [...timestamped, ...legacy];
 }
 
 function createTimestampedBackupFilename(): string {
@@ -348,10 +348,10 @@ function isTimestampedBackupFile(name: string): boolean {
 }
 
 async function pruneTimestampedBackups(
-  userDir: string,
+  backupDir: string,
   readDir: UserIOContext["readDir"],
 ): Promise<void> {
-  const entries = await readDir(userDir);
+  const entries = await readDir(backupDir);
   const timestamped = entries
     .map((entry) => entry.name)
     .filter(isTimestampedBackupFile)
@@ -360,9 +360,26 @@ async function pruneTimestampedBackups(
   const toDelete = timestamped.slice(BACKUP_RETENTION);
   for (const filename of toDelete) {
     try {
-      await rm(join(userDir, filename), { force: true });
+      await rm(join(backupDir, filename), { force: true });
     } catch {
       // Best-effort pruning; backup creation already succeeded.
     }
+  }
+}
+
+function getUserInternalDir(cwd: string, identity: string): string {
+  return join(cwd, ".arc", "user", identity, USER_INTERNAL_DIRNAME);
+}
+
+async function readBackupNames(
+  dir: string,
+  readDir: UserIOContext["readDir"],
+): Promise<string[]> {
+  try {
+    return (await readDir(dir))
+      .map((entry) => entry.name)
+      .filter((name) => name === BACKUP_FILENAME || isTimestampedBackupFile(name));
+  } catch {
+    return [];
   }
 }

@@ -14,10 +14,9 @@
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
 - **Next Task:** 4.1 — Staging infrastructure
-- **Last Completed:** 3.R.n — post-close portability semantics refinement. Split remote saved-note
-  state from disk hydration state across `arc user status` and `arc sync`, added dominant
-  user-facing headlines (`disk stale`, `up to date`, `local ahead`, etc.), and aligned the
-  porcelain action matrix and coverage with the shared model.
+- **Last Completed:** 3.R.o — user-internal metadata layout cleanup. Moved local-only user
+  portability metadata into `user/{identity}/.internal/`, kept legacy-root reads for backward
+  compatibility, and extended coverage for the new storage layout.
 - **Blockers:** none
 - **Next Action:** Begin 4.1 — create `notes-docs-content-sweep.md` and document the
   `[TODO-docs-site]` staging convention for the Phase 4 audit.
