@@ -1,3 +1,7 @@
+---
+active: true
+---
+
 # CLAUDE.ARC.md — Agent Configuration
 
 Shared rules and project context live in:
@@ -14,8 +18,6 @@ Shared rules and project context live in:
 - **Bash commands:** Keep shell commands simple and separate — chained commands (`&&`, `||`, pipes)
   may not match auto-approve patterns even when the individual commands would be approved. Run
   independent commands as parallel tool calls instead of chaining them.
-- **Never** degrade work quality or change approach due to context or token pressure
-- **Never** make "efficiency" tradeoffs based on context window size
 
 ## MCP Server Availability
 

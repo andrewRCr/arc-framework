@@ -113,4 +113,270 @@ to the work it governs.
 
 <!-- Populated by source WU audit subtasks. Append-only; preserve numbering. -->
 
-[none yet]
+## Entry 1 — AGENT-BRIEFING.ARC.md § Introduction + How ARC Works
+
+**Source:** `.arc/system/agent/AGENT-BRIEFING.ARC.md` (lines 3-29)
+
+**Content:**
+
+> ARC is a development methodology for human-AI collaboration. It structures how a developer
+> and an AI agent work together — planning, executing, verifying, and preserving context across
+> work sessions. The ARC Framework implements this methodology as markdown documents and git
+> hooks that work with any agent platform.
+>
+> ## How ARC Works
+>
+> **Session lifecycle:** Sessions are bounded — each starts with initialization and ends with
+> handoff. The user invokes these as skills (e.g., `/arc-resume`, `/arc-handoff`). Initialization
+> loads project context from a defined document set; handoff preserves working context for the
+> next session. Session state splits between the active WU's `status-{name}.md`
+> (tracked, per-WU in `active/{category}/`) and SESSION-NOTES.md (personal, gitignored in
+> `user/{identity}/`, portable via git notes).
+>
+> **Work pipeline:** Planned work follows a structured pipeline — PRD, task generation, task
+> execution loop. Each task is a bounded review increment: the agent completes one, reports, and
+> waits for approval before proceeding.
+>
+> **Methods and extensions:** ARC ships strong defaults for key behaviors (commit format,
+> issue-triage, test-first, quality gate commands). Teams can override any method by populating
+> its `.override` section under `system/methods/` without modifying framework files. Extensions
+> under `system/extensions/` inject custom steps at defined workflow boundaries.
+>
+> **Quality gates:** Every task must pass quality checks before completion. Gate commands are
+> project-specific — defined in DEV-RULES.PROJECT and referenced via the quality-gate-commands
+> method.
+
+**Suggested destination:** `docs/concepts/arc-overview/` — covers what-ARC-is intro plus the four
+core concept areas (session lifecycle, work pipeline, configurability, quality gates) as one
+unified "What is ARC" page. Could split into subpages per concept if IA prefers.
+
+**Stylistic integration notes:** Trimmed source retains operational facts (skill names, state file
+paths, pipeline phase names, `system/methods/` and `system/extensions/` paths, DEV-RULES pointers).
+Extracted prose covers: the "structures how a developer and an AI agent work together" framing,
+bounded-sessions model, document-set loading, working-context preservation, git-notes portability,
+"one task = one review increment" rationale (also lives in DEV-RULES.ARC § Task Execution — sweep
+can de-duplicate), `.override` mechanism for method customization, extension injection at workflow
+boundaries, "every task must pass quality checks" reminder. Quality gates content largely duplicates
+DEV-RULES.PROJECT § Quality Gates — sweep may collapse. Adapt from agent-briefing voice to
+reader-facing prose; drop "ARC ships strong defaults" adopter framing. **Skill-syntax
+generalization:** the verbatim above shows the original `/arc-resume` / `/arc-handoff` slash form
+(Claude Code-specific). Trimmed source drops the slash to bare `arc-resume` / `arc-handoff` skill
+names; docs absorption should preserve the generalization (Codex uses `$arc-resume`, other agents
+may differ — name the skill, not the invocation syntax). Slash-form references remain in many
+other framework docs/workflows; broader sweep tracked in `atomic-session-init-optimization.md`.
+**Source has no inline `[TODO-docs-site]` placeholders:** second-pass agent-audience trim removed
+the three `see [X][TODO-docs-site] for ...` pointers (intro / Session lifecycle / Methods and
+extensions) plus the footer "add-agent.md" pointer because the briefing is strictly agent-targeted
+— agents don't follow runtime links to docs, and the file has no human-reader role analogous to
+the contributor briefing. Sweep WU finds the extraction via this entry's Source range (lines 3-29);
+in-source placeholders are supererogatory for files with pure agent audience. Convention from
+Task 4.1 still applies for dual-audience source files (e.g., AGENT-BRIEFING.CONTRIBUTOR.md retains
+its placeholders).
+
+## Entry 2 — AGENT-BRIEFING.CONTRIBUTOR.md § Boundaries — explanatory paragraph
+
+**Source:** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (lines 20-24)
+
+**Content:**
+
+> **The boundary is ownership of tracked state, not the presence of WU concepts.** You may freely
+> run ARC's full planning pipeline (sessions, task lists, status files, shift, handoffs) scoped to
+> your personal workspace at `.arc/user/{identity}/`. Upstream's tracked `.arc/` tree provides the
+> constitution, strategies, agent briefings, and workflows you need — you read them, you don't
+> write to them.
+
+**Suggested destination:** `docs/concepts/contributor-role/` § Boundaries — same docs section
+that absorbs the operational Boundaries rules; this paragraph adds conceptual framing for why the
+boundary is shaped the way it is.
+
+**Stylistic integration notes:** Operational facts (`.arc/active/`/`.arc/backlog/` write
+restriction, pre-commit hook warning, quality gates apply in full) stay in trimmed source.
+Extracted paragraph elaborates the "ownership of tracked state" mental model and the read-vs-write
+split for upstream's `.arc/` tree. Voice adaptation: shift second-person ("You may freely run")
+to docs-narrative third-person ("Contributors run the pipeline scoped to their personal workspace").
+
+## Entry 3 — AGENT-BRIEFING.CONTRIBUTOR.md § Commit Convention
+
+**Source:** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (lines 30-45)
+
+**Content:**
+
+> ## Commit Convention
+>
+> Use the `Context: contribution (...)` footer with a freeform description of the change:
+>
+> ```text
+> feat(auth): add password reset endpoint
+>
+> - Implements POST /api/auth/reset
+> - Sends reset email via SendGrid integration
+>
+> Context: contribution (implement password reset per issue #42)
+> ```
+>
+> The parenthetical is freeform — describe what the contribution addresses. The commit format
+> (subject line) follows the same rules as maintainer commits (conventional commits by default,
+> per [arc-config.yml][arc-config]).
+
+**Suggested destination:** `docs/concepts/contributor-role/` § Commit Convention or
+`docs/reference/contributor-commits/` — keep the worked example for readers; the briefing version
+trims to a one-liner spec + pointer to the docs example.
+
+**Stylistic integration notes:** Operational essentials (`Context: contribution (...)` footer +
+freeform parenthetical + arc-config.yml pointer) stay in trimmed source. Extracted material is
+the worked-example commit block — example aids readers more than agent operation. Sweep absorption
+can augment with one or two additional examples (simple bug fix, multi-file refactor) to round
+out the page.
+
+## Entry 4 — AGENT-BRIEFING.CONTRIBUTOR.md § Session Workflow
+
+**Source:** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (lines 47-56)
+
+**Content:**
+
+> ## Session Workflow
+>
+> **Initialization:** Loads project identity (AGENT-BRIEFING.ARC, AGENT-BRIEFING.PROJECT),
+> constitutional context (DEV-RULES, QUICK-REFERENCE), and this briefing. Skips maintainer
+> artifacts (upstream's status file, task list, task execution workflow). If you maintain your
+> own personal status-contributor.md at `user/{identity}/status-contributor.md`, it is loaded automatically.
+>
+> **Handoff:** Writes SESSION-NOTES.md for personal context across sessions. Skips project-level
+> active status file update (maintainer-managed). Your personal status-contributor.md is updated if you're
+> running a full planning pipeline locally.
+
+**Suggested destination:** `docs/concepts/contributor-role/` § Session Lifecycle — describes what
+session-init.md and session-handoff.md do for contributors specifically (load set, skipped
+artifacts, optional status-contributor.md handling).
+
+**Stylistic integration notes:** Trimmed source replaces both paragraphs with a pointer to
+session-init.md / session-handoff.md (the operational truth) plus a one-line note about optional
+`status-contributor.md` loading. Extracted paragraphs duplicate behavior already documented
+authoritatively in the workflow files; sweep absorption converts duplicate-restated-in-briefing
+into explained-once-in-docs with cross-link to workflow files. Voice adaptation: shift
+second-person ("you maintain") to third-person reader-facing prose where appropriate.
+
+## Entry 5 — AGENT-BRIEFING.CONTRIBUTOR.md § Personal Workspace — concept + recommendation prose
+
+**Source:** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (lines 60-62, 71-75, 77-84) —
+three non-contiguous extractions within the Personal Workspace section, consolidated as one
+thematic unit ("what the personal workspace is and how to organize it").
+
+**Content:**
+
+> Your `.arc/user/{identity}/` directory is a personal workspace. ARC manages reads from a defined
+> set of paths inside it; everything else is yours to organize freely.
+>
+> **User-managed content** (freeform, any structure you want):
+>
+> Personal scratch notes, investigation logs, reference links, archived completed work, mirrored
+> strategies, personal conventions — anything else you want to put in your workspace. ARC does not
+> load, validate, or manage this content.
+>
+> ### Recommended convention: mirror ARC's structure
+>
+> If you add to your workspace beyond the framework-managed paths, follow ARC's tracked directory
+> layout (`active/`, `reference/`, `reference/archive/`, etc.). This keeps your mental model
+> consistent with the framework and makes graduation from informal personal use to the full
+> planning pipeline natural. The recommendation is for your consistency — not for framework
+> functionality. ARC cannot enforce the structure of a gitignored personal directory, and making
+> that honest is more useful than pretending otherwise.
+
+**Suggested destination:** `docs/concepts/contributor-role/` § Personal Workspace, or as a
+standalone `docs/concepts/personal-workspace/` page. Pairs naturally with the Framework Read
+Contract list — docs page can present "what ARC manages" alongside "what you organize freely" plus
+the mirror-structure recommendation.
+
+**Stylistic integration notes:** Operational portions (Framework-managed reads list, Guardrails
+subsection) stay in trimmed source — they're the operational core needed at session load.
+Extracted prose is the conceptual model of the personal workspace plus the mirror-structure
+recommendation. Sweep absorption can present this as a coherent "what is the personal workspace"
+page; the mirror-structure rationale ("ARC cannot enforce... making that honest is more useful
+than pretending otherwise") is meta-philosophy worth keeping in docs voice. Voice adaptation:
+shift second-person ("Your `.arc/user/{identity}/` directory") to third-person framing for docs.
+
+## Entry 6 — AGENT-BRIEFING.CONTRIBUTOR.md § Running a Full Planning Pipeline Locally
+
+**Source:** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md` (lines 93-148)
+
+**Content:**
+
+> ## Running a Full Planning Pipeline Locally
+>
+> For substantial contributions — multi-week features, multi-session work, anything that benefits
+> from explicit planning — you can use ARC's full planning pipeline scoped entirely to
+> `user/{identity}/`. This uses the same workflows as maintainers; they resolve paths based on
+> your `arc.role` setting.
+>
+> ### Layout (applying the mirror-structure recommendation)
+>
+> ```text
+> .arc/user/{identity}/
+>   SESSION-NOTES.md            ← session context (handled automatically by session workflows)
+>   status-contributor.md       ← your personal work state
+>   active/
+>     plan-<name>.md            ← plan doc (transient; subsumed by PRD at PRD-creation)
+>     prd-<name>.md             ← PRD (after plan doc is promoted)
+>     tasks-<name>.md           ← task list
+>     notes-<name>.md           ← residual non-PRD material carried forward from planning
+>     atomic-<name>.md          ← atomic companion file (optional)
+> ```
+>
+> ### Same workflows, same ceremony as maintainers
+>
+> Plan docs are transient and get subsumed by PRD creation — residual material moves into the
+> notes file. The PRD, task-list generation, task execution loop, session handoffs, and shift
+> lifecycle all operate against your personal tree when your role is contributor. Quality gates
+> apply in full — the same standards as maintainer work.
+>
+> ### Multiple concurrent plan docs
+>
+> If you are exploring several contribution ideas at once, all of the plan docs live alongside
+> each other in `active/`. Concurrent planning at scale is arc-in-git's value proposition
+> (dedicated `backlog/` for staging); contributor mode and other non-arc-in-git modes are
+> lightweight-by-design. If flat `active/` becomes cluttered for you personally, nothing stops you
+> from adding `active/planning/` as a personal convention — the framework doesn't care.
+>
+> ### Completion and archival
+>
+> When your contribution is finished and the PR is merged, there is no formal archive ceremony.
+> The lightweight path:
+>
+> 1. Delete `user/{identity}/active/` entries for the completed work, or leave them
+> 2. Reset `user/{identity}/status-contributor.md` to "no active work"
+> 3. Move on
+>
+> If you want historical reference for your own completed work, mirror ARC's archive structure
+> inside your workspace (`user/{identity}/reference/archive/<quarter>/<category>/`). This is a
+> personal choice, not a framework requirement. `git log` with your `Context: contribution (...)`
+> footers is a sufficient historical record for most contributors.
+>
+> ### Role transitions
+>
+> If you become a project maintainer, change your role between work units, not during them. Set
+> `git config arc.role = maintainer` after completing your current contribution; ARC does not
+> migrate in-progress contributor state into tracked project state. Finish what you're working on
+> as a contributor, then promote.
+
+**Suggested destination:** `docs/concepts/contributor-role/` § Personal Planning Pipeline, or
+standalone `docs/guides/contributor-planning-pipeline/` page. Has its own section structure
+(Layout, Same workflows, Multiple concurrent plan docs, Completion and archival, Role transitions)
+that translates directly to docs.
+
+**Stylistic integration notes:** Trimmed source replaces the entire section with a one-paragraph
+pointer to docs (with `[TODO-docs-site]` placeholder). Operational essentials retained inline:
+the bare fact that the pipeline option exists. All other content (when to use, layout, ceremony,
+archival, role transitions) extracts cleanly. The Layout code block is the most operationally
+useful chunk for active pipeline users — give it prominence in the docs page. Role transitions
+guidance ("change your role between work units, not during them") is rarely-but-critically
+applicable behavioral guidance; flag in the docs page header. Voice adaptation: second-person
+reader address works well in docs as-is for a "guide" page; convert to third-person if presenting
+as conceptual reference.
+
+---
+
+<!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
+     appear in source files quoted above so MD052 stays clean in the staging file. The sweep WU
+     resolves these to final docs URLs alongside [TODO-docs-site] resolution. -->
+
+[arc-config]: ../../system/arc-config.yml

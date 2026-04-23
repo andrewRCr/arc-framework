@@ -2,11 +2,6 @@
 
 ## Project Overview
 
-ARC is a development methodology for human-AI collaboration. It structures how a developer and
-an AI agent work together through implementation — planning, executing, verifying, and preserving
-context across work sessions. The ARC Framework implements this methodology as documentation —
-workflows, templates, strategies, and constitutional documents — that lives in `.arc/`.
-
 **Project Type**: Solo framework development with public release goals
 **Primary Goal**: Deliver a coherent, configurable methodology — 11 non-negotiable principles
 with strong default conventions that teams adapt to their context
@@ -36,9 +31,7 @@ with strong default conventions that teams adapt to their context
 - **Hybrid project**: Documentation (`.arc/`) plus TypeScript CLI (`packages/arc-framework/`)
 - **All commands from repo root**: npm workspaces delegates to the CLI package automatically
 - **Markdown linting is a primary quality gate**: `npm run -s lint:md`
-- **Self-hosting**: Framework development follows its own ARC methodology — we are our own test case
-- **Zero tolerance**: All quality gate violations must be fixed before commits
-- **Commands in QUICK-REFERENCE**: All assume repo root — paths are already correct
+- **Self-hosting**: Framework development follows its own ARC methodology
 
 ---
 

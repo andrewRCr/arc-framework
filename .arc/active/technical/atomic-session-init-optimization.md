@@ -13,6 +13,17 @@ Atomic Task Completion for the full protocol.
 
 ---
 
+- [ ] **Slash-form skill-syntax cleanup pass** — Generalize `/arc-resume` / `/arc-handoff`
+  to bare skill names (`arc-resume` / `arc-handoff`) across live framework docs. Surfaced
+  during 4.2.a: ~15 references including `system/workflows/arc/session-lifecycle/session-loop.md`,
+  `system/workflows/arc/initial-setup/02_define-project.md`, the active PRD/task-list, and
+  others. Skill names are framework-canonical; the slash form is Claude Code-specific (Codex
+  uses `$`, other agents may differ — name the skill, not the invocation syntax). Scope: live
+  framework docs only — archives stay as-is (historical record). Plan: Phase 4.2 audits fix
+  opportunistically when touching files; one-pass sweep after Phase 4 closes catches stragglers.
+  AGENT-BRIEFING.ARC.md (Task 4.2.a) establishes the canonical phrasing pattern (skill name +
+  optional "(invocation syntax is agent-specific)" hint when first introduced in a file).
+
 - [x] **Strip spurious extension-point marker from `integrate-work-unit.md` step 5** —
   Discovery during 3.R.k.b end-to-end sanity: the new `arc extensions status --all`
   flagged `pre-merge-inbox-review` (at `integrate-work-unit.md:166`) as an orphan.

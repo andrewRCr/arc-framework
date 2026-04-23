@@ -1,31 +1,22 @@
 # AGENT-BRIEFING.ARC.md — ARC Orientation for Agents
 
-ARC is a development methodology for human-AI collaboration. It structures how a developer
-and an AI agent work together — planning, executing, verifying, and preserving context across
-work sessions. The ARC Framework implements this methodology as markdown documents and git
-hooks that work with any agent platform.
+ARC is a development methodology for human-AI collaboration, implemented as markdown documents,
+git hooks, and a CLI package — all agent-platform agnostic.
 
 ## How ARC Works
 
-**Session lifecycle:** Sessions are bounded — each starts with initialization and ends with
-handoff. The user invokes these as skills (e.g., `/arc-resume`, `/arc-handoff`). Initialization
-loads project context from a defined document set; handoff preserves working context for the
-next session. Session state splits between the active WU's `status-{name}.md`
-(tracked, per-WU in `active/{category}/`) and SESSION-NOTES.md (personal, gitignored in
-`user/{identity}/`, portable via git notes).
+**Session lifecycle:** Sessions are bounded — init via the `arc-resume` skill, handoff via
+`arc-handoff`. State files: active work unit's `status-{name}.md` (tracked, `active/{category}/`)
+and `SESSION-NOTES.md` (gitignored, `user/{identity}/`).
 
-**Work pipeline:** Planned work follows a structured pipeline — PRD, task generation, task
-execution loop. Each task is a bounded review increment: the agent completes one, reports, and
-waits for approval before proceeding.
+**Work pipeline:** PRD → task generation → task execution loop. One task = one review
+increment; see DEV-RULES.ARC § Task Execution.
 
-**Methods and extensions:** ARC ships strong defaults for key behaviors (commit format,
-issue-triage, test-first, quality gate commands). Teams can override any method by populating
-its `.override` section under `system/methods/` without modifying framework files. Extensions
-under `system/extensions/` inject custom steps at defined workflow boundaries.
+**Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`,
+loaded when workflow YAML frontmatter declares them.
 
-**Quality gates:** Every task must pass quality checks before completion. Gate commands are
-project-specific — defined in DEV-RULES.PROJECT and referenced via the quality-gate-commands
-method.
+**Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
+`quality-gate-commands` method.
 
 ## Key Documents
 
@@ -37,7 +28,7 @@ method.
 | DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
 | QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
 | arc-config.yml              | Project settings                              | `system/`                 |
-| status-{name}.md            | Current task, blockers, next action (per-WU)  | `active/{category}/`      |
+| status-{name}.md            | Current task, blockers, next action           | `active/{category}/`      |
 
 ## Directory Structure
 
@@ -51,7 +42,6 @@ method.
 
 ---
 
-_This is the shared ARC framework entry point for all AI agents. Project-specific context
-lives in [AGENT-BRIEFING.PROJECT.md](AGENT-BRIEFING.PROJECT.md). Agent-specific guidance lives
-in dedicated files (e.g., CLAUDE.ARC.md, CODEX.ARC.md). Adding a new agent to an existing
-project? See [add-agent.md](../workflows/arc/supplemental/add-agent.md)._
+_Shared ARC framework entry point for all AI agents. Project-specific context lives in
+[AGENT-BRIEFING.PROJECT.md](AGENT-BRIEFING.PROJECT.md); agent-specific guidance in dedicated
+files (e.g., CLAUDE.ARC.md)._

@@ -2322,9 +2322,27 @@ restructure, not as a Phase 4 audit target.
     the locked template (Task 4.1); leave `[TODO-docs-site]` reference-style placeholders at extraction sites;
     two-copy sync per file.
 
-    - [ ] **4.2.a Agent briefings cluster** — `AGENT-BRIEFING.ARC.md` (57 lines), `AGENT-BRIEFING.PROJECT.md` (47),
-      `AGENT-BRIEFING.CONTRIBUTOR.md` (163, contributor-session load only — maintainer sessions don't pay the cost),
-      `CLAUDE.ARC.md` (39). Cohesive cluster; all small; single audit pass
+    - [x] **4.2.a Agent briefings cluster — audited**
+
+        **Outcome:** All four files trimmed and lint-clean. Total line count 306 → 203 (34% reduction):
+        `AGENT-BRIEFING.ARC.md` 57→47 (first pass tightened How ARC Works subsections; second pass
+        through strict agent-audience lens dropped invocation-syntax parenthetical, the three
+        `[TODO-docs-site]` runtime-link pointers, the adopter-only "add-agent.md" footer pointer,
+        the `(per-WU)` table-cell qualifier, and added "Sessions are bounded" lead — the only
+        genuinely new orientation a zero-prior-knowledge agent needs), `AGENT-BRIEFING.PROJECT.md`
+        47→40 (dropped duplicate ARC framing in Project Overview, dropped Zero-tolerance /
+        Commands-in-QUICK-REFERENCE friction items as duplicates of DEV-RULES.PROJECT and
+        QUICK-REFERENCE), `AGENT-BRIEFING.CONTRIBUTOR.md` 163→79 (largest win — Personal Workspace
+        and Running Pipeline subsections moved to docs site with operational core retained),
+        `CLAUDE.ARC.md` 39→37 (dropped two `**Never**` bullets that duplicate DEV-RULES.ARC §
+        Context quality).
+
+        **Agent-audience lens — applies to remaining 4.2 / 4.3 / 4.5 subtasks:** for files that load
+        only into agent context (no human-reader role), inline `[TODO-docs-site]` placeholders are
+        supererogatory because agents can't follow runtime links to docs. Sweep WU finds extractions
+        via the staging entry's Source range. Dual-audience files (e.g., contributor briefing,
+        DEV-RULES with adopter-template content) keep placeholders. Per-file judgment call; default
+        is to retain placeholders, drop only when the file is strictly agent-loaded.
 
         **Staging entries added to `notes-docs-content-sweep.md`:** six entries —
         Entry 1: AGENT-BRIEFING.ARC.md § Introduction + How ARC Works;
