@@ -14,16 +14,9 @@
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
 - **Next Task:** 4.2.c — DEV-RULES.PROJECT.md audit (214 lines)
-- **Last Completed:** Task 4.2.b — `DEV-RULES.ARC.md` audited (385 → 327 lines, 15% reduction).
-  Surgical trim — scattered rationale + overflow examples + compressions rather than
-  whole-subsection extractions, reflecting the file's tight operational baseline. Four staging
-  entries (#7-10 in `notes-docs-content-sweep.md`): Sub-agent scope first paragraph, Context
-  quality rationale, Write-for-reader overflow examples (4 of 6), Preamble P1-P11 framing +
-  rule→principle mapping table. Judgment calls executed: 17 `· PN` heading annotations
-  stripped (coherence preserved via staged mapping table); Test-first section compressed
-  14 → 5 lines (method is authoritative; defaults-embedded-in-rule risked override
-  contradiction); "Re-check core documents" subsection cut entirely (tautological).
-  Two-copy sync verified identical.
+- **Last Completed:** Task 4.2.b — `DEV-RULES.ARC.md` audited (385 → 327, 15% reduction).
+  Four staging entries (#7-10); P-annotation strip; Test-first + Re-check core documents
+  cut. Details in task-list outcome block and commit `3af38d5`.
 - **Blockers:** none
 - **Next Action:** Begin 4.2.c — operational-context audit of `DEV-RULES.PROJECT.md`
   (214 lines). Standalone pass. Project-specific rules have their own rationale patterns;
