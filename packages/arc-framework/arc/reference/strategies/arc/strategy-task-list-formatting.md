@@ -336,7 +336,9 @@ Detail bullets serve two distinct purposes:
 
 ### Revision Numbering (R Scheme)
 
-**Format:** `X.Y.R`, `X.Y.R.Z` for discovered/remaining work
+**Format:** `X.Y.R` for subtask-level discovered/remaining work, `X.R` for phase-level follow-on
+work, and alphabetic children such as `X.Y.R.a` / `X.R.a` when the revision item itself needs
+subtasks
 
 **When to use:** Expanding a previously-complete subtask without destroying existing numbering.
 Documents mid-implementation discoveries, preserves original numbering, maintains audit trail.
@@ -346,16 +348,20 @@ Documents mid-implementation discoveries, preserves original numbering, maintain
     - [x] 3.1.1 Update hook to extract metadata
 
     - [ ] **3.1.R Additional integration tests discovered**
-        - [ ] **3.1.R.1 `PaginatedQuery` handler tests**
+        - [ ] **3.1.R.a `PaginatedQuery` handler tests**
 
             Build `test-first` (one behavior at a time):
             - Correct metadata extraction from paginated response
 
-        - [ ] **3.1.R.2 `ResultsList` stability tests**
+        - [ ] **3.1.R.b `ResultsList` stability tests**
 
             Build `test-first` (one behavior at a time):
             - Handles empty result set without error
 ```
+
+**Phase-level follow-on:** Use `X.R` when the newly discovered work cuts across a whole phase rather
+than expanding one completed subtask. Example: after finishing Phase 3, a second-pass close task
+that runs quality gates and phase-wide cleanup belongs at `3.R`, with children such as `3.R.a`.
 
 ### Emoji Usage
 

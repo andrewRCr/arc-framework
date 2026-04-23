@@ -261,7 +261,7 @@ describe("init", () => {
 
     expect(result.exitCode).not.toBe(0);
     const output = result.stdout + result.stderr;
-    expect(output).toContain("arc init");
+    expect(output).toContain("Not inside an ARC project");
   });
 
   it("arc health before init exits non-zero with user-facing message", async () => {
@@ -269,7 +269,7 @@ describe("init", () => {
 
     expect(result.exitCode).not.toBe(0);
     const output = result.stdout + result.stderr;
-    expect(output).toContain("arc init");
+    expect(output).toContain("Not inside an ARC project");
   });
 });
 
@@ -331,8 +331,7 @@ describe("arc join", () => {
       expect(result.exitCode).toBe(1);
 
       const output = result.stdout + result.stderr;
-      expect(output).toContain("No ARC installation found");
-      expect(output).toContain("arc init");
+      expect(output).toContain("Not inside an ARC project");
     } finally {
       await cleanupTempDir(emptyDir);
     }

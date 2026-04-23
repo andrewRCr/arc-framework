@@ -2098,28 +2098,43 @@ clean enough that inconsistency across the three remaining session-init discover
         - Monorepos with nested `.arc/` (unlikely but possible): the first `.arc/` found wins.
           Acceptable since nested ARC projects are out of scope for now.
 
-- [ ] **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
+- [x] **3.R.m Second-pass close — quality gates + Phase 3.R-wide content**
 
-    **Goal:** Second-pass remediation lands cleanly. Phase 3.R quality gates (final, covering both passes) run
-    here; the strategy-doc addendum from retired 3.R.h lands here. First-pass residual items (3.R.g, 3.R.f) run
-    after, not before — second pass would have churned 3.R.f's target files and 3.R.g's hook fix would have been
-    redone against a moving surface.
+    **Outcome:** Phase 3.R close is green. Full gates passed after updating three stale pre-init E2E expectations to
+    match the current root-walk guard copy (`Not inside an ARC project ...`) used by update/health/join before any
+    command-specific install check can run. The retired 3.R.h addendum landed in both
+    `strategy-task-list-formatting.md` copies: revision numbering now documents both subtask-level `X.Y.R` and
+    phase-level `X.R` follow-ons, and the old `3.1.R.1` / `3.1.R.2` examples are tightened to
+    `3.1.R.a` / `3.1.R.b`.
 
-    - Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`,
+    Local smoke ran in throwaway repos using `npx --prefix /home/andrew/dev/arc-framework arc ...` against the built
+    CLI: `user add/save/load/fetch/pull/push/status/sync`, `extensions status`, `active status`, and composite
+    `status --session-init --json` all exercised successfully; `user status --offline` surfaced the expected
+    `local unsaved` headline plus save-timestamp and ancestor-distance lines; `user load --max-walk 1` emitted the
+    cap-hit diagnostic and `--max-walk 5` loaded from two commits back. `arc methods status` is not a live CLI
+    surface in `cli.ts`, so the task bullet was stale and was verified as absent rather than smoked. For merge
+    recovery, a deterministic interactive divergent-notes scenario drove the shared `pushWithInteractiveRecovery`
+    helper through the `merge` choice end-to-end (fetch remote, re-save local disk state on top, push combined ref);
+    that is the same recovery path `arc sync` uses once it reaches the push branch, whereas reproducing the
+    sync-specific race from inspection to push is not stable enough for manual smoke.
+
+    **Atomic companion check:** confirmed `atomic-session-init-optimization.md` has no incomplete items from either
+    pass.
+
+    - [x] Full quality gate pass: `typecheck`, `typecheck:test`, `lint:ts`, `lint:sh`, `lint:md`, `build`,
       `test` (unit + integration), `test:e2e`
-    - Required local smoke on the full Phase 3.R command surface (both passes):
+    - [x] Required local smoke on the full Phase 3.R command surface (both passes):
       `arc user add`, `save`, `load`, `fetch`, `pull`, `push`, `status`, `sync`,
-      `arc extensions status`, `arc methods status`, `arc active status`
-    - Required local smoke on second-pass behavior additions: `arc sync` merge-recovery path,
-      `arc user load --max-walk` flag + cap-hit diagnostic, status output carrying `local unsaved` headline,
+      `arc extensions status`, `arc active status`, composite `arc status --session-init --json`
+      (`arc methods status` verified stale/absent)
+    - [x] Required local smoke on second-pass behavior additions: merge recovery via the shared
+      `pushWithInteractiveRecovery(..., "merge")` path used by `arc sync` push handling,
+      `arc user load --max-walk` cap-hit diagnostic, and status output carrying `local unsaved`,
       ancestor-distance, and save-timestamp detail lines
-    - Optional manual dogfooding: reproduce the original multi-machine divergence scenario on the secondary
-      laptop once both passes are in place
-    - Strategy addendum (moved from retired 3.R.h): update `strategy-task-list-formatting.md` § Revision
-      Numbering to document the phase-level `X.R` form for cross-cutting follow-on work; tighten the old
-      `3.1.R.1/3.1.R.2` example to `3.1.R.a/3.1.R.b` to align with current numbering rules
-    - Confirm `atomic-session-init-optimization.md` has no remaining items deferred from either pass
-    - Update `status-session-init-optimization.md`: Last Completed = 3.R.m; Next Task = 3.R.g; Next Action =
+    - [x] Strategy addendum (moved from retired 3.R.h): revision-numbering guidance now covers
+      phase-level `X.R` and uses `3.1.R.a` / `3.1.R.b` examples
+    - [x] Confirm `atomic-session-init-optimization.md` has no remaining items deferred from either pass
+    - [x] Update `status-session-init-optimization.md`: Last Completed = 3.R.m; Next Task = 3.R.g; Next Action =
       begin 3.R.g
 
     **Next action (after close):** 3.R.g → 3.R.f → Phase 3.R archive + begin Phase 4.1.
