@@ -489,7 +489,11 @@ async function inspectDiskVsLocalSnapshot(
   try {
     parsed = JSON.parse(note.content) as unknown;
   } catch {
-    return { state: "different", direction: null };
+    return {
+      state: diskManifest ? "different" : "same",
+      diskStatus: diskManifest ? "local unsaved" : "current",
+      direction: diskManifest ? "edits" : null,
+    };
   }
 
   const noteManifest = parsed as SyncManifest;

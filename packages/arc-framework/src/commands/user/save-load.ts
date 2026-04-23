@@ -30,11 +30,6 @@ interface LocalSyncState {
   sourceOperation: "save" | "load";
 }
 
-interface LegacyLocalSyncState {
-  version: 1;
-  materializedManifestHash: string;
-}
-
 /** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
 export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
 
@@ -190,31 +185,36 @@ export async function readLocalSyncState(
     }
 
     try {
-      const parsed = JSON.parse(raw) as Partial<LocalSyncState & LegacyLocalSyncState>;
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== "object" || parsed === null) {
+        continue;
+      }
+      const record = parsed as Record<string, unknown>;
+
       if (
-        parsed.version === 2
-        && typeof parsed.materializedManifestHash === "string"
-        && parsed.materializedManifestHash.length > 0
-        && typeof parsed.sourceCommit === "string"
-        && parsed.sourceCommit.length > 0
-        && (parsed.sourceOperation === "save" || parsed.sourceOperation === "load")
+        record.version === 2
+        && typeof record.materializedManifestHash === "string"
+        && record.materializedManifestHash.length > 0
+        && typeof record.sourceCommit === "string"
+        && record.sourceCommit.length > 0
+        && (record.sourceOperation === "save" || record.sourceOperation === "load")
       ) {
         return {
           version: 2,
-          materializedManifestHash: parsed.materializedManifestHash,
-          sourceCommit: parsed.sourceCommit,
-          sourceOperation: parsed.sourceOperation,
+          materializedManifestHash: record.materializedManifestHash,
+          sourceCommit: record.sourceCommit,
+          sourceOperation: record.sourceOperation,
         };
       }
 
       if (
-        parsed.version === 1
-        && typeof parsed.materializedManifestHash === "string"
-        && parsed.materializedManifestHash.length > 0
+        record.version === 1
+        && typeof record.materializedManifestHash === "string"
+        && record.materializedManifestHash.length > 0
       ) {
         return {
           version: 2,
-          materializedManifestHash: parsed.materializedManifestHash,
+          materializedManifestHash: record.materializedManifestHash,
           sourceCommit: "",
           sourceOperation: "load",
         };
