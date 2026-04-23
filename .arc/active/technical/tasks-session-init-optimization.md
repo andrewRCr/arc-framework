@@ -2448,10 +2448,11 @@ restructure, not as a Phase 4 audit target.
       agent no longer reads the file directly. Audit pressure here is docs-hygiene (rationale-heavy comments belong
       on the docs site under "operational content only") rather than session-init load-cost
 
-- [ ] **4.3 Tier 2 audit — high-frequency workflows**
+- [ ] **4.3 Tier 2 audit — core lifecycle workflows**
 
-    **Goal:** Same operational-context audit applied to workflows that fire many times per session. Decomposed by
-    file weight.
+    **Goal:** Same operational-context audit applied to core lifecycle workflows — commit/task flow (4.3.a) fires
+    repeatedly per session; integrate-work-unit (4.3.b) fires per-WU; session-handoff (4.3.c) fires per-session.
+    Load-frequency varies; audit pressure is high across the set. Decomposed by file weight.
 
     **Protocol per subtask:** same as 4.2 — extract to staging, leave placeholders, two-copy sync per file.
 
