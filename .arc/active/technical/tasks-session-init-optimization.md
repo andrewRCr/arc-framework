@@ -2365,6 +2365,16 @@ restructure, not as a Phase 4 audit target.
         at file bottom — one stub per file, serves all references via DRY label, sweep WU rewrites
         the stub to resolve all references in the file. User approved before execution proceeded.
 
+        **Follow-on deletion (pre-4.2.b):** `CLAUDE.ARC.md` and `CODEX.ARC.md` deleted from
+        `.arc/system/agent/` following pressure-test finding no valid ARC-exclusive use case for
+        the `{AGENT}.ARC.md` surface — harness-level files (`CLAUDE.md`, `AGENTS.md`, etc.) dominate
+        on load order (pre-session-init) and always-in-context, with no ARC-specific capability
+        lost. Surgical scope (project copies only); full mechanism removal — seven package sources,
+        `template-agent.md`, session-init Step 4 item 3, `arc init` / `add-agent` scaffolding,
+        CHECK 12 hook, directory rename `system/agent/` → `system/briefs/`, file rename
+        `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md`, subdir README rewrite — absorbed into revised
+        Task 5.5. Docs-site drift captured in `plan-docs-content-sweep.md` Drift Item #4.
+
     - [ ] **4.2.b `DEV-RULES.ARC.md`** (385 lines) — constitutional, high stakes. Standalone focused pass; rationale
       and meta-commentary surface more readily when the file gets dedicated attention
 
@@ -2591,49 +2601,111 @@ trigger is clear.
     **Note:** Default remains up-front load; shifting is opportunistic. "Up-front load remains correct" is always a
     valid disposition.
 
-- [ ] **5.5 Agent file conditional load via `active` frontmatter**
+- [ ] **5.5 Agent file surface removal + `system/briefs/` rename**
 
-    **Goal:** Session-init skips the body of `{AGENT}.ARC.md` when frontmatter declares `active: false`.
-    Template-only agent files (installed but never populated) stop costing tokens every session.
+    **Goal:** Retire the `{AGENT}.ARC.md` surface entirely (seven package per-agent templates, session-init load,
+    init/add-agent scaffolding, schema hook coverage) and rename the containing directory `system/agent/` →
+    `system/briefs/` with file-level rename `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md` to match the retained
+    session-init briefings.
 
-    **Rationale:** `arc init` / `arc join` create `{AGENT}.ARC.md` when the adopter selects that agent, but the
-    file ships as a template — adopter populates later, or never. Always-loading it costs tokens on every
-    session for content that may be purely placeholder. An `active` flag gated by reliable frontmatter-only
-    read recovers those tokens.
+    **Rationale:** Pressure-test during 4.2.b setup concluded the `{AGENT}.ARC.md` surface has no valid
+    ARC-exclusive use case. Candidate content across months of self-hosting fell into three buckets: (a) link
+    blocks duplicating already-loaded docs, (b) harness-layer behavior (bash auto-approve quirks, sandbox
+    escalation) that belongs in the harness-level file, (c) sub-agent / MCP guidance that's agent-system-prompt
+    territory and makes no ARC reference. Harness-level files (`CLAUDE.md`, `AGENTS.md`, `.gemini/GEMINI.md`,
+    etc.) dominate on every dimension: load order (pre-session-init), always-in-context (system prompt), and
+    agent-specific by design (each harness reads its own file). Keeping `{AGENT}.ARC.md` as a scaffolded-empty
+    surface is a false affordance — the empty set for "ARC-aware agent-specific guidance that can't live in the
+    harness file" is real. Removal is reversible: if such content ever emerges, adding back a directory + one
+    session-init line is cheap.
 
-    - [ ] **5.5.a Codify the frontmatter-only read pattern (agent files)**
-        - **Scope clarification (post-3.5):** the "conditional-load via frontmatter flag" pattern applies specifically
-          to agent files — session-init unconditionally loads them, and the `active` flag gates whether the body is
-          read. Methods (always load at trigger, no init read) and extensions (grep-based init enumeration producing
-          active-extensions list; per Task 3.5) use different mechanisms and are not covered by this pattern
-        - Add instruction to `session-init.md` for agent file loading: use `grep -m 1 "^active:" <file>` (or
-          equivalent precise field read) to retrieve the `active` value without reading the body. Order-independent
-          and schema-growth-safe vs a fixed line-limit read. If `active: false`, do not read further; if `active:
-          true`, read the full file
-        - Empirically validate before finalizing — one session with `active: false`, one with `active: true`. Confirm
-          the body is actually skipped (measure via tool-call observation, not self-report)
-        - Record the pattern in `strategy-session-operations.md` as the canonical "conditional-load via frontmatter
-          flag at session init" mechanism, scoped explicitly to agent-file-style unconditional init-loads.
-          Cross-reference the active-extensions list mechanism (Task 3.5.a) as the distinct extension-point pattern
+    Post-removal, `system/agent/` contains only the three session-init briefings (`AGENT-BRIEFING.ARC.md`,
+    `.PROJECT.md`, `.CONTRIBUTOR.md`). Directory name becomes misleading — invites sub-agent-housing mental
+    model, misaligned with its actual category (orientation documents). Rename to `briefs/` with file-level
+    `AGENT-BRIEF.*.md` pairing for cleaner paths and semantic accuracy (`brief` = foundational orienting
+    document; noun-noun reads cleaner than "briefing" noun-verb).
 
-    - [ ] **5.5.b Apply to `{AGENT}.ARC.md`**
-        - Add `active: boolean` to frontmatter schema for agent files; ships as `active: false` when `arc init` /
-          `arc join` creates the file — templates are unpopulated at install time, so `false` is the honest default.
-          Adopter flips to `true` when they actually populate the file; self-evident from the frontmatter field, no
-          CLI automation needed at init time
-        - Update `session-init.md` Item 3 (agent-specific file) to use the precise grep-for-field read
-          (`grep -m 1 "^active:" <file>`) — order-independent and schema-growth-safe vs a fixed line-limit read
-        - Phase 3.3 schema-validation hook already covers agent files (scope added there); verify coverage holds
-          after template update
-        - Two-copy sync on `session-init.md`; agent file templates live in `packages/arc-framework/templates/`
+    **Superseded scope:** Original 5.5 ("conditional-load via `active` frontmatter for agent files") is
+    retired — the pattern was scoped specifically to `{AGENT}.ARC.md`, which no longer exists. No other
+    session-init-loaded files ship as unpopulated templates (briefings all carry real content), so the
+    pattern has no remaining application. If such a candidate emerges in future work, the pattern can be
+    derived fresh at that point; preserving it here without a use case is premature abstraction.
 
-    - [ ] **5.5.c Scan for other `active`-gate candidates**
-        - Audit always-loaded docs for files that ship as templates or have highly conditional content —
-          candidates for the same `active`-gated pattern
-        - Record dispositions in notes file: candidate / eligible / reason not eligible
-        - Apply inline to any eligible candidates, or spin out as follow-on tasks if substantial
-        - If audit returns nothing, collapse to a single notes-file entry ("no additional candidates") —
-          don't force the pattern where it doesn't fit
+    - [ ] **5.5.a Package per-agent source removal**
+        - Delete seven per-agent templates from `packages/arc-framework/arc/system/agent/`: `CLAUDE.ARC.md`,
+          `CODEX.ARC.md`, `COPILOT.ARC.md`, `CURSOR.ARC.md`, `GEMINI.ARC.md`, `WARP.ARC.md`, `WINDSURF.ARC.md`
+        - Delete `.arc/reference/templates/template-agent.md` (post-init creation template)
+        - Two-copy sync: `.arc/system/agent/CLAUDE.ARC.md` and `CODEX.ARC.md` already deleted pre-4.2.b
+          (4.2.a follow-on); verify no drift
+
+    - [ ] **5.5.b Session-init integration removal**
+        - Remove Step 4 item 3 (agent-specific file conditional load) from `session-init.md`
+        - Update Step 4 parallelism guidance (framework docs items 1–7 → items 1–2 + 4–7, renumber as needed)
+        - Scan for any disambiguation rules or cross-step references pointing at item 3; update accordingly
+        - Two-copy sync
+
+    - [ ] **5.5.c Directory and file renames**
+        - Rename `system/agent/` → `system/briefs/` in both trees
+        - Rename files in both trees: `AGENT-BRIEFING.ARC.md` → `AGENT-BRIEF.ARC.md`,
+          `AGENT-BRIEFING.PROJECT.md` → `AGENT-BRIEF.PROJECT.md`,
+          `AGENT-BRIEFING.CONTRIBUTOR.md` → `AGENT-BRIEF.CONTRIBUTOR.md`
+        - Package tree: `AGENT-BRIEFING.PROJECT.template.md` → `AGENT-BRIEF.PROJECT.template.md`
+        - Use `git mv` to preserve history; stage renames as rename operations (not delete + add)
+
+    - [ ] **5.5.d Cross-reference updates**
+        - Sweep all framework docs for path references (`system/agent/` → `system/briefs/`) and filename
+          references (`AGENT-BRIEFING` → `AGENT-BRIEF`) — grep both patterns across `.arc/` and
+          `packages/arc-framework/arc/`
+        - Known hot spots: `session-init.md` item numbering + paths, `AGENT-BRIEFING.ARC.md` Key Documents
+          table + closing pointer (now self-referencing its own rename), DEV-RULES.ARC When-to-Load section,
+          STRATEGY-INDEX, QUICK-REFERENCE, workflow files that reference briefings
+        - Verify no stale inline links, reference-link definitions, or prose mentions remain
+        - Two-copy sync all touched files
+
+    - [ ] **5.5.e Subdir README rewrite**
+        - Rewrite `system/briefs/README.md` (formerly `system/agent/README.md`): retire dual-hub +
+          tool-files architecture framing, "What Belongs in Tool-Specific Files", "Adding Files for Other
+          Tools" sections — all obsolete under the removal
+        - Scope new README to session-init briefings: purpose (orientation docs loaded at session-init),
+          three files and their roles (ARC / PROJECT / CONTRIBUTOR), classification (framework vs configurable
+          per file), adoption guidance (customize PROJECT; ARC and CONTRIBUTOR are framework-managed)
+        - Add pointer to harness-level files as the ARC-external surface for agent-specific operational
+          guidance — complement to ARC briefings, distinct loading layer, outside ARC methodology
+        - Two-copy sync
+
+    - [ ] **5.5.f `arc init` scaffolding change**
+        - Remove per-agent file generation from init flow — selected agents recorded in `arc-config.yml`
+          (if still needed for tooling awareness) but no `{AGENT}.ARC.md` files materialize
+        - Path/token substitution for briefings continues as-is (only paths change: `system/agent/` →
+          `system/briefs/`; filename: `AGENT-BRIEFING.PROJECT.template.md` → `AGENT-BRIEF.PROJECT.template.md`)
+        - Update init prompts / output messaging — no more "tool-specific file scaffolded" lines
+        - Test coverage: integration test verifies init produces correct file set under new layout (briefs
+          dir exists with three files, no per-agent files)
+
+    - [ ] **5.5.g `add-agent` workflow pivot**
+        - Retire the file-scaffolding step (no `{AGENT}.ARC.md` to create)
+        - Workflow shrinks to: register agent in `arc-config.yml`, scaffold agent-specific skills per existing
+          conventions, document harness-level file as the place for agent-specific operational guidance
+        - Assess whether the workflow still earns its file — if reduced to config + skills, may collapse into
+          a few lines in configurability-architecture strategy or QUICK-REFERENCE. Decide based on post-pivot
+          content weight
+        - Two-copy sync
+
+    - [ ] **5.5.h CHECK 12 hook revision**
+        - Identify CHECK 12's current scope re: agent files (pre-emptive `active: true` frontmatter was added
+          to `CLAUDE.ARC.md` in 4.2.a to unblock this hook)
+        - Revise hook to remove `{AGENT}.ARC.md` frontmatter expectation; retain any briefing-file checks if
+          applicable
+        - Test coverage: hook runs clean on briefs-only directory
+
+    - [ ] **5.5.i Release notes + sync verification**
+        - Draft release-notes entry documenting breaking change: `{AGENT}.ARC.md` surface removed; migration
+          advice = move agent-specific content to harness-level file (`CLAUDE.md`, `AGENTS.md`, etc.); note
+          directory/file rename for any adopter code referencing paths
+        - Verify two-copy sync across every touched file via framework-sync integration test (if run locally)
+          or manual diff
+        - Grep verification: `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md" .arc/ packages/` returns
+          zero matches in framework docs (archive / ADR history may retain for provenance)
 
 - [ ] **5.6 Session-init workflow Step 2/4/7 restructure**
 

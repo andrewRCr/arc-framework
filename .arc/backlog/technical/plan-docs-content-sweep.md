@@ -118,6 +118,58 @@ set at scan time.
 do not document `arc methods status` as available, and preserve the docs-site plan boundary by updating these
 public-doc touch points here rather than folding them back into Session-Init Optimization execution.
 
+#### 4. Agent-file surface removal + `system/briefs/` rename (from Session-Init Optimization WU, 2026-04-23)
+
+**What changed:** Phase 4/5 retired the `{AGENT}.ARC.md` surface entirely (seven per-agent files
+— `CLAUDE`, `CODEX`, `COPILOT`, `CURSOR`, `GEMINI`, `WARP`, `WINDSURF` — plus `template-agent.md`
+for post-init creation). Containing directory renamed `system/agent/` → `system/briefs/`; file-level
+rename `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md` for all three retained briefings (ARC, PROJECT,
+CONTRIBUTOR). Session-init Step 4 item 3 removed. `arc init` no longer scaffolds per-agent files;
+`add-agent` workflow pivoted or collapsed. Rationale (full decision record in
+`tasks-session-init-optimization.md` Task 5.5): pressure-test found no valid ARC-exclusive use case
+for the surface — harness-level files (`CLAUDE.md`, `AGENTS.md`, etc.) dominate on load order
+(pre-session-init) and always-in-context, with no ARC-specific capability lost; empty set for
+"ARC-aware agent-specific guidance that can't live in the harness file" is real across months of
+self-hosting evidence.
+
+**Edit type:** Mixed conceptual rewrite + mechanical replacement. Mechanical: path/filename sweeps
+(`system/agent/` → `system/briefs/`, `AGENT-BRIEFING` → `AGENT-BRIEF`). Conceptual: retirement of
+the dual-hub + tool-files architecture narrative; introduction of harness-level files as the
+ARC-external surface for agent-specific operational guidance (currently not covered anywhere in
+framework docs).
+
+**Known touch points** (to be enumerated at sweep time — scan `docs/**` for):
+
+- References to `{AGENT}.ARC.md`, `CLAUDE.ARC.md`, `CODEX.ARC.md`, etc. (any per-agent filename)
+- References to `system/agent/` as a directory path
+- Descriptions of the "dual-hub + tool-files pattern" (likely on reference / architecture pages)
+- Descriptions of `arc init` scaffolding agent-specific files
+- `add-agent` workflow mentions (if the workflow itself is retired or collapsed)
+- References to `AGENT-BRIEFING.{ARC,PROJECT,CONTRIBUTOR}.md` filenames
+
+**New concept to introduce:** Harness-level agent files (`CLAUDE.md`, `AGENTS.md`, `.gemini/GEMINI.md`,
+etc.) as a legitimate **pre-session-init surface** for agent-specific operational guidance —
+distinct loading layer from ARC's session-init, outside ARC's methodology, but a valid and sometimes
+necessary tool. Currently unmentioned in framework docs. Should land as a short section or callout,
+likely in a "sessions" or "agents" reference page, explaining the layering:
+
+- **Harness layer (outside ARC):** Harness-level files (`CLAUDE.md`, `AGENTS.md`, etc.) — loaded by
+  the agent harness before any ARC interaction. Agent-specific, project-root-scoped, outside ARC's
+  two-copy sync. Appropriate home for: harness auto-approve quirks, sandbox escalation patterns,
+  project-specific invocation guidance (e.g., "use `npx arc`" in self-hosting setups), tool-use
+  preferences tied to the harness rather than ARC workflows.
+- **ARC layer (session-init):** `system/briefs/AGENT-BRIEF.{ARC,PROJECT,CONTRIBUTOR}.md` — loaded
+  via session-init skill (`arc-resume`, `$arc-resume`, or equivalent per harness). Methodology-scoped
+  orientation for the agent working within ARC.
+
+**Nuance:** Conceptual rewrite needs to handle readers arriving fresh who never saw the old pattern.
+Don't frame as "we used to have per-tool files, we removed them" (reader-hostile per DEV-RULES.ARC §
+Write for the reader). Frame as "agents get ARC-methodology context from briefs; agent-specific
+operational quirks belong in the harness-level file." The retired architecture doesn't need mention
+unless a migration-guidance page is added for existing adopters (likely scoped to release notes, not
+docs site). Keep framing honest about the two layers being architecturally distinct (ARC doesn't
+manage the harness file; the harness doesn't know about ARC).
+
 ### Content Contributions
 
 #### 3. Operational-context extractions (from Session-Init Optimization WU, pending)
@@ -219,3 +271,4 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 | 2026-04-17 | Added Content Contributions input type — accommodates Session-Init Optimization staging notes         |
 | 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift)       |
 | 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |
+| 2026-04-23 | Added Drift Item #4 — agent-file surface removal + `system/briefs/` rename + harness-layer intro      |
