@@ -357,12 +357,17 @@ directory contents as a note attached to HEAD at handoff time.
 **How it works:**
 
 - **Save** (`arc user save`): Serialize `user/{identity}/` contents to a git note on HEAD
-- **Load** (`arc user load`): Restore user directory from git note (on HEAD, walking ancestors
-  if needed)
-- **Push/pull** (`arc user push` / `arc user pull`): Transport notes refs to/from remote
+- **Load** (`arc user load`): Restore user directory from git note (on HEAD, walking reachable
+  ancestors if needed; `--max-walk <n>` bounds the search)
+- **Fetch/push** (`arc user fetch` / `arc user push`): Transport notes refs to/from remote
+- **Pull** (`arc user pull`): Fetch remote notes, then load them into the user directory
+- **Sync** (`arc sync`): Direction-aware porcelain — save + push when local state is ahead,
+  fetch + pull when remote state is ahead
 
 Session workflows integrate these automatically: session handoff triggers save + push; session
-init triggers pull + load when local files are missing or stale.
+init triggers `arc user pull` when remote notes are ahead and `arc user load` when local files
+are missing or stale. Overwrite prompts default to confirm and accept `--yes` on `arc sync`,
+`arc user pull`, `arc user fetch`, and `arc user load`.
 
 **Push policy** (`user.sync_push` in `arc-config.yml`):
 

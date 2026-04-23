@@ -138,8 +138,8 @@ The incoming developer runs a standard session-init with these additions:
    fetch their namespace and load their context:
 
    ```bash
-   # Fetch and load outgoing developer's user directory via CLI
-   arc user pull --identity {outgoing}
+   # Fetch the outgoing developer's notes ref, then load that identity's user directory
+   arc user fetch --identity {outgoing}
    arc user load --identity {outgoing}
    ```
 

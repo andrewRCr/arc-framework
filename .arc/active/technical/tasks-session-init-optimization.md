@@ -1365,14 +1365,27 @@ extension is documented in 3.R.h.
     bash-prefixed invocation and asserts the pre-commit hook no longer directly executes nested
     `.sh` files. Verification: `npm run lint:sh`, `npm run lint:ts`, and `npm run test:unit -- pre-commit-shell-invocation`.
 
-- [ ] **3.R.g Documentation + ADR sync (runs after 3.R.m and 3.R.f)**
+- [x] **3.R.g Documentation + ADR sync (runs after 3.R.m and 3.R.f)**
 
     **Goal:** Framework two-copy surfaces first, then non-`docs/` single-copy artifacts and ADR history. Scope
     expanded by the second pass to cover the finalized probe commands, vocabulary rename, merge-recovery behavior,
     and `--yes` / `--max-walk` flags. Public `docs/**` drift is captured in `plan-docs-content-sweep.md`, not
     updated in this WU. Runs after second pass so doc churn happens once against the final surface.
 
-    - [ ] **3.R.g.1 Two-copy doc sync for remaining CLI references**
+    **Outcome:** Synced the remaining shipped doc surfaces to the finalized portability model:
+    session-handoff now names the merge recovery label and `arc sync --yes`, session-operations
+    documents the fetch/pull split plus direction-aware `arc sync`, team-coordination bootstrap
+    now fetches another developer's notes before loading them, QUICK-REFERENCE adds
+    `arc user fetch`, `--yes`, and `--max-walk`, and `user/README.md` now reflects the same
+    command surface. Single-copy follow-up added the ADR-012 amendment, confirmed the public
+    docs drift is routed through `plan-docs-content-sweep.md`, updated `plan-arc-modes.md` to
+    the shipped tracked-mode semantics, and retired the old Phase 5.0 pointer as superseded.
+    Verification: markdown lint clean on all touched `.arc/` files; package-source copies
+    checked with the repo's package-excluded lint path plus a direct spot-check for command
+    drift; shipped `reference/`, `system/`, and `user/` surfaces are free of stale
+    `arc sync --load`, `arc user pull --identity`, and `disk ahead` references.
+
+    - [x] **3.R.g.1 Two-copy doc sync for remaining CLI references**
 
         **Goal:** Package-source templates and installed `.arc/` copies reflect the finalized command vocabulary,
         bootstrap semantics, and second-pass additions.
@@ -1396,7 +1409,7 @@ extension is documented in 3.R.h.
         - Grep-verify no remaining stale command references in `.arc/**` and `packages/arc-framework/arc/**`,
           excluding `reference/archive/**` and `reference/analysis/**`
 
-    - [ ] **3.R.g.2 Single-copy backlog/docs-sweep routing + ADR-012 amendment + Phase 5.0 retirement pointer**
+    - [x] **3.R.g.2 Single-copy backlog/docs-sweep routing + ADR-012 amendment + Phase 5.0 retirement pointer**
 
         **Goal:** Non-`docs/` single-copy artifacts reflect the final command surface, `docs/**` drift is routed to
         the docs-content-sweep plan, ADR-012 captures the full Phase 3.R vocabulary realignment (both passes), and
@@ -2314,12 +2327,12 @@ audit outcomes. Remote-sync awareness pulled forward to Phase 3.R.e (dogfooded d
 reliability gate for DEV-RULES is the cautious path — default to up-front load; shift to conditional only where
 trigger is clear.
 
-- [ ] **5.0 Remote sync check at session-init — superseded by Phase 3.R.e**
+- [~] **5.0 Remote sync check at session-init — superseded by Phase 3.R.e**
 
     **Status:** Pulled forward into Phase 3.R for dogfooding during the multi-machine work that surfaced the
-    git-notes staleness failure mode. Active spec lives at 3.R.e (session-init Step 1.5 + Step 6 rewrite, plus
-    unbounded-ancestor-check and actionable depth-guidance additions introduced during scope review). Retained
-    here as a cross-reference anchor only — to be checked `[x]` in lockstep with 3.R.e completion.
+    git-notes staleness failure mode. Active spec lives at 3.R.e / 3.R.g (session-init Step 1.5 + Step 6 rewrite,
+    plus the follow-on doc and ADR sync that retired the old pointer). Marked superseded rather than completed so
+    the task list records that the work moved and the anchor is no longer active.
 
 - [ ] **5.1 QUICK-REFERENCE partial-read at session-init**
 

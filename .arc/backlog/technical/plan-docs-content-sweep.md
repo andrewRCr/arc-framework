@@ -109,6 +109,11 @@ the portability model and bootstrap wording need reader-first prose rather than 
 - `docs/index.md:57-59,79`
 - `docs/faq.md:121`
 
+**Repo scan confirmation (2026-04-22):** A direct `rg` sweep of `docs/**` for stale portability
+commands and vocabulary found exactly these four public-doc touch points. No additional
+`arc sync --load`, `arc user pull --identity`, or probe-surface drift was present outside this
+set at scan time.
+
 **Nuance:** Keep this sweep aligned to shipped CLI behavior, not intermediate task-list intent. In particular:
 do not document `arc methods status` as available, and preserve the docs-site plan boundary by updating these
 public-doc touch points here rather than folding them back into Session-Init Optimization execution.
@@ -208,9 +213,9 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 
 ## Document History
 
-| Date       | Change                                                                                          |
-|------------|-------------------------------------------------------------------------------------------------|
-| 2026-04-16 | Initial capture — seeded with per-WU status file model from Work-Status Restructure pre-merge   |
-| 2026-04-17 | Added Content Contributions input type — accommodates Session-Init Optimization staging notes   |
-| 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift) |
+| Date       | Change                                                                                                |
+|------------|-------------------------------------------------------------------------------------------------------|
+| 2026-04-16 | Initial capture — seeded with per-WU status file model from Work-Status Restructure pre-merge         |
+| 2026-04-17 | Added Content Contributions input type — accommodates Session-Init Optimization staging notes         |
+| 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift)       |
 | 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |

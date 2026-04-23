@@ -252,19 +252,29 @@ arc update
 # Save user directory to git notes (called automatically at session handoff)
 arc user save
 
-# Load user directory from git notes (called automatically at session init)
-arc user load
+# Load user directory from git notes on HEAD or a reachable ancestor
+arc user load --max-walk 1000
+
+# Skip overwrite prompts when loading/pulling in automation or non-interactive flows
+arc user load --yes
+
+# Fetch another developer's notes ref without overwriting local files
+arc user fetch --identity teammate
+
+# Pull remote notes into the local user directory
+arc user pull --yes --max-walk 1000
 
 # Push/pull user notes to/from remote
 arc user push
-arc user pull
 
-# Save + push in one step
+# Direction-aware save/push or fetch/pull, depending on sync state
 arc sync
 ```
 
 Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
 `manual`). Per-developer override: `git config arc.syncPush`.
+For the portability model and vocabulary (`local unsaved`, pull vs fetch, merge recovery), see
+[ADR-012](adr/adr-012-adopt-unified-user-directory-model.md).
 
 ### Atomic Work History
 

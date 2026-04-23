@@ -335,6 +335,35 @@ user-managed content explicit. See
 `analysis-modes-contributor-lifecycle-stress-test.md` for the full derivation and
 `AGENT-BRIEFING.CONTRIBUTOR.md` for the principle applied to contributor workflow.
 
+**Amendment (2026-04-22):** Session portability vocabulary and command semantics were realigned
+in Session-Init Optimization Phase 3.R without changing the underlying ADR decision to use the
+unified `user/{identity}/` directory plus git-notes portability.
+
+**First pass shipped semantics:**
+
+- `arc user fetch` is the transport-only remote-read verb for notes refs.
+- `arc user pull` now means fetch + load, matching the intuitive git-style mental model.
+- `arc sync` is direction-aware porcelain rather than a save+push-only alias.
+- The sync-state matrix remains the durable framing for user-directory portability decisions.
+
+**Second pass shipped semantics:**
+
+- Session-init consumes the composite probe `arc status --session-init --json`; related slot
+  probes include `arc extensions status` and `arc active status`.
+- User-facing vocabulary now prefers `local unsaved` over `disk ahead`, and canonicalizes
+  `conflict` over `divergence`.
+- Push recovery's merge path is labeled `"Merge: rebase my save onto remote, then push"` and
+  preserves the just-saved local state by re-saving on top of the fetched remote base before
+  pushing.
+- `arc user load`, `arc user pull`, and the pull direction of `arc sync` walk reachable
+  ancestors with a bounded default search and expose `--max-walk <n>` for deeper scans.
+- Overwrite confirmations are on by default; `--yes` bypasses those prompts on `arc sync`,
+  `arc user pull`, `arc user fetch`, and `arc user load`.
+
+**Documentation consequence:** Reader-oriented command references should describe fetch/pull/sync
+with these amended semantics. QUICK-REFERENCE points here for the durable model; archive docs
+remain historical record.
+
 ---
 
 Context: tasks-cli-implementation.md (off-plan — architectural evaluation before Phase 2)

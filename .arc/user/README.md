@@ -84,7 +84,10 @@ cross-machine or team handoff, ARC uses git notes to attach the entire `user/{id
 directory to commits without creating merge conflicts. See `arc-config.yml` for
 `user.sync_push` behavior (always / prompt / manual).
 
-CLI commands: `arc user save`, `arc user load`, `arc user push`, `arc user pull`, `arc sync`.
+CLI commands: `arc user save`, `arc user load`, `arc user fetch`, `arc user push`,
+`arc user pull`, `arc sync`. Use `arc user fetch --identity <name>` for person-to-person
+bootstrap, `arc user load --max-walk <n>` when the saved note is far back on reachable history,
+and `--yes` on load/pull/sync to skip overwrite prompts when needed.
 
 ## Adding Team Members
 
