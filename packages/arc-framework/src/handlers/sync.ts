@@ -13,6 +13,7 @@ import * as p from "@clack/prompts";
 import {
   hasLocalNotes,
   inspectUserSyncState,
+  runUserLoad,
   runUserSave,
   runUserPull,
   buildSaveSummary,
@@ -30,7 +31,7 @@ import {
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
 const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
 
-type SyncAction = "noop" | "push" | "pull" | "conflict";
+type SyncAction = "noop" | "push" | "pull" | "load" | "push-load" | "conflict";
 
 export interface SyncOptions {
   yes?: boolean;
@@ -43,6 +44,7 @@ type DirectionParams = {
   identity: string;
   yes: boolean;
   maxWalk?: number;
+  restoreAfterPush?: boolean;
 };
 
 function walkExhaustedMessage(walked: number): string {
@@ -71,20 +73,28 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
 
   switch (action) {
     case "noop":
-      if (state.refState === "remote-unavailable") {
-        p.log.warn("Remote status unavailable. Local user directory matches the saved snapshot.");
+      if (state.remoteStatus === "remote unavailable") {
+        p.log.warn("Remote status unavailable. Disk matches the local saved note.");
       } else {
-        p.log.info("User directory already in sync.");
+        p.log.info("Saved note and disk are already up to date.");
       }
       p.outro("Done.");
       return;
     case "push":
-      p.log.info("→ Pushing local user directory to remote notes.");
+      p.log.info("→ Saving local changes and pushing the saved note to remote.");
       await handlePushDirection({ cwd, io, identity, yes, maxWalk });
       return;
     case "pull":
-      p.log.info("→ Pulling remote notes into the local user directory.");
+      p.log.info("→ Pulling the newer remote saved note and restoring it to disk.");
       await handlePullDirection({ cwd, io, identity, yes, maxWalk });
+      return;
+    case "load":
+      p.log.info("→ Restoring the local saved note to disk.");
+      await handleLoadDirection({ cwd, io, identity, yes, maxWalk });
+      return;
+    case "push-load":
+      p.log.info("→ Pushing the newer local saved note, then restoring it to disk.");
+      await handlePushDirection({ cwd, io, identity, yes, maxWalk, restoreAfterPush: true });
       return;
     case "conflict":
       await handleConflict({ cwd, io, identity, yes, maxWalk });
@@ -93,17 +103,28 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
 }
 
 export function decideSyncAction(state: UserSyncState): SyncAction {
-  switch (state.refState) {
-    case "remote-unavailable":
-      return state.diskState === "different" ? "push" : "noop";
-    case "diverged":
+  switch (state.remoteStatus) {
+    case "conflict":
       return "conflict";
-    case "local-ahead":
-      return "push";
-    case "remote-ahead":
-      return state.diskState === "same" ? "pull" : "conflict";
-    case "same":
-      return state.diskState === "same" ? "noop" : "push";
+    case "remote ahead":
+      return state.diskStatus === "current" || state.diskStatus === "stale"
+        ? "pull"
+        : "conflict";
+    case "local ahead":
+      if (state.diskStatus === "current") return "push";
+      if (state.diskStatus === "stale") return "push-load";
+      if (state.diskStatus === "local unsaved") return "push";
+      return "conflict";
+    case "remote unavailable":
+      if (state.diskStatus === "current") return "noop";
+      if (state.diskStatus === "stale") return "load";
+      if (state.diskStatus === "local unsaved") return "push";
+      return "conflict";
+    case "in sync":
+      if (state.diskStatus === "current") return "noop";
+      if (state.diskStatus === "stale") return "load";
+      if (state.diskStatus === "local unsaved") return "push";
+      return "conflict";
   }
 }
 
@@ -222,8 +243,45 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
   }
 }
 
+async function handleLoadDirection(params: DirectionParams): Promise<void> {
+  const { cwd, io, identity, maxWalk } = params;
+  const spinner = p.spinner();
+  spinner.start("Restoring saved note to disk...");
+
+  try {
+    const result = await runUserLoad({
+      cwd,
+      io,
+      identity,
+      maxAncestorWalk: maxWalk,
+    });
+    if (!result) {
+      spinner.stop("No note found.");
+      p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
+      process.exitCode = 1;
+      return;
+    }
+
+    if (result.kind === "walk-exhausted") {
+      spinner.stop("Walk exhausted.");
+      p.log.warn(walkExhaustedMessage(result.walked));
+      process.exitCode = 1;
+      return;
+    }
+
+    spinner.stop("Load complete.");
+    p.note(buildLoadSummary(result), "Loaded");
+    p.outro("Done.");
+  } catch (err) {
+    spinner.stop("Load failed.");
+    const msg = err instanceof Error ? err.message : String(err);
+    p.log.error(`Failed to restore saved note: ${msg}`);
+    process.exitCode = 1;
+  }
+}
+
 async function handlePushDirection(params: DirectionParams): Promise<void> {
-  const { cwd, io, identity } = params;
+  const { cwd, io, identity, restoreAfterPush } = params;
 
   const resolved = await resolveSyncPushPolicy({
     exec: io.exec,
@@ -281,6 +339,10 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
   switch (pushResult.kind) {
     case "ok":
     case "ok-recovered":
+      if (restoreAfterPush) {
+        await handleLoadDirection(params);
+        return;
+      }
       p.outro("Done.");
       return;
     case "cancelled":

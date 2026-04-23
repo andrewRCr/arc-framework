@@ -137,8 +137,10 @@ async function writeStatusFile(
 function stubUserResult(identity: string): UserStatusResult {
   return {
     identity,
-    headline: "in sync",
-    summary: `${identity}: in sync`,
+    headline: "up to date",
+    remoteStatus: "in sync",
+    diskStatus: "current",
+    summary: `${identity}: up to date`,
     actionHint: null,
     detailLines: [],
     remoteChecked: true,

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
-import { readFile, writeFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdir, mkdtemp, readdir, rm, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -941,10 +941,36 @@ describe("user status", () => {
 
     expect(result.headline).toBe("remote ahead");
     expect(summary).toContain("test-user: remote ahead");
+    expect(summary).toContain("Remote: remote ahead.");
+    expect(summary).toContain("Disk: current.");
     expect(summary).toContain("Next step: run `arc user pull`");
   });
 
-  it("reports local-unsaved status offline and surfaces backup presence", async () => {
+  it("reports stale-on-disk status offline with a load hint when saved content was overwritten locally", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    await unlink(join(userDir, ".sync-state.json"));
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified after load", "utf-8");
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.headline).toBe("disk stale");
+    expect(summary).toContain("test-user: disk stale (offline)");
+    expect(summary).toContain("Remote: in sync.");
+    expect(summary).toContain("Disk: stale.");
+    expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
+    expect(summary).toContain("Next step: run `arc user load`");
+    expect(result.unsavedDirection).toBe("modified");
+    expect(result.savedAtRelative).toMatch(/^(just now|\d+ (minute|hour|day)s? ago)$/u);
+  });
+
+  it("reports local-unsaved when disk changes after load and local sync provenance is present", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -959,11 +985,29 @@ describe("user status", () => {
 
     expect(result.headline).toBe("local unsaved");
     expect(summary).toContain("test-user: local unsaved (offline)");
-    expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
+    expect(summary).toContain("Remote: in sync.");
+    expect(summary).toContain("Disk: local unsaved.");
+    expect(summary).toContain("Next step: run `arc user save`");
+    expect(result.unsavedDirection).toBe("modified");
+  });
+
+  it("reports local-unsaved status with a save hint when disk has local-only files", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "scratch.md"), "# Local scratch", "utf-8");
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.headline).toBe("local unsaved");
+    expect(summary).toContain("test-user: local unsaved (offline)");
+    expect(summary).toContain("Remote: in sync.");
+    expect(summary).toContain("Disk: local unsaved.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("edits");
-    expect(summary).toContain("Disk has unsaved edits not yet in the saved note.");
-    expect(result.savedAtRelative).toMatch(/^(just now|\d+ (minute|hour|day)s? ago)$/u);
   });
 
   it("lists remote identities when --all-style inspection is requested", async () => {

@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 
 import { deserialize, serialize, type SyncManifest } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
@@ -19,6 +20,12 @@ import {
 const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
+const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
+
+interface LocalSyncState {
+  version: 1;
+  materializedManifestHash: string;
+}
 
 /** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
 export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
@@ -47,6 +54,7 @@ export async function runUserSave(
 
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
+  await writeLocalSyncState(cwd, io, identity, result.manifest);
 
   return {
     identity,
@@ -133,6 +141,7 @@ export async function runUserLoad(
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, manifest, io.writeFile, io.mkdir);
+  await writeLocalSyncState(cwd, io, identity, manifest);
 
   return {
     kind: "loaded",
@@ -142,6 +151,74 @@ export async function runUserLoad(
     fromAncestor,
     ancestorDistance: search.note.ancestorDistance,
     warnings: staleWarnings,
+  };
+}
+
+export function hashSyncManifest(
+  manifest: SyncManifest,
+): string {
+  const normalized = normalizeManifest(manifest);
+  return createHash("sha256")
+    .update(JSON.stringify(normalized))
+    .digest("hex");
+}
+
+export async function readLocalSyncState(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<LocalSyncState | null> {
+  const syncStatePath = join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME);
+  let raw: string;
+  try {
+    raw = await io.readFile(syncStatePath);
+  } catch {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<LocalSyncState>;
+    if (
+      parsed.version === 1
+      && typeof parsed.materializedManifestHash === "string"
+      && parsed.materializedManifestHash.length > 0
+    ) {
+      return {
+        version: 1,
+        materializedManifestHash: parsed.materializedManifestHash,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+async function writeLocalSyncState(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  manifest: SyncManifest,
+): Promise<void> {
+  const userDir = join(cwd, ".arc", "user", identity);
+  const syncStatePath = join(userDir, LOCAL_SYNC_STATE_FILENAME);
+  await ensureDir(userDir, io.mkdir);
+  const state: LocalSyncState = {
+    version: 1,
+    materializedManifestHash: hashSyncManifest(manifest),
+  };
+  await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+function normalizeManifest(
+  manifest: SyncManifest,
+): SyncManifest {
+  const sortedEntries = Object.entries(manifest.files)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return {
+    version: manifest.version,
+    files: Object.fromEntries(sortedEntries),
   };
 }
 

@@ -28,6 +28,7 @@ vi.mock("@clack/prompts", () => ({
 }));
 
 const mockInspectUserSyncState = vi.fn();
+const mockRunUserLoad = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockRunUserPull = vi.fn();
 const mockHasLocalNotes: Mock<(...args: unknown[]) => Promise<boolean>> = vi.fn();
@@ -36,6 +37,7 @@ const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "loa
 
 vi.mock("../../src/commands/user.js", () => ({
   inspectUserSyncState: (opts: unknown) => mockInspectUserSyncState(opts),
+  runUserLoad: (opts: unknown) => mockRunUserLoad(opts),
   runUserSave: (opts: unknown) => mockRunUserSave(opts),
   runUserPull: (opts: unknown) => mockRunUserPull(opts),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
@@ -79,8 +81,26 @@ const { UserSaveError } = await import("../../src/commands/user.js");
 function setSyncState(
   refState: "same" | "local-ahead" | "remote-ahead" | "diverged" | "remote-unavailable",
   diskState: "same" | "different",
+  options: { diskStatus?: "current" | "stale" | "local unsaved" | "mixed"; unsavedDirection?: "edits" | "missing" | "modified" | "mixed" | null } = {},
 ) {
-  mockInspectUserSyncState.mockResolvedValue({ refState, diskState });
+  const remoteStatus = refState === "same"
+    ? "in sync"
+    : refState === "local-ahead"
+      ? "local ahead"
+      : refState === "remote-ahead"
+        ? "remote ahead"
+        : refState === "diverged"
+          ? "conflict"
+          : "remote unavailable";
+  const diskStatus = options.diskStatus
+    ?? (diskState === "same" ? "current" : "local unsaved");
+  mockInspectUserSyncState.mockResolvedValue({
+    refState,
+    diskState,
+    remoteStatus,
+    diskStatus,
+    unsavedDirection: options.unsavedDirection ?? null,
+  });
 }
 
 function setPolicy(policy: "always" | "prompt" | "manual") {
@@ -100,13 +120,63 @@ function resetMockDefaults() {
 }
 
 describe("decideSyncAction", () => {
-  it("maps the sync matrix to push/pull/noop/conflict", () => {
-    expect(decideSyncAction({ refState: "same", diskState: "same" })).toBe("noop");
-    expect(decideSyncAction({ refState: "same", diskState: "different" })).toBe("push");
-    expect(decideSyncAction({ refState: "local-ahead", diskState: "same" })).toBe("push");
-    expect(decideSyncAction({ refState: "remote-ahead", diskState: "same" })).toBe("pull");
-    expect(decideSyncAction({ refState: "remote-ahead", diskState: "different" })).toBe("conflict");
-    expect(decideSyncAction({ refState: "diverged", diskState: "same" })).toBe("conflict");
+  it("maps the shared sync model to noop/push/pull/load/conflict", () => {
+    expect(decideSyncAction({
+      refState: "same",
+      diskState: "same",
+      remoteStatus: "in sync",
+      diskStatus: "current",
+      unsavedDirection: null,
+    })).toBe("noop");
+    expect(decideSyncAction({
+      refState: "same",
+      diskState: "different",
+      remoteStatus: "in sync",
+      diskStatus: "local unsaved",
+      unsavedDirection: "edits",
+    })).toBe("push");
+    expect(decideSyncAction({
+      refState: "same",
+      diskState: "different",
+      remoteStatus: "in sync",
+      diskStatus: "stale",
+      unsavedDirection: "modified",
+    })).toBe("load");
+    expect(decideSyncAction({
+      refState: "local-ahead",
+      diskState: "same",
+      remoteStatus: "local ahead",
+      diskStatus: "current",
+      unsavedDirection: null,
+    })).toBe("push");
+    expect(decideSyncAction({
+      refState: "local-ahead",
+      diskState: "different",
+      remoteStatus: "local ahead",
+      diskStatus: "stale",
+      unsavedDirection: "modified",
+    })).toBe("push-load");
+    expect(decideSyncAction({
+      refState: "remote-ahead",
+      diskState: "same",
+      remoteStatus: "remote ahead",
+      diskStatus: "current",
+      unsavedDirection: null,
+    })).toBe("pull");
+    expect(decideSyncAction({
+      refState: "remote-ahead",
+      diskState: "different",
+      remoteStatus: "remote ahead",
+      diskStatus: "local unsaved",
+      unsavedDirection: "edits",
+    })).toBe("conflict");
+    expect(decideSyncAction({
+      refState: "diverged",
+      diskState: "same",
+      remoteStatus: "conflict",
+      diskStatus: "current",
+      unsavedDirection: null,
+    })).toBe("conflict");
   });
 });
 
@@ -126,21 +196,41 @@ describe("handleSync direction handling", () => {
 
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
-    expect(mockLog.info).toHaveBeenCalledWith("User directory already in sync.");
+    expect(mockLog.info).toHaveBeenCalledWith("Saved note and disk are already up to date.");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
-  it("chooses push when disk differs from the saved snapshot", async () => {
-    setSyncState("same", "different");
+  it("chooses push when disk has local unsaved files", async () => {
+    setSyncState("same", "different", { diskStatus: "local unsaved", unsavedDirection: "edits" });
     setPolicy("always");
     mockRunUserSave.mockResolvedValue({ warnings: [] });
     mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("→ Pushing local user directory to remote notes.");
+    expect(mockLog.info).toHaveBeenCalledWith("→ Saving local changes and pushing the saved note to remote.");
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+  });
+
+  it("chooses load when disk is stale against the local saved note", async () => {
+    setSyncState("same", "different", { diskStatus: "stale", unsavedDirection: "modified" });
+    mockRunUserLoad.mockResolvedValue({
+      kind: "loaded",
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith("→ Restoring the local saved note to disk.");
+    expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
+    expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
   });
 
@@ -158,7 +248,7 @@ describe("handleSync direction handling", () => {
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("→ Pulling remote notes into the local user directory.");
+    expect(mockLog.info).toHaveBeenCalledWith("→ Pulling the newer remote saved note and restoring it to disk.");
     expect(mockRunUserPull).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: process.cwd(), force: true }),
     );
@@ -324,6 +414,27 @@ describe("handleSync direction handling", () => {
     expect(mockRunUserPull).toHaveBeenCalledWith(
       expect.objectContaining({ maxAncestorWalk: 300 }),
     );
+  });
+
+  it("pushes then loads when local note is ahead but disk is stale", async () => {
+    setSyncState("local-ahead", "different", { diskStatus: "stale", unsavedDirection: "modified" });
+    setPolicy("always");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "ok" });
+    mockRunUserLoad.mockResolvedValue({
+      kind: "loaded",
+      identity: "andrew",
+      commit: "abc1234",
+      fileCount: 1,
+      fromAncestor: false,
+      ancestorDistance: 0,
+      warnings: [],
+    });
+
+    await handleSync();
+
+    expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
+    expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
   });
 
   it("emits walk-exhausted diagnostic when pull direction hits cap without match", async () => {

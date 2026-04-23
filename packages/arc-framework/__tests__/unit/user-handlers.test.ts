@@ -607,8 +607,10 @@ describe("handleUserStatus --json retrofit", () => {
   it("writes the full status result as JSON to stdout and skips Clack ceremony", async () => {
     const result = {
       identity: "andrew",
-      headline: "in sync",
-      summary: "andrew: in sync",
+      headline: "up to date",
+      remoteStatus: "in sync",
+      diskStatus: "current",
+      summary: "andrew: up to date",
       actionHint: null,
       detailLines: [],
       remoteChecked: true,

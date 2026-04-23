@@ -8,7 +8,9 @@
 export { runUserAdd } from "./user/add.js";
 export {
   findNearestUserNote,
+  hashSyncManifest,
   listBackupFiles,
+  readLocalSyncState,
   runUserLoad,
   runUserSave,
 } from "./user/save-load.js";

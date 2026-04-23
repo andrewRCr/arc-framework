@@ -2162,6 +2162,40 @@ clean enough that inconsistency across the three remaining session-init discover
 
     **Next action (after close):** 3.R.f → 3.R.g → Phase 3.R archive + begin Phase 4.1.
 
+- [x] **3.R.n Post-close portability semantics refinement**
+
+    **Origin:** Real cross-machine resume validation after the Phase 3.R close surfaced that `arc user status`
+    still collapsed remote-note sync state and on-disk hydration state into a single `local unsaved` bucket.
+    The resulting guidance could incorrectly point users toward `arc user save` when the correct recovery was
+    `arc user load`.
+
+    **Outcome:** `arc user status` and `arc sync` now share an explicit two-axis model:
+    remote saved-note relation (`in sync`, `local ahead`, `remote ahead`, `conflict`, `remote unavailable`)
+    and disk relation (`current`, `stale`, `local unsaved`, `mixed`). User-facing headlines now surface the
+    dominant actionable state (`up to date`, `disk stale`, `local ahead`, etc.) with explicit `Remote:` and
+    `Disk:` detail lines, and `arc sync` consumes the same model to choose among push / pull / load / push-load /
+    conflict paths. This follow-up also added targeted unit + integration coverage for the stale-disk,
+    local-unsaved, and shared-matrix cases, plus a rebuild/smoke pass verifying the shipped CLI output and
+    `arc sync` behavior against the live repo state.
+
+    - [x] **3.R.n.1 Shared domain model + status vocabulary split**
+        - Added shared `UserRemoteStatus` / `UserDiskStatus` state in the user-sync types so status and sync derive
+          behavior from the same model instead of reinterpreting `diskState` ad hoc.
+        - Replaced the overloaded top-line `local unsaved` status in the stale-disk case with a dominant-state
+          headline model (`disk stale`, `up to date`, `local ahead`, etc.) and explicit `Remote:` / `Disk:` detail
+          lines so git-notes state and disk state are understandable without requiring prior git-notes knowledge.
+
+    - [x] **3.R.n.2 `arc sync` porcelain alignment**
+        - Reworked `arc sync` to consume the shared remote/disk model. Stale-disk cases now restore the saved note
+          locally via `load`; local-note-ahead + stale-disk cases take a `push-load` path; only true unsaved local
+          content defaults to save/push behavior.
+        - Rebuilt the package and smoke-tested the real CLI after the change to confirm the shipped output matches
+          the new semantics and that the stale-disk case resolves via `arc sync --yes`.
+
+    - [x] **3.R.n.3 Coverage updates**
+        - Expanded unit and integration coverage across `user-status`, `sync`, and composite status formatting to pin
+          the new vocabulary, detail lines, and action matrix.
+
 ---
 
 ### **Phase 4:** Operational-Context Audit + Task-List-Formatting Restructure + D7b

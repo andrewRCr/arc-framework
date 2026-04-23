@@ -2,11 +2,18 @@ import { join } from "node:path";
 
 import { serialize, type SyncManifest } from "../../lib/git/index.js";
 import { formatRelativeTime } from "./relative-time.js";
-import { findNearestUserNote, listBackupFiles } from "./save-load.js";
+import {
+  findNearestUserNote,
+  hashSyncManifest,
+  listBackupFiles,
+  readLocalSyncState,
+} from "./save-load.js";
 import { notesRef } from "./shared.js";
 import type {
   InspectUserSyncOptions,
+  UserDiskStatus,
   UserIOContext,
+  UserRemoteStatus,
   UserSessionInitStatusOptions,
   UserSessionInitStatusResult,
   UserStatusHeadline,
@@ -36,7 +43,13 @@ export async function inspectUserSyncState(
     inspectDiskVsLocalSnapshot(cwd, io, identity),
   ]);
 
-  return { refState, diskState: diskInspection.state };
+  return {
+    refState,
+    diskState: diskInspection.state,
+    remoteStatus: deriveRemoteStatus(refState),
+    diskStatus: diskInspection.diskStatus,
+    unsavedDirection: diskInspection.direction,
+  };
 }
 
 /**
@@ -63,6 +76,7 @@ export async function runUserStatus(
   return buildUserStatusResult({
     identity,
     diskState: diskInspection.state,
+    diskStatus: diskInspection.diskStatus,
     refState: refInspection?.state ?? null,
     remoteChecked: !offline,
     savedCommit: note ? note.commit.slice(0, 7) : null,
@@ -200,6 +214,7 @@ interface UserSyncRefInspection {
 interface BuildUserStatusInput {
   identity: string;
   diskState: UserSyncDiskState;
+  diskStatus?: UserDiskStatus;
   refState: UserSyncRefState | null;
   remoteChecked: boolean;
   savedCommit: string | null;
@@ -228,21 +243,28 @@ export function buildUserStatusResult(
   const savedAtRelative = input.savedAtRelative ?? null;
   const unsavedDirection = input.unsavedDirection ?? null;
 
-  const headline = determineUserStatusHeadline(refState, diskState);
+  const remoteStatus = deriveRemoteStatus(refState);
+  const diskStatus = input.diskStatus ?? deriveDiskStatus(diskState, unsavedDirection);
+  const headline = determineUserStatusHeadline(remoteStatus, diskStatus);
   const summary = remoteChecked
     ? `${identity}: ${headline}`
     : `${identity}: ${headline} (offline)`;
 
   const detailLines: string[] = [];
-  const actionHint = determineUserStatusAction(headline, diskState, remoteChecked);
+  const actionHint = determineUserStatusAction(
+    headline,
+    diskState,
+    remoteChecked,
+    unsavedDirection,
+  );
 
   if (!remoteChecked) {
     detailLines.push("Remote check skipped (`--offline`).");
   }
 
-  if (headline === "local unsaved" && unsavedDirection) {
-    detailLines.push(renderUnsavedDirectionHint(unsavedDirection));
-  }
+  detailLines.push(renderHeadlineExplanation(headline));
+  detailLines.push(`Remote: ${remoteStatus}.`);
+  detailLines.push(`Disk: ${diskStatus}.`);
 
   if (savedAtRelative) {
     detailLines.push(`Saved ${savedAtRelative}.`);
@@ -274,6 +296,8 @@ export function buildUserStatusResult(
   return {
     identity,
     headline,
+    remoteStatus,
+    diskStatus,
     summary,
     actionHint,
     detailLines,
@@ -290,14 +314,24 @@ export function buildUserStatusResult(
   };
 }
 
-function renderUnsavedDirectionHint(direction: UserUnsavedDirection): string {
-  switch (direction) {
-    case "edits":
-      return "Disk has unsaved edits not yet in the saved note.";
-    case "missing":
-      return "Disk is missing updates from the saved note.";
-    case "mixed":
-      return "Disk has unsaved edits and is missing updates from the saved note.";
+function renderHeadlineExplanation(headline: UserStatusHeadline): string {
+  switch (headline) {
+    case "up to date":
+      return "Saved note and disk are current.";
+    case "remote ahead":
+      return "A newer saved note exists on remote.";
+    case "local ahead":
+      return "Your saved note is newer than remote.";
+    case "disk stale":
+      return "Saved note is newer than the files on disk.";
+    case "local unsaved":
+      return "Files on disk include local changes not yet saved to a note.";
+    case "disk differs":
+      return "Disk differs from the saved note in multiple ways.";
+    case "conflict":
+      return "Local and remote saved notes both moved since common ancestor.";
+    case "remote unavailable":
+      return "Remote saved-note status could not be checked.";
   }
 }
 
@@ -385,6 +419,7 @@ async function readRemoteRefHash(
 
 interface DiskVsSnapshotInspection {
   state: UserSyncDiskState;
+  diskStatus: UserDiskStatus;
   direction: UserUnsavedDirection | null;
 }
 
@@ -407,7 +442,11 @@ async function inspectDiskVsLocalSnapshot(
 
   const { note } = await findNearestUserNote({ cwd, io, identity });
   if (!note) {
-    return { state: diskManifest ? "different" : "same", direction: null };
+    return {
+      state: diskManifest ? "different" : "same",
+      diskStatus: diskManifest ? "local unsaved" : "current",
+      direction: diskManifest ? "edits" : null,
+    };
   }
 
   let parsed: unknown;
@@ -418,18 +457,48 @@ async function inspectDiskVsLocalSnapshot(
   }
 
   const noteManifest = parsed as SyncManifest;
+  const noteHash = hashSyncManifest(noteManifest);
+  const diskHash = diskManifest ? hashSyncManifest(diskManifest) : null;
+  const localSyncState = await readLocalSyncState(cwd, io, identity);
 
   if (!diskManifest) {
-    return { state: "different", direction: "missing" };
+    return {
+      state: "different",
+      diskStatus: localSyncState?.materializedManifestHash === noteHash
+        ? "local unsaved"
+        : "stale",
+      direction: "missing",
+    };
   }
 
   if (manifestsEqual(noteManifest, diskManifest)) {
-    return { state: "same", direction: null };
+    return { state: "same", diskStatus: "current", direction: null };
+  }
+
+  const direction = computeUnsavedDirection(diskManifest, noteManifest);
+
+  if (!localSyncState) {
+    return {
+      state: "different",
+      diskStatus: deriveDiskStatus("different", direction),
+      direction,
+    };
+  }
+
+  const materializedHash = localSyncState.materializedManifestHash;
+  let diskStatus: UserDiskStatus;
+  if (materializedHash === noteHash) {
+    diskStatus = "local unsaved";
+  } else if (diskHash === materializedHash) {
+    diskStatus = "stale";
+  } else {
+    diskStatus = "mixed";
   }
 
   return {
     state: "different",
-    direction: computeUnsavedDirection(diskManifest, noteManifest),
+    diskStatus,
+    direction,
   };
 }
 
@@ -440,12 +509,16 @@ export function computeUnsavedDirection(
   const diskKeys = new Set(Object.keys(diskManifest.files));
   const noteKeys = new Set(Object.keys(noteManifest.files));
 
-  let hasEdits = false;
+  let hasExtraFiles = false;
+  let hasModifiedFiles = false;
   for (const key of diskKeys) {
     const noteValue = noteManifest.files[key];
-    if (noteValue === undefined || noteValue !== diskManifest.files[key]) {
-      hasEdits = true;
-      break;
+    if (noteValue === undefined) {
+      hasExtraFiles = true;
+      continue;
+    }
+    if (noteValue !== diskManifest.files[key]) {
+      hasModifiedFiles = true;
     }
   }
 
@@ -457,9 +530,49 @@ export function computeUnsavedDirection(
     }
   }
 
-  if (hasEdits && diskMissing) return "mixed";
-  if (hasEdits) return "edits";
+  const mismatchKinds = [hasExtraFiles, diskMissing, hasModifiedFiles]
+    .filter(Boolean)
+    .length;
+
+  if (mismatchKinds > 1) return "mixed";
+  if (hasExtraFiles) return "edits";
+  if (hasModifiedFiles) return "modified";
   return "missing";
+}
+
+export function deriveRemoteStatus(
+  refState: UserSyncRefState | null,
+): UserRemoteStatus {
+  switch (refState) {
+    case "remote-unavailable":
+      return "remote unavailable";
+    case "diverged":
+      return "conflict";
+    case "remote-ahead":
+      return "remote ahead";
+    case "local-ahead":
+      return "local ahead";
+    case "same":
+    case null:
+      return "in sync";
+  }
+}
+
+export function deriveDiskStatus(
+  diskState: UserSyncDiskState,
+  unsavedDirection: UserUnsavedDirection | null,
+): UserDiskStatus {
+  if (diskState === "same") return "current";
+  switch (unsavedDirection) {
+    case "edits":
+      return "local unsaved";
+    case "missing":
+    case "modified":
+    case null:
+      return "stale";
+    case "mixed":
+      return "mixed";
+  }
 }
 
 async function listRemoteUserIdentities(
@@ -486,41 +599,49 @@ async function listRemoteUserIdentities(
 }
 
 function determineUserStatusHeadline(
-  refState: UserSyncRefState | null,
-  diskState: UserSyncDiskState,
+  remoteStatus: UserRemoteStatus,
+  diskStatus: UserDiskStatus,
 ): UserStatusHeadline {
-  if (refState === "remote-unavailable") return "remote unavailable";
-  if (refState === "diverged") return "conflict";
-  if (refState === "remote-ahead") return "remote ahead";
-  if (diskState === "different" || refState === "local-ahead") return "local unsaved";
-  return "in sync";
+  if (remoteStatus === "conflict") return "conflict";
+  if (remoteStatus === "remote ahead") return "remote ahead";
+  if (diskStatus === "stale") return "disk stale";
+  if (diskStatus === "mixed") return "disk differs";
+  if (diskStatus === "local unsaved") return "local unsaved";
+  if (remoteStatus === "local ahead") return "local ahead";
+  if (remoteStatus === "remote unavailable") return "remote unavailable";
+  return "up to date";
 }
 
 function determineUserStatusAction(
   headline: UserStatusHeadline,
   diskState: UserSyncDiskState,
   remoteChecked: boolean,
+  unsavedDirection: UserUnsavedDirection | null,
 ): string | null {
   switch (headline) {
     case "remote ahead":
       return "run `arc user pull`";
-    case "local unsaved":
-      // The "local unsaved" headline covers two distinct remediations:
-      //   (a) diskState === "different" → work isn't in a local note yet → save first.
-      //   (b) diskState === "same" (implies refState === "local-ahead", per
-      //       `determineUserStatusHeadline`) → work IS saved locally, just not pushed.
-      //   Picking by diskState keeps the split tight to the observable cause.
-      return diskState === "different"
-        ? "run `arc user save`"
-        : "run `arc user push` (or `arc sync`)";
     case "conflict":
       return "run `arc user fetch` for non-destructive inspection";
     case "remote unavailable":
-      return diskState === "different"
-        ? "run `arc user save`, then retry online when the remote is reachable"
-        : "retry online to confirm remote status";
-    case "in sync":
+      if (diskState === "same") return "retry online to confirm remote status";
+      if (unsavedDirection === "edits") {
+        return "run `arc user save`, then retry online when the remote is reachable";
+      }
+      if (unsavedDirection === "mixed") {
+        return "inspect local disk state before retrying online";
+      }
+      return "run `arc user load`, or retry online to confirm remote status";
+    case "up to date":
       return remoteChecked ? null : "rerun without `--offline` to confirm remote status";
+    case "local ahead":
+      return "run `arc user push` (or `arc sync`)";
+    case "disk stale":
+      return "run `arc user load`";
+    case "local unsaved":
+      return "run `arc user save`";
+    case "disk differs":
+      return "inspect local disk state, then run `arc user load` or `arc user save`";
   }
 }
 

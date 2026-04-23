@@ -135,9 +135,25 @@ export type UserSyncRefState =
 
 export type UserSyncDiskState = "same" | "different";
 
+export type UserRemoteStatus =
+  | "in sync"
+  | "local ahead"
+  | "remote ahead"
+  | "conflict"
+  | "remote unavailable";
+
+export type UserDiskStatus =
+  | "current"
+  | "stale"
+  | "local unsaved"
+  | "mixed";
+
 export interface UserSyncState {
   refState: UserSyncRefState;
   diskState: UserSyncDiskState;
+  remoteStatus: UserRemoteStatus;
+  diskStatus: UserDiskStatus;
+  unsavedDirection: UserUnsavedDirection | null;
 }
 
 export interface InspectUserSyncOptions {
@@ -149,9 +165,12 @@ export interface InspectUserSyncOptions {
 /**
  * Canonical user-facing status vocabulary.
  *
- * - `in sync`           — local and remote notes match; disk matches saved note.
+ * - `up to date`        — saved note and disk are current locally, and remote matches.
  * - `remote ahead`      — remote has newer notes that local doesn't have yet.
- * - `local unsaved`     — disk has unsaved edits, or local notes are ahead of remote.
+ * - `local ahead`       — local saved note is newer than remote.
+ * - `disk stale`        — saved note is newer than the files on disk.
+ * - `local unsaved`     — disk has local-only changes not yet saved to a note.
+ * - `disk differs`      — disk has a mixture of stale and unsaved changes.
  * - `conflict`          — local and remote notes both moved from a common ancestor.
  * - `remote unavailable` — remote could not be reached for comparison.
  *
@@ -160,9 +179,12 @@ export interface InspectUserSyncOptions {
  * an existing term.
  */
 export type UserStatusHeadline =
-  | "in sync"
+  | "up to date"
   | "remote ahead"
+  | "local ahead"
+  | "disk stale"
   | "local unsaved"
+  | "disk differs"
   | "conflict"
   | "remote unavailable";
 
@@ -176,15 +198,18 @@ export interface UserStatusRemoteIdentity {
  * Direction of mismatch between the disk manifest and the saved note when
  * headline is `local unsaved`.
  *
- * - `edits`   — disk has content the saved note doesn't (new/modified files).
- * - `missing` — saved note has content the disk doesn't (files deleted locally).
- * - `mixed`   — both directions apply simultaneously.
+ * - `edits`    — disk has new files the saved note doesn't.
+ * - `missing`  — saved note has files the disk doesn't.
+ * - `modified` — the same file exists on both sides but with different content.
+ * - `mixed`    — multiple mismatch kinds apply simultaneously.
  */
-export type UserUnsavedDirection = "edits" | "missing" | "mixed";
+export type UserUnsavedDirection = "edits" | "missing" | "modified" | "mixed";
 
 export interface UserStatusResult {
   identity: string;
   headline: UserStatusHeadline;
+  remoteStatus: UserRemoteStatus;
+  diskStatus: UserDiskStatus;
   summary: string;
   actionHint: string | null;
   detailLines: string[];

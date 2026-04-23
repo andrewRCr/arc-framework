@@ -33,9 +33,11 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("in sync");
+    expect(result.headline).toBe("up to date");
+    expect(result.remoteStatus).toBe("in sync");
+    expect(result.diskStatus).toBe("current");
     expect(result.actionHint).toBeNull();
-    expect(buildUserStatusSummary(result)).toBe("andrew: in sync");
+    expect(buildUserStatusSummary(result)).toContain("andrew: up to date");
   });
 
   it("reports remote-ahead state with a pull hint", () => {
@@ -51,11 +53,13 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.headline).toBe("remote ahead");
+    expect(result.remoteStatus).toBe("remote ahead");
+    expect(result.diskStatus).toBe("current");
     expect(result.actionHint).toContain("arc user pull");
     expect(result.detailLines).toContain("Next step: run `arc user pull`");
   });
 
-  it("reports local-unsaved state offline and surfaces backup and freshness detail", () => {
+  it("reports stale-disk state offline and surfaces backup and freshness detail", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -64,13 +68,16 @@ describe("buildUserStatusResult", () => {
       savedCommit: "abc1234",
       savedFromAncestor: true,
       ancestorDistance: 3,
+      unsavedDirection: "modified",
       backupFiles: [".pre-load-backup.json"],
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("local unsaved");
-    expect(result.summary).toBe("andrew: local unsaved (offline)");
+    expect(result.headline).toBe("disk stale");
+    expect(result.summary).toBe("andrew: disk stale (offline)");
     expect(result.detailLines).toContain("Remote check skipped (`--offline`).");
+    expect(result.detailLines).toContain("Remote: in sync.");
+    expect(result.detailLines).toContain("Disk: stale.");
     expect(result.detailLines).toContain("Saved snapshot is from abc1234, 3 commit(s) back.");
     expect(result.detailLines).toContain("Pre-load backup present: .pre-load-backup.json");
   });
@@ -100,11 +107,13 @@ describe("buildUserStatusResult", () => {
       remoteChecked: true,
       savedCommit: "abc1234",
       savedFromAncestor: false,
+      unsavedDirection: "mixed",
       backupFiles: [],
       remoteIdentities: [],
     });
 
     expect(result.headline).toBe("conflict");
+    expect(result.remoteStatus).toBe("conflict");
     expect(result.actionHint).toContain("arc user fetch");
   });
 
@@ -141,7 +150,7 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines.some((line) => line.startsWith("Saved ") && line.endsWith(" ago."))).toBe(false);
   });
 
-  it("adds 'disk has unsaved edits' hint when local-unsaved direction is 'edits'", () => {
+  it("classifies local-only files as local unsaved", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -156,10 +165,11 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.headline).toBe("local unsaved");
-    expect(result.detailLines).toContain("Disk has unsaved edits not yet in the saved note.");
+    expect(result.diskStatus).toBe("local unsaved");
+    expect(result.detailLines).toContain("Disk: local unsaved.");
   });
 
-  it("adds 'disk missing updates' hint when local-unsaved direction is 'missing'", () => {
+  it("classifies missing files as disk stale", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -173,10 +183,31 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.detailLines).toContain("Disk is missing updates from the saved note.");
+    expect(result.headline).toBe("disk stale");
+    expect(result.diskStatus).toBe("stale");
+    expect(result.detailLines).toContain("Disk: stale.");
   });
 
-  it("adds a combined hint when direction is 'mixed'", () => {
+  it("classifies modified files as disk stale", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "modified",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("disk stale");
+    expect(result.diskStatus).toBe("stale");
+    expect(result.detailLines).toContain("Disk: stale.");
+  });
+
+  it("classifies mixed differences as disk differs", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -190,10 +221,12 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.detailLines).toContain("Disk has unsaved edits and is missing updates from the saved note.");
+    expect(result.headline).toBe("disk differs");
+    expect(result.diskStatus).toBe("mixed");
+    expect(result.detailLines).toContain("Disk: mixed.");
   });
 
-  it("omits the direction hint when headline is not local-unsaved", () => {
+  it("always includes explicit remote and disk lines", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -207,10 +240,11 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.detailLines.some((line) => line.startsWith("Disk "))).toBe(false);
+    expect(result.detailLines).toContain("Remote: remote ahead.");
+    expect(result.detailLines).toContain("Disk: current.");
   });
 
-  it("picks 'arc user save' hint for local-unsaved when disk differs from saved note", () => {
+  it("picks 'arc user save' hint for local-unsaved when disk has local-only files", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -229,7 +263,26 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).toContain("Next step: run `arc user save`");
   });
 
-  it("picks 'arc user push' hint for local-unsaved when disk matches but local ref is ahead", () => {
+  it("picks 'arc user load' hint for disk stale when disk content differs from the saved note", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      unsavedDirection: "modified",
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("disk stale");
+    expect(result.actionHint).toBe("run `arc user load`");
+    expect(result.detailLines).toContain("Next step: run `arc user load`");
+  });
+
+  it("picks 'arc user push' hint when local ref is ahead and disk is current", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -242,7 +295,7 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("local unsaved");
+    expect(result.headline).toBe("local ahead");
     expect(result.actionHint).toBe("run `arc user push` (or `arc sync`)");
     expect(result.detailLines).toContain("Next step: run `arc user push` (or `arc sync`)");
   });
@@ -274,11 +327,11 @@ describe("computeUnsavedDirection", () => {
     expect(computeUnsavedDirection(disk, note)).toBe("edits");
   });
 
-  it("returns 'edits' when a file on disk has modified content vs. the note", () => {
+  it("returns 'modified' when a file on disk has different content vs. the note", () => {
     const disk = manifest({ "SESSION-NOTES.md": "local-edit" });
     const note = manifest({ "SESSION-NOTES.md": "original" });
 
-    expect(computeUnsavedDirection(disk, note)).toBe("edits");
+    expect(computeUnsavedDirection(disk, note)).toBe("modified");
   });
 
   it("returns 'missing' when the saved note has files the disk doesn't", () => {
@@ -291,6 +344,13 @@ describe("computeUnsavedDirection", () => {
   it("returns 'mixed' when disk has extras and is missing other files from the note", () => {
     const disk = manifest({ "SESSION-NOTES.md": "aaa", "new-file.md": "ccc" });
     const note = manifest({ "SESSION-NOTES.md": "aaa", "ATOMIC-INBOX.md": "bbb" });
+
+    expect(computeUnsavedDirection(disk, note)).toBe("mixed");
+  });
+
+  it("returns 'mixed' when disk modifies a saved file and adds a new one", () => {
+    const disk = manifest({ "SESSION-NOTES.md": "changed", "new-file.md": "ccc" });
+    const note = manifest({ "SESSION-NOTES.md": "aaa" });
 
     expect(computeUnsavedDirection(disk, note)).toBe("mixed");
   });
