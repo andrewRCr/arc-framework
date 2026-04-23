@@ -13,11 +13,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.1 — Staging infrastructure
-- **Last Completed:** Phase 4 scope refresh per pre-impl audit. Decomposed 4.2/4.3/4.5 into
-  file-weighted subtasks (6/3/4 respectively), swapped 4.4 ↔ 4.5 so the task-list-formatting
-  restructure runs before Tier 3, expanded 4.1 with a locked entry template and source-side
-  placeholder convention, added stopping-rule + strategy-docs exclusion to the phase preamble.
+- **Next Task:** 4.2.a — Agent briefings cluster audit
+- **Last Completed:** Task 4.1 — Staging infrastructure. Created
+  `notes-docs-content-sweep.md` at `.arc/backlog/technical/` with the locked entry template
+  (Entry N heading; Source / Content / Suggested destination / Stylistic integration notes
+  fields) and the source-side `[TODO-docs-site]` placeholder convention (stub-definition
+  variant — `[TODO-docs-site]: # "Placeholder pending docs-content-sweep — see
+  notes-docs-content-sweep.md"` at file bottom; one stub per file serves all references via
+  DRY label; satisfies MD052 zero-tolerance lint).
 - **Blockers:** none
-- **Next Action:** Begin 4.1 — create `notes-docs-content-sweep.md` with the locked entry
-  template and source-side `[TODO-docs-site]` placeholder convention documented in its header.
+- **Next Action:** Begin 4.2.a — operational-context audit of agent briefings cluster
+  (`AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.PROJECT.md`, `AGENT-BRIEFING.CONTRIBUTOR.md`,
+  `CLAUDE.ARC.md`); single audit pass per the Phase 4 preamble heuristic.

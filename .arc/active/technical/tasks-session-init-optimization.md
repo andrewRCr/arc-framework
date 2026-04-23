@@ -2301,21 +2301,17 @@ with no rationale digressions. That's the signal for "enough."
 on-demand, not session-init-loaded. `strategy-task-list-formatting.md` is trimmed in 4.4.c as part of the formatting
 restructure, not as a Phase 4 audit target.
 
-- [ ] **4.1 Staging infrastructure**
+- [x] **4.1 Staging infrastructure**
 
-    **Goal:** `notes-docs-content-sweep.md` exists with a locked entry template and source-side `[TODO-docs-site]`
-    placeholder convention documented in its header.
-    - Create `.arc/backlog/technical/notes-docs-content-sweep.md` with a header block that pastes a concrete
-      per-entry template (mirrors `plan-docs-content-sweep.md` § Content Contributions). Entry fields:
-        - `## Entry N — <source-basename> § <section-anchor>` heading
-        - `**Source:** <full-path> (lines X–Y)` — line range for reviewer traceability
-        - `**Content:** > <verbatim prose>` — blockquote of extracted text
-        - `**Suggested destination:** <docs/ IA path, or "open — editorial at sweep time">` — advisory, not binding
-        - `**Stylistic integration notes:** <rephrasing needs, audience shift, retained anchors>`
-    - Document the source-side `[TODO-docs-site]` reference-style placeholder convention in the staging file's header.
-      Sweep-side convention already lives in `plan-docs-content-sweep.md § Content Contributions`; source-side lives
-      with the staging it governs. Include: syntax, placement at extraction site (greppable), completion semantics
-      (resolved to final docs URL at sweep time)
+    **Outcome:** `notes-docs-content-sweep.md` created at `.arc/backlog/technical/` with the locked entry
+    template (Entry N heading; Source / Content / Suggested destination / Stylistic integration notes fields)
+    and the source-side `[TODO-docs-site]` placeholder convention documented in the header. Convention
+    decisions recorded: descriptive link text + literal `TODO-docs-site` label (no per-entry suffixes — sweep
+    resolves globally); no source-side definition added (MD052 unresolved-reference is the intended signal);
+    completion verified by `grep -rn "TODO-docs-site"` returning zero matches and MD052 clearing once the
+    sweep WU rewrites to final docs URLs. Header also captures lifecycle (populate → source-side placeholder →
+    sweep) and the rationale for splitting the convention between this file and
+    `plan-docs-content-sweep.md` § Content Contributions.
 
 - [ ] **4.2 Tier 1 audit — always-loaded docs**
 
@@ -2329,6 +2325,27 @@ restructure, not as a Phase 4 audit target.
     - [ ] **4.2.a Agent briefings cluster** — `AGENT-BRIEFING.ARC.md` (57 lines), `AGENT-BRIEFING.PROJECT.md` (47),
       `AGENT-BRIEFING.CONTRIBUTOR.md` (163, contributor-session load only — maintainer sessions don't pay the cost),
       `CLAUDE.ARC.md` (39). Cohesive cluster; all small; single audit pass
+
+        **Staging entries added to `notes-docs-content-sweep.md`:** six entries —
+        Entry 1: AGENT-BRIEFING.ARC.md § Introduction + How ARC Works;
+        Entries 2-6: AGENT-BRIEFING.CONTRIBUTOR.md § Boundaries (paragraph) /
+        § Commit Convention / § Session Workflow / § Personal Workspace (3 non-contiguous
+        extractions consolidated as one thematic unit) / § Running a Full Planning Pipeline Locally.
+        AGENT-BRIEFING.PROJECT.md and CLAUDE.ARC.md trims dropped pure duplicates with no extraction
+        entries (covered by adjacent loaded files).
+
+        **Two-copy sync:** Framework files (`AGENT-BRIEFING.ARC.md`, `AGENT-BRIEFING.CONTRIBUTOR.md`)
+        edited in both `.arc/` and `packages/arc-framework/arc/`; verified identical post-edit.
+        Configurable files (`AGENT-BRIEFING.PROJECT.md`, `CLAUDE.ARC.md`) edited in `.arc/` only;
+        package templates unchanged (project-specific content trims, not framework defaults).
+
+        **Convention amendment surfaced during execution:** Task 4.1's "no source-side definition for
+        `[TODO-docs-site]`" placeholder convention failed MD052 zero-tolerance lint on first
+        placeholder use. Convention revised in `notes-docs-content-sweep.md` § Source-Side Placeholder
+        Convention to require a stub definition
+        (`[TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"`)
+        at file bottom — one stub per file, serves all references via DRY label, sweep WU rewrites
+        the stub to resolve all references in the file. User approved before execution proceeded.
 
     - [ ] **4.2.b `DEV-RULES.ARC.md`** (385 lines) — constitutional, high stakes. Standalone focused pass; rationale
       and meta-commentary surface more readily when the file gets dedicated attention
