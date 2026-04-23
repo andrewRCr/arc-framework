@@ -545,7 +545,7 @@ describe("handleUserStatus", () => {
 
   it("renders the status summary from the command layer", async () => {
     mockRunUserStatus.mockResolvedValue({
-      summary: "andrew: remote ahead",
+      summary: "andrew: remote note ahead",
     });
 
     await handleUserStatus({});
@@ -553,7 +553,7 @@ describe("handleUserStatus", () => {
     expect(mockRunUserStatus).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: process.cwd(), identity: "andrew", offline: undefined, all: undefined }),
     );
-    expect(mockNote).toHaveBeenCalledWith("andrew: remote ahead", "Status");
+    expect(mockNote).toHaveBeenCalledWith("andrew: remote note ahead", "Status");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
@@ -607,10 +607,10 @@ describe("handleUserStatus --json retrofit", () => {
   it("writes the full status result as JSON to stdout and skips Clack ceremony", async () => {
     const result = {
       identity: "andrew",
-      headline: "up to date",
+      headline: "git note up to date",
       remoteStatus: "in sync",
       diskStatus: "current",
-      summary: "andrew: up to date",
+      summary: "andrew: git note up to date",
       actionHint: null,
       detailLines: [],
       remoteChecked: true,

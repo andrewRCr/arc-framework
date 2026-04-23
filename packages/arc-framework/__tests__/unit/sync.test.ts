@@ -196,7 +196,7 @@ describe("handleSync direction handling", () => {
 
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
-    expect(mockLog.info).toHaveBeenCalledWith("Saved note and disk are already up to date.");
+    expect(mockLog.info).toHaveBeenCalledWith("Local git note and working files are already up to date.");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
@@ -208,7 +208,9 @@ describe("handleSync direction handling", () => {
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("→ Saving local changes and pushing the saved note to remote.");
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "→ Saving working-file changes and pushing the local git note to remote.",
+    );
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -228,7 +230,7 @@ describe("handleSync direction handling", () => {
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("→ Restoring the local saved note to disk.");
+    expect(mockLog.info).toHaveBeenCalledWith("→ Restoring the local git note to working files.");
     expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -248,7 +250,9 @@ describe("handleSync direction handling", () => {
 
     await handleSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith("→ Pulling the newer remote saved note and restoring it to disk.");
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "→ Pulling the newer remote git note and restoring it to working files.",
+    );
     expect(mockRunUserPull).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: process.cwd(), force: true }),
     );
@@ -365,7 +369,7 @@ describe("handleSync direction handling", () => {
     await handleSync();
 
     expect(mockLog.warn).toHaveBeenCalledWith(
-      "Local and remote notes conflict (both moved since common ancestor).",
+      "Local and remote git notes conflict (both moved since common ancestor).",
     );
     expect(mockSelect).toHaveBeenCalledTimes(1);
     expect(mockRunUserPull).toHaveBeenCalledTimes(1);

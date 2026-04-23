@@ -74,26 +74,26 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   switch (action) {
     case "noop":
       if (state.remoteStatus === "remote unavailable") {
-        p.log.warn("Remote status unavailable. Disk matches the local saved note.");
+        p.log.warn("Remote status unavailable. Working files match the local git note.");
       } else {
-        p.log.info("Saved note and disk are already up to date.");
+        p.log.info("Local git note and working files are already up to date.");
       }
       p.outro("Done.");
       return;
     case "push":
-      p.log.info("→ Saving local changes and pushing the saved note to remote.");
+      p.log.info("→ Saving working-file changes and pushing the local git note to remote.");
       await handlePushDirection({ cwd, io, identity, yes, maxWalk });
       return;
     case "pull":
-      p.log.info("→ Pulling the newer remote saved note and restoring it to disk.");
+      p.log.info("→ Pulling the newer remote git note and restoring it to working files.");
       await handlePullDirection({ cwd, io, identity, yes, maxWalk });
       return;
     case "load":
-      p.log.info("→ Restoring the local saved note to disk.");
+      p.log.info("→ Restoring the local git note to working files.");
       await handleLoadDirection({ cwd, io, identity, yes, maxWalk });
       return;
     case "push-load":
-      p.log.info("→ Pushing the newer local saved note, then restoring it to disk.");
+      p.log.info("→ Pushing the newer local git note, then restoring it to working files.");
       await handlePushDirection({ cwd, io, identity, yes, maxWalk, restoreAfterPush: true });
       return;
     case "conflict":
@@ -134,7 +134,7 @@ async function handleConflict(params: DirectionParams): Promise<void> {
     return;
   }
 
-  p.log.warn("Local and remote notes conflict (both moved since common ancestor).");
+  p.log.warn("Local and remote git notes conflict (both moved since common ancestor).");
   const action = await p.select({
     message: "How would you like to resolve sync?",
     options: [
@@ -154,18 +154,18 @@ async function handleConflict(params: DirectionParams): Promise<void> {
   const confirmed: DirectionParams = { ...params, yes: true };
 
   if (action === "push") {
-    p.log.info("→ Pushing local user directory to remote notes.");
+    p.log.info("→ Pushing the local git note to remote.");
     await handlePushDirection(confirmed);
     return;
   }
 
-  p.log.info("→ Pulling remote notes into the local user directory.");
+  p.log.info("→ Pulling the remote git note into local working files.");
   await handlePullDirection(confirmed);
 }
 
 async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void> {
   const { cwd, io, identity } = params;
-  p.log.warn("Local and remote notes conflict (both moved since common ancestor).");
+  p.log.warn("Local and remote git notes conflict (both moved since common ancestor).");
   p.log.warn("Non-interactive environment detected — degrading to save-only.");
 
   const saveSpinner = p.spinner();
@@ -246,7 +246,7 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
 async function handleLoadDirection(params: DirectionParams): Promise<void> {
   const { cwd, io, identity, maxWalk } = params;
   const spinner = p.spinner();
-  spinner.start("Restoring saved note to disk...");
+  spinner.start("Restoring git note to working files...");
 
   try {
     const result = await runUserLoad({
@@ -275,7 +275,7 @@ async function handleLoadDirection(params: DirectionParams): Promise<void> {
   } catch (err) {
     spinner.stop("Load failed.");
     const msg = err instanceof Error ? err.message : String(err);
-    p.log.error(`Failed to restore saved note: ${msg}`);
+    p.log.error(`Failed to restore git note: ${msg}`);
     process.exitCode = 1;
   }
 }

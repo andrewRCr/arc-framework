@@ -21,6 +21,8 @@ import {
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
 } from "../helpers/integration.js";
+import { serialize } from "../../src/lib/git/index.js";
+import { hashSyncManifest } from "../../src/commands/user/save-load.js";
 import {
   runUserSave,
   runUserLoad,
@@ -94,6 +96,22 @@ function expectLoaded(result: UserLoadOutcome | null): UserLoadResult {
   expect(result).not.toBeNull();
   expect(result?.kind).toBe("loaded");
   return result as UserLoadResult;
+}
+
+async function writeLocalSyncStateFixture(
+  tempDir: string,
+  identity: string,
+  state: Record<string, unknown>,
+): Promise<void> {
+  const syncStatePath = join(tempDir, ".arc", "user", identity, ".internal", ".sync-state.json");
+  await writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`, "utf-8");
+}
+
+async function hashUserDir(tempDir: string, identity: string): Promise<string> {
+  const userDir = join(tempDir, ".arc", "user", identity);
+  const io = makeUserIO(tempDir);
+  const result = await serialize(userDir, io.readDir, io.readFile);
+  return hashSyncManifest(result.manifest);
 }
 
 describe("user save and load", () => {
@@ -951,10 +969,10 @@ describe("user status", () => {
     const result = await runUserStatus({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     const summary = buildUserStatusSummary(result);
 
-    expect(result.headline).toBe("remote ahead");
-    expect(summary).toContain("test-user: remote ahead");
-    expect(summary).toContain("Remote: remote ahead.");
-    expect(summary).toContain("Disk: current.");
+    expect(result.headline).toBe("remote note ahead");
+    expect(summary).toContain("test-user: remote note ahead");
+    expect(summary).toContain("Remote notes: remote note ahead.");
+    expect(summary).toContain("Working files match the latest local git note.");
     expect(summary).toContain("Next step: run `arc user pull`");
   });
 
@@ -972,10 +990,10 @@ describe("user status", () => {
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     const summary = buildUserStatusSummary(result);
 
-    expect(result.headline).toBe("disk stale");
-    expect(summary).toContain("test-user: disk stale (offline)");
-    expect(summary).toContain("Remote: in sync.");
-    expect(summary).toContain("Disk: stale.");
+    expect(result.headline).toBe("git note out of date");
+    expect(summary).toContain("test-user: git note out of date (offline)");
+    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("Working files reflect an older local git note.");
     expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
     expect(summary).toContain("Next step: run `arc user load`");
     expect(result.unsavedDirection).toBe("modified");
@@ -995,10 +1013,10 @@ describe("user status", () => {
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     const summary = buildUserStatusSummary(result);
 
-    expect(result.headline).toBe("local unsaved");
-    expect(summary).toContain("test-user: local unsaved (offline)");
-    expect(summary).toContain("Remote: in sync.");
-    expect(summary).toContain("Disk: local unsaved.");
+    expect(result.headline).toBe("git note out of date");
+    expect(summary).toContain("test-user: git note out of date (offline)");
+    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("Working files have changed since the latest local git note.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("modified");
   });
@@ -1014,12 +1032,81 @@ describe("user status", () => {
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     const summary = buildUserStatusSummary(result);
 
-    expect(result.headline).toBe("local unsaved");
-    expect(summary).toContain("test-user: local unsaved (offline)");
-    expect(summary).toContain("Remote: in sync.");
-    expect(summary).toContain("Disk: local unsaved.");
+    expect(result.headline).toBe("git note out of date");
+    expect(summary).toContain("test-user: git note out of date (offline)");
+    expect(summary).toContain("Remote notes: in sync.");
+    expect(summary).toContain("Working files have changed since the latest local git note.");
     expect(summary).toContain("Next step: run `arc user save`");
     expect(result.unsavedDirection).toBe("edits");
+  });
+
+  it("degrades legacy hash-only provenance to inspect instead of a wrong load hint", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+
+    const modifiedHash = await hashUserDir(tempDir, "test-user");
+    await writeLocalSyncStateFixture(tempDir, "test-user", {
+      version: 1,
+      materializedManifestHash: modifiedHash,
+    });
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.diskStatus).toBe("mixed");
+    expect(summary).toContain("Next step: inspect local working files, then run `arc user load` or `arc user save`");
+  });
+
+  it("uses save provenance to prefer save when disk matches a newer local-only state", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+
+    const modifiedHash = await hashUserDir(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writeLocalSyncStateFixture(tempDir, "test-user", {
+      version: 2,
+      materializedManifestHash: modifiedHash,
+      sourceCommit: head.trim(),
+      sourceOperation: "save",
+    });
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.diskStatus).toBe("local unsaved");
+    expect(summary).toContain("Next step: run `arc user save`");
+  });
+
+  it("uses load provenance to prefer load when disk matches a previously loaded older state", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+
+    const modifiedHash = await hashUserDir(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await writeLocalSyncStateFixture(tempDir, "test-user", {
+      version: 2,
+      materializedManifestHash: modifiedHash,
+      sourceCommit: head.trim(),
+      sourceOperation: "load",
+    });
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.diskStatus).toBe("stale");
+    expect(summary).toContain("Next step: run `arc user load`");
   });
 
   it("lists remote identities when --all-style inspection is requested", async () => {

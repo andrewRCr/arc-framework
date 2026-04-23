@@ -165,13 +165,11 @@ export interface InspectUserSyncOptions {
 /**
  * Canonical user-facing status vocabulary.
  *
- * - `up to date`        — saved note and disk are current locally, and remote matches.
- * - `remote ahead`      — remote has newer notes that local doesn't have yet.
- * - `local ahead`       — local saved note is newer than remote.
- * - `disk stale`        — saved note is newer than the files on disk.
- * - `local unsaved`     — disk has local-only changes not yet saved to a note.
- * - `disk differs`      — disk has a mixture of stale and unsaved changes.
- * - `conflict`          — local and remote notes both moved from a common ancestor.
+ * - `git note up to date` — local git note and working files are current, and remote matches.
+ * - `remote note ahead` — remote has newer notes that local doesn't have yet.
+ * - `local note ahead`  — local git note is newer than remote.
+ * - `git note out of date` — working files do not match the latest local git note.
+ * - `notes conflict`    — local and remote notes both moved from a common ancestor.
  * - `remote unavailable` — remote could not be reached for comparison.
  *
  * These terms must round-trip cleanly from user mental model to behavior — if
@@ -179,13 +177,11 @@ export interface InspectUserSyncOptions {
  * an existing term.
  */
 export type UserStatusHeadline =
-  | "up to date"
-  | "remote ahead"
-  | "local ahead"
-  | "disk stale"
-  | "local unsaved"
-  | "disk differs"
-  | "conflict"
+  | "git note up to date"
+  | "remote note ahead"
+  | "local note ahead"
+  | "git note out of date"
+  | "notes conflict"
   | "remote unavailable";
 
 export interface UserStatusRemoteIdentity {

@@ -47,10 +47,10 @@ import type {
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
   return {
     identity: "andrew",
-    headline: "up to date",
+    headline: "git note up to date",
     remoteStatus: "in sync",
     diskStatus: "current",
-    summary: "andrew: up to date",
+    summary: "andrew: git note up to date",
     actionHint: null,
     detailLines: [],
     remoteChecked: true,
@@ -243,7 +243,7 @@ describe("runStatus — orchestration", () => {
     expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
-    if (result.user.ok) expect(result.user.value.headline).toBe("up to date");
+    if (result.user.ok) expect(result.user.value.headline).toBe("git note up to date");
   });
 
   it("carries top-level identity pointers without mutation", async () => {

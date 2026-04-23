@@ -30,10 +30,10 @@ function okUser(): Probe<UserStatusResult> {
     ok: true,
     value: {
       identity: "andrew",
-      headline: "up to date",
+      headline: "git note up to date",
       remoteStatus: "in sync",
       diskStatus: "current",
-      summary: "andrew: up to date",
+      summary: "andrew: git note up to date",
       actionHint: null,
       detailLines: [],
       remoteChecked: true,
@@ -195,8 +195,8 @@ describe("buildStatusSummary — full mode", () => {
 
   it("delegates each slot to its probe's formatter", () => {
     const summary = buildStatusSummary(makeFullResult());
-    // User formatter output: "andrew: up to date"
-    expect(summary).toContain("andrew: up to date");
+    // User formatter output: "andrew: git note up to date"
+    expect(summary).toContain("andrew: git note up to date");
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "13 agent-consumable settings"

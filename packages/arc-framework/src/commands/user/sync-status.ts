@@ -254,6 +254,7 @@ export function buildUserStatusResult(
   const actionHint = determineUserStatusAction(
     headline,
     diskState,
+    diskStatus,
     remoteChecked,
     unsavedDirection,
   );
@@ -262,9 +263,9 @@ export function buildUserStatusResult(
     detailLines.push("Remote check skipped (`--offline`).");
   }
 
-  detailLines.push(renderHeadlineExplanation(headline));
-  detailLines.push(`Remote: ${remoteStatus}.`);
-  detailLines.push(`Disk: ${diskStatus}.`);
+  detailLines.push(renderHeadlineExplanation(headline, diskStatus));
+  detailLines.push(renderWorkingFilesLine(diskStatus));
+  detailLines.push(`Remote notes: ${renderRemoteStatus(remoteStatus)}.`);
 
   if (savedAtRelative) {
     detailLines.push(`Saved ${savedAtRelative}.`);
@@ -272,10 +273,12 @@ export function buildUserStatusResult(
 
   if (savedCommit && ancestorDistance > 0) {
     detailLines.push(
-      `Saved snapshot is from ${savedCommit}, ${ancestorDistance} commit(s) back.`,
+      `Latest local git note is from ${savedCommit}, ${ancestorDistance} commit(s) back.`,
     );
+  } else if (savedCommit && ancestorDistance === 0) {
+    detailLines.push("Latest local git note is current with HEAD.");
   } else if (!savedCommit && diskState === "different") {
-    detailLines.push("No saved snapshot exists yet for this identity.");
+    detailLines.push("No local git note exists yet for this identity.");
   }
 
   if (backupFiles.length > 0) {
@@ -314,24 +317,57 @@ export function buildUserStatusResult(
   };
 }
 
-function renderHeadlineExplanation(headline: UserStatusHeadline): string {
+function renderHeadlineExplanation(
+  headline: UserStatusHeadline,
+  diskStatus: UserDiskStatus,
+): string {
   switch (headline) {
-    case "up to date":
-      return "Saved note and disk are current.";
-    case "remote ahead":
-      return "A newer saved note exists on remote.";
-    case "local ahead":
-      return "Your saved note is newer than remote.";
-    case "disk stale":
-      return "Saved note is newer than the files on disk.";
-    case "local unsaved":
-      return "Files on disk include local changes not yet saved to a note.";
-    case "disk differs":
-      return "Disk differs from the saved note in multiple ways.";
-    case "conflict":
-      return "Local and remote saved notes both moved since common ancestor.";
+    case "git note up to date":
+      return "Local git note and working files are current.";
+    case "remote note ahead":
+      return "A newer remote git note exists.";
+    case "local note ahead":
+      return "Your local git note is newer than remote.";
+    case "git note out of date":
+      if (diskStatus === "stale") {
+        return "Latest local git note is not current with the working files.";
+      }
+      if (diskStatus === "mixed") {
+        return "Latest local git note is partly reflected in working files, alongside newer local changes.";
+      }
+      return "Latest local git note is not current with the working files.";
+    case "notes conflict":
+      return "Local and remote git notes both moved since common ancestor.";
     case "remote unavailable":
-      return "Remote saved-note status could not be checked.";
+      return "Remote git-note status could not be checked.";
+  }
+}
+
+function renderWorkingFilesLine(diskStatus: UserDiskStatus): string {
+  switch (diskStatus) {
+    case "current":
+      return "Working files match the latest local git note.";
+    case "stale":
+      return "Working files reflect an older local git note.";
+    case "local unsaved":
+      return "Working files have changed since the latest local git note.";
+    case "mixed":
+      return "Working files differ from the latest local git note in multiple ways.";
+  }
+}
+
+function renderRemoteStatus(remoteStatus: UserRemoteStatus): string {
+  switch (remoteStatus) {
+    case "in sync":
+      return "in sync";
+    case "local ahead":
+      return "local note ahead";
+    case "remote ahead":
+      return "remote note ahead";
+    case "conflict":
+      return "notes conflict";
+    case "remote unavailable":
+      return "unavailable";
   }
 }
 
@@ -490,7 +526,14 @@ async function inspectDiskVsLocalSnapshot(
   if (materializedHash === noteHash) {
     diskStatus = "local unsaved";
   } else if (diskHash === materializedHash) {
-    diskStatus = "stale";
+    // Hash-only legacy provenance cannot safely distinguish "disk is stale"
+    // from "disk reflects a newer local-only save/load state". Avoid a
+    // destructive load recommendation when direction is ambiguous.
+    if (localSyncState.sourceCommit.length === 0) {
+      diskStatus = "mixed";
+    } else {
+      diskStatus = localSyncState.sourceOperation === "load" ? "stale" : "local unsaved";
+    }
   } else {
     diskStatus = "mixed";
   }
@@ -602,26 +645,27 @@ function determineUserStatusHeadline(
   remoteStatus: UserRemoteStatus,
   diskStatus: UserDiskStatus,
 ): UserStatusHeadline {
-  if (remoteStatus === "conflict") return "conflict";
-  if (remoteStatus === "remote ahead") return "remote ahead";
-  if (diskStatus === "stale") return "disk stale";
-  if (diskStatus === "mixed") return "disk differs";
-  if (diskStatus === "local unsaved") return "local unsaved";
-  if (remoteStatus === "local ahead") return "local ahead";
+  if (remoteStatus === "conflict") return "notes conflict";
+  if (remoteStatus === "remote ahead") return "remote note ahead";
+  if (diskStatus === "stale" || diskStatus === "mixed" || diskStatus === "local unsaved") {
+    return "git note out of date";
+  }
+  if (remoteStatus === "local ahead") return "local note ahead";
   if (remoteStatus === "remote unavailable") return "remote unavailable";
-  return "up to date";
+  return "git note up to date";
 }
 
 function determineUserStatusAction(
   headline: UserStatusHeadline,
   diskState: UserSyncDiskState,
+  diskStatus: UserDiskStatus,
   remoteChecked: boolean,
   unsavedDirection: UserUnsavedDirection | null,
 ): string | null {
   switch (headline) {
-    case "remote ahead":
+    case "remote note ahead":
       return "run `arc user pull`";
-    case "conflict":
+    case "notes conflict":
       return "run `arc user fetch` for non-destructive inspection";
     case "remote unavailable":
       if (diskState === "same") return "retry online to confirm remote status";
@@ -632,16 +676,16 @@ function determineUserStatusAction(
         return "inspect local disk state before retrying online";
       }
       return "run `arc user load`, or retry online to confirm remote status";
-    case "up to date":
+    case "git note up to date":
       return remoteChecked ? null : "rerun without `--offline` to confirm remote status";
-    case "local ahead":
+    case "local note ahead":
       return "run `arc user push` (or `arc sync`)";
-    case "disk stale":
-      return "run `arc user load`";
-    case "local unsaved":
+    case "git note out of date":
+      if (diskStatus === "stale") return "run `arc user load`";
+      if (diskStatus === "mixed") {
+        return "inspect local working files, then run `arc user load` or `arc user save`";
+      }
       return "run `arc user save`";
-    case "disk differs":
-      return "inspect local disk state, then run `arc user load` or `arc user save`";
   }
 }
 

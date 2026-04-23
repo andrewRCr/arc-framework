@@ -2213,6 +2213,64 @@ clean enough that inconsistency across the three remaining session-init discover
         - Preserved the user-dir portability contract: dot-directories are already excluded from serialization, so the
           local-only files remain unsynced without additional manifest rules.
 
+- [x] **3.R.p Git-note terminology pass for status/sync UX**
+
+    **Origin:** After 3.R.n, the split between remote-note state and working-file state was clearer, but the new
+    phrasing still mixed abstractions (`saved snapshot`, `disk stale`) that made the status read awkwardly for a
+    dev-facing tool. Real usage showed that the next-step hints were correct, but the explanatory copy still fought
+    the user's mental model.
+
+    **Outcome:** `arc user status` and `arc sync` now use explicit git-note terminology in the user-facing copy while
+    keeping the stronger working-file phrasing from 3.R.n. Headlines now read `git note up to date`,
+    `git note out of date`, `local note ahead`, `remote note ahead`, and `notes conflict`; detail lines explicitly
+    describe working files vs. the latest local git note; sync porcelain messages were aligned to the same language.
+    Unit + integration coverage was updated to pin the new copy end-to-end.
+
+    - [x] **3.R.p.1 Status wording alignment**
+        - Replaced the snapshot/disk vocabulary in `arc user status` with git-note-specific headlines and detail
+          lines, including `Working files have changed since the latest local git note.` and
+          `Latest local git note is from <hash>, N commit(s) back.`
+        - Kept remote status subordinate via `Remote notes: ...` so the actionable headline reflects the dominant
+          local state without implying ordinary git working-tree semantics.
+
+    - [x] **3.R.p.2 Porcelain wording alignment**
+        - Updated `arc sync` progress/error copy to refer to local/remote git notes and working files instead of the
+          older saved-note/disk phrasing.
+        - Preserved the same action matrix from 3.R.n; this follow-up changes language, not sync direction semantics.
+
+    - [x] **3.R.p.3 Coverage + live validation**
+        - Updated the status-format, status-run, user-status, user-handlers, sync, and integration suites to pin the
+          new git-note wording.
+        - Re-ran the focused Vitest surface and checked live `npx arc user status` output against the current repo.
+
+- [x] **3.R.q User sync provenance hardening**
+
+    **Origin:** Pressure-testing the new status vocabulary against the live repo surfaced a remaining dead-end:
+    legacy hash-only local provenance could still misclassify a newer local-only user state as stale and point the
+    user to `arc user load` when the safe/correct next step was `arc user save`. The same pass also surfaced one
+    last duplicated detail-line branch in the `git note out of date` renderer.
+
+    **Outcome:** Local sync provenance now records the source commit and whether the current materialized state came
+    from `save` or `load`. Status uses that richer provenance for future precise load/save guidance and degrades
+    legacy hash-only provenance to an inspect-first fallback instead of making a wrong destructive recommendation.
+    The `git note out of date` summary renderer was also normalized so stale, mixed, and local-unsaved branches no
+    longer repeat the same sentence twice.
+
+    - [x] **3.R.q.1 Provenance schema upgrade**
+        - Upgraded `.sync-state.json` from hash-only provenance to include `sourceCommit` and `sourceOperation`
+          (`save` / `load`) so status can distinguish newer local-only state from older materialized state.
+        - `arc user save` and `arc user load` now both write the richer provenance format.
+
+    - [x] **3.R.q.2 Safe fallback for legacy provenance**
+        - Legacy v1 provenance now degrades ambiguous cases to `mixed` / inspect-first guidance instead of
+          confidently recommending `load`.
+        - This prevents status from sending users into a dead end when the tool cannot actually prove direction.
+
+    - [x] **3.R.q.3 Coverage + renderer cleanup**
+        - Added scenario coverage for: legacy ambiguous provenance, v2 save provenance, and v2 load provenance.
+        - Removed the remaining duplicated `git note out of date` detail-line branch exposed by the local-unsaved
+          path during live validation.
+
     - [x] **3.R.o.2 Backward-compatible reads + retention**
         - `readLocalSyncState` now checks `.internal/` first and falls back to the legacy root-level path.
         - Backup listing reads both `.internal/` and legacy root-level files; timestamped retention now prunes only the

@@ -33,11 +33,11 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("up to date");
+    expect(result.headline).toBe("git note up to date");
     expect(result.remoteStatus).toBe("in sync");
     expect(result.diskStatus).toBe("current");
     expect(result.actionHint).toBeNull();
-    expect(buildUserStatusSummary(result)).toContain("andrew: up to date");
+    expect(buildUserStatusSummary(result)).toContain("andrew: git note up to date");
   });
 
   it("reports remote-ahead state with a pull hint", () => {
@@ -52,7 +52,7 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("remote ahead");
+    expect(result.headline).toBe("remote note ahead");
     expect(result.remoteStatus).toBe("remote ahead");
     expect(result.diskStatus).toBe("current");
     expect(result.actionHint).toContain("arc user pull");
@@ -73,16 +73,17 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("disk stale");
-    expect(result.summary).toBe("andrew: disk stale (offline)");
+    expect(result.headline).toBe("git note out of date");
+    expect(result.summary).toBe("andrew: git note out of date (offline)");
     expect(result.detailLines).toContain("Remote check skipped (`--offline`).");
-    expect(result.detailLines).toContain("Remote: in sync.");
-    expect(result.detailLines).toContain("Disk: stale.");
-    expect(result.detailLines).toContain("Saved snapshot is from abc1234, 3 commit(s) back.");
+    expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
+    expect(result.detailLines).toContain("Working files reflect an older local git note.");
+    expect(result.detailLines).toContain("Remote notes: in sync.");
+    expect(result.detailLines).toContain("Latest local git note is from abc1234, 3 commit(s) back.");
     expect(result.detailLines).toContain("Pre-load backup present: .pre-load-backup.json");
   });
 
-  it("omits the ancestor-distance line when the saved snapshot is at HEAD", () => {
+  it("renders the current-HEAD line when the local git note is at HEAD", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -96,7 +97,7 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines.some((line) => line.includes("commit(s) back"))).toBe(false);
-    expect(result.detailLines.some((line) => line.includes("not current HEAD"))).toBe(false);
+    expect(result.detailLines).toContain("Latest local git note is current with HEAD.");
   });
 
   it("reports conflicts with a fetch hint", () => {
@@ -112,7 +113,7 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("conflict");
+    expect(result.headline).toBe("notes conflict");
     expect(result.remoteStatus).toBe("conflict");
     expect(result.actionHint).toContain("arc user fetch");
   });
@@ -164,12 +165,13 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("local unsaved");
+    expect(result.headline).toBe("git note out of date");
     expect(result.diskStatus).toBe("local unsaved");
-    expect(result.detailLines).toContain("Disk: local unsaved.");
+    expect(result.detailLines).toContain("Latest local git note is not current with the working files.");
+    expect(result.detailLines).toContain("Working files have changed since the latest local git note.");
   });
 
-  it("classifies missing files as disk stale", () => {
+  it("classifies missing files as git-note-out-of-date", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -183,12 +185,12 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("disk stale");
+    expect(result.headline).toBe("git note out of date");
     expect(result.diskStatus).toBe("stale");
-    expect(result.detailLines).toContain("Disk: stale.");
+    expect(result.detailLines).toContain("Working files reflect an older local git note.");
   });
 
-  it("classifies modified files as disk stale", () => {
+  it("classifies modified files as git-note-out-of-date", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -202,12 +204,12 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("disk stale");
+    expect(result.headline).toBe("git note out of date");
     expect(result.diskStatus).toBe("stale");
-    expect(result.detailLines).toContain("Disk: stale.");
+    expect(result.detailLines).toContain("Working files reflect an older local git note.");
   });
 
-  it("classifies mixed differences as disk differs", () => {
+  it("classifies mixed differences as git-note-out-of-date", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -221,12 +223,17 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("disk differs");
+    expect(result.headline).toBe("git note out of date");
     expect(result.diskStatus).toBe("mixed");
-    expect(result.detailLines).toContain("Disk: mixed.");
+    expect(result.detailLines).toContain(
+      "Latest local git note is partly reflected in working files, alongside newer local changes.",
+    );
+    expect(result.detailLines).toContain(
+      "Working files differ from the latest local git note in multiple ways.",
+    );
   });
 
-  it("always includes explicit remote and disk lines", () => {
+  it("always includes explicit remote-notes and working-files lines", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -240,8 +247,8 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.detailLines).toContain("Remote: remote ahead.");
-    expect(result.detailLines).toContain("Disk: current.");
+    expect(result.detailLines).toContain("Working files match the latest local git note.");
+    expect(result.detailLines).toContain("Remote notes: remote note ahead.");
   });
 
   it("picks 'arc user save' hint for local-unsaved when disk has local-only files", () => {
@@ -258,12 +265,12 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("local unsaved");
+    expect(result.headline).toBe("git note out of date");
     expect(result.actionHint).toBe("run `arc user save`");
     expect(result.detailLines).toContain("Next step: run `arc user save`");
   });
 
-  it("picks 'arc user load' hint for disk stale when disk content differs from the saved note", () => {
+  it("picks 'arc user load' hint when working files reflect an older local git note", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "different",
@@ -277,7 +284,7 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("disk stale");
+    expect(result.headline).toBe("git note out of date");
     expect(result.actionHint).toBe("run `arc user load`");
     expect(result.detailLines).toContain("Next step: run `arc user load`");
   });
@@ -295,7 +302,7 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("local ahead");
+    expect(result.headline).toBe("local note ahead");
     expect(result.actionHint).toBe("run `arc user push` (or `arc sync`)");
     expect(result.detailLines).toContain("Next step: run `arc user push` (or `arc sync`)");
   });

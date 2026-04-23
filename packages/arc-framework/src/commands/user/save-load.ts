@@ -24,6 +24,13 @@ const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
 const USER_INTERNAL_DIRNAME = ".internal";
 
 interface LocalSyncState {
+  version: 2;
+  materializedManifestHash: string;
+  sourceCommit: string;
+  sourceOperation: "save" | "load";
+}
+
+interface LegacyLocalSyncState {
   version: 1;
   materializedManifestHash: string;
 }
@@ -55,7 +62,7 @@ export async function runUserSave(
 
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
-  await writeLocalSyncState(cwd, io, identity, result.manifest);
+  await writeLocalSyncState(cwd, io, identity, result.manifest, commit, "save");
 
   return {
     identity,
@@ -144,7 +151,7 @@ export async function runUserLoad(
 
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, manifest, io.writeFile, io.mkdir);
-  await writeLocalSyncState(cwd, io, identity, manifest);
+  await writeLocalSyncState(cwd, io, identity, manifest, foundCommit, "load");
 
   return {
     kind: "loaded",
@@ -183,15 +190,33 @@ export async function readLocalSyncState(
     }
 
     try {
-      const parsed = JSON.parse(raw) as Partial<LocalSyncState>;
+      const parsed = JSON.parse(raw) as Partial<LocalSyncState & LegacyLocalSyncState>;
+      if (
+        parsed.version === 2
+        && typeof parsed.materializedManifestHash === "string"
+        && parsed.materializedManifestHash.length > 0
+        && typeof parsed.sourceCommit === "string"
+        && parsed.sourceCommit.length > 0
+        && (parsed.sourceOperation === "save" || parsed.sourceOperation === "load")
+      ) {
+        return {
+          version: 2,
+          materializedManifestHash: parsed.materializedManifestHash,
+          sourceCommit: parsed.sourceCommit,
+          sourceOperation: parsed.sourceOperation,
+        };
+      }
+
       if (
         parsed.version === 1
         && typeof parsed.materializedManifestHash === "string"
         && parsed.materializedManifestHash.length > 0
       ) {
         return {
-          version: 1,
+          version: 2,
           materializedManifestHash: parsed.materializedManifestHash,
+          sourceCommit: "",
+          sourceOperation: "load",
         };
       }
     } catch {
@@ -207,13 +232,17 @@ async function writeLocalSyncState(
   io: UserIOContext,
   identity: string,
   manifest: SyncManifest,
+  sourceCommit: string,
+  sourceOperation: "save" | "load",
 ): Promise<void> {
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
-    version: 1,
+    version: 2,
     materializedManifestHash: hashSyncManifest(manifest),
+    sourceCommit,
+    sourceOperation,
   };
   await io.writeFile(syncStatePath, `${JSON.stringify(state, null, 2)}\n`);
 }
