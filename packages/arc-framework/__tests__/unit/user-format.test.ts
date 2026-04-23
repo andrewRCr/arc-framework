@@ -12,6 +12,7 @@ import type { UserLoadResult } from "../../src/commands/user/types.js";
 
 function baseResult(overrides: Partial<UserLoadResult>): UserLoadResult {
   return {
+    kind: "loaded",
     identity: "andrew",
     commit: "abc1234",
     fileCount: 2,

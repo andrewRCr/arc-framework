@@ -2,8 +2,8 @@
  * Unit tests for the save-load command layer (ancestor walk cap + diagnostic).
  *
  * Covers `findNearestUserNote`'s rev-list cap (default 1000), explicit
- * --max-walk override, walk-exhausted detection, and the `onWalkExhausted`
- * callback surfaced by `runUserLoad`.
+ * --max-walk override, and the discriminated walk-exhausted outcome surfaced
+ * by `runUserLoad`.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -142,39 +142,36 @@ describe("findNearestUserNote — ancestor walk cap", () => {
   });
 });
 
-describe("runUserLoad — onWalkExhausted callback", () => {
-  it("fires onWalkExhausted with walked and maxWalk when cap hit without match", async () => {
+describe("runUserLoad — walk-exhausted outcome", () => {
+  it("returns walk-exhausted with walked and maxWalk when cap hit without match", async () => {
     const { io } = mockIO({
       notedCommits: ["c-unreachable"],
       history: Array.from({ length: 50 }, (_, i) => `c${i}`),
     });
-    const onWalkExhausted = vi.fn();
 
     const result = await runUserLoad({
       cwd: "/repo",
       io,
       identity: "andrew",
       maxAncestorWalk: 50,
-      onWalkExhausted,
     });
 
-    expect(result).toBeNull();
-    expect(onWalkExhausted).toHaveBeenCalledTimes(1);
-    expect(onWalkExhausted).toHaveBeenCalledWith(50, 50);
+    expect(result).toEqual({
+      kind: "walk-exhausted",
+      walked: 50,
+      maxWalk: 50,
+    });
   });
 
-  it("does not fire onWalkExhausted when no notes ref exists", async () => {
+  it("returns null when no notes ref exists", async () => {
     const { io } = mockIO({ notedCommits: [], history: ["h0"] });
-    const onWalkExhausted = vi.fn();
 
     const result = await runUserLoad({
       cwd: "/repo",
       io,
       identity: "andrew",
-      onWalkExhausted,
     });
 
     expect(result).toBeNull();
-    expect(onWalkExhausted).not.toHaveBeenCalled();
   });
 });

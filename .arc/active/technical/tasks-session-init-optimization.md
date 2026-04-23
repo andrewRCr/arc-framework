@@ -2029,49 +2029,15 @@ clean enough that inconsistency across the three remaining session-init discover
           `notesRef` in detailed ref inspection after the module split. Restored the import so user-status and
           session-init remote probes keep working under integration coverage.
 
-    - [ ] **3.R.l.d Refactor `runUserLoad` walk-exhausted surface from callback to discriminated union**
+    - [x] **3.R.l.d Refactor `runUserLoad` walk-exhausted surface from callback to discriminated union**
 
-        **Origin:** 3.R.i.d chose an `onWalkExhausted(walked, maxWalk)` callback on `UserLoadOptions` /
-        `UserPullOptions` rather than a discriminated return. The pragmatic reason was avoiding ~30
-        integration-test assertions on `UserLoadResult | null`. With 3.R.l already opening up this code,
-        the clean API becomes feasible in the same pass.
-
-        **Current surface (to remove):**
-        - `UserLoadOptions.onWalkExhausted?: (walked, maxWalk) => void`
-        - `UserPullOptions.onWalkExhausted?: (walked, maxWalk) => void`
-        - Handler-side capture boilerplate:
-          `const walkState: { capture: WalkExhaustedCapture | null } = { capture: null }` — 3 copies in
-          `handleUserLoad`, `handleUserPull`, and `handlePullDirection` (sync.ts). The wrapper exists solely
-          to sidestep TS narrowing across callback mutation; the union refactor retires it.
-
-        **Target surface:**
-        - `export type UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted;`
-          where `UserLoadResult` gains `kind: "loaded"` and `UserLoadWalkExhausted = { kind: "walk-exhausted";
-          walked: number; maxWalk: number }`. `runUserLoad` returns `Promise<UserLoadOutcome | null>` (null
-          reserved for "no notes exist at all"). `runUserPull` mirrors.
-        - `buildLoadSummary` signature stays `(UserLoadResult) => string`; callers narrow via
-          `if (result.kind === "loaded")` before calling.
-        - Pairs cleanly with 3.R.l.a's `walkAncestorsForNote` extraction — both touch the same walk internals.
-
-        **Call sites to update:**
-        - `handleUserLoad` (user.ts): replace `walkState` wrapper + `onWalkExhausted` callback with a
-          `switch (result.kind)` on the outcome. Walk-exhausted branch keeps exit 1 (set in 3.R.i.d follow-up).
-        - `handleUserPull` (user.ts): same pattern.
-        - `handlePullDirection` (sync.ts): same pattern.
-
-        **Test migration:**
-        - `__tests__/unit/save-load.test.ts`: replace `onWalkExhausted` spy assertions with outcome-shape
-          assertions. 2 tests affected (the `runUserLoad — onWalkExhausted callback` describe block).
-        - `__tests__/unit/user-handlers.test.ts`: mockRunUserLoad / mockRunUserPull return discriminated
-          outcomes directly instead of invoking callbacks. Roughly 4 tests across `handleUserLoad` and
-          `handleUserPull` walk-exhausted describes.
-        - `__tests__/unit/sync.test.ts`: one test using `mockRunUserPull.mockImplementation` with callback
-          invocation → return outcome directly.
-        - `__tests__/integration/user.test.ts`: ~10 assertions on `loadResult!.fileCount` /
-          `loadResult!.fromAncestor` / `loadResult!.ancestorDistance` require narrowing via
-          `if (loadResult?.kind === "loaded")`. Also the existing `expect(loadResult).toBeNull()` at
-          line ~330 (shallow-clone cap-hit case) becomes `expect(loadResult?.kind).toBe("walk-exhausted")`.
-        - No production behavior change; this is a type-surface refactor with tests following.
+        `UserLoadOptions` / `UserPullOptions` no longer expose `onWalkExhausted`; the command layer now exports
+        `UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted`, with `UserLoadResult.kind = "loaded"` and
+        `{ kind: "walk-exhausted", walked, maxWalk }` returned when ancestor walking hits the cap. `runUserLoad`,
+        `runUserPull`, `handleUserLoad`, `handleUserPull`, and sync's `handlePullDirection` now branch directly on the
+        discriminated outcome instead of callback-mutation side state, leaving `null` reserved for the unambiguous
+        "no notes exist" case. Unit and integration tests were updated to narrow on `kind`; the shallow-clone cap-hit
+        path now asserts the explicit `walk-exhausted` outcome rather than the old `null`.
 
     - [ ] **3.R.l.e `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`**
 

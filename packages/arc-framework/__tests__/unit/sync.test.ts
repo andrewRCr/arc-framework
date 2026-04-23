@@ -146,6 +146,7 @@ describe("handleSync direction handling", () => {
   it("chooses pull when remote is ahead and disk matches local state", async () => {
     setSyncState("remote-ahead", "same");
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -168,6 +169,7 @@ describe("handleSync direction handling", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(true);
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -200,6 +202,7 @@ describe("handleSync direction handling", () => {
     setSyncState("remote-ahead", "same");
     mockHasLocalNotes.mockResolvedValue(true);
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -219,6 +222,7 @@ describe("handleSync direction handling", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockIsNonInteractive.mockReturnValue(true);
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -238,6 +242,7 @@ describe("handleSync direction handling", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockSelect.mockResolvedValue("pull");
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -257,6 +262,7 @@ describe("handleSync direction handling", () => {
     setSyncState("diverged", "same");
     mockSelect.mockResolvedValue("pull");
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -303,6 +309,7 @@ describe("handleSync direction handling", () => {
   it("threads --max-walk through to runUserPull", async () => {
     setSyncState("remote-ahead", "same");
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -320,10 +327,7 @@ describe("handleSync direction handling", () => {
 
   it("emits walk-exhausted diagnostic when pull direction hits cap without match", async () => {
     setSyncState("remote-ahead", "same");
-    mockRunUserPull.mockImplementation((options: { onWalkExhausted?: (walked: number, maxWalk: number) => void }) => {
-      options.onWalkExhausted?.(1000, 1000);
-      return Promise.resolve(null);
-    });
+    mockRunUserPull.mockResolvedValue({ kind: "walk-exhausted", walked: 1000, maxWalk: 1000 });
 
     await handleSync();
 

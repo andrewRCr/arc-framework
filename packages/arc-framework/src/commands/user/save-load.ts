@@ -7,11 +7,11 @@ import { notesRef } from "./shared.js";
 import {
   BACKUP_FILENAME,
   UserSaveError,
+  type UserLoadOutcome,
   type NearestNoteSearch,
   type NearestUserNoteRef,
   type UserIOContext,
   type UserLoadOptions,
-  type UserLoadResult,
   type UserSaveOptions,
   type UserSaveResult,
 } from "./types.js";
@@ -68,13 +68,17 @@ export async function runUserSave(
  */
 export async function runUserLoad(
   options: UserLoadOptions,
-): Promise<UserLoadResult | null> {
+): Promise<UserLoadOutcome | null> {
   const { cwd, io, identity } = options;
   const userDir = join(cwd, ".arc", "user", identity);
   const search = await findNearestUserNote(options);
   if (!search.note) {
-    if (search.capped && options.onWalkExhausted) {
-      options.onWalkExhausted(search.walked, search.maxWalk);
+    if (search.capped) {
+      return {
+        kind: "walk-exhausted",
+        walked: search.walked,
+        maxWalk: search.maxWalk,
+      };
     }
     return null;
   }
@@ -131,6 +135,7 @@ export async function runUserLoad(
   await deserialize(userDir, manifest, io.writeFile, io.mkdir);
 
   return {
+    kind: "loaded",
     identity,
     commit: foundCommit.slice(0, 7),
     fileCount: Object.keys(manifest.files).length,

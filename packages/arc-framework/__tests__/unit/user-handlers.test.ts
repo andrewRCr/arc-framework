@@ -335,6 +335,7 @@ describe("handleUserPull fetch+load flow", () => {
 
   it("pulls and renders the load summary when fetch+load succeeds", async () => {
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -355,6 +356,7 @@ describe("handleUserPull fetch+load flow", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(true);
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -384,6 +386,7 @@ describe("handleUserPull fetch+load flow", () => {
   it("bypasses overwrite confirm when --yes is passed", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -404,6 +407,7 @@ describe("handleUserPull fetch+load flow", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockIsNonInteractive.mockReturnValue(true);
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -442,6 +446,7 @@ describe("handleUserLoad walk-exhausted diagnostic", () => {
 
   it("threads --max-walk through to runUserLoad", async () => {
     mockRunUserLoad.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -457,11 +462,8 @@ describe("handleUserLoad walk-exhausted diagnostic", () => {
     );
   });
 
-  it("emits the walk-exhausted diagnostic and exits 1 when onWalkExhausted fires and result is null", async () => {
-    mockRunUserLoad.mockImplementation((options: { onWalkExhausted?: (walked: number, maxWalk: number) => void }) => {
-      options.onWalkExhausted?.(1000, 1000);
-      return Promise.resolve(null);
-    });
+  it("emits the walk-exhausted diagnostic and exits 1 when load returns a walk-exhausted outcome", async () => {
+    mockRunUserLoad.mockResolvedValue({ kind: "walk-exhausted", walked: 1000, maxWalk: 1000 });
 
     await handleUserLoad({});
 
@@ -477,7 +479,7 @@ describe("handleUserLoad walk-exhausted diagnostic", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("falls back to 'No saved user directory' without setting exit code when no onWalkExhausted signal", async () => {
+  it("falls back to 'No saved user directory' without setting exit code when load returns null", async () => {
     mockRunUserLoad.mockResolvedValue(null);
 
     await handleUserLoad({});
@@ -504,6 +506,7 @@ describe("handleUserPull walk-exhausted diagnostic", () => {
 
   it("threads --max-walk through to runUserPull", async () => {
     mockRunUserPull.mockResolvedValue({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 1,
@@ -520,10 +523,7 @@ describe("handleUserPull walk-exhausted diagnostic", () => {
   });
 
   it("emits walk-exhausted diagnostic and sets exitCode 1 when cap hit without find", async () => {
-    mockRunUserPull.mockImplementation((options: { onWalkExhausted?: (walked: number, maxWalk: number) => void }) => {
-      options.onWalkExhausted?.(50, 50);
-      return Promise.resolve(null);
-    });
+    mockRunUserPull.mockResolvedValue({ kind: "walk-exhausted", walked: 50, maxWalk: 50 });
 
     await handleUserPull({});
 

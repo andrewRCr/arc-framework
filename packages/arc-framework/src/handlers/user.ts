@@ -30,15 +30,9 @@ function shouldSkipOverwriteConfirm(yes: boolean | undefined): boolean {
   return Boolean(yes) || isNonInteractiveEnvironment();
 }
 
-/** Shape of a walk-exhausted observation captured via the onWalkExhausted callback. */
-interface WalkExhaustedCapture {
-  walked: number;
-  maxWalk: number;
-}
-
 /** Build the canonical "walked N ancestors" diagnostic line. */
-function walkExhaustedMessage(capture: WalkExhaustedCapture): string {
-  return `walked ${capture.walked} ancestors without finding a note; `
+function walkExhaustedMessage(walked: number): string {
+  return `walked ${walked} ancestors without finding a note; `
     + "use --max-walk to search deeper or confirm remote state with arc user status";
 }
 
@@ -130,7 +124,6 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
   const spinner = p.spinner();
   spinner.start("Loading user directory...");
 
-  const walkState: { capture: WalkExhaustedCapture | null } = { capture: null };
   let result;
   try {
     result = await runUserLoad({
@@ -138,7 +131,6 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
       io,
       identity,
       maxAncestorWalk: opts.maxWalk,
-      onWalkExhausted: (walked, maxWalk) => { walkState.capture = { walked, maxWalk }; },
     });
   } catch (err) {
     spinner.stop("Load failed.");
@@ -150,17 +142,18 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
   }
 
   if (!result) {
-    if (walkState.capture) {
-      // Walk-exhausted is distinct from plain "no note" — we can't confirm
-      // whether a note exists deeper than the cap. Exit 1 signals the
-      // ambiguity; user can retry with --max-walk.
-      spinner.stop("Walk exhausted.");
-      p.log.warn(walkExhaustedMessage(walkState.capture));
-      process.exitCode = 1;
-      return;
-    }
     spinner.stop("No note found.");
     p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
+    return;
+  }
+
+  if (result.kind === "walk-exhausted") {
+    // Walk-exhausted is distinct from plain "no note" — we can't confirm
+    // whether a note exists deeper than the cap. Exit 1 signals the
+    // ambiguity; user can retry with --max-walk.
+    spinner.stop("Walk exhausted.");
+    p.log.warn(walkExhaustedMessage(result.walked));
+    process.exitCode = 1;
     return;
   }
 
@@ -352,7 +345,6 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   const spinner = p.spinner();
   spinner.start("Pulling user notes...");
 
-  const walkState: { capture: WalkExhaustedCapture | null } = { capture: null };
   let result;
   try {
     result = await runUserPull({
@@ -361,7 +353,6 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       identity,
       force: hasLocal,
       maxAncestorWalk: opts.maxWalk,
-      onWalkExhausted: (walked, maxWalk) => { walkState.capture = { walked, maxWalk }; },
     });
   } catch (err) {
     spinner.stop("Pull failed.");
@@ -389,14 +380,15 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   }
 
   if (!result) {
-    if (walkState.capture) {
-      spinner.stop("Walk exhausted.");
-      p.log.warn(walkExhaustedMessage(walkState.capture));
-      process.exitCode = 1;
-      return;
-    }
     spinner.stop("No note found.");
     p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (result.kind === "walk-exhausted") {
+    spinner.stop("Walk exhausted.");
+    p.log.warn(walkExhaustedMessage(result.walked));
     process.exitCode = 1;
     return;
   }

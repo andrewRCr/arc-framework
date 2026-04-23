@@ -188,7 +188,6 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
   const spinner = p.spinner();
   spinner.start("Pulling user notes...");
 
-  const walkState: { walked: number | null } = { walked: null };
   try {
     const result = await runUserPull({
       cwd,
@@ -196,17 +195,17 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
       identity,
       force: true,
       maxAncestorWalk: maxWalk,
-      onWalkExhausted: (walked) => { walkState.walked = walked; },
     });
     if (!result) {
-      if (walkState.walked !== null) {
-        spinner.stop("Walk exhausted.");
-        p.log.warn(walkExhaustedMessage(walkState.walked));
-        process.exitCode = 1;
-        return;
-      }
       spinner.stop("No note found.");
       p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
+      process.exitCode = 1;
+      return;
+    }
+
+    if (result.kind === "walk-exhausted") {
+      spinner.stop("Walk exhausted.");
+      p.log.warn(walkExhaustedMessage(result.walked));
       process.exitCode = 1;
       return;
     }

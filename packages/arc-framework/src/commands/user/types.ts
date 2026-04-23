@@ -39,6 +39,7 @@ export const BACKUP_FILENAME = ".pre-load-backup.json";
 
 /** Result of a user load operation. */
 export interface UserLoadResult {
+  kind: "loaded";
   identity: string;
   commit: string;
   fileCount: number;
@@ -50,6 +51,16 @@ export interface UserLoadResult {
   warnings: string[];
 }
 
+/** Returned when ancestor walking hit its configured cap without finding a reachable note. */
+export interface UserLoadWalkExhausted {
+  kind: "walk-exhausted";
+  walked: number;
+  maxWalk: number;
+}
+
+/** Discriminated outcome of a user load or pull attempt. */
+export type UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted;
+
 /** Options for the load operation. */
 export interface UserLoadOptions {
   cwd: string;
@@ -57,8 +68,6 @@ export interface UserLoadOptions {
   identity: string;
   /** Maximum number of ancestor commits to walk. Defaults to DEFAULT_MAX_ANCESTOR_WALK. */
   maxAncestorWalk?: number;
-  /** Invoked when the ancestor walk hit its cap without finding a note. */
-  onWalkExhausted?: (walked: number, maxWalk: number) => void;
 }
 
 /** Structured return from the ancestor walk helper. */
@@ -107,8 +116,6 @@ export interface UserFetchOptions {
 export interface UserPullOptions extends UserFetchOptions {
   cwd: string;
   maxAncestorWalk?: number;
-  /** Invoked when the ancestor walk hit its cap without finding a note. */
-  onWalkExhausted?: (walked: number, maxWalk: number) => void;
 }
 
 /**

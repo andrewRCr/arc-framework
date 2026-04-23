@@ -34,6 +34,8 @@ import {
   hasLocalNotes,
   hasRemoteNotes,
   buildUserStatusSummary,
+  type UserLoadOutcome,
+  type UserLoadResult,
 } from "../../src/commands/user.js";
 import { pushWithInteractiveRecovery } from "../../src/handlers/push-recovery.js";
 
@@ -74,6 +76,12 @@ async function readNotesRefTip(cwd: string, identity: string): Promise<string> {
   const ref = `refs/notes/arc/user/${identity}`;
   const { stdout } = await execFileAsync("git", ["rev-parse", ref], { cwd });
   return stdout.trim();
+}
+
+function expectLoaded(result: UserLoadOutcome | null): UserLoadResult {
+  expect(result).not.toBeNull();
+  expect(result?.kind).toBe("loaded");
+  return result as UserLoadResult;
 }
 
 describe("user save and load", () => {
@@ -119,9 +127,9 @@ describe("user save and load", () => {
     const loadResult = await runUserLoad({
       cwd: tempDir, io, identity: "test-user",
     });
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fileCount).toBe(saveResult.fileCount);
-    expect(loadResult!.fromAncestor).toBe(false);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fileCount).toBe(saveResult.fileCount);
+    expect(loadedResult.fromAncestor).toBe(false);
 
     // Verify restored content
     const restored = await readFile(
@@ -151,9 +159,9 @@ describe("user save and load", () => {
     const loadResult = await runUserLoad({
       cwd: tempDir, io, identity: "test-user",
     });
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fromAncestor).toBe(true);
-    expect(loadResult!.ancestorDistance).toBe(2);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fromAncestor).toBe(true);
+    expect(loadedResult.ancestorDistance).toBe(2);
 
     const restored = await readFile(
       join(userDir, "SESSION-NOTES.md"), "utf-8",
@@ -176,9 +184,9 @@ describe("user save and load", () => {
       cwd: tempDir, io, identity: "test-user",
     });
 
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fromAncestor).toBe(true);
-    expect(loadResult!.ancestorDistance).toBe(25);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fromAncestor).toBe(true);
+    expect(loadedResult.ancestorDistance).toBe(25);
 
     const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
     expect(restored).toBe("# Deep reachable note");
@@ -277,8 +285,8 @@ describe("user save and load", () => {
     const loadResult = await runUserLoad({
       cwd: tempDir, io, identity: "test-user",
     });
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fromAncestor).toBe(true);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fromAncestor).toBe(true);
 
     const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
     expect(restored).toBe("# Merge ancestor");
@@ -314,8 +322,8 @@ describe("user save and load", () => {
 
     // The noted commit is within the shallow boundary (depth 2, note is 1 commit back)
     // so load succeeds and finds it as an ancestor
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fromAncestor).toBe(true);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fromAncestor).toBe(true);
 
     const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
     expect(restored).toBe("# Shallow test");
@@ -358,8 +366,9 @@ describe("user save and load", () => {
       cwd: shallowDir, io: shallowIO, identity: "test-user", maxAncestorWalk: 1,
     });
 
-    // Note is beyond the shallow boundary — should return null
-    expect(loadResult).toBeNull();
+    // Note is beyond the shallow boundary — load distinguishes this from
+    // "no notes exist" via the walk-exhausted outcome.
+    expect(loadResult).toEqual({ kind: "walk-exhausted", walked: 1, maxWalk: 1 });
 
     await cleanupTempDir(shallowDir);
     await cleanupTempDir(remoteDir);
@@ -423,8 +432,8 @@ describe("user load — backup and stale detection", () => {
 
     // Load should succeed without backup (dir doesn't exist)
     const result = await runUserLoad({ cwd: tempDir, io, identity: "new-user" });
-    expect(result).not.toBeNull();
-    expect(result!.warnings).toEqual([]);
+    const loadedResult = expectLoaded(result);
+    expect(loadedResult.warnings).toEqual([]);
 
     // Verify no backup file created
     let backupExists = true;
@@ -449,10 +458,10 @@ describe("user load — backup and stale detection", () => {
 
     // Load — should warn about local-only.txt
     const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
-    expect(result).not.toBeNull();
-    expect(result!.warnings).toHaveLength(1);
-    expect(result!.warnings[0]).toContain("local-only.txt");
-    expect(result!.warnings[0]).toContain("not in saved manifest");
+    const loadedResult = expectLoaded(result);
+    expect(loadedResult.warnings).toHaveLength(1);
+    expect(loadedResult.warnings[0]).toContain("local-only.txt");
+    expect(loadedResult.warnings[0]).toContain("not in saved manifest");
   });
 
   it("backup excludes dotfiles from serialization", async () => {
@@ -559,8 +568,8 @@ describe("user save/load — subdirectory support", () => {
     await rm(userDir, { recursive: true, force: true });
 
     const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fileCount).toBe(2);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fileCount).toBe(2);
 
     // Verify nested file was restored
     const restored = await readFile(join(userDir, "drafts", "idea.md"), "utf-8");
@@ -697,8 +706,8 @@ describe("user push and pull", () => {
     const loadResult = await runUserLoad({
       cwd: cloneDir, io: cloneIO, identity: "test-user",
     });
-    expect(loadResult).not.toBeNull();
-    expect(loadResult!.fileCount).toBeGreaterThanOrEqual(1);
+    const loadedResult = expectLoaded(loadResult);
+    expect(loadedResult.fileCount).toBeGreaterThanOrEqual(1);
 
     // Verify content arrived
     const restored = await readFile(

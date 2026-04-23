@@ -343,6 +343,7 @@ describe("buildUserSessionInitStatusSummary", () => {
 describe("buildLoadSummary", () => {
   it("surfaces ancestor distance when a note is loaded from history", () => {
     const summary = buildLoadSummary({
+      kind: "loaded",
       identity: "andrew",
       commit: "abc1234",
       fileCount: 2,

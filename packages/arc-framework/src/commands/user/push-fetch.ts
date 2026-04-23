@@ -73,7 +73,7 @@ export async function runUserFetch(options: UserFetchOptions): Promise<void> {
 export async function runUserPull(
   options: UserPullOptions,
 ) {
-  const { cwd, io, identity, force, maxAncestorWalk, onWalkExhausted } = options;
+  const { cwd, io, identity, force, maxAncestorWalk } = options;
   await runUserFetch({ io, identity, force });
-  return runUserLoad({ cwd, io, identity, maxAncestorWalk, onWalkExhausted });
+  return runUserLoad({ cwd, io, identity, maxAncestorWalk });
 }
