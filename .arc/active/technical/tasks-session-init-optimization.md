@@ -2016,14 +2016,18 @@ clean enough that inconsistency across the three remaining session-init discover
         - Updated `__tests__/unit/user-handlers.test.ts` to mock `readConfigSettings` directly instead of the
           bespoke shared readers; focused handler/config tests stay green under direct Vitest invocation.
 
-    - [ ] **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
-        - New integration test exercising the full flow end-to-end against real git notes: local save → remote
-          force-reset to diverge → `arc sync` → conflict detected → merge recovery (3.R.i.b) runs → verify final
-          state: local disk reflects user's work, local ref contains new save on top of remote's base, remote ref
-          equals local ref post-push.
-        - Closes the coverage gap the review flagged — unit tests mocked git-note I/O so the silent-discard
-          behavior couldn't be observed.
-        - Lives in `__tests__/integration/user.test.ts` alongside existing pull-flow tests.
+    - [x] **3.R.l.c Integration test for `arc sync` → conflict → merge recovery**
+        - Added a real git-notes integration case in `__tests__/integration/user.test.ts` that drives the merge
+          recovery path end-to-end via `pushWithInteractiveRecovery(..., "merge")`: local save/push → clone
+          force-push diverged remote notes → local save diverges → ordinary push rejects → merge recovery
+          force-fetches remote, re-saves local disk state on top, and pushes the combined ref.
+        - Assertions cover the bug’s failure mode directly: local disk still contains the user's latest notes,
+          the recovered local notes ref is a descendant of the pre-recovery remote base, and the remote ref
+          equals the recovered local ref after push. A follow-up force-pull/load in the clone confirms the
+          recovered content is now portable.
+        - Integration work also surfaced a real regression from 3.R.l.b: `sync-status.ts` still referenced
+          `notesRef` in detailed ref inspection after the module split. Restored the import so user-status and
+          session-init remote probes keep working under integration coverage.
 
     - [ ] **3.R.l.d Refactor `runUserLoad` walk-exhausted surface from callback to discriminated union**
 

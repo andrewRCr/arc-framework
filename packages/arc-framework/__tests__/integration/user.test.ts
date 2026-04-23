@@ -5,7 +5,7 @@
  * serialization round-trips, ancestor walking, and user directory management.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import { readFile, writeFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -35,6 +35,32 @@ import {
   hasRemoteNotes,
   buildUserStatusSummary,
 } from "../../src/commands/user.js";
+import { pushWithInteractiveRecovery } from "../../src/handlers/push-recovery.js";
+
+const {
+  mockLog,
+  mockNote,
+  mockSelect,
+  mockIsCancel,
+  mockSpinner,
+} = vi.hoisted(() => ({
+  mockLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  mockNote: vi.fn(),
+  mockSelect: vi.fn(),
+  mockIsCancel: vi.fn(() => false) as Mock<(value: unknown) => boolean>,
+  mockSpinner: { start: vi.fn(), stop: vi.fn() },
+}));
+
+vi.mock("@clack/prompts", () => ({
+  intro: vi.fn(),
+  outro: vi.fn(),
+  log: mockLog,
+  note: (...args: unknown[]) => mockNote(...args),
+  select: (...args: unknown[]) => mockSelect(...args),
+  confirm: vi.fn(),
+  isCancel: (value: unknown) => mockIsCancel(value),
+  spinner: () => mockSpinner,
+}));
 
 // --- Tests ---
 
@@ -42,6 +68,12 @@ async function listBackupFiles(userDir: string): Promise<string[]> {
   return (await readdir(userDir))
     .filter((name) => name === BACKUP_FILENAME || /^\.pre-load-backup-.*\.json$/u.test(name))
     .sort();
+}
+
+async function readNotesRefTip(cwd: string, identity: string): Promise<string> {
+  const ref = `refs/notes/arc/user/${identity}`;
+  const { stdout } = await execFileAsync("git", ["rev-parse", ref], { cwd });
+  return stdout.trim();
 }
 
 describe("user save and load", () => {
@@ -616,6 +648,8 @@ describe("user push and pull", () => {
   });
 
   afterEach(async () => {
+    vi.resetAllMocks();
+    mockIsCancel.mockReturnValue(false);
     await cleanupTempDir(tempDir);
     await cleanupTempDir(remoteDir);
     if (cloneDir) await cleanupTempDir(cloneDir);
@@ -712,6 +746,71 @@ describe("user push and pull", () => {
     await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
     expect(restoredInClone).toBe("# Version 3 local");
+  });
+
+  it("merge recovery preserves local disk state and rebases the save onto the remote notes base", async () => {
+    mockSelect.mockResolvedValue("merge");
+    const originalIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
+
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 1", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+
+    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Version 2 from clone", "utf-8");
+    await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    await runUserPush({ io: cloneIO, identity: "test-user", force: true });
+
+    const remoteTipBeforeRecovery = await readNotesRefTip(cloneDir, "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 3 local", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await expect(
+      runUserPush({ io, identity: "test-user" }),
+    ).rejects.toThrow(/rejected/);
+
+    try {
+      const result = await pushWithInteractiveRecovery(io, "test-user", tempDir);
+      expect(result).toEqual({ kind: "ok-recovered", via: "merge" });
+
+      const diskContent = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+      expect(diskContent).toBe("# Version 3 local");
+
+      const localTipAfterRecovery = await readNotesRefTip(tempDir, "test-user");
+      expect(localTipAfterRecovery).not.toBe(remoteTipBeforeRecovery);
+      await expect(
+        execFileAsync(
+          "git",
+          ["merge-base", "--is-ancestor", remoteTipBeforeRecovery, localTipAfterRecovery],
+          { cwd: tempDir },
+        ),
+      ).resolves.toBeDefined();
+
+      const { stdout: remoteTipAfterPush } = await execFileAsync(
+        "git",
+        ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+      );
+      expect(remoteTipAfterPush.trim().split(/\s+/u)[0]).toBe(localTipAfterRecovery);
+
+      await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user", force: true });
+      await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+      const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
+      expect(restoredInClone).toBe("# Version 3 local");
+    } finally {
+      Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, configurable: true });
+    }
   });
 
   it("pull with --identity fetches another developer's notes", async () => {

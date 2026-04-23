@@ -2,7 +2,8 @@ import { join } from "node:path";
 
 import { serialize, type SyncManifest } from "../../lib/git/index.js";
 import { formatRelativeTime } from "./relative-time.js";
-import { findNearestUserNote, listBackupFiles, runUserLoad } from "./save-load.js";
+import { findNearestUserNote, listBackupFiles } from "./save-load.js";
+import { notesRef } from "./shared.js";
 import type {
   InspectUserSyncOptions,
   UserIOContext,
