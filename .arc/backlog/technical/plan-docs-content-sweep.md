@@ -89,9 +89,33 @@ cleans up under full protection) without assuming prior knowledge of the retired
 model. Archive under `docs/reference/archive/` or similar if a historical note
 helps; otherwise don't.
 
+#### 2. Session portability / probe vocabulary realignment (from Session-Init Optimization WU, 2026-04-22)
+
+**What changed:** Phase 3.R changed the public-facing session portability model and supporting terminology:
+`arc sync --load` was retired in favor of the `arc user fetch` / `pull` split and direction-aware `arc sync`,
+bootstrap guidance shifted away from implicit overwrite flows, `disk ahead` was renamed to `local unsaved`,
+`conflict` was canonicalized over `divergence`, merge recovery now uses the explicit
+"Merge: rebase my save onto remote, then push" label, and the shipped probe surface includes
+`arc extensions status`, `arc active status`, and composite `arc status --session-init --json`
+(`arc methods status` was explored and then dropped, so docs should not describe it as live).
+
+**Edit type:** Mixed conceptual + mechanical sweep. Some touch points are direct stale command replacements, but
+the portability model and bootstrap wording need reader-first prose rather than literal command swaps.
+
+**Known touch points** (captured during 3.R pre-implementation audit, 2026-04-22):
+
+- `docs/the-framework.md:186`
+- `docs/reference/team-coordination.md:133`
+- `docs/index.md:57-59,79`
+- `docs/faq.md:121`
+
+**Nuance:** Keep this sweep aligned to shipped CLI behavior, not intermediate task-list intent. In particular:
+do not document `arc methods status` as available, and preserve the docs-site plan boundary by updating these
+public-doc touch points here rather than folding them back into Session-Init Optimization execution.
+
 ### Content Contributions
 
-#### 2. Operational-context extractions (from Session-Init Optimization WU, pending)
+#### 3. Operational-context extractions (from Session-Init Optimization WU, pending)
 
 **What changed:** Content audit of session-init always-loaded docs + high-frequency
 workflows identified non-operational rationale/background/examples for absorption
@@ -189,3 +213,4 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 | 2026-04-16 | Initial capture — seeded with per-WU status file model from Work-Status Restructure pre-merge   |
 | 2026-04-17 | Added Content Contributions input type — accommodates Session-Init Optimization staging notes   |
 | 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift) |
+| 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |

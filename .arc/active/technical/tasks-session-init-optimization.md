@@ -1344,61 +1344,16 @@ extension is documented in 3.R.h.
         unit coverage for user status/handlers/sync, targeted `user.test.ts` integration coverage including a
         >20-commit ancestor case, plus `lint:ts` and `typecheck` all clean.
 
-- [ ] **3.R.f Documentation + ADR sync (runs after 3.R.m and 3.R.g)**
+- [ ] **3.R.f Hook invocation fix for non-executable shell scripts**
 
-    **Goal:** Framework two-copy surfaces first, then single-copy docs and ADR history. Scope expanded by the
-    second pass to cover new probe commands, vocabulary rename, merge-recovery behavior, and `--yes` /
-    `--max-walk` flags. Runs after second pass so doc churn happens once against the final surface.
-
-    - [ ] **3.R.f.1 Two-copy doc sync for remaining CLI references**
-
-        **Goal:** Template + installed copies reflect the finalized command vocabulary, bootstrap semantics,
-        and second-pass additions.
-
-        - Update both-copy references in:
-          `session-handoff.md`, `strategy-session-operations.md`, `strategy-team-coordination.md`,
-          `QUICK-REFERENCE.md`, and `user/README.md`
-        - Replace stale `arc sync --load` references with the new command model
-        - Where person-to-person bootstrap is ref-only, switch guidance from `arc user pull --identity {outgoing}`
-          to `arc user fetch --identity {outgoing}` rather than implicitly overwriting local disk state
-        - Second-pass additions to sweep in:
-            - New probe commands (`arc extensions status`, `arc methods status`, `arc active status`, each with
-              `--session-init` mode) — primarily in QUICK-REFERENCE and session-init.md
-            - Vocabulary: `disk ahead` → `local unsaved`; canonicalize `conflict` over `divergence` in user-facing
-              phrasing
-            - Merge-recovery label (`"Merge: rebase my save onto remote, then push"`) wherever push recovery is
-              discussed
-            - `--yes` flag on `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`
-            - `--max-walk` flag on `arc user load`, `arc user pull`, `arc sync` pull direction
-        - Grep-verify no remaining stale command references in `.arc/**` and `packages/arc-framework/arc/**`,
-          excluding `reference/archive/**` and `reference/analysis/**`
-
-    - [ ] **3.R.f.2 Single-copy docs + ADR-012 amendment + Phase 5.0 retirement pointer**
-
-        **Goal:** Single-copy docs reflect the final command surface; ADR-012 captures the full Phase 3.R
-        vocabulary realignment (both passes); the old Phase 5.0 pointer retires formally.
-
-        - Single-copy docs to update:
-          `plan-arc-modes.md`, `plan-work-unit-mobility.md`, `docs/the-framework.md`,
-          `docs/reference/team-coordination.md`, `docs/index.md`, `docs/faq.md`
-        - ADR-012 amendment — append a dated amendment section; preserve the original decision body unchanged.
-          Content covers both passes:
-            - First pass: `pull → fetch`, `pull = fetch + load`, `sync` as direction-aware porcelain, durable
-              2×2 sync-state matrix
-            - Second pass: three new probes (extensions/methods/active status), vocabulary rename
-              (`local unsaved`, canonical `conflict`), merge-recovery semantics, bounded ancestor walk with
-              `--max-walk` override, confirmation-by-default + `--yes` policy
-        - QUICK-REFERENCE should point to the amendment for durable semantics context
-        - Verify the old Phase 5.0 pointer now resolves entirely through 3.R.e / 3.R.f (confirm no second-pass
-          addition introduced a 5.0-adjacent reference)
-        - Leave `reference/archive/**` and `reference/analysis/**` untouched as historical record
-
-- [ ] **3.R.g Hook invocation fix for non-executable shell scripts**
-
-    **Goal:** Fresh clones do not require manual chmod to execute hook-invoked shell scripts.
+    **Goal:** Fresh clones do not require manual chmod for hook-invoked shell scripts. Top-level hook entrypoints
+    continue to rely on install-time executable bits in adopter repos or the project's hook manager.
 
     **Design decisions (resolved pre-implementation):**
-    - Use bash-prefix invocation in hooks; do not add install-time chmod logic and do not change tracked file mode
+    - Use bash-prefix invocation in hooks for nested `.sh` calls; do not add install-time chmod logic and do not
+      change tracked file mode
+    - Keep scope on hook-internal shell-script execution; top-level hook executability remains the existing
+      install-time / hook-manager contract
 
     Build `test-first` (one behavior at a time):
     - Hook path executes `validate-links.sh` successfully without relying on the exec bit
@@ -1407,7 +1362,61 @@ extension is documented in 3.R.h.
     **Implementation notes:**
     - Update hook invocations to `bash .../script.sh`
     - Two-copy sync any hook changes
-    - Acceptance is explicit fresh-clone safety, not a doc-note-only fallback
+    - Acceptance is explicit fresh-clone safety for hook-internal shell execution, not a doc-note-only fallback
+
+- [ ] **3.R.g Documentation + ADR sync (runs after 3.R.m and 3.R.f)**
+
+    **Goal:** Framework two-copy surfaces first, then non-`docs/` single-copy artifacts and ADR history. Scope
+    expanded by the second pass to cover the finalized probe commands, vocabulary rename, merge-recovery behavior,
+    and `--yes` / `--max-walk` flags. Public `docs/**` drift is captured in `plan-docs-content-sweep.md`, not
+    updated in this WU. Runs after second pass so doc churn happens once against the final surface.
+
+    - [ ] **3.R.g.1 Two-copy doc sync for remaining CLI references**
+
+        **Goal:** Package-source templates and installed `.arc/` copies reflect the finalized command vocabulary,
+        bootstrap semantics, and second-pass additions.
+
+        - Update both-copy references in:
+          `session-handoff.md` / `session-handoff.template.md`,
+          `strategy-session-operations.md`, `strategy-team-coordination.md`,
+          `QUICK-REFERENCE.md` / `QUICK-REFERENCE.template.md`, and `user/README.md`
+        - Replace stale `arc sync --load` references with the new command model
+        - Where person-to-person bootstrap is ref-only, switch guidance from `arc user pull --identity {outgoing}`
+          to `arc user fetch --identity {outgoing}` rather than implicitly overwriting local disk state
+        - Second-pass additions to sweep in:
+            - New probe commands (`arc extensions status`, `arc active status`, and composite
+              `arc status --session-init --json`) where those surfaces are documented
+            - Vocabulary: `disk ahead` → `local unsaved`; canonicalize `conflict` over `divergence` in user-facing
+              phrasing where this phase's docs touch the sync model
+            - Merge-recovery label (`"Merge: rebase my save onto remote, then push"`) wherever push recovery is
+              discussed
+            - `--yes` flag on `arc sync`, `arc user pull`, `arc user fetch`, `arc user load`
+            - `--max-walk` flag on `arc user load`, `arc user pull`, `arc sync` pull direction
+        - Grep-verify no remaining stale command references in `.arc/**` and `packages/arc-framework/arc/**`,
+          excluding `reference/archive/**` and `reference/analysis/**`
+
+    - [ ] **3.R.g.2 Single-copy backlog/docs-sweep routing + ADR-012 amendment + Phase 5.0 retirement pointer**
+
+        **Goal:** Non-`docs/` single-copy artifacts reflect the final command surface, `docs/**` drift is routed to
+        the docs-content-sweep plan, ADR-012 captures the full Phase 3.R vocabulary realignment (both passes), and
+        the old Phase 5.0 pointer retires formally.
+
+        - Single-copy artifacts to update:
+          `plan-arc-modes.md`, `plan-docs-content-sweep.md`, and `adr-012-adopt-unified-user-directory-model.md`
+        - Capture public `docs/**` drift in `plan-docs-content-sweep.md` rather than editing `docs/` directly in
+          this WU (current known touch points: `docs/the-framework.md`, `docs/reference/team-coordination.md`,
+          `docs/index.md`, `docs/faq.md`)
+        - ADR-012 amendment — append a dated amendment section; preserve the original decision body unchanged.
+          Content covers both passes:
+            - First pass: `pull → fetch`, `pull = fetch + load`, `sync` as direction-aware porcelain, durable
+              2×2 sync-state matrix
+            - Second pass: composite/status probe additions actually shipped, vocabulary rename
+              (`local unsaved`, canonical `conflict`), merge-recovery semantics, bounded ancestor walk with
+              `--max-walk` override, confirmation-by-default + `--yes` policy
+        - QUICK-REFERENCE should point to the amendment for durable semantics context
+        - Verify the old Phase 5.0 pointer now resolves entirely through 3.R.e / 3.R.g (confirm no second-pass
+          addition introduced a 5.0-adjacent reference)
+        - Leave `reference/archive/**` and `reference/analysis/**` untouched as historical record
 
 **Second Pass — Post-Review Remediation**
 
@@ -2134,10 +2143,10 @@ clean enough that inconsistency across the three remaining session-init discover
     - [x] Strategy addendum (moved from retired 3.R.h): revision-numbering guidance now covers
       phase-level `X.R` and uses `3.1.R.a` / `3.1.R.b` examples
     - [x] Confirm `atomic-session-init-optimization.md` has no remaining items deferred from either pass
-    - [x] Update `status-session-init-optimization.md`: Last Completed = 3.R.m; Next Task = 3.R.g; Next Action =
-      begin 3.R.g
+    - [x] Update `status-session-init-optimization.md`: Last Completed = 3.R.m; Next Task = 3.R.f; Next Action =
+      begin 3.R.f
 
-    **Next action (after close):** 3.R.g → 3.R.f → Phase 3.R archive + begin Phase 4.1.
+    **Next action (after close):** 3.R.f → 3.R.g → Phase 3.R archive + begin Phase 4.1.
 
 ---
 
