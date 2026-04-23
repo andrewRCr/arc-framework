@@ -16,6 +16,7 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../commands/config.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 export interface ConfigStatusCliOptions {
   sessionInit?: boolean;
@@ -23,7 +24,8 @@ export interface ConfigStatusCliOptions {
 }
 
 export async function handleConfigStatus(opts: ConfigStatusCliOptions): Promise<void> {
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   if (opts.sessionInit) {
     const result = await runConfigSessionInitStatus({ cwd });

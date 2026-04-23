@@ -13,16 +13,16 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.l.e — `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`
-  (line ~2054)
-- **Last Completed:** 3.R.l.d — Replaced the `onWalkExhausted` callback surface with the
-  discriminated `UserLoadOutcome` union, adding `kind: "loaded"` to `UserLoadResult` and the
-  explicit `{ kind: "walk-exhausted", walked, maxWalk }` outcome for capped ancestor walks.
-  Updated `runUserLoad`, `runUserPull`, the `arc user load` / `arc user pull` handlers, and sync's
-  pull path to branch on `result.kind` instead of callback-mutated side state, leaving `null`
-  reserved for the unambiguous "no notes exist" case. Unit and integration coverage now narrow on
-  the returned kind, including the shallow-clone cap-hit path asserting `walk-exhausted`.
+- **Next Task:** Task 3.R.l.f — Sandbox-aware remote-probe degradation + session-init recovery path
+  (line ~2082)
+- **Last Completed:** 3.R.l.e — Added `resolveArcRoot(startDir = process.cwd())` plus the
+  handler-level `requireArcProjectRoot` guard so commands that read or write `.arc/` state walk up
+  from subdirectories to the repo root instead of treating local state as missing. Wired the
+  resolved root through user/sync/status/active/config/extensions handlers, update/health/diff,
+  join, and `arc init --reconfigure`, while leaving fresh `arc init` rooted at the literal cwd.
+  Added unit coverage for root resolution and an e2e regression confirming `arc user status`
+  from a nested subdirectory matches the repo-root result.
 - **Blockers:** none
-- **Next Action:** Begin 3.R.l.e — add `resolveArcRoot` cwd walk-up for CLI commands that read
-  or write `.arc/` state so user-status and related flows resolve the repo root correctly from
-  subdirectories.
+- **Next Action:** Begin 3.R.l.f — refine remote-probe degradation so sandboxed or
+  remote-restricted environments distinguish "remote unreachable" from a clean local-only
+  continuation path during session-init.

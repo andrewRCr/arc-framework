@@ -16,7 +16,7 @@ import { listArcFiles } from "../lib/fs.js";
 import { getArcTemplatePath, getRecipePath, getChangelogPath } from "../lib/paths.js";
 import { getFrameworkVersion, checkLatestVersion } from "../lib/version.js";
 import { createIOContext, execFileAsync } from "../lib/io-context.js";
-import { runWithSpinner, isHandledError } from "./shared.js";
+import { runWithSpinner, isHandledError, requireArcProjectRoot } from "./shared.js";
 import { readChangelog, filterChangelogRange, buildChangelogDisplay } from "../lib/changelog.js";
 
 // --- Update ---
@@ -28,9 +28,11 @@ export async function handleUpdate(options: { quiet?: boolean } = {}): Promise<v
   const recipe = await loadRecipeFile(getRecipePath(), (f) => readFile(f, "utf-8"));
 
   try {
+    const cwd = requireArcProjectRoot();
+    if (!cwd) return;
     const result = await runWithSpinner(
       "Updating ARC framework files...",
-      () => runUpdate({ cwd: process.cwd(), io: createIOContext(), templateDir, recipe }),
+      () => runUpdate({ cwd, io: createIOContext(), templateDir, recipe }),
       "Update complete.",
     );
 
@@ -67,7 +69,8 @@ export async function handleHealth(): Promise<void> {
   p.intro("arc health");
 
   try {
-    const cwd = process.cwd();
+    const cwd = requireArcProjectRoot();
+    if (!cwd) return;
     // Check npm registry in parallel with health computation (non-blocking)
     const latestVersionPromise = checkLatestVersion("@arc-framework/cli");
     const result = await runHealth({
@@ -100,8 +103,10 @@ export async function handleDiff(): Promise<void> {
   p.intro("arc diff");
 
   try {
+    const cwd = requireArcProjectRoot();
+    if (!cwd) return;
     const result = await runDiff({
-      cwd: process.cwd(),
+      cwd,
       io: {
         readFile: (path) => readFile(path, "utf-8"),
         readManifest: (path) => readManifest(path, (p) => readFile(p, "utf-8")),

@@ -17,6 +17,7 @@ import {
   runExtensionsSessionInitStatus,
   runExtensionsStatus,
 } from "../commands/extensions.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 export interface ExtensionsStatusCliOptions {
   sessionInit?: boolean;
@@ -25,7 +26,8 @@ export interface ExtensionsStatusCliOptions {
 }
 
 export async function handleExtensionsStatus(opts: ExtensionsStatusCliOptions): Promise<void> {
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   if (opts.sessionInit) {
     const result = await runExtensionsSessionInitStatus({ cwd });

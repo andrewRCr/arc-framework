@@ -7,7 +7,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { access, rm } from "node:fs/promises";
+import { access, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -134,6 +134,31 @@ describe("user save/load", () => {
     });
 
     expect(result.exitCode).not.toBe(0);
+  });
+});
+
+describe("user status from a subdirectory", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    await initAndCommit(tmpDir);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("matches the repo-root result when invoked from a nested directory", async () => {
+    const nestedDir = join(tmpDir, "nested", "deep");
+    await mkdir(nestedDir, { recursive: true });
+
+    const rootResult = await runArc(["user", "status", "--offline", "--json"], tmpDir);
+    const nestedResult = await runArc(["user", "status", "--offline", "--json"], nestedDir);
+
+    expect(rootResult.exitCode).toBe(0);
+    expect(nestedResult.exitCode).toBe(0);
+    expect(JSON.parse(nestedResult.stdout)).toEqual(JSON.parse(rootResult.stdout));
   });
 });
 

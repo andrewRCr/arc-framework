@@ -18,7 +18,7 @@ import { createIOContext } from "../lib/io-context.js";
 import { gitExec } from "../lib/io-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
-  isNonInteractiveEnvironment, requireGitRepo, resolveIdentityWithPrompt,
+  isNonInteractiveEnvironment, requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
   isHandledError,
 } from "./shared.js";
 
@@ -45,7 +45,8 @@ export async function handleJoin(opts: JoinOptions): Promise<void> {
 
   if (!(await requireGitRepo())) return;
 
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const io = createIOContext();
   const { settings } = await readConfigSettings(cwd);
   const pmMode = settings["pm.mode"];
@@ -132,7 +133,8 @@ async function handleJoinReconfigure(opts: JoinOptions): Promise<void> {
 
   if (!(await requireGitRepo())) return;
 
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const io = createIOContext();
 
   // Read current role from git config

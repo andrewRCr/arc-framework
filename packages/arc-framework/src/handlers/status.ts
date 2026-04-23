@@ -45,6 +45,7 @@ import {
 import { gitConfigGet } from "../lib/git/index.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
@@ -73,7 +74,8 @@ async function readIdentityPointers(): Promise<{
 }
 
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const json = Boolean(opts.json);
   const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();

@@ -66,6 +66,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
   isHandledError: () => false,
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
+  requireArcProjectRoot: () => process.cwd(),
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({

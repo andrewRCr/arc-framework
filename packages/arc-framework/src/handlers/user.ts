@@ -19,7 +19,8 @@ import { createUserIOContext } from "../lib/io-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
-  runWithSpinner, isHandledError, isNonInteractiveEnvironment, resolveUserIdentity, isRemoteError,
+  runWithSpinner, isHandledError, isNonInteractiveEnvironment,
+  requireArcProjectRoot, resolveUserIdentity, isRemoteError,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -51,7 +52,8 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
     p.log.info(`Identity normalized to: ${identity}`);
   }
 
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const io = createUserIOContext();
   const { settings } = await readConfigSettings(cwd);
   const pmMode = settings["pm.mode"];
@@ -83,11 +85,13 @@ export async function handleUserSave(): Promise<void> {
     throw err;
   }
   const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   try {
     const result = await runWithSpinner(
       "Saving user directory...",
-      () => runUserSave({ cwd: process.cwd(), io, identity }),
+      () => runUserSave({ cwd, io, identity }),
       "Save complete.",
     );
     p.note(buildSaveSummary(result), "Saved");
@@ -121,13 +125,15 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
     throw err;
   }
   const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const spinner = p.spinner();
   spinner.start("Loading user directory...");
 
   let result;
   try {
     result = await runUserLoad({
-      cwd: process.cwd(),
+      cwd,
       io,
       identity,
       maxAncestorWalk: opts.maxWalk,
@@ -180,6 +186,8 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     throw err;
   }
   const io = createUserIOContext();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   // Explicit --force: bypass recovery prompt, push forcibly.
   if (opts.force) {
@@ -204,7 +212,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     return;
   }
 
-  const result = await pushWithInteractiveRecovery(io, identity, process.cwd());
+  const result = await pushWithInteractiveRecovery(io, identity, cwd);
   switch (result.kind) {
     case "ok":
     case "ok-recovered":
@@ -330,6 +338,8 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
 
   const io = createUserIOContext();
   const hasLocal = await hasLocalNotes(io, identity);
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   if (hasLocal && !shouldSkipOverwriteConfirm(opts.yes)) {
     const proceed = await p.confirm({
@@ -348,7 +358,7 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   let result;
   try {
     result = await runUserPull({
-      cwd: process.cwd(),
+      cwd,
       io,
       identity,
       force: hasLocal,
@@ -420,7 +430,8 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
   }
 
   const io = createUserIOContext();
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   if (opts.sessionInit) {
     const { settings } = await readConfigSettings(cwd);

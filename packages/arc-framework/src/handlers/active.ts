@@ -16,6 +16,7 @@ import {
   runActiveSessionInitStatus,
   runActiveStatus,
 } from "../commands/active.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 export interface ActiveStatusCliOptions {
   sessionInit?: boolean;
@@ -23,7 +24,8 @@ export interface ActiveStatusCliOptions {
 }
 
 export async function handleActiveStatus(opts: ActiveStatusCliOptions): Promise<void> {
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
 
   if (opts.sessionInit) {
     const result = await runActiveSessionInitStatus({ cwd });

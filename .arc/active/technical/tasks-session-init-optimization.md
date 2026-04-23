@@ -2039,42 +2039,19 @@ clean enough that inconsistency across the three remaining session-init discover
         "no notes exist" case. Unit and integration tests were updated to narrow on `kind`; the shallow-clone cap-hit
         path now asserts the explicit `walk-exhausted` outcome rather than the old `null`.
 
-    - [ ] **3.R.l.e `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`**
+    - [x] **3.R.l.e `resolveArcRoot` — cwd walk-up for CLI commands touching `.arc/`**
 
-        **Origin:** Surfaced during 3.R.j.a manual verification. `arc user status` invoked from a
-        subdirectory (e.g., `packages/arc-framework/`) silently treats `.arc/user/{identity}/` as
-        absent, which flows through `inspectDiskVsLocalSnapshot` to `state: "different"`,
-        `direction: "missing"`, headline `"local unsaved"`, action hint `"run arc user save"`.
-        All three are wrong — the user hasn't actually lost content, and `arc user save` would
-        fail in that state with `"No eligible files found in user directory to save."` (pre-existing,
-        highlighted more by the new direction-hint phrasing but not caused by 3.R.j.a). Git, npm,
-        cargo all walk up from cwd to find their project marker; ARC should match.
+        Added `resolveArcRoot(startDir = process.cwd())` to `lib/paths.ts` plus a handler-level
+        `requireArcProjectRoot` guard that emits the canonical
+        `"Not inside an ARC project (no .arc/ directory found walking up from cwd)."` error when
+        no `.arc/` directory is reachable. Wired the resolved root through every current handler
+        that reads or writes project `.arc/` state: user add/save/load/pull/status/push-recovery,
+        sync, status/active/config/extensions status, update/health/diff, join, and
+        `arc init --reconfigure`. Fresh `arc init` still uses the literal cwd by design.
 
-        **Change:**
-        - Add `resolveArcRoot(startDir?: string): string | null` in `lib/paths.ts` (or equivalent
-          existing location). Walks upward from `startDir` (defaults to `process.cwd()`) looking
-          for a directory containing `.arc/`. Returns the absolute path on success, `null` when
-          the walk reaches filesystem root without finding one.
-        - Wire it into every CLI handler that currently takes `cwd: process.cwd()` and uses it
-          to resolve `.arc/` paths. Initial audit targets (from `commands/user.ts` + sync: the
-          known set touched by this WU):
-          `handleUserAdd`, `handleUserSave`, `handleUserLoad`, `handleUserFetch`, `handleUserPull`,
-          `handleUserPush`, `handleUserStatus`, `handleSync`. Broader sweep in the same pass
-          for other commands that take `cwd` (init/update/join/status/diff/log/reconfigure etc.) —
-          full list surfaced by grepping `process.cwd()` in `src/commands/` and `src/handlers/`.
-        - On `null` return, handlers emit a single canonical error via `p.log.error` (or the
-          project's error primitive) and `process.exit(1)`:
-          `"Not inside an ARC project (no .arc/ directory found walking up from cwd)."`
-        - Do NOT walk up for commands that operate on the current directory by design (e.g.,
-          `arc init` — creates `.arc/` at cwd). Those remain explicit.
-
-        **Tests:**
-        - Unit tests on `resolveArcRoot`: finds at cwd, finds one level up, finds two levels
-          up, returns null when absent, handles filesystem root boundary cleanly, respects
-          `startDir` when provided.
-        - Integration: one new e2e test exercising `arc user status` from a subdir of an
-          initialized repo — confirms the status result matches a root-cwd invocation of the
-          same command. Guards against regression.
+        Added unit coverage for `resolveArcRoot` (cwd hit, one/two-level walk-up, null, root
+        boundary, explicit `startDir`) and an e2e regression test that confirms
+        `arc user status --offline --json` from a nested subdirectory matches the repo-root result.
 
     - [ ] **3.R.l.f Sandbox-aware remote-probe degradation + session-init recovery path**
 

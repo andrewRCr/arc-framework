@@ -10,6 +10,7 @@
 import * as p from "@clack/prompts";
 
 import { resolveIdentity, isGitRepo } from "../lib/git/index.js";
+import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
 import { UserSaveError } from "../commands/user.js";
 import { gitExec } from "../lib/io-context.js";
@@ -117,6 +118,27 @@ export async function resolveIdentityWithPrompt(interactive: boolean): Promise<s
  */
 export function isNonInteractiveEnvironment(): boolean {
   return process.env.CI === "true" || !process.stdin.isTTY;
+}
+
+/** Canonical error copy when the current directory is outside any ARC project root. */
+export const ARC_PROJECT_ROOT_ERROR =
+  "Not inside an ARC project (no .arc/ directory found walking up from cwd).";
+
+/**
+ * Resolve the nearest ARC project root from the current working directory.
+ *
+ * Logs the canonical error and sets exit code 1 when no `.arc/` directory is
+ * found walking upward.
+ */
+export function requireArcProjectRoot(startDir = process.cwd()): string | null {
+  const root = resolveArcRoot(startDir);
+  if (root) {
+    return root;
+  }
+
+  p.log.error(ARC_PROJECT_ROOT_ERROR);
+  process.exitCode = 1;
+  return null;
 }
 
 /**

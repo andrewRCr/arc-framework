@@ -76,6 +76,7 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
+  requireArcProjectRoot: () => process.cwd(),
 }));
 
 vi.mock("../../src/lib/config/status-reader.js", () => ({

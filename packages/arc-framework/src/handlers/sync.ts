@@ -24,7 +24,7 @@ import { createUserIOContext } from "../lib/io-context.js";
 import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
 import {
-  isHandledError, isNonInteractiveEnvironment, resolveUserIdentity,
+  isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
@@ -62,7 +62,8 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   }
 
   const io = createUserIOContext();
-  const cwd = process.cwd();
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
   const state = await inspectUserSyncState({ cwd, io, identity });
   const action = decideSyncAction(state);
   const yes = Boolean(opts.yes);
