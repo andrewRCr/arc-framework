@@ -31,12 +31,15 @@ pwd
 # Expected: /home/andrew/dev/arc-framework (repo root)
 ```
 
+Adopters: add project-specific runtime checks here if needed (services, build tools, env vars). If
+working-directory verification is sufficient, leave as-is.
+
 ### 2. Probe ARC Domain
 
 Run the composite probe:
 
 ```bash
-npx arc status --session-init --json
+arc status --session-init --json
 ```
 
 Non-destructive. Returns a single JSON envelope the agent consumes:
