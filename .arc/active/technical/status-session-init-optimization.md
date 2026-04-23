@@ -13,16 +13,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** Task 3.R.l.f — Sandbox-aware remote-probe degradation + session-init recovery path
-  (line ~2082)
-- **Last Completed:** 3.R.l.e — Added `resolveArcRoot(startDir = process.cwd())` plus the
-  handler-level `requireArcProjectRoot` guard so commands that read or write `.arc/` state walk up
-  from subdirectories to the repo root instead of treating local state as missing. Wired the
-  resolved root through user/sync/status/active/config/extensions handlers, update/health/diff,
-  join, and `arc init --reconfigure`, while leaving fresh `arc init` rooted at the literal cwd.
-  Added unit coverage for root resolution and an e2e regression confirming `arc user status`
-  from a nested subdirectory matches the repo-root result.
+- **Next Task:** 3.R.m — Second-pass close — quality gates + Phase 3.R-wide content
+- **Last Completed:** 3.R.l.f — Reworked the remote session-init probe to use `git ls-remote`
+  before any fetch, keeping the easy cases read-only and reserving temp-ref fetch + ancestry
+  checks for the ambiguous both-sides-differ case. When fetch/write access is blocked after
+  remote visibility succeeds, the probe stays on the existing `remote-unavailable` state but
+  now reports environment-limited comparison separately from a truly unreachable remote. Added
+  unit coverage for the read-only path and the fetch-blocked fallback, and updated both
+  session-init workflow copies to offer local continuation vs retry in a remote-capable
+  environment.
 - **Blockers:** none
-- **Next Action:** Begin 3.R.l.f — refine remote-probe degradation so sandboxed or
-  remote-restricted environments distinguish "remote unreachable" from a clean local-only
-  continuation path during session-init.
+- **Next Action:** Begin 3.R.m — run the second-pass close quality gates and remaining Phase 3.R
+  content work.

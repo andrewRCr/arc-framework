@@ -92,9 +92,9 @@ async function readCommitRelativeAge(
 /**
  * Inspect only the remote session-init state for agent-driven session startup.
  *
- * This is a non-destructive probe: it respects `session.remote_sync`, compares
- * against a temp fetched ref when enabled, and reports whether session-init
- * should ask the user about pulling before continuing.
+ * This is a non-destructive probe: it respects `session.remote_sync`, uses a
+ * read-only remote ref probe for easy cases, and falls back to a temp fetched
+ * ref only when ancestry comparison is genuinely needed.
  *
  * @param options - Session-init status options
  * @returns Session-init-oriented remote state summary
@@ -118,8 +118,8 @@ export async function runUserSessionInitStatus(
     };
   }
 
-  const refState = await inspectUserSyncRefs(io, identity);
-  switch (refState) {
+  const refInspection = await inspectUserSyncRefsDetailed(io, identity);
+  switch (refInspection.state) {
     case "same":
       return {
         identity,
@@ -165,6 +165,19 @@ export async function runUserSessionInitStatus(
         shouldPromptToPull: true,
       };
     case "remote-unavailable":
+      if (refInspection.comparison === "comparison-unavailable") {
+        return {
+          identity,
+          state: "remote-unavailable",
+          summary: `${identity}: session-init remote comparison unavailable here`,
+          detailLines: [
+            "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
+            "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
+          ],
+          actionHint: "continue locally or retry session-init where git fetch/write access is allowed",
+          shouldPromptToPull: false,
+        };
+      }
       return {
         identity,
         state: "remote-unavailable",
@@ -181,6 +194,7 @@ export async function runUserSessionInitStatus(
 
 interface UserSyncRefInspection {
   state: UserSyncRefState;
+  comparison: "full" | "read-only" | "comparison-unavailable" | "remote-unavailable";
 }
 
 interface BuildUserStatusInput {
@@ -303,31 +317,69 @@ async function inspectUserSyncRefsDetailed(
   const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}`;
 
   const localHash = await readRefHash(io, localRef);
+  const remoteProbe = await readRemoteRefHash(io, localRef);
+
+  if (remoteProbe.kind === "remote-unavailable") {
+    return { state: "remote-unavailable", comparison: "remote-unavailable" };
+  }
+
+  const remoteHash = remoteProbe.hash;
+  if (!localHash && !remoteHash) return { state: "same", comparison: "read-only" };
+  if (!localHash && remoteHash) return { state: "remote-ahead", comparison: "read-only" };
+  if (localHash && !remoteHash) return { state: "local-ahead", comparison: "read-only" };
+  if (!localHash || !remoteHash) return { state: "same", comparison: "read-only" };
+  if (localHash === remoteHash) return { state: "same", comparison: "read-only" };
 
   try {
     await io.exec("git", ["fetch", "origin", `+${localRef}:${tempRef}`]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("couldn't find remote ref")) {
-      return { state: localHash ? "local-ahead" : "same" };
+      return { state: localHash ? "local-ahead" : "same", comparison: "read-only" };
     }
-    return { state: "remote-unavailable" };
+    return { state: "remote-unavailable", comparison: "comparison-unavailable" };
   }
 
   try {
-    const remoteHash = await readRefHash(io, tempRef);
+    const fetchedRemoteHash = await readRefHash(io, tempRef);
 
-    if (!localHash && !remoteHash) return { state: "same" };
-    if (!localHash && remoteHash) return { state: "remote-ahead" };
-    if (localHash && !remoteHash) return { state: "local-ahead" };
-    if (!localHash || !remoteHash) return { state: "same" };
-    if (localHash === remoteHash) return { state: "same" };
+    if (!fetchedRemoteHash) {
+      return { state: "remote-unavailable", comparison: "comparison-unavailable" };
+    }
 
-    if (await isAncestor(io, localHash, remoteHash)) return { state: "remote-ahead" };
-    if (await isAncestor(io, remoteHash, localHash)) return { state: "local-ahead" };
-    return { state: "diverged" };
+    if (await isAncestor(io, localHash, fetchedRemoteHash)) {
+      return { state: "remote-ahead", comparison: "full" };
+    }
+    if (await isAncestor(io, fetchedRemoteHash, localHash)) {
+      return { state: "local-ahead", comparison: "full" };
+    }
+    return { state: "diverged", comparison: "full" };
   } finally {
     await deleteRef(io, tempRef);
+  }
+}
+
+type RemoteRefProbeResult =
+  | { kind: "ok"; hash: string | null }
+  | { kind: "remote-unavailable" };
+
+async function readRemoteRefHash(
+  io: UserIOContext,
+  ref: string,
+): Promise<RemoteRefProbeResult> {
+  try {
+    const { stdout } = await io.exec("git", ["ls-remote", "origin", ref]);
+    const line = stdout
+      .split("\n")
+      .map((entry) => entry.trim())
+      .find((entry) => entry.length > 0);
+
+    if (!line) return { kind: "ok", hash: null };
+
+    const [hash] = line.split(/\s+/u);
+    return { kind: "ok", hash: hash || null };
+  } catch {
+    return { kind: "remote-unavailable" };
   }
 }
 

@@ -74,7 +74,10 @@ Inspect `user.value.state` from Step 2:
 
 - `remote-ahead` or `conflict`: Surface in orientation and ask whether to run `arc user pull`. **Pull before
   Step 4** — context-doc loading reads SESSION-NOTES, which will be stale if the remote note has newer content.
-- `remote-unavailable`: Note the degraded state; continue with local tracked state.
+- `remote-unavailable`: Note the degraded state. If the probe says the remote is unreachable, continue with local
+  tracked state or retry once the remote is reachable. If it says the remote is reachable but full comparison is
+  blocked in this environment, continue with local tracked state or retry session-init where `git fetch` / remote-ref
+  writes are allowed.
 - `clean`, `disabled`, or identity absent: Continue without prompting.
 
 The agent owns the prompt — do not defer it to the CLI.

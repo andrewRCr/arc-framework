@@ -2053,42 +2053,43 @@ clean enough that inconsistency across the three remaining session-init discover
         boundary, explicit `startDir`) and an e2e regression test that confirms
         `arc user status --offline --json` from a nested subdirectory matches the repo-root result.
 
-    - [ ] **3.R.l.f Sandbox-aware remote-probe degradation + session-init recovery path**
+    - [x] **3.R.l.f Sandbox-aware remote-probe degradation + session-init recovery path**
 
-        **Origin:** Surfaced while resuming this WU under Codex's sandbox. `npx arc status --session-init --json`
-        reported `user.state: "remote-unavailable"` even though repo config and local notes were healthy. In this
-        environment the remote probe fails for sandbox reasons (`git ls-remote` blocked by network policy; fetch-based
-        probe also blocked by `.git/FETCH_HEAD` write restrictions). The current state bucket is safe but too coarse,
-        and the workflow lacks an explicit "continue locally vs retry with remote-capable execution" recovery branch.
+        **Outcome:** `inspectUserSyncRefsDetailed` now starts with `git ls-remote` and only falls back to temp-ref
+        fetch + ancestry checks when both local and remote refs exist with different hashes. Easy cases (remote missing,
+        remote present with same hash, remote-only ref) no longer need fetch/write access. When the ancestry fallback is
+        blocked after remote visibility succeeds, the probe keeps the existing `remote-unavailable` state to avoid
+        widening the type surface, but session-init messaging now distinguishes "remote unreachable" from
+        "comparison blocked in this environment" and offers a local-continuation vs retry path. Unit coverage added for
+        the read-only happy path and the fetch-blocked fallback; existing integration coverage remains sufficient for
+        real git-note flows, and the sandbox-specific exec failure stays unit-only because the harness cannot model
+        `.git/FETCH_HEAD`/policy denial cleanly.
 
         **Goal:** Make session-init robust in sandboxed environments without weakening the correctness bar for
         full remote comparisons.
 
-        - [ ] **3.R.l.f.1 Probe path split: read-only remote visibility before fetch fallback**
-            - Rework `inspectUserSyncRefsDetailed` so session-init/status first uses a read-only remote probe
-              (`ls-remote` / equivalent) to answer the easy cases without temp-ref fetch bookkeeping:
-              remote missing, remote present with same hash, remote present when no local ref exists.
-            - Preserve fetch-based ancestry comparison for the genuinely ambiguous case: both refs exist and hashes
-              differ.
-            - If the fetch fallback is blocked after read-only remote visibility succeeded, surface a distinct
-              partial-comparison state only if the extra precision is worth the blast radius; otherwise document why
-              `remote-unavailable` remains the pragmatic coarse bucket.
+        - [x] **3.R.l.f.1 Probe path split: read-only remote visibility before fetch fallback**
+            - `inspectUserSyncRefsDetailed` now probes `git ls-remote origin refs/notes/...` before any fetch, resolving
+              the easy cases without temp-ref bookkeeping or `.git/FETCH_HEAD` writes.
+            - Temp-ref fetch + `merge-base --is-ancestor` remain only for the ambiguous both-sides-exist / hashes-differ
+              case.
+            - Fetch failure after successful read-only visibility stays in the pragmatic `remote-unavailable` bucket; the
+              extra precision was not worth a public state expansion.
 
-        - [ ] **3.R.l.f.2 Session-init workflow recovery branch for sandbox-limited environments**
-            - Update `session-init.md` (both copies) so `remote-unavailable` / any new partial-comparison state does
-              not read like a dead end. The workflow should explicitly tell the agent to offer:
-              continue with local tracked state, or retry session-init in a remote-capable environment before loading
-              context.
-            - Orientation wording should clearly distinguish "remote notes unreachable here" from actual note
-              divergence.
+        - [x] **3.R.l.f.2 Session-init workflow recovery branch for sandbox-limited environments**
+            - Updated both session-init workflow copies so `remote-unavailable` explicitly branches on probe wording:
+              either retry once the remote is reachable, or continue locally / retry in a remote-capable environment when
+              fetch/write access is blocked.
+            - Session-init status copy now distinguishes unreachable-remote wording from limited-comparison wording so it
+              does not read like actual note divergence.
 
-        - [ ] **3.R.l.f.3 Tests and documentation**
-            - Add unit coverage for the new probe behavior and state shaping.
-            - Add an integration-level harness case for sandbox-like probe failure where read-only remote visibility
-              works but fetch fallback is unavailable, or document why that case remains unit-only if the harness
-              cannot model the exec failure cleanly.
-            - Capture the operational guidance in the relevant reference surface (`QUICK-REFERENCE`, strategy, or
-              workflow notes) so sandbox-preferring users understand the expected recovery path.
+        - [x] **3.R.l.f.3 Tests and documentation**
+            - Added unit coverage for the read-only remote-probe path and for the fetch-blocked
+              "continue locally or retry elsewhere" session-init shaping.
+            - Left the sandbox-specific exec denial case unit-only; the current integration harness exercises real git
+              note flows but cannot reliably simulate network-policy / `.git/FETCH_HEAD` write denial.
+            - Captured the recovery guidance in the session-init workflow itself, which is the surface that consumes the
+              state during resume.
 
         **Risk flags:**
         - Symlinks: if the cwd is through a symlink (e.g., `~/dev -> /mnt/data/dev`), realpath

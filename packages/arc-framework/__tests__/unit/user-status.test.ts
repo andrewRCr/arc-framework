@@ -319,6 +319,71 @@ describe("runUserSessionInitStatus", () => {
     expect(result.shouldPromptToPull).toBe(false);
     expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
   });
+
+  it("uses the read-only remote probe for matching refs without fetch", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const probeIO = {
+      ...io,
+      exec: async (cmd: string, args: string[]) => {
+        calls.push({ cmd, args });
+        if (args[0] === "rev-parse") {
+          return { stdout: "abc123", stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "abc123\trefs/notes/arc/user/andrew\n", stderr: "" };
+        }
+        throw new Error(`unexpected command: ${cmd} ${args.join(" ")}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("clean");
+    expect(calls).toEqual([
+      { cmd: "git", args: ["rev-parse", "--verify", "refs/notes/arc/user/andrew"] },
+      { cmd: "git", args: ["ls-remote", "origin", "refs/notes/arc/user/andrew"] },
+    ]);
+  });
+
+  it("treats fetch-blocked ancestry comparison as local continuation, not stale-note divergence", async () => {
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[2] === "refs/notes/arc/user/andrew") {
+          return { stdout: "local123", stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "remote456\trefs/notes/arc/user/andrew\n", stderr: "" };
+        }
+        if (args[0] === "fetch") {
+          throw new Error("fatal: cannot update '.git/FETCH_HEAD': Operation not permitted");
+        }
+        throw new Error(`unexpected command: ${args.join(" ")}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("remote-unavailable");
+    expect(result.summary).toBe("andrew: session-init remote comparison unavailable here");
+    expect(result.detailLines).toContain(
+      "Remote notes are reachable, but this environment blocks the fetch-based ancestry comparison.",
+    );
+    expect(result.detailLines).toContain(
+      "Next step: continue with local tracked state, or retry session-init where git fetch/write access is allowed.",
+    );
+    expect(result.shouldPromptToPull).toBe(false);
+  });
 });
 
 describe("buildUserSessionInitStatusSummary", () => {
