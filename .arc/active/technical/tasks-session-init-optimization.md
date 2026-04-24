@@ -2684,7 +2684,18 @@ restructure, not as a Phase 4 audit target.
     **Protocol per subtask:** same as 4.2 — extract to staging, leave placeholders, two-copy sync per file.
 
     - [ ] **4.3.a Commit/task flow cluster** — `3_process-task-loop.md` (269 lines) + `prepare-commits.md` (157).
-      Cohesive on the commit/task completion loop; reasonable to audit together
+      Cohesive on the commit/task completion loop; reasonable to audit together.
+
+      **Also fix during this audit (surfaced during 4.2.e mdlint config work):**
+      `3_process-task-loop.template.md` has 2 MD046 errors (lines 112, 166) caused by team-mode conditional
+      blocks at L22-33 and L184-191 whose nested list content sits at 4-space indent. The `<!-- arc:if
+      team.mode == true -->` HTML comment interrupts list flow; subsequent 4-space-indented lines parse as
+      an indented code block rather than nested list items — meaning team-mode adopters would see these as
+      code blocks, not lists. `.arc/` copy passes lint only because team.mode=false strips the content.
+      Restructure the conditional blocks so nested content renders as intended (options: drop one indent
+      level, use explicit list markers that survive the HTML-comment break, or restructure to avoid nested
+      lists inside conditionals). Verify by pinning MD046 to both `fenced` and `indented` in a test lint pass
+      — template should be clean under either setting
 
     - [ ] **4.3.b `integrate-work-unit.md`** (360 lines) — standalone, heavy
 

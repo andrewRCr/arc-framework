@@ -24,7 +24,11 @@
 
     "gitignore": false,
 
-    "globs": ["**/*.md"],
+    "globs": [
+        "**/*.md",
+        "!packages/arc-framework/arc/**/*.md",
+        "packages/arc-framework/arc/**/*.template.md",
+    ],
 
     "ignores": [
         "**/node_modules/**",
@@ -32,7 +36,6 @@
         "**/venv/**",
         ".arc/reference/archive/**",
         ".arc/**/temp-*.md",
-        "packages/arc-framework/arc/**",
         "arc/**",
     ],
 
