@@ -13,6 +13,17 @@ Atomic Task Completion for the full protocol.
 
 ---
 
+- [ ] **`arc user fetch` — remove overwrite prompt** — Align with git convention:
+  `git fetch` is universally read-only and never prompts. Current `arc user fetch`
+  (`packages/arc-framework/src/handlers/user.ts:252-312`) shows "Local notes will be
+  overwritten by remote. Continue?" which is misleading (only the notes ref is updated;
+  working files are untouched) and indistinguishable from the `arc user pull` prompt
+  that uses identical copy for a different operation (ref fetch + file restore).
+  Fix: drop the prompt block from the fetch handler; keep it on pull where it's
+  accurate. Update affected tests. CLI-only — no markdown two-copy. State-machine
+  unification and full copy audit route to `plan-user-sync-ux.md` (backlog) — not in
+  scope here.
+
 - [ ] **Slash-form skill-syntax cleanup pass** — Generalize `/arc-resume` / `/arc-handoff`
   to bare skill names (`arc-resume` / `arc-handoff`) across live framework docs. Surfaced
   during 4.2.a: ~15 references including `system/workflows/arc/session-lifecycle/session-loop.md`,
