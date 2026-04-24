@@ -3309,9 +3309,19 @@ restructure, not as a Phase 4 audit target.
       duplicate meta-sections); 4.4.d.b mirrors 4.4.b pattern (operational-machinery-to-
       use-site relocation).
 
-    - [ ] **4.5.b Work-unit lifecycle core** — `activate-work-unit.md` (234 lines), `archive-work-unit.md` (275),
-      `clean-work-unit.md` (374, heavy), `deactivate-work-unit.md` (278). Note: `integrate-work-unit.md` lives in
-      Tier 2 (4.3.b), not here
+    - [x] **4.5.b Work-unit lifecycle core** — `activate-work-unit.md` 234→222 (~5%);
+      `archive-work-unit.md` 275→229 (~17%); `clean-work-unit.md` 374→291 (~22%);
+      `deactivate-work-unit.md` 278→260 (~6%). Cluster total 1161→1002 (~14%). Seventeen
+      staging entries (32-48) appended to `notes-docs-content-sweep.md` covering blockquote
+      extractions (Entry 32), rationale paragraphs (33, 44-48), example enumerations (34),
+      reference blocks (35), Common Pitfalls sections (36, 40), ✅/❌ mode enumerations
+      (37-38), conceptual recaps (39), and BEFORE/AFTER worked examples (41-43). Two-copy
+      sync verified across all four file pairs; Tier 2 markdown lint clean (223 files).
+      **Use-site relocation pattern did not recur** in this cluster — all gates already
+      inline at workflow level; the 4.4.b / 4.4.d.b hoisting opportunity did not surface.
+      Yield driver: clean carried 52% of the cluster trim (83/159 lines), consistent with
+      its "heavy" flagging — largest yield from § Common Pitfalls + § Output wholesale
+      deletions + three BEFORE/AFTER code fences + two ✅/❌ mode enumerations
 
     - [ ] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md` (155 lines),
       `verify-work-unit.md` (80), `planning/activate-planning-branch.md` (115),

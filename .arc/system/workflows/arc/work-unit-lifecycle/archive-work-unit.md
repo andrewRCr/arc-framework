@@ -74,25 +74,13 @@ git push origin --delete {child-branch-name}  # if pushed
 
 ### 2) Route Reference Files (If Applicable)
 
-Before archiving, assess whether any work artifacts have reference value beyond this work unit —
-investigation notes, benchmark data, design explorations, dependency maps. These files lose
-discoverability once buried in the archive directory.
+Before archiving, assess whether any work artifacts have reference value beyond this work unit.
 
 **Decision:** "Do any files have lasting reference value outside this work unit's context?"
 
-**Files with lasting value** (move to reference — never duplicate):
-
-- `research-*` files — standalone reference docs by convention. Always route to
-  `.arc/reference/research/`. Research content embedded in `notes-*` files is different — it's
-  tightly coupled to the work unit and archives normally.
-- Reusable procedures (rollback plans, migration guides)
-- Architecture diagrams, benchmark data, dependency maps, audits
-
-**Files without lasting value** (archive only):
-
-- Task-specific working notes, debugging logs
-- Intermediate drafts superseded by final deliverables
-- Scratchpad files used only during implementation
+**`research-*` convention:** `research-*` files are standalone reference docs by convention —
+always route to `.arc/reference/research/`. Research content embedded in `notes-*` files is
+different: tightly coupled to the work unit, archives normally.
 
 **Routing:**
 
@@ -222,44 +210,10 @@ needed.
 
 ## Archive Structure
 
-**Path pattern:** `.arc/reference/archive/{quarter}/{category}/{NN}_{name}/`
-
-- `{quarter}`: `2025-q4`, `2025-q3`, etc.
-- `{category}`: `feature/`, `technical/`, or `incidental/`
-- `{NN}`: Global sequence number (01-99), assigned by completion order across ALL categories
-- `{name}`: Work unit name (matching task list name)
-
-**Example structure:**
-
-```text
-2025-q4/
-├── technical/
-│   ├── 01_database-migration/
-│   ├── 02_ci-pipeline-overhaul/
-│   ├── 03_logging-standardization/
-│   └── 10_config-refactor/
-├── incidental/
-│   ├── 04_fix-auth-edge-cases/
-│   ├── 05_lint-config-cleanup/
-│   └── ...
-└── feature/
-    └── 06_user-notifications/
-```
-
-**Sequence numbering:** Numbers are global across all categories, assigned in completion order (not start
-order). Gaps within a category reflect interleaved work in other categories. Reset to 01 each quarter.
-
-**Categorization:** See [Work Organization Strategy][work-org]
-for feature vs technical vs incidental decision rules.
-
----
-
-## Common Pitfalls
-
-- Use `mv` instead of `git mv` → Loses file history
-- Archive before merge → Run [integrate-work-unit][integrate-work-unit] first
-- Archive before all branches merged → Multi-branch work units archive once after final merge
-- Skip status file deletion → dangling state file in `active/` confuses next session-init
+**Path pattern:** `.arc/reference/archive/{quarter}/{category}/{NN}_{name}/` — `{quarter}` in
+`YYYY-qN` form; `{category}` is `feature/`, `technical/`, or `incidental/`; `{NN}` is a global
+zero-padded sequence number (01-99) assigned by completion order across ALL categories, reset
+each quarter. See [Work Organization Strategy][work-org] for categorization rules.
 
 ---
 

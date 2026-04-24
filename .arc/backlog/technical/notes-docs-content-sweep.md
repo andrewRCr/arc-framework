@@ -1208,6 +1208,542 @@ extraction's scope and removes the two-hop lookup (workflow → strategy → tem
 absorption, the header skeleton is the piece worth preserving, since `template-tasks.md`'s
 docs equivalent will likely reproduce it verbatim.
 
+## Entry 32 — activate-work-unit.md § Prerequisites — "How artifacts reach the base branch" blockquote
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md` (lines 46-53,
+pre-trim); package-source copy at
+`packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md` same
+line range — straight two-copy file, no template-only delta.
+
+**Content:**
+
+> **How artifacts reach the base branch** depends on `branch.protection`:
+>
+> - **Full protection:** Planning branch PR merged
+>   ([integrate-planning-branch][integrate-planning-branch])
+> - **Partial protection:** Planning branch PR merged, or committed directly to base branch
+>   (documented exception for solo developers — see
+>   [Branch Protection Modes][work-org-protection])
+
+**Suggested destination:** `docs/methodology/branch-protection/` § Planning Artifacts Routing or
+folded into `docs/reference/work-organization/` § Branch Protection Modes — adopter-facing
+protection-mode-specific walkthrough of how planning artifacts land on the base branch. Pairs
+with the full "Branch Protection Modes" strategy section which docs absorption likely carries
+forward from `strategy-work-organization.md`.
+
+**Stylistic integration notes:** Trimmed workflow deletes the blockquote outright — the three-
+option Prerequisites bullet list immediately above ("Planning artifacts are on the base branch —
+arrived via one of: Planning branch PR / Batch branch PR / Direct commit (partial protection,
+documented exception)") already encodes the same routing, mode-agnostic. The blockquote
+reorganized the same information under a full-vs-partial lens; redundant for an agent executing
+activation, pedagogical for a reader learning protection-mode semantics. Link definitions
+`[integrate-planning-branch]` and `[work-org-protection]` were removed from the file's link block
+as orphans after the extraction. Docs absorption should preserve the two sub-bullets with the
+mode labels retained — the protection-mode framing is the piece worth carrying into docs.
+
+## Entry 33 — activate-work-unit.md § Step 4 Create Status File — pre-activation PRD metadata SSOT rationale
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/activate-work-unit.md` (lines
+122-125, pre-trim); package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> These fields serve pre-activation staleness/dependency tracking only — once the status file is
+> created, its `**State:**` field is the sole source of truth for WU lifecycle, and git history
+> tracks post-activation edits.
+
+**Suggested destination:** `docs/methodology/work-state/` § Status File as Single Source of
+Truth or folded into `docs/reference/templates/template-prd/` § Pre-Activation vs Post-Activation
+Metadata — adopter-facing explanation of *why* the three PRD header fields retire at activation.
+Natural pair with any docs page covering the `status-{name}.md` role in the lifecycle.
+
+**Stylistic integration notes:** Trimmed workflow keeps the imperative directive ("Remove
+`**State:**`, `**Related Work:**`, and `**Updated:**` lines from the PRD header") and the
+retention clause ("The PRD retains only `**Type:**` going forward"). Dropped sentence is SSOT
+rationale — explains why those three fields are obsolete post-activation, not what to do. An
+agent executing activation just needs the remove/retain directives; an adopter learning the
+methodology benefits from knowing the status-file-as-SSOT principle that drives the cleanup.
+
+## Entry 34 — archive-work-unit.md § Route Reference Files — file-category example enumerations
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/archive-work-unit.md` (lines 77-94,
+pre-trim); package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> Before archiving, assess whether any work artifacts have reference value beyond this work
+> unit — investigation notes, benchmark data, design explorations, dependency maps. These files
+> lose discoverability once buried in the archive directory.
+>
+> **Files with lasting value** (move to reference — never duplicate):
+>
+> - `research-*` files — standalone reference docs by convention. Always route to
+>   `.arc/reference/research/`. Research content embedded in `notes-*` files is different — it's
+>   tightly coupled to the work unit and archives normally.
+> - Reusable procedures (rollback plans, migration guides)
+> - Architecture diagrams, benchmark data, dependency maps, audits
+>
+> **Files without lasting value** (archive only):
+>
+> - Task-specific working notes, debugging logs
+> - Intermediate drafts superseded by final deliverables
+> - Scratchpad files used only during implementation
+
+**Suggested destination:** `docs/methodology/archival/` § Reference vs Archive Routing or
+`docs/guides/work-unit-archival/` § What Has Lasting Value — adopter-facing pattern-recognition
+guide for deciding which artifacts survive the archive boundary. Natural pair with a docs
+explanation of the `.arc/reference/research/` vs `.arc/reference/analysis/` distinction.
+
+**Stylistic integration notes:** Trimmed workflow keeps the operational core — the Decision
+question, the `research-*` convention rule (hoisted into its own prose paragraph since the
+convention is operationally essential), and the Yes/No Routing block with destinations. Dropped
+content is the "with lasting value" / "without lasting value" example enumerations plus the
+"files lose discoverability" framing sentence. The examples are pedagogical — they teach
+pattern recognition (reusable procedures, benchmarks, diagrams are lasting; scratchpads,
+intermediate drafts aren't). Agents executing archival can apply the Yes/No decision using the
+question alone; adopters learning the methodology benefit from the worked categories. Docs
+absorption should preserve the two bulleted example lists — they're the piece that makes the
+"lasting value" criterion concrete.
+
+## Entry 35 — archive-work-unit.md § Archive Structure — example tree + sequence-numbering paragraph
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/archive-work-unit.md` (lines
+226-250, pre-trim — the bullet-point expansion of path-pattern segments, the example directory
+tree, and the sequence-numbering-rule paragraph); package-source copy same line range — straight
+two-copy file.
+
+**Content:**
+
+> - `{quarter}`: `2025-q4`, `2025-q3`, etc.
+> - `{category}`: `feature/`, `technical/`, or `incidental/`
+> - `{NN}`: Global sequence number (01-99), assigned by completion order across ALL categories
+> - `{name}`: Work unit name (matching task list name)
+>
+> **Example structure:**
+>
+> ```text
+> 2025-q4/
+> ├── technical/
+> │   ├── 01_database-migration/
+> │   ├── 02_ci-pipeline-overhaul/
+> │   ├── 03_logging-standardization/
+> │   └── 10_config-refactor/
+> ├── incidental/
+> │   ├── 04_fix-auth-edge-cases/
+> │   ├── 05_lint-config-cleanup/
+> │   └── ...
+> └── feature/
+>     └── 06_user-notifications/
+> ```
+>
+> **Sequence numbering:** Numbers are global across all categories, assigned in completion order
+> (not start order). Gaps within a category reflect interleaved work in other categories. Reset
+> to 01 each quarter.
+
+**Suggested destination:** `docs/reference/archive-structure/` § Path Pattern and Numbering or
+folded into `docs/methodology/archival/` § Archive Layout — adopter-facing reference material
+showing what a mature archive directory looks like and how the global-sequence numbering reads
+across categories. The example tree is the piece that makes the "gaps reflect interleaved work"
+rule visible.
+
+**Stylistic integration notes:** Trimmed workflow collapses the § Archive Structure block to a
+single paragraph: path pattern + segment definitions inline + sequence rule + categorization
+pointer. Dropped content is the per-segment bullet expansion (redundant with the inline
+definitions), the full example tree, and the detailed sequence-numbering paragraph (the
+essential "global across categories, zero-padded, reset quarterly" facts are inline in the new
+paragraph). Pattern is surface-reduction to a minimal operational reference — an agent archiving
+one WU needs the path pattern and sequence rule; an adopter learning the archival model
+benefits from seeing how the structure reads across a quarter. Docs absorption should preserve
+the example tree — it's the most memorable piece.
+
+## Entry 36 — archive-work-unit.md § Common Pitfalls
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/archive-work-unit.md` (lines
+257-262, pre-trim — the entire § Common Pitfalls section body); package-source copy same line
+range — straight two-copy file.
+
+**Content:**
+
+> - Use `mv` instead of `git mv` → Loses file history
+> - Archive before merge → Run [integrate-work-unit][integrate-work-unit] first
+> - Archive before all branches merged → Multi-branch work units archive once after final merge
+> - Skip status file deletion → dangling state file in `active/` confuses next session-init
+
+**Suggested destination:** `docs/methodology/archival/` § Common Pitfalls or folded into a
+docs-wide § Anti-Patterns reference collecting pitfalls from multiple workflows. Adopter-facing
+anti-pattern reference — names the specific failure modes people hit during archival.
+
+**Stylistic integration notes:** Trimmed workflow deletes the § Common Pitfalls section and its
+enclosing `---` separators outright. The step-level instructions already encode the correct
+behavior for each pitfall — Step 3 uses `git mv`, the prerequisite at file top requires
+`integrate-work-unit` completion, Step 4 `git rm`s the status file, the multi-branch verification
+callout covers the "archive once" rule. Pattern is the same as Entry 16 / Entry 17: anti-pattern
+enumerations are reference-guide material, not workflow-execution material. Docs absorption
+should preserve the `→` arrow format — it reads well as a diagnostic "you hit this, here's
+what's wrong" reference.
+
+## Entry 37 — clean-work-unit.md § Mode 1 Mid-Work Cleanup — "What happens" ✅/❌ enumeration
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 28-36,
+pre-trim — the "What happens:" block under Mode 1); package-source copy same line range —
+straight two-copy file.
+
+**Content:**
+
+> **What happens:**
+>
+> - ✅ Fix stale task number references from restructuring
+> - ✅ Reorder content to match current task numbering (both task file and notes file)
+> - ✅ Clean up task file (migrate verbose blocks to notes file)
+> - ✅ Add migrated content to notes file
+> - ❌ **DO NOT clean up notes file itself** (it's not loaded every session)
+> - ❌ **DO NOT prepare notes file for archival** (work is still in progress)
+
+**Suggested destination:** `docs/methodology/cleanup/` § Mid-Work Mode or folded into a
+docs-facing Mode 1 vs Mode 2 comparison table. Adopter-facing pedagogical scan — "here's what
+Mode 1 does and doesn't touch" at a glance.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Mode 1 heading, Goal, and Use-when
+bullets; drops the ✅/❌ enumeration. The step-level instructions (Steps 1-4, 6-7 per the
+heading parenthetical) spell out exactly which actions happen in Mode 1 — the ✅/❌ list is a
+recap of the step-level content for at-a-glance consumption. Agents executing Mode 1 cleanup
+read the full steps; a reader scanning to decide which mode applies benefits from the
+bulleted contrast. Pairs naturally with Entry 38 (Mode 2 equivalent) in the docs absorption —
+the two should land adjacent so the mode distinction is scannable.
+
+## Entry 38 — clean-work-unit.md § Mode 2 Archival Preparation — "What happens" ✅/❌ enumeration
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 52-58,
+pre-trim — the "What happens:" block under Mode 2); package-source copy same line range —
+straight two-copy file.
+
+**Content:**
+
+> **What happens:**
+>
+> - ✅ Remove temporal noise from task file (grep-based, not content judgment)
+> - ✅ Evaluate notes file (keep for archival or delete if scratchpad)
+> - ✅ **If keeping notes:** Clean up notes file (TOC, headers, remove temporal markers)
+> - ✅ Collect completion doc data during cleanup (for large files)
+> - ✅ Prepare files for archival
+
+**Suggested destination:** `docs/methodology/cleanup/` § Archival Mode — paired with Entry 37's
+Mode 1 equivalent. The two entries together deliver the scannable Mode 1 vs Mode 2 distinction
+that drives mode selection.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Mode 2 heading, Goal, Use-when
+bullets, and Timing note; drops the ✅/❌ enumeration. Same lens as Entry 37 — the bulleted
+list recaps step-level content (Steps 1-7 including Step 5, per the heading parenthetical) for
+scan consumption. Agents executing Mode 2 read the full steps. Note: Mode 2 uses only ✅
+markers (all five actions happen), unlike Mode 1's mixed ✅/❌ — the mode-2 list is purely
+enumerative while mode-1 uses the ❌ markers to name explicit boundaries ("DO NOT clean up
+notes file itself"). Docs absorption should preserve both lists' exact marker patterns — the
+contrast between "here's what Mode 1 does NOT do" and "here's what Mode 2 does" is pedagogically
+meaningful.
+
+## Entry 39 — clean-work-unit.md § Output
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 345-357,
+pre-trim — the entire § Output section); package-source copy same line range — straight
+two-copy file.
+
+**Content:**
+
+> ## Output
+>
+> **Three-tier system:**
+>
+> - **Completion doc** (`completion-{name}.md`): Executive summary — "What was achieved?"
+> - **Task file** (`tasks-{name}.md`): Detailed sub-task record — "What was done?" (can be
+>   500-3000+ lines)
+> - **Notes file** (`notes-{name}.md`, if kept): Deep-dive reference — "How/why decisions,
+>   investigation journeys"
+>
+> **Task file target:** Historical record with inline outcomes preserved. No temporal noise, no
+> completion summary (that's the completion doc's job).
+>
+> **Notes file target (if kept):** Table of contents, clean headers, rich historical detail
+> organized by topic. Find any specific decision or detail in <1 minute.
+
+**Suggested destination:** `docs/methodology/work-artifacts/` § Three-Tier System or folded into
+`docs/reference/file-roles/` § Task List / Notes / Completion Doc Boundaries — adopter-facing
+conceptual framing of how the three artifact types divide the "what was done" reporting
+surface. Natural pair with `template-completion-doc.md`, `template-tasks.md`, and any docs
+guidance on notes-file framing (see Entry 30).
+
+**Stylistic integration notes:** Trimmed workflow deletes the § Output section wholesale.
+Content is conceptual recap — it describes the three file roles after the step-by-step
+instructions have already told the agent what to produce in each. Agents executing cleanup
+don't need the framing; adopters learning the methodology benefit from the executive-summary
+/ detailed-record / deep-dive-reference triad. The "task file: 500-3000+ lines" detail and the
+"find in <1 minute" notes-file target are the specific calibrations docs absorption should
+preserve — they quantify what the file roles look like in practice.
+
+## Entry 40 — clean-work-unit.md § Common Pitfalls
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 359-370,
+pre-trim — the entire § Common Pitfalls section body); package-source copy same line range —
+straight two-copy file.
+
+**Content:**
+
+> ❌ **Modifying task descriptions** — task lines are historical records, keep them verbatim
+> ❌ **Ignoring stale references** — after restructuring, "(Task 7)" might now mean Task 8
+> ❌ **Cleaning notes file mid-work** — notes cleanup is Mode 2 only, not Mode 1
+> ❌ **Leaving forward pointers in archived files** — remove pointers to archived task lists
+> ❌ **Removing backward pointers** — keep pointers to active task lists where work resumes
+> ❌ **Keeping completion summary in task file** — goes in separate `completion-{name}.md`
+> ❌ **Leaving temporal markers** — "Pending approval", "To be filled" confuses future readers
+> ❌ **Skipping TOC for archival** — large notes file without navigation is unusable
+> ❌ **Deleting instead of migrating** — lost context can't be recovered
+> ❌ **Over-editing notes** — don't remove the exploration journey, that's valuable context
+
+**Suggested destination:** `docs/methodology/cleanup/` § Common Pitfalls or folded into a
+docs-wide § Anti-Patterns reference collecting pitfalls from multiple workflows. Natural pair
+with Entry 36 (archive-work-unit.md's Common Pitfalls).
+
+**Stylistic integration notes:** Trimmed workflow deletes the § Common Pitfalls section
+wholesale. Same lens as Entries 16-17, 36: anti-pattern enumerations are reference-guide
+material, not workflow-execution material. The step-level instructions already encode correct
+behavior for each pitfall — "never modify task descriptions" is in Step 2's historical-records
+callout, "notes cleanup is Mode 2 only" is in the mode definitions and Step 4's append-only
+directive, etc. Docs absorption should preserve the `❌` marker and the `term — explanation`
+format — it's a scannable reference layout. Consider consolidating with Entry 36 into a single
+"Work Unit Archival / Cleanup Anti-Patterns" docs page; the two cover the same lifecycle phase
+and share the same adopter audience.
+
+## Entry 41 — clean-work-unit.md § Step 2 Inventory Open Work — stale-reference BEFORE/AFTER example
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 141-145,
+pre-trim — the code fence illustrating stale task-reference updating); package-source copy same
+line range — straight two-copy file.
+
+**Content:**
+
+> ```markdown
+> <!-- Example: After inserting Task 7a-7c, old reference needs updating -->
+> <!-- BEFORE --> **Manual E2E Validation** (Task 7) - Critical Path Only:
+> <!-- AFTER -->  **Manual E2E Validation** (Task 8) - Critical Path Only:
+> ```
+
+**Suggested destination:** `docs/methodology/cleanup/` § Fixing Stale References — worked
+example illustrating the renumbering-aware cleanup pass. Natural pair with the strategy-doc or
+docs page covering task renumbering.
+
+**Stylistic integration notes:** Trimmed workflow keeps the operational directive ("Search for
+patterns like `(Task N)`, `Task N:`, `Tasks N-M` in task descriptions and completion notes;
+verify each reference points to the correct current task") and drops the BEFORE/AFTER example.
+Same lens as Entries 16, 17, 23-27: worked examples are pedagogical — they make the pattern
+concrete for a learning reader but don't drive execution for an agent applying the search-and-
+verify procedure. Docs absorption should preserve the HTML-comment BEFORE/AFTER annotation
+style — it's a distinctive, easy-to-scan format for illustrating text transformations.
+
+## Entry 42 — clean-work-unit.md § Step 3 Mode 1 — KEEP/MIGRATE BEFORE/AFTER example
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 164-176,
+pre-trim — the code fence illustrating KEEP vs MIGRATE classification for task-line content);
+package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> ```markdown
+> <!-- KEEP: relevant to remaining Tasks 7-9 -->
+> - [x] 6.5 Implement auth fallback
+>     **IMPORTANT for Tasks 7-9:** All endpoints must check secondary auth after primary.
+>     Authentication order: Primary → API Key → Session.
+>
+> <!-- MIGRATE: historical, no future dependencies -->
+> - [x] 3.4 Debug token issue - RESOLVED
+>     **Root Cause:** Header missing in form.submit() due to browser security
+>     **Solution:** Switched to fetch() API with explicit headers
+>     **Investigation:** Tried 5 different approaches... [15 lines]
+>     → Migrate to notes file under "Token Issue Investigation (Task 3.4)"
+> ```
+
+**Suggested destination:** `docs/methodology/cleanup/` § KEEP vs MIGRATE Decision — worked
+example making the "relevant to remaining tasks" vs "historical, no future dependencies"
+distinction concrete. Natural pair with Entry 37 (Mode 1 ✅/❌) which introduces the migrate-
+verbose-blocks-to-notes action that this example illustrates.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Decision criteria (YES→Keep,
+NO→Migrate), the "What stays" / "What migrates" bullet lists, and drops the BEFORE/AFTER code
+fence. Same pedagogy-vs-execution split as Entry 41 — the bullet lists encode the rule, the
+code fence illustrates it. Docs absorption should preserve the HTML-comment KEEP/MIGRATE
+annotation, the two realistic task-line shapes (with auth-fallback importance note and debug
+journey), and the trailing migration directive (`→ Migrate to notes file under "..."`) — the
+full shape of the annotation is what teaches the pattern.
+
+## Entry 43 — clean-work-unit.md § Step 5a Consolidate and Deduplicate — BEFORE/AFTER example
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/clean-work-unit.md` (lines 272-289,
+pre-trim — the code fence illustrating notes-file consolidation before vs after); package-source
+copy same line range — straight two-copy file.
+
+**Content:**
+
+> ```markdown
+> <!-- BEFORE: Same compatibility info repeated across 3 task sections -->
+> ## Task 4.1: Auth Library Migration Research
+> [300 lines about library compatibility]
+>
+> ## Task 4.3: Auth Library Implementation
+> [50 lines repeating same compatibility info] + [200 lines implementation]
+>
+> <!-- AFTER: Consolidated under topic, cross-referenced -->
+> ## Auth Library Migration (Tasks 4.1-4.8)
+>
+> ### Compatibility Research (Task 4.1)
+> [300 lines - kept as comprehensive reference]
+>
+> ### Implementation (Task 4.3)
+> [200 lines implementation - kept]
+> See "Compatibility Research" above for library evaluation.
+> ```
+
+**Suggested destination:** `docs/methodology/cleanup/` § Notes File Consolidation or
+`docs/guides/notes-files/` § Archival Deduplication — worked example showing the per-task
+fragmentation → per-topic consolidation transformation. Natural pair with Entry 30 (notes-file
+framing as living scratchpad).
+
+**Stylistic integration notes:** Trimmed workflow keeps the operational directive
+("Consolidate and deduplicate") plus the three-step process (identify duplicates, keep most
+complete version, bias toward preservation) and drops the BEFORE/AFTER code fence. Same lens
+as Entries 41-42. The [300 lines]/[50 lines]/[200 lines] line-count placeholders are a
+distinctive docs-hostile style choice — they communicate "this is schematic, not literal" to a
+reader scanning for the pattern. Docs absorption should preserve the placeholder convention —
+it's the feature that lets the example communicate scale without committing to fictional
+content.
+
+## Entry 44 — deactivate-work-unit.md § Preamble — Design principle callout
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (lines
+12-15, pre-trim — the full Design principle blockquote); package-source copy same line range —
+straight two-copy file.
+
+**Content:**
+
+> **Design principle:** *Deactivation means undo-activation of a work unit that didn't
+> meaningfully start.* If work has happened, the correct operation is pause (`arc-shift`,
+> future), completion ([`integrate-work-unit.md`][integrate]), or abandonment
+> ([`clean-work-unit.md`][clean]) — not deactivation.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Deactivation vs Pause vs
+Integration vs Abandonment — adopter-facing conceptual framing of deactivation's scope relative
+to sibling lifecycle operations. Natural pair with the Case Matrix (still inline in the
+workflow) since the Case Matrix operationalizes this principle.
+
+**Stylistic integration notes:** Trimmed workflow deletes the callout outright — the Case
+Matrix + Prerequisites make the operational boundary concrete (Case A is the only workflow-
+applicable case; Cases B/C/D route to other workflows explicitly named in the matrix and § When
+NOT to Deactivate). The callout is a conceptual lens on the same information, not a procedural
+gate. Docs absorption should preserve the italics on "*Deactivation means undo-activation of a
+work unit that didn't meaningfully start.*" — the emphasis signals this is the definitional
+clause. The three sibling-operation references (pause / completion / abandonment) map onto the
+same three workflows the Case Matrix routes to, so docs absorption can cross-reference or
+consolidate.
+
+## Entry 45 — deactivate-work-unit.md § Case Matrix — "Only Case A is genuine deactivation" rationale
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (lines
+34-36, pre-trim — the paragraph following the Case Matrix table); package-source copy same
+line range — straight two-copy file.
+
+**Content:**
+
+> Only Case A is genuine deactivation — the implementation branch is the entire surface area of
+> the activation, so deleting it undoes the activation by construction. The other three have
+> work or merged state that moves them out of deactivation semantics into pause, integration, or
+> archival lifecycles.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Deactivation Scope —
+pairs with Entry 44 (Design principle). Adopter-facing rationale connecting the Case Matrix's
+routing to the underlying "branch = activation surface area" invariant.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Case Matrix table and drops the
+rationale paragraph that follows. Agents executing deactivation apply the Case Matrix directly
+("is your WU Case A/B/C/D?"); adopters learning the model benefit from knowing *why* the
+matrix routes that way. The key insight worth preserving in docs is the invariant — "the
+implementation branch is the entire surface area of the activation, so deleting it undoes the
+activation by construction" — which is the structural property that makes Case A tractable and
+Cases B/C/D intractable via deactivation. Docs absorption could consolidate this with Entry 44
+into a single § Deactivation Scope page covering both the conceptual framing and the
+matrix-rationale.
+
+## Entry 46 — deactivate-work-unit.md § Case B — "Why this isn't deactivation" rationale
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (lines
+209-211, pre-trim — the paragraph under the "Case B — Not merged, some work executed → Pause"
+heading, immediately before the shift-model descriptive paragraph); package-source copy same
+line range — straight two-copy file.
+
+**Content:**
+
+> **Why this isn't deactivation:** Branch deletion discards in-flight task work; preservation
+> via state-field flip (pause) is the shift lifecycle's job, not deactivation's.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Case B: Pause Pattern or
+consolidated with Entries 47-48 into a single § When Not to Deactivate reference covering all
+three "Why this isn't..." rationales. Adopter-facing clarification of the deactivation/pause
+boundary.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Case B heading, the shift-model
+descriptive paragraph ("A WU with partial task work that the developer wants to park is
+`arc-shift` pause territory. Shift uses a metadata-in-place pattern..."), and the Status
+callout about `arc-shift` being future. Drops only the "Why this isn't deactivation" opener.
+Same lens as Entry 44/45: rationale for why routing happens belongs in docs; the routing itself
+(Case B → `arc-shift`) is operational and stays. The three Case B/C/D entries (46, 47, 48)
+should land together in docs — they form a coherent reference on why the Case Matrix routes
+away from deactivation in the three non-Case-A cells.
+
+## Entry 47 — deactivate-work-unit.md § Case C — "Why this isn't Case A" rationale
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (lines
+224-225, pre-trim — the paragraph under the "Case C — Merged to base branch, no work executed
+→ Reversal PR (edge case)" heading, immediately before the "**Procedure (rare):**" block);
+package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> **Why this isn't Case A:** Activation's changes are already on the base branch as committed
+> history, so branch deletion alone can't restore pre-activation state.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Case C: Reversal PR —
+paired with Entries 46 and 48.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Case C heading, the "**Procedure
+(rare):**" block (the three-step reversal-PR procedure), and the closing "No separate workflow
+ships for Case C" sentence. Drops only the "Why this isn't Case A" opener. The rationale here
+is subtly different from Case B's — Case C is structurally impossible-via-deactivation (the
+Case-A surface area was already merged), whereas Case B is semantically-wrong-via-deactivation
+(the work exists and shouldn't be discarded). Docs absorption should keep both phrasings
+distinct; the "committed history means branch deletion doesn't restore state" insight is
+Case-C-specific and worth preserving verbatim.
+
+## Entry 48 — deactivate-work-unit.md § Case D — "Why this isn't deactivation" rationale
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (lines
+242-243, pre-trim — the paragraph under the "Case D — Merged to base branch, some work
+executed → Integrate or Clean" heading, immediately before the two-bullet routing block);
+package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> **Why this isn't deactivation:** Reversing merged history is the opposite of undo-activation;
+> the honest path is either finishing the WU or archiving it with abandoned status.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Case D: Integrate or
+Abandon — paired with Entries 46 and 47.
+
+**Stylistic integration notes:** Trimmed workflow keeps the Case D heading and the two-bullet
+routing block ("Complete and ship the WU" → integrate, "Abandon remaining work" → clean).
+Drops the "Why this isn't deactivation" opener. Case D's rationale is the most strongly-worded
+of the three: "reversing merged history is the opposite of undo-activation" frames the
+attempted operation as categorically wrong, not merely routed-elsewhere. The "honest path"
+phrasing carries editorial weight — it names finishing or explicitly abandoning as the morally
+correct alternative to reverting merged work. Docs absorption should preserve the phrasing
+verbatim; these entries (46, 47, 48) together form a pattern where each Case's routing
+rationale is calibrated to its specific failure mode.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
@@ -1223,3 +1759,8 @@ docs equivalent will likely reproduce it verbatim.
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [discovery-checklist]: ../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [activate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
+[integrate-planning-branch]: ../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
+[work-org-protection]: ../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
+[integrate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[integrate]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[clean]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
