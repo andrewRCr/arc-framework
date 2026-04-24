@@ -19,7 +19,8 @@ arc:
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded chunk of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
-<!-- arc:if team.mode == true -->
+
+  <!-- arc:if team.mode == true -->
 
   In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
 
@@ -30,7 +31,8 @@ arc:
     - If the task is owned by someone else → skip to your next owned or unowned task
 
   See [Team Coordination Strategy][team-coordination] § Task Ownership for the full convention.
-<!-- arc:endif -->
+
+  <!-- arc:endif -->
 
 - **Branch/task list coupling:** A task list may span one or more branches (stacked PRs, team
   sub-branches, phased delivery). Archive when all tasks are marked complete — branch cleanup
@@ -181,14 +183,16 @@ arc:
      status file — advance Next Task, Last Completed, and Next Action to reflect the post-commit
      state. Stage it alongside the task list changes. This is the primary update mechanism; session
      handoff is only a fallback. See [Commit Discipline][dev-rules-arc] § Work status accuracy.
-<!-- arc:if team.mode == true -->
+
+     <!-- arc:if team.mode == true -->
 
      **Shared branch concurrency:** When multiple developers commit to the same branch, pull
      before committing to reduce merge conflicts on the status file and the task list. If a
      conflict occurs, resolve the status file by updating it to reflect the current combined
      state (not either side's version). Task list conflicts are resolved by accepting both
      sides' checkbox changes.
-<!-- arc:endif -->
+
+     <!-- arc:endif -->
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? Common
      splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
