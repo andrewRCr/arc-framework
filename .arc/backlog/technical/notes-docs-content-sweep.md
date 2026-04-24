@@ -498,6 +498,87 @@ traceability. Voice adaptation: mapping table is reference material; surrounding
 should frame it as "these rules are grounded in ARC's principles" — the coherence signal the
 adopter needs, without restating the rules themselves.
 
+## Entry 11 — session-init.md § Design context — P5 framing + persistent-memory nuance
+
+**Source:** `.arc/system/workflows/arc/session-lifecycle/session-init.md` (lines 20-23, pre-trim)
+
+**Content:**
+
+> **Design context**: Sessions implement P5 (Context Preservation) — structured document loading
+> for agents with ephemeral context. Agents with persistent memory may need lighter ceremonies;
+> the principle (work context must be recoverable) still applies. The session state mechanism is
+> overridable via the [session-state method][arc-methods-session].
+
+**Suggested destination:** `docs/methodology/session-model/` § Design Context or
+`docs/methodology/principles/p5-context-preservation/` — framing content about why ARC treats
+session-init as a structured-load moment. Pairs naturally with Entry 10's rule → principle
+mapping (P5 anchor).
+
+**Stylistic integration notes:** The trimmed workflow retains a single-sentence design context
+pointing at the session-state method (the override mechanism — operationally relevant). The
+absorbed content is principle-grounding rationale that serves readers learning the methodology
+rather than agents executing session-init. "Agents with persistent memory may need lighter
+ceremonies" is worth retaining in the docs absorption — signals ARC doesn't assume a single
+agent architecture. `[arc-methods-session]` link anchor is retained in the source and resolves
+to `system/methods/session-state.md`; docs absorption can reference the equivalent docs page.
+
+## Entry 12 — session-init.md § Next work unit discovery — planning readiness enumeration
+
+**Source:** `.arc/system/workflows/arc/session-lifecycle/session-init.md` (lines 255-259, pre-trim
+— closing paragraph of § Next work unit discovery); template counterpart at
+`packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`
+(lines 278-280, pre-trim) within the `<!-- arc:if pm.mode == arc-in-git -->` branch.
+
+**Content:**
+
+> Planning readiness varies: a completed PRD may be ready for task generation, a draft PRD may
+> need refinement, a `plan-*` doc may need development before a PRD can be created, a roadmap
+> entry may have no artifacts yet, or there may be no roadmap entry at all. The agent discovers
+> and reports — the user decides how to proceed.
+
+**Suggested destination:** `docs/guides/session-init/` § Between Work Units or
+`docs/methodology/planning-pipeline/` § Discovery — adopter-facing content about what to expect
+when session-init runs without an active work unit. The enumeration is a useful orientation for
+adopters new to the planning pipeline; it exhausts the readiness states agents may report.
+
+**Stylistic integration notes:** Trimmed workflow retains the 4-step discovery protocol
+(ROADMAP → backlog artifacts → report → propose) but no longer enumerates readiness
+permutations — those are non-operational for agent execution and belong alongside
+`plan-arc-modes.md` / planning-pipeline docs. Re-frame the "agent discovers / user decides"
+closing for the docs audience as a principle statement rather than a behavioral restatement.
+
+## Entry 13 — session-init.md § Context-mismatch examples — dropped illustrations
+
+**Source:** `.arc/system/workflows/arc/session-lifecycle/session-init.md` — Tier 1 examples 3-4
+(lines 315-319 pre-trim) and Tier 2 example 3 (lines 335-336 pre-trim) from § If Context Seems
+Mismatched.
+
+**Content:**
+
+> **Tier 1 — Auto-recover with notice (dropped examples):**
+>
+> - Active status file says "Last Completed: Task 3.2" but task list shows 3.3 also marked
+>   `[x]` → proceed with 3.3 as last completed
+> - (Team mode) Active status file shows "Next Task: 3.4" but task list shows 3.4 marked `[x]`
+>   by a teammate's commit → another developer completed it; proceed with 3.5 as current
+>
+> **Tier 2 — Stop and ask (dropped example):**
+>
+> - Task list shows Task 3.3 incomplete but git log has a commit referencing Task 3.3 —
+>   conflicting signals at the same trust tier
+
+**Suggested destination:** `docs/guides/session-init/` § Recognizing Context Mismatches or
+`docs/reference/mismatch-patterns/` — pedagogical pattern-recognition material. Full set of
+examples (retained + dropped) makes a more thorough adopter-facing page than the trimmed
+workflow's 2-per-tier retention.
+
+**Stylistic integration notes:** Trimmed workflow retains 2 canonical examples per tier — the
+patterns most worth recognizing at first read. Dropped examples add coverage (Last-Completed
+lag, team-mode teammate, same-tier conflict) useful in a reference page but redundant when
+loaded into agent context every session. Team-mode example is currently gated by team.mode
+conditional in the template; docs absorption can present it uniformly since team mode is
+well-documented elsewhere on the docs site.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
@@ -507,3 +588,4 @@ adopter needs, without restating the rules themselves.
 [arc-config]: ../../system/arc-config.yml
 [arc-methods-dir]: ../../system/methods/README.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
+[arc-methods-session]: ../../system/methods/session-state.md

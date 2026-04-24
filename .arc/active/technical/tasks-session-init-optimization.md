@@ -2586,8 +2586,63 @@ restructure, not as a Phase 4 audit target.
         needed — references already resolve once template renders with the conditional section
         present.
 
-    - [ ] **4.2.e `session-init.md`** (344 lines) — standalone, heavy. Reflexive audit of the workflow that directs
-      what gets loaded; deserves dedicated focus
+    - [x] **4.2.e `session-init.md` — audited (both copies)**
+
+        **Outcome:** Project copy 344 → 308 lines (10.5% reduction); template 373 → 336 lines
+        (9.9% reduction). Character of the trim was mostly surgical — scattered rationale paragraphs
+        plus 3 heavy extractions. Came in below the Phase 4 ~80-90% extraction heuristic by design:
+        4.2.g was spun off (DEV-RULES domain scan wording held for full structural replacement), and
+        one of the four heavy-extraction candidates was relocated (not staged for docs sweep).
+
+        **Heavy changes:**
+        - **SESSION-NOTES load errors (4 error classes with diagnostic commands)** relocated to
+          `strategy-session-operations.md § SESSION-NOTES Load Error Recovery` (new subsection under
+          § Session State Portability). Operational recovery reference — agent needs the commands at
+          runtime; docs-site target serves no read-path. session-init.md retains a single pointer via
+          new `[session-ops-load-errors]` reference link.
+        - **Multi-file disambiguation prompt example** trimmed from 11-line illustration to 4-line
+          structural scaffold (`[N] <filename> · <branch> / Next Task / State` pattern). Verbose
+          concrete examples not staged — project-specific pedagogical value low.
+        - **Planning-readiness enumeration** (§ Next work unit discovery closing paragraph) dropped;
+          staged Entry 12. 4-step discovery protocol retained.
+        - **Context-mismatch examples** trimmed Tier 1 4→2 and Tier 2 3→2 (matches 4.2.b Write-for-
+          the-reader precedent); dropped examples staged Entry 13.
+
+        **Adjacent captures from audit:**
+        - **Step 1 "Adopters: add project-specific runtime checks" prose dropped in both copies.**
+          Misleading — rendered copies churn on `arc update`; template isn't adopter-owned. Correct
+          surface for non-ARC pre-session guidance is outside ARC (harness-level files). User-
+          approved framing: same reasoning that retired `CLAUDE.ARC.md`; no new extension invented
+          (no reinventing the wheel). `pwd` retained — lightweight cwd orientation, sessions shift
+          cwd genuinely. `plan-docs-content-sweep.md` Drift Item #4 augmented to capture env-
+          bootstrap as an additional harness-layer use case.
+        - **New task 4.2.g — DEV-RULES domain enumeration via composite probe** added. Replaces
+          Step 4 item 5 scan instruction (nearly always-empty) with probe-delivered
+          `{path, domain, purpose}` tuples via frontmatter on DEV-RULES.{domain}.md files; ships new
+          `reference/templates/template-dev-rules.md` scaffold (user-initiated addition — makes
+          domain-rules adoption copy-paste); captures docs-site drift at implementation time. Step 4
+          item 5 wording trim held for 4.2.g's wholesale replacement.
+
+        **Staging entries added (3, 11-13 in `notes-docs-content-sweep.md`):**
+        Entry 11 — Design context P5 framing + persistent-memory nuance (preamble);
+        Entry 12 — Next-work-unit planning-readiness enumeration;
+        Entry 13 — Context-mismatch dropped illustrations (Tier 1 ex 3+4, Tier 2 ex 3).
+
+        **Inline tightenings (~10 sites):** Design-context P5 annotation stripped; config-awareness
+        rationale tightened (§ 2); probe-failure parenthetical + closing reassurance dropped; remote-
+        ahead rationale tightened (§ 3); reading-rule parenthetical dropped; task-list "Why partial
+        read OK" folded into the header clause; task-execution-workflow rationale tightened (§ 4);
+        post-context-load use-cases dropped (§ 5); "Never include" closing rationale tightened (§ 7);
+        contributor-block closing rationale tightened.
+
+        **Agent-audience lens:** `audience: agent` in frontmatter — strictly agent-loaded. Per 4.2.a
+        lens default: no `[TODO-docs-site]` placeholders at extraction sites; sweep WU locates
+        extractions via staging Source ranges. No file-bottom stub added.
+
+        **Two-copy sync (configurable-file two-pass per 4.2.d):** All content trims applied to both
+        copies. Template-specific conditional blocks preserved intact (`team.mode` × 2, `pm.mode ==
+        arc-in-git`, `pm.mode != arc-in-git`); `{{REPO_ROOT}}` placeholder preserved. Template
+        lint-excluded by workspace config; force-linted via temp-copy, zero errors.
 
     - [ ] **4.2.f Template + reference + config cluster** — `template-status.md` (56 lines; shapes every active status
       file, template-level bloat propagates), `STRATEGY-INDEX.md` (80 lines; session-init Item 6 — adding to Tier 1
@@ -2596,7 +2651,31 @@ restructure, not as a Phase 4 audit target.
       agent no longer reads the file directly. Audit pressure here is docs-hygiene (rationale-heavy comments belong
       on the docs site under "operational content only") rather than session-init load-cost
 
-- [ ] **4.3 Tier 2 audit — core lifecycle workflows**
+    - [ ] **4.2.g DEV-RULES domain enumeration via composite probe** — replace session-init.md Step 4 item 5's
+      `constitution/` scan instruction with probe-delivered domain-rules awareness. Surfaced during 4.2.e audit:
+      every session scans `constitution/` for `DEV-RULES.*.md` domain files with near-always-empty result
+      (rare adopter need).
+
+      **Scope:**
+        - **Frontmatter convention** on domain DEV-RULES files: `domain: <slug>` and `purpose: <one-liner>` under
+          a protected namespace, mirroring the workflow-frontmatter pattern Phase 1 established. Zero domain
+          files exist in this repo; no migration.
+        - **CLI resolver** in `arc status --session-init --json` — new top-level field (e.g.,
+          `domainRules.value: [{path, domain, purpose}]`) enumerates constitution/ DEV-RULES files with parsed
+          frontmatter. Empty array when none exist.
+        - **Session-init.md Step 4 item 5** — drop the in-step scan instruction; consume probe output instead.
+          Agent receives pre-resolved `{path, domain, purpose}` list analogous to STRATEGY-INDEX entries, loads
+          on-demand when work touches a domain.
+        - **New `reference/templates/template-dev-rules.md`** — shipped adopter template with frontmatter
+          scaffold pre-populated (`domain:`, `purpose:`, empty body skeleton). Include comment directing
+          adopters to rename the file to `DEV-RULES.{DOMAIN}.md` so the probe picks it up. Two-copy sync.
+        - **Session-init.md Step 4 item 5 trim** — the held 4.2.e wording tightening lands as part of this
+          task when the scan instruction is replaced wholesale.
+        - **Docs-site drift capture** at implementation time — domain-rules pattern + template surface belong on
+          the docs site (adopter-facing); add a Drift Item entry to `plan-docs-content-sweep.md` at that point.
+
+      **Dependencies:** none blocking; independent of 4.2.e content trim. Order after 4.2.e for commit
+      cohesion.
 
     **Goal:** Same operational-context audit applied to core lifecycle workflows — commit/task flow (4.3.a) fires
     repeatedly per session; integrate-work-unit (4.3.b) fires per-WU; session-handoff (4.3.c) fires per-session.

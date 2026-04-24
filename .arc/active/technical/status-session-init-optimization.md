@@ -13,15 +13,19 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.2.e — session-init.md audit (344 lines, heavy)
-- **Last Completed:** Tasks 4.2.c + 4.2.d — project-level Tier 1 docs audited.
-  DEV-RULES.PROJECT 214 → 137 (36%); QUICK-REFERENCE project 330 → 296 + template
-  242 → 225 with new conditional `§ Platform Commands` section resolving 6 dead
-  workflow pointers. Lens precedents locked: project-level files use drop / tighten /
-  relocate-to-project-strategy (no docs-sweep staging); configurable-file audit is
-  two-pass (project trim + template quality). Details in task-list outcome blocks.
+- **Next Task:** 4.2.f — Template + reference + config cluster (line ~2647)
+- **Last Completed:** Task 4.2.e — session-init.md audit (both copies). Project copy
+  344 → 308 (10.5%); template 373 → 336 (9.9%). Surgical trim with 3 heavy changes:
+  SESSION-NOTES load errors relocated to `strategy-session-operations.md`;
+  multi-file prompt trimmed to structural scaffold; planning-readiness + context-
+  mismatch examples staged (Entries 11-13). Adjacent captures approved during
+  audit: Step 1 adopter-prose dropped (harness-layer framing in Drift Item #4);
+  new Task 4.2.g spun off for DEV-RULES domain enumeration via composite probe.
+  Details in task-list outcome block.
 - **Blockers:** none
-- **Next Action:** Begin 4.2.e — reflexive audit of `session-init.md` (344 lines).
-  Framework file — two-copy sync to package source per 4.2.b precedent. Care: trimming
-  session-init's own instructions requires remaining guidance still works when agents
-  load it to execute session-init.
+- **Next Action:** Begin 4.2.f — audit `template-status.md` (56 lines),
+  `STRATEGY-INDEX.md` (80 lines), and `arc-config.yml` (173 lines, comments only).
+  Project-level / configurable-file lens (4.2.c/4.2.d precedents). `arc-config.yml`
+  audit pressure is docs-hygiene, not load-cost (3.R moved session-init
+  consumption to the composite probe). Or redirect to 4.2.g if structural work is
+  preferred next.

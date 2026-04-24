@@ -157,7 +157,9 @@ likely in a "sessions" or "agents" reference page, explaining the layering:
   the agent harness before any ARC interaction. Agent-specific, project-root-scoped, outside ARC's
   two-copy sync. Appropriate home for: harness auto-approve quirks, sandbox escalation patterns,
   project-specific invocation guidance (e.g., "use `npx arc`" in self-hosting setups), tool-use
-  preferences tied to the harness rather than ARC workflows.
+  preferences tied to the harness rather than ARC workflows, project env bootstrap or toolchain
+  prerequisites (e.g., "run `docker compose up` before the session") — any pre-session operational
+  guidance unrelated to ARC methodology.
 - **ARC layer (session-init):** `system/briefs/AGENT-BRIEF.{ARC,PROJECT,CONTRIBUTOR}.md` — loaded
   via session-init skill (`arc-resume`, `$arc-resume`, or equivalent per harness). Methodology-scoped
   orientation for the agent working within ARC.
