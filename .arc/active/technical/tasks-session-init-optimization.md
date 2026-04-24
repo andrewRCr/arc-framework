@@ -3086,23 +3086,40 @@ restructure, not as a Phase 4 audit target.
     Checklist relocated to point of use. Runs before Tier 3 audit (4.5) so Tier 3 audits `2_generate-tasks.md` in
     its post-restructure state.
 
-    - [ ] **4.4.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
-        - New file: `.arc/reference/templates/template-tasks.md`
-        - Move: feature/technical header template, incidental header template, verification phase block, atomic
-          companion file template, success criteria block
-        - Two-copy sync (`packages/arc-framework/arc/reference/templates/template-tasks.md`)
-        - **Resolved (pre-Phase-4): `**Strategies:**` convention is task-level-only.** Phase-header variant dropped
-          — in practice across many work units it read as noise (STRATEGY-INDEX already provides session-init
-          awareness, and agents consult strategies on demand by domain). Task-level annotation retained for cases
-          where a specific task's domain relevance isn't obvious from its title. Apply this resolution here:
-            - `template-tasks.md` phase-header template ships without a `**Strategies:**` field
-            - Update `.arc/system/workflows/arc/2_generate-tasks.md` Step 3 (lines ~65–69): remove the "under the
-              phase header" option from the `**Strategies:**` wording; keep the task-level option, framed as "use
-              when the connection isn't obvious from the task title"
-            - Sweep `.arc/backlog/technical/tasks-arcd-rebrand.md` to remove phase-header `**Strategies:**` lines.
-              `tasks-session-init-optimization.md` was swept during the Phase 4 prep edit; archived task lists left
-              alone (historical record)
-            - Two-copy sync on `2_generate-tasks.md`
+    - [x] **4.4.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
+
+      **Outcome:** Templates landed; convention change applied; stale annotation swept.
+
+        - **New file:** `.arc/reference/templates/template-tasks.md` (217 lines) — created following
+          the `template-completion-doc.md` convention (single file, variants under headings, nested
+          triple-backtick code blocks, curly-brace placeholders, prose pointers to
+          `strategy-task-list-formatting.md` for rules). Contains: feature/technical header template,
+          incidental header template, verification phase block, atomic companion file template,
+          success criteria block — each with a short "Use when" framing and a reference back to the
+          strategy doc for detailed rules. Phase-header template ships without a `**Strategies:**`
+          field (per resolved convention). Two-copy sync: mirrored to
+          `packages/arc-framework/arc/reference/templates/template-tasks.md`; post-write diff
+          identical.
+
+        - **`2_generate-tasks.md` Step 3 update:** dropped the "under the phase header or" option
+          from the `**Strategies:**` wording; reframed the "use when it adds value, skip when the
+          connection is obvious" closer to "use when the connection isn't obvious from the task
+          title". Applied to both copies (`.arc/` + the `.template.md` counterpart); post-edit diff
+          shows only the pre-existing team.mode conditional blocks (L71-79 ownership note, L170-172
+          team-coordination link def).
+
+        - **`tasks-arcd-rebrand.md` sweep:** removed the document-level `**Strategies:**` block
+          (four-line citation of work-organization, package-project-sync, file-classification, and
+          configurability-architecture strategies under the Overview). Only non-task-level
+          `**Strategies:**` instance in the file. Also removed three orphaned reference-link
+          definitions (`[package-sync]`, `[file-classification]`, `[config-arch]`) — confirmed
+          unused elsewhere via grep. `[work-org]` retained (still referenced in Overview prose at
+          L25).
+
+        - **Tier 1 markdownlint:** clean on all five modified files after removing an unused
+          `[verify-work-unit]` reference-link definition at the bottom of `template-tasks.md` (all
+          actual uses of that label are inside nested code blocks, which don't resolve link
+          references — definition was orphaned per MD053).
 
     - [ ] **4.4.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
         - Move checklist from `strategy-task-list-formatting.md` § Quick Format Checklist into the appropriate point in

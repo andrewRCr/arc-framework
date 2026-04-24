@@ -30,11 +30,6 @@ branch `technical/arcd-rebrand`; Phases 3–5 each run on a dedicated follow-up 
 session boundaries sit between branches where external actions occur (GitHub UI rename, `@arcd/cli`
 publish, deprecation publish, self-migration smoke test).
 
-**Strategies:** [`strategy-work-organization.md`][work-org] (phased delivery pattern),
-[`strategy-package-project-sync.md`][package-sync] (two-copy discipline for framework files),
-[`strategy-file-classification.md`][file-classification] (framework file tier decisions during sweep),
-[`strategy-configurability-architecture.md`][config-arch] (config seam rationale).
-
 ## Scope
 
 ### Will Do
@@ -875,9 +870,6 @@ Phase 7 verification, and the final [`integrate-work-unit.md`][integrate-work-un
 ---
 
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
-[package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
-[file-classification]: ../../reference/strategies/arc/strategy-file-classification.md
-[config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
 [rotate-branch]: ../../system/workflows/arc/work-unit-lifecycle/rotate-branch.md
 [activate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
