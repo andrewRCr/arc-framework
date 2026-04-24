@@ -5,24 +5,26 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.5.d — Supplemental workflow cluster audit
-  (`manage-incidental-work.md` 226, `maintain-project-docs.md` 150,
-  `add-agent.md` 87, `verify-arc-integrity.md` 151,
-  `integrate-external-content.md` 130) (line ~3326)
-- **Last Completed:** Task 4.5.c — Work-unit lifecycle (branch/verify/planning)
-  audit. `rotate-branch.md` 155→117 (~25%); `verify-work-unit.md` 80→80 (no-op,
-  operational-dense); `planning/activate-planning-branch.md` 115→99 (~14%);
-  `planning/integrate-planning-branch.md` 152→135 (~11%). Cluster total 502→431
-  (~14%, 71 lines). Eleven staging entries (49-59) appended to
-  `notes-docs-content-sweep.md`. Two new link defs added: `[work-org-branches]`,
-  `[config-merge]`. Partial-extract pattern deployed three times (Entries 51, 55,
-  58) — new structural variant with paired "full pre-trim" / "retained in trimmed
-  workflow" blocks. Two-copy sync verified across all four file pairs; Tier 2
-  markdown lint clean (223 files).
+- **Next Task:** 4.6 — D7b extension-point match pre-commit hook (test-first)
+  (line ~3356)
+- **Last Completed:** Task 4.5 parent — Tier 3 audit of remaining workflows
+  closed after 4.5.d landed. Series aggregate: 15 agent-loaded workflows in
+  four clusters; 2722→2372 (-350 lines, ~13%). Staging entries 28-68 (41
+  total) appended to `notes-docs-content-sweep.md`. Two strict no-ops
+  confirmed (verify-work-unit.md, verify-arc-integrity.md) plus one
+  constrained-yield case (2_generate-tasks.md ~6%, protected Quick Format
+  Checklist). Use-site relocation pattern (4.4.b/4.4.d.b) did not recur
+  across the series. Partial-extract pattern deployed five times (4.5.c: 3;
+  4.5.d: 2) — new structural variant with paired "full pre-trim" / "retained
+  in trimmed workflow" blocks. add-agent.md retirement cleanup folded into
+  4.5.d (agent-specific `{AGENT}.ARC.md` Step 2 removed outright, Steps 3→2
+  / 4→3 renumbered). 4.5.d cluster: 744→658 (~12%); entries 60-68.
 - **Blockers:** none
-- **Next Action:** Begin Task 4.5.d — supplemental cluster audit. Standard
-  posture (same protocol as 4.5.a/b/c): extract rationale/prose to
-  `notes-docs-content-sweep.md` staging entries (agent-audience lens, no inline
-  `[TODO-docs-site]` placeholders), two-copy sync per file. Cluster is 744 lines;
-  expect ~8-12% yield (three of five files likely near operational-dense per
-  pre-read). 4.5 parent closure follows 4.5.d completion.
+- **Next Action:** Begin Task 4.6 — D7b extension-point match pre-commit
+  hook. Test-first build; CHECK 15 added to `.arc/system/githooks/pre-commit`
+  alongside existing CHECK 12/13/14 pattern. Validates every workflow
+  extension-point reference has a matching extension file in
+  `system/extensions/`. Pre-Phase-4 tag-convention decision already
+  resolved: reuse existing anchor-suffix convention (`· `#<name>``), no new
+  syntax. Consumes shared scan helpers from `src/lib/extensions/` shipped by
+  Task 3.R.k.b. Full task specification in tasks-file line ~3338.

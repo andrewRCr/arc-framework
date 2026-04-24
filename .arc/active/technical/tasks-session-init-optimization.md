@@ -3257,12 +3257,24 @@ restructure, not as a Phase 4 audit target.
         Two-copy sync verified across all four files (both template-completion-doc.md and
         integrate-work-unit.md are straight two-copy files). Tier 1 markdown lint clean.
 
-- [ ] **4.5 Tier 3 audit — remaining workflows**
+- [x] **4.5 Tier 3 audit — remaining workflows — done**
 
-    **Goal:** Operational-context audit applied to remaining session-init-relevant workflows. Runs after 4.4 so
-    `2_generate-tasks.md` is audited in its post-restructure state. Decomposed by domain cluster.
-
-    **Protocol per subtask:** same as 4.2 / 4.3 — extract to staging, leave placeholders, two-copy sync per file.
+    **Outcome:** Operational-context audit completed across 15 agent-loaded
+    workflows in four clusters (4.5.a planning, 4.5.b work-unit-lifecycle core,
+    4.5.c branch/verify/planning, 4.5.d supplemental). Aggregate: 2722→2372
+    (-350 lines, ~13%). Staging entries 28-68 (41 entries) appended to
+    `notes-docs-content-sweep.md`. Two strict no-ops confirmed (verify-work-unit.md
+    in 4.5.c, verify-arc-integrity.md in 4.5.d) plus one constrained-yield case
+    (2_generate-tasks.md in 4.5.a, ~6%, protected Quick Format Checklist structure).
+    **Use-site relocation pattern** (4.4.b / 4.4.d.b) did not recur across the
+    series — cluster gates were inline at workflow level across all 15 files.
+    **Partial-extract pattern** deployed five times (4.5.c: 3; 4.5.d: 2) — paired
+    "full pre-trim" / "retained in trimmed workflow" blocks document the new
+    structural variant in staging entries for future audits. Retirement cleanup on
+    `add-agent.md` (agent-specific `{AGENT}.ARC.md` configuration step removed per
+    separately confirmed framework change) folded in during 4.5.d — not staged,
+    retired outright. Two-copy sync verified and Tier 2 markdown lint clean after
+    each subtask.
 
     - [x] **4.5.a Planning workflows** — `1_create-prd.md` (138 → 115, ~17%): preamble
       feature/technical taxonomy collapsed to one-line strategy pointer + consolidated rule
@@ -3345,8 +3357,43 @@ restructure, not as a Phase 4 audit target.
       14% exactly by coincidence, despite 4.5.c being less than half 4.5.b's cluster size
       (502 vs 1161 lines).
 
-    - [ ] **4.5.d Supplemental** — `manage-incidental-work.md` (226 lines), `maintain-project-docs.md` (150),
-      `add-agent.md` (87), `verify-arc-integrity.md` (151), `integrate-external-content.md` (130)
+    - [x] **4.5.d Supplemental** — `manage-incidental-work.md` 226→189 (~16%);
+      `maintain-project-docs.md` 150→123 (~18%); `add-agent.md` 87→72 (~17%,
+      retirement cleanup — not extraction); `verify-arc-integrity.md` 151→151
+      (strict no-op, reference material); `integrate-external-content.md`
+      130→123 (~5%). Cluster total 744→658 (-86 lines, ~12%). Extraction-only
+      yield: 71 lines / ~9.5% (manage-incidental-work 37, maintain-project-docs
+      27, integrate-external-content 7). Nine staging entries (60-68) appended
+      to `notes-docs-content-sweep.md`: § Overview wholesale (60), Key Distinction
+      examples (61), Why This Matters rationale (62), filename-examples partial
+      (63), concrete commit-message example (64), full-protection reassurance
+      line (65), § Document Hierarchy wholesale (66), SSOT example (67), Skills
+      context blockquote wholesale (68). Two-copy sync verified across all five
+      file pairs; Tier 2 markdown lint clean (223 files).
+
+      **`add-agent.md` retirement cleanup** — Step 2 "Check for Agent-Specific
+      Configuration" removed wholesale per user note that agent-specific
+      (`{AGENT}.ARC.md`) files were retired from the framework. Steps 3→2 and
+      4→3 renumbered; "After this workflow" summary updated to drop
+      "agent-specific config" reference. No staging entry — content is retired,
+      not staged for docs absorption. All 15 lines of the file's reduction came
+      from this cleanup; 0 from content extraction.
+
+      **`verify-arc-integrity.md` strict no-op** — reference material by nature;
+      six Check Categories each carry description/severity/remediation triples
+      the agent needs when interpreting script output. Trimming reduces reference
+      value.
+
+      **Entry 66 deviation from standard destination framing** —
+      `maintain-project-docs.md` § Document Hierarchy duplicated session-init.md's
+      canonical loading model. Staged as known-stale rather than
+      docs-absorption-ready; entry flags for discard when docs-sweep WU resolves
+      the loading model.
+
+      Cluster yield (12% total, ~9.5% extraction-only) is the lowest in the 4.5
+      series, driven by three of five files being already operational-dense.
+      Confirms the pre-implementation read that supplementals are tighter than
+      lifecycle core.
 
     - **Out of Tier 3 scope (excluded explicitly for visibility):** `initial-setup/*.md` (one-off install workflows,
       not loaded per-session), `session-lifecycle/session-loop.md` (`audience: human`, not agent-loaded),

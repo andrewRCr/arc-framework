@@ -57,9 +57,6 @@ changes versus AI interpretation.
 - Other documents can reference it, but shouldn't duplicate it
 - Contradictions emerge when same instruction exists in multiple places with slight variations
 
-**Example**: Task completion protocol belongs in `3_process-task-loop.md`.
-Other documents should reference it, not duplicate it.
-
 ### Cross-References Over Duplication
 
 When tempted to duplicate content:
@@ -122,29 +119,5 @@ framework version — use any versioning scheme that works for your team.
 - Could this live in a separate reference doc and be read on-demand?
 
 **Remember**: Every line added to session-init docs is read every session. Optimize for signal-to-noise ratio.
-
-## Document Hierarchy
-
-### Always Read (Session Init)
-
-- `AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md` - ARC orientation and project context
-- Active status file (`active/{category}/status-{name}.md`) - Active work state
-- `SESSION-NOTES.md` - Personal session context (if exists)
-- `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
-- `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules
-- `3_process-task-loop.md` - Task execution workflow
-- `QUICK-REFERENCE.md` - Commands and environment
-
-### Read On-Demand
-
-- `prepare-commits.md` - When committing complex or accumulated changes
-- `manage-incidental-work.md` - When handling discovered issues
-- `session-handoff.md` - When ending sessions
-- `maintain-project-docs.md` (this file) - When updating documentation
-
-### Meta-Documentation (Not for AI Session Init)
-
-- This file (`maintain-project-docs.md`)
-- Any future documentation about documentation
 
 ---

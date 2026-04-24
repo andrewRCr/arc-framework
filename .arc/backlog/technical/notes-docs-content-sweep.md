@@ -1764,10 +1764,11 @@ task-lists-and-branches model.
 **Stylistic integration notes:** Trimmed workflow deletes the paragraph outright — the When
 to use / When NOT to use blocks already carry the decision gate (tasks on this branch complete
 and more tasks remain → rotate; all tasks complete → integrate-work-unit). The Rotate →
-Integrate → Archive triad names the operations sequentially, which is pedagogical for a reader
-learning the methodology but redundant for an agent picking a workflow by trigger conditions.
-Docs absorption should preserve the **Rotate → Integrate → Archive** arrow sequence — it reads
-as a memorable mnemonic for the three-operation lifecycle.
+Integrate → Archive
+triad names the operations sequentially, which is pedagogical for a reader learning the
+methodology but redundant for an agent picking a workflow by trigger conditions. Docs
+absorption should preserve the **Rotate → Integrate → Archive** arrow sequence — it reads as
+a memorable mnemonic for the three-operation lifecycle.
 
 ## Entry 50 — rotate-branch.md § Scenarios — multi-branch pattern enumeration
 
@@ -2099,6 +2100,292 @@ Scope Boundaries form is operationally-led — it lists what belongs / doesn't b
 anti-pattern framing. Retaining Scope Boundaries (decision documented in this task's
 pre-implementation discussion) and dropping Common Pitfalls preserves the actionable form
 while eliminating rationale duplication.
+
+## Entry 60 — manage-incidental-work.md § Overview — reactive/proactive framing
+
+**Source:** `.arc/system/workflows/arc/supplemental/manage-incidental-work.md` (lines 14-22,
+pre-trim — the entire § Overview section including enclosing `---` separators); package-source
+copy same line range — straight two-copy file.
+
+**Content:**
+
+> ## Overview
+>
+> Incidental work is **reactive** (discovered during implementation) vs **proactive** (planned work with PRDs).
+> This workflow covers what makes incidental work unique—execution follows standard task loop,
+> archival follows standard archive workflow.
+
+**Suggested destination:** `docs/methodology/incidental-work/` § What Is Incidental Work —
+adopter-facing conceptual framing distinguishing incidental from proactive planned work.
+Natural pair with a broader "kinds of work" overview alongside feature/technical/incidental
+categorization.
+
+**Stylistic integration notes:** Trimmed workflow deletes the section wholesale. The
+reactive-vs-proactive distinction is useful pedagogy for adopters learning what incidental
+work is; for an agent executing the workflow, the `purpose:` frontmatter + "When to use"
+trigger already scope the decision. The second sentence ("execution follows standard task
+loop, archival follows standard archive workflow") duplicates the § Execution, Completion, and
+Archival section at the file's bottom, which carries the same pointers operationally. Docs
+absorption should preserve the reactive/proactive framing — it's the cleanest one-line
+distinction between this workflow's scope and the main PRD→tasks planning pipeline.
+
+## Entry 61 — manage-incidental-work.md § When to Create > Key Distinction — example paragraphs
+
+**Source:** `.arc/system/workflows/arc/supplemental/manage-incidental-work.md` (lines 33-37,
+pre-trim — the two `Example:` paragraphs under "### The Key Distinction"); package-source copy
+same line range — straight two-copy file.
+
+**Content:**
+
+> Example: "Clean up auth tech debt" with 5 ordered steps touching 7 files is **one coherent
+> concern** - stays atomic.
+>
+> Example: "Investigate performance issue" requiring profiling → analysis → design →
+> implementation is **multiple phases** - needs task list.
+
+**Suggested destination:** `docs/methodology/incidental-work/` § Atomic vs Task List —
+adopter-facing pedagogical examples illustrating the "sequential steps toward one goal" vs
+"distinct phases with different objectives" distinction. Pairs naturally with the ✅/❌ bullet
+lists retained in the trimmed workflow.
+
+**Stylistic integration notes:** Trimmed workflow keeps the "sequential steps → atomic /
+distinct phases → task list" bullet pair that opens "### The Key Distinction" and the full
+✅/❌ decision-tree bullets below. Drops the two paragraph-length examples that illustrate
+each side. Agents facing the decision have the ✅/❌ criteria; adopters learning to recognize
+the pattern benefit from worked examples. The "auth tech debt / 5 ordered steps" and
+"performance issue / profiling → analysis → design → implementation" examples are deliberately
+contrasting — same-domain cleanup work stays atomic, cross-domain investigation-led work
+escalates to task list.
+
+## Entry 62 — manage-incidental-work.md § When to Create > Why This Matters — rationale paragraph
+
+**Source:** `.arc/system/workflows/arc/supplemental/manage-incidental-work.md` (lines 53-57,
+pre-trim — the "### Why This Matters" subsection opener paragraph); package-source copy same
+line range — straight two-copy file.
+
+**Content:**
+
+> ### Why This Matters
+>
+> Task lists add overhead: file creation, phase structure, branch lifecycle, archival process. This
+> overhead pays off when work genuinely has distinct phases that benefit from independent tracking.
+> It's wasted ceremony for focused refactors that happen to touch multiple files.
+
+**Suggested destination:** `docs/methodology/incidental-work/` § Why the Distinction Matters —
+adopter-facing rationale for the atomic-vs-task-list gate. Useful alongside Entry 61's
+examples and the retained ✅/❌ criteria. Names the specific overhead types (file, phase,
+branch lifecycle, archival) so adopters evaluating a borderline case can weigh them
+concretely.
+
+**Stylistic integration notes:** Trimmed workflow keeps the "Session duration is not a factor"
+paragraph (it's a decision-gate anti-pattern, not rationale) but drops this paragraph, which
+justifies *why* the decision criteria exist. For an agent executing the workflow, the ✅/❌
+criteria are the operational gate — the justification doesn't change how the decision is
+made. Docs absorption should preserve the "wasted ceremony for focused refactors that happen
+to touch multiple files" phrasing — it names the specific failure mode the distinction
+prevents.
+
+## Entry 63 — manage-incidental-work.md § Step 1 Create Task File — filename examples
+
+**Source:** `.arc/system/workflows/arc/supplemental/manage-incidental-work.md` (lines 72-78,
+pre-trim — the three `tasks-*.md` filename examples following the Naming line); package-source
+copy same line range — straight two-copy file. **Partial extract** — the trimmed workflow
+retains a single inline example.
+
+**Content (pre-trim):**
+
+> Examples:
+>
+> - `tasks-filter-integration-testing.md`
+> - `tasks-api-type-safety.md`
+> - `tasks-security-updates.md`
+
+**Retained in trimmed workflow:**
+
+> **Naming**: `tasks-{brief-descriptive-slug}.md` (no `incidental-` prefix — directory name
+> provides that context; e.g., `tasks-auth-error-handling.md`)
+
+**Extracted (removed from workflow):** The three-example `Examples:` bulleted list. A single
+inline example (`tasks-auth-error-handling.md`) replaces it in-place, keeping one concrete
+pattern instance.
+
+**Suggested destination:** `docs/methodology/incidental-work/` § Naming Conventions or folded
+into an adopter-facing walkthrough of naming patterns across work categories. The three named
+examples (filter-integration-testing, api-type-safety, security-updates) cover distinct
+incidental-work shapes — test infrastructure, API quality, security — which makes them a
+useful breadth sample for docs absorption.
+
+**Stylistic integration notes:** Partial-extract pattern (same shape as Task 4.5.c Entries 51,
+55, 58). The `tasks-auth-error-handling.md` inline example retained in the trimmed form
+matches the concrete example used in the Track-Creation-with-Commit commit-message template
+below (which references "auth-error-handling" as the slug) — a single consistent example
+thread runs through the workflow now rather than three disconnected ones. Docs absorption can
+restore the breadth by presenting multiple named examples side by side.
+
+## Entry 64 — manage-incidental-work.md § Step 2 Track Creation with Commit — concrete commit example
+
+**Source:** `.arc/system/workflows/arc/supplemental/manage-incidental-work.md` (lines 114-123,
+pre-trim — the `**Example**:` code fence block following the generic commit-message template);
+package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> **Example**:
+>
+> ```
+> docs(api-modernization): create auth-error-handling incidental task list
+>
+> Triggered by Task 3.2 investigation revealing unhandled edge cases in token refresh.
+> Pausing API modernization to address authentication error handling.
+>
+> Related to: .arc/active/technical/tasks-api-modernization.md
+> ```
+
+**Suggested destination:** `docs/methodology/incidental-work/` § Commit Message for Task List
+Creation or folded into an adopter-facing walkthrough showing generic template → concrete
+example side-by-side. The generic "Commit message format" template retained in the workflow
+carries the operational structure; this concrete example shows what a filled-in version looks
+like.
+
+**Stylistic integration notes:** Trimmed workflow keeps the generic "Commit message format"
+code fence (with `{placeholders}`) but drops the filled-in `Example:` that follows it. Agents
+executing the Step 2 instruction have the template with placeholders clearly marked
+(`{current-branch}`, `{brief-slug}`, `{discovery context}`, etc.); the concrete example is
+pedagogical scaffolding that helps adopters see what the filled form looks like in practice.
+The "api-modernization / auth-error-handling / Task 3.2 / token refresh" specifics are a
+coherent worked example across scope (api-modernization), interrupt (auth-error-handling),
+and trigger (Task 3.2 investigation) — worth preserving as a single illustrative instance in
+docs.
+
+## Entry 65 — manage-incidental-work.md § Git Branch for Incidental Work — reassurance line
+
+**Source:** `.arc/system/workflows/arc/supplemental/manage-incidental-work.md` (line 141,
+pre-trim — the reassurance sentence following the full-protection exception block);
+package-source copy same line — straight two-copy file.
+
+**Content:**
+
+> This is normal under full protection. Not every branch is a work unit.
+
+**Suggested destination:** `docs/reference/branch-protection/` § Branches vs Work Units or
+folded into a broader "kinds of branches" reference alongside work-unit branches, planning
+branches, and incidental branches. The "not every branch is a work unit" framing is useful
+for adopters who may conflate "branch exists" with "formal work unit exists" — a common
+mental-model trap under full protection.
+
+**Stylistic integration notes:** Trimmed workflow drops the reassurance line but retains the
+full-protection exception block that establishes *when* a branch-without-a-work-unit is
+appropriate (atomic task under full protection, unrelated to current scope). For an agent
+executing the workflow, the exception block's operational sequence (create branch → commit →
+PR → merge → delete, no archival) is sufficient; the reassurance is adopter-psychology
+framing. The two-sentence form ("This is normal... Not every branch is a work unit.") is
+compact enough that docs absorption can carry it forward verbatim.
+
+## Entry 66 — maintain-project-docs.md § Document Hierarchy — session-init loading model recap
+
+**Source:** `.arc/system/workflows/arc/supplemental/maintain-project-docs.md` (lines 126-148,
+pre-trim — the entire § Document Hierarchy section with its three subsections); package-source
+copy same line range — straight two-copy file.
+
+**Content:**
+
+> ## Document Hierarchy
+>
+> ### Always Read (Session Init)
+>
+> - `AGENT-BRIEFING.ARC.md` + `AGENT-BRIEFING.PROJECT.md` - ARC orientation and project context
+> - Active status file (`active/{category}/status-{name}.md`) - Active work state
+> - `SESSION-NOTES.md` - Personal session context (if exists)
+> - `DEV-RULES.ARC.md` - Framework development methodology (commit, verification, session/task rules)
+> - `DEV-RULES.PROJECT.md` - Quality gates and project-specific rules
+> - `3_process-task-loop.md` - Task execution workflow
+> - `QUICK-REFERENCE.md` - Commands and environment
+>
+> ### Read On-Demand
+>
+> - `prepare-commits.md` - When committing complex or accumulated changes
+> - `manage-incidental-work.md` - When handling discovered issues
+> - `session-handoff.md` - When ending sessions
+> - `maintain-project-docs.md` (this file) - When updating documentation
+>
+> ### Meta-Documentation (Not for AI Session Init)
+>
+> - This file (`maintain-project-docs.md`)
+> - Any future documentation about documentation
+
+**Suggested destination:** This content is obsolete, not absorption-ready. The authoritative
+session-init loading model lives in `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+(Step 4 "Load Context Documents") and is overridable via the [session-state method][arc-methods-session].
+This trimmed-out hierarchy is a stale-by-design shadow copy — docs absorption should link to
+the session-init workflow's canonical list rather than carrying this content forward. Retain
+for historical reference during the sweep; mark for discard once the final docs site resolves
+the loading model.
+
+**Stylistic integration notes:** Trimmed workflow deletes the section wholesale. Rationale:
+`maintain-project-docs.md` is about doc maintenance; the session-init loading model is a
+different concern that happens to inform one kind of doc maintenance (deciding whether new
+content belongs in session-init reading). That awareness stays via the "Adding New Content"
+subsection of § Common Maintenance Tasks earlier in the file, which asks "Is this needed for
+EVERY session, or just specific work types?" — the operationally relevant question without
+the full taxonomy. Docs absorption should treat this as a duplication-of-canonical-content
+entry (like Entry 32's activate-work-unit "How artifacts reach the base branch" blockquote
+that duplicated routing information) rather than net-new content to preserve. **Deviation
+from standard destination framing** — flagged explicitly because the content is known-stale
+rather than docs-absorption-ready.
+
+## Entry 67 — maintain-project-docs.md § Maintenance Best Practices > Single Source of Truth — example
+
+**Source:** `.arc/system/workflows/arc/supplemental/maintain-project-docs.md` (lines 60-61,
+pre-trim — the `Example:` paragraph following the SSOT bullet list); package-source copy same
+line range — straight two-copy file.
+
+**Content:**
+
+> **Example**: Task completion protocol belongs in `3_process-task-loop.md`.
+> Other documents should reference it, not duplicate it.
+
+**Suggested destination:** `docs/methodology/documentation/` § Single Source of Truth —
+adopter-facing illustration of the SSOT principle with a specific example (task completion
+protocol's canonical location). Natural pair with broader SSOT guidance in docs.
+
+**Stylistic integration notes:** Trimmed workflow keeps the three SSOT bullets (each concept
+one authoritative location, reference-don't-duplicate, contradictions-from-multiple-variations)
+but drops the illustrative example. Agents reading the principle have the rule; adopters
+internalizing the principle benefit from seeing what it looks like in practice. The
+"task completion protocol belongs in `3_process-task-loop.md`" callout is also a useful
+cross-file pointer in its own right — docs absorption can preserve the example as both SSOT
+illustration and an authoritative-location directory entry.
+
+## Entry 68 — integrate-external-content.md § Preamble — Skills context blockquote
+
+**Source:** `.arc/system/workflows/arc/supplemental/integrate-external-content.md` (lines
+13-18, pre-trim — the `**Skills context:**` paragraph following the "When to use" block);
+package-source copy same line range — straight two-copy file.
+
+**Content:**
+
+> **Skills context:** [Agent Skills](https://agentskills.io) are an open standard for giving agents
+> procedural knowledge — supported across Claude Code, Cursor, Gemini CLI, VS Code Copilot, and many other
+> tools. Skills work as standalone capabilities without ARC integration. This workflow is for when you want a
+> Skill's behavior wired *into* ARC — as a method override, an extension hook, or a referenced strategy — so
+> it participates in ARC's session lifecycle, quality gates, or workflow chain rather than existing as a peer
+> document outside the system.
+
+**Suggested destination:** `docs/reference/agent-skills/` § Skills and ARC Integration or
+folded into a broader ecosystem/interop reference discussing how ARC relates to adjacent open
+standards (Agent Skills, MCP, tool-specific conventions). The "Skills work as standalone
+capabilities without ARC integration" framing is important for adopters choosing between
+plain-Skill and wired-into-ARC options.
+
+**Stylistic integration notes:** Trimmed workflow retains the preamble's "When to use" line
+mentioning Skills as one content source (the operational trigger), but drops the
+pedagogical expansion on what Agent Skills are and how they relate to ARC. For an agent
+executing the workflow, the classification tree in Step 2 handles Skill-sourced content
+identically to non-Skill content — the Skills-specific framing doesn't change the routing.
+Adopters evaluating whether to wire a Skill into ARC vs. leave it standalone benefit from the
+context this blockquote provides. Docs absorption should preserve the supported-tool
+enumeration (Claude Code, Cursor, Gemini CLI, VS Code Copilot) — it signals Skills'
+cross-agent portability.
 
 ---
 

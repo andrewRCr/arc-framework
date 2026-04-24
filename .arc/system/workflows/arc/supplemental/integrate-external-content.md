@@ -10,13 +10,6 @@ external file to import, or even just a link or concept to evaluate. Common sour
 content, [Agent Skills](https://agentskills.io) you want wired into ARC, workflows or strategies adapted
 from other projects.
 
-**Skills context:** [Agent Skills](https://agentskills.io) are an open standard for giving agents
-procedural knowledge — supported across Claude Code, Cursor, Gemini CLI, VS Code Copilot, and many other
-tools. Skills work as standalone capabilities without ARC integration. This workflow is for when you want a
-Skill's behavior wired *into* ARC — as a method override, an extension hook, or a referenced strategy — so
-it participates in ARC's session lifecycle, quality gates, or workflow chain rather than existing as a peer
-document outside the system.
-
 ---
 
 ## Step 1: Identify the Content
