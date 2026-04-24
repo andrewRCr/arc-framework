@@ -22,6 +22,7 @@
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
     "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
+    "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "prepare": "husky"
   },
   "devDependencies": {

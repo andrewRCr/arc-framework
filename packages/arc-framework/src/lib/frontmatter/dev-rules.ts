@@ -2,9 +2,17 @@
  * DEV-RULES domain-file frontmatter schema parser.
  *
  * Validates the flat `{domain, purpose}` schema on `DEV-RULES.{DOMAIN}.md`
- * files in `reference/constitution/`. `purpose` is required non-empty;
- * `domain` must match the filename `{DOMAIN}` fragment case-insensitively,
- * mirroring the method `name`-matches-basename contract.
+ * files in `reference/constitution/`. `purpose` is required non-empty.
+ *
+ * Case contract — asymmetric by design:
+ * - Filename `{DOMAIN}` fragment must be uppercase (e.g., `DEV-RULES.FRONTEND.md`).
+ *   Matches the ARC/PROJECT/README all-caps convention for broad/overarching files.
+ * - `domain:` value must be lowercase (identifier, not label).
+ * - `fragment.toLowerCase()` must equal `domain` exactly.
+ *
+ * The asymmetry makes each side self-consistent with its role — filename case
+ * carries the "broad" signal at directory-listing time; `domain` is the
+ * programmatic identifier the session-init probe exposes to agents.
  *
  * Extra unknown keys are accepted for forward-compatibility. The set of
  * files consumed by this parser is discovered via frontmatter presence —
@@ -69,10 +77,18 @@ export function parseDevRulesFrontmatter(
 
   if (typeof domain === "string") {
     const match = BASENAME_DOMAIN_RE.exec(basename);
-    const expected = match?.[1] ?? basename;
-    if (domain.toLowerCase() !== expected.toLowerCase()) {
+    const fragment = match?.[1] ?? basename;
+    if (fragment !== fragment.toUpperCase()) {
       errors.push(
-        `\`domain\` "${domain}" does not match filename fragment "${expected}"`,
+        `filename fragment "${fragment}" must be uppercase (e.g., DEV-RULES.FRONTEND.md)`,
+      );
+    } else if (domain !== domain.toLowerCase()) {
+      errors.push(
+        `\`domain\` "${domain}" must be lowercase (identifier, not label)`,
+      );
+    } else if (fragment.toLowerCase() !== domain) {
+      errors.push(
+        `\`domain\` "${domain}" does not match filename fragment "${fragment}"`,
       );
     }
   }

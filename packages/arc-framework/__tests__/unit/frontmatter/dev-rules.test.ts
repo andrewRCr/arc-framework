@@ -104,10 +104,46 @@ describe("parseDevRulesFrontmatter", () => {
     expect(result.errors.some((e) => e.includes("security") && e.includes("FRONTEND"))).toBe(true);
   });
 
-  it("accepts case-insensitive matches between `domain` and the filename fragment", () => {
+  it("rejects a lowercase filename fragment (uppercase required for signal)", () => {
     const result = parseDevRulesFrontmatter(validFrontend, "DEV-RULES.frontend");
-    expect(result.errors).toEqual([]);
-    expect(result.frontmatter?.domain).toBe("frontend");
+    expect(result.frontmatter).toBeUndefined();
+    expect(
+      result.errors.some((e) => /uppercase/i.test(e) && e.includes("frontend")),
+    ).toBe(true);
+  });
+
+  it("rejects a mixed-case filename fragment", () => {
+    const result = parseDevRulesFrontmatter(validFrontend, "DEV-RULES.Frontend");
+    expect(result.frontmatter).toBeUndefined();
+    expect(result.errors.some((e) => /uppercase/i.test(e))).toBe(true);
+  });
+
+  it("rejects an uppercase `domain:` value (lowercase required — identifiers, not labels)", () => {
+    const content = [
+      "---",
+      "domain: FRONTEND",
+      "purpose: UI component and styling standards",
+      "---",
+      "",
+    ].join("\n");
+    const result = parseDevRulesFrontmatter(content, "DEV-RULES.FRONTEND");
+    expect(result.frontmatter).toBeUndefined();
+    expect(
+      result.errors.some((e) => /lowercase/i.test(e) && e.includes("FRONTEND")),
+    ).toBe(true);
+  });
+
+  it("rejects a mixed-case `domain:` value", () => {
+    const content = [
+      "---",
+      "domain: Frontend",
+      "purpose: UI component and styling standards",
+      "---",
+      "",
+    ].join("\n");
+    const result = parseDevRulesFrontmatter(content, "DEV-RULES.FRONTEND");
+    expect(result.frontmatter).toBeUndefined();
+    expect(result.errors.some((e) => /lowercase/i.test(e))).toBe(true);
   });
 
   it("surfaces a missing-frontmatter diagnostic when no triple-dash block", () => {

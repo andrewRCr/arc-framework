@@ -2844,27 +2844,66 @@ restructure, not as a Phase 4 audit target.
             `Domain-rules frontmatter validation failed` with the expected both-values
             diagnostic. Valid frontmatter smoke → `Pre-commit checks PASSED`.
 
-        - [ ] **4.2.g.e CI audit — extend `audit-method-triggers.ts`**
+        - [x] **4.2.g.e CI audit — sibling `audit-domain-rules.ts` + parser case contract**
 
-            **Goal:** Extend the existing reliable-trigger audit (or sibling script — decide at
-            implementation time based on script cohesion) to validate DEV-RULES domain files:
-            frontmatter parses, `domain` matches filename, `domain` values are unique across files.
-            Non-blocking when zero domain files exist (empty pass).
+            Shipped as sibling script — `audit-method-triggers.ts` is strictly method/extension-
+            scoped by filename contract, module doc, success message, and corpus (walks
+            `system/workflows/`). Force-fitting DEV-RULES validation would require rename +
+            module-doc rewrite + widened CLI surface for no structural payoff; the two audits
+            share only the `lib/frontmatter/` primitives, which a sibling already inherits for
+            free.
 
-            **Implementation note:** script cohesion call — if `audit-method-triggers.ts` is
-            already multi-concern, add DEV-RULES validation there; if it's strictly
-            method/extension-scoped, create sibling `audit-domain-rules.ts`. Don't force-fit.
+            `packages/arc-framework/src/scripts/audit-domain-rules.ts` exports
+            `enumerateDomainFiles(dir)` and `audit(constitutionDir): AuditResult` matching the
+            method-triggers `AuditResult` shape. Per-file validation delegates to
+            `parseDevRulesFrontmatter`. Zero-files returns clean pass with informational
+            stdout (`no domain files present (opt-in extension)`); CLI exits 1 on diagnostics,
+            0 on pass with file count.
 
-            Build `test-first` (one behavior at a time):
-            - Empty `constitution/` (no domain files) → pass with informational output
-            - One valid domain file → pass
-            - Domain file with invalid frontmatter → fail with file path + error
-            - Two domain files with duplicate `domain:` value → fail naming both paths
-            - `DEV-RULES.ARC.md` / `DEV-RULES.PROJECT.md` are not inspected
+            **Parser case contract (design tightening during this task):** the original
+            parser accepted case-insensitive filename/domain matches, which created a
+            cross-file duplicate-`domain` corner case only reachable on case-sensitive
+            filesystems (two files differing only in fragment case could both parse as valid
+            with the same `domain`). Rather than paper over with a platform-skip test or a
+            defense-in-depth duplicate check, the parser now enforces an asymmetric case
+            contract: filename fragment must be uppercase (signals "broad/overarching" per
+            ARC convention — DEV-RULES.ARC.md, DEV-RULES.PROJECT.md, AGENT-BRIEFING, README),
+            `domain:` value must be lowercase (programmatic identifier), and
+            `fragment.toLowerCase() === domain` exactly. Cross-file uniqueness becomes
+            structurally guaranteed — two valid files cannot share a `domain` because their
+            fragments would have to be identical. The duplicate check was removed from the
+            audit as dead code. Template-side comment documenting this as a **mechanical
+            requirement** (probe + hook enforced, not convention) is threaded into 4.2.g.f.
+
+            Tests added / updated:
+            - `__tests__/unit/scripts/audit-domain-rules.test.ts` — 7 behavior tests
+              (enumeration: sorted + reserved-excluded + non-DEV-RULES excluded + empty;
+              audit: empty pass, single valid, invalid-frontmatter diagnostic, reserved
+              ignored).
+            - `__tests__/unit/frontmatter/dev-rules.test.ts` — existing case-insensitive
+              acceptance test inverted to assert lowercase-fragment rejection; 3 new tests
+              for mixed-case fragment, uppercase `domain:`, mixed-case `domain:` rejection.
+
+            Wiring: `package.json` adds `lint:arc:domain-rules` alongside `lint:arc:triggers`;
+            `.github/workflows/ci.yml` adds a parallel step after `lint:arc:triggers`.
+            Smoke-tested on self-hosting repo: `npm run lint:arc:domain-rules` →
+            `audit-domain-rules: no domain files present (opt-in extension)`.
+
+            **Behaviors batched rationale:** scenarios exercise one `audit()` + one parser
+            with shared fixture setup; one-at-a-time slicing offered no independent
+            discovery value.
+
+            Tier 1 gates clean (lint:ts, lint:sh, typecheck, typecheck:test, 816 unit tests).
 
         - [ ] **4.2.g.f Markdown surface — session-init rewrite, template, drift capture**
 
             Single atomic commit (all markdown-side changes, no CLI code).
+
+            **Case contract to surface (established during 4.2.g.e):** filename fragment must
+            be uppercase, `domain:` value must be lowercase, parser requires
+            `fragment.toLowerCase() === domain`. This is a **mechanical requirement** enforced
+            by the parser and probe — not convention. The template must state this explicitly;
+            violations surface as session-init probe warnings and pre-commit hook failures.
 
             - **`session-init.md` Step 4 item 5 rewrite** (two-copy — project + template). New
               nested bullet shape (Option C):
@@ -2872,15 +2911,18 @@ restructure, not as a Phase 4 audit target.
                 ```markdown
                 5. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
                     - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}`
-                      tuples for any `DEV-RULES.{domain}.md` files with the domain-rules
+                      tuples for any `DEV-RULES.{DOMAIN}.md` files with the domain-rules
                       frontmatter. Load on-demand when a task touches the relevant domain, not at
                       init time.
                 ```
 
             - **New `reference/templates/template-dev-rules.md`** (two-copy). Contents:
-                - Frontmatter scaffold: `domain: <slug>`, `purpose: <one-liner>`
-                - Comment block directing adopters to rename to `DEV-RULES.{DOMAIN}.md` in
-                  `reference/constitution/` so the probe discovers it
+                - Frontmatter scaffold: `domain: <slug>` (lowercase), `purpose: <one-liner>`
+                - Comment block directing adopters to copy to
+                  `reference/constitution/DEV-RULES.{DOMAIN}.md` — **filename fragment
+                  uppercase, `domain:` value lowercase, the two must match after lowercasing
+                  the fragment**. Frame as mechanical (probe/hook enforce it), not stylistic.
+                  Include a worked example: `DEV-RULES.FRONTEND.md` with `domain: frontend`.
                 - Body skeleton matching DEV-RULES.ARC / DEV-RULES.PROJECT shape (Contents section,
                   rule headers, reference-links block)
                 - Framework classification (default — no `classification.ts` entry needed)
