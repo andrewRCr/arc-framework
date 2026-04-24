@@ -3323,9 +3323,27 @@ restructure, not as a Phase 4 audit target.
       its "heavy" flagging — largest yield from § Common Pitfalls + § Output wholesale
       deletions + three BEFORE/AFTER code fences + two ✅/❌ mode enumerations
 
-    - [ ] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md` (155 lines),
-      `verify-work-unit.md` (80), `planning/activate-planning-branch.md` (115),
-      `planning/integrate-planning-branch.md` (152)
+    - [x] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md`
+      155→117 (~25%); `verify-work-unit.md` 80→80 (no-op, already operational-dense);
+      `planning/activate-planning-branch.md` 115→99 (~14%);
+      `planning/integrate-planning-branch.md` 152→135 (~11%). Cluster total 502→431
+      (~14%, 71 lines extracted). Eleven staging entries (49-59) appended to
+      `notes-docs-content-sweep.md`: preamble framing (49, 54, 57), scenario enumeration
+      (50), consequence-explanation partial extract (51), session-boundary blockquote
+      (52), Common Pitfalls wholesale (53, 56, 59), naming-rationale partial extract
+      (55), PR-body-scope partial extract (58). Two new link defs added to staging file:
+      `[work-org-branches]`, `[config-merge]`. Two-copy sync verified across all four
+      file pairs; Tier 2 markdown lint clean (223 files). **verify-work-unit.md no-op
+      confirmed** — pre-implementation assessment that the file was already
+      operational-dense held; no rationale/example content warranted extraction (same
+      framing as Task 1.1.c no-op). **Use-site relocation pattern did not recur**
+      (consistent with 4.5.b) — cluster's gates were already inline at workflow level.
+      **Partial-extract pattern deployed three times** (Entries 51, 55, 58) where a
+      consequence signal or operational mechanic needed retention while rationale/examples
+      were staged — new structural variant documented in each entry with both "full
+      pre-trim" and "retained in trimmed workflow" blocks. Cluster yield matches 4.5.b's
+      14% exactly by coincidence, despite 4.5.c being less than half 4.5.b's cluster size
+      (502 vs 1161 lines).
 
     - [ ] **4.5.d Supplemental** — `manage-incidental-work.md` (226 lines), `maintain-project-docs.md` (150),
       `add-agent.md` (87), `verify-arc-integrity.md` (151), `integrate-external-content.md` (130)

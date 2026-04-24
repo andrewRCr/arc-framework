@@ -5,27 +5,12 @@ audience: agent
 
 # Workflow: Rotate Branch (Intermediate Merge)
 
-Multi-branch work units go through three operations: **Rotate → Integrate → Archive**. This workflow covers
-Rotate — the intermediate merge. A branch's scope of work is done, but the overall task list has more work
-remaining on a subsequent branch.
-
 **When to use:** The current branch's tasks are complete, quality gates pass, and more tasks remain in
 the task list. You're ready to merge this branch and continue work on the next one.
 
 **When NOT to use:** All tasks in the task list are complete → use [integrate-work-unit][integrate-work-unit]
 instead. That workflow handles integration (completion doc, review, PR, merge), followed by
 [archive-work-unit][archive-work-unit] for post-merge archival.
-
-## Scenarios
-
-This workflow applies to any multi-branch pattern:
-
-- **Stacked PRs** — A large task list split across 2-3 branches for smaller, reviewable pull requests
-- **Phased delivery** — Sequential branches delivering different phases of the same task list to the base branch
-- **Team sub-branches** — A developer merging their personal branch into a shared integration branch
-
-See [Work Organization Strategy § Task Lists and Branches][work-org-branches] for the complete
-many-to-one relationship model.
 
 ---
 
@@ -64,12 +49,9 @@ work continues on the next branch.
 Use regular merge (the default `merge.strategy: merge`) to preserve commit history. This is the
 recommended approach for intermediate merges in multi-branch work.
 
-> **If `merge.strategy: squash`:** Squash-merging an intermediate branch collapses its commits into a
-> single commit on the base. Any downstream branches that still reference the original commits will face
-> conflict-heavy rebases — Git cannot reconcile the squashed commit with the originals. For multi-branch
-> work, consider using regular merge for intermediate PRs even when squash is the project default, or
-> plan for the manual rebase cost on downstream branches. See [Configurability Architecture §
-> Merge Strategy][config-merge] for behavioral implications of each strategy.
+> **If `merge.strategy: squash`:** Squash on an intermediate branch breaks downstream rebases —
+> consider regular merge for multi-branch work even when squash is the project default. See
+> [Configurability Architecture § Merge Strategy][config-merge].
 
 ### 3) Merge and Clean Up
 
@@ -126,30 +108,10 @@ your last fetch, preventing accidental overwrites of collaborators' work.
 If the session is ending after rotation, run [session-handoff][session-handoff] to preserve context
 for the next session.
 
-> **Rotation split across sessions:** When an external action (npm publish, platform repo rename,
-> manual smoke test) splits a rotation across sessions, the status file on the rotation branch
-> carries state across the gap. The next session's session-init resolves the active status file
-> by `**Branch:**` match — no special handling needed beyond the normal session-handoff /
-> session-init cycle.
-
----
-
-## Common Pitfalls
-
-- **Squash-merging intermediate branches** — Breaks downstream branch rebases. See merge strategy
-  note in step 2.
-- **Archiving too early** — Rotation is not archival. Archive only when **all** tasks in the task list
-  are complete. See [integrate-work-unit][integrate-work-unit].
-- **Forgetting `Branch(es)` field update** — Stale tracking makes session initialization harder for
-  the next session or collaborator.
-- **Not rebasing downstream branches** — After merging to the base branch, existing downstream branches
-  still reference old commits. Rebase them onto the updated base to avoid orphaned history.
-
 ---
 
 [integrate-work-unit]: integrate-work-unit.md
 [archive-work-unit]: archive-work-unit.md
 [session-handoff]: ../session-lifecycle/session-handoff.md
-[work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
 [quality-gates]: ../../../../reference/strategies/arc/strategy-quality-gates.md
 [config-merge]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md

@@ -6,9 +6,8 @@ audience: agent
 # Workflow: Integrate Planning Branch
 
 Planning branches deliver planning artifacts (PRDs, task lists) and optionally archival of a prior work unit
-to the base branch via PR. This is intentionally lighter than [integrate-work-unit][integrate-work-unit] —
-no completion doc, no pre-merge review, no task verification — because planning branches carry artifacts,
-not implementation.
+to the base branch via PR. Lighter than [integrate-work-unit][integrate-work-unit] — no completion doc,
+no pre-merge review, no task verification.
 
 **When to use:** Planning artifacts are committed on the planning branch and ready for review.
 
@@ -83,11 +82,8 @@ gh pr create --base {base-branch} --head {planning-branch}
 - **Batch branch:** Summarize both transitions. Archival section: completed WU name, key outcomes.
   Planning section: new WU name, scope, phase/task count.
 
-**Scope of the PR body:** Describe what this PR delivers, not what happens next. Workflow
-continuity (post-merge activation, session boundaries, "next action after merge" style
-sections) belongs in SESSION-NOTES, not the PR body. The reader is reviewing a change set —
-keep the body scoped to what they need to evaluate it. See [DEV-RULES.ARC][dev-rules-arc]
-§ Write for the reader.
+**PR body scope:** Describe what the PR delivers, not post-merge workflow continuity (see
+[DEV-RULES.ARC][dev-rules-arc] § Write for the reader).
 
 ### 3) Address Review Feedback
 
@@ -124,19 +120,6 @@ Activation may happen immediately or in a later session. The artifacts are stabl
 [session-handoff][session-handoff] before ending. Capture in SESSION-NOTES that the planning branch
 is merged and the work unit is ready for activation. The base branch has no status file for this WU
 yet — `activate-work-unit.md` Step 5 creates it at activation time.
-
----
-
-## Common Pitfalls
-
-- **PM updates for the new WU on the planning branch** — Activation-triggered updates (ROADMAP marking
-  new WU in-progress, PROJECT-STATUS updates) belong in [activate-work-unit][activate-work-unit], not
-  here. Only archival-triggered updates (marking the completed WU) belong on batch branches.
-- **Moving files from backlog to active** (arc-in-git) — That's
-  [activate-work-unit][activate-work-unit] Step 3. Planning branches deliver to `backlog/`;
-  activation moves to `active/`.
-- **Skipping quality gates** — Planning artifacts are documentation — markdown linting still applies.
-- **Forgetting branch cleanup** — Delete the planning branch after merge to keep branches tidy.
 
 ---
 

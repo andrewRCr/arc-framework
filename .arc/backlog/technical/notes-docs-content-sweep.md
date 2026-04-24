@@ -1744,6 +1744,362 @@ correct alternative to reverting merged work. Docs absorption should preserve th
 verbatim; these entries (46, 47, 48) together form a pattern where each Case's routing
 rationale is calibrated to its specific failure mode.
 
+## Entry 49 — rotate-branch.md § Preamble — Rotate/Integrate/Archive three-operation framing
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` (lines 8-11,
+pre-trim — the framing paragraph preceding "When to use"); package-source copy same line
+range — straight two-copy file.
+
+**Content:**
+
+> Multi-branch work units go through three operations: **Rotate → Integrate → Archive**. This
+> workflow covers Rotate — the intermediate merge. A branch's scope of work is done, but the
+> overall task list has more work remaining on a subsequent branch.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Multi-Branch Work Units —
+adopter-facing conceptual framing of the three-operation pipeline (Rotate / Integrate /
+Archive). Natural pair with the workflow selection matrix and the `strategy-work-organization.md`
+task-lists-and-branches model.
+
+**Stylistic integration notes:** Trimmed workflow deletes the paragraph outright — the When
+to use / When NOT to use blocks already carry the decision gate (tasks on this branch complete
+and more tasks remain → rotate; all tasks complete → integrate-work-unit). The Rotate →
+Integrate → Archive triad names the operations sequentially, which is pedagogical for a reader
+learning the methodology but redundant for an agent picking a workflow by trigger conditions.
+Docs absorption should preserve the **Rotate → Integrate → Archive** arrow sequence — it reads
+as a memorable mnemonic for the three-operation lifecycle.
+
+## Entry 50 — rotate-branch.md § Scenarios — multi-branch pattern enumeration
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` (lines 19-28,
+pre-trim — the entire § Scenarios section); package-source copy same line range — straight
+two-copy file.
+
+**Content:**
+
+> ## Scenarios
+>
+> This workflow applies to any multi-branch pattern:
+>
+> - **Stacked PRs** — A large task list split across 2-3 branches for smaller, reviewable pull requests
+> - **Phased delivery** — Sequential branches delivering different phases of the same task list to the
+>   base branch
+> - **Team sub-branches** — A developer merging their personal branch into a shared integration branch
+>
+> See [Work Organization Strategy § Task Lists and Branches][work-org-branches] for the complete
+> many-to-one relationship model.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Multi-Branch Patterns —
+adopter-facing scenario taxonomy. Pairs with Entry 49 (three-operation framing) and the
+`strategy-work-organization.md` many-to-one task-lists-and-branches model already referenced
+in the quoted block. Useful as a scannable decision aid for teams deciding whether to split
+work across branches.
+
+**Stylistic integration notes:** Trimmed workflow deletes the section wholesale, including the
+`[work-org-branches]` link definition (orphan after removal). The three scenarios are
+mutually non-exclusive (a stacked PR may also be a phased delivery, a team sub-branch may be
+part of a stacked PR), and the workflow steps below apply identically regardless of which
+pattern triggered the rotation — the enumeration is pedagogical scaffolding, not a
+dispatch table. Agents executing rotation don't need the taxonomy to follow the steps. Docs
+absorption should preserve the three named patterns with their definitions — they're common
+multi-branch modes teams adopt.
+
+## Entry 51 — rotate-branch.md § Step 2 Prepare for Merge — squash merge consequence explanation
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` (lines 66-72,
+pre-trim — the full `> If merge.strategy: squash:` blockquote); package-source copy same line
+range — straight two-copy file. **Partial extract** — the trimmed workflow retains the
+consequence signal + operational recommendation.
+
+**Content (full pre-trim blockquote):**
+
+> **If `merge.strategy: squash`:** Squash-merging an intermediate branch collapses its commits into a
+> single commit on the base. Any downstream branches that still reference the original commits will face
+> conflict-heavy rebases — Git cannot reconcile the squashed commit with the originals. For multi-branch
+> work, consider using regular merge for intermediate PRs even when squash is the project default, or
+> plan for the manual rebase cost on downstream branches. See [Configurability Architecture §
+> Merge Strategy][config-merge] for behavioral implications of each strategy.
+
+**Retained in trimmed workflow:**
+
+> **If `merge.strategy: squash`:** Squash on an intermediate branch breaks downstream rebases —
+> consider regular merge for multi-branch work even when squash is the project default. See
+> [Configurability Architecture § Merge Strategy][config-merge].
+
+**Extracted (removed from workflow):** The mechanistic expansion of *why* squash breaks
+rebases ("collapses its commits into a single commit on the base. Any downstream branches
+that still reference the original commits will face conflict-heavy rebases — Git cannot
+reconcile the squashed commit with the originals") and the alternative framing ("plan for the
+manual rebase cost on downstream branches").
+
+**Suggested destination:** `docs/reference/git-operations/` § Squash Merge Behavior or
+`docs/methodology/branch-management/` § Merge Strategy Tradeoffs — adopter-facing explanation
+of why squash breaks downstream rebases, with the git mechanic (single-commit collapse → lost
+commit identity → rebase cannot reconcile) spelled out.
+
+**Stylistic integration notes:** The consequence signal ("breaks downstream rebases") is the
+operationally necessary piece — it justifies the non-default recommendation (regular merge)
+strongly enough that an agent reading the trimmed workflow understands why. The mechanistic
+explanation is reference-guide content: a reader who *wants* to understand git's behavior
+under squash benefits from it, but an agent executing rotation only needs the consequence +
+recommendation. Partial-extract pattern — distinct from wholesale extraction (e.g., Entries
+36, 40 Common Pitfalls). Docs absorption should treat the full blockquote as a single teaching
+unit; merging with `strategy-configurability-architecture.md` § Merge Strategy content is a
+natural consolidation path.
+
+## Entry 52 — rotate-branch.md § Step 5 Update Tracking — "Rotation split across sessions" blockquote
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` (lines 128-133,
+pre-trim — the blockquote following the Step 5 checklist); package-source copy same line
+range — straight two-copy file.
+
+**Content:**
+
+> **Rotation split across sessions:** When an external action (npm publish, platform repo rename,
+> manual smoke test) splits a rotation across sessions, the status file on the rotation branch
+> carries state across the gap. The next session's session-init resolves the active status file
+> by `**Branch:**` match — no special handling needed beyond the normal session-handoff /
+> session-init cycle.
+
+**Suggested destination:** `docs/methodology/sessions/` § Session Boundaries During Multi-Step
+Operations or `docs/reference/session-state/` § Cross-Session Continuity — adopter-facing
+reassurance that the normal session-init / session-handoff cycle handles cross-session
+multi-step workflow gaps without special handling. Natural pair with session-operations
+strategy content.
+
+**Stylistic integration notes:** Trimmed workflow deletes the blockquote outright —
+session-init and session-handoff are already the default session-boundary mechanics, and
+their workflows handle status-file resolution and SESSION-NOTES continuity generically. The
+blockquote is reassurance that "no special rotation-specific handling is needed" rather than
+a procedural gate. Agents executing rotation don't need this clarification to proceed; an
+adopter learning the methodology benefits from seeing the cross-session case called out
+explicitly. The three named external-action examples (npm publish, repo rename, smoke test)
+are concrete triggers worth preserving — they show this isn't a hypothetical case.
+
+## Entry 53 — rotate-branch.md § Common Pitfalls
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/rotate-branch.md` (lines 137-146,
+pre-trim — the entire § Common Pitfalls section body); package-source copy same line range —
+straight two-copy file.
+
+**Content:**
+
+> - **Squash-merging intermediate branches** — Breaks downstream branch rebases. See merge strategy
+>   note in step 2.
+> - **Archiving too early** — Rotation is not archival. Archive only when **all** tasks in the task list
+>   are complete. See [integrate-work-unit][integrate-work-unit].
+> - **Forgetting `Branch(es)` field update** — Stale tracking makes session initialization harder for
+>   the next session or collaborator.
+> - **Not rebasing downstream branches** — After merging to the base branch, existing downstream branches
+>   still reference old commits. Rebase them onto the updated base to avoid orphaned history.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Common Pitfalls or folded
+into a docs-wide § Anti-Patterns reference collecting pitfalls from multiple workflows.
+Natural pair with Entries 36 (archive-work-unit) and 40 (clean-work-unit) Common Pitfalls —
+the three cover distinct lifecycle phases with overlapping adopter audience.
+
+**Stylistic integration notes:** Trimmed workflow deletes the section wholesale. Same lens as
+Entries 16, 36, 40: anti-pattern enumerations are reference-guide material, not
+workflow-execution material. The step-level instructions already encode correct behavior for
+each pitfall — Step 1 readiness checklist enforces "tasks on this branch complete but NOT all
+tasks", Step 2 merge strategy blockquote warns against squash, Step 2/5 explicitly require
+`Branch(es)` field update, Step 4 covers downstream rebase via `--force-with-lease`. Docs
+absorption should preserve the `term — explanation` format and consolidate with Entry 36's
+archive-work-unit pitfalls and Entry 40's clean-work-unit pitfalls into a single "Work Unit
+Lifecycle Anti-Patterns" docs page.
+
+## Entry 54 — activate-planning-branch.md § Preamble — "lighter, because..." rationale tail
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md`
+(line 11, pre-trim — the trailing "— lighter, because..." clause of the preamble paragraph);
+package-source copy same line — straight two-copy file.
+
+**Content (pre-trim preamble):**
+
+> Creates a planning branch for delivering planning artifacts (and optionally archival of a prior work unit)
+> to the base branch. This is the planning-side counterpart to [activate-work-unit][activate-work-unit] —
+> lighter, because planning branches carry artifacts rather than implementation.
+
+**Extracted (removed from workflow):** The "— lighter, because planning branches carry
+artifacts rather than implementation." fragment.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Planning vs Implementation
+Branches — adopter-facing conceptual framing of why planning-branch workflows are lighter than
+their implementation counterparts. Pairs with Entry 57 (integrate-planning-branch's parallel
+rationale tail).
+
+**Stylistic integration notes:** Trimmed workflow keeps the counterpart reference to
+`activate-work-unit.md` but drops the "— lighter, because..." rationale tail. The adjacency
+between `activate-planning-branch.md` and `activate-work-unit.md` is operational (the
+counterpart link lets an agent find the parallel implementation-side workflow); the
+"because..." framing is pedagogical. Docs absorption should consolidate with Entry 57 into a
+single explanation of the planning/implementation distinction — the two preambles use
+near-identical phrasing for parallel reasons.
+
+## Entry 55 — activate-planning-branch.md § Step 3 Create Planning Branch — "Name mismatch" rationale
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md`
+(lines 74-79, pre-trim — the third Naming conventions bullet); package-source copy same line
+range — straight two-copy file.
+
+**Content (pre-trim bullet):**
+
+> - Name mismatch between planning branch and final work unit is normal — scope may shift
+>   during planning review. If the shift is significant (e.g., one work unit becomes two, or
+>   the scope changes entirely), rename the branch to match: `git branch -m {old} {new}` and
+>   update the remote. Planning branches are short-lived and pre-merge, so renaming is low-risk
+
+**Retained in trimmed workflow:**
+
+> - **If scope shifts significantly during planning:** `git branch -m {old} {new}` and update the remote
+
+**Extracted (removed from workflow):** The reassurance framing ("Name mismatch... is normal —
+scope may shift during planning review", "Planning branches are short-lived and pre-merge, so
+renaming is low-risk") and the concrete scope-shift examples ("one work unit becomes two, or
+the scope changes entirely").
+
+**Suggested destination:** `docs/methodology/planning/` § Naming and Scope Evolution or folded
+into an adopter-facing walkthrough of how planning branches accommodate mid-planning scope
+changes. The "short-lived and pre-merge, so renaming is low-risk" reassurance is worth
+preserving — it signals to cautious adopters that branch renames at this stage are not the
+destructive operations they might be elsewhere.
+
+**Stylistic integration notes:** Partial-extract pattern. The `git branch -m {old} {new}`
+mechanic is operational; the rest is reassurance + examples. Retained bullet uses an imperative
+conditional header to replace the declarative reassurance-led form. Docs absorption should
+preserve the "scope may shift during planning review" framing — it positions the rename as an
+expected outcome of the planning process, not error correction.
+
+## Entry 56 — activate-planning-branch.md § Common Pitfalls
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/planning/activate-planning-branch.md`
+(lines 97-105, pre-trim — the entire § Common Pitfalls section body); package-source copy
+same line range — straight two-copy file.
+
+**Content:**
+
+> - **Forgetting to pull before branching** — The planning branch should fork from the latest base
+>   branch, especially after a PR merge. Stale base means the planning branch diverges unnecessarily.
+> - **Skipping implementation branch cleanup** — Stale local branches accumulate and create confusion
+>   during future session-init (agent sees branches that no longer exist on remote).
+> - **Creating a planning branch when not needed** — Under partially protected mode (solo), planning
+>   artifacts can go directly to the base branch. Don't add process overhead that your protection
+>   mode doesn't require.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Common Pitfalls or folded
+into a docs-wide § Anti-Patterns reference alongside Entries 36, 40, 53. The third pitfall
+(unnecessary planning branch under partial protection) is a notable protection-mode-specific
+callout and could alternatively live under `docs/reference/protection-modes/` § Full vs
+Partial — Operational Differences.
+
+**Stylistic integration notes:** Trimmed workflow deletes the section wholesale. Step 1
+already covers "Ensure Clean Base Branch" with `git pull origin {base-branch}`, Step 2 covers
+prior implementation branch cleanup, and the preamble's Protection mode context paragraph
+covers the partial-protection direct-commit exception. Each pitfall restates an operational
+directive as an anti-pattern. Docs absorption should consolidate with Entries 53, 59 into a
+work-unit lifecycle anti-patterns reference.
+
+## Entry 57 — integrate-planning-branch.md § Preamble — "because planning branches carry artifacts" rationale tail
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
+(lines 11-12, pre-trim — the trailing "because planning branches carry artifacts, not
+implementation." clause); package-source copy same line range — straight two-copy file.
+
+**Content (pre-trim preamble):**
+
+> Planning branches deliver planning artifacts (PRDs, task lists) and optionally archival of a prior work unit
+> to the base branch via PR. This is intentionally lighter than [integrate-work-unit][integrate-work-unit] —
+> no completion doc, no pre-merge review, no task verification — because planning branches carry artifacts,
+> not implementation.
+
+**Extracted (removed from workflow):** The "— because planning branches carry artifacts, not
+implementation." rationale clause.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Planning vs Implementation
+Branches — natural pair with Entry 54 (the parallel rationale from
+`activate-planning-branch.md`). Both preambles use near-identical "because planning branches
+carry artifacts rather than implementation" phrasing to justify lighter workflows.
+
+**Stylistic integration notes:** Trimmed workflow retains the "Lighter than
+[integrate-work-unit]" adjective and the operational delta list ("no completion doc, no
+pre-merge review, no task verification") — both are signal for agents selecting the correct
+workflow and for adopters scanning the difference between implementation and planning
+integration. Drops the "because..." explanation. Docs absorption should merge Entries 54 and
+57 into a single explanation of why planning-branch workflows are lighter; the duplication
+across the two preambles is deliberate reinforcement that simplifies when consolidated.
+
+## Entry 58 — integrate-planning-branch.md § Step 2 Push and Create PR — "Scope of the PR body" expansion
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
+(lines 86-90, pre-trim — the "Scope of the PR body" paragraph following the PR description
+guidance); package-source copy same line range — straight two-copy file.
+
+**Content (pre-trim):**
+
+> **Scope of the PR body:** Describe what this PR delivers, not what happens next. Workflow
+> continuity (post-merge activation, session boundaries, "next action after merge" style
+> sections) belongs in SESSION-NOTES, not the PR body. The reader is reviewing a change set —
+> keep the body scoped to what they need to evaluate it. See [DEV-RULES.ARC][dev-rules-arc]
+> § Write for the reader.
+
+**Retained in trimmed workflow:**
+
+> **PR body scope:** Describe what the PR delivers, not post-merge workflow continuity (see
+> [DEV-RULES.ARC][dev-rules-arc] § Write for the reader).
+
+**Extracted (removed from workflow):** The expansion listing specific examples of post-merge
+workflow continuity ("post-merge activation, session boundaries, 'next action after merge'
+style sections"), the "belongs in SESSION-NOTES" specific routing pointer, and the
+reader-framing sentence ("The reader is reviewing a change set — keep the body scoped to what
+they need to evaluate it").
+
+**Suggested destination:** Fold into `docs/reference/writing-guidelines/` § Write for the
+Reader as additional examples of reader-hostile patterns, or into `docs/methodology/prs/` §
+PR Body Scope as a concrete walkthrough. The canonical rule lives in DEV-RULES.ARC § Write
+for the reader — this paragraph is a PR-body-specific application of the rule, with the
+"next action after merge" pattern being a particularly common violation.
+
+**Stylistic integration notes:** Trimmed workflow retains the operational rule (describe
+what's delivered, not continuity) + the DEV-RULES.ARC reference. Drops the enumeration of
+specific violation examples and the routing pointer (SESSION-NOTES vs PR body). Partial
+extract — retained form is ~40% of original length. The extracted examples are actionable
+diagnostic material ("post-merge activation, session boundaries, 'next action after merge'
+style sections" as concrete violations) better suited to a reference guide than an inline
+workflow callout.
+
+## Entry 59 — integrate-planning-branch.md § Common Pitfalls
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
+(lines 130-139, pre-trim — the entire § Common Pitfalls section body); package-source copy
+same line range — straight two-copy file.
+
+**Content:**
+
+> - **PM updates for the new WU on the planning branch** — Activation-triggered updates (ROADMAP marking
+>   new WU in-progress, PROJECT-STATUS updates) belong in [activate-work-unit][activate-work-unit], not
+>   here. Only archival-triggered updates (marking the completed WU) belong on batch branches.
+> - **Moving files from backlog to active** (arc-in-git) — That's
+>   [activate-work-unit][activate-work-unit] Step 3. Planning branches deliver to `backlog/`;
+>   activation moves to `active/`.
+> - **Skipping quality gates** — Planning artifacts are documentation — markdown linting still applies.
+> - **Forgetting branch cleanup** — Delete the planning branch after merge to keep branches tidy.
+
+**Suggested destination:** `docs/methodology/work-unit-lifecycle/` § Common Pitfalls alongside
+Entries 36, 40, 53, 56. The first two pitfalls (PM updates, backlog→active movement) duplicate
+the § Scope Boundaries ✅/❌ list retained in the trimmed workflow — docs absorption should
+consolidate these with the scope-boundaries content into one "What belongs on a planning
+branch" reference page rather than carrying both forms forward.
+
+**Stylistic integration notes:** Trimmed workflow deletes the section wholesale. Of the four
+pitfalls: two (PM updates, backlog→active movement) duplicate the § Scope Boundaries block
+immediately above; one (skipping quality gates) restates Step 1's readiness checklist; one
+(branch cleanup) restates Step 4's cleanup commands. The Common Pitfalls form is
+rationale-led — each bullet names an anti-pattern then explains the correct behavior. The
+Scope Boundaries form is operationally-led — it lists what belongs / doesn't belong without
+anti-pattern framing. Retaining Scope Boundaries (decision documented in this task's
+pre-implementation discussion) and dropping Common Pitfalls preserves the actionable form
+while eliminating rationale duplication.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
@@ -1757,6 +2113,7 @@ rationale is calibrated to its specific failure mode.
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
+[work-org-branches]: ../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
 [discovery-checklist]: ../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
 [activate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-planning-branch]: ../../system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md
@@ -1764,3 +2121,4 @@ rationale is calibrated to its specific failure mode.
 [integrate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [integrate]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [clean]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
+[config-merge]: ../../reference/strategies/arc/strategy-configurability-architecture.md
