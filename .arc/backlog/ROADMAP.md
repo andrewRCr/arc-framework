@@ -166,7 +166,30 @@ reconciliation) must resolve before PRD promotion.
 - Downstream: ARCd Rebrand (stable mobility terminology absorbed into rename pass),
   ARC Operating Modes (shift lifecycle available as prerequisite, not bundled into modes)
 
-**ARCd Rebrand** — After Work-Unit Mobility
+**Quality Gate Tiers and Hook Integration** — After Work-Unit Mobility
+
+Align ARC's tier model (Tier 1/2/3) with standard git hook stages (pre-commit / pre-push / CI),
+likely via rename to gate-stage naming (commit-gate / push-gate / pr-gate — final shape TBD).
+Adds pre-push as a recognized ARC surface with structural dispatch to adopter-configured push-gate
+commands; extends `quality-gate-commands` method with tier metadata so hooks auto-dispatch the
+right commands at the right stage. Codifies the structural-vs-adopter-impl separation (ARC owns
+tier abstraction + structural CHECKs + dispatch plumbing; adopters bring linters/tests at initial
+setup). Surfaced 2026-04-24 when a CI failure landed on an ARC commit — Tier 2 would have caught
+it but hadn't run under the current manual-discipline model. External research confirmed hook-stage
+alignment is the universal idiom and ARC's gap is real. Builds on ADR-014 (hook-manager detection
+already ships).
+
+- Plan: `technical/plan-quality-gate-hooks.md`
+- Upstream: Session-Init Optimization (DEV-RULES / session-init overlap), User Sync UX Polish
+  (shared polish surfaces), Work-Unit Mobility (session-init orientation overlap),
+  ADR-014 (hook-manager detection prerequisite)
+- Downstream: ARCd Rebrand (new tier naming absorbed in rename pass),
+  Dogfooding (beta-ready quality gate surface)
+- **Scope note:** Pre-approved split at PRD-drafting time if tier rename proves too large:
+  (1) hook integration (architectural), (2) tier rename (editorial). Keep unified if rename
+  stays manageable.
+
+**ARCd Rebrand** — After Quality Gate Tiers and Hook Integration
 
 Rebrand ARC → ARCd as the public product brand while preserving ARC as the methodology and
 workflow vocabulary. Split architecture: ARCd names the public implementation surface
@@ -180,7 +203,8 @@ before Operating Modes and public release.
 - Plan: `technical/plan-arcd-rebrand.md`
 - Upstream: Session-Init Optimization (lean session-init surface for terminology sweep),
   Methodology Maturation (same-surface churn avoidance), User Sync UX Polish (consolidated
-  sync copy to rename), Work-Unit Mobility (mobility surfaces to rename in one pass)
+  sync copy to rename), Work-Unit Mobility (mobility surfaces to rename in one pass),
+  Quality Gate Tiers and Hook Integration (gate-stage terminology absorbed in rename pass)
 - Downstream: Expanded Planning Path, Operating Modes, WU5
 
 **Expanded Planning Path** — After ARCd Rebrand
@@ -264,7 +288,9 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     ├──► Work-Unit Mobility
    │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     ├──► ARCd Rebrand
+   │     │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hook Integration
+   │     │     │     │     │     │     │     │     │     │     │     │
+   │     │     │     │     │     │     │     │     │     │     │     ├──► ARCd Rebrand
    │     │     │     │     │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │     │     │     │     │
@@ -330,6 +356,16 @@ site structure.
 
 ## Change Log
 
+- **2026-04-24**: Quality Gate Tiers and Hook Integration added as
+  `technical/plan-quality-gate-hooks.md`. Surfaced same day when a commit with known-deferred
+  markdown lint errors landed in CI — Tier 2 would have caught it under manual discipline but
+  hadn't run because the task wasn't "coherent unit" complete. External research (documented
+  in plan) confirmed the universal idiom is pre-commit → pre-push → CI hook stage alignment,
+  and that ARC's Tier 1/2/3 maps naturally. Plan proposes: tier rename to gate-stage naming
+  (commit-gate / push-gate / pr-gate, final shape TBD), pre-push hook as new ARC-recognized
+  stage, dispatch method extension, initial-setup bootstrap. Sequenced after Work-Unit
+  Mobility, before ARCd Rebrand (gate-stage terminology absorbed in rebrand's rename pass).
+  Sibling atomic for this repo's own lint-staged adoption routed to `user/andrew/ATOMIC-INBOX.md`.
 - **2026-04-24**: Two Phase C insertions. User Sync UX Polish added as
   `technical/plan-user-sync-ux.md` — surfaced during cross-machine resume when `arc status`
   full-mode recommended `arc user save` in a scenario requiring `arc user pull` (dual state
