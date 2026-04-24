@@ -51,22 +51,22 @@ For simple, single-concern commits where you know what changed:
 6. Dependencies (package manifests, lock files)
 7. Cleanup (removals, refactoring)
 
-### Documentation Overlap Pattern
+### Shared-Docs Commit Pattern
 
-When completing multiple tasks between commits, the task list markdown is updated by all tasks.
-Strategy docs and other shared documentation may also be touched by multiple tasks.
+When a WU completes multiple **independent** code tasks that all touch one shared documentation
+file (a cross-cutting strategy doc, README, or similar), committing each task's doc nibble inline
+creates tangled history in the shared file. In that specific case, defer shared-doc updates to a
+final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the code commits.
 
-Commit documentation LAST as a separate commit after all code commits:
+**Narrow application:**
 
-```text
-Commit 1: Task 3.1 code changes only
-Commit 2: Task 3.2 code changes only
-Commit 3: Task 3.3 code changes only
-Commit 4: docs(arc): update task list and strategy doc for Tasks 3.1-3.3
-```
-
-This avoids artificial coupling of unrelated code changes and maintains true atomicity.
-The documentation commit references all tasks it documents (Tasks X.Y-X.Z format).
+- **Applies** when multiple independent code tasks each justify edits to one shared doc that
+  would otherwise tangle across the code commits.
+- **Does NOT apply** to pure-docs WUs where the docs ARE the work (audits, restructures, writing
+  sweeps). Commit groupings follow § Granularity guidance below.
+- **Does NOT apply** to task list or active status file updates. These are derived state that
+  rides with the content commit that triggered them — see § Granularity guidance and
+  [DEV-RULES.ARC][dev-rules-arc] § Work status accuracy.
 
 ### Parent Task Completion
 
@@ -115,14 +115,27 @@ Examine changes that might not be immediately obvious — config files, document
 
 ### 5. Plan Commit Sequence
 
-Separate changes into atomic commits using the [groupings above](#atomicity-guide).
+Separate changes into commits using the [groupings above](#atomicity-guide) and the granularity
+guidance below.
 
-**When work spans sessions:**
+**Granularity guidance:**
 
-- **Separate commits** for different work contexts (different sessions, tasks, or features)
-- **Pragmatic exception:** If changes are truly intermingled in the same file/function,
-  commit together but document the overlap in the commit body
-- **Don't combine** work from different tasks just because it's easier
+- **One problem solved per commit — scope, not volume, as the sizing metric.** A refactor
+  touching ten files is one commit if it serves one intent. Multiple tasks completed together
+  that share a cohesive lens (same audit pass, same file surface, one reviewer story) are one
+  commit, not several — the unit is the concern, not the task ID.
+- **Split when the description needs multiple sentences explaining different problems.** If you
+  can't summarize the change in one focused sentence, the commit carries multiple concerns and
+  they should separate.
+- **Reversibility as the guard.** If reverting one change would force reverting others, they
+  belong together. If they fail or succeed independently, they split. This catches the genuine
+  split-is-worth-it cases — independent rationale, experimental vs stable, cross-cutting
+  refactor vs feature — without defaulting to task-ID bookkeeping.
+- **Pragmatic exception for intermingled code:** Changes tangled in the same file/function
+  commit together; note the overlap in the body.
+- **Tracking docs ride with content commits.** Task list checkboxes and active status file
+  updates are derived state — they belong with the commit that produced the content change, not
+  a separate meta-commit. Dangling tracking commits create churn without adding signal.
 
 ### 6. Execute and Verify
 
