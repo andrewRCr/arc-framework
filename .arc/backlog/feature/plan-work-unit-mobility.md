@@ -86,6 +86,38 @@ first-class mobility:
 
 ---
 
+## Relationship to Gate Model Frame
+
+[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, with
+[plan-session-operational-flow][plan-ops] implementing the core mechanics. Mobility consumes the
+frame as an enabler — configurable autonomy modes reduce approval ceremony under multi-session
+load, which is exactly the ergonomic gap multi-worktree introduces.
+
+**Touchpoints:**
+
+- **Concurrent-session stance.** Current Out-of-Scope stance ("Framework won't block two simultaneous
+  agent sessions, but docs flag as P2 violation") should be reconciled with ADR-016. With
+  configurable autonomy in place, modest concurrency (2-3 sessions) becomes principled rather than
+  tolerated — per-task approval ceremony reduces via auto-commit / auto-push toggles, making the
+  bandwidth cost tractable. PRD should resolve whether the posture shifts from "tolerated" to
+  "principled at modest scale" or stays unchanged.
+- **Swap discipline alignment.** This plan's "swap primary ↔ companion only at review-increment
+  boundaries" is exactly the task-gate invariance ADR-016 establishes. They compose perfectly —
+  worth noting explicitly in the Philosophy Checkpoints section when promoting to PRD.
+- **Status-file rotation for new fields.** New fields introduced by this plan (`**Focus Role:**`,
+  `**Focus Since:**`) need rotation-vs-shape classification per ADR-016's status-file timing split.
+  `Focus Role` is shape-changing (deliberate transition) → commit-time. `Focus Since` is
+  rotation-flavored (date stamp) → handoff-time. PRD should confirm this classification.
+- **Hook symmetry question.** The existing open question about `post-shift-pause` / `post-shift-resume`
+  / `post-shift-rotate` hooks benefits from the gate-model vocabulary — these would be
+  handoff-adjacent (state-transition-shaped), not on the linear stack. Frame clarifies the placement
+  question.
+
+**Integration-surface async-merge accommodation** is a concrete scope addition surfaced by
+ADR-016 discussion — see item 9 in In Scope below.
+
+---
+
 ## Working Thesis: Three Layers of Mobility
 
 Mobility operates at three layers. Each closes a different gap; together they define the
@@ -164,6 +196,16 @@ layer). Each layer is independently useful; together they deliver the full capab
 
 8. **arc-modes cross-reference sweep.** Content migration plus ~142 shift references in
    plan-arc-modes.md converted to cross-WU links. Applies before modes advances to PRD.
+
+9. **Integration-surface audit for async-merge assumptions.** `integrate-work-unit.md` and related
+   lifecycle workflows currently assume synchronous merge (PR created → merged → cleanup in one
+   flow). With `awaiting-external` as a first-class focus role (item 4), async-merge becomes a
+   legitimate pattern requiring workflow accommodation. Audit sync-merge assumptions across
+   integration-adjacent workflows; adjust workflow state transitions and handoff interactions so
+   WUs in `awaiting-external` state compose cleanly with session-handoff, archival, and worktree
+   cleanup. Includes guidance in `strategy-concurrent-work.md` (new, per item 5) for managing WUs
+   through async-merge latency. Minimum viable workflow adjustment (full rewrite vs. additive
+   treatment at key touchpoints) is a PRD-time decision — see Unknowns.
 
 ### Out of scope
 
@@ -480,6 +522,21 @@ Minimum: session-init + `/arc-status` surface worktree context in orientation. M
 arc-config awareness, CLI worktree subcommand, strategy-doc diagrams, worktree-aware commit
 hooks. Where's the right floor for "worktree-aware" vs "worktree-integrated"?
 
+### Async-merge workflow adjustment shape
+
+Item 9 (In Scope) audits integration-adjacent workflows for sync-merge assumptions. Open question
+at PRD time: what's the minimum viable adjustment?
+
+- **A — Full rewrite of `integrate-work-unit.md` state transitions** to treat async-merge as a
+  primary path alongside sync-merge. Cleanest end state; heaviest change.
+- **B — Additive treatment at key touchpoints.** Sync-merge stays the primary flow; `awaiting-external`
+  focus role gets explicit accommodation at session-handoff, status-file updates, worktree cleanup,
+  and archival. Lighter; preserves existing workflow shape.
+- **C — Mixed.** Primary rewrite of `integrate-work-unit.md` (the one workflow where async matters
+  most) plus additive treatment elsewhere. Scoped compromise.
+
+Current lean: Option B. PRD decision informed by audit findings.
+
 ### Parallel-WU ROADMAP format
 
 Current: single "In Progress" section. Proposed: "Active" section with per-entry role
@@ -561,3 +618,5 @@ during dormancy. Known drift items as of 2026-04-24:
 [template-status]: ../../reference/templates/template-status.md
 [clean-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[plan-ops]: ../technical/plan-session-operational-flow.md

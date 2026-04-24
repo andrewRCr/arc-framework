@@ -51,6 +51,18 @@ This matters now because:
   copy issues persist; notes-vs-commits push coherence is the kind of friction that only surfaces
   across machines and will dominate dogfooding time if not addressed beforehand.
 
+## Relationship to Gate Model Frame
+
+[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, with
+[plan-session-operational-flow][plan-ops] implementing the core mechanics — including the
+handoff-interior toggle framework for configuring actions inside `arc handoff`. This plan consumes
+that framework: the auto-push design below becomes an instantiation of handoff-interior toggles
+(worktree push + notes push as paired configurable actions) rather than a standalone `user.sync_push`
+expansion.
+
+Scope impact: the auto-push portion of this plan gets lighter post-frame. State-machine unification
+and directional copy audit (the other two scope items) are unaffected — they stand on their own.
+
 ## Scope
 
 ### In scope
@@ -67,9 +79,13 @@ as a conditional hint line in `arc status`) to orient users who haven't internal
 terminology. Keep git notes vocabulary — supplement, don't abstract; devs need the terms to reason
 about `arc user *` commands, which are thin wrappers over `git notes` operations.
 
-**Auto-push design + implementation** (requires external research, see Unknowns). Design a config axis
-for pushing commits + notes together, with safeguards for protected branches and unpushable states.
-Shape TBD at PRD close based on research findings; candidates enumerated in Alternatives.
+**Auto-push implementation within the gate-model frame.** Consumes the handoff-interior toggle framework
+from [plan-session-operational-flow][plan-ops] (Phase 6). This plan instantiates paired worktree-push +
+notes-push as configurable handoff-interior actions — solving the `user.sync_push: always` incoherence
+(notes pushed without commits) by pairing both operations at the same gate. Includes pushability
+pre-checks (protected branches, unpushable states, rebase in progress), failure semantics, and
+remote-unavailable handling. Config axis shape is provided by the frame; this plan picks up the
+worktree/notes-specific instantiation.
 
 ### Out of scope
 
@@ -96,40 +112,34 @@ Shape TBD at PRD close based on research findings; candidates enumerated in Alte
     - *Con:* Doesn't fix underlying architecture. Copy inconsistency remains. Full-mode stays hard to
       reason about.
 
-**Auto-push config design axes (all require external research before selecting):**
+**Auto-push config shape** is now provided by the gate-model frame's handoff-interior toggle framework
+(see [plan-session-operational-flow][plan-ops] Phase 6). The three axes previously enumerated here
+(new `handoff.push` key, extended `user.sync_push`, smart coupling) are superseded — worktree push
+and notes push become paired handoff-interior toggles under the frame's configuration schema.
 
-- **A — `handoff.push: auto | prompt | manual` as a new config key.** Fires only at session handoff.
-  Pushes current branch + notes together if the branch is pushable.
-    - *Pro:* Scoped narrowly to the workflow that introduces laptop→primary drift.
-    - *Con:* Duplicates conceptual space with existing `user.sync_push`.
+Remaining plan-level design choices (for PRD):
 
-- **B — Extend `user.sync_push` scope to cover commits.** Push commits + notes together as one logical
-  operation; policy enum (`always | prompt | manual`) unchanged.
-    - *Pro:* Single config key, single mental model. Matches the user's instinct that notes-only push
-      is semantically broken.
-    - *Con:* Conflates "push my personal notes ref" with "push the branch" — may deserve independent
-      toggles.
-
-- **C — Smart coupling.** `user.sync_push: always` with a pre-check: if commits aren't on the remote,
-  offer to push them first. No new config key.
-    - *Pro:* No config surface expansion. Defensive by default.
-    - *Con:* Hidden behavior; may surprise users who expect `sync_push` to be notes-only.
+- **Pushability pre-check behavior.** When push is enabled and the branch is protected or unpushable
+  (rebase in progress, upstream hook failure, detached HEAD), does the toggle skip silently, prompt,
+  or error?
+- **Paired-operation failure semantics.** If worktree push succeeds but notes push fails (or vice
+  versa), how is the user surfaced to? Retry, rollback, report-and-continue?
+- **Backward compatibility with `user.sync_push`.** Does the existing key deprecate, get absorbed
+  into the new toggle schema, or continue to coexist during transition?
 
 ## Unknowns and Assumptions
 
-**External research required before PRD drafting:**
+**External research status update.** The coupled-push semantics research ("is pairing branch + metadata
+push idiomatic?") is partially obviated by the gate-model frame — the frame's architectural decision
+is that pairing-at-same-gate is the right shape, validated by industrial precedent in
+[ADR-016][adr-016]. Remaining research value at PRD drafting:
 
-- How do `jj`, `git-branchless`, graphite, sapling, and other modern git wrappers handle
-  coupled-push semantics (branch + metadata together)? Is there an idiomatic pattern?
-- How do these tools handle auto-push on protected branches, force-push conditions, or unpushable
-  states (rebase in progress, upstream hook failure)?
-- Is there precedent for "push notes + commits together" as one operation, or do established tools
-  always keep notes push as a conscious separation? (git-appraise, git-test, git-notes tooling are
-  reference points.)
-- Dev community norms: would auto-push at handoff feel invasive or expected? Any data from tools that
-  have tried both defaults and migrated one direction or the other?
-- Terminology research: what do other tools name the "ref snapshot of local config/state" concept?
-  "snapshot", "state ref", "note", "metadata", "pin" — worth an audit before finalizing copy.
+- Pushability pre-check conventions in modern VCS tooling (protected branches, unpushable states) —
+  narrower than the original coupled-push question; specific to this plan's mechanics.
+- Failure semantics for paired remote operations — how do tools surface partial-failure of composite
+  push operations? (Conventional patterns in `git push --all`, `git push --atomic`, monorepo tooling.)
+- Terminology research for the "ref snapshot of local config/state" concept ("snapshot", "state ref",
+  "note", "metadata", "pin") — still relevant for copy audit regardless of the frame.
 
 **Assumptions to validate during PRD:**
 
@@ -155,6 +165,10 @@ Rough breakdown:
 
 **Dependencies:**
 
+- **[plan-session-operational-flow][plan-ops] Phase 6 (handoff-interior toggles) must land first** for
+  the auto-push portion of this plan — the toggle framework is the substrate this plan instantiates
+  worktree-push + notes-push against. State-machine unification and copy audit (the other two scope
+  items) have no such dependency and could ship earlier if scoped independently.
 - Session-Init Optimization must land first (atomic fix for `arc user fetch` prompt ships there; the
   state-machine refactor would conflict with the ongoing context-audit edits touching neighboring
   surfaces).
@@ -164,15 +178,22 @@ Rough breakdown:
 - Work-Unit Mobility is immediately downstream and benefits from a clean sync state machine before
   worktree awareness adds an axis to it.
 
-**Scheduling:** Immediately after Session-Init Optimization, before Work-Unit Mobility and ARCd
-Rebrand. Pre-1.0 polish window where fixing sync UX produces maximum leverage for downstream work.
+**Scheduling:** After Session-Init Optimization and plan-session-operational-flow Phase 6 (handoff-interior
+toggles). State-machine + copy work can start once Session-Init Optimization lands; auto-push work
+waits for the gate-model frame. Before Work-Unit Mobility and ARCd Rebrand. Pre-1.0 polish window
+where fixing sync UX produces maximum leverage for downstream work.
 
-**Pre-approved split at PRD-drafting time:** If the auto-push design proves larger than "medium" after
-research, split into two WUs:
+**Pre-approved split at PRD-drafting time:** Natural split aligns with the frame dependency:
 
-- WU-A: State-machine unification + copy audit (small–medium; low research burden).
-- WU-B: Auto-push design + implementation (medium; research-heavy).
+- WU-A: State-machine unification + copy audit (small–medium; independent of gate-model frame; can
+  ship as soon as Session-Init Optimization lands).
+- WU-B: Auto-push instantiation against handoff-interior toggle framework (medium; waits for
+  [plan-session-operational-flow][plan-ops] Phase 6).
 
-Both WU-A concerns are tightly coupled; auto-push is a different risk profile (behavior change vs.
-presentation change). Splitting respects the shorter-scoped-WU preference without forcing it when
-unified scope stays manageable.
+Unified scope is acceptable if sequencing works out, but the frame dependency makes split the more
+likely path.
+
+---
+
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[plan-ops]: plan-session-operational-flow.md

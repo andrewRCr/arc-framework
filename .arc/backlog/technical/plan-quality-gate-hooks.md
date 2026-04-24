@@ -42,12 +42,40 @@ This matters now because:
   We want the safety net in place first.
 - External research is complete; no blocking unknowns before PRD drafting.
 
+## Relationship to Gate Model Frame
+
+[ADR-016][adr-016] establishes configurable autonomy gates for session-operational flow, formalizing
+the commit-gate / push-gate / integration-gate vocabulary this plan was already converging on
+independently. Good alignment — this plan's gate-stage naming becomes the canonical vocabulary,
+not this plan's invention.
+
+Impacts on scope:
+
+- **Handoff-gate added to the picture.** The frame introduces handoff as an orthogonal ceremony with
+  its own configurable interior actions. Hook placement gains a fourth stage: pre-handoff validation
+  (session-close checks). This plan picks up handoff-gate hook support alongside the existing
+  commit-gate / push-gate / pr-gate stages.
+- **Interaction with configurable autonomy modes.** When [plan-session-operational-flow][plan-ops]
+  ships auto-commit and auto-push modes, hook invocation timing changes slightly — hooks fire as
+  part of the cascade rather than as standalone gates. The cascade-visibility requirement from
+  ADR-016 means hook output remains visible to the user even under auto modes. Plan needs to confirm
+  hook behavior composes cleanly with cascade semantics.
+- **Integration-gate terminology.** ADR-016 uses "integration-gate" for merge-to-main (human-invariant).
+  This plan's "pr-gate" terminology (at least in scope bullet text) should align — either rename to
+  integration-gate or document that pr-gate and integration-gate refer to the same stage.
+
+Scope impact: lighter overall. The gate-model frame provides vocabulary and semantic home this plan
+was inventing independently; handoff-gate adds a small new scope item; autonomy-mode interaction
+needs a design check but not new mechanics.
+
 ## Scope
 
 ### In scope
 
-**Tier model reshape.** Rename "Tier 1/2/3" to gate-stage-aligned naming. Current lean:
-`commit-gate / push-gate / pr-gate`. Rename touches DEV-RULES.ARC, strategy-quality-gates.md,
+**Tier model reshape.** Rename "Tier 1/2/3" to gate-stage-aligned naming, using the canonical vocabulary
+from [ADR-016][adr-016]. Current lean: `commit-gate / push-gate / integration-gate` (aligning with
+ADR-016 terminology — the frame uses "integration-gate" for merge-to-main, and this plan's
+pr-gate referred to the same stage). Rename touches DEV-RULES.ARC, strategy-quality-gates.md,
 3_process-task-loop.md, QUICK-REFERENCE.md, session-init.md, and scattered tier references throughout
 the framework. Final naming shape decided at PRD drafting — see Alternatives.
 
@@ -55,6 +83,12 @@ the framework. Final naming shape decided at PRD drafting — see Alternatives.
 adopter's push-gate commands. Config-gated via `hooks.pre_push` in `arc-config.yml`. Integrates through
 the existing hook-manager detection layer (ADR-014) — husky / lefthook / pre-commit.com / fallback all
 get the pre-push stage wired up.
+
+**Pre-handoff hook as new stage (ADR-016 integration).** Additional hook placement for handoff-gate:
+session-close validation before handoff artifacts are finalized. Config-gated via `hooks.pre_handoff`
+(naming TBD at PRD, aligned with autonomy-axis naming from [plan-session-operational-flow][plan-ops]).
+Complements commit-gate and push-gate checks with handoff-specific validation — e.g., status-file
+rotation validity, git-notes consistency, worktree cleanliness.
 
 **Connection points between tiers and hooks.** Extend the `quality-gate-commands` method with tier
 metadata on each command (Option A from decision analysis — tier attached to each command entry, not
@@ -181,6 +215,10 @@ Rough breakdown:
 
 **Dependencies:**
 
+- **[plan-session-operational-flow][plan-ops] Phase 1 (constitutional foundation) must land first** so
+  the gate vocabulary is formally canonicalized before this plan's rename pass. Phase 3 (config
+  surface) landing first is preferred — the autonomy-axis naming influences `hooks.pre_push` /
+  `hooks.pre_handoff` config shape and avoids retroactive churn.
 - Session-Init Optimization must land first — overlapping edits on DEV-RULES.ARC, session-init.md, and
   `quality-gate-commands.md` would conflict with ongoing audit work.
 - User Sync UX Polish landing first is preferred — both are pre-1.0 polish; reduces overlap on shared
@@ -191,7 +229,8 @@ Rough breakdown:
 - Landing before ARCd Rebrand means rebrand picks up the new tier naming in its bulk rename pass,
   avoiding double-churn (same argument as User Sync UX Polish).
 
-**Scheduling:** After Work-Unit Mobility, before ARCd Rebrand. Pre-1.0 polish window.
+**Scheduling:** After plan-session-operational-flow Phases 1-3 land, after Work-Unit Mobility, before
+ARCd Rebrand. Pre-1.0 polish window.
 
 **Pre-approved split at PRD-drafting time:** If the methodology rename (Option A) proves to touch more
 surface than anticipated, split into:
@@ -201,3 +240,8 @@ surface than anticipated, split into:
 - WU-B: Tier rename across all surfaces. Editorial, mostly find-and-replace with contextual review.
 
 Both halves are independently valuable. Keep unified if rename stays manageable.
+
+---
+
+[adr-016]: ../../reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md
+[plan-ops]: plan-session-operational-flow.md

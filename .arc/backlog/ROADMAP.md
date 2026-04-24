@@ -4,7 +4,7 @@ Planning and reasoning — the sequencing strategy for remaining work, what gets
 and why. This is a working document, subject to change as you learn. For project state
 and record (achievements, current status), see `PROJECT-STATUS.md`.
 
-**Last Updated:** 2026-04-18
+**Last Updated:** 2026-04-24
 
 ---
 
@@ -126,9 +126,38 @@ formalizes the `Working On:` prefix for planning/execution/integration different
 - PRD: `technical/prd-session-init-optimization.md`
 - Upstream: Work-Status Restructure (overlapping edits on session-init.md would conflict;
   session-init substrate must stabilize first)
-- Downstream: ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
+- Downstream: Session-Operational Flow (shared session-init / session-handoff / DEV-RULES surface),
+  ARCd Rebrand (lean session-init surface for rebrand terminology sweep)
 
-**User Sync UX Polish** — After Session-Init Optimization (pre-1.0 polish window)
+**Session-Operational Flow** — After Session-Init Optimization (unblocks frame consumers)
+
+Lands the gate model (ADR-016, Proposed): configurable autonomy gates for session-operational flow
+with task → commit → push → integrate as the linear stack (invariant endpoints, configurable middle
+rungs) and handoff as orthogonal ceremony. Downgrades "AI never initiates commits" from non-negotiable
+principle to configurable default; elevates task-gate review and integration-gate human authority as
+real invariants. Implements status-file timing split (rotation fields at handoff, shape fields at
+commit-time), configuration surface for autonomy modes, approval-signal vocabulary, reversibility
+protocol, auto-commit and auto-push modes with bundled-cascade safety requirements, and
+handoff-interior toggle framework. Shared frame for the three downstream session-operational plans
+(User Sync UX, Work-Unit Mobility, Quality Gate Hooks) — each becomes smaller and internally coherent
+inside the frame. Surfaced 2026-04-24 during pre-PRD exploration of User Sync UX when the
+`user.sync_push: always` incoherence revealed a missing shared frame. External research validated
+gate-model alignment with industrial SWE practice (Spinnaker manual judgment, GitHub Environments,
+Atlantis, Terraform autonomy tiers, Conventional Changelog boundary-consolidation).
+
+- Plan: `technical/plan-session-operational-flow.md`
+- ADR: `reference/adr/adr-016-configurable-autonomy-gates-for-session-operations.md` (Proposed)
+- Upstream: Session-Init Optimization (overlapping session-init / session-handoff / DEV-RULES edits;
+  must stabilize first)
+- Downstream: User Sync UX Polish (handoff-interior toggles for worktree/notes pairing),
+  Work-Unit Mobility (configurable autonomy for multi-session ergonomics),
+  Quality Gate Tiers and Hook Integration (canonical gate vocabulary, per-gate hook placement,
+  handoff-gate stage), ARCd Rebrand (gate-model terminology absorbed into rename pass)
+- **Scope note:** Pre-approved split at PRD-drafting time: WU-A (frame + constitutional foundation —
+  Phases 1-3) unblocks downstream plans earlier; WU-B (autonomy modes + reversibility — Phases 4-7)
+  ships implementation behaviors. Keep unified if scope stays manageable.
+
+**User Sync UX Polish** — After Session-Operational Flow Phase 6 (handoff-interior toggles)
 
 State-machine unification (collapse full-mode and session-init notes-sync probes to one spine),
 directional copy audit across `arc status` output, and `user.sync_push` scope expansion — design
@@ -141,13 +170,16 @@ machine and directional copy, rather than re-touching churned output. Sibling at
 architectural work.
 
 - Plan: `technical/plan-user-sync-ux.md`
-- Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate)
+- Upstream: Session-Init Optimization (atomic fetch-prompt fix, lean session-init substrate),
+  Session-Operational Flow Phase 6 (handoff-interior toggle framework — substrate for auto-push
+  implementation)
 - Downstream: Work-Unit Mobility (clean sync UX before worktree-aware detection lands),
   ARCd Rebrand (terminology surface stabilized before rename), Dogfooding (beta-ready
   user-sync surface)
-- **Scope note:** Pre-approved split at PRD-drafting time if auto-push design proves larger
-  than medium: (1) state-machine + copy polish, (2) auto-push design + implementation. Keep
-  unified if research concludes the auto-push work fits in one WU.
+- **Scope note:** Natural split aligned with frame dependency: WU-A (state-machine unification +
+  copy audit — independent of gate-model frame) can ship as soon as Session-Init Optimization
+  lands; WU-B (auto-push instantiation against handoff-interior toggles) waits for
+  Session-Operational Flow Phase 6. Unified if sequencing allows.
 
 **Work-Unit Mobility** — After User Sync UX Polish
 
@@ -162,7 +194,10 @@ reconciliation) must resolve before PRD promotion.
 
 - Plan: `feature/plan-work-unit-mobility.md` (pre-PRD draft, iteration expected)
 - Upstream: Session-Init Optimization (stable session-init substrate to extend),
-  User Sync UX Polish (clean sync state machine before worktree axis joins it)
+  User Sync UX Polish (clean sync state machine before worktree axis joins it),
+  Session-Operational Flow Phases 3/5/6 (configurable autonomy modes — reduce approval ceremony
+  under multi-session load; async-merge integration-surface audit added to mobility scope per
+  ADR-016 discussion)
 - Downstream: ARCd Rebrand (stable mobility terminology absorbed into rename pass),
   ARC Operating Modes (shift lifecycle available as prerequisite, not bundled into modes)
 
@@ -180,8 +215,11 @@ alignment is the universal idiom and ARC's gap is real. Builds on ADR-014 (hook-
 already ships).
 
 - Plan: `technical/plan-quality-gate-hooks.md`
-- Upstream: Session-Init Optimization (DEV-RULES / session-init overlap), User Sync UX Polish
-  (shared polish surfaces), Work-Unit Mobility (session-init orientation overlap),
+- Upstream: Session-Init Optimization (DEV-RULES / session-init overlap),
+  Session-Operational Flow Phases 1-3 (canonical gate vocabulary + config surface — supersedes
+  this plan's independent convergence on commit-gate / push-gate / pr-gate naming; adds
+  handoff-gate as fourth hook stage), User Sync UX Polish (shared polish surfaces),
+  Work-Unit Mobility (session-init orientation overlap),
   ADR-014 (hook-manager detection prerequisite)
 - Downstream: ARCd Rebrand (new tier naming absorbed in rename pass),
   Dogfooding (beta-ready quality gate surface)
@@ -284,21 +322,21 @@ Phase A ──► Phase B ──► Phase C (Work Units):
    │     │     │     │     │     │     │     │
    │     │     │     │     │     │     │     ├──► Session-Init Optimization
    │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     ├──► User Sync UX Polish
+   │     │     │     │     │     │     │     │     ├──► Session-Operational Flow (ADR-016 frame)
    │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     ├──► Work-Unit Mobility
+   │     │     │     │     │     │     │     │     │     ├──► User Sync UX Polish      ─┐
+   │     │     │     │     │     │     │     │     │     ├──► Work-Unit Mobility        ├──► ARCd Rebrand
+   │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hooks┘    (downstream of all three;
+   │     │     │     │     │     │     │     │     │     │                                    three can parallelize
+   │     │     │     │     │     │     │     │     │     │                                    after frame lands)
    │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     ├──► Quality Gate Tiers + Hook Integration
+   │     │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
    │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     ├──► ARCd Rebrand
-   │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     ├──► Expanded Planning Path
+   │     │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
    │     │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     │     ├──► Operating Modes (Lite + Local)
+   │     │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
    │     │     │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     │     │     ├──► Dogfooding (iterate 0.x.y)
-   │     │     │     │     │     │     │     │     │     │     │     │     │     │     │
-   │     │     │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
+   │     │     │     │     │     │     │     │     │     │     │     │     │     └──► WU5 (Public Release, 1.0)
    │     │     │     │     │     │     │     │     │     │     │     │     │     │           ▲
    │     │     └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘ (content can start after WU2)
    │     │                                                                                    ▲
@@ -356,6 +394,27 @@ site structure.
 
 ## Change Log
 
+- **2026-04-24**: Session-Operational Flow WU added as `technical/plan-session-operational-flow.md`,
+  anchored by ADR-016 (Adopt Configurable Autonomy Gates for Session Operations, Proposed).
+  Surfaced during pre-PRD exploration of User Sync UX Polish — the `user.sync_push: always`
+  incoherence (notes push without commits) revealed a missing shared frame for session-operational
+  flow that was blocking coherent design across User Sync UX, Work-Unit Mobility, and Quality Gate
+  Hooks. ADR-016 establishes the gate model (task → commit → push → integrate linear stack with
+  invariant endpoints; handoff as orthogonal ceremony); `plan-session-operational-flow` executes
+  the frame (constitutional amendments, status-file timing split, configuration surface, autonomy
+  modes, reversibility protocol, handoff-interior toggle framework). Downgrades "AI never
+  initiates commits" from non-negotiable principle to configurable default; elevates task-gate
+  review and integration-gate human authority as real invariants. Reshapes three downstream
+  plans: User Sync UX lightens (auto-push becomes handoff-interior toggle instantiation), Quality
+  Gate Hooks gains canonical gate vocabulary + handoff-gate stage, Work-Unit Mobility adds
+  async-merge integration-surface audit + concurrent-session posture reconciliation +
+  status-field rotation classification. New sequencing: Session-Init Optimization →
+  Session-Operational Flow → {User Sync UX || Work-Unit Mobility || Quality Gate Hooks}
+  (parallelize after frame lands) → ARCd Rebrand → Expanded Planning Path → Operating Modes →
+  Dogfooding → WU5. External research validated gate-model alignment with industrial SWE practice
+  (Spinnaker manual judgment, GitHub Environments, Atlantis, Terraform autonomy tiers,
+  Conventional Changelog boundary-consolidation); three honest-framing points where industry
+  precedent is absent or mixed absorbed into ADR Context.
 - **2026-04-24**: Quality Gate Tiers and Hook Integration added as
   `technical/plan-quality-gate-hooks.md`. Surfaced same day when a commit with known-deferred
   markdown lint errors landed in CI — Tier 2 would have caught it under manual discipline but
