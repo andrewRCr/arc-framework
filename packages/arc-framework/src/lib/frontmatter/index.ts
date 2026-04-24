@@ -29,3 +29,9 @@ export type {
   AgentFrontmatter,
   AgentParseResult,
 } from "./agent.js";
+
+export { parseDevRulesFrontmatter } from "./dev-rules.js";
+export type {
+  DevRulesFrontmatter,
+  DevRulesParseResult,
+} from "./dev-rules.js";

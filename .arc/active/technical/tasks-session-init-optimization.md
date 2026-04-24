@@ -2747,26 +2747,18 @@ restructure, not as a Phase 4 audit target.
 
         **Scope:**
 
-        - [ ] **4.2.g.a `parseDevRulesFrontmatter` — schema parser**
+        - [x] **4.2.g.a `parseDevRulesFrontmatter` — schema parser**
 
-            **Goal:** New `src/lib/frontmatter/dev-rules.ts` module validating the flat
-            `{domain, purpose}` schema and enforcing `domain` matches filename `{DOMAIN}` fragment.
-            Exported from `src/lib/frontmatter/index.ts` alongside method/extension/agent parsers.
+            Shipped `src/lib/frontmatter/dev-rules.ts` with the flat `{domain, purpose}` schema:
+            case-insensitive filename-fragment match against `DEV-RULES.{DOMAIN}` basename,
+            non-empty `purpose` enforced, extra unknown keys accepted for forward-compatibility.
+            Exported from `src/lib/frontmatter/index.ts`. 12 tests in
+            `__tests__/unit/frontmatter/dev-rules.test.ts` (11 spec'd behaviors + case-insensitive
+            match affirmation). Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 784 unit
+            tests passing).
 
-            Build `test-first` (one behavior at a time):
-            - Valid frontmatter with `domain: frontend` + `purpose: <text>` in
-              `DEV-RULES.FRONTEND.md` returns parsed frontmatter with no errors
-            - Missing `domain` field returns error naming the missing key
-            - Missing `purpose` field returns error naming the missing key
-            - Non-string `domain` (e.g., number) returns error naming expected type
-            - Non-string `purpose` returns error naming expected type
-            - Empty string `purpose` returns error (non-empty required)
-            - `domain` value mismatches filename basename (e.g., `domain: security` in
-              `DEV-RULES.FRONTEND.md`) returns error naming both values
-            - Malformed YAML returns parse error with inner message
-            - Missing frontmatter block returns "missing frontmatter block" error
-            - Non-mapping YAML (array at top level) returns "must be a YAML mapping" error
-            - Extra unknown keys do not produce errors (forward-compatible)
+            **Behaviors batched rationale:** Tightly coupled single parser, shared test setup, no
+            independent discovery value — per `3_process-task-loop.md` § Batching judgment.
 
         - [ ] **4.2.g.b Probe module — `runDomainRulesSessionInitStatus`**
 

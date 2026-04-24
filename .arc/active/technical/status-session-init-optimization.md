@@ -5,17 +5,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.2.g.a — `parseDevRulesFrontmatter` schema parser (line ~2750)
-- **Last Completed:** Task 4.2.f — Template + reference + config cluster audit. `template-status.md`
-  56 → 11 lines (80% trim); `STRATEGY-INDEX.md` `.arc/` 79 → 38, package 79 → 56 (intentional §
-  Project Strategies divergence — Configurable per file-classification); `arc-config.yml` audited, no
-  material change. State enum + Optional Pointer Fields relocated to new
-  `strategy-work-organization.md § Work Unit State`; `integrate-work-unit.md` cross-references
-  redirected. Adjacent capture: `plan-docs-content-sweep.md` Content Contribution #5 (agent-native
-  positioning framing note for value-prop copy).
+- **Next Task:** 4.2.g.b — Probe module `runDomainRulesSessionInitStatus` (line ~2763)
+- **Last Completed:** Task 4.2.g.a — `parseDevRulesFrontmatter` schema parser. Shipped
+  `src/lib/frontmatter/dev-rules.ts` with flat `{domain, purpose}` schema, case-insensitive
+  filename-fragment match against `DEV-RULES.{DOMAIN}` basename, non-empty `purpose` enforced, extra
+  unknown keys accepted. Exported via `frontmatter/index.ts`. 12 tests covering 11 spec'd behaviors +
+  case-insensitive match affirmation; Tier 1 gates clean.
 - **Blockers:** none
-- **Next Action:** Begin 4.2.g.a — test-first `src/lib/frontmatter/dev-rules.ts` implementing the flat
-  `{domain, purpose}` schema with filename-match enforcement (mirrors method parser precedent). 11
-  behaviors enumerated in the task list. Pre-implementation audit (session 2026-04-23) resolved DD1–DD5
-  and restructured 4.2.g into six subtasks (a–f); implementation order a → b → c → (d,e parallel) → f
-  across ~3–4 commits.
+- **Next Action:** Begin 4.2.g.b — new `src/commands/constitution/` module (types, status, format,
+  barrel) with `runDomainRulesSessionInitStatus` probe. Enumerates `DEV-RULES.*.md` in
+  `reference/constitution/`, filters by parse success, returns `{path, domain, purpose}` tuples plus
+  `warnings[]`. Test-first against a fixture tree per extensions probe precedent. Verify
+  missing-directory handling against extensions probe during implementation and match it.
