@@ -1073,6 +1073,141 @@ absorption can either reference that template or reproduce the sample inline dep
 page layout. The Purpose paragraph is the piece worth preserving on its own: it answers "why
 is atomic a separate file, not just inline in the task list?"
 
+## Entry 28 — 1_create-prd.md § Preamble — feature/technical work-type taxonomy
+
+**Source:** `.arc/system/workflows/arc/1_create-prd.md` (lines 8-14, pre-trim); package-source
+copy at `packages/arc-framework/arc/system/workflows/arc/1_create-prd.md` same line range —
+straight two-copy file, no template-only delta.
+
+**Content:**
+
+> ARC distinguishes two work types:
+>
+> - **Feature** — User-facing capabilities
+> - **Technical** — Infrastructure, architecture, or process improvements
+>
+> See [Work Organization Strategy][work-org] for the complete
+> decision tree.
+
+**Suggested destination:** `docs/methodology/work-types/` § Feature vs Technical or
+`docs/reference/work-categories/` § Overview — adopter-facing introductory framing of the
+two-work-type taxonomy. Pairs naturally with the Work Organization Strategy's decision tree;
+docs absorption can show the taxonomy-definition → decision-tree progression.
+
+**Stylistic integration notes:** Trimmed workflow retains a one-line pointer ("ARC distinguishes
+feature and technical work — see [Work Organization Strategy][work-org] for the decision tree")
+in the preamble; the definitional content moves to Step 2 inline ("Classify as **feature** (adds
+user-visible capability from the product vision) or **technical** (infrastructure, architecture,
+or internal improvement)"). The two-bullet taxonomy extracted here is pedagogical framing that
+doesn't need to appear twice in an operational workflow. Docs absorption audience is adopters
+learning the methodology rather than agents executing PRD creation.
+
+## Entry 29 — 1_create-prd.md § Step 3 Conduct Discovery — "Without a plan" discovery bullets
+
+**Source:** `.arc/system/workflows/arc/1_create-prd.md` (lines 72-78, pre-trim); package-source
+copy at `packages/arc-framework/arc/system/workflows/arc/1_create-prd.md` same line range —
+straight two-copy file, no template-only delta.
+
+**Content:**
+
+> **Without a plan**: Ask broader questions to establish scope:
+>
+> - **Problem/Goal**: What problem does this solve? What does success look like?
+> - **Scope**: What's in scope? What's explicitly out?
+> - **Requirements**: What must the solution do? What constraints exist?
+> - **Technical context**: Dependencies, integration points, migration concerns
+> - **Unknowns**: What needs investigation before implementation?
+
+**Suggested destination:** `docs/guides/prd-creation/` § Discovery Without a Plan or
+`docs/reference/planning-pipeline/` § Discovery Checklist — adopter-facing elaboration of the
+discovery areas. Pairs with `strategy-work-planning.md § Discovery Checklist` (the authoritative
+source the trimmed workflow now points at); docs absorption can either treat this as a
+simplified preview of the full checklist or fold it into the checklist page itself as an
+at-a-glance summary.
+
+**Stylistic integration notes:** Trimmed workflow retains a one-line pointer to the discovery
+checklist ("**Without a plan**: Work through the [discovery checklist][discovery-checklist] in
+full to establish scope") and drops the inline enumeration. The five bullets duplicated content
+already owned by `strategy-work-planning.md § Discovery Checklist` (the authoritative source) —
+two-copy redundancy in the agent-loaded surface. Docs audience can support the preview
+treatment without forcing agents to re-read the same material in two loaded docs.
+
+## Entry 30 — 1_create-prd.md § Step 5 Retire Plan Documents — "Framing the notes file" guidance
+
+**Source:** `.arc/system/workflows/arc/1_create-prd.md` (lines 112-119, pre-trim); package-source
+copy at `packages/arc-framework/arc/system/workflows/arc/1_create-prd.md` same line range —
+straight two-copy file, no template-only delta.
+
+**Content:**
+
+> **Framing the notes file:** The `notes-*.md` file is a living scratchpad for the work unit —
+> not a closed archive of plan-extracted material. Place carved sections near the top with clear
+> headings, but do not frame the file header as being "only" plan-extracted content. Leave the
+> structure open for sections added during task execution (working notes, discovered context,
+> implementation scratch). Keep the file header minimal: title plus contents. No purpose block
+> describing how the file will be consumed, no provenance lines citing the plan doc, no
+> "retired with this commit" metadata, no explanations of the file's relationship to specific
+> commits. Write for the reader, not the author (see [DEV-RULES.ARC][dev-rules-arc]
+> § Documentation Boundaries).
+
+**Suggested destination:** `docs/methodology/planning-pipeline/` § Plan → PRD Transition or
+`docs/guides/notes-files/` § Framing a Living Scratchpad — adopter-facing rationale for the
+"living scratchpad" framing and the anti-patterns it names (purpose blocks, provenance lines,
+commit metadata). The concrete anti-patterns (authored for the author, not the reader) are
+worth preserving as examples of the broader DEV-RULES.ARC § Documentation Boundaries rule in
+action — docs absorption can either consolidate with Entry 9 (DEV-RULES.ARC § Write for the
+reader overflow examples) or treat this as a planning-pipeline-specific illustration.
+
+**Stylistic integration notes:** Trimmed workflow retains a compact operational constraint
+("Keep the notes file header minimal (title + contents only) — no purpose block, no provenance
+to the plan, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation
+Boundaries.") inside the Step 5 procedural list. Absorbed content carries the "living
+scratchpad" framing, the "leave the structure open for sections added during task execution"
+rationale, and the specific anti-patterns enumerated (purpose block, provenance lines,
+"retired with this commit" metadata). The anti-pattern list is the piece most worth
+preserving on its own: it answers "which specific habits does this rule name?"
+
+## Entry 31 — 2_generate-tasks.md § Task List Format — Header code block + path-update note
+
+**Source:** `.arc/system/workflows/arc/2_generate-tasks.md` (lines 127-141, pre-trim);
+package-source copy at
+`packages/arc-framework/arc/system/workflows/arc/2_generate-tasks.template.md` (lines 136-150,
+pre-trim — 9-line offset from .arc/ due to the team.mode conditional block in Step 3; the Task
+List Format region itself has no template-only delta).
+
+**Content:**
+
+> ### Header
+>
+> ```markdown
+> # Task List: [Work Name]
+>
+> - **PRD:** `.arc/[location]/[category]/prd-[name].md`
+> - **Branch(es):** `feature/[name]` or `technical/[name]` (comma-separated if multiple)
+> - **Base Branch:** base branch per `arc-config.yml` (typically `main`)
+> ```
+>
+> The PRD path should reflect the PRD's current location (matching the task list's save location).
+> In arc-in-git mode, [activation][activate-work-unit] updates both paths when documents move to
+> `active/`.
+
+**Suggested destination:** `docs/reference/task-lists/` § Header Format or folded into the
+`template-tasks.md` docs equivalent — adopter-facing header-field reference. The skeleton
+content is now canonically owned by `template-tasks.md` (extracted in Task 4.4.a); the
+path-update-during-activation sentence is workflow-level nuance rather than template content —
+docs absorption should keep the skeleton near `template-tasks.md` and the path-update nuance
+near activation-flow content.
+
+**Stylistic integration notes:** Trimmed workflow collapses `## Task List Format` to a
+two-pointer structure: one line to `template-tasks.md` for the skeleton, one line to
+`strategy-task-list-formatting.md` for the rules. The path-update sentence stays in the
+workflow (operational: it tells the author when paths shift, and the PM-mode-specific
+activation mechanics are workflow concerns). Previous `### Header` / `### Body` subsection
+structure is gone — both subsections were shallow pointers; the flat collapse matches the
+extraction's scope and removes the two-hop lookup (workflow → strategy → template). For docs
+absorption, the header skeleton is the piece worth preserving, since `template-tasks.md`'s
+docs equivalent will likely reproduce it verbatim.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
@@ -1085,3 +1220,6 @@ is atomic a separate file, not just inline in the task list?"
 [arc-methods-session]: ../../system/methods/session-state.md
 [dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
+[work-org]: ../../reference/strategies/arc/strategy-work-organization.md
+[discovery-checklist]: ../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist
+[activate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md

@@ -135,25 +135,13 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 ## Task List Format
 
-### Header
-
-```markdown
-# Task List: [Work Name]
-
-- **PRD:** `.arc/[location]/[category]/prd-[name].md`
-- **Branch(es):** `feature/[name]` or `technical/[name]` (comma-separated if multiple)
-- **Base Branch:** base branch per `arc-config.yml` (typically `main`)
-```
+See [template-tasks.md][template-tasks] for the header and body skeleton (Overview, Scope, Tasks,
+Verification Phase, Atomic Tasks, Success Criteria). See
+[strategy-task-list-formatting.md][task-list-formatting] for formatting rules and conventions.
 
 The PRD path should reflect the PRD's current location (matching the task list's save location).
 In arc-in-git mode, [activation][activate-work-unit] updates both paths when documents move to
 `active/`.
-
-### Body
-
-See [strategy-task-list-formatting.md][task-list-formatting] for
-complete body structure (Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success
-Criteria), formatting rules, test-first patterns, and annotated examples.
 
 ---
 
@@ -180,6 +168,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
+[template-tasks]: ../../../reference/templates/template-tasks.md
 [activate-planning-branch]: work-unit-lifecycle/planning/activate-planning-branch.md
 [integrate-planning-branch]: work-unit-lifecycle/planning/integrate-planning-branch.md
 [arc-config]: ../../arc-config.yml

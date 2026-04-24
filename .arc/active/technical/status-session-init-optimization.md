@@ -5,25 +5,34 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.5.a — Planning workflows audit (`1_create-prd.md`, `2_generate-tasks.md`
-  post-4.4.b relocated-checklist state) (line ~3190)
-- **Last Completed:** Task 4.4 — Task-list-formatting restructure (three-move unit). 4.4.b
-  relocated the Quick Format Checklist from `strategy-task-list-formatting.md` into
-  `2_generate-tasks.md § Step 4` as a pre-save verification gate; dropped the redundant caller
-  pointer. 4.4.c rewrote `strategy-task-list-formatting.md` to rules-only (701 → 285 lines,
-  ~59% reduction): 7 contract-carrying sections preserved, format-element subsections
-  collapsed to 2–4 line rule summaries, templates delegated to `template-tasks.md` via
-  cross-reference, heading structure stable (all non-anchor external references still
-  resolve). Five staging entries (23-27) extracted pedagogical and design-philosophy content
-  (incidental worked example, indentation visual + example, verification rationale paragraphs,
-  success-criteria three-state example, atomic-companion Purpose + sample). STRATEGY-INDEX
-  entry updated in both copies. Tier 2 markdown lint clean across all eight modified files.
+- **Next Task:** 4.4.d.a — Reshape `template-tasks.md` (remove redundant meta-sections;
+  retain variant scaffolds + atomic-companion skeleton; target ~215 → ~130 lines)
+  (line ~3199)
+- **Last Completed:** Task 4.5.a — Planning workflows operational-context audit.
+  `1_create-prd.md` 138→115 (~17%): preamble feature/technical taxonomy collapsed to
+  one-line strategy pointer + consolidated rule in Step 2; Step 2 emphasis-rationale tail
+  trimmed; Step 3 "Without a plan" discovery bullets reduced to discovery-checklist
+  pointer; Step 5 "Framing the notes file" pedagogical paragraph extracted with
+  operational constraint retained inline. `2_generate-tasks.md` 177→166 (~6%; Quick
+  Format Checklist protected per persistent context): `## Task List Format` flattened
+  from `### Header` + `### Body` subsection structure to two-pointer layout — direct
+  reference to `template-tasks.md` for skeleton (removes previous two-hop
+  workflow→strategy→template lookup), `strategy-task-list-formatting.md` for rules;
+  path-update workflow nuance retained. Four staging entries (28-31) to
+  `notes-docs-content-sweep.md`. Cross-references verified stable; section-name anchors
+  preserved. Task 4.4.d captured (discovered-during-execution): `template-tasks.md` and
+  `template-completion-doc.md` identified as structural outliers vs. the direct-use
+  scaffold pattern of the other 8 templates in `reference/templates/`. Tier 1 markdown
+  lint clean across six touched files.
 - **Blockers:** none
-- **Next Action:** Begin Task 4.5 — Tier 3 audit on remaining session-init-relevant workflows.
-  Starts with 4.5.a (planning workflows): operational-context audit on `1_create-prd.md`
-  (138 lines) and `2_generate-tasks.md` (post-4.4.b state, now ~183 lines after checklist
-  insertion). Standard posture, same protocol as 4.3.a/4.3.c: extract rationale/prose to
-  `notes-docs-content-sweep.md` staging entries, agent-audience lens (no inline placeholders),
-  two-copy sync per file. 4.5 decomposes into domain clusters — a/planning, b/WU-lifecycle
-  core, c/branch+verify+planning, d/supplemental — completion of one cluster is the natural
-  review increment boundary.
+- **Next Action:** Begin Task 4.4.d.a — reshape `template-tasks.md` while context is
+  fresh from 4.5.a analysis. Remove § Verification Phase and § Success Criteria Section
+  (rules owned by post-4.4.c `strategy-task-list-formatting.md`; skeletons already appear
+  inline inside each variant scaffold — redundant). Trim § Atomic Companion File prose
+  lead-in; retain skeleton (different file path, can't collapse into task-list scaffold).
+  Retain Header Variant: Feature/Technical and Header Variant: Incidental scaffolds +
+  intro framing + closing reference links. Target ~215 → ~130 lines (~40%). Two-copy
+  sync (straight two-copy file, no template suffix). After 4.4.d.a, 4.4.d.b for
+  `template-completion-doc.md` reshape (mirrors 4.4.b's operational-machinery-to-use-site
+  pattern — relocates "Required Reading Before Drafting" and "Standard Template
+  Verification Checklist" to `integrate-work-unit.md § Step 3`).
