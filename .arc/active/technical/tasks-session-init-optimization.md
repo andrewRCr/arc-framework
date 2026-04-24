@@ -2703,31 +2703,219 @@ restructure, not as a Phase 4 audit target.
         **Two-copy sync:** All trims applied to both copies. Content identical across copies except the two
         intentional STRATEGY-INDEX § Project Strategies divergences.
 
-    - [ ] **4.2.g DEV-RULES domain enumeration via composite probe** — replace session-init.md Step 4 item 5's
-      `constitution/` scan instruction with probe-delivered domain-rules awareness. Surfaced during 4.2.e audit:
-      every session scans `constitution/` for `DEV-RULES.*.md` domain files with near-always-empty result
-      (rare adopter need).
+    - [ ] **4.2.g DEV-RULES domain enumeration via composite probe**
 
-      **Scope:**
-        - **Frontmatter convention** on domain DEV-RULES files: `domain: <slug>` and `purpose: <one-liner>` under
-          a protected namespace, mirroring the workflow-frontmatter pattern Phase 1 established. Zero domain
-          files exist in this repo; no migration.
-        - **CLI resolver** in `arc status --session-init --json` — new top-level field (e.g.,
-          `domainRules.value: [{path, domain, purpose}]`) enumerates constitution/ DEV-RULES files with parsed
-          frontmatter. Empty array when none exist.
-        - **Session-init.md Step 4 item 5** — drop the in-step scan instruction; consume probe output instead.
-          Agent receives pre-resolved `{path, domain, purpose}` list analogous to STRATEGY-INDEX entries, loads
-          on-demand when work touches a domain.
-        - **New `reference/templates/template-dev-rules.md`** — shipped adopter template with frontmatter
-          scaffold pre-populated (`domain:`, `purpose:`, empty body skeleton). Include comment directing
-          adopters to rename the file to `DEV-RULES.{DOMAIN}.md` so the probe picks it up. Two-copy sync.
-        - **Session-init.md Step 4 item 5 trim** — the held 4.2.e wording tightening lands as part of this
-          task when the scan instruction is replaced wholesale.
-        - **Docs-site drift capture** at implementation time — domain-rules pattern + template surface belong on
-          the docs site (adopter-facing); add a Drift Item entry to `plan-docs-content-sweep.md` at that point.
+        **Goal:** Replace session-init.md Step 4 item 5's `constitution/` scan instruction with
+        probe-delivered domain-rules awareness. Surfaced during 4.2.e audit: every session scans
+        `constitution/` for `DEV-RULES.*.md` domain files with near-always-empty result (rare adopter
+        need). Zero domain files exist in this repo; no migration.
 
-      **Dependencies:** none blocking; independent of 4.2.e content trim. Order after 4.2.e for commit
-      cohesion.
+        **Design decisions (resolved pre-implementation):**
+
+        - **Frontmatter schema — flat, unnamespaced**: top-level `domain:` (string) and `purpose:`
+          (string). Mirrors method/extension frontmatter precedent (same family: harness-enumerated
+          markdown files) rather than the workflow `arc:` namespace pattern. Filename must match
+          `DEV-RULES.{DOMAIN}.md` where `{DOMAIN}` matches the `domain:` value (case-insensitive),
+          mirroring the method `name`-matches-basename contract.
+        - **Enumeration discriminator — frontmatter presence**: probe globs `DEV-RULES.*.md` in
+          `reference/constitution/` and filters by successful frontmatter parse. `DEV-RULES.ARC.md`
+          and `DEV-RULES.PROJECT.md` carry no frontmatter and are silently skipped — no
+          reserved-list maintenance. Any adopter `DEV-RULES.SECURITY.md` with the schema is
+          auto-discovered.
+        - **Malformed frontmatter handling**: mirrors extensions probe — surfaces in a
+          `warnings: string[]` slot on the probe result. File skipped from enumeration; session-init
+          continues.
+        - **Probe envelope shape**:
+            - Module: `src/commands/constitution/` (mirrors `.arc/reference/constitution/` directory
+              mapping convention used by other command modules)
+            - Top-level slot on `SessionInitProbeResult`:
+              `domainRules: Probe<DomainRulesSessionInitResult>` (precise — `constitution` the
+              module enumerates specifically the domain-rules subset)
+            - Inner shape:
+              `{ mode: "session-init"; rules: Array<{ path; domain; purpose }>; warnings: string[] }`
+            - **Session-init-only at launch**: no full-mode rendering added — no current consumer.
+              `arc status` default rendering skips the slot. Adding full mode is a later task if an
+              `arc constitution status` surface is needed.
+        - **Session-init.md Step 4 item 5 — re-composed under Option C**: merge domain-rules
+          pointer as rewritten nested bullet under existing item 5 (DEV-RULES.PROJECT.md). No
+          renumbering. Drops the `constitution/` scan instruction; references `domainRules` probe
+          output instead.
+        - **`template-dev-rules.md` classification — Framework (default)**: static scaffold with
+          fixed content; adopters copy-and-rename to `DEV-RULES.{DOMAIN}.md`, so upstream template
+          edits propagate cleanly. No entry needed in `src/lib/classification.ts` (default
+          behavior).
+
+        **Scope:**
+
+        - [ ] **4.2.g.a `parseDevRulesFrontmatter` — schema parser**
+
+            **Goal:** New `src/lib/frontmatter/dev-rules.ts` module validating the flat
+            `{domain, purpose}` schema and enforcing `domain` matches filename `{DOMAIN}` fragment.
+            Exported from `src/lib/frontmatter/index.ts` alongside method/extension/agent parsers.
+
+            Build `test-first` (one behavior at a time):
+            - Valid frontmatter with `domain: frontend` + `purpose: <text>` in
+              `DEV-RULES.FRONTEND.md` returns parsed frontmatter with no errors
+            - Missing `domain` field returns error naming the missing key
+            - Missing `purpose` field returns error naming the missing key
+            - Non-string `domain` (e.g., number) returns error naming expected type
+            - Non-string `purpose` returns error naming expected type
+            - Empty string `purpose` returns error (non-empty required)
+            - `domain` value mismatches filename basename (e.g., `domain: security` in
+              `DEV-RULES.FRONTEND.md`) returns error naming both values
+            - Malformed YAML returns parse error with inner message
+            - Missing frontmatter block returns "missing frontmatter block" error
+            - Non-mapping YAML (array at top level) returns "must be a YAML mapping" error
+            - Extra unknown keys do not produce errors (forward-compatible)
+
+        - [ ] **4.2.g.b Probe module — `runDomainRulesSessionInitStatus`**
+
+            **Goal:** New `src/commands/constitution/` module with types, probe, and format stubs.
+            Enumerates `DEV-RULES.*.md` files in `reference/constitution/`, filters by parse
+            success, returns `{path, domain, purpose}` tuples plus `warnings: string[]` for
+            malformed files.
+
+            Files:
+            - `src/commands/constitution/types.ts` — `DomainRulesSessionInitResult`,
+              `DomainRulesEntry`, `DomainRulesSessionInitOptions`
+            - `src/commands/constitution/status.ts` — `runDomainRulesSessionInitStatus`
+            - `src/commands/constitution/format.ts` — `buildDomainRulesSessionInitSummary` (stub;
+              called from composite formatter in 4.2.g.c)
+            - `src/commands/constitution.ts` — barrel re-export (matches existing module pattern)
+
+            Build `test-first` (one behavior at a time):
+            - Empty `reference/constitution/` directory returns `rules: []`, `warnings: []`
+            - Directory with only `DEV-RULES.ARC.md` + `DEV-RULES.PROJECT.md` (no frontmatter)
+              returns `rules: []`, `warnings: []` (silently skipped)
+            - Directory with one valid domain file returns single entry with `path` (relative to
+              repo root), `domain`, `purpose` populated
+            - Multiple valid domain files return entries sorted deterministically (alphabetical by
+              filename)
+            - Domain file with malformed frontmatter yields entry in `warnings` naming the file
+              and error; file excluded from `rules`
+            - Mixed directory (ARC + PROJECT + valid FRONTEND + malformed BACKEND) returns one
+              rule, one warning
+            - Missing `reference/constitution/` directory returns `rules: []`, `warnings: []` — or
+              throws — **verify against extensions probe precedent during implementation and match
+              it**
+            - README.md in the directory is excluded (mirrors extensions probe)
+            - Non-`.md` files are excluded
+
+        - [ ] **4.2.g.c Composite wiring + handler integration**
+
+            **Goal:** Thread the new probe through the composite orchestrator so
+            `arc status --session-init --json` includes `domainRules` in its output.
+
+            Files:
+            - `src/commands/status/types.ts` — add
+              `domainRules: Probe<DomainRulesSessionInitResult>` to `SessionInitProbeResult`; add
+              probe function to `SessionInitProbes`. **Full-mode `StatusResult` gets no new slot**
+              — full mode is out of scope (no consumer).
+            - `src/commands/status/run.ts` — add 5th task to `Promise.all` in
+              `runSessionInitStatus`; pass through result
+            - `src/commands/status/format.ts` — add `renderSlot("Domain Rules", ...)` to
+              `buildSessionInitStatusSummary` (Clack human-readable path only — JSON emission is
+              `JSON.stringify` direct)
+            - `src/handlers/status.ts` — add `domainRules` probe binding in session-init branch
+
+            Build `test-first` (one behavior at a time):
+            - Composite session-init result envelope shape includes `domainRules` slot with
+              discriminated union `{ok: true, value: ...}` on success
+            - Probe failure surfaces as `{ok: false, error: {kind: "runtime", ...}}` — session-init
+              continues, other slots unaffected (mirrors existing per-slot rejection discipline)
+            - Clack summary renders "Domain Rules:" section with entries (or "(none)" when empty)
+            - JSON emission (`--json`) includes `domainRules` field verbatim from typed result
+            - Full-mode `arc status` (default rendering) does not include `domainRules` — slot
+              absent from `StatusResult`
+
+        - [ ] **4.2.g.d Pre-commit hook — DEV-RULES frontmatter validation**
+
+            **Goal:** New CHECK in `.arc/system/githooks/pre-commit` validates that any staged
+            `DEV-RULES.*.md` file (excluding ARC and PROJECT by path) has well-formed domain-rules
+            frontmatter. Mirrors method/extension frontmatter hook pattern from Phase 3.
+
+            Placement: after existing method/extension frontmatter CHECKs (determine exact CHECK
+            number during implementation based on current pre-commit state). Two-copy sync on
+            `pre-commit`.
+
+            Build `test-first` (one behavior at a time):
+            - Staged `DEV-RULES.FRONTEND.md` with valid frontmatter passes
+            - Staged `DEV-RULES.BACKEND.md` with missing `domain` key fails with diagnostic naming
+              file + missing key
+            - Staged `DEV-RULES.FRONTEND.md` with `domain: backend` (filename mismatch) fails with
+              diagnostic naming both values
+            - Staged `DEV-RULES.ARC.md` or `DEV-RULES.PROJECT.md` is not checked (reserved
+              filenames)
+            - No staged domain files short-circuits before invoking validator
+            - Malformed YAML produces diagnostic with inner parse error
+            - Non-`DEV-RULES.*.md` files in `constitution/` (hypothetical) are not checked
+
+        - [ ] **4.2.g.e CI audit — extend `audit-method-triggers.ts`**
+
+            **Goal:** Extend the existing reliable-trigger audit (or sibling script — decide at
+            implementation time based on script cohesion) to validate DEV-RULES domain files:
+            frontmatter parses, `domain` matches filename, `domain` values are unique across files.
+            Non-blocking when zero domain files exist (empty pass).
+
+            **Implementation note:** script cohesion call — if `audit-method-triggers.ts` is
+            already multi-concern, add DEV-RULES validation there; if it's strictly
+            method/extension-scoped, create sibling `audit-domain-rules.ts`. Don't force-fit.
+
+            Build `test-first` (one behavior at a time):
+            - Empty `constitution/` (no domain files) → pass with informational output
+            - One valid domain file → pass
+            - Domain file with invalid frontmatter → fail with file path + error
+            - Two domain files with duplicate `domain:` value → fail naming both paths
+            - `DEV-RULES.ARC.md` / `DEV-RULES.PROJECT.md` are not inspected
+
+        - [ ] **4.2.g.f Markdown surface — session-init rewrite, template, drift capture**
+
+            Single atomic commit (all markdown-side changes, no CLI code).
+
+            - **`session-init.md` Step 4 item 5 rewrite** (two-copy — project + template). New
+              nested bullet shape (Option C):
+
+                ```markdown
+                5. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+                    - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}`
+                      tuples for any `DEV-RULES.{domain}.md` files with the domain-rules
+                      frontmatter. Load on-demand when a task touches the relevant domain, not at
+                      init time.
+                ```
+
+            - **New `reference/templates/template-dev-rules.md`** (two-copy). Contents:
+                - Frontmatter scaffold: `domain: <slug>`, `purpose: <one-liner>`
+                - Comment block directing adopters to rename to `DEV-RULES.{DOMAIN}.md` in
+                  `reference/constitution/` so the probe discovers it
+                - Body skeleton matching DEV-RULES.ARC / DEV-RULES.PROJECT shape (Contents section,
+                  rule headers, reference-links block)
+                - Framework classification (default — no `classification.ts` entry needed)
+
+            - **Step 2 probe table update** in `session-init.md` (both copies): add `domainRules`
+              row to the `arc status --session-init --json` field table documenting the new slot
+
+            - **`plan-docs-content-sweep.md` Drift Item entry**. Follows existing
+              `#### N. Title (from WU, date)` template. Content:
+                - **What changed**: DEV-RULES domain-rules pattern shipped — frontmatter convention
+                  on `DEV-RULES.{DOMAIN}.md` files, CLI probe enumeration, adopter-facing
+                  `template-dev-rules.md` scaffold
+                - **Edit type**: Additive concept introduction (not drift-fix)
+                - **Known touch points**: scan `docs/**` at sweep time for DEV-RULES loading
+                  discussion
+                - **Nuance**: agent-internal surface (probe output consumed during session-init),
+                  not an adopter CLI command — positioning should reflect that
+
+            **Tier 1 quality gates** (per-task): lint modified markdown files, lint modified TS
+            files, relevant unit tests. Full Tier 2 gates run at 4.2/Phase 4 close.
+
+        **Dependencies:** 4.2.g.a blocks 4.2.g.b, .d, .e (they consume the parser). 4.2.g.b blocks
+        4.2.g.c (composite consumes probe). 4.2.g.f depends on 4.2.g.c shipping so agents can
+        actually consume `domainRules` in the harness. Implementation order:
+        a → b → c → (d, e parallel) → f.
+
+        **Commit cadence:** expected 3–4 commits. Candidate boundaries: (1) parser + probe +
+        composite wiring; (2) hook + CI audit; (3) markdown surface. Split further if atomicity
+        discipline calls for it at commit time.
 
     **Goal:** Same operational-context audit applied to core lifecycle workflows — commit/task flow (4.3.a) fires
     repeatedly per session; integrate-work-unit (4.3.b) fires per-WU; session-handoff (4.3.c) fires per-session.
