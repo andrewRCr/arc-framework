@@ -196,7 +196,7 @@ Required final phase of every task list — a single task pointing to
 ```
 
 Include the `[verify-work-unit]` reference-link definition with other reference links at the
-task list's end. See [`template-tasks.md`][template-tasks] for the skeleton.
+task list's end.
 
 ---
 

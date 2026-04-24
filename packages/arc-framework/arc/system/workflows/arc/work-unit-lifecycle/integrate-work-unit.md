@@ -112,7 +112,34 @@ and the status file `**State:**` field set to `Complete`.
 
 Create `completion-{name}.md` in the same directory as the task list. Follow the templates and
 guidance in [template-completion-doc.md][template-completion-doc] — choose standard or lightweight
-based on work complexity. Complete the verification checklist (standard template) before proceeding.
+based on work complexity.
+
+**Before drafting, gather:**
+
+- Task list overview (first ~100 lines) — Scope, context, what was planned
+- Final phase(s) of task list — actual completion state, follow-up work status
+- CLEANUP-PROGRESS data (for large files) — metrics collected during cleanup
+- Git log for the final commit hash: `git log -1 --oneline`
+- Activation commit for the `**Started:**` date:
+  `git log --diff-filter=A -- .arc/active/{category}/status-{name}.md` (the commit that
+  created the status file is the activation event; use its date)
+
+**After drafting (standard template only), verify every claim:**
+
+- [ ] **Started / Completed dates**: Started = activation commit date; Completed = integration
+      prep date
+- [ ] **Pull Request URL**: added after `gh pr create` in Step 7
+- [ ] **Phase count**: matches actual phases in task file — `grep -c "^###.*Phase" tasks-*.md`
+- [ ] **Quantitative claims**: each number verified in task file (note where verified —
+      e.g., "7 themes" → Phase X, line Y)
+- [ ] **Follow-up work**: reflects FINAL phase state; only list items ACTUALLY still deferred
+      at task end
+- [ ] **No stale references**: no mentions of deleted notes files, completed deferred items,
+      etc.
+- [ ] **All major phases represented**: check CLEANUP-PROGRESS data includes all phases
+
+Lightweight template: verify the summary against the task list by inspection (no structured
+checklist).
 
 ### 4) Commit Documentation Changes
 

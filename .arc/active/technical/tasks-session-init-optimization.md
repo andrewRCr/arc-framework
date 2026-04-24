@@ -3180,92 +3180,82 @@ restructure, not as a Phase 4 audit target.
       sync: strategy-task-list-formatting.md is a straight two-copy file (no template suffix);
       both copies identical after rewrite.
 
-- [ ] **4.4.d Templates directory outlier cleanup**
+- [x] **4.4.d Templates directory outlier cleanup** — `template-tasks.md` 215 → 169 (~21%);
+    `template-completion-doc.md` 161 → 126 (~22%); `integrate-work-unit.md` 353 → 380 (+27,
+    from 4.4.d.b relocation). 4.4.d.a dropped redundant meta-sections now owned by
+    `strategy-task-list-formatting.md` + dangling strategy pointer cleaned up. 4.4.d.b
+    relocated pre-drafting gather list + post-drafting verification checklist to
+    `integrate-work-unit.md § 3) Create Completion Metadata` (mirrors 4.4.b's
+    operational-machinery-to-use-site pattern). Both outlier templates now carry only
+    scaffold-pattern content (intro + variant-selection + scaffold code blocks); scaffold
+    skeletons themselves retained as on-disk content of target files. Two-copy sync verified
+    across all six modified files. Tier 1 markdown lint clean throughout.
 
-    **Discovered during 4.5.a audit.** Of 10 files in `reference/templates/`, 8 are direct-use
-    scaffolds — the file IS the skeleton, starting with the target heading (`# PRD: [Work Name]`,
-    `# ADR-NNN: [Short Title]`, etc.) with placeholder prose inline. Two files are structural
-    outliers using a "meta-title + explanatory prose + embedded code-block skeletons" shape plus
-    additional meta-sections: `template-tasks.md` and `template-completion-doc.md`.
+    - [x] **4.4.d.a Reshape `template-tasks.md`** — 215 → 169 lines (~21%).
 
-    **Common driver:** variant selection — both files carry two alternative scaffolds that can't
-    collapse into a single skeleton. Per-file drivers differ; see each subtask.
+        Dropped § Verification Phase (skeleton already shown inline in
+        `strategy-task-list-formatting.md § Verification Phase` and embedded within each
+        variant scaffold — dedicated section was pure redundancy). Dropped § Success Criteria
+        Section (skeleton embedded within each variant scaffold at the bottom). Trimmed
+        § Atomic Companion File to minimal lead-in + skeleton block (Purpose/Ordering
+        paragraphs inside the skeleton code block retained — verified against real atomic
+        files in use across active + archive; those paragraphs are on-disk content of every
+        atomic file, not meta-guidance). Intro collapsed: removed the four-bullet "every task
+        list..." list that referenced dead anchors (`#verification-phase`,
+        `#success-criteria-section`); kept the pointer to `#atomic-companion-file` (retained
+        anchor) + strategy/checklist pointers.
 
-    **Protocol per subtask:** same two-copy discipline as 4.4.a-c. `template-tasks.md` is a
-    straight two-copy file (no template suffix); `template-completion-doc.md` same.
-    `integrate-work-unit.md` has a `.template.md` in package source — 4.4.d.b's relocation moves
-    apply to both copies with template markers preserved.
+        **Actual reduction vs task-spec target:** 21% vs. ~40%. Driver: the Purpose/Ordering
+        paragraphs inside the atomic skeleton code block are on-disk content of every real
+        atomic file (verified via `head` of existing atomic files across active + archive),
+        so not trim-eligible without changing the atomic-file-creation contract. Target
+        adjusted.
 
-    - [ ] **4.4.d.a Reshape `template-tasks.md`** — direct follow-on to 4.4.c
+        **Cross-reference cleanup (discovered during verification):**
+        `strategy-task-list-formatting.md § Verification Phase` had a dangling pointer
+        ("See `template-tasks.md` for the skeleton") redundant with the inline skeleton
+        directly above it; dropped in both copies. Strategy § Success Criteria Section pointer
+        left as-is — still resolves to the variant-scaffold embedded block. No other inbound
+        anchor-level references (confirmed via grep for `template-tasks.md#` and
+        `template-tasks.md §`). STRATEGY-INDEX entry unchanged (description still accurate —
+        post-trim file is still the skeleton source).
 
-        **Goal:** Remove meta-sections that duplicate rules now owned by
-        `strategy-task-list-formatting.md` (post-4.4.c rules-only rewrite); retain variant
-        scaffolds and the atomic-companion skeleton (different file, different path — can't
-        inline).
+        Two-copy sync verified (both `template-tasks.md` and `strategy-task-list-formatting.md`
+        are straight two-copy files). Tier 1 markdown lint clean across all four modified files.
 
-        **Removals:**
-        - § Verification Phase — rules live in strategy § Verification Phase; skeleton already
-          appears inline inside each variant scaffold. Redundant.
-        - § Success Criteria Section — rules live in strategy § Success Criteria; skeleton
-          already appears inline inside each variant scaffold. Redundant.
+    - [x] **4.4.d.b Reshape `template-completion-doc.md`** — 161 → 126 lines (~22%);
+        `integrate-work-unit.md` 353 → 380 lines (+27).
 
-        **Trims:**
-        - § Atomic Companion File — retain the skeleton (it's for a distinct file,
-          `atomic-{name}.md`, different path — can't collapse into task-list scaffold). Drop
-          the prose lead-in (Purpose, lifecycle framing) that duplicates strategy § Atomic
-          Companion File rules. Leave a single-line pointer + skeleton block.
+        Relocated "Required Reading Before Drafting" (5-item gather list) from template into
+        `integrate-work-unit.md § 3) Create Completion Metadata` as a pre-drafting gather
+        section. Relocated "Standard Template Verification Checklist" (7-item post-drafting
+        verification) into the same § 3 as a post-drafting verify gate (standard template only),
+        with the Lightweight-template "verify by inspection" note appended as the tail
+        instruction. "Evidence format: note where verified" discipline folded into the
+        "Quantitative claims" checklist item inline. Template retains: intro + "All work gets
+        a completion document" framing, § Choosing a Template variant-selection prose, both
+        variant scaffolds (Standard + Lightweight) as untouched code blocks, closing link
+        definition.
 
-        **Retains:**
-        - Intro framing (what the file contains, pointer to strategy for rules, pointer to
-          2_generate-tasks.md § Step 4 for the pre-save checklist)
-        - Header Variant: Feature/Technical (scaffold + variant-selection prose)
-        - Header Variant: Incidental (scaffold + variant-selection prose)
-        - Closing reference link definitions
+        **Actual reduction vs task-spec target:** 22% vs. ~50%. Same structural driver as
+        4.4.d.a: the Standard Template scaffold code block (~60 lines) is on-disk content of
+        every completion doc — not trim-eligible. Lightweight scaffold similar. The
+        relocations landed the full intended content shift; non-scaffold surface reduced
+        from ~55 lines to ~30 lines (~45% of non-scaffold prose removed — in line with spec
+        intent, just denominated differently). Target adjusted.
 
-        **Target:** ~215 → ~130 lines (~40% reduction). Two-copy sync.
+        **Integrate-work-unit.md impact:** +27 lines in § 3. Mirrors 4.4.b precedent
+        (`2_generate-tasks.md` grew ~23 lines from Quick Format Checklist relocation). 4.3.b's
+        trim was prose/rationale; relocating structured operational gates is not a reversal.
 
-        **Verification:** Strategy callers still resolve (strategy's own cross-references to
-        template-tasks.md anchors — check `§ Atomic Companion File` anchor specifically, since
-        that section survives but shrinks). STRATEGY-INDEX entry doesn't need update (description
-        already reads "template-tasks.md for skeletons" — post-trim file is still the skeleton
-        source).
+        **Cross-reference verification:** No inbound anchor-level references to template
+        (confirmed via grep for `template-completion-doc.md#` and `template-completion-doc.md §`).
+        Bidirectional pointers preserved: integrate-work-unit.md § 3 still references
+        `[template-completion-doc]` for scaffold selection; template intro still references
+        `[integrate-work-unit]` workflow (Phase 1, Step 3).
 
-    - [ ] **4.4.d.b Reshape `template-completion-doc.md`** — mirror of 4.4.b pattern
-
-        **Goal:** Relocate operational machinery (required-reading gate, verification checklist)
-        from the template to its use site in `integrate-work-unit.md § Step 3` — same principle
-        as 4.4.b (Quick Format Checklist relocated from strategy to `2_generate-tasks.md §
-        Step 4`). Template retains variant-selection prose and the two scaffold code blocks.
-
-        **Relocations to `integrate-work-unit.md § Step 3`:**
-        - "Required Reading Before Drafting" (5-item checklist: task-list overview, final phase,
-          CLEANUP-PROGRESS data, final commit hash, activation commit) → pre-drafting gate at
-          the point where Step 3 begins completion-doc creation
-        - "Standard Template Verification Checklist" (6-item checklist: Started/Completed dates,
-          PR URL, phase count, quantitative claims, follow-up work reflects final state, no
-          stale references) → post-drafting gate at the point where Step 3 marks completion-doc
-          done
-        - Both moves apply to both copies (`.arc/` + package-source `.template.md`); template
-          markers preserved
-
-        **Retains in template-completion-doc.md:**
-        - Intro framing (what the file contains, pointer to `integrate-work-unit.md § Step 3`)
-        - "Choosing a Template" variant-selection prose
-        - Standard Template scaffold (code block)
-        - Lightweight Template scaffold (code block) + single-sentence "verify by inspection"
-          note
-        - Closing reference link definitions
-
-        **Target template:** ~161 → ~80 lines (~50% reduction). Two-copy sync.
-
-        **Integrate-work-unit.md impact:** expected line increase matches 4.4.b precedent
-        (`2_generate-tasks.md` grew ~160 → ~183 from Quick Format Checklist relocation). 4.3.b
-        trimmed integrate-work-unit.md on a different dimension (prose/rationale); relocating
-        structured operational gates is not a reversal.
-
-        **Verification:** Integrate-work-unit.md § Step 3 still references template-completion-doc
-        for scaffold selection; template still references integrate-work-unit.md § Step 3 for
-        when it's used. Bidirectional pointers preserved.
+        Two-copy sync verified across all four files (both template-completion-doc.md and
+        integrate-work-unit.md are straight two-copy files). Tier 1 markdown lint clean.
 
 - [ ] **4.5 Tier 3 audit — remaining workflows**
 

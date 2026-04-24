@@ -4,12 +4,8 @@ Templates and guidance for task lists created during the [2_generate-tasks.md][g
 workflow (planned feature/technical work) or [manage-incidental-work.md][manage-incidental]
 (reactive incidental work).
 
-Every task list:
-
-- Uses one of the two header variants below (feature/technical or incidental)
-- Ends with a [verification phase](#verification-phase)
-- Includes a [Success Criteria section](#success-criteria-section) at the bottom
-- Gets a paired [atomic companion file](#atomic-companion-file) alongside it
+Every task list uses one of the two header variants below and gets a paired
+[atomic companion file](#atomic-companion-file) alongside it.
 
 See [strategy-task-list-formatting.md][task-list-formatting] for the authoritative format rules,
 element reference, test-first patterns, and annotated examples. The Quick Format Checklist in
@@ -136,27 +132,11 @@ grep-based discovery of related work. Lifecycle state (`State`, `Interrupts`, `P
 
 ---
 
-## Verification Phase
-
-Every task list ends with a verification phase as its final phase — the boundary between "doing
-the work" and "confirming the work is done."
-
-```markdown
-### **Phase N:** Verification
-
-- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
-```
-
-A single task deliberately — see
-[strategy-task-list-formatting.md § Verification Phase][task-list-formatting] for the rationale.
-The `[verify-work-unit]` reference link goes with other reference links at the task list's end.
-
----
-
 ## Atomic Companion File
 
-Create alongside every task list: `atomic-{name}.md` in the same directory as `tasks-{name}.md`.
-Empty by default — populated during execution as off-plan work is discovered.
+Create alongside every task list: `atomic-{name}.md` in the same directory. Empty by default;
+see [strategy-task-list-formatting.md § Atomic Companion File][task-list-formatting] for scope
+guards and lifecycle rules.
 
 ```markdown
 # Atomic Tasks — {Work Unit Name}
@@ -180,32 +160,6 @@ Atomic Task Completion for the full protocol.
 
 ---
 ```
-
-See [strategy-task-list-formatting.md § Atomic Companion File][task-list-formatting] for the
-scope guards (size, relationship to WU, timing) and lifecycle rules.
-
----
-
-## Success Criteria Section
-
-Placed at the bottom of every task list, serves as outcome verification checklist. Each Scope
-"Will Do" item should map to a verifiable criterion.
-
-```markdown
----
-
-## Success Criteria
-
-- [ ] {Verifiable outcome derived from Scope "Will Do"}
-- [ ] {Another verifiable outcome}
-- [ ] {Functional requirement that can be tested}
-- [ ] All quality gates pass (tests, linting, type checking)
-- [ ] Ready for {archival | next phase | merge}
-```
-
-Checked during the verification phase, not during implementation. See
-[strategy-task-list-formatting.md § Success Criteria Section][task-list-formatting] for the
-three-state model (`[x]` / `[~]` / `[ ]`) and annotation rules applied during verification.
 
 ---
 

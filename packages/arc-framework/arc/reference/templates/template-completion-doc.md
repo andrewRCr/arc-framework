@@ -27,20 +27,6 @@ the archive.
 
 ---
 
-## Required Reading Before Drafting
-
-The completion doc must be accurate because it's used for PRs. Before writing:
-
-1. **Task list overview** (first ~100 lines) — Scope, context, what was planned
-2. **Final phase(s)** of task list — Actual completion state, follow-up work status
-3. **CLEANUP-PROGRESS data** (for large files) — Metrics collected during cleanup
-4. **Git log** for final commit hash — `git log -1 --oneline`
-5. **Activation commit** for the `**Started:**` date — find via
-   `git log --diff-filter=A -- .arc/active/{category}/status-{name}.md` (the commit
-   that created the status file is the activation event; use its date)
-
----
-
 ## Standard Template
 
 ```markdown
@@ -103,25 +89,6 @@ See integrate-work-unit.md Appendix § Handling Partially Superseded Work. -->
 {Any deferred items or future considerations - ONLY items still deferred at task end}
 ```
 
-### Standard Template Verification Checklist
-
-Before considering the completion doc done, verify EVERY claim:
-
-- [ ] **Started / Completed dates**: Started = activation commit date
-      (`git log --diff-filter=A -- status-{name}.md`); Completed = integration prep date
-- [ ] **Pull Request URL**: Added after `gh pr create` in integrate-work-unit Step 7
-- [ ] **Phase count**: Matches actual phases in task file — `grep -c "^###.*Phase" tasks-*.md`
-- [ ] **Quantitative claims**: Each number verified in task file
-      - Where does "7 themes" come from? -> Phase X, line Y
-      - Where does "50+ components" come from? -> Phase X, line Y
-- [ ] **Follow-up work**: Reflects FINAL phase state
-      - Check: Did any "deferred" items get completed in later phases?
-      - Only list what's ACTUALLY still deferred at task end
-- [ ] **No stale references**: No mentions of deleted notes file (if deleted), etc.
-- [ ] **All major phases represented**: Check CLEANUP-PROGRESS data includes all phases
-
-**Evidence format:** For each claim, note where verified. This catches stale data from early phases.
-
 ---
 
 ## Lightweight Template
@@ -153,8 +120,6 @@ itself serves as the detailed record.
 
 {Any deferred items, or "None"}
 ```
-
-No verification checklist — verify the summary against the task list by inspection.
 
 ---
 
