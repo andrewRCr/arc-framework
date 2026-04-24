@@ -383,6 +383,19 @@ Any file in the `user/{identity}/` directory — session notes, inbox items (arc
 personal scratch notes — travels through one mechanism. New file types added to the user
 directory are automatically included without additional plumbing.
 
+### SESSION-NOTES Load Error Recovery
+
+When `arc user load` or session-init's SESSION-NOTES load fails, recover by error class:
+
+- **No note found** (null result): Normal on first session, re-clone without notes, or when the
+  noted commit is beyond the shallow clone boundary. Proceed with tracked state.
+- **Corrupt note** (JSON parse error): Run `arc user save` to overwrite, or inspect
+  `git notes --ref arc/user/{identity} list` for a different ancestor.
+- **Pull failure** (remote ref not found): Identity may not have pushed, or the name may be wrong.
+  Verify via `git ls-remote origin 'refs/notes/arc/user/*'`.
+- **Stale file warnings**: Load reports local files absent from the saved manifest. Preserved in
+  `.pre-load-backup.json` — review and either re-create or discard.
+
 ---
 
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
