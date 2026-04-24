@@ -2814,27 +2814,35 @@ restructure, not as a Phase 4 audit target.
             slot on the self-hosting repo (ARC and PROJECT domain files silently skipped per
             frontmatter-presence discriminator).
 
-        - [ ] **4.2.g.d Pre-commit hook — DEV-RULES frontmatter validation**
+        - [x] **4.2.g.d Pre-commit hook — DEV-RULES frontmatter validation**
 
-            **Goal:** New CHECK in `.arc/system/githooks/pre-commit` validates that any staged
-            `DEV-RULES.*.md` file (excluding ARC and PROJECT by path) has well-formed domain-rules
-            frontmatter. Mirrors method/extension frontmatter hook pattern from Phase 3.
+            Shipped as a new CHECK 13 in `pre-commit` (both copies) — "Domain-rules frontmatter
+            validation". CHECK 13 (Markdown link resolution) renumbered to 14; CHECK 14
+            (Package-source neutrality) renumbered to 15. Hook greps staged paths matching
+            `^(\.arc|packages/arc-framework/arc)/reference/constitution/DEV-RULES\.[^/]+\.md$`
+            and delegates to the existing `validate-frontmatter.ts`, which was extended with
+            a `"domain-rules"` classification. Reserved filenames (`DEV-RULES.ARC.md`,
+            `DEV-RULES.PROJECT.md`) are filtered at the classifier level — captured-fragment
+            lookup against the `DOMAIN_RULES_RESERVED = {"ARC", "PROJECT"}` set — so they
+            short-circuit to `"other"` before parsing.
 
-            Placement: after existing method/extension frontmatter CHECKs (determine exact CHECK
-            number during implementation based on current pre-commit state). Two-copy sync on
-            `pre-commit`.
+            9 behavior tests added to `__tests__/unit/scripts/validate-frontmatter.test.ts`:
+            4 in `classifyPath` (domain-rules paths classified, reserved filenames excluded,
+            constitution non-DEV-RULES files pass through, existing "unrelated paths"
+            trimmed of the now-moved DEV-RULES.ARC reference) and 5 in `validateFiles` (valid
+            pass, missing `domain` diagnostic, filename/domain mismatch both-values
+            diagnostic, reserved filenames silently skipped, malformed YAML surfaces inner
+            parse error, no-domain-rules paths pass cleanly). Tier 1 gates clean
+            (lint:ts, lint:sh, typecheck, typecheck:test, 806 unit tests).
 
-            Build `test-first` (one behavior at a time):
-            - Staged `DEV-RULES.FRONTEND.md` with valid frontmatter passes
-            - Staged `DEV-RULES.BACKEND.md` with missing `domain` key fails with diagnostic naming
-              file + missing key
-            - Staged `DEV-RULES.FRONTEND.md` with `domain: backend` (filename mismatch) fails with
-              diagnostic naming both values
-            - Staged `DEV-RULES.ARC.md` or `DEV-RULES.PROJECT.md` is not checked (reserved
-              filenames)
-            - No staged domain files short-circuits before invoking validator
-            - Malformed YAML produces diagnostic with inner parse error
-            - Non-`DEV-RULES.*.md` files in `constitution/` (hypothetical) are not checked
+            **Behaviors batched rationale:** all 7 specified behaviors exercise one dispatcher
+            (`classifyPath` + `validateFiles`) with shared fixture builders; one-at-a-time
+            slicing would re-run the same fixture setup without discovery value.
+
+            End-to-end smoke-tested: staged `DEV-RULES.SMOKE.md` with
+            `domain: backend` under filename `SMOKE` → hook surfaces
+            `Domain-rules frontmatter validation failed` with the expected both-values
+            diagnostic. Valid frontmatter smoke → `Pre-commit checks PASSED`.
 
         - [ ] **4.2.g.e CI audit — extend `audit-method-triggers.ts`**
 

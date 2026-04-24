@@ -365,7 +365,28 @@ if [ -n "$frontmatter_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 13: Markdown link resolution (D7a)
+# CHECK 13: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
+# ============================================================================
+# Delegates to validate-frontmatter.ts — same validator as CHECK 12, scoped
+# to DEV-RULES.{DOMAIN}.md files under reference/constitution/. Reserved
+# filenames (DEV-RULES.ARC.md, DEV-RULES.PROJECT.md) are filtered by the
+# validator's classifier and not checked.
+domain_rules_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^(\.arc|packages/arc-framework/arc)/reference/constitution/DEV-RULES\.[^/]+\.md$' || true)
+
+if [ -n "$domain_rules_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! domain_rules_output=$(npx tsx packages/arc-framework/src/scripts/validate-frontmatter.ts $domain_rules_candidates 2>&1); then
+        echo -e "${RED}Error: Domain-rules frontmatter validation failed:${NC}"
+        echo "$domain_rules_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the frontmatter in the files listed above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
+# CHECK 14: Markdown link resolution (D7a)
 # ============================================================================
 # Validates that inline and reference-style markdown links in staged .md files
 # resolve to existing files. Skips external links, anchor-only links, and
@@ -385,7 +406,7 @@ if [ -n "$link_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 14: Package-source neutrality (per-file methods / extensions)
+# CHECK 15: Package-source neutrality (per-file methods / extensions)
 # ============================================================================
 # Framework package source must ship neutral defaults: per-file methods and
 # extensions under packages/arc-framework/arc/system/{methods,extensions}/

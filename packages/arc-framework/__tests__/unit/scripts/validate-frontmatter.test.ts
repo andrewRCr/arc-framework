@@ -33,6 +33,14 @@ const validExtension = [
 
 const validAgent = "---\nactive: true\n---\n";
 
+const validDomainRules = [
+  "---",
+  "domain: frontend",
+  "purpose: UI standards",
+  "---",
+  "",
+].join("\n");
+
 function fakeReader(files: Record<string, string>) {
   return (path: string) => {
     const content = files[path];
@@ -84,9 +92,31 @@ describe("classifyPath", () => {
   it("classifies unrelated paths as other", () => {
     expect(classifyPath("src/lib/frontmatter/method.ts")).toBe("other");
     expect(classifyPath(".arc/active/technical/tasks-foo.md")).toBe("other");
+  });
+
+  it("classifies DEV-RULES.{DOMAIN}.md files as domain-rules", () => {
+    expect(
+      classifyPath(".arc/reference/constitution/DEV-RULES.FRONTEND.md"),
+    ).toBe("domain-rules");
+    expect(
+      classifyPath(
+        "packages/arc-framework/arc/reference/constitution/DEV-RULES.BACKEND.md",
+      ),
+    ).toBe("domain-rules");
+  });
+
+  it("does not classify reserved DEV-RULES.ARC.md / DEV-RULES.PROJECT.md as domain-rules", () => {
     expect(classifyPath(".arc/reference/constitution/DEV-RULES.ARC.md")).toBe(
       "other",
     );
+    expect(
+      classifyPath(".arc/reference/constitution/DEV-RULES.PROJECT.md"),
+    ).toBe("other");
+  });
+
+  it("does not classify non-DEV-RULES files in constitution/ as domain-rules", () => {
+    expect(classifyPath(".arc/reference/constitution/README.md")).toBe("other");
+    expect(classifyPath(".arc/reference/constitution/OTHER.md")).toBe("other");
   });
 });
 
@@ -176,5 +206,101 @@ describe("validateFiles", () => {
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(false);
     expect(result.diagnostics.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("passes when a DEV-RULES.{DOMAIN}.md file has valid frontmatter", () => {
+    const files = {
+      ".arc/reference/constitution/DEV-RULES.FRONTEND.md": validDomainRules,
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("reports a diagnostic naming the file + missing `domain` key", () => {
+    const invalid = [
+      "---",
+      "purpose: Service rules",
+      "---",
+      "",
+    ].join("\n");
+    const files = {
+      ".arc/reference/constitution/DEV-RULES.BACKEND.md": invalid,
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) =>
+          d.includes(".arc/reference/constitution/DEV-RULES.BACKEND.md") &&
+          d.includes("`domain`"),
+      ),
+    ).toBe(true);
+  });
+
+  it("reports a diagnostic naming both values on filename/domain mismatch", () => {
+    const mismatch = [
+      "---",
+      "domain: backend",
+      "purpose: UI standards",
+      "---",
+      "",
+    ].join("\n");
+    const files = {
+      ".arc/reference/constitution/DEV-RULES.FRONTEND.md": mismatch,
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    const diag = result.diagnostics.find((d) =>
+      d.includes(".arc/reference/constitution/DEV-RULES.FRONTEND.md"),
+    );
+    expect(diag).toBeDefined();
+    expect(diag).toContain('"backend"');
+    expect(diag).toContain('"FRONTEND"');
+  });
+
+  it("does not check reserved DEV-RULES.ARC.md / DEV-RULES.PROJECT.md", () => {
+    // Reserved filenames carry no frontmatter in practice — the classifier
+    // filters them to `other` before the validator runs, so even a bare body
+    // must not surface a diagnostic.
+    const files = {
+      ".arc/reference/constitution/DEV-RULES.ARC.md": "# no frontmatter\n",
+      ".arc/reference/constitution/DEV-RULES.PROJECT.md": "# no frontmatter\n",
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("reports a diagnostic with the inner parse error on malformed YAML", () => {
+    const malformed = [
+      "---",
+      "domain: frontend",
+      "purpose: [unclosed",
+      "---",
+      "",
+    ].join("\n");
+    const files = {
+      ".arc/reference/constitution/DEV-RULES.FRONTEND.md": malformed,
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (d) =>
+          d.includes(".arc/reference/constitution/DEV-RULES.FRONTEND.md") &&
+          d.includes("malformed YAML"),
+      ),
+    ).toBe(true);
+  });
+
+  it("passes (empty diagnostics) when no staged paths classify as domain-rules", () => {
+    const files = {
+      ".arc/reference/constitution/README.md": "# Constitution\n",
+      "src/lib/frontmatter/dev-rules.ts": "// source file",
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
   });
 });
