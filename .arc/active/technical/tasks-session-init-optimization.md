@@ -3411,13 +3411,36 @@ restructure, not as a Phase 4 audit target.
     `system/extensions/foo.md` while leaving references in unstaged workflows is by design out of scope (full-repo
     orphan detection lives in `arc extensions status`).
 
-- [ ] **4.7 Phase 4 close — Tier 3 quality gates**
-    - Full quality gate pass; verify extractions staged correctly (spot-check 3–5 entries); verify link placeholders
-      are greppable by a fixed pattern
-    - **Hook false-positive surface check for CHECK 16** (mirrors 3.12 discipline): synthetic negative-path staged
-      set (non-workflow `.md` files, `.ts`, `.yml`) produces empty candidate list so CHECK 16 short-circuits without
-      invoking validator; positive mirror set (workflow file with resolvable reference + workflow file with
-      unresolvable reference) fires correctly in both directions
+- [x] **4.7 Phase 4 close — Tier 3 quality gates**
+
+    **Outcome:** Tier 3 suite clean — markdown lint (223 files, 0 errors), TS lint, shell lint, typecheck (src + test),
+    full test suite (1005 + 46 = 1051 tests across the monorepo), build success. Spot-check on 4 staging entries (1,
+    30, 55, 68) across the 68-entry corpus: all follow the locked template (source + line range, verbatim content
+    blockquote, suggested destination, stylistic integration notes); the partial-extract variant introduced in 4.5.c
+    (paired "Retained in trimmed workflow" + "Extracted" subsections) is cleanly structured. Fixed-pattern
+    `[TODO-docs-site]` greppable across all trimmed source files that preserved in-prose continuity (DEV-RULES.ARC,
+    AGENT-BRIEFING.CONTRIBUTOR — 11 occurrences total including one reference definition per file). Phase 4.5 workflow
+    trims were dominated by wholesale-section removals with no residual anchor — placeholders only apply where trimming
+    preserves the surrounding prose; sweep WU enumerates wholesale removals via entry metadata in
+    `notes-docs-content-sweep.md`.
+
+    **CHECK 16 surface check (3.12 discipline mirror):**
+    - SET A (negative-path staging): `README.md`, strategy `.md`, `src/cli.ts`, `.github/workflows/ci.yml`,
+      `docs/release-notes.md` — hook's grep filter produces empty candidate list; validator is not invoked
+      (short-circuit holds, mirrors CHECK 12/13/14/15)
+    - SET B (positive resolvable): synthetic workflow at `.arc/system/workflows/arc/_surface-valid.md` with
+      `` ### X · `#post-context-load` `` reference → validator exit 0
+    - SET C (positive unresolvable): synthetic workflow at `.arc/system/workflows/arc/_surface-invalid.md` with
+      `` ### X · `#does-not-exist-anywhere` `` reference → validator exit 1 with diagnostic:
+
+      ```text
+      .arc/system/workflows/arc/_surface-invalid.md:1: extension-point reference `#does-not-exist-anywhere` has no
+        matching `.arc/system/extensions/does-not-exist-anywhere.md`
+      ```
+
+    **Phase 4 closes.** Workflow-trigger contract, per-file methods/extensions restructure, method-rename, CI
+    enforcement (CHECK 12/13/14/15/16), operational-context audit across Tier 1/2/3 docs, and staging infrastructure
+    all shipped. Next: Phase 5 worktree-sync completion + partial-read narrowing + session-init Step 2/4/7 restructure.
 
 ---
 
