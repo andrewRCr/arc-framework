@@ -725,6 +725,31 @@ docs page because the worked examples make the sizing rules memorable — a read
 internalized "scope not volume" via the refactor-ten-files example applies it more
 consistently than one who has only the abstract rule.
 
+## Entry 20 — integrate-work-unit.md § Appendix Handling Partially Superseded Work — Key principle closer
+
+**Source:** `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md` (lines
+342-344, pre-trim)
+
+**Content:**
+
+> **Key principle:** The `[~]` marker + decision point note creates a clear audit trail showing
+> intentional architectural pivot, not abandoned work. Header metadata (State, Superseded By)
+> lives in the status file and completion doc — not on the task list header.
+
+**Suggested destination:** `docs/methodology/work-organization/` § Handling Supersession — or
+folded into `docs/reference/task-states/` § The `[~]` Marker as a conceptual framing note.
+
+**Stylistic integration notes:** Trimmed workflow retains the five-element appendix with code
+templates (operational when the scenario applies) and drops this closing "Key principle"
+summary — the first sentence restates what elements #4 (decision point marker) and #5 (`[~]`
+marker) already establish; the second sentence duplicates the operational boundary already
+stated in elements #1 (status file) and #2 (completion doc). The value of the closer is
+conceptual framing — the audit-trail-vs-abandoned-work distinction is the essential motivation
+for the supersession protocol. Worth preserving on a docs page where the appendix is absorbed
+as its own section, framing *why* the protocol matters to a reader encountering it for the
+first time. Less useful re-loaded every WU for agents who have already internalized the
+convention.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that

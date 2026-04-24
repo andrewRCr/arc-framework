@@ -30,8 +30,7 @@ delete the per-WU status file.
    [archive-work-unit][archive-work-unit].
 
 Rotation may happen multiple times during a work unit; integration and archival each happen exactly once at the
-end. The per-WU status file travels with the task list across rotations via normal merge flow — no
-mid-lifecycle resets or absorbs.
+end.
 
 See [Work Organization Strategy][work-org] for the complete task list and branch relationship model.
 
@@ -205,8 +204,8 @@ delivered state:
 - **Key Deliverables**: Do new tests or capabilities change the deliverable summary?
 - **Follow-Up Work**: Were new deferrals captured during review?
 
-Update and commit with the `(integration)` context footer. The completion doc doubles as the PR
-description — stale metadata in the PR undermines the review it's meant to support.
+Update and commit with the `(integration)` context footer — the completion doc doubles as the
+PR description.
 
 ### 6c) Update Status File
 
@@ -335,13 +334,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    - [~] **4.1 Task description** *(superseded by infinite scroll)*
    ```
 
-   The `[~]` marker means "intentionally not done" — distinct from `[ ]` (pending) and `[x]`
-   (complete). Same convention used in [success criteria][task-list-formatting] for superseded
-   criteria.
-
-**Key principle:** The `[~]` marker + decision point note creates a clear audit trail showing intentional
-architectural pivot, not abandoned work. Header metadata (State, Superseded By) lives in the status file
-and completion doc — not on the task list header.
+   Same `[~]` convention used in [success criteria][task-list-formatting] for superseded criteria.
 
 ---
 

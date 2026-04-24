@@ -3005,7 +3005,40 @@ restructure, not as a Phase 4 audit target.
       conditional blocks creating phantom indented code blocks) was pre-fixed during an earlier
       CI unblock; this audit only did the operational-context pass.
 
-    - [ ] **4.3.b `integrate-work-unit.md`** (360 lines) — standalone, heavy
+    - [x] **4.3.b `integrate-work-unit.md` — audited**
+
+      **Outcome:** Trimmed and lint-clean. 360 → 353 (2%) — smallest reduction in Phase 4,
+      consistent with the lighter-posture lens applied to this file: it loads per-WU (once per
+      branch), not per-session, so amortized cost is low and clarity wins over brevity. Most of
+      the file resists trimming — checklist-heavy phases with bash blocks, edge-case handling,
+      and `why` clauses that each prevent a specific non-obvious error (standalone status-file
+      commits resetting PR reviews, PR body reader-hostility, etc.). The four trims applied were
+      all small, targeted redundancy removals.
+
+      **Trims applied:** multi-branch ops rationale tail (status-file-travel mechanics —
+      duplicates Work Organization Strategy, whose pointer remains at L36); completion-doc
+      freshness rationale tail ("undermines the review it's meant to support" — kept "doubles
+      as the PR description" as the operational why-link); `[~]` marker distinct-from
+      enumeration (duplicates `strategy-task-list-formatting.md`, whose pointer is in the same
+      sentence); Appendix "Key principle" closing block (restates what elements #4 / #5 already
+      establish + duplicates the operational boundary from elements #1 / #2).
+
+      **Staging entries added:** one entry (20) — integrate-work-unit § Appendix Key principle
+      closer. Conceptual-framing value for adopter docs (audit-trail vs. abandoned-work
+      distinction is the essential motivation for the supersession protocol). Other three trims
+      were pure drops with existing coverage elsewhere.
+
+      **Deliberately preserved under the lighter lens:** multi-branch intro framing, Workflow
+      Overview "Key principle" establishing the docs-as-deliverable model, Supplementary Files
+      evaluation criteria with the "6 months from now" heuristic, Status File discipline
+      preventive paragraph (L160-164), Common Pitfalls end-of-workflow scan, Appendix elements
+      #1-5 with code templates (operational when the scenario applies).
+
+      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholder for Entry 20
+      — staging Source range sufficient.
+
+      **Two-copy sync:** straight two-copy file (no template suffix); both copies edited
+      identically, post-edit diff clean.
 
     - [ ] **4.3.c `session-handoff.md`** (468 lines) — standalone, heaviest; peers with session-init for scrutiny
 

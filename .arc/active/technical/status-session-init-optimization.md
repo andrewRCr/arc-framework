@@ -5,22 +5,21 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.3.b — integrate-work-unit.md operational-context audit (line ~3008)
-- **Last Completed:** Task 4.3.a — Commit/task flow cluster audit. `3_process-task-loop.md`
-  269 → 241 (10%), `prepare-commits.md` 171 → 161 (6%) — softer reductions than 4.2.a/b
-  reflect the pre-audit baseline (both files were already operational-heavy). Six staging
-  entries added (14-19) to `notes-docs-content-sweep.md`; four pure duplicates dropped
-  without staging (Tier-def recap, Implied-permission, outcome-shaped 2nd sentence,
-  Where-to-Capture routing — all covered by always-loaded DEV-RULES.ARC / Quality Gates
-  Strategy). Removed the 3 pm.mode arc:if conditional bullets from the process-task-loop
-  template (pointer to DEV-RULES.ARC § Leave it cleaner replaces them) and the orphaned
-  `[dev-rules-project]` conditional link def. Agent-audience lens applied (no inline
-  TODO-docs-site placeholders). Tier 1 markdownlint clean on all 6 modified files.
+- **Next Task:** 4.3.c — session-handoff.md operational-context audit (line ~3043)
+- **Last Completed:** Task 4.3.b — `integrate-work-unit.md` audit. 360 → 353 (2%), smallest
+  reduction in Phase 4. Lighter-touch posture matched the per-WU load frequency: most of
+  the file is checklist-heavy operational content where clarity wins. Four small targeted
+  trims (multi-branch status-file-travel tail, completion-doc "undermines" tail, `[~]`
+  distinct-from enumeration, Appendix "Key principle" closer). One staging entry (20) for
+  the Appendix closer's conceptual framing; three other trims were pure drops with
+  existing coverage. Agent-audience lens applied (no inline placeholders). Straight
+  two-copy file (no template suffix). Tier 1 markdownlint clean on all 4 modified files.
 - **Blockers:** none
-- **Next Action:** Resume 4.3.b — operational-context audit on `integrate-work-unit.md`
-  (360 lines, standalone, heavy). Lighter-touch posture than the 4.2 / 4.3.a files:
-  integrate-work-unit loads per-WU (not per-session), so clarity wins over brevity — trim
-  where content is genuinely redundant or rationale-heavy, but preserve conceptual flow.
-  Same protocol otherwise: extract to `notes-docs-content-sweep.md` staging (Entry 20+),
-  no inline placeholders (agent-audience lens), two-copy sync — check for template
-  suffix first.
+- **Next Action:** Resume 4.3.c — operational-context audit on `session-handoff.md`
+  (468 lines, standalone, heaviest in the 4.3 cluster). Peers with session-init for
+  scrutiny — it defines the handoff artifacts that session-init consumes, so the same
+  imperative/rationale tension applies. Return to standard posture (not the lighter
+  integrate-work-unit lens): session-handoff loads per session, so extraction pressure is
+  higher. Same protocol: extract to `notes-docs-content-sweep.md` staging (Entry 21+),
+  no inline placeholders (agent-audience lens), two-copy sync — check for template suffix
+  first.
