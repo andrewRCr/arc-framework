@@ -10,10 +10,8 @@ arc:
 
 **When to use**: User-triggered at the end of a session, or when transitioning between work contexts.
 
-**Design context**: This workflow is optimized for agents with ephemeral context — capturing state that would
-otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff ceremonies; the
-principle (state must be recoverable by a new session) still applies. The session state mechanism is overridable
-via the [session-state method][arc-methods-session].
+**Design context**: State capture for agents with ephemeral context. Override the default via the
+[session-state method][arc-methods-session].
 
 ## Handoff Protocol
 
@@ -62,13 +60,9 @@ session context
 **When context changes** — Working directory paths or environment expectations in the active
 status file (if one exists)
 
-**Preserve persistent context** — The `## Persistent Context` section in SESSION-NOTES.md carries
-cross-session constraints that tracked state does not yet carry (forward-looking constraints,
-un-codified meta-conventions, parking references). Each entry has an explicit removal trigger.
-During handoff, rewrite ephemeral sections (Completed Work, Remaining Work, Additional Context)
-but preserve persistent context entries whose triggers haven't been met AND which still satisfy
-the criterion (see **Persistent Context** under "What to include" below). Remove entries whose
-triggers are met OR whose information is now carried in tracked state.
+**Preserve persistent context** — `## Persistent Context` carries cross-session entries with explicit
+removal triggers. See § Comprehensive Handoff Format step 1 and § Persistent Context below for the
+preservation criterion and review cadence.
 
 ### Comprehensive Handoff Format
 
@@ -164,12 +158,6 @@ is a side effect, not a target.
 
 If any of the three fails, omit. This is the same criterion Persistent Context enforces — it
 applies to every ephemeral section too.
-
-**Long-session bias — resist it.** The pattern this filter exists to catch: long sessions
-accumulate rich context, the agent reaches handoff, and an "I don't want to lose this" impulse
-drives verbose preservation. Re-read the filter. Tracked state catches more than it feels like it
-does at end-of-session. Duplication here adds startup noise for the next session without adding
-signal.
 
 **Template skeleton:**
 
@@ -412,21 +400,11 @@ For manual control outside of handoff (ad-hoc save, push, or force-push), `arc u
 `arc user push`, and `arc user push --force` remain available.
 In non-interactive or confirmation-free reruns, `arc sync --yes` skips overwrite prompts.
 
-**Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
+**Error handling:** The CLI surfaces sync errors interactively — follow its guidance. Common cases:
 
-- **Push rejected (non-fast-forward):** Local and remote notes conflict (both moved since
-  common ancestor). The CLI offers force-push (overwrite remote with local) or
-  `"Merge: rebase my save onto remote, then push"` (fetch remote, re-save local state on
-  top, then push). Choose force-push when your local state is authoritative; choose merge
-  when both sides have real content. This commonly happens when the same developer works
-  from two machines without syncing, or in team mode when two developers share an identity
-  by mistake.
-- **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
-  save` — push is a convenience for portability. The local save still happened; push later
-  when a remote is available.
-- **Pull warning (local changes):** When pulling would overwrite unsaved local notes, the CLI
-  confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
-  prior state if needed.
+- **Push rejected (non-fast-forward)** — CLI offers force-push or merge-rebase; choose per which side is authoritative.
+- **Missing remote** — local save completed; push later when `origin` is configured.
+- **Pull warning (local changes)** — CLI confirms before overwriting unsaved notes.
 
 **Surface the outcome in the handoff summary.** After `arc sync` returns, the agent must
 report whether the save and push succeeded — check the exit code and include a one-line

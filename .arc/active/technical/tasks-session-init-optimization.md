@@ -3040,7 +3040,45 @@ restructure, not as a Phase 4 audit target.
       **Two-copy sync:** straight two-copy file (no template suffix); both copies edited
       identically, post-edit diff clean.
 
-    - [ ] **4.3.c `session-handoff.md`** (468 lines) — standalone, heaviest; peers with session-init for scrutiny
+    - [x] **4.3.c `session-handoff.md` — audited**
+
+      **Outcome:** Trimmed and lint-clean. 473 → 450 (5%) — standard posture, consistent with per-session
+      load frequency but bounded by ADR-016 preservation constraint. The gate model expands
+      handoff-interior responsibilities (rotation-field migration commit→handoff; configurable toggles
+      for worktree push, notes push, quality-gate finalization), so structural scaffolding — rotation
+      template, step-by-step format, Save-to-Git-Notes section, Confirm Handoff orientation — stayed
+      intact. Extractions targeted principle-grounding framing and verbose error-handling prose.
+
+      **Trims applied:** Design context (L13–16, ephemeral-context framing + persistent-memory
+      nuance) compressed to a two-line override pointer; "Preserve persistent context" paragraph in
+      § What to Update (L65–71) compressed to a three-line pointer to § Comprehensive Handoff Format
+      step 1 + § Persistent Context (pure dedup); "Long-session bias — resist it" paragraph (L168–172)
+      dropped entirely (behavioral nudge redundant with the Audience paragraph's "volume is a side
+      effect" framing and the Anti-patterns block's concrete counter-examples); § Save to Git Notes
+      error-handling bullets (L425–439) compressed from 15 lines to a three-bullet recognition list
+      ("CLI surfaces errors — follow its guidance"), extracting the resolution-choice reasoning and
+      root-cause teaching.
+
+      **Staging entries added:** two — Entry 21 (Design context persistent-memory nuance; parallels
+      Entry 11's session-init extraction, sets up consolidated Design-context narrative in docs
+      absorption) and Entry 22 (error-handling rationale + root-cause patterns). "Long-session bias"
+      paragraph dropped without staging (rhetorical nudge without docs-absorbable substance); "Preserve
+      persistent context" paragraph compressed without staging (pure dedup with downstream sections).
+
+      **Deliberately preserved under ADR-016 constraint:** rotation-field template block and its
+      three *Note* clauses (becomes the primary site for Next Task / Last Completed / Next Action
+      updates under gate model); Save-to-Git-Notes preamble and `arc sync` push-policy bullets
+      (attachment point for worktree-push toggle); Confirm Handoff orientation template (pairs with
+      session-init); Handoff Examples (canonical rotation-field demonstrations); Anti-patterns
+      "omit by name" block (operational teaching that counters the same biases the dropped
+      "Long-session bias" paragraph gestured at).
+
+      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholders for Entry 21 or
+      Entry 22 — staging Source ranges sufficient (mirrors Task 4.3.b / Entry 20 protocol).
+
+      **Two-copy sync:** template suffix file (`session-handoff.template.md`). Both copies edited
+      identically; post-edit diff shows only the `<!-- arc:if team.mode == true -->` block at L106–115
+      of the template (correctly stripped from `.arc/` via team.mode=false), no other deltas.
 
 - [ ] **4.4 Task-list-formatting restructure (P1.4 — three moves)**
 

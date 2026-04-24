@@ -750,6 +750,72 @@ as its own section, framing *why* the protocol matters to a reader encountering 
 first time. Less useful re-loaded every WU for agents who have already internalized the
 convention.
 
+## Entry 21 — session-handoff.md § Design context — ephemeral-context framing + persistent-memory nuance
+
+**Source:** `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (lines 13-16, pre-trim);
+template counterpart at
+`packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md` (same
+line range — no template-only delta in this region).
+
+**Content:**
+
+> **Design context**: This workflow is optimized for agents with ephemeral context — capturing state that
+> would otherwise be lost when the session ends. Agents with persistent memory may need lighter handoff
+> ceremonies; the principle (state must be recoverable by a new session) still applies. The session state
+> mechanism is overridable via the [session-state method][arc-methods-session].
+
+**Suggested destination:** `docs/methodology/session-model/` § Design Context or `docs/methodology/handoff/`
+— framing content about why handoff exists as a structured ritual. Pairs naturally with Entry 11
+(session-init Design context); both carry the ephemeral-context / persistent-memory reasoning from the
+bookend workflows. Docs absorption should consolidate into a single Design-context narrative rather
+than treating each workflow independently.
+
+**Stylistic integration notes:** Trimmed workflow retains a single-line design context pointing at the
+session-state method (override mechanism — operationally relevant). Absorbed content is
+principle-grounding rationale for readers learning the methodology rather than agents executing handoff.
+"Agents with persistent memory may need lighter handoff ceremonies" mirrors Entry 11's session-init nuance
+— signals ARC doesn't assume a single agent architecture and that handoff ceremony is proportional to
+context volatility. `[arc-methods-session]` link anchor is retained in the source and resolves to
+`system/methods/session-state.md`; docs absorption can reference the equivalent docs page.
+
+## Entry 22 — session-handoff.md § Save to Git Notes — Error handling rationale
+
+**Source:** `.arc/system/workflows/arc/session-lifecycle/session-handoff.md` (lines 425-439, pre-trim);
+template counterpart at
+`packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-handoff.template.md` (same
+line range — no template-only delta in this region).
+
+**Content:**
+
+> **Error handling:** The CLI surfaces sync errors interactively — follow its guidance:
+>
+> - **Push rejected (non-fast-forward):** Local and remote notes conflict (both moved since
+>   common ancestor). The CLI offers force-push (overwrite remote with local) or
+>   `"Merge: rebase my save onto remote, then push"` (fetch remote, re-save local state on
+>   top, then push). Choose force-push when your local state is authoritative; choose merge
+>   when both sides have real content. This commonly happens when the same developer works
+>   from two machines without syncing, or in team mode when two developers share an identity
+>   by mistake.
+> - **Missing remote:** No `origin` configured. Session state is saved locally via `arc user
+>   save` — push is a convenience for portability. The local save still happened; push later
+>   when a remote is available.
+> - **Pull warning (local changes):** When pulling would overwrite unsaved local notes, the CLI
+>   confirms before proceeding. The pre-load backup (`.pre-load-backup.json`) preserves the
+>   prior state if needed.
+
+**Suggested destination:** `docs/guides/session-handoff/` § Error Handling or `docs/reference/arc-sync/`
+§ Troubleshooting — adopter-facing diagnostic content. The root-cause teaching (two-machine sync drift;
+team-mode identity-sharing mistake) is especially worth preserving for adopters — it turns an opaque
+error into a recognizable operational pattern.
+
+**Stylistic integration notes:** Trimmed workflow retains a compact recognition list (one line per error
+class) pointing back to the CLI's interactive guidance. Absorbed content carries the resolution-choice
+reasoning (force-push-when-authoritative vs merge-when-both-sides-have-content), the
+`.pre-load-backup.json` safety-net detail, and the root-cause patterns that reveal *why* these errors
+occur. Docs audience can support the longer treatment without inflating per-session load cost. Preamble
+sentence ("The CLI surfaces sync errors interactively — follow its guidance") remains in the source, so
+docs absorption can open directly with the case-by-case content.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
