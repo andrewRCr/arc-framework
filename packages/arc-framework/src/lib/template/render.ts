@@ -64,9 +64,11 @@ export function renderConditionals(
     }
   }
 
-  // Collapse multiple consecutive blank lines left behind by stripped blocks.
-  // Template authors shouldn't need to contort formatting around conditionals.
-  return result.join("\n").replace(/\n{3,}/g, "\n\n");
+  // Collapse multiple consecutive blank lines left behind by stripped blocks,
+  // and normalize trailing newlines to exactly one. Template authors shouldn't
+  // need to contort formatting around conditionals, and rendered output must
+  // end with a single newline (MD012/MD047).
+  return result.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
 }
 
 /**
