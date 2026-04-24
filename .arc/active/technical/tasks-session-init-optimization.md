@@ -2950,14 +2950,60 @@ restructure, not as a Phase 4 audit target.
 
     **Protocol per subtask:** same as 4.2 — extract to staging, leave placeholders, two-copy sync per file.
 
-    - [ ] **4.3.a Commit/task flow cluster** — `3_process-task-loop.md` (269 lines) + `prepare-commits.md` (157).
-      Cohesive on the commit/task completion loop; reasonable to audit together.
+    - [x] **4.3.a Commit/task flow cluster — audited**
 
-      **Note:** The MD046 structural issue in `3_process-task-loop.template.md` (team-mode conditional blocks
-      at L22-33 and L184-191 creating phantom indented code blocks) was pre-fixed during a CI unblock —
-      indented the `<!-- arc:if team.mode == true -->` markers into the surrounding list-item continuation
-      scope so the HTML comments no longer break list context. This audit only needs to do the
-      operational-context pass; the structural fix has already landed.
+      **Outcome:** Both files trimmed and lint-clean. `3_process-task-loop.md` 269 → 241 (10%);
+      `prepare-commits.md` 171 → 161 (6%). Softer line-count reduction than 4.2.a/b reflects the
+      pre-audit baseline — both files were already operational-heavy with limited rationale overhead.
+
+      **Trims applied — `3_process-task-loop.md`:** co-development rationale why-clause (workflow
+      directive preserved); inline Tier 1/2/3 definitions recap (pointer to Quality Gates Strategy
+      retained); outcome-shaped rewrite second sentence (tautological restatement); "Implied
+      permission" note (verbatim duplicate of DEV-RULES.ARC § Task Execution, always-loaded);
+      atomicity-check common-splits enumeration (imperative + pointer retained); Quick Decision
+      Guide ✅/❌ criteria (compressed to atomic-vs-task-list distinction + manage-incidental-work
+      pointer); Where to Capture lifecycle-intent routing with three pm.mode conditional bullets
+      (pointer to DEV-RULES.ARC § Leave it cleaner routing table — which covers all PM modes via
+      its own conditional tables — replaces the arc:if scaffolding entirely); Session-Scoped
+      Tracking TodoWrite rationale paragraph (imperative retained, explanation extracted).
+
+      **Trims applied — `prepare-commits.md`:** Shared-Docs Commit Pattern scenario preamble
+      compressed to single-sentence rule (Applies/Does NOT apply bullets preserved as operational
+      boundary); Granularity guidance bullet expansion clauses extracted — rule leads and
+      intermingled-code exception retained; reversibility bullet keeps its first two sentences
+      (operational), drops the category-naming third sentence; tracking-docs-ride-with-content
+      keeps through "not a separate meta-commit" (operational), drops the "dangling tracking
+      commits create churn" rationale tail.
+
+      **Staging entries added to `notes-docs-content-sweep.md`:** six entries (14-19) —
+      Entry 14: process-task-loop § Co-development awareness rationale;
+      Entry 15: process-task-loop § Completion protocol atomicity-check common-splits examples;
+      Entry 16: process-task-loop § Quick Decision Guide ✅/❌ criteria;
+      Entry 17: process-task-loop § Task List Maintenance TodoWrite rationale;
+      Entry 18: prepare-commits § Shared-Docs Commit Pattern scenario framing;
+      Entry 19: prepare-commits § Granularity guidance bullet expansions.
+      Pure duplicates were dropped without staging (Tier definitions recap duplicates Quality Gates
+      Strategy; Implied permission duplicates DEV-RULES.ARC; outcome-shaped second sentence is
+      tautological; Where to Capture routing duplicates DEV-RULES.ARC § Leave it cleaner table).
+
+      **Agent-audience lens applied:** both files are strictly agent-loaded workflows (no dual
+      audience). Per the 4.2.a resolution, no inline `[TODO-docs-site]` placeholders left —
+      staging entry Source ranges let the sweep WU find extractions. Matches AGENT-BRIEFING.ARC
+      and AGENT-BRIEFING.PROJECT handling.
+
+      **Two-copy sync:** `3_process-task-loop.md` renders from
+      `packages/arc-framework/arc/system/workflows/arc/3_process-task-loop.template.md` (contains
+      team.mode / pm.mode arc:if directives); template edited first, rendered `.arc/` copy mirrored
+      the non-conditional edits. Removed the pm.mode external/none arc:if bullets and the
+      conditional `[dev-rules-project]` link definition in the template (no longer referenced).
+      `prepare-commits.md` is a straight two-copy file (no template); both copies edited
+      identically. Post-edit diff: `prepare-commits` identical across copies; `3_process-task-loop`
+      diff shows only the two team.mode conditional blocks (correctly stripped from `.arc/` via
+      team.mode=false). Tier 1 markdownlint clean on all five modified files.
+
+      **Note:** The MD046 structural issue in `3_process-task-loop.template.md` (team-mode
+      conditional blocks creating phantom indented code blocks) was pre-fixed during an earlier
+      CI unblock; this audit only did the operational-context pass.
 
     - [ ] **4.3.b `integrate-work-unit.md`** (360 lines) — standalone, heavy
 

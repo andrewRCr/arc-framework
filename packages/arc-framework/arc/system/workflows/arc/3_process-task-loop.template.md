@@ -41,11 +41,9 @@ arc:
   see [rotate-branch][rotate-branch]. See [Work Organization Strategy][work-org] for the full
   relationship model.
 
-- **Co-development awareness:** The developer may be working alongside you — editing files, running
-  commands, or making commits while you execute tasks. This is a normal part of the ARC workflow:
-  single-threaded, small-scope tasks keep the developer close enough to the work to contribute
-  directly. Treat parallel changes as expected context, not interruptions. If changes conflict with
-  your current task, flag the conflict and ask how to proceed.
+- **Co-development awareness:** The developer may be editing files or making commits alongside you.
+  Treat parallel changes as expected context, not interruptions. If changes conflict with your
+  current task, flag the conflict and ask how to proceed.
 
 - **Test-first execution:** When a task has a `Build \`test-first\` (one behavior at a time):` marker
   (per the [test-first method][arc-methods-tf]), execute as vertical slices — one behavior at a time:
@@ -73,10 +71,7 @@ arc:
   1. When you finish a **single task** (one checkbox item):
      - **First**: Run incremental quality checks on modified files — **Tier 1** — using the
        [quality-gate-commands method][arc-methods-qg]
-       - **Tier definitions:** Tier 1 (per-task): quality-gate-commands on modified files only ·
-         Tier 2 (coherent unit): full-project Tier 1 + targeted integration/E2E + build ·
-         Tier 3 (phase/pre-PR): all checks, all configurations, full suite.
-         See [Quality Gates Strategy][quality-gates] for boundaries and escalation.
+       - **Tier boundaries:** See [Quality Gates Strategy][quality-gates].
        - Task list may specify additional checkpoints (including E2E) — those are mandatory; otherwise
          use judgment on whether changes warrant extra validation
      - **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
@@ -86,8 +81,7 @@ arc:
        - Add completion notes with key findings/changes if work deviated from plan
        - **Prefer outcome-shaped rewrites over append-only updates**: When marking complete, replace
          planning-oriented text with concise completion-oriented notes unless the abandoned path is
-         itself historically important. The task line should read as a compact record of how the
-         task resolved, not as plan plus outcome pasted together.
+         itself historically important.
        - **No inline dates**: Don't add completion dates to individual tasks (e.g., "Completed: 2025-11-02"). Inline
          dates become temporal noise during archival. WU-level completion date lives on the completion doc's
          `**Completed:**` field; no task list or per-task date stamp is expected.
@@ -122,10 +116,6 @@ arc:
      If any item is unchecked, complete it before proceeding. For quality gate failures: fix
      obvious issues (lint, type errors) and re-run; report non-obvious failures in your
      completion summary — you're about to stop for review anyway.
-
-     **Note on implied permission:** User approval ("great!", "looks good", "proceed") implies permission to
-     continue to the next task UNLESS explicitly stated otherwise (e.g., "that's done, but before moving on...").
-     In such cases, address the concern before proceeding to the next task.
 
      **Deferred review:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
@@ -194,11 +184,8 @@ arc:
 
      <!-- arc:endif -->
 
-     **Atomicity check (before staging):** Do all changes serve one logical concern? Common
-     splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs. task
-     list tracking updates (when they can stand alone), multiple completed tasks that touched
-     independent areas. When in doubt, smaller commits are better — split and ask. See
-     [Commit Discipline][dev-rules-arc] for the full atomicity principle.
+     **Atomicity check (before staging):** Do all changes serve one logical concern? When in
+     doubt, split and ask. See [Commit Discipline][dev-rules-arc].
 
 ## Verification Phase
 
@@ -219,42 +206,18 @@ and merge
 
 ### Quick Decision Guide
 
-While working on tasks, you may discover quality improvements, refactoring, or tech debt that should be fixed
-immediately. **Quick decision tree**:
+When work surfaces that should be fixed, decide atomic vs. task list:
 
-**Suggest incidental task list when:**
+- **Atomic task** (or fix inline): single coherent concern; sequential steps toward one goal; bounded scope.
+- **Incidental task list**: multiple distinct phases with different goals; discovery-heavy scope; 2+ hours.
 
-- ✅ Multiple distinct phases with different goals (not just sequential steps)
-- ✅ Scope likely to expand via discovery (investigation-heavy)
-- ✅ Estimated 2+ hours OR requires research → design → implement cycle
-
-**Suggest keeping as atomic task (or fixing inline) when:**
-
-- ❌ Single coherent concern, even if complex (multiple files, 30-90 min)
-- ❌ Sequential steps all serving one goal
-- ❌ Scope is known/bounded after initial analysis
-
-**Key distinction:** "Sequential steps toward one goal" = atomic. "Distinct phases with different objectives" = task list.
+For the full decision tree, see [manage-incidental-work.md][manage-incidental].
 
 ### Where to Capture Atomic Tasks
 
-Once you've decided something is an atomic task (not an incidental task list), route it based
-on **lifecycle intent** — when you intend to handle it, not what domain it's in:
-
-- **Will do during this work unit** → add to the **atomic companion file** (`atomic-{name}.md`
-  in the same directory as the task list). All task lists have a companion file.
-- **For later** (won't do during this WU) → depends on PM mode:
-    <!-- arc:if pm.mode == arc-in-git -->
-    - `arc-in-git`: add to **ATOMIC-INBOX.md** in `user/{identity}/` (personal, gitignored,
-      branch-agnostic — persists across work unit boundaries)
-    <!-- arc:endif -->
-    <!-- arc:if pm.mode == external -->
-    - `external`: route per **Capture Routing** in [DEV-RULES.PROJECT][dev-rules-project]
-      (typically: create an issue in the external tracker)
-    <!-- arc:endif -->
-    <!-- arc:if pm.mode == none -->
-    - `none`: ask the user where to capture it
-    <!-- arc:endif -->
+Routing depends on lifecycle intent — "during this WU" goes to the atomic companion file
+(`atomic-{name}.md`); "for later" depends on PM mode. See [DEV-RULES.ARC][dev-rules-arc]
+§ Leave it cleaner for the full routing table.
 
 ### Atomic Task Completion
 
@@ -278,9 +241,8 @@ When you complete an atomic task (in the companion file or ATOMIC-INBOX), follow
 
 ### Session-Scoped Tracking vs Task List Files
 
-Ephemeral task tracking tools (e.g., Claude Code's TodoWrite) help organize work within a
-session but are **not a substitute for task list markdown updates**. The task list file is the
-permanent record committed to git — always update it before reporting completion.
+Ephemeral task tracking tools (e.g., TodoWrite) are **not a substitute for task list markdown
+updates**. Always update the task list file before reporting completion.
 
 ### Updating Task Lists
 
@@ -292,10 +254,8 @@ permanent record committed to git — always update it before reporting completi
 [work-org]: ../../../reference/strategies/arc/strategy-work-organization.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../reference/constitution/DEV-RULES.ARC.md
-<!-- arc:if pm.mode == external -->
-[dev-rules-project]: ../../../reference/constitution/DEV-RULES.PROJECT.md
-<!-- arc:endif -->
 [rotate-branch]: work-unit-lifecycle/rotate-branch.md
+[manage-incidental]: supplemental/manage-incidental-work.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md
 [arc-ext-unit-quality]: ../../extensions/post-unit-quality.md

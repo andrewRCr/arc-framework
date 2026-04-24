@@ -53,10 +53,8 @@ For simple, single-concern commits where you know what changed:
 
 ### Shared-Docs Commit Pattern
 
-When a WU completes multiple **independent** code tasks that all touch one shared documentation
-file (a cross-cutting strategy doc, README, or similar), committing each task's doc nibble inline
-creates tangled history in the shared file. In that specific case, defer shared-doc updates to a
-final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the code commits.
+When multiple **independent** code tasks all edit one shared documentation file, defer shared-doc
+updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the code commits.
 
 **Narrow application:**
 
@@ -120,22 +118,15 @@ guidance below.
 
 **Granularity guidance:**
 
-- **One problem solved per commit — scope, not volume, as the sizing metric.** A refactor
-  touching ten files is one commit if it serves one intent. Multiple tasks completed together
-  that share a cohesive lens (same audit pass, same file surface, one reviewer story) are one
-  commit, not several — the unit is the concern, not the task ID.
-- **Split when the description needs multiple sentences explaining different problems.** If you
-  can't summarize the change in one focused sentence, the commit carries multiple concerns and
-  they should separate.
+- **One problem solved per commit — scope, not volume, as the sizing metric.**
+- **Split when the description needs multiple sentences explaining different problems.**
 - **Reversibility as the guard.** If reverting one change would force reverting others, they
-  belong together. If they fail or succeed independently, they split. This catches the genuine
-  split-is-worth-it cases — independent rationale, experimental vs stable, cross-cutting
-  refactor vs feature — without defaulting to task-ID bookkeeping.
+  belong together. If they fail or succeed independently, they split.
 - **Pragmatic exception for intermingled code:** Changes tangled in the same file/function
   commit together; note the overlap in the body.
 - **Tracking docs ride with content commits.** Task list checkboxes and active status file
   updates are derived state — they belong with the commit that produced the content change, not
-  a separate meta-commit. Dangling tracking commits create churn without adding signal.
+  a separate meta-commit.
 
 ### 6. Execute and Verify
 

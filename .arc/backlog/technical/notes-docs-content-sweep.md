@@ -579,6 +579,152 @@ loaded into agent context every session. Team-mode example is currently gated by
 conditional in the template; docs absorption can present it uniformly since team mode is
 well-documented elsewhere on the docs site.
 
+## Entry 14 — 3_process-task-loop.md § Task Implementation — Co-development awareness rationale
+
+**Source:** `.arc/system/workflows/arc/3_process-task-loop.md` (lines 31-33, pre-trim)
+
+**Content:**
+
+> This is a normal part of the ARC workflow: single-threaded, small-scope tasks keep the
+> developer close enough to the work to contribute directly.
+
+**Suggested destination:** `docs/methodology/co-development/` § Why Single-Threaded Tasks — or
+folded into `docs/philosophy/` § Human-AI Collaboration as a framing clause.
+
+**Stylistic integration notes:** Trimmed workflow retains the operational directive ("Treat
+parallel changes as expected context... flag if conflicting") and drops the why-clause. The
+why connects ARC's task-granularity choice to the co-development loop — conceptual framing for
+adopters reading about ARC's philosophy, not operational for agents who already execute one
+task at a time.
+
+## Entry 15 — 3_process-task-loop.md § Completion protocol — Atomicity check common-splits examples
+
+**Source:** `.arc/system/workflows/arc/3_process-task-loop.md` (lines 174-176, pre-trim)
+
+**Content:**
+
+> Common splits to watch for: task work vs. unrelated tooling/config fixes, code changes vs.
+> task list tracking updates (when they can stand alone), multiple completed tasks that
+> touched independent areas. When in doubt, smaller commits are better — split and ask.
+
+**Suggested destination:** `docs/methodology/commit-discipline/` § Atomicity — worked examples
+of common split-worthy combinations. Natural pair with the granularity guidance extracted in
+Entry 19.
+
+**Stylistic integration notes:** Trimmed workflow retains the imperative ("Do all changes
+serve one logical concern? When in doubt, split and ask.") and points to
+[DEV-RULES.ARC][dev-rules-arc] § Commit Discipline. The dropped enumeration is
+pattern-recognition material — recognizing these three common combinations is adopter-level
+guidance that doesn't need re-reading every task. Pairs with the [Commit Discipline][dev-rules-arc]
+full atomicity treatment.
+
+## Entry 16 — 3_process-task-loop.md § Incidental Work Management — Quick Decision Guide criteria
+
+**Source:** `.arc/system/workflows/arc/3_process-task-loop.md` (lines 200-211, pre-trim)
+
+**Content:**
+
+> **Suggest incidental task list when:**
+>
+> - ✅ Multiple distinct phases with different goals (not just sequential steps)
+> - ✅ Scope likely to expand via discovery (investigation-heavy)
+> - ✅ Estimated 2+ hours OR requires research → design → implement cycle
+>
+> **Suggest keeping as atomic task (or fixing inline) when:**
+>
+> - ❌ Single coherent concern, even if complex (multiple files, 30-90 min)
+> - ❌ Sequential steps all serving one goal
+> - ❌ Scope is known/bounded after initial analysis
+
+**Suggested destination:** `docs/methodology/incidental-work/` § When to Escalate to a Task
+List — pedagogical decision aid for adopters reading about how ARC routes incidental work.
+
+**Stylistic integration notes:** Trimmed workflow keeps the key distinction ("Sequential steps
+toward one goal = atomic. Distinct phases with different objectives = task list.") plus a
+pointer to [manage-incidental-work.md][manage-incidental]. The ✅/❌ criteria enumeration is
+valuable when learning the distinction; redundant when re-scanning the workflow every session.
+Consider retaining the visual ✅/❌ convention on the docs page — it reads well in a reference
+context even when it's noise in agent context.
+
+## Entry 17 — 3_process-task-loop.md § Task List Maintenance — TodoWrite rationale
+
+**Source:** `.arc/system/workflows/arc/3_process-task-loop.md` (lines 248-250, pre-trim)
+
+**Content:**
+
+> Ephemeral task tracking tools (e.g., Claude Code's TodoWrite) help organize work within a
+> session but are **not a substitute for task list markdown updates**. The task list file is
+> the permanent record committed to git — always update it before reporting completion.
+
+**Suggested destination:** `docs/methodology/task-lists/` § Session Tools vs. Task List Files —
+discipline note for adopters whose harness surfaces ephemeral todo tools (Claude Code,
+Cursor, etc.).
+
+**Stylistic integration notes:** Trimmed workflow compresses to the imperative ("Ephemeral
+task tracking tools are not a substitute for task list markdown updates. Always update the
+task list file before reporting completion."). Dropped content is rationale explaining why
+(session vs. permanent, git as record-of-truth) — valuable conceptual framing for adopters new
+to the distinction; conceptually obvious to an agent already operating in ARC's model. Naming
+a specific tool (Claude Code's TodoWrite) is useful in docs context as a concrete example but
+creates harness-coupling in the workflow; the docs page can name multiple.
+
+## Entry 18 — prepare-commits.md § Atomicity Guide — Shared-Docs Commit Pattern scenario framing
+
+**Source:** `.arc/system/workflows/arc/supplemental/prepare-commits.md` (lines 56-59, pre-trim)
+
+**Content:**
+
+> When a WU completes multiple **independent** code tasks that all touch one shared
+> documentation file (a cross-cutting strategy doc, README, or similar), committing each
+> task's doc nibble inline creates tangled history in the shared file.
+
+**Suggested destination:** `docs/methodology/commit-discipline/` § Shared-Docs Commit Pattern —
+scenario framing for the pattern's motivation.
+
+**Stylistic integration notes:** Trimmed workflow compresses to the operational rule ("When
+multiple **independent** code tasks all edit one shared documentation file, defer shared-doc
+updates to a final `docs(...): update [doc] for Tasks X.Y-X.Z` commit after the code
+commits.") and retains the Applies / Does NOT apply bullets (operational boundary). Dropped
+scenario description establishes *why* — useful for an adopter learning the pattern, redundant
+for an agent applying it.
+
+## Entry 19 — prepare-commits.md § Complex Analysis Path — Granularity guidance expansions
+
+**Source:** `.arc/system/workflows/arc/supplemental/prepare-commits.md` (lines 123-138, pre-trim;
+non-contiguous — the expansion clauses within the four rule bullets, not the rule leads themselves)
+
+**Content:**
+
+> - **One problem solved per commit — scope, not volume, as the sizing metric.** A refactor
+>   touching ten files is one commit if it serves one intent. Multiple tasks completed together
+>   that share a cohesive lens (same audit pass, same file surface, one reviewer story) are one
+>   commit, not several — the unit is the concern, not the task ID.
+> - **Split when the description needs multiple sentences explaining different problems.** If you
+>   can't summarize the change in one focused sentence, the commit carries multiple concerns and
+>   they should separate.
+> - **Reversibility as the guard.** If reverting one change would force reverting others, they
+>   belong together. If they fail or succeed independently, they split. This catches the genuine
+>   split-is-worth-it cases — independent rationale, experimental vs stable, cross-cutting
+>   refactor vs feature — without defaulting to task-ID bookkeeping.
+> - **Tracking docs ride with content commits.** Task list checkboxes and active status file
+>   updates are derived state — they belong with the commit that produced the content change, not
+>   a separate meta-commit. Dangling tracking commits create churn without adding signal.
+
+**Suggested destination:** `docs/methodology/commit-discipline/` § Granularity — worked
+examples and reasoning behind each sizing heuristic. Natural pair with Entry 15's common-splits
+examples.
+
+**Stylistic integration notes:** Trimmed workflow keeps the four rule leads (scope-not-volume,
+split-on-multi-sentence-summary, reversibility, tracking-rides-with-content) and the
+intermingled-code pragmatic exception; it drops the expansion clauses that illustrate each
+rule. The reversibility bullet retains its first two sentences (operational) and drops the
+third (rationale naming the categories of genuine splits). The tracking-docs bullet retains
+through "not a separate meta-commit" (the operational directive) and drops the final
+"dangling tracking commits create churn" sentence (pure rationale). Worth preserving as a
+docs page because the worked examples make the sizing rules memorable — a reader who has
+internalized "scope not volume" via the refactor-ten-files example applies it more
+consistently than one who has only the abstract rule.
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
@@ -589,3 +735,5 @@ well-documented elsewhere on the docs site.
 [arc-methods-dir]: ../../system/methods/README.md
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
 [arc-methods-session]: ../../system/methods/session-state.md
+[dev-rules-arc]: ../../reference/constitution/DEV-RULES.ARC.md
+[manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
