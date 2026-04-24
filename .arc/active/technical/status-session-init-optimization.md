@@ -5,21 +5,25 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.4.b — Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4
-  (line ~3124)
-- **Last Completed:** Task 4.4.a — `template-tasks.md` created (both copies, 216 lines;
-  template-completion-doc convention: variants under headings, nested code blocks, curly-brace
-  placeholders, prose pointers to strategy doc). Phase-header template ships without a
-  `**Strategies:**` field. `2_generate-tasks.md` Step 3 updated in both copies: dropped
-  "under the phase header or" option, reframed closer to "use when the connection isn't
-  obvious from the task title". `tasks-arcd-rebrand.md` swept — document-level `**Strategies:**`
-  block removed (L33-36) along with three orphaned reference-link definitions
-  (`[package-sync]`, `[file-classification]`, `[config-arch]`). Tier 1 markdownlint clean.
+- **Next Task:** 4.5.a — Planning workflows audit (`1_create-prd.md`, `2_generate-tasks.md`
+  post-4.4.b relocated-checklist state) (line ~3190)
+- **Last Completed:** Task 4.4 — Task-list-formatting restructure (three-move unit). 4.4.b
+  relocated the Quick Format Checklist from `strategy-task-list-formatting.md` into
+  `2_generate-tasks.md § Step 4` as a pre-save verification gate; dropped the redundant caller
+  pointer. 4.4.c rewrote `strategy-task-list-formatting.md` to rules-only (701 → 285 lines,
+  ~59% reduction): 7 contract-carrying sections preserved, format-element subsections
+  collapsed to 2–4 line rule summaries, templates delegated to `template-tasks.md` via
+  cross-reference, heading structure stable (all non-anchor external references still
+  resolve). Five staging entries (23-27) extracted pedagogical and design-philosophy content
+  (incidental worked example, indentation visual + example, verification rationale paragraphs,
+  success-criteria three-state example, atomic-companion Purpose + sample). STRATEGY-INDEX
+  entry updated in both copies. Tier 2 markdown lint clean across all eight modified files.
 - **Blockers:** none
-- **Next Action:** Begin Task 4.4.b — relocate the Quick Format Checklist from
-  `strategy-task-list-formatting.md` § Quick Format Checklist into `2_generate-tasks.md`
-  Step 4 ("Write and Save Task List") at the appropriate point. Update cross-references in
-  callers (DEV-RULES.ARC, 2_generate-tasks.md body, etc.) if link targets shift. Two-copy
-  sync on both files. Batched with 4.4.c per user approval: continue through 4.4.c (trim
-  `strategy-task-list-formatting.md` to rules-only, apply operational-context audit, target
-  ~70 lines aligned with `strategy-workflow-authoring.md`).
+- **Next Action:** Begin Task 4.5 — Tier 3 audit on remaining session-init-relevant workflows.
+  Starts with 4.5.a (planning workflows): operational-context audit on `1_create-prd.md`
+  (138 lines) and `2_generate-tasks.md` (post-4.4.b state, now ~183 lines after checklist
+  insertion). Standard posture, same protocol as 4.3.a/4.3.c: extract rationale/prose to
+  `notes-docs-content-sweep.md` staging entries, agent-audience lens (no inline placeholders),
+  two-copy sync per file. 4.5 decomposes into domain clusters — a/planning, b/WU-lifecycle
+  core, c/branch+verify+planning, d/supplemental — completion of one cluster is the natural
+  review increment boundary.

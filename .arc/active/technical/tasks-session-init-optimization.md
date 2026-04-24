@@ -3080,11 +3080,15 @@ restructure, not as a Phase 4 audit target.
       identically; post-edit diff shows only the `<!-- arc:if team.mode == true -->` block at L106–115
       of the template (correctly stripped from `.arc/` via team.mode=false), no other deltas.
 
-- [ ] **4.4 Task-list-formatting restructure (P1.4 — three moves)**
+- [x] **4.4 Task-list-formatting restructure (P1.4 — three moves) — done**
 
-    **Goal:** `strategy-task-list-formatting.md` trimmed to rules-only catalogue; templates extracted; Quick Format
-    Checklist relocated to point of use. Runs before Tier 3 audit (4.5) so Tier 3 audits `2_generate-tasks.md` in
-    its post-restructure state.
+    **Outcome:** Three moves landed. `template-tasks.md` created (both copies) absorbing
+    skeleton blocks; Quick Format Checklist relocated to `2_generate-tasks.md` Step 4 as the
+    pre-save gate; `strategy-task-list-formatting.md` rewritten to rules-only (701 → 285 lines,
+    ~59% reduction; 7 contract-carrying sections preserved with cross-references to the
+    extracted surfaces). Tier 3 audit (4.5) now inherits a tighter `2_generate-tasks.md` and
+    `strategy-task-list-formatting.md`. Five staging entries (23-27) captured pedagogical and
+    design-philosophy content for the docs-content-sweep WU.
 
     - [x] **4.4.a Extract templates to `template-tasks.md` + apply resolved `**Strategies:**` convention change**
 
@@ -3121,17 +3125,60 @@ restructure, not as a Phase 4 audit target.
           actual uses of that label are inside nested code blocks, which don't resolve link
           references — definition was orphaned per MD053).
 
-    - [ ] **4.4.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
-        - Move checklist from `strategy-task-list-formatting.md` § Quick Format Checklist into the appropriate point in
-          Step 4 ("Write and Save Task List")
-        - Cross-reference updates in callers
+    - [x] **4.4.b Relocate Quick Format Checklist into `2_generate-tasks.md` Step 4**
 
-    - [ ] **4.4.c Trim `strategy-task-list-formatting.md` to rules-only**
-        - Remove moved content
-        - Apply operational-context audit on the trimmed result (rationale text → staging)
-        - Target shape: rules-only catalogue aligned with `strategy-workflow-authoring.md` (~70 lines) — rough
-          guide, not hard ceiling; current file is 709 lines
-        - Update cross-references (from DEV-RULES.ARC, 2_generate-tasks.md, etc.) if links broke
+      **Outcome:** Checklist moved verbatim; caller prose in `2_generate-tasks.md` body tightened
+      (dropped the now-redundant "Use its Quick Format Checklist to verify before saving" pointer).
+      Strategy doc TOC shrunk by one entry; the new checklist location is surfaced via a pointer
+      line directly under the TOC ("See 2_generate-tasks.md § Step 4 for the pre-save format
+      checklist"). Placement decision: checklist appears between the "Combine phases..." intro
+      and the "Save to" paths, as a pre-save verification gate. Two-copy sync on
+      `2_generate-tasks.md` (template suffix; diff clean except expected team.mode blocks).
+
+    - [x] **4.4.c Trim `strategy-task-list-formatting.md` to rules-only**
+
+      **Outcome:** 701 → 285 lines (59% reduction). Above the aspirational ~70-line target but in
+      line with the "rough guide, not hard ceiling" framing given the surface area to cover
+      (headers, 10 format elements, ownership, test-first, verification, atomic companion,
+      success criteria).
+
+      **Restructure shape:** Preserved 7 contract-carrying sections (Task List Headers, Format
+      Elements Reference, Task Ownership Markers, Test-First Task Structure, Verification Phase,
+      Atomic Companion File, Success Criteria Section). Each format-element subsection collapsed
+      to 2-4 line rule summaries with illustrative single-line examples only where the rule text
+      alone would be ambiguous (numbering hierarchy tree, team-ownership examples). Templates
+      delegated to `template-tasks.md` via cross-reference. Three-state success-criteria marker
+      table retained (operationally essential). Heading structure stable — all cross-references
+      by section name continue to resolve.
+
+      **Extracted to staging (Entries 23-27 in `notes-docs-content-sweep.md`):**
+
+        - **Entry 23** — Task List Headers § Incidental worked example ("CLI Output Encoding
+          on Windows", original L151-181). Adopter-facing concrete illustration.
+        - **Entry 24** — Format Elements § Indentation visual hierarchy + fully-populated
+          worked example (original L390-440). Pattern-recognition pedagogical content.
+        - **Entry 25** — Verification Phase rationale ("Why a single task" +
+          "Completion notes as record", original L551-566). Design-philosophy paragraphs.
+        - **Entry 26** — Success Criteria Section worked example with Deviation + Superseded
+          annotations (original L686-703). Concrete three-state demonstration.
+        - **Entry 27** — Atomic Companion File Purpose prose + fully-populated sample (original
+          L572-603). Conceptual framing for why atomic is a separate surface.
+
+      **Cross-reference updates:**
+
+        - `STRATEGY-INDEX.md` (both copies): revised one-line description from "formatting
+          specification, header templates, element rules" to "formatting rules — structure,
+          ownership, verification, success criteria"; added Companion line pointing to
+          `template-tasks.md` + `2_generate-tasks.md` § Step 4 for the pre-save checklist.
+        - Verified external callers — anchor-free references (DEV-RULES.ARC, 2_generate-tasks.md
+          body, integrate-work-unit.md, verify-work-unit.md, manage-incidental-work.md,
+          strategy-planning-module.md, arc-config.yml comment, pre-commit hook messages) all
+          still resolve; retained sections match original anchor names.
+
+      **Agent-audience lens applied:** no inline `[TODO-docs-site]` placeholders for Entries
+      23-27 — staging Source ranges sufficient (mirrors Task 4.3.b-4.3.c protocol). Two-copy
+      sync: strategy-task-list-formatting.md is a straight two-copy file (no template suffix);
+      both copies identical after rewrite.
 
 - [ ] **4.5 Tier 3 audit — remaining workflows**
 

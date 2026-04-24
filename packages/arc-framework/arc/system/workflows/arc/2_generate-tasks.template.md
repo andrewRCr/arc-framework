@@ -94,6 +94,24 @@ Combine phases and sub-tasks into the final task list following the format descr
 Implementation notes, technical context, and design rationale belong in the dedicated notes
 file (`notes-{name}.md`), not in the task list.
 
+**Before saving, verify the draft against this checklist:**
+
+- [ ] Phase headers use `### **Phase X:** Description` format
+- [ ] Parent tasks have checkboxes and bold: `- [ ] **X.Y Description**`
+- [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
+- [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
+- [ ] Blank lines between subtasks when they have detail bullets beneath
+- [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
+- [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
+- [ ] Test-first tasks group test + implementation together (by concern, not activity)
+- [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
+- [ ] 4-space indentation per hierarchy level
+- [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
+- [ ] No time estimates anywhere (no duration emojis, minute counts)
+- [ ] Verification phase as final phase (single task pointing to `verify-work-unit.md`)
+- [ ] Atomic companion file created alongside task list (`atomic-{name}.md`, same directory)
+- [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
+
 **Save to** (location depends on [`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git** (backlog pipeline): `.arc/backlog/{category}/tasks-{{WORK_NAME}}.md`
@@ -135,8 +153,7 @@ In arc-in-git mode, [activation][activate-work-unit] updates both paths when doc
 
 See [strategy-task-list-formatting.md][task-list-formatting] for
 complete body structure (Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success
-Criteria), formatting rules, test-first patterns, and annotated examples. Use its Quick Format
-Checklist to verify before saving.
+Criteria), formatting rules, test-first patterns, and annotated examples.
 
 ---
 

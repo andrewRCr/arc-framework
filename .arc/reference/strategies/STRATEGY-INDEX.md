@@ -23,8 +23,9 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: running quality gates beyond Tier 1, identifying integration checkpoints, escalation decisions
 - `arc/strategy-session-operations.md` - Context loading model, monitoring, auto-compaction, session state portability
     - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
-- `arc/strategy-task-list-formatting.md` - Task list formatting specification, header templates, element rules
+- `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
+    - Companion: `template-tasks.md` for skeletons; `2_generate-tasks.md` § Step 4 for the pre-save checklist
 - `arc/strategy-workflow-authoring.md` - Workflow frontmatter schema, author-side declaration rule, body conventions
     - Consult when: authoring a framework or project workflow file
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers

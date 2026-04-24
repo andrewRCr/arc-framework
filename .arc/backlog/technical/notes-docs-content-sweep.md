@@ -816,6 +816,263 @@ occur. Docs audience can support the longer treatment without inflating per-sess
 sentence ("The CLI surfaces sync errors interactively — follow its guidance") remains in the source, so
 docs absorption can open directly with the case-by-case content.
 
+## Entry 23 — strategy-task-list-formatting.md § Task List Headers — Incidental worked example
+
+**Source:** `.arc/reference/strategies/arc/strategy-task-list-formatting.md` (lines 151-181,
+pre-trim); template counterpart at
+`packages/arc-framework/arc/reference/strategies/arc/strategy-task-list-formatting.md` (same
+line range — no template-only delta in this region).
+
+**Content:**
+
+> **Example:**
+>
+> ```markdown
+> # Incidental: CLI Output Encoding on Windows
+>
+> **Branch(es):** `incidental/cli-output-encoding`
+> **Base Branch:** `feature/multi-format-export`
+>
+> ## Context
+>
+> **Discovered:** Manual testing during Phase 3.6 (CSV export implementation)
+>
+> **Problem:** CLI output garbles non-ASCII characters on Windows terminals.
+>
+> **Why Now:** Blocks manual testing confidence and affects newly implemented export features.
+>
+> ## Scope
+>
+> ### Will Do
+>
+> - Fix encoding for all output formats (table, CSV, JSON)
+> - Add comprehensive encoding tests
+>
+> ### Won't Do
+>
+> - Performance optimization (separate enhancement)
+>
+> ---
+>
+> ## Tasks
+> ```
+
+**Suggested destination:** `docs/guides/incidental-work/` § Anatomy of an Incidental Task List
+or `docs/reference/task-lists/` § Incidental Example — adopter-facing concrete illustration of
+the incidental header in practice. Pairs naturally with the incidental skeleton in
+`template-tasks.md` (docs absorption can show the skeleton → fully populated example
+progression).
+
+**Stylistic integration notes:** Trimmed strategy doc retains the incidental variant rules
+(title prefix, Base Branch semantics, Context subfields, lifecycle-state delegation) but drops
+the full worked example — the skeleton in `template-tasks.md` shows structure, the rules
+describe semantics, and the worked example's adopter-facing value is better served on a docs
+page than inside an agent-loaded strategy. `feature/multi-format-export` is the fictional
+parent branch — docs absorption can either keep it as an illustrative name or substitute a more
+generic placeholder.
+
+## Entry 24 — strategy-task-list-formatting.md § Indentation Rules — visual hierarchy + worked example
+
+**Source:** `.arc/reference/strategies/arc/strategy-task-list-formatting.md` (lines 390-440,
+pre-trim); template counterpart at the same line range.
+
+**Content:**
+
+> **Standard:** 4 spaces per hierarchy level
+>
+> ```text
+> Phase Header (### **Phase X:**)
+> ↓
+> Phase-level notes (0 spaces) **Purpose:** Optional context
+> ↓
+> Parent Task (0 spaces) - [ ] **X.Y Description**
+>     ↓
+>     Goal/Note Line (4 spaces) **Goal:** Clarification
+>     ↓
+>     Numbered Subtask (4 spaces) - [ ] **X.Y.Z Description** (bold if details follow)
+>         ↓
+>         Detail Bullet (8 spaces) - Implementation detail
+>             ↓
+>             Sub-bullet (12 spaces) - Nested detail
+> ```
+>
+> **Visual example:**
+>
+> ```markdown
+> ### **Phase 1:** Backend Implementation
+>
+> **Purpose:** Establish data models with test-first approach.
+>
+> - [ ] **1.1 `User` model (`models.py`)**
+>
+>     **Goal:** Validated user model with email and username constraints.
+>
+>     - [ ] **1.1.a Field validation**
+>         - Fields: `username`, `email`, `password_hash`
+>         - Add `clean()` method for validation
+>
+>         Build `test-first` (one behavior at a time):
+>         - Email format validation
+>         - Username uniqueness constraint
+>
+>     - [ ] **1.1.b Password hashing**
+>
+>         Build `test-first` (one behavior at a time):
+>         - Password stored as hash, not plaintext
+>         - Hash verification succeeds with correct password
+>
+> - [ ] **1.2 `Profile` model (`models.py`)**
+>
+>     Build `test-first` (one behavior at a time):
+>     - Foreign key to `User`
+>     - Cascade delete when `User` removed
+> ```
+
+**Suggested destination:** `docs/reference/task-lists/` § Indentation and Hierarchy or
+`docs/guides/task-generation/` § Formatting Patterns — adopter-facing pattern-recognition
+material. The arrow-tree visualization and the fully populated worked example together make a
+strong pedagogical unit; consolidating in a docs page serves the learning audience while the
+trimmed strategy retains the operational one-line rule for agents.
+
+**Stylistic integration notes:** Trimmed strategy doc retains "4 spaces per hierarchy level —
+phase header → parent task (0) → goal/note or subtask (4) → detail bullet (8) → sub-bullet
+(12)" as a one-line rule. Absorbed content is the visual ASCII tree and the fully annotated
+worked example — adopter-facing and operationally redundant once the rule is internalized.
+Docs absorption should preserve both the tree diagram and the example; the two together
+disambiguate the indentation cascade better than either alone.
+
+## Entry 25 — strategy-task-list-formatting.md § Verification Phase — rationale paragraphs
+
+**Source:** `.arc/reference/strategies/arc/strategy-task-list-formatting.md` (lines 551-566,
+pre-trim); template counterpart at the same line range.
+
+**Content:**
+
+> **Why a single task:** Verification is one review increment — three read-only validation
+> activities that produce a single coherent outcome. Breaking them into separate tasks created
+> self-contained descriptions that agents could execute without loading the workflow, causing
+> protocol details (immutable criteria text, three-state model) to be missed. A thin pointer
+> forces the workflow load.
+>
+> **Completion notes as record:** The workflow instructs the agent to include completion notes
+> covering what was verified. This makes the archived task list self-documenting — a reader
+> sees the verification outcome without needing to find the workflow.
+>
+> For task completion more broadly, completion notes are the per-task historical record for the
+> work unit, not a duplicate of the original plan plus a second layer of outcomes. Prefer rewriting
+> task text into the final outcome shape: what was delivered, what key decision mattered, and what
+> deviation from plan is important to preserve. Use commit history for the stepwise path of atomic
+> changes; use task completion notes for the resolved outcome of the task. Keep both only when the
+> abandoned path is itself important historical context.
+
+**Suggested destination:** `docs/methodology/verification/` § Why a Thin Pointer or
+`docs/methodology/task-completion/` § Completion Notes as Historical Record — design-philosophy
+content explaining the single-task-pointer decision and the completion-notes-as-outcome-shape
+rule. Both paragraphs belong to a larger narrative about why ARC treats verification as a
+workflow-loaded ritual and why completion notes should rewrite rather than append.
+
+**Stylistic integration notes:** Trimmed strategy doc retains the operational specification
+(skeleton + include reference-link definition at task list end) but drops the design-rationale
+paragraphs. Docs absorption can expand these into a page on ARC's verification philosophy —
+why a single pointer task, why completion notes matter for archive readability, and how task
+completion notes relate to commit history. The "For task completion more broadly" framing
+generalizes the principle from verification-phase completion to all task completion; this
+generalization is worth preserving in docs absorption.
+
+## Entry 26 — strategy-task-list-formatting.md § Success Criteria Section — worked example with three-state annotations
+
+**Source:** `.arc/reference/strategies/arc/strategy-task-list-formatting.md` (lines 686-703,
+pre-trim); template counterpart at the same line range.
+
+**Content:**
+
+> **Example:**
+>
+> ```markdown
+> ## Success Criteria
+>
+> - [x] Required-field validation reports all missing fields with paths
+> - [x] Type-mismatch validation reports expected vs actual types
+> - [x] Multiple errors collected and reported in single pass
+> - [x] `getting-started.md` exists with adoption story and "what to customize" guidance
+>     - **Deviation:** Content redirected to external docs site (MkDocs Material +
+>       GitHub Pages). In-repo file is a lightweight pointer, not the full adoption
+>       story originally planned. Decided during Task 5.1.
+> - [~] Widget supports offline mode
+>     - **Superseded:** Descoped to Phase D after discovering API dependency requires
+>       always-online for initial sync. See `plan-public-release.md`.
+> - [x] All quality gates pass (tests, linting, type checking — 0 violations)
+> - [x] Ready to resume interrupted work at Task 3.3
+> ```
+
+**Suggested destination:** `docs/reference/success-criteria/` § Example or
+`docs/guides/verification/` § Success Criteria in Practice — concrete demonstration of the
+three-state model with both **Deviation** and **Superseded** annotations. Most pedagogical
+artifact in the strategy doc; docs audience benefits more than per-session-load agents.
+
+**Stylistic integration notes:** Trimmed strategy doc retains the three-state marker table and
+the immutability / "All quality gates pass" / "Ready for {archival | merge}" rules but drops
+the worked example. The example demonstrates the annotations in realistic form (both a
+Deviation for an altered-but-met criterion and a Superseded for a dropped one); docs absorption
+should retain both annotation types with their respective notes. `getting-started.md` and
+`plan-public-release.md` are fictional references — docs absorption can keep them as
+illustrative filenames or substitute project-neutral placeholders.
+
+## Entry 27 — strategy-task-list-formatting.md § Atomic Companion File — Purpose prose + sample contents
+
+**Source:** `.arc/reference/strategies/arc/strategy-task-list-formatting.md` (lines 572-603,
+pre-trim); template counterpart at the same line range.
+
+**Content:**
+
+> **Created alongside every task list.** A standalone file (`atomic-{name}.md`) in the same directory
+> as `tasks-{name}.md`. Empty by default — populated during execution as off-plan work is discovered.
+>
+> **Purpose:** Tracks indivisible one-off tasks you elect to do in parallel to the planned work —
+> discovered during execution, not required for the work unit's success criteria. Unlike the phased
+> task list, these tasks have no position in the dependency sequence and are accessed at
+> unpredictable times throughout execution.
+>
+> **Companion file format:**
+>
+> ```markdown
+> # Atomic Tasks — {Work Unit Name}
+>
+> **Purpose:** Tracking of indivisible one-off tasks you elect to do in parallel to the
+> planned work — discovered during execution, not required for the work unit's success
+> criteria. Flat checkbox list, no numbering hierarchy.
+>
+> **Ordering:** Incomplete tasks (`[ ]`) stay at the top. Completed tasks (`[x]`) sink
+> below them in completion order (oldest completed first). See process-task-loop §
+> Atomic Task Completion for the full protocol.
+>
+> > Multi-step work required for the WU belongs in the task list as a new phase.
+> > For multi-step work outside the WU's concern, see `manage-incidental-work.md`.
+>
+> ---
+>
+> - [ ] Clarify error message in config loader (noticed during Task 5.3, deferred)
+>
+> - [x] Fixed broken cross-reference in session-init.md (discovered during Task 3.2)
+> - [x] Updated .gitignore for new build artifacts (discovered during Task 4.1)
+>
+> ---
+> ```
+
+**Suggested destination:** `docs/methodology/atomic-work/` § The Companion File or
+`docs/reference/atomic-tasks/` § Overview — conceptual framing for why atomic tasks exist as a
+separate surface and how the companion file differs from the phased task list. The Purpose
+paragraph captures the "no position in the dependency sequence, accessed at unpredictable
+times" framing that distinguishes atomic from planned work.
+
+**Stylistic integration notes:** Trimmed strategy doc retains the scope guards (size,
+relationship to WU, timing), ordering rule, naming convention, and lifecycle rules (don't
+delete empty, archive vs delete) but drops the Purpose prose and the fully-populated sample
+file. The sample file is now in `template-tasks.md`, so the content is preserved — docs
+absorption can either reference that template or reproduce the sample inline depending on
+page layout. The Purpose paragraph is the piece worth preserving on its own: it answers "why
+is atomic a separate file, not just inline in the task list?"
+
 ---
 
 <!-- Reference link definitions for verbatim quoted content. These mirror reference labels that
