@@ -20,6 +20,7 @@ import type {
   ConfigSessionInitResult,
   ConfigStatusResult,
 } from "../config/types.js";
+import type { DomainRulesSessionInitResult } from "../constitution/types.js";
 import type {
   ExtensionsSessionInitResult,
   ExtensionsStatusResult,
@@ -73,6 +74,7 @@ export interface SessionInitProbeResult {
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   active: Probe<ActiveSessionInitResult>;
+  domainRules: Probe<DomainRulesSessionInitResult>;
 }
 
 /** Probe functions in full mode — bound to cwd and any required I/O. */
@@ -94,6 +96,7 @@ export interface SessionInitProbes {
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   active: () => Promise<ActiveSessionInitResult>;
+  domainRules: () => Promise<DomainRulesSessionInitResult>;
 }
 
 export interface RunStatusOptions {

@@ -155,6 +155,10 @@ function makeSessionInitResult(
         warnings: [],
       },
     },
+    domainRules: {
+      ok: true,
+      value: { mode: "session-init", rules: [], warnings: [] },
+    },
     ...overrides,
   };
 }
@@ -258,5 +262,56 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
       }),
     );
     expect(summary).toContain("(unavailable) git config fetch failed");
+  });
+
+  it("renders the Domain Rules section after the Active section", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    const lines = summary.split("\n");
+    const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
+    const activeIdx = idxOfLine("Active:");
+    const domainRulesIdx = idxOfLine("Domain Rules:");
+    expect(domainRulesIdx).toBeGreaterThan(activeIdx);
+  });
+
+  it("delegates the Domain Rules slot to its formatter (empty case)", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    expect(summary).toContain("Domain Rules:");
+    expect(summary).toContain("No domain rules.");
+  });
+
+  it("delegates the Domain Rules slot to its formatter (populated case)", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        domainRules: {
+          ok: true,
+          value: {
+            mode: "session-init",
+            rules: [
+              {
+                path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+                domain: "frontend",
+                purpose: "UI standards",
+              },
+            ],
+            warnings: [],
+          },
+        },
+      }),
+    );
+    expect(summary).toContain("1 domain rule(s):");
+    expect(summary).toContain("- frontend — UI standards");
+  });
+
+  it("renders an (unavailable) marker when the Domain Rules slot errors", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        domainRules: {
+          ok: false,
+          error: { kind: "runtime", message: "constitution dir missing" },
+        },
+      }),
+    );
+    expect(summary).toContain("Domain Rules:");
+    expect(summary).toContain("(unavailable) constitution dir missing");
   });
 });

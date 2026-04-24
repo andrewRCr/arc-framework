@@ -108,12 +108,14 @@ export async function runSessionInitStatus(
   const extensionsTask = probes.extensions().then(ok, fromRejection);
   const configTask = probes.config().then(ok, fromRejection);
   const activeTask = probes.active().then(ok, fromRejection);
+  const domainRulesTask = probes.domainRules().then(ok, fromRejection);
 
-  const [user, extensions, config, active] = await Promise.all([
+  const [user, extensions, config, active, domainRules] = await Promise.all([
     userTask,
     extensionsTask,
     configTask,
     activeTask,
+    domainRulesTask,
   ]);
 
   return {
@@ -123,5 +125,6 @@ export async function runSessionInitStatus(
     extensions,
     config,
     active,
+    domainRules,
   };
 }

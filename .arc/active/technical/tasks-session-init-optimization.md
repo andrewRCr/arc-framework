@@ -2784,32 +2784,35 @@ restructure, not as a Phase 4 audit target.
             Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 788 unit tests); full suite
             including 14 e2e tests green post-renderer-fix.
 
-        - [ ] **4.2.g.c Composite wiring + handler integration**
+        - [x] **4.2.g.c Composite wiring + handler integration**
 
-            **Goal:** Thread the new probe through the composite orchestrator so
-            `arc status --session-init --json` includes `domainRules` in its output.
+            Threaded `domainRules` through the session-init composite. `SessionInitProbeResult`
+            and `SessionInitProbes` in `src/commands/status/types.ts` gained a
+            `Probe<DomainRulesSessionInitResult>` slot; `runSessionInitStatus` in `run.ts`
+            extended to a 5-element `Promise.all`; `buildSessionInitStatusSummary` in `format.ts`
+            renders a `Domain Rules:` section after `Active:` via
+            `buildDomainRulesSessionInitSummary`. Handler binding added in
+            `src/handlers/status.ts` — session-init branch only. Full-mode `StatusResult`
+            unchanged (per the resolved session-init-only design).
 
-            Files:
-            - `src/commands/status/types.ts` — add
-              `domainRules: Probe<DomainRulesSessionInitResult>` to `SessionInitProbeResult`; add
-              probe function to `SessionInitProbes`. **Full-mode `StatusResult` gets no new slot**
-              — full mode is out of scope (no consumer).
-            - `src/commands/status/run.ts` — add 5th task to `Promise.all` in
-              `runSessionInitStatus`; pass through result
-            - `src/commands/status/format.ts` — add `renderSlot("Domain Rules", ...)` to
-              `buildSessionInitStatusSummary` (Clack human-readable path only — JSON emission is
-              `JSON.stringify` direct)
-            - `src/handlers/status.ts` — add `domainRules` probe binding in session-init branch
+            7 new behavior-scoped tests added across existing suites: 3 in
+            `__tests__/unit/status/run.test.ts` (slot exposure, runtime-error isolation,
+            full-mode absence), 4 in `__tests__/unit/status-format.test.ts` (section ordering,
+            empty-case delegation, populated delegation, error-marker rendering); existing
+            "invokes every probe" and JSON round-trip tests were extended rather than
+            duplicated. `__tests__/integration/status.test.ts` fixture updated to create an
+            empty `constitution/` dir and `makeSessionInitProbes` to bind the new probe —
+            keeps composite integration tests in "clean" state.
 
-            Build `test-first` (one behavior at a time):
-            - Composite session-init result envelope shape includes `domainRules` slot with
-              discriminated union `{ok: true, value: ...}` on success
-            - Probe failure surfaces as `{ok: false, error: {kind: "runtime", ...}}` — session-init
-              continues, other slots unaffected (mirrors existing per-slot rejection discipline)
-            - Clack summary renders "Domain Rules:" section with entries (or "(none)" when empty)
-            - JSON emission (`--json`) includes `domainRules` field verbatim from typed result
-            - Full-mode `arc status` (default rendering) does not include `domainRules` — slot
-              absent from `StatusResult`
+            **Behaviors batched rationale:** five behaviors tightly coupled to one composite
+            change with shared fixture setup (probe bundle with `domainRules`); one-at-a-time
+            slicing offered no independent discovery value.
+
+            Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 797 unit tests); full
+            suite green (972 tests). CLI sanity — `arc status --session-init --json` emits a
+            `domainRules: {ok: true, value: {mode: "session-init", rules: [], warnings: []}}`
+            slot on the self-hosting repo (ARC and PROJECT domain files silently skipped per
+            frontmatter-presence discriminator).
 
         - [ ] **4.2.g.d Pre-commit hook — DEV-RULES frontmatter validation**
 

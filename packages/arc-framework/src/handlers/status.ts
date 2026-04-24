@@ -34,6 +34,7 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../commands/config.js";
+import { runDomainRulesSessionInitStatus } from "../commands/constitution.js";
 import {
   runExtensionsSessionInitStatus,
   runExtensionsStatus,
@@ -88,6 +89,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: () => runConfigSessionInitStatus({ cwd }),
       active: () => runActiveSessionInitStatus({ cwd }),
+      domainRules: () => runDomainRulesSessionInitStatus({ cwd }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

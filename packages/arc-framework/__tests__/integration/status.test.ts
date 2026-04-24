@@ -32,6 +32,7 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../../src/commands/config.js";
+import { runDomainRulesSessionInitStatus } from "../../src/commands/constitution.js";
 import {
   runExtensionsSessionInitStatus,
   runExtensionsStatus,
@@ -65,9 +66,11 @@ async function createFixture(): Promise<Fixture> {
   const extDir = join(configDir, "extensions");
   const wfDir = join(configDir, "workflows");
   const activeDir = join(arcDir, "active");
+  const constitutionDir = join(arcDir, "reference", "constitution");
   await mkdir(extDir, { recursive: true });
   await mkdir(wfDir, { recursive: true });
   await mkdir(activeDir, { recursive: true });
+  await mkdir(constitutionDir, { recursive: true });
   return {
     root,
     arcDir,
@@ -182,6 +185,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root }),
+    domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
   };
 }
 

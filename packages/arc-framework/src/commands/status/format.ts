@@ -14,6 +14,7 @@
 
 import { buildActiveSessionInitSummary, buildActiveStatusSummary } from "../active/format.js";
 import { buildConfigSessionInitSummary, buildConfigStatusSummary } from "../config/format.js";
+import { buildDomainRulesSessionInitSummary } from "../constitution/format.js";
 import {
   buildExtensionsSessionInitSummary,
   buildExtensionsStatusSummary,
@@ -71,6 +72,7 @@ export function buildSessionInitStatusSummary(result: SessionInitProbeResult): s
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
     renderSlot("Active", result.active, buildActiveSessionInitSummary),
+    renderSlot("Domain Rules", result.domainRules, buildDomainRulesSessionInitSummary),
   ];
   return sections.join(`\n${SECTION_SEPARATOR}\n`);
 }

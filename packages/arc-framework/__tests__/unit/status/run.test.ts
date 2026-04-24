@@ -33,6 +33,7 @@ import type {
   ConfigSessionInitResult,
   ConfigStatusResult,
 } from "../../../src/commands/config/types.js";
+import type { DomainRulesSessionInitResult } from "../../../src/commands/constitution/types.js";
 import type {
   ExtensionsSessionInitResult,
   ExtensionsStatusResult,
@@ -167,6 +168,12 @@ function activeSessionInit(
   };
 }
 
+function domainRulesSessionInit(
+  overrides: Partial<DomainRulesSessionInitResult> = {},
+): DomainRulesSessionInitResult {
+  return { mode: "session-init", rules: [], warnings: [], ...overrides };
+}
+
 function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
   return {
     user: vi.fn(async () => userResult()),
@@ -183,6 +190,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
+    domainRules: vi.fn(async () => domainRulesSessionInit()),
     ...overrides,
   };
 }
@@ -338,6 +346,55 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.extensions).toHaveBeenCalledTimes(1);
     expect(probes.config).toHaveBeenCalledTimes(1);
     expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.domainRules).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes the domainRules slot with ok=true on success", async () => {
+    const probes = sessionInitProbes({
+      domainRules: vi.fn(async () =>
+        domainRulesSessionInit({
+          rules: [
+            {
+              path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+              domain: "frontend",
+              purpose: "UI standards",
+            },
+          ],
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.domainRules.ok).toBe(true);
+    if (result.domainRules.ok) {
+      expect(result.domainRules.value.rules).toHaveLength(1);
+      expect(result.domainRules.value.rules[0]?.domain).toBe("frontend");
+    }
+  });
+
+  it("wraps a rejecting domainRules probe as ok=false runtime error; other slots unaffected", async () => {
+    const probes = sessionInitProbes({
+      domainRules: async () => {
+        throw new Error("constitution dir missing");
+      },
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.domainRules.ok).toBe(false);
+    if (!result.domainRules.ok) {
+      expect(result.domainRules.error.kind).toBe("runtime");
+      expect(result.domainRules.error.message).toBe("constitution dir missing");
+    }
+    expect(result.user.ok).toBe(true);
+    expect(result.extensions.ok).toBe(true);
+    expect(result.config.ok).toBe(true);
+    expect(result.active.ok).toBe(true);
   });
 
   it("returns the session-init-scoped shape with mode=session-init", async () => {
@@ -401,7 +458,19 @@ describe("JSON round-trip — composite result shape is stable", () => {
   });
 
   it("session-init result preserves every slot through JSON.stringify/parse", async () => {
-    const probes = sessionInitProbes();
+    const probes = sessionInitProbes({
+      domainRules: vi.fn(async () =>
+        domainRulesSessionInit({
+          rules: [
+            {
+              path: ".arc/reference/constitution/DEV-RULES.FRONTEND.md",
+              domain: "frontend",
+              purpose: "UI standards",
+            },
+          ],
+        }),
+      ),
+    });
     const result = await runSessionInitStatus({
       identity: "andrew",
       role: "maintainer",
@@ -410,6 +479,16 @@ describe("JSON round-trip — composite result shape is stable", () => {
     const roundTripped = JSON.parse(JSON.stringify(result)) as typeof result;
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.identity.identity).toBe("andrew");
+    expect(roundTripped.domainRules.ok).toBe(true);
+    if (roundTripped.domainRules.ok) {
+      expect(roundTripped.domainRules.value.rules[0]?.domain).toBe("frontend");
+    }
+  });
+
+  it("full-mode result does not include a domainRules slot", async () => {
+    const probes = fullProbes();
+    const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
+    expect("domainRules" in result).toBe(false);
   });
 
   it("preserves a runtime-error slot through JSON.stringify/parse", async () => {
