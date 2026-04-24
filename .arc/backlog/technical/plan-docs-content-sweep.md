@@ -198,6 +198,56 @@ final IA placement is editorial judgment at sweep time. Extracted prose came fro
 dual-audience `.arc/` files and may need rephrasing for docs-only audience. Keep
 phrasing honest to the Starlight structure this sweep targets.
 
+#### 5. Agent-native positioning for value-prop copy (framing note, 2026-04-23)
+
+**Input type:** Framing note — conceptual positioning insight for docs-site value-prop
+copy. Not staged prose extraction, not drift-fix. Captured here because it emerged
+from framework work (Session-Init Optimization side discussion) and current `docs/`
+and README copy lead with workflow mechanics rather than the load-bearing design bet.
+
+**The framing:** ARC's in-repo planning model (PRDs, task lists, status files, session
+notes, ADRs as markdown artifacts in the repo) makes project state part of the agent's
+context window natively — no MCP server, no API fetch, no auth round-trip. For every
+agent interaction that touches planning state, this is zero-overhead. Externalizing
+the planning surface to Jira / Linear / GitHub Issues pushes the agent through
+`fetch → parse → reason → write-back` cycles per task, adding tokens, latency, and
+a failure mode per interaction. File-based tracking makes the planning surface *free*
+for the agent.
+
+**Supporting points (not all need foregrounding in every surface):**
+
+- **Commit-time atomicity:** status file advances in the same commit as the code it
+  describes. External trackers can only sync post-hoc, introducing drift windows.
+- **Time-travel coherence:** checkout any past commit → task list, notes, and code
+  all match that moment. Reconstructing equivalent state from tracker history APIs
+  is lossy and slow.
+- **Fork/clone portability:** external contributors see planning context without
+  requiring tracker access.
+- **Offline tolerance** (airplanes, SSH-only servers).
+- **Established precedent:** the in-repo planning pattern is now mainstream for
+  technical work (Rust RFCs, Kubernetes KEPs, ADR-tools, Dendron, the broader
+  docs-as-code tradition). ARC's contribution is workflow discipline + agent-
+  optimized structure, not inventing the category.
+
+**Suggested destinations:**
+
+- Landing page hero / subhead copy — the load-bearing design bet
+- Dedicated "Why ARC" section if one emerges in the Starlight IA
+- README first-screen framing (pair with existing positioning)
+- Methodology-intro copy, light touch — methodology docs should lead with mechanics,
+  not sell the bet
+
+**Keep visible alongside the framing:** `pm.mode: external` exists as an adoption
+escape hatch for teams with heavy stakeholder-facing PM load — those adopters keep
+ARC's workflow discipline while routing tracking externally. Framing the in-repo bet
+without also surfacing the escape hatch misrepresents the framework's flexibility.
+
+**Nuance — don't over-claim:** The bet's correctness depends on agents remaining
+primary development partners and MCP/API integration economics staying
+non-trivially worse than file access. Both are currently true in 2026; both may
+shift. Frame as a deliberate design choice grounded in current agent-collaboration
+economics, not a universal truth.
+
 ## Adding Items
 
 **Drift items** — when a methodology change lands in `.arc/` or
@@ -274,3 +324,4 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 | 2026-04-17 | Renamed plan file: methodology-sweep → content-sweep (scope broadened beyond methodology drift)       |
 | 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |
 | 2026-04-23 | Added Drift Item #4 — agent-file surface removal + `system/briefs/` rename + harness-layer intro      |
+| 2026-04-23 | Added Content Contribution #5 — agent-native positioning framing note for value-prop copy             |

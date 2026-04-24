@@ -3,13 +3,6 @@
 **Purpose:** Quick reference to codified strategy guidance. Consult relevant strategies before implementing
 work in their domains.
 
-**Location:** `.arc/reference/strategies/` — `arc/` for framework methodology (ships with ARC),
-`project/` for your project-specific patterns (you create these).
-
-**Naming:** All strategy files use the `strategy-` prefix for fuzzy-find grouping — typing
-`@strategy` surfaces all strategies regardless of directory. See
-[File Classification][file-classification] § Why Prefixes Matter.
-
 ## ARC Framework Strategies
 
 These ship with the framework and cover development methodology applicable to any project.
@@ -54,25 +47,7 @@ create them):
 - `project/style/strategy-component-styling.md` - Component patterns, design system
 - `project/style/strategy-color-tokens.md` - Color token reference, naming conventions
 
-## Usage Protocol
-
-**Before implementing:**
-
-1. Identify domain (theming, auth, testing, etc.)
-2. Check this index for relevant strategy documents
-3. Read relevant section(s) of the strategy
-4. Implement following guidance
-
-**When uncertain if strategy applies:** Ask. "Does this work touch [domain] where we have strategy guidance?"
-
-**For broad, multi-topic strategies:** Search for the specific topic rather than reading the entire
-doc upfront.
-
 ---
 
 **Maintenance:** Update this index when adding new strategy documents. Keep descriptions to one line;
 add a "Consult when:" sub-item with trigger conditions.
-
----
-
-[file-classification]: arc/strategy-file-classification.md

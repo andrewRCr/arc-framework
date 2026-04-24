@@ -16,6 +16,7 @@ documentation.
 - [Work Categories](#work-categories)
 - [Decision Rules](#decision-rules)
 - [Task Lists and Branches](#task-lists-and-branches)
+- [Work Unit State](#work-unit-state)
 - [Incidental Work Model](#incidental-work-model)
 - [Branch Protection Modes](#branch-protection-modes)
 - [Planning Branch Workflow](#planning-branch-workflow)
@@ -125,6 +126,34 @@ the status-file layer. For within-WU team sub-branches sharing one file, see
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
+
+---
+
+## Work Unit State
+
+The `**State:**` field on each WU's `status-{name}.md` is the load-bearing lifecycle marker.
+Enum values and optional pointer fields below; workflows listed set each value.
+
+### State Enum
+
+| Value                                          | Set By                                                                          | Meaning                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `In Progress`                                  | [activate-work-unit][activate-work-unit] Step 4; resume from pause              | Active task execution (the common case)                                              |
+| `Paused (YYYY-MM-DD) — reason`                 | [manage-incidental-work][manage-incidental]; future arc-shift pause             | Interrupted by an incidental or future arc-shift pause                               |
+| `Waiting-For {category} (YYYY-MM-DD) — reason` | Future arc-shift lifecycle                                                      | Blocked awaiting external action (not yet written by any current workflow)           |
+| `Complete`                                     | [clean-work-unit][clean-work-unit] Mode 2                                       | Work done, opened for integration; file is stable through review, deleted at archive |
+| `Superseded (partial)`                         | [integrate-work-unit][integrate-work-unit] § Handling Partially Superseded Work | Partial work being integrated; remaining phases absorbed into a successor WU         |
+
+### Optional Pointer Fields
+
+Added to status files when the WU's state calls for cross-references. Omit otherwise.
+
+| Field                                                     | Appears On                                         | Set By                                                                               |
+| --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `**Interrupts:** {category}/{name}`                       | Incidental WU status files                         | [manage-incidental-work][manage-incidental] — names the parent WU being interrupted  |
+| `**Paused At:** <task-id>`                                | Parent WU status file (when interrupted)           | [manage-incidental-work][manage-incidental] — records the task at which work paused  |
+| `**Paused To:** {category}/{name}`                        | Parent WU status file                              | [manage-incidental-work][manage-incidental] — names the incidental that caused pause |
+| `**Superseded By:** tasks-{new-approach}.md (YYYY-MM-DD)` | WU status files with `State: Superseded (partial)` | [integrate-work-unit][integrate-work-unit] § Appendix — points to successor WU       |
 
 ---
 
@@ -389,6 +418,7 @@ installs, routing and graduation flow, inbox vs. companion file routing, and sca
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
+[clean-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/clean-work-unit.md
 [create-prd]: ../../../system/workflows/arc/1_create-prd.md
 [manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [config-arch]: strategy-configurability-architecture.md

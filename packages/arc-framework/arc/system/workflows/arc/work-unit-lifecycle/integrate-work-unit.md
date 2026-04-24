@@ -292,7 +292,7 @@ git pull origin {parent-branch}
 **When to use:** Work where significant progress was made before an architectural decision changed direction.
 Earlier phases remain valid (will be used by new approach), but later phases are obsolete.
 
-**State value:** `Superseded (partial)` on the status file (see [`template-status.md`][template-status] State enum).
+**State value:** `Superseded (partial)` on the status file (see [Work Unit State][work-org-state] for the enum).
 
 **Required elements:**
 
@@ -303,7 +303,7 @@ Earlier phases remain valid (will be used by new approach), but later phases are
    **Superseded By:** `tasks-{new-approach}.md` (YYYY-MM-DD)
    ```
 
-   `Superseded By:` is an optional status-file field documented in [`template-status.md`][template-status].
+   `Superseded By:` is an optional status-file field documented in [Work Unit State][work-org-state].
 
 2. **Completion doc** (archival record):
 
@@ -353,7 +353,7 @@ and completion doc — not on the task list header.
 [arc-ext-pre-merge-review]: ../../../extensions/pre-merge-review.md
 [arc-config]: ../../../arc-config.yml
 [template-completion-doc]: ../../../../reference/templates/template-completion-doc.md
-[template-status]: ../../../../reference/templates/template-status.md
+[work-org-state]: ../../../../reference/strategies/arc/strategy-work-organization.md#work-unit-state
 [rotate-branch]: rotate-branch.md
 [activate-planning-branch]: planning/activate-planning-branch.md
 [archive-work-unit]: archive-work-unit.md

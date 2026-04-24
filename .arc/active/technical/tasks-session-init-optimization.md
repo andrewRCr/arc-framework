@@ -2644,12 +2644,64 @@ restructure, not as a Phase 4 audit target.
         arc-in-git`, `pm.mode != arc-in-git`); `{{REPO_ROOT}}` placeholder preserved. Template
         lint-excluded by workspace config; force-linted via temp-copy, zero errors.
 
-    - [ ] **4.2.f Template + reference + config cluster** — `template-status.md` (56 lines; shapes every active status
-      file, template-level bloat propagates), `STRATEGY-INDEX.md` (80 lines; session-init Item 6 — adding to Tier 1
-      coverage), `arc-config.yml` (173 lines, comments only; structural changes out of scope).
-      **Note on `arc-config.yml`:** 3.R moved session-init consumption to `arc status --session-init --json`; the
-      agent no longer reads the file directly. Audit pressure here is docs-hygiene (rationale-heavy comments belong
-      on the docs site under "operational content only") rather than session-init load-cost
+    - [x] **4.2.f Template + reference + config cluster — audited (all three)**
+
+        **Outcome:** `template-status.md` 56 → 11 lines (80% reduction; highest-leverage target because the skeleton
+        propagates into every WU's status file and is Tier-1 loaded per-session). `STRATEGY-INDEX.md` `.arc/` copy
+        79 → 38 lines (52%); package copy 79 → 56 lines (29%). `arc-config.yml` audited, no material change —
+        comments are largely interface documentation, not rationale bloat. STRATEGY-INDEX confirmed Configurable
+        per `strategy-file-classification.md:36` — `.arc/`-side divergence is the intended `arc update` merge
+        pattern, not a risk.
+
+        **Heavy changes — `template-status.md`:**
+        - **"About this file" callout (L3-L9) dropped.** Same P5/companion/protocol framing already authoritative in
+          `AGENT-BRIEFING.ARC § Session lifecycle`, `DEV-RULES.ARC § Session Management`, and `session-handoff.md`.
+          Carried into every WU's status file was pure duplication.
+        - **Optional fields HTML comment (L21-L35) relocated** — Interrupts / Paused At / Paused To / Superseded By
+          field documentation moved to new `strategy-work-organization.md § Work Unit State § Optional Pointer
+          Fields` subsection.
+        - **State enum HTML comment (L37-L56) relocated** — 5-value enum with set-by cross-references moved to new
+          `strategy-work-organization.md § Work Unit State § State Enum` subsection.
+        - Final template shape: H1 title + `## Active Work` + 7-field scaffold. Self-documenting.
+
+        **Cross-reference updates:**
+        - `integrate-work-unit.md` (both copies) L295 + L306 redirected from `[template-status]` to
+          `[work-org-state]` (anchor link into the new strategy subsection). `[template-status]` reference link
+          removed from the file; `[work-org-state]` added.
+        - `activate-work-unit.md` + `manage-incidental-work.md` references to `template-status.md` left intact —
+          those point to the template as a copy-source (still valid — the template is the skeleton).
+
+        **Heavy changes — `STRATEGY-INDEX.md` (two-pass):**
+        - **§ Usage Protocol (13 lines) dropped from both copies.** Redundant with `DEV-RULES.ARC § Verification
+          and Discovery → Consult strategy guidance` (loaded earlier in session-init order). Per-entry "Consult
+          when" triggers ARE the discovery mechanism.
+        - **Top preamble (Location + Naming, 7 lines) dropped from both copies.** Per-entry `arc/` vs `project/`
+          prefixes document the structure inline; framework-authoring guidance on the `strategy-` prefix is
+          meta-noise at session-init.
+        - **§ Project Strategies divergence (`.arc/` only):** illustrative examples replaced with this project's
+          actual strategies (`strategy-package-project-sync.md`, `strategy-testing-methodology.md`). Package copy
+          retains the illustrative block (adopter-facing scaffold).
+        - **Maintenance note dropped from `.arc/` copy** (framework-authoring guidance), retained in package copy.
+
+        **`arc-config.yml` — audited, no material change.** Per-section comment structure is mostly enum-value
+        rosters, default markers, strategy-pointer lines, and examples blocks for regex-valued settings — all
+        interface documentation adopters need when configuring. Scattered candidates (header "Format:" paragraph,
+        `team.mode` effect bullets, `hooks.subject_max_length` rationale) are minor and don't justify the edit
+        churn given 3.R already removed the load-cost pressure. Minimal-touch verdict.
+
+        **Lens application:** Configurable-file lens per 4.2.c/4.2.d precedents — three outcomes (drop /
+        tighten-in-place / relocate to project-level strategy). Relocations went to framework strategy
+        (`strategy-work-organization.md`), not docs-sweep staging. No `[TODO-docs-site]` placeholders at drop
+        sites (agent-loaded files); docs-site coverage happens naturally when the strategy doc is processed.
+
+        **Classification verification:** Pulled `strategy-file-classification.md` during audit to confirm
+        STRATEGY-INDEX is Configurable (L36, L147) — three-way merge applies on `arc update`, `.arc/`-side
+        divergence in project-specific sections is the intended-use pattern. `template-status.md` not explicitly
+        classified in taxonomy but behaves as Framework (no render placeholders, no customization surface) —
+        package-source edits authoritative, sync forward to `.arc/`.
+
+        **Two-copy sync:** All trims applied to both copies. Content identical across copies except the two
+        intentional STRATEGY-INDEX § Project Strategies divergences.
 
     - [ ] **4.2.g DEV-RULES domain enumeration via composite probe** — replace session-init.md Step 4 item 5's
       `constitution/` scan instruction with probe-delivered domain-rules awareness. Surfaced during 4.2.e audit:
