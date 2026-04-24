@@ -537,9 +537,25 @@ in the plan than discover late.
 
 ---
 
+## Activation Audit
+
+When this WU activates, audit plan content against current framework state for drift accumulated
+during dormancy. Known drift items as of 2026-04-24:
+
+- **Stale `template-status.md L24-30` reference** (~L412): the plan cites `template-status.md
+  L24-30` as documentation of the four pointer fields (Interrupts / Paused At / Paused To /
+  Spawned). Task 4.2.f of Session-Init Optimization (commit `647fcc6`) relocated that content
+  to `strategy-work-organization.md § Work Unit State § Optional Pointer Fields`;
+  `template-status.md` is now 11 lines total, so the L24-30 pointer resolves to nothing. The
+  inline field list at ~L407-410 carries the actual field information, so the missing pointer
+  doesn't block readers — activation audit just refreshes the cross-reference to the strategy
+  location.
+
+---
+
 [team-coord]: ../../reference/strategies/arc/strategy-team-coordination.md
 [arc-modes]: plan-arc-modes.md
-[session-init-opt]: ../technical/prd-session-init-optimization.md
+[session-init-opt]: ../../active/technical/prd-session-init-optimization.md
 [arcd-rebrand-prd]: ../technical/prd-arcd-rebrand.md
 [solo-audit]: ../../reference/analysis/analysis-modes-solo-dev-blind-spot-audit.md
 [template-status]: ../../reference/templates/template-status.md

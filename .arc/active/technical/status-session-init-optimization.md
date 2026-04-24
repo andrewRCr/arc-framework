@@ -18,13 +18,10 @@
   docs-site exposure for a later sweep. Tier 2 gates clean (220 markdown files, 991 unit +
   46 E2E tests, typecheck, ts/sh lint, build, domain-rules + method-triggers audits).
 - **Blockers:** none
-- **Next Action:** Atomic incidental first (same session, not deferred) — update stale
-  `arc-methods.md` reference in the `arc-commit` skill across all four copies
-  (`.claude/skills/arc-commit/SKILL.md`, `.codex/skills/arc-commit/...`,
-  `.arc/reference/skills/arc-commit/...`, and the package source under
-  `packages/arc-framework/arc/system/skills/arc-commit/`). Discovered during this commit:
-  the skill instructs "Read `arc-methods.md` § commit-format and § commit-context-format"
-  but the aggregate was retired in Phase 3 — per-file `system/methods/commit-format.md`
-  and `commit-context-format.md` are authoritative. Capture in
-  `atomic-session-init-optimization.md` and execute, then resume 4.3.a
-  (operational-context audit on `3_process-task-loop.md` + `prepare-commits.md`).
+- **Next Action:** Resume 4.3.a — operational-context audit on `3_process-task-loop.md`
+  (269 lines) + `prepare-commits.md` (157 lines). Same protocol as 4.2 subtasks: extract
+  non-operational content to `notes-docs-content-sweep.md` staging, leave
+  `[TODO-docs-site]` placeholders, two-copy sync per file. Cluster is cohesive on the
+  commit/task completion loop; the MD046 structural issue on
+  `3_process-task-loop.template.md` was pre-fixed during an earlier CI unblock, so this
+  audit only does the operational-context pass.

@@ -11,6 +11,8 @@
 - [Phase 1 Classification (Task 1.1.b)](#phase-1-classification-task-11b)
 - [Phase 2 Decisions](#phase-2-decisions)
 - [Phase 3.R Second-Pass Decisions](#phase-3r-second-pass-decisions)
+- [Phase 4 Audit Methodology](#phase-4-audit-methodology)
+- [Phase 5.0 Worktree-Sync Research](#phase-50-worktree-sync-research-external-research-2026-04-23)
 
 ---
 
@@ -847,6 +849,54 @@ to ordering; Phase 5 owns the deeper load-set restructure.
 
 No rebrand tasks beyond Task 1.5 needed editing — the global `arc` → `arcd` sweep naturally
 covers the follow-on `arc health` → `arcd health` without special handling.
+
+## Phase 4 Audit Methodology
+
+Lens applied across Phase 4 audit tasks (4.2 / 4.3 / 4.5). Branches by file classification:
+
+- **Framework files** (agent-only or dual-audience): carry the agent-audience trim lens. For
+  strictly agent-loaded files, drop inline `[TODO-docs-site]` placeholders (the docs-content-sweep
+  WU finds extractions via staging entry Source ranges). For dual-audience files (contributor
+  briefing, DEV-RULES.ARC), keep placeholders. Full rules in Task 4.2.a outcome notes.
+- **Project-level / configurable files**: three outcomes only — **drop**, **tighten-in-place**,
+  or **relocate to a project-level strategy**. NO `notes-docs-content-sweep.md` staging (docs
+  site serves adopters, not this repo's project specifics); NO `[TODO-docs-site]` placeholders.
+  For configurable files (template-rendered), audit is two-pass: `.arc/` trim for project-specific
+  content plus package template edits for framework-template quality. Full rules in Task 4.2.c /
+  4.2.d outcome notes.
+
+**Opportunistic slash-syntax cleanup:** Fix slash-form skill references (`/arc-resume`,
+`/arc-handoff`) to bare skill names (`arc-resume`, `arc-handoff`) when 4.2 / 4.3 / 4.5 audits
+touch a file containing them. Skill names are framework-canonical; the slash form is Claude
+Code-specific (Codex uses `$`, other agents may differ — name the skill, not the invocation
+syntax). The `atomic-session-init-optimization.md` entry tracks the broader sweep
+(~15 references across live framework docs); opportunistic during audits, atomic cleanup pass
+after Phase 4 closes catches stragglers. AGENT-BRIEFING.ARC.md (Task 4.2.a) establishes the
+canonical phrasing pattern — skill name + optional "(invocation syntax is agent-specific)" hint
+when first introduced in a file.
+
+**Canonical post-trim examples** (reference these when audit decisions arise on similar files):
+
+- `AGENT-BRIEFING.ARC.md` (Task 4.2.a, commit `c221e0b`) — agent-audience trim lens.
+- `DEV-RULES.ARC.md` (Task 4.2.b, commit `3af38d5`) — surgical trim on tight baseline with
+  P-annotation strip + `[configurable]` retention.
+- `DEV-RULES.PROJECT.md` (Task 4.2.c, commit `a70bc48`) — project-level lens, whole-section drops
+  plus relocation to project strategy.
+- `QUICK-REFERENCE.md` + `.template.md` (Task 4.2.d, commit `a70bc48`) — configurable two-pass
+  with template enhancement via `arc:if platform.type != github`.
+- `session-init.md` + `.template.md` (Task 4.2.e, commit `39a0c72`) — configurable two-pass with
+  E1 relocation to live strategy (`strategy-session-operations.md`) in lieu of docs-sweep
+  staging; demonstrates "operational recovery needs runtime reach" carve-out from the default
+  extraction pattern.
+- `template-status.md` + `STRATEGY-INDEX.md` + `arc-config.yml` (Task 4.2.f, commit `647fcc6`) —
+  project-level lens on framework-shipped cluster. STRATEGY-INDEX demonstrates Configurable
+  two-pass with intentional `.arc/` § Project Strategies divergence (verified via
+  `strategy-file-classification.md` — three-way-merge is the designed pattern).
+  `template-status.md` demonstrates skeleton-cost multiplier (propagates into every WU status
+  file × every session) justifying aggressive drop plus relocation of the State enum to
+  `strategy-work-organization.md § Work Unit State`. `arc-config.yml` demonstrates
+  audit-with-no-material-change outcome — comments were interface docs, not rationale bloat
+  (3.R already removed load-cost pressure).
 
 ## Phase 5.0 Worktree-Sync Research (external research, 2026-04-23)
 

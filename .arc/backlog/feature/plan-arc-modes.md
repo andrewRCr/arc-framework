@@ -135,6 +135,7 @@ modes. This is not just "coherent to keep together" but "separating would be act
     - [Consolidated Deliverables Inventory](#consolidated-deliverables-inventory)
     - [Resolved Decisions](#resolved-decisions)
     - [Research Findings](#research-findings)
+- [Activation Audit](#activation-audit)
 
 ---
 
@@ -5595,6 +5596,29 @@ Session-init Local-axis pre-check.
   Docker, npm, rclone, restic, borg, pass, git-crypt, chezmoi, Obsidian (filesystem permissions,
   remote privacy, at-rest encryption)
 - git-scm.com gitignore(5) documentation (`.git/info/exclude` clone behavior)
+
+---
+
+## Activation Audit
+
+When this WU activates, audit plan content against current framework state for drift accumulated
+during dormancy. Known drift items as of 2026-04-24:
+
+- **Stale Step 1 Status-header reference** (~L4369-4370): the plan references "the existing
+  Step 1 Status-header checkbox line" in `session-init.md` as a landing spot for future matrix
+  evaluation. That checkbox was removed in commit `eff2918` during the Work-Status Restructure
+  WU. Refresh against current `session-init.md` structure or drop if no longer applicable.
+- **Phase 3.R session-init.md restructure drift** (post-commit `91a42be`, Session-Init
+  Optimization WU): Task 3.R.k.f+g restructured `session-init.md` into an 8-step linear workflow.
+  Any references here to older step numbers, Batch 1 / Batch 2 naming, or the standalone "Check
+  Active Configuration" step are now stale.
+- **Shift lifecycle extraction** (2026-04-24): shift lifecycle was extracted from Operating Modes
+  scope and moved to the new Work-Unit Mobility WU (sequenced before Modes). Internal references
+  to shift lifecycle as Modes-bundled scope need to be redirected to
+  `plan-work-unit-mobility.md` or dropped as already-shipped prerequisites.
+- **Redirected `BACKLOG-FEATURE.md` reference** (Task 3.11 of Session-Init Optimization): the
+  backlog entry was redirected from `plan-arc-lite.md` → `plan-arc-modes.md`, but this plan's
+  internal stale refs were not touched — activation reconciliation completes the redirect.
 
 ---
 
