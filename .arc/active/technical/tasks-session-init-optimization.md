@@ -3321,78 +3321,59 @@ restructure, not as a Phase 4 audit target.
       duplicate meta-sections); 4.4.d.b mirrors 4.4.b pattern (operational-machinery-to-
       use-site relocation).
 
-    - [x] **4.5.b Work-unit lifecycle core** — `activate-work-unit.md` 234→222 (~5%);
-      `archive-work-unit.md` 275→229 (~17%); `clean-work-unit.md` 374→291 (~22%);
-      `deactivate-work-unit.md` 278→260 (~6%). Cluster total 1161→1002 (~14%). Seventeen
-      staging entries (32-48) appended to `notes-docs-content-sweep.md` covering blockquote
-      extractions (Entry 32), rationale paragraphs (33, 44-48), example enumerations (34),
-      reference blocks (35), Common Pitfalls sections (36, 40), ✅/❌ mode enumerations
-      (37-38), conceptual recaps (39), and BEFORE/AFTER worked examples (41-43). Two-copy
-      sync verified across all four file pairs; Tier 2 markdown lint clean (223 files).
-      **Use-site relocation pattern did not recur** in this cluster — all gates already
-      inline at workflow level; the 4.4.b / 4.4.d.b hoisting opportunity did not surface.
-      Yield driver: clean carried 52% of the cluster trim (83/159 lines), consistent with
-      its "heavy" flagging — largest yield from § Common Pitfalls + § Output wholesale
+    - [x] **4.5.b Work-unit lifecycle core** — `activate-work-unit.md` 234→222 (~5%); `archive-work-unit.md` 275→229
+      (~17%); `clean-work-unit.md` 374→291 (~22%); `deactivate-work-unit.md` 278→260 (~6%). Cluster total 1161→1002
+      (~14%). Seventeen staging entries (32-48) appended to `notes-docs-content-sweep.md` covering blockquote
+      extractions (Entry 32), rationale paragraphs (33, 44-48), example enumerations (34), reference blocks (35),
+      Common Pitfalls sections (36, 40), ✅/❌ mode enumerations (37-38), conceptual recaps (39), and BEFORE/AFTER worked
+      examples (41-43). Two-copy sync verified across all four file pairs; Tier 2 markdown lint clean (223 files).
+      **Use-site relocation pattern did not recur** in this cluster — all gates already inline at workflow level; the
+      4.4.b / 4.4.d.b hoisting opportunity did not surface. Yield driver: clean carried 52% of the cluster trim
+      (83/159 lines), consistent with its "heavy" flagging — largest yield from § Common Pitfalls + § Output wholesale
       deletions + three BEFORE/AFTER code fences + two ✅/❌ mode enumerations
 
-    - [x] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md`
-      155→117 (~25%); `verify-work-unit.md` 80→80 (no-op, already operational-dense);
-      `planning/activate-planning-branch.md` 115→99 (~14%);
-      `planning/integrate-planning-branch.md` 152→135 (~11%). Cluster total 502→431
-      (~14%, 71 lines extracted). Eleven staging entries (49-59) appended to
-      `notes-docs-content-sweep.md`: preamble framing (49, 54, 57), scenario enumeration
-      (50), consequence-explanation partial extract (51), session-boundary blockquote
-      (52), Common Pitfalls wholesale (53, 56, 59), naming-rationale partial extract
-      (55), PR-body-scope partial extract (58). Two new link defs added to staging file:
-      `[work-org-branches]`, `[config-merge]`. Two-copy sync verified across all four
-      file pairs; Tier 2 markdown lint clean (223 files). **verify-work-unit.md no-op
-      confirmed** — pre-implementation assessment that the file was already
-      operational-dense held; no rationale/example content warranted extraction (same
-      framing as Task 1.1.c no-op). **Use-site relocation pattern did not recur**
-      (consistent with 4.5.b) — cluster's gates were already inline at workflow level.
-      **Partial-extract pattern deployed three times** (Entries 51, 55, 58) where a
-      consequence signal or operational mechanic needed retention while rationale/examples
-      were staged — new structural variant documented in each entry with both "full
-      pre-trim" and "retained in trimmed workflow" blocks. Cluster yield matches 4.5.b's
-      14% exactly by coincidence, despite 4.5.c being less than half 4.5.b's cluster size
-      (502 vs 1161 lines).
+    - [x] **4.5.c Work-unit lifecycle (branch/verify/planning)** — `rotate-branch.md` 155→117 (~25%);
+      `verify-work-unit.md` 80→80 (no-op, already operational-dense); `planning/activate-planning-branch.md` 115→99
+      (~14%); `planning/integrate-planning-branch.md` 152→135 (~11%). Cluster total 502→431 (~14%, 71 lines extracted).
+      Eleven staging entries (49-59) appended to `notes-docs-content-sweep.md`: preamble framing (49, 54, 57), scenario
+      enumeration (50), consequence-explanation partial extract (51), session-boundary blockquote (52), Common Pitfalls
+      wholesale (53, 56, 59), naming-rationale partial extract (55), PR-body-scope partial extract (58). Two new link
+      defs added to staging file: `[work-org-branches]`, `[config-merge]`. Two-copy sync verified across all four file
+      pairs; Tier 2 markdown lint clean (223 files). **verify-work-unit.md no-op confirmed** — pre-implementation
+      assessment that the file was already operational-dense held; no rationale/example content warranted extraction
+      (same framing as Task 1.1.c no-op). **Use-site relocation pattern did not recur** (consistent with 4.5.b) —
+      cluster's gates were already inline at workflow level. **Partial-extract pattern deployed three times** (Entries
+      51, 55, 58) where a consequence signal or operational mechanic needed retention while rationale/examples were
+      staged — new structural variant documented in each entry with both "full pre-trim" and "retained in trimmed
+      workflow" blocks. Cluster yield matches 4.5.b's 14% exactly by coincidence, despite 4.5.c being less than half
+      4.5.b's cluster size (502 vs 1161 lines).
 
-    - [x] **4.5.d Supplemental** — `manage-incidental-work.md` 226→189 (~16%);
-      `maintain-project-docs.md` 150→123 (~18%); `add-agent.md` 87→72 (~17%,
-      retirement cleanup — not extraction); `verify-arc-integrity.md` 151→151
-      (strict no-op, reference material); `integrate-external-content.md`
-      130→123 (~5%). Cluster total 744→658 (-86 lines, ~12%). Extraction-only
-      yield: 71 lines / ~9.5% (manage-incidental-work 37, maintain-project-docs
-      27, integrate-external-content 7). Nine staging entries (60-68) appended
-      to `notes-docs-content-sweep.md`: § Overview wholesale (60), Key Distinction
-      examples (61), Why This Matters rationale (62), filename-examples partial
-      (63), concrete commit-message example (64), full-protection reassurance
-      line (65), § Document Hierarchy wholesale (66), SSOT example (67), Skills
-      context blockquote wholesale (68). Two-copy sync verified across all five
-      file pairs; Tier 2 markdown lint clean (223 files).
+    - [x] **4.5.d Supplemental** — `manage-incidental-work.md` 226→189 (~16%); `maintain-project-docs.md` 150→123
+      (~18%); `add-agent.md` 87→72 (~17%, retirement cleanup — not extraction); `verify-arc-integrity.md` 151→151
+      (strict no-op, reference material); `integrate-external-content.md` 130→123 (~5%). Cluster total 744→658
+      (-86 lines, ~12%). Extraction-only yield: 71 lines / ~9.5% (manage-incidental-work 37, maintain-project-docs 27,
+      integrate-external-content 7). Nine staging entries (60-68) appended to `notes-docs-content-sweep.md`:
+      § Overview wholesale (60), Key Distinction examples (61), Why This Matters rationale (62), filename-examples
+      partial (63), concrete commit-message example (64), full-protection reassurance line (65), § Document Hierarchy
+      wholesale (66), SSOT example (67), Skills context blockquote wholesale (68). Two-copy sync verified across all
+      five file pairs; Tier 2 markdown lint clean (223 files).
 
-      **`add-agent.md` retirement cleanup** — Step 2 "Check for Agent-Specific
-      Configuration" removed wholesale per user note that agent-specific
-      (`{AGENT}.ARC.md`) files were retired from the framework. Steps 3→2 and
-      4→3 renumbered; "After this workflow" summary updated to drop
-      "agent-specific config" reference. No staging entry — content is retired,
-      not staged for docs absorption. All 15 lines of the file's reduction came
-      from this cleanup; 0 from content extraction.
+      **`add-agent.md` retirement cleanup** — Step 2 "Check for Agent-Specific Configuration" removed wholesale per
+      user note that agent-specific (`{AGENT}.ARC.md`) files were retired from the framework. Steps 3→2 and 4→3
+      renumbered; "After this workflow" summary updated to drop "agent-specific config" reference. No staging entry —
+      content is retired, not staged for docs absorption. All 15 lines of the file's reduction came from this cleanup;
+      0 from content extraction.
 
-      **`verify-arc-integrity.md` strict no-op** — reference material by nature;
-      six Check Categories each carry description/severity/remediation triples
-      the agent needs when interpreting script output. Trimming reduces reference
-      value.
+      **`verify-arc-integrity.md` strict no-op** — reference material by nature; six Check Categories each carry
+      description/severity/remediation triples the agent needs when interpreting script output. Trimming reduces
+      reference value.
 
-      **Entry 66 deviation from standard destination framing** —
-      `maintain-project-docs.md` § Document Hierarchy duplicated session-init.md's
-      canonical loading model. Staged as known-stale rather than
-      docs-absorption-ready; entry flags for discard when docs-sweep WU resolves
-      the loading model.
+      **Entry 66 deviation from standard destination framing** — `maintain-project-docs.md` § Document Hierarchy
+      duplicated session-init.md's canonical loading model. Staged as known-stale rather than docs-absorption-ready;
+      entry flags for discard when docs-sweep WU resolves the loading model.
 
-      Cluster yield (12% total, ~9.5% extraction-only) is the lowest in the 4.5
-      series, driven by three of five files being already operational-dense.
-      Confirms the pre-implementation read that supplementals are tighter than
+      Cluster yield (12% total, ~9.5% extraction-only) is the lowest in the 4.5 series, driven by three of five files
+      being already operational-dense. Confirms the pre-implementation read that supplementals are tighter than
       lifecycle core.
 
     - **Out of Tier 3 scope (excluded explicitly for visibility):** `initial-setup/*.md` (one-off install workflows,
@@ -3400,63 +3381,41 @@ restructure, not as a Phase 4 audit target.
       `reference/strategies/**/*.md` (T3 on-demand; `strategy-task-list-formatting.md` handled in 4.4.c as part of
       the formatting restructure)
 
-- [ ] **4.6 D7b extension-point match pre-commit hook (test-first)**
+- [x] **4.6 D7b extension-point match pre-commit hook (test-first)**
 
-    **Goal:** Hook validates every extension-point reference in a workflow file has a matching extension file in
-    `system/extensions/`. No new tag syntax — the check greps the existing anchor-suffix convention that Phase 3
-    already ships.
+    **Outcome:** CHECK 16 landed in both hook copies; new validator script
+    `packages/arc-framework/src/scripts/validate-extension-points.ts` delegates scanning to the shared `point-scanner` +
+    `orphan-detector` helpers from Task 3.R.k.b. 14 unit tests at
+    `__tests__/unit/scripts/validate-extension-points.test.ts` cover path classification, header- and inline-form
+    resolution, orphan diagnostics with line numbers, metadata-agnostic existence criterion, multi-reference files,
+    malformed-marker rejection, non-workflow skips, empty-input short-circuit, and same-copy lookup in both directions.
+    Full unit suite green (830 tests); `lint:ts`, `lint:sh`, `typecheck`, `typecheck:test` all pass.
 
-    **Convention recap (unchanged from Phase 3 landed state):** workflows mark extension points with a trailing
-    `` · `#<name>` `` on a section heading (e.g., `` ### 3. Post-Context-Load Extensions · `#post-context-load` ``)
-    or as an inline bold prefix (e.g., `` **Extensions** · `#post-task-quality`: ``). Both forms carry the extension's
-    basename between backticks after `#`. Extension files in `system/extensions/` use `active: true|false` (not
-    `has-steps:`) per Task 3.5; placeholder bodies use `[No extension configured]` per Task 3.13's CHECK 14.
+    **Validator shape (audit C2):** Follows CHECK 12/13/15's pattern — `validateFiles(paths, readFile, listExtensions)`
+    is pure and injectable for unit testing; CLI entry reads the working tree and lists extension basenames via
+    `readdirSync`. Diagnostics shaped
+    `` path:line: extension-point reference `#<name>` has no matching `<copy>/system/extensions/<name>.md` `` so editors
+    can jump to the offending line.
 
-    **Tag-convention decision (resolved pre-Phase-4):** earlier draft proposed wrapping extension regions with
-    `<extension-point name="X">...</extension-point>` tags. Rejected: GitHub strips unknown HTML tags on render
-    (delimiter invisible to readers), inline sites can't accommodate block tags without restructuring, and the D7b
-    check's grep target works equally well against the existing anchor-suffix convention. The visible
-    human-readable suffix stays; no new syntax introduced.
+    **Same-copy listing (audit C1):** Opted for a minimal local `listExtensionBasenames(dir)` helper inside the
+    validator rather than exporting `extensions/status.ts`'s `readExtensionsDirectory`. The task's stated criterion is
+    file existence, not frontmatter-declared name (CHECK 12 already enforces name ↔ basename), so the simpler listing
+    keeps the validator's dependency surface minimal. `readExtensionsDirectory` remains status.ts-private.
 
-    **Implementation:**
-    - Consume the shared scan helpers from `src/lib/extensions/` shipped by Task 3.R.k.b (`point-scanner` +
-      `orphan-detector`). Do not duplicate the scan — the hook filters to staged workflow paths and delegates
-    - Placement: CHECK 15 in `.arc/system/githooks/pre-commit` (CHECK 14 is Task 3.13's package-source neutrality
-      guard)
-    - Target: staged workflow files under `.arc/system/workflows/**` and
-      `packages/arc-framework/arc/system/workflows/**` (dual-copy, matches CHECK 12/13's scope; distinct from
-      CHECK 14 which is package-source-only by design)
-    - Per staged workflow: grep `` ·\s*`#([a-z][a-z0-9-]*)` `` to extract extension-point names → for each, verify
-      the corresponding `system/extensions/<name>.md` exists in the same copy (`.arc/` workflow → `.arc/` extension;
-      package-source workflow → package-source extension). File existence is the pass criterion; `active:` value is
-      not checked (placeholder state must remain valid, per the existing CHECK 14 neutrality contract)
-    - Interaction with CHECK 14: CHECK 15 asserts *reference has a target*; CHECK 14 asserts *package-source target
-      is placeholder-neutral*. No overlap — CHECK 14 does not inspect workflow references; CHECK 15 does not inspect
-      extension body/frontmatter. Both can fire independently on the same commit without redundant diagnostics
-    - Fast short-circuit: hook-level `grep -E '...' || true` against staged paths produces empty candidate list →
-      `if [ -n "$candidates" ]` skips validator invocation entirely. Structurally identical to CHECK 12/13/14
-    - Two-copy sync on `pre-commit`
+    **CHECK 14 dual-fire (audit C3):** Workflows that pair an anchor-suffix marker with a reference-style link to the
+    extension file (e.g., `3_process-task-loop.md`) will surface both CHECK 14 (link resolution) and CHECK 16 (reference
+    resolution) when an extension is deleted. Expected — different surfaces, different diagnostics — and tolerable
+    given both point at the same root cause.
 
-    Build `test-first` (one behavior at a time):
-    - Header-suffix reference (`` ### Foo · `#foo` ``) with matching extension file passes
-    - Inline-prefix reference (`` **Extensions** · `#foo` ``) with matching extension file passes
-    - Reference to nonexistent extension fails with diagnostic naming workflow path + extension name
-    - Reference to extension with `active: false` + placeholder body (neutral package-source state) passes
-      (existence-only check)
-    - Reference to extension with `active: true` + populated body (adopter-customized `.arc/` state) passes
-    - Multiple references in one file all checked (all must resolve)
-    - Empty backtick reference (`` · `#` ``) or malformed reference produces no false positive (pattern requires
-      `[a-z]` start)
-    - Reference in a non-workflow `.md` file (strategy, README) is not checked — only staged workflow paths
-    - Fast short-circuit when no workflow files staged (mirror CHECK 12/13/14 behavior)
-    - `.arc/` workflow reference resolves against `.arc/` extension; package-source workflow resolves against
-      package-source extension (same-copy lookup)
+    **Scope boundary (audit C5):** Hook checks only staged workflow paths; a commit that deletes
+    `system/extensions/foo.md` while leaving references in unstaged workflows is by design out of scope (full-repo
+    orphan detection lives in `arc extensions status`).
 
 - [ ] **4.7 Phase 4 close — Tier 3 quality gates**
     - Full quality gate pass; verify extractions staged correctly (spot-check 3–5 entries); verify link placeholders
       are greppable by a fixed pattern
-    - **Hook false-positive surface check for CHECK 15** (mirrors 3.12 discipline): synthetic negative-path staged
-      set (non-workflow `.md` files, `.ts`, `.yml`) produces empty candidate list so CHECK 15 short-circuits without
+    - **Hook false-positive surface check for CHECK 16** (mirrors 3.12 discipline): synthetic negative-path staged
+      set (non-workflow `.md` files, `.ts`, `.yml`) produces empty candidate list so CHECK 16 short-circuits without
       invoking validator; positive mirror set (workflow file with resolvable reference + workflow file with
       unresolvable reference) fires correctly in both directions
 

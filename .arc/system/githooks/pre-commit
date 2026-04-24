@@ -433,6 +433,31 @@ if [ -n "$neutrality_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK 16: Extension-point reference resolution (D7b)
+# ============================================================================
+# Every anchor-suffix marker (`· `#<name>``) in a staged workflow file must
+# target an existing `system/extensions/<name>.md` in the same copy — .arc/
+# workflow resolves against .arc/ extensions; package-source workflow
+# resolves against package-source extensions. Complements CHECK 15
+# (neutrality on extension bodies) with a gate on workflow references.
+# Existence is the pass criterion; `active:` and body content are not
+# inspected.
+extension_point_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^(\.arc|packages/arc-framework/arc)/system/workflows/.*\.md$' || true)
+
+if [ -n "$extension_point_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! extension_point_output=$(npx tsx packages/arc-framework/src/scripts/validate-extension-points.ts $extension_point_candidates 2>&1); then
+        echo -e "${RED}Error: Extension-point reference validation failed:${NC}"
+        echo "$extension_point_output" | sed 's/^/   /'
+        echo ""
+        echo "   Every extension-point marker must target an existing"
+        echo "   system/extensions/<name>.md file in the same copy."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""
