@@ -39,13 +39,14 @@ arc status --session-init --json
 
 Non-destructive. Returns a single JSON envelope the agent consumes:
 
-| Field        | Contents                                                                                                                                      |
-|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| `identity`   | `{identity, role}` — either may be `null`                                                                                                     |
-| `user`       | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                                           |
-| `extensions` | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                   |
-| `config`     | `value.settings`: session-relevant settings (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`) |
-| `active`     | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                |
+| Field         | Contents                                                                                                                                      |
+|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `identity`    | `{identity, role}` — either may be `null`                                                                                                     |
+| `user`        | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                                           |
+| `extensions`  | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                   |
+| `config`      | `value.settings`: session-relevant settings (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`) |
+| `active`      | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                |
+| `domainRules` | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics           |
 
 Carry `config` values forward as behavioral awareness. Do not surface configuration in orientation — defaults
 and overrides reach the user at the consuming operation.
@@ -99,8 +100,9 @@ session-state, follow the override instead.
 
 4. `.arc/reference/constitution/DEV-RULES.ARC.md`
 5. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
-    - Scan `constitution/` for additional `DEV-RULES.*.md` domain files (e.g., `DEV-RULES.FRONTEND.md`). Note
-      their domains — load on-demand when a task touches the relevant domain, not at init time
+    - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}` tuples for any
+      `DEV-RULES.{DOMAIN}.md` files with the domain-rules frontmatter. Load on-demand when a task
+      touches the relevant domain, not at init time.
 6. `.arc/reference/strategies/STRATEGY-INDEX.md`
 7. `.arc/reference/QUICK-REFERENCE.md`
 

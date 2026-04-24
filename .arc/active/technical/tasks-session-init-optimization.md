@@ -2703,7 +2703,7 @@ restructure, not as a Phase 4 audit target.
         **Two-copy sync:** All trims applied to both copies. Content identical across copies except the two
         intentional STRATEGY-INDEX § Project Strategies divergences.
 
-    - [ ] **4.2.g DEV-RULES domain enumeration via composite probe**
+    - [x] **4.2.g DEV-RULES domain enumeration via composite probe**
 
         **Goal:** Replace session-init.md Step 4 item 5's `constitution/` scan instruction with
         probe-delivered domain-rules awareness. Surfaced during 4.2.e audit: every session scans
@@ -2895,54 +2895,45 @@ restructure, not as a Phase 4 audit target.
 
             Tier 1 gates clean (lint:ts, lint:sh, typecheck, typecheck:test, 816 unit tests).
 
-        - [ ] **4.2.g.f Markdown surface — session-init rewrite, template, drift capture**
+        - [x] **4.2.g.f Markdown surface — session-init rewrite, template, drift capture**
 
-            Single atomic commit (all markdown-side changes, no CLI code).
+            Single atomic commit covering the markdown/config surface for the domain-rules
+            feature:
 
-            **Case contract to surface (established during 4.2.g.e):** filename fragment must
-            be uppercase, `domain:` value must be lowercase, parser requires
-            `fragment.toLowerCase() === domain`. This is a **mechanical requirement** enforced
-            by the parser and probe — not convention. The template must state this explicitly;
-            violations surface as session-init probe warnings and pre-commit hook failures.
+            - **`session-init.md` Step 4 item 5 rewritten** (two-copy). Replaced the static
+              "scan `constitution/` for additional `DEV-RULES.*.md`" instruction with a nested
+              bullet pointing agents at the probe's `domainRules` field for `{path, domain,
+              purpose}` tuples; retained "load on-demand when a task touches the relevant domain"
+              guidance.
+            - **`session-init.md` Step 2 probe table** gained a `domainRules` row documenting
+              `value.rules` ({path, domain, purpose} tuples) and `value.warnings` (parse
+              diagnostics). Widened the Field column by 1 char so `domainRules` fits without
+              MD060 alignment drift; `markdown-table-prettify` applied to both copies.
+            - **New `reference/templates/template-dev-rules.md`** (two-copy). Frontmatter
+              scaffold (`domain: your_domain`, placeholder `purpose:`), HTML comment block
+              framing the case contract as a **mechanical requirement** (probe + pre-commit
+              hook enforce it) with a worked example (`DEV-RULES.FRONTEND.md` /
+              `domain: frontend`), body skeleton mirroring DEV-RULES.ARC / DEV-RULES.PROJECT
+              shape (Contents, sample sections, reference-links block). Framework
+              classification (default — no `classification.ts` entry).
+            - **`packages/arc-framework/init-recipe.json`** — added
+              `reference/templates/template-dev-rules.md` to `include_files` alongside the
+              other per-document templates (one-line addition). Scope note: the task
+              description called for "markdown-only, no CLI code," but without the recipe
+              entry adopters wouldn't receive the template on `arc init`; recipe JSON is
+              config, not CLI logic, and the "template ships" outcome stays self-contained in
+              this commit. Confirmed with user before applying.
+            - **`plan-docs-content-sweep.md`** — added Drift Item #6 (DEV-RULES domain-rules
+              pattern) under § Drift Items with the template-standard shape (what changed /
+              edit type / touch points / nuance), plus Document History entry.
 
-            - **`session-init.md` Step 4 item 5 rewrite** (two-copy — project + template). New
-              nested bullet shape (Option C):
+            **Tier 1 gates clean** on modified markdown (5 files; MD060 surfaced on the new
+            probe-table row and was resolved by `markdown-table-prettify` widening the Field
+            column across all rows); probe re-verified (`domainRules.rules = []`,
+            `warnings = []`); full unit suite green (816/816).
 
-                ```markdown
-                5. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
-                    - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}`
-                      tuples for any `DEV-RULES.{DOMAIN}.md` files with the domain-rules
-                      frontmatter. Load on-demand when a task touches the relevant domain, not at
-                      init time.
-                ```
-
-            - **New `reference/templates/template-dev-rules.md`** (two-copy). Contents:
-                - Frontmatter scaffold: `domain: <slug>` (lowercase), `purpose: <one-liner>`
-                - Comment block directing adopters to copy to
-                  `reference/constitution/DEV-RULES.{DOMAIN}.md` — **filename fragment
-                  uppercase, `domain:` value lowercase, the two must match after lowercasing
-                  the fragment**. Frame as mechanical (probe/hook enforce it), not stylistic.
-                  Include a worked example: `DEV-RULES.FRONTEND.md` with `domain: frontend`.
-                - Body skeleton matching DEV-RULES.ARC / DEV-RULES.PROJECT shape (Contents section,
-                  rule headers, reference-links block)
-                - Framework classification (default — no `classification.ts` entry needed)
-
-            - **Step 2 probe table update** in `session-init.md` (both copies): add `domainRules`
-              row to the `arc status --session-init --json` field table documenting the new slot
-
-            - **`plan-docs-content-sweep.md` Drift Item entry**. Follows existing
-              `#### N. Title (from WU, date)` template. Content:
-                - **What changed**: DEV-RULES domain-rules pattern shipped — frontmatter convention
-                  on `DEV-RULES.{DOMAIN}.md` files, CLI probe enumeration, adopter-facing
-                  `template-dev-rules.md` scaffold
-                - **Edit type**: Additive concept introduction (not drift-fix)
-                - **Known touch points**: scan `docs/**` at sweep time for DEV-RULES loading
-                  discussion
-                - **Nuance**: agent-internal surface (probe output consumed during session-init),
-                  not an adopter CLI command — positioning should reflect that
-
-            **Tier 1 quality gates** (per-task): lint modified markdown files, lint modified TS
-            files, relevant unit tests. Full Tier 2 gates run at 4.2/Phase 4 close.
+            Closes 4.2.g as a coherent unit — Tier 2 gates to run per process-task-loop §
+            Coherent unit completion.
 
         **Dependencies:** 4.2.g.a blocks 4.2.g.b, .d, .e (they consume the parser). 4.2.g.b blocks
         4.2.g.c (composite consumes probe). 4.2.g.f depends on 4.2.g.c shipping so agents can

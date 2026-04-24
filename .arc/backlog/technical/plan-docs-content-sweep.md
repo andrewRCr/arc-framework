@@ -172,6 +172,35 @@ unless a migration-guidance page is added for existing adopters (likely scoped t
 docs site). Keep framing honest about the two layers being architecturally distinct (ARC doesn't
 manage the harness file; the harness doesn't know about ARC).
 
+#### 6. DEV-RULES domain-rules pattern (from Session-Init Optimization WU, 2026-04-24)
+
+**What changed:** DEV-RULES domain-rules pattern shipped — frontmatter convention
+(`domain`, `purpose`) on `DEV-RULES.{DOMAIN}.md` files in `reference/constitution/`,
+enumerated by the `arc status --session-init --json` probe's `domainRules` slot so agents
+discover domain rules at session-init and load on-demand. Reserved filenames
+(`DEV-RULES.ARC.md`, `DEV-RULES.PROJECT.md`) carry no frontmatter and are skipped. An
+adopter-facing `template-dev-rules.md` scaffold ships in `reference/templates/` with the
+filename/`domain:` case contract documented inline.
+
+**Edit type:** Additive concept introduction (not drift-fix). The public surface gains a
+new adopter-visible concept (domain-rules files, the frontmatter convention, the template
+scaffold); no existing content describes a retired model.
+
+**Known touch points** (to be enumerated at sweep time — scan `docs/**` for):
+
+- DEV-RULES loading discussion (how agents load constitutional rules at session-init)
+- Adopter-facing customization paths (where project-type-specific rules fit within the
+  DEV-RULES.ARC / DEV-RULES.PROJECT / DEV-RULES.{DOMAIN} layering)
+- References to the `reference/constitution/` directory shape
+
+**Nuance:** Agent-internal surface — the `domainRules` probe slot is consumed during
+session-init by the agent, not an adopter CLI command. Positioning in docs-site prose
+should reflect that: describe it as "how ARC tells the agent which domain rules exist"
+rather than a user-facing enumeration command. The case contract (uppercase filename,
+lowercase `domain:`, exact match after lowercasing the fragment) is a mechanical
+requirement (probe + pre-commit hook enforce it) and should be framed as such — not as
+style convention.
+
 ### Content Contributions
 
 #### 3. Operational-context extractions (from Session-Init Optimization WU, pending)
@@ -325,3 +354,4 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 | 2026-04-22 | Added Session-Init Optimization Phase 3.R docs drift capture — public `docs/**` updates deferred here |
 | 2026-04-23 | Added Drift Item #4 — agent-file surface removal + `system/briefs/` rename + harness-layer intro      |
 | 2026-04-23 | Added Content Contribution #5 — agent-native positioning framing note for value-prop copy             |
+| 2026-04-24 | Added Drift Item #6 — DEV-RULES domain-rules pattern + adopter-facing template                        |
