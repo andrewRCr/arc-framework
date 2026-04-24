@@ -2760,38 +2760,29 @@ restructure, not as a Phase 4 audit target.
             **Behaviors batched rationale:** Tightly coupled single parser, shared test setup, no
             independent discovery value — per `3_process-task-loop.md` § Batching judgment.
 
-        - [ ] **4.2.g.b Probe module — `runDomainRulesSessionInitStatus`**
+        - [x] **4.2.g.b Probe module — `runDomainRulesSessionInitStatus`**
 
-            **Goal:** New `src/commands/constitution/` module with types, probe, and format stubs.
-            Enumerates `DEV-RULES.*.md` files in `reference/constitution/`, filters by parse
-            success, returns `{path, domain, purpose}` tuples plus `warnings: string[]` for
-            malformed files.
+            Shipped `src/commands/constitution/` module: `types.ts` (envelope shapes), `status.ts`
+            (probe enumerating `DEV-RULES.*.md` under `.arc/reference/constitution/`), `format.ts`
+            (Clack summary stub), `constitution.ts` (barrel re-export). Discriminator is
+            frontmatter-presence: files without a frontmatter block are silently skipped (ARC +
+            PROJECT handled automatically), structural/content defects surface in `warnings`.
+            Missing-directory throws per extensions probe precedent (composite wraps as per-slot
+            runtime error).
 
-            Files:
-            - `src/commands/constitution/types.ts` — `DomainRulesSessionInitResult`,
-              `DomainRulesEntry`, `DomainRulesSessionInitOptions`
-            - `src/commands/constitution/status.ts` — `runDomainRulesSessionInitStatus`
-            - `src/commands/constitution/format.ts` — `buildDomainRulesSessionInitSummary` (stub;
-              called from composite formatter in 4.2.g.c)
-            - `src/commands/constitution.ts` — barrel re-export (matches existing module pattern)
+            9 integration tests in `__tests__/integration/constitution.test.ts` cover empty
+            directory, ARC/PROJECT skip, single/multiple valid, malformed warn, mixed, README
+            exclusion, non-`.md` exclusion, missing-directory throw. 4 unit tests in
+            `__tests__/unit/constitution-format.test.ts` cover the formatter (empty, rules only,
+            rules + warnings, warnings only).
 
-            Build `test-first` (one behavior at a time):
-            - Empty `reference/constitution/` directory returns `rules: []`, `warnings: []`
-            - Directory with only `DEV-RULES.ARC.md` + `DEV-RULES.PROJECT.md` (no frontmatter)
-              returns `rules: []`, `warnings: []` (silently skipped)
-            - Directory with one valid domain file returns single entry with `path` (relative to
-              repo root), `domain`, `purpose` populated
-            - Multiple valid domain files return entries sorted deterministically (alphabetical by
-              filename)
-            - Domain file with malformed frontmatter yields entry in `warnings` naming the file
-              and error; file excluded from `rules`
-            - Mixed directory (ARC + PROJECT + valid FRONTEND + malformed BACKEND) returns one
-              rule, one warning
-            - Missing `reference/constitution/` directory returns `rules: []`, `warnings: []` — or
-              throws — **verify against extensions probe precedent during implementation and match
-              it**
-            - README.md in the directory is excluded (mirrors extensions probe)
-            - Non-`.md` files are excluded
+            **Incidental discovered during this subtask:** renderer left `\n\n` at EOF when an
+            `arc:if` block stripped near EOF, tripping MD012 in the e2e init-suite lint. Fixed in
+            `src/lib/template/render.ts` by normalizing trailing newlines to exactly one (commit
+            `b4454c3`). Unblocks full `npm test` suite.
+
+            Tier 1 gates clean (lint:ts, typecheck, typecheck:test, 788 unit tests); full suite
+            including 14 e2e tests green post-renderer-fix.
 
         - [ ] **4.2.g.c Composite wiring + handler integration**
 
