@@ -13,13 +13,15 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 4.2.c — DEV-RULES.PROJECT.md audit (214 lines)
-- **Last Completed:** Task 4.2.b — `DEV-RULES.ARC.md` audited (385 → 327, 15% reduction).
-  Four staging entries (#7-10); P-annotation strip; Test-first + Re-check core documents
-  cut. Details in task-list outcome block and commit `3af38d5`.
+- **Next Task:** 4.2.e — session-init.md audit (344 lines, heavy)
+- **Last Completed:** Tasks 4.2.c + 4.2.d — project-level Tier 1 docs audited.
+  DEV-RULES.PROJECT 214 → 137 (36%); QUICK-REFERENCE project 330 → 296 + template
+  242 → 225 with new conditional `§ Platform Commands` section resolving 6 dead
+  workflow pointers. Lens precedents locked: project-level files use drop / tighten /
+  relocate-to-project-strategy (no docs-sweep staging); configurable-file audit is
+  two-pass (project trim + template quality). Details in task-list outcome blocks.
 - **Blockers:** none
-- **Next Action:** Begin 4.2.c — operational-context audit of `DEV-RULES.PROJECT.md`
-  (214 lines). Standalone pass. Project-specific rules have their own rationale patterns;
-  this project's constitution shapes adopter templates, so stay alert to
-  framework-vs-project edit boundaries. Same agent-audience + `[TODO-docs-site]`
-  retention lens as 4.2.a/b.
+- **Next Action:** Begin 4.2.e — reflexive audit of `session-init.md` (344 lines).
+  Framework file — two-copy sync to package source per 4.2.b precedent. Care: trimming
+  session-init's own instructions requires remaining guidance still works when agents
+  load it to execute session-init.

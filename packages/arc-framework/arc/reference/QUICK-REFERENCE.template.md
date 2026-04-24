@@ -17,9 +17,6 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 | [Resource name] | `[path]`                | [brief explanation]       |
 | ARC docs        | `.arc/`                 | Development documentation |
 
-**Working Directory Note**: Your working directory may vary. Check the active status file for
-current context and adjusted paths.
-
 ### Runtime Environment
 
 <!-- Describe what's needed to run the project. Examples: -->
@@ -197,10 +194,9 @@ arc user push
 arc sync
 ```
 
-Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
-`manual`). Per-developer override: `git config arc.syncPush`.
-For the portability model and vocabulary (`local unsaved`, pull vs fetch, merge recovery), see
-[ADR-012](adr/adr-012-adopt-unified-user-directory-model.md).
+See [Session Operations Strategy](strategies/arc/strategy-session-operations.md) § Session
+State Portability for the portability model, `arc sync` direction semantics, and
+`user.sync_push` push policy.
 
 ### Atomic Work History
 
@@ -209,33 +205,21 @@ For the portability model and vocabulary (`local unsaved`, pull vs fetch, merge 
 arc log --atomic
 ```
 
----
-
-## Anti-Patterns
-
-### Path Confusion
-
-❌ Assuming you're at repo root without checking
-❌ Mixing repo-root and subdirectory paths in commands
-
-✅ Check `pwd` first
-✅ Use absolute paths or correct relative paths
-✅ Reference the active status file for working directory context
-
-### Command Construction
-
-❌ Using commands from DEV-RULES.PROJECT without checking paths
-❌ Assuming tools are globally available vs. project-local
-
-✅ Use commands from this file (paths correct for repo root)
-✅ Check Runtime Environment section for tool locations
-
-<!-- Add project-specific anti-patterns as you discover them. Examples: -->
-<!-- "Running tests without the database container" -->
-<!-- "Forgetting to activate the virtual environment" -->
-<!-- "Using wrong port for API testing" -->
+<!-- arc:if platform.type != github -->
 
 ---
 
-**Commands assume repo root.** If working from a subdirectory, see the active status file
-for adjusted paths.
+## Platform Commands
+
+<!-- CLI commands for your git hosting platform (e.g., glab for GitLab, tea for Gitea).
+     ARC workflows reference this section for platform-appropriate alternatives to the
+     GitHub defaults (`gh pr create`, `gh pr view`, `gh issue create`). Fill in what
+     your team uses. -->
+
+| Operation    | Command                    |
+|--------------|----------------------------|
+| Create PR/MR | `[platform CLI create]`    |
+| List PRs/MRs | `[platform CLI list]`      |
+| Create issue | `[platform CLI issue new]` |
+
+<!-- arc:endif -->

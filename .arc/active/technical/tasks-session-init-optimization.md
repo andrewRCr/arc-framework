@@ -2430,13 +2430,161 @@ restructure, not as a Phase 4 audit target.
         `packages/arc-framework/arc/reference/constitution/DEV-RULES.ARC.md` via cp; `diff` verified
         identical post-sync.
 
-    - [ ] **4.2.c `DEV-RULES.PROJECT.md`** (214 lines) — standalone; project-specific rules with their own rationale
-      surface
+    - [x] **4.2.c `DEV-RULES.PROJECT.md` — audited**
 
-    - [ ] **4.2.d `QUICK-REFERENCE.md`** (330 lines) — standalone, heavy. Coordinate with Phase 5.1 partial-read
-      narrowing: `## Environment & Path Context` + `## Runtime Environment` remain in the session-init partial-read
-      set; other sections load on-demand via workflow references. Audit all sections — load-cost lens on the
-      partial-read pair, on-demand-load + docs-hygiene lens elsewhere
+        **Outcome:** Trimmed and lint-clean. 214 → 137 lines (36% reduction). Character of the trim was
+        structural — whole-section extractions/drops driven by redirection to existing project-level
+        strategies — rather than the surgical trim 4.2.b applied to DEV-RULES.ARC.
+
+        **Lens calibration (new precedent for project-level files):** Project-level / configurable files
+        have three audit outcomes — **drop**, **tighten-in-place**, or **relocate to a project-level
+        strategy**. Staging entries in `notes-docs-content-sweep.md` do NOT apply; that staging flow is
+        framework-content-only since the docs site serves adopters, not this repo's project specifics.
+        `[TODO-docs-site]` placeholders likewise unused. Apply this lens to remaining project-level
+        files in Phase 4 (incl. 4.2.d's QUICK-REFERENCE which is configurable).
+
+        **Relocations (1 cross-file move):**
+        Mock hygiene block (Vitest hoisting / resetAllMocks / re-establish defaults + "Why this
+        matters" rationale) moved into `strategy-testing-methodology.md` as new `### Vitest mock
+        mechanics` subsection under `## Mocking Rules`. Strategy already covered what-to-mock
+        (boundaries vs internals); Vitest mechanics is a distinct footgun class. Content moved intact
+        — no rewrite. Testing Methodology pointer in DEV-RULES (§ Testing Requirements) updated to
+        call out "including Vitest mock mechanics" so readers know the footgun guidance is reachable.
+
+        **Drops (whole sections / subsections, covered by other sources):**
+        - **Domain-scoped rules callout** (intro) — framework meta-guidance; session-init Step 4
+          already directs the agent to scan `constitution/` for domain rule files
+        - **File Organization section** — duplicated AGENT-BRIEFING.PROJECT § Repository Layout and
+          QUICK-REFERENCE § Environment, both loaded at session-init
+        - **Capture Routing 3 bullets** — pure duplication of DEV-RULES.ARC § Leave it cleaner table
+          (same session-init load set); kept pm.mode line + pointer
+        - **CI Validation item 6** in Quality Gates list — informational about GH Actions pipeline,
+          not an action the agent takes
+        - **Redundant "Markdown linting remains the primary quality gate" line** at end of Testing —
+          duplicated Quality Gates item 1
+        - **Testing Requirements tier descriptions** (Unit/Integration/E2E paragraphs) —
+          `strategy-testing-methodology.md` § Test Tiers already covers this more comprehensively;
+          pointer retained
+        - **ADR decision criteria** ("Write an ADR when" / "Don't write an ADR for" / stability
+          paragraph) — `strategy-adr-methodology.md` owns criteria and policy; reduced to intro
+          sentence + pointer
+        - **Trailing "Separate concerns, prefer composition..." sentence** under Code Quality
+          Principles — overlapped with DRY bullet, drop call was close but followed plan
+
+        **Compressions (in-place tightening):**
+        - Tiered approach paragraph (Quality Gates) 4 lines → 1 line ("T1 per-task, T2 per-unit, T3
+          pre-PR. See strategy.")
+        - shellcheck install note (Code Linting item 2) 3 lines → 1 line; dropped apt/brew command
+          examples and CI runner note (well-known install, CI detail informational)
+        - Line-length rule (Docs Standards) 4 lines → 1 line; dropped underfill rationale paragraph
+          (`because ...` clause ~45 words, well over ≤12-word heuristic)
+        - TOC updated — File Organization line removed
+
+        **Retained in full (judgment calls flagged during pre-edit review):**
+        - DRY/SOLID/KISS/YAGNI list (canon-but-signals-project-values) — kept 4-bullet enumeration
+        - Documentation Standards ❌/✅ example pairs (all 3 kept; already minimal vs 4.2.b's 2-of-6
+          retention for Write-for-the-reader)
+        - Quality Gates items 1-5 current shape (enumeration IS the operational teeth of zero-
+          tolerance; commands inline keep gates concrete without ref-chasing)
+
+        **Agent-audience lens application:** DEV-RULES.PROJECT is dual-audience (agent at
+        session-init + human contributors reading the constitution). Under the corrected
+        project-level lens, `[TODO-docs-site]` placeholders are N/A regardless — no extractions
+        destined for the docs site. No placeholders added. File bottom stub not introduced.
+
+        **Two-copy sync:** Configurable file. `.arc/` copy edited only; package source
+        (`packages/arc-framework/arc/reference/constitution/DEV-RULES.PROJECT.md`, 173-line
+        adopter template with placeholders) intentionally unchanged per 4.2.a configurable-file
+        precedent. Cross-file relocation target `strategy-testing-methodology.md` is a project
+        strategy (`strategies/project/`); not shipped to adopters, no package counterpart exists.
+
+    - [x] **4.2.d `QUICK-REFERENCE.md` — audited (project copy + template)**
+
+        **Outcome:** Both copies trimmed and lint-clean. Project copy 330 → 296 lines (10%
+        reduction). Template 242 → 225 lines (7% reduction net — T3+T4 drops partly offset by T1
+        new Platform Commands scaffold).
+
+        **Lens calibration amendment (extends 4.2.c):** Configurable-file audit has TWO passes —
+        `.arc/` trim for project-specific content, **plus** package-template edits for
+        framework-template quality issues (structural gaps, broken pointers, duplication the
+        template itself introduces). The 4.2.c precedent "configurable → `.arc/` only" was
+        overgeneralized; it correctly applies to project-specific content changes but NOT to
+        framework-template quality improvements that affect every adopter. Carry this refined
+        lens into 4.2.f (which touches template-shaping files).
+
+        **Drops (project copy + template):**
+        - **Anti-Patterns section** — duplicated Env & Path guidance + AGENT-BRIEFING.PROJECT §
+          Common Friction Points + DEV-RULES.PROJECT. No workflow anchors targeted `§
+          Anti-Patterns`. Dropped in both copies for DRY.
+        - **Bottom summary line** ("Commands assume repo root…" / "If working from subdirectory,
+          see active status file for adjusted paths") — redundant with intro and Env & Path
+          sections. Dropped in both copies.
+
+        **Project-copy-only changes:**
+        - **Working Directory Note** (Env & Path) compressed 2 lines → 1 line, dropped the
+          hybrid-project restatement that duplicated AGENT-BRIEFING.PROJECT § Common Friction
+          Points.
+        - **Runtime Environment § Quality Tools** — 5-bullet command list compressed to
+          tool-names-only line + pointer to § Command Patterns / § Quality Gate Commands below.
+          Commands were duplicated in both sections; under Phase 5.1 partial-read, commands
+          reach the agent via workflow-triggered method loading (quality-gate-commands) rather
+          than the partial-read pair.
+
+        **Template-only changes:**
+        - **Working Directory Note** (Env & Path) dropped entirely — "Check active status file
+          for current context and adjusted paths" was doubly wrong (status file carries task
+          state, not paths; SESSION-NOTES would carry adjusted paths if any). User call — note
+          was overtuned guidance, cleaner without.
+        - **New conditional § Platform Commands section** added between § ARC CLI Commands and
+          EOF. Wrapped in `<!-- arc:if platform.type != github --> … <!-- arc:endif -->`, using
+          the existing idiomatic conditional-render mechanism (already used for `team.mode` and
+          `pm.mode` in other templates). Default (github) adopters render without the section;
+          GitLab/Gitea/etc. adopters render a minimal 3-row scaffold (Create PR/MR, List PRs/MRs,
+          Create issue) with an intro comment directing them to fill in their platform CLI.
+          Resolves all 6 inbound workflow references to `QUICK-REFERENCE § Platform Commands`
+          that were previously dead pointers (rotate-branch, integrate-planning-branch,
+          deactivate-work-unit, strategy-configurability-architecture ×3). arc-config.yml:131
+          comment already says "See QUICK-REFERENCE for platform-specific command alternatives"
+          — config and template now align.
+
+        **Shared change (both copies):**
+        - **ADR-012 trailing explanation** in § Session State Portability — replaced with
+          pointer to `strategy-session-operations.md § Session State Portability`. User call to
+          prefer canonical living strategy over the decision record that led to it. Strategy
+          covers git notes mechanism, `arc sync` direction semantics, `user.sync_push` policy
+          more thoroughly. Added `[session-ops]` reference-style link to project copy's link
+          definitions block; template uses inline link (matches its style).
+
+        **Preserved in project copy (judgment calls flagged pre-edit):**
+        - § Environment & Path Context Critical Path Reference table (4 rows) — compact
+          load-cost-lens orientation aid, info not elsewhere in this form
+        - § Quality Gate Commands section unchanged — canonical tier reference per
+          strategy-quality-gates, already command-dense
+        - ARC CLI Commands self-hosting callout — critical project-specific rule (`npx arc …`
+          vs `arc`), operational
+        - § Command Patterns Prettier gotchas + Markdown Linting MD060 note — genuine tool
+          footguns
+        - npm Publishing section — tight, project-specific, on-demand load makes cost OK
+
+        **Retained in template:**
+        - Placeholder comments inside sections (`<!-- Example using… -->`, `<!-- Omit this
+          section if… -->`) — serve template-use purpose, operational for adopters filling in
+        - Command Patterns placeholder scaffolds — template shape guides adopters
+
+        **Two-copy sync model refined:**
+        - Project copy (`.arc/reference/QUICK-REFERENCE.md`) edited independently for
+          project-specific content trims (C, D)
+        - Template (`packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md`) edited
+          independently for framework-template quality (T1, T-extra)
+        - Shared changes (A/T3, B/T4, E/T2) applied to both — same defects in both copies
+        - Template file name is `.template.md` (not `.md`) — it's a rendered-at-init
+          configurable file, not a direct copy. Lint-excluded by default in workspace config;
+          force-linted via temp-copy workaround, zero errors.
+
+        **Scope note — out of scope:** Workflow references to `§ Platform Commands` previously
+        called "drift" are structural gap, not decay. T1 closes the gap. No workflow edits
+        needed — references already resolve once template renders with the conditional section
+        present.
 
     - [ ] **4.2.e `session-init.md`** (344 lines) — standalone, heavy. Reflexive audit of the workflow that directs
       what gets loaded; deserves dedicated focus

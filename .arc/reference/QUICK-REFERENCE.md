@@ -16,22 +16,16 @@ Command patterns and environment context for the ARC framework.
 | CLI package        | `packages/arc-framework/`        | `@arc-framework/cli` npm package      |
 | Quality gates      | `npm run -s lint:md`, `npm test` | Zero-tolerance checks                 |
 
-**Working Directory Note**: This is a hybrid project — documentation (`.arc/`) plus a
-TypeScript CLI package (`packages/arc-framework/`). All commands run from repository root; npm
-workspaces delegates to the CLI package automatically.
+**Working Directory Note**: Hybrid project — `.arc/` docs + `packages/arc-framework/` CLI. All
+commands run from repository root; npm workspaces delegates to the package automatically.
 
 ### Runtime Environment
 
 **No Runtime Containers**: No backend, frontend, database, or services. The CLI package builds
 locally via tsup.
 
-**Quality Tools**:
-
-- Markdown linting via pinned local `markdownlint-cli2` (`npm run -s lint:md`)
-- TypeScript type checking (`npm run typecheck`)
-- Vitest test suite (`npm test`)
-- tsup build (`npm run build`)
-- Git for version control
+**Quality Tools**: `markdownlint-cli2`, TypeScript, Vitest, tsup, Git. Commands live in
+§ Command Patterns and § Quality Gate Commands below.
 
 ---
 
@@ -271,10 +265,8 @@ arc user push
 arc sync
 ```
 
-Push behavior is controlled by `user.sync_push` in `arc-config.yml` (`always` / `prompt` /
-`manual`). Per-developer override: `git config arc.syncPush`.
-For the portability model and vocabulary (`local unsaved`, pull vs fetch, merge recovery), see
-[ADR-012](adr/adr-012-adopt-unified-user-directory-model.md).
+See [Session Operations Strategy][session-ops] § Session State Portability for the portability
+model, `arc sync` direction semantics, and `user.sync_push` push policy.
 
 ### Atomic Work History
 
@@ -300,31 +292,5 @@ token. Write tokens expire at 90 days max — rotate before expiry.
 
 ---
 
-## Anti-Patterns
-
-### Path Confusion
-
-❌ Running commands from inside `packages/arc-framework/` (use repo root — npm workspaces delegates)
-❌ Assuming Docker, venv, or backend services exist
-❌ Forgetting markdown linting applies to `.arc/` docs alongside code quality
-
-✅ All commands from repo root
-✅ `npm run build/test/typecheck` delegate to the CLI workspace automatically
-✅ Markdown linting and code quality gates are both enforced
-
-### Command Construction
-
-❌ Using `-w` flag for routine commands (root convenience scripts already delegate)
-❌ Running `npx tsc` or `npx vitest` directly (use npm scripts for consistent config)
-
-✅ Use commands from this file (paths correct for repo root)
-✅ Follow framework-specific workflows
-
----
-
-**Commands assume repo root.** This is a hybrid documentation + TypeScript project with markdown
-linting and code quality gates.
-
----
-
 [quality-gates]: strategies/arc/strategy-quality-gates.md
+[session-ops]: strategies/arc/strategy-session-operations.md
