@@ -263,6 +263,10 @@ state is authoritative.
 - **Anti-pattern** (common during pre-PRD planning): writing a persistent-context entry for
   every mechanism decision resolved in the plan doc. Persistent context is not a substitute
   for the plan doc's § Resolved Decisions section.
+- **Anti-pattern** (future-WU drift): writing persistent-context entries for stale references
+  or activation-audit reminders inside a backlog `plan-*.md` for a WU that hasn't activated.
+  These don't apply to interim sessions — they apply once, when that WU activates. Write the
+  note into the plan doc itself; the activating session sees it naturally.
 
 Review at each handoff: remove entries whose triggers are met, AND entries whose information
 is now carried in tracked state.
