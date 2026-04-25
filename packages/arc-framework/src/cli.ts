@@ -117,8 +117,8 @@ userCmd
 
 userCmd
   .command("status")
-  .description("Inspect local, remote, and on-disk user sync state")
-  .option("--offline", "Skip the remote probe and inspect only local snapshot vs disk")
+  .description("Inspect local, remote, and on-disk user sync state (includes worktree-drift qualifier)")
+  .option("--offline", "Skip remote and worktree probes; inspect only local snapshot vs disk")
   .option("--all", "List all remote user-note identities when a remote is available")
   .option("--session-init", "Render a non-destructive remote probe summary for session-init")
   .option("--json", "Emit the typed result as JSON")

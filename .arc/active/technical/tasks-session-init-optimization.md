@@ -3633,37 +3633,62 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         --offline` (skip note rendered), `npx arc user status --json` (JSON envelope carries the new
         `worktree` peer field).
 
-    - [ ] **5.0.e Session-init workflow rewrite — Step 2/3/7/8**
+    - [x] **5.0.e Session-init workflow rewrite — Step 2/3/7/8**
 
-        **Goal:** The session-init workflow (both copies) handles both channels, with combined-prompt UX,
-        dirty-tree safeguard, dedicated divergence orientation section, and `local-ahead` informational handling.
+        **Outcome:** `session-init.md` (both copies) now consumes the worktree envelope slot end-to-end.
+        Step 2 envelope table documents the new `worktree` field (state vocabulary + `ahead`/`behind`
+        semantics) and notes the cross-channel qualifier on the `user` row's `value.detailLines`; the
+        `config` row was updated to list the two new `session.init_pull.*` keys. Step 3 renamed to
+        "Conditional Sync Pulls" and split into two channel-keyed bullet lists with a dirty-tree
+        porcelain precheck preceding any prompt and a combined-prompt section for the both-channels-
+        remote-ahead case (worktree pulls first, notes envelope re-evaluated after); divergence routes
+        to a non-blocking carry-forward, `local-ahead` to a single informational line. Step 7 grew a
+        `Conditional top-level sections` block defining `Reconcile required:` (when diverged) and
+        `Local-ahead:` (when local-ahead) as inserts above `Active work state:`, with literal text
+        templates the agent can fill at orientation time. Step 8 trust hierarchy gained a Tier 1
+        diverged-worktree example reinforcing git-as-ground-truth and the carry-forward treatment.
 
-        **Design decisions (resolved pre-implementation):**
-        - Step 2 envelope table documents the new `worktree` field alongside existing fields
-        - Step 3 renamed and widened — handles both channels via unified prompt logic
-        - Combined prompt issued when both channels are `remote-ahead`; separate prompts when only one is;
-          prompt text carries ahead/behind counts per channel
-        - Worktree pulls first; the envelope is then re-evaluated so the notes probe walks from the new HEAD
-        - Divergence gets its own top-level orientation section titled `Reconcile required` — not folded under
-          `Blockers`; the agent carries it forward as an active constraint, so commit requests later in the session
-          are flagged against the unresolved divergence
-        - `local-ahead` surfaces as a single informational line in orientation; no prompt
-        - Dirty-tree detection (git status porcelain check) precedes the pull prompt; prompt text warns explicitly
-          when dirty; user resolves stash/commit manually before accepting
-        - No auto-stash, no `--autostash` flag, no clobber-stash fallback
-        - Two-copy sync: `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.md` and
-          `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+        **Implementation decisions:**
+        - Worktree-first ordering for the combined prompt is documented as workflow contract, not just
+          probe-layer behavior — the agent re-probes the notes channel after the worktree pull so the
+          notes decision walks from the new HEAD (avoiding the stale-comparison case 5.0.c was designed
+          to flag).
+        - Combined prompt offers per-channel choices (`pull both / worktree only / notes only / skip`)
+          rather than a single yes/no, preserving user control when one channel is dirty or one pull is
+          undesired.
+        - Mode handling delegates to envelope `config.value.settings` rather than re-reading config;
+          both channel sections key on their respective `session.init_pull.*` value (`prompt` /
+          `manual`, plus `always` for notes only — `always` is rejected for worktree per 5.0.b).
+        - No auto-stash. Dirty-tree precheck adds explicit warning text to the prompt; user resolves
+          manually before accepting. No `--autostash` flag, no clobber-stash fallback.
+        - `Reconcile required:` placed above `Active work state:` (top-level peer of the work-state
+          block, not folded under `Blockers`) so the constraint is visible immediately and the agent
+          carries it forward as a session-scoped constraint against later commit/push requests.
+        - `Local-ahead:` is a single informational line (not a multi-line section) — lower visual weight
+          matches the lower urgency.
+        - Tier 1 example keeps the diverged-worktree case in the auto-recover band rather than
+          escalating to Tier 2 (which would halt session-init); the design is that the agent surfaces
+          and proceeds, not that it stops.
+        - No external doc references to the old "Conditional Sync Pull" name needed updating (verified
+          by grep across `.arc/` and `packages/arc-framework/arc/`).
 
-        Scope:
-        - Step 2 envelope documentation: new `worktree` row in the composite probe table; notes-qualifier note
-          on the `user` row
-        - Step 3 rewrite: combined/separate prompt logic, worktree-first ordering, dirty-tree guard, divergence
-          non-blocking handling
-        - Step 7 orientation format: new conditional `Reconcile required:` section template; `local-ahead`
-          informational line format
-        - Step 8 trust hierarchy addendum: diverged worktree as explicit mismatch example (non-blocking, agent
-          carries forward)
-        - Cross-reference updates if other docs reference the old Step 3 name
+        **Two-copy sync:** `.arc/system/workflows/arc/session-lifecycle/session-init.md` and
+        `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`.
+        Diff shows expected template-vs-rendered differences only (`{{REPO_ROOT}}` placeholder plus
+        three `<!-- arc:if -->` conditional blocks for `team.mode` / `pm.mode`).
+
+        **Quality gates:** Tier 1 — markdown lint clean on both copies (table alignment normalized via
+        `markdown-table-prettify` after envelope-row additions broke MD060). No code changes; no test
+        suite or build needed at this tier.
+
+        **Streamlining pass:** Initial draft added ~50 net lines to session-init.md; post-review
+        compression cut that to ~39 by removing duplicated narrative (worktree-first ordering stated
+        in both opener and combined-prompt section), tightening verbose phrasing in the dirty-tree
+        precheck, collapsing the diverged-bullet narrative that duplicated Step 7's carry-forward
+        treatment, condensing the `Reconcile required:` template body (4 prose lines → 2), and
+        trimming the Step 8 mismatch example. State vocabulary, mode→action mappings, and
+        `remote-unavailable` failure-mode disambiguation kept verbatim — no operational meaning
+        sacrificed.
 
     - [ ] **5.0.f Integration and E2E test coverage**
 
@@ -3702,35 +3727,53 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         - `arc user status` with worktree probe timing out → soft `remote-unavailable` qualifier emitted
         - `arc sync` direction-reporting path → qualifier emitted under the same conditions as `arc user status`
 
-    - [ ] **5.0.g Documentation + ADR + config comment sync**
+    - [x] **5.0.g Documentation + ADR + config comment sync**
 
-        **Goal:** ADR-012 reflects worktree drift as a distinct channel in the portability/sync model;
-        `arc-config.yml` inline comments document the new keys accurately; release-notes entry captures the
-        surface (new config keys, default behavior).
+        **Outcome:** ADR-012 amendment (2026-04-25) added — distinguishes worktree from notes channel
+        as peer concerns at session-start, names per-channel governance keys (`session.init_pull.*`),
+        documents the worktree-channel `always`-mode rejection, and points at session-init.md for the
+        combined-prompt logic. `arc-config.yml` inline comments (both copies) now carry a one-line
+        cross-reference to session-init.md § Conditional Sync Pulls on each `session.init_pull.*`
+        block — terse, with deeper rationale deferred to the ADR per the design note about
+        future-proofing against a possible `notes` rename. `arc user status` CLI help text updated:
+        main description names the worktree-drift qualifier; `--offline` description clarifies that
+        both probes are skipped. Release-notes-style writeup redirected to plan-docs-content-sweep.md
+        (§ Content Contributions #7) — this project doesn't ship release notes in-repo, and the docs
+        site is the public-facing surface for "what's new" copy. Cross-reference scan turned up no
+        other docs referencing `session.remote_sync` or Phase 3.R.e behavior outside the WU's own
+        notes/tasks files.
 
-        **Design decisions (resolved pre-implementation):**
-        - ADR-012 receives a short new section or sub-section distinguishing worktree sync from notes sync,
-          plus a reference to the session-init integration
-        - `arc-config.yml` inline comments explain: purpose of each channel, mode semantics, why `always` is
-          disallowed for worktree, cross-reference to session-init.md for behavior. Keep phrasing terse —
-          `session.init_pull.notes` may migrate when the gate-model frame
-          (plan-session-operational-flow Phase 6) consolidates session-bootstrap config; deeper rationale
-          belongs in ADR-012, not the inline comment, so a future rename stays a one-line edit
-        - Release notes call out the new keys under a "Session initialization" heading, with a migration note
-          (no migration needed — defaults are safe; opt-outs via `manual`)
-        - Two-copy sync for `arc-config.yml` keys + inline comments only. ADR-012 lives at
-          `.arc/reference/adr/` only — `packages/arc-framework/arc/reference/adr/` ships only a README, no
-          ADR copies, so no two-copy work there
+        **Implementation decisions:**
+        - ADR-012 amendment placed after the 2026-04-22 amendment (chronological sequence preserved)
+          and uses the same structural shape as the prior amendment block. Frames worktree-as-distinct
+          channel without superseding the notes-channel decision — both coexist as peer governance
+          surfaces under the unified user-directory model.
+        - `arc-config.yml` cross-reference is a single line per channel block, not a re-explanation of
+          modes (modes are already documented in the existing comments). One-line addition keeps
+          future renames (e.g., `session.init_pull.notes` → `session.bootstrap.*` per Phase 6 gate-model
+          consolidation) a trivial edit.
+        - `arc user status` description change is minimal — appended a parenthetical, did not bloat
+          the line. `addHelpText("after", ...)` was considered but skipped: no other command in cli.ts
+          uses it, and adding the first instance for a single qualifier is disproportionate. The
+          worktree-drift qualifier appears in actual command output; help text just signals that it
+          exists.
+        - "Soft `remote-unavailable` fallback" omitted from CLI help — that's implementation behavior
+          (5.0.d auto-degradation when probe times out), not a user-facing flag. Documenting it in
+          help would be awkward and out of register with other `--help` text.
+        - plan-docs-content-sweep.md entry follows the established "Content Contribution" shape from
+          #5 (agent-native positioning): what changed / input type / suggested destinations /
+          authoritative sources / nuance. Numbered #7 per shared-sequence convention (last entry was
+          Drift Item #6). Document History row added.
 
-        Scope:
-        - ADR-012 update (`.arc/` only — ADRs not packaged)
-        - `arc-config.yml` inline comment additions (both copies)
-        - `arc user status` CLI help text — document the new worktree qualifier behavior, `--offline` interaction,
-          and the soft `remote-unavailable` fallback
-        - Release-notes entry (if release notes live in-repo; otherwise staged in
-          `notes-session-init-optimization.md` for the release-notes task)
-        - Cross-reference check: any other doc that references the `session.remote_sync` gate or Phase 3.R.e
-          behavior — update to acknowledge the dual-channel model
+        **Two-copy sync:** `arc-config.yml` (both copies) — diff confirms expected project-specific
+        value overrides only (`branch.protection`, `hooks.test_patterns`, `hooks.meta_ref_patterns`),
+        no comment-block divergence. ADR-012 lives in `.arc/reference/adr/` only (package source has
+        only README.md under `packages/arc-framework/arc/reference/adr/`).
+
+        **Quality gates:** Tier 2 — markdown lint clean (223 files), `lint:ts` clean, `typecheck`
+        (src + test) clean, `test:unit` 876/876, full `npm test` 46/46 (8 e2e + integration files),
+        `npm run build` succeeds. CLI smoke test (`npx arc user status --help`) confirms the new
+        description renders cleanly.
 
 - [ ] **5.1 QUICK-REFERENCE partial-read at session-init**
 

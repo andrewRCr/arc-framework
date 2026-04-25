@@ -39,14 +39,15 @@ arc status --session-init --json
 
 Non-destructive. Returns a single JSON envelope the agent consumes:
 
-| Field         | Contents                                                                                                                                      |
-|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| `identity`    | `{identity, role}` — either may be `null`                                                                                                     |
-| `user`        | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable)                                           |
-| `extensions`  | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                   |
-| `config`      | `value.settings`: session-relevant settings (`session.remote_sync`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`) |
-| `active`      | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                |
-| `domainRules` | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics           |
+| Field         | Contents                                                                                                                                                                                                                                                 |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `identity`    | `{identity, role}` — either may be `null`                                                                                                                                                                                                                |
+| `user`        | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). May carry a worktree-context qualifier in `value.detailLines` (e.g., comparison-vs-current-HEAD note when the worktree is behind origin)            |
+| `worktree`    | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states) |
+| `extensions`  | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                              |
+| `config`      | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`)                                                   |
+| `active`      | Active status file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                           |
+| `domainRules` | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                      |
 
 Carry `config` values forward as behavioral awareness. Do not surface configuration in orientation — defaults
 and overrides reach the user at the consuming operation.
@@ -63,19 +64,40 @@ Step 6, and use the contributor orientation format in Step 7.
 of `.arc/active/**/status-*.md`. Skip Step 3 (no user-sync state available) and note the degradation in
 orientation.
 
-### 3. Conditional Sync Pull
+### 3. Conditional Sync Pulls
 
-Inspect `user.value.state` from Step 2:
+Two channels may need attention: worktree (`worktree.value`) and personal notes (`user.value`).
 
-- `remote-ahead` or `conflict`: Surface in orientation and ask whether to run `arc user pull`. **Pull before
-  Step 4** — SESSION-NOTES reads below would be stale otherwise.
-- `remote-unavailable`: Note the degraded state. If the probe says the remote is unreachable, continue with local
-  tracked state or retry once the remote is reachable. If it says the remote is reachable but full comparison is
-  blocked in this environment, continue with local tracked state or retry session-init where `git fetch` / remote-ref
-  writes are allowed.
-- `clean`, `disabled`, or identity absent: Continue without prompting.
+**Dirty-tree precheck.** Before any pull prompt, check `git status --porcelain`. If non-empty, the prompt
+must warn: "working tree dirty — stash or commit before accepting". No auto-stash; user resolves manually.
 
-The agent owns the prompt — do not defer it to the CLI.
+**Worktree channel** — keyed on `worktree.value.state` and `config.value.settings["session.init_pull.worktree"]`:
+
+- `remote-ahead`: `prompt` mode → ask before pulling. On accept, run `git pull --ff-only` and re-probe the
+  envelope. `manual` mode → surface in orientation; do not prompt.
+- `diverged`: Non-blocking. Surface in Step 7 as `Reconcile required:`; carry forward.
+- `local-ahead`: Single informational line in Step 7. No prompt.
+- `clean`, `no-upstream`, `detached-head`, `no-remote`, `skipped`: No action.
+- `remote-unavailable`: Note in orientation. Continue session-init.
+
+**Notes channel** — keyed on `user.value.state` and `config.value.settings["session.init_pull.notes"]`:
+
+- `remote-ahead` or `conflict`: `prompt` mode → ask before running `arc user pull`. `always` mode → pull
+  without prompting. `manual` mode → surface in orientation; do not prompt. **Pull before Step 4** —
+  SESSION-NOTES reads below would be stale otherwise.
+- `clean`, `disabled`: No action.
+- `remote-unavailable`: Note the degraded state. If the remote is unreachable, continue with local tracked
+  state or retry once reachable. If reachable but full comparison is blocked in this environment, continue
+  with local tracked state or retry where `git fetch` / remote-ref writes are allowed.
+
+**Combined prompt.** When both channels need a prompt under `prompt` mode, issue one combined prompt instead
+of two. Name each channel with its counts (worktree: `value.ahead` / `value.behind`; notes: from `user.value`
+when present), include the dirty-tree warning when applicable, and offer per-channel choices (pull both /
+worktree only / notes only / skip). Worktree pulls first; after acceptance, re-probe notes and pull if still
+ahead.
+
+The agent owns the prompt — do not defer it to the CLI. If `identity.identity === null`, the notes channel
+has no path; skip notes regardless of state. Worktree channel still applies.
 
 ### 4. Load Context Documents
 
@@ -255,7 +277,22 @@ Produce the orientation summary — the user's first view of session state. Keep
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
-`clean`, probe-failure fallback.
+`clean` (worktree or notes), probe-failure fallback.
+
+**Conditional top-level sections** — prepend above `**Active work state:**` when applicable:
+
+- `worktree.value.state == "diverged"`:
+
+  ```text
+  **Reconcile required:** `{branch}` diverged from `origin/{branch}` ({ahead} ahead, {behind} behind).
+  Manual rebase or merge needed before pushing. Carried forward — commit/push requests will be flagged.
+  ```
+
+- `worktree.value.state == "local-ahead"`:
+
+  ```text
+  **Local-ahead:** {ahead} unpushed commit(s) on `{branch}`.
+  ```
 
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
 clean, environment checks passed.
@@ -284,6 +321,8 @@ Examples:
   commit → proceed with Task 3.4 as current
 - SESSION-NOTES describes uncommitted work but `git status` is clean and git log shows it committed → proceed
   with committed state
+- `worktree.value.state == "diverged"` while session docs reflect clean state → git is ground truth.
+  Surface as `Reconcile required:` (Step 7) and carry forward. Non-blocking; do not auto-reconcile.
 
 **Tier 2 — Stop and ask:**
 

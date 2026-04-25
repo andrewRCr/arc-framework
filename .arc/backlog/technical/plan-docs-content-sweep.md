@@ -277,6 +277,44 @@ non-trivially worse than file access. Both are currently true in 2026; both may
 shift. Frame as a deliberate design choice grounded in current agent-collaboration
 economics, not a universal truth.
 
+#### 7. Session-init dual-channel pull config (from Session-Init Optimization WU, 2026-04-25)
+
+**What changed:** Session-init's pull-decision surface gained a second channel — worktree sync
+vs. `origin/<current-branch>` — alongside the existing notes channel. Two new config keys:
+`session.init_pull.worktree` (modes: `prompt` / `manual`) and `session.init_pull.notes` (modes:
+`prompt` / `manual` / `always`). The composite envelope (`arc status --session-init --json`) now
+emits both channels as peer slots; `arc user status` and `arc sync` carry a worktree-drift
+qualifier when the comparison's verdict applies only to reachable ancestors.
+
+**Input type:** Content contribution — release-notes-style writeup of new config surface, since
+this project doesn't ship release notes in-repo. The docs site is the public-facing surface for
+"what's new in this version" copy.
+
+**Suggested destinations:**
+
+- Configuration reference page — new `session.init_pull.*` rows alongside the existing
+  `session.remote_sync` entry
+- Session lifecycle page — note the dual-channel pull behavior, the combined-prompt UX, and the
+  dirty-tree precheck
+- Migration / changelog page (if one exists in the Starlight IA) — config-key additions, no
+  breaking changes (defaults are safe; opt-outs via `manual`)
+
+**Authoritative sources:**
+
+- ADR-012 amendment (2026-04-25) — distinguishes worktree from notes channel; mode semantics;
+  rationale for rejecting `always` on the worktree channel
+- `arc-config.yml` inline comments — terse per-key explanation with cross-reference to
+  `session-init.md`
+- `session-init.md` § Conditional Sync Pulls — combined-prompt logic, dirty-tree precheck,
+  worktree-first ordering, post-pull re-probe
+- `arc user status` CLI help — the worktree-drift qualifier is named in the command description;
+  `--offline` skips both probes
+
+**Nuance:** No migration required for adopters — defaults preserve prior behavior (notes-only
+prompting); worktree probe is additive. `always` mode rejected for worktree per ADR-012
+amendment rationale (auto-pulling tracked working-tree state silently is too invasive even on
+clean trees).
+
 ## Adding Items
 
 **Drift items** — when a methodology change lands in `.arc/` or
@@ -355,3 +393,4 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 | 2026-04-23 | Added Drift Item #4 — agent-file surface removal + `system/briefs/` rename + harness-layer intro      |
 | 2026-04-23 | Added Content Contribution #5 — agent-native positioning framing note for value-prop copy             |
 | 2026-04-24 | Added Drift Item #6 — DEV-RULES domain-rules pattern + adopter-facing template                        |
+| 2026-04-25 | Added Content Contribution #7 — session-init dual-channel pull config + worktree-drift qualifier      |

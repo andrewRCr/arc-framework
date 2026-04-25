@@ -5,39 +5,34 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.0.e — Session-init workflow rewrite — Step
-  2/3/7/8 (line ~3646)
-- **Last Completed:** Task 5.0.d — `runUserStatus` orchestrates the
-  worktree probe in parallel with the existing notes/disk probes
-  when `session.remote_sync` is enabled and `--offline` is not set;
-  qualifier appended to `UserStatusResult.detailLines` and surfaced
-  as a peer `worktree` field on the JSON result. Shared pure helper
-  `formatWorktreeQualifierLine` exported from
-  `commands/user/sync-status.ts` and re-exported through
-  `commands/user.ts`. `arc sync` reads the same config gate, runs
-  `runWorktreeSyncStatus` alongside `inspectUserSyncState` via
-  `Promise.all`, and emits the qualifier as `p.log.info` before
-  action dispatch — single source of truth for vocabulary across
-  both surfaces. Offline branch emits the skip note only when remote
-  sync is wired (distinguishes opt-out from feature off);
-  `remote-unavailable` carries through to a softer "comparison
-  unavailable" qualifier rather than silencing. No new headline
-  values; qualifier is purely additive detail. Test-first batched
-  in a single round (9 behaviors — orchestration concerns over a
-  single function plus its handler-side parity, per process-task-
-  loop batching judgment). Tier 1 gates clean (lint:ts, typecheck
-  src+test, 876/876 unit, full `npm test` 46/46, `npm run build`,
-  live `npx arc user status` / `--offline` / `--json` smoke test
-  confirmed shape and rendering).
+- **Next Task:** 5.0.f — Integration and E2E test coverage (line ~3693)
+- **Last Completed:** Tasks 5.0.e + 5.0.g shipped as one cohesive
+  commit — dual-channel pull surface delivered end-to-end to its
+  consumers. 5.0.e: `session-init.md` (both copies) consumes the
+  worktree envelope slot; Step 2 envelope table documents the new
+  `worktree` field, Step 3 renamed to "Conditional Sync Pulls" with
+  channel-keyed bullets + dirty-tree precheck + combined-prompt
+  logic (worktree pulls first, notes envelope re-evaluated after),
+  Step 7 conditional `Reconcile required:` / `Local-ahead:` template
+  inserts above `Active work state:`, Step 8 Tier 1 diverged-worktree
+  example. Streamlining pass cut initial +50 net lines to +39 with
+  no operational loss. 5.0.g: ADR-012 amendment (2026-04-25)
+  distinguishes worktree from notes channel and rationalizes the
+  `always`-mode rejection on worktree; `arc-config.yml` (both copies)
+  carries one-line cross-references to session-init.md on each
+  channel block; `arc user status` CLI help describes the worktree-
+  drift qualifier and `--offline` parity; release-notes-style
+  writeup routed to `plan-docs-content-sweep.md` § Content
+  Contributions #7 (no in-repo release notes). Tier 2 gates clean
+  (markdown lint 223 files; lint:ts; typecheck src+test; unit
+  876/876; full `npm test` 46/46; `npm run build`; CLI help smoke
+  test).
 - **Blockers:** none
-- **Next Action:** Begin Task 5.0.e — rewrite session-init.md
-  (both copies — package source + `.arc/`) so the workflow consumes
-  the new `worktree` envelope slot. Step 2 envelope table documents
-  the new field; Step 3 widens to handle both channels with combined
-  prompt logic, worktree-first ordering, dirty-tree porcelain
-  guard, and divergence non-blocking handling; Step 7 orientation
-  format adds a top-level `Reconcile required:` section template
-  and a one-line `local-ahead` informational treatment; Step 8
-  trust hierarchy gains a diverged-worktree mismatch example. No
-  auto-stash, no `--autostash`. Two-copy sync per package-project
-  discipline. Test spec at line ~3646.
+- **Next Action:** Begin Task 5.0.f — integration and E2E test
+  coverage for the dual-channel pull surface. ~22 scenarios across
+  temp-dir git fixtures (envelope shape verification, mode handling,
+  dirty-tree cases, no-upstream/detached-head/no-remote/remote-
+  unavailable degraded states, sync-direction reporting). Discovery
+  risk if fixture construction surfaces gaps in 5.0.a–d behavior;
+  recommended as synchronous work rather than deferred review. Task
+  spec at line ~3693.

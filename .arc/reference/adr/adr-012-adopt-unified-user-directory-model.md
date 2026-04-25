@@ -364,6 +364,28 @@ unified `user/{identity}/` directory plus git-notes portability.
 with these amended semantics. QUICK-REFERENCE points here for the durable model; archive docs
 remain historical record.
 
+**Amendment (2026-04-25):** Session-init's pull-decision surface gained a second channel — worktree
+sync vs. `origin/<current-branch>` — distinct from the notes channel ADR-012 originally introduced.
+Both channels are personal-context concerns at session start, but they govern different state:
+
+- **Notes channel** (`user.value`, governed by `session.init_pull.notes`) — identity-scoped notes ref
+  carrying the `user/{identity}/` snapshot. Per-developer; no working-tree implications. Modes:
+  `prompt` (default) / `manual` / `always`.
+- **Worktree channel** (`worktree.value`, governed by `session.init_pull.worktree`) — branch-scoped
+  comparison of local HEAD against `origin/<branch>`. Affects tracked code state shared across all
+  developers on the branch. Modes: `prompt` (default) / `manual` only. `always` is rejected because
+  auto-pulling tracked working-tree state silently is too invasive even on clean trees.
+
+The composite session-init probe (`arc status --session-init --json`) emits both channels as peer
+slots in its JSON envelope; session-init.md § Conditional Sync Pulls handles them with worktree-first
+ordering, a dirty-tree precheck, and a combined prompt when both channels are remote-ahead. The notes
+channel's portability mechanism (git notes ref) is unchanged; worktree sync is plain `git fetch` +
+`git pull --ff-only` and adds no new portability surface.
+
+This extends the user-directory portability model rather than supersedes it: notes portability still
+covers the personal-workspace-across-machines concern; the worktree channel adds visibility into
+tracked-code drift the notes channel was never designed to catch.
+
 ---
 
 Context: tasks-cli-implementation.md (off-plan — architectural evaluation before Phase 2)
