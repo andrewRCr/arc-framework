@@ -526,7 +526,7 @@ discipline applies throughout — every file change touches `packages/arc-framew
     **Outcome:** CHECK 12 wired into both pre-commit copies; TypeScript dispatcher
     validates staged methods/extensions/agent files against their schemas; 19 new unit tests
     (7 agent + 12 dispatcher). Current agent files lack frontmatter — hook blocks agent-file
-    commits until 5.5.b deploys the schema (expected per spec sequencing).
+    commits until 5.7.b deploys the schema (expected per spec sequencing).
     - **Agent schema parser** — `packages/arc-framework/src/lib/frontmatter/agent.ts` plus
       exports via `index.ts`. Minimal schema (`active: boolean` only); delegates to the
       generic layer for triple-dash extraction and malformed-YAML surfacing.
@@ -548,9 +548,9 @@ discipline applies throughout — every file change touches `packages/arc-framew
       YAML). CLI dispatcher — 12 tests batched after first RED-GREEN since behaviors are
       tightly coupled around one small dispatcher function; `validateFiles` uses
       dependency-injected `readFile` so tests use an in-memory map without tmp dirs.
-    - **Sequencing note with Phase 5.5.b:** 3.3 enforces agent-file schema now; existing
+    - **Sequencing note with Phase 5.7.b:** 3.3 enforces agent-file schema now; existing
       `{AGENT}.ARC.md` files ship without frontmatter and would be blocked if staged.
-      Acceptable per spec — 5.5.b adds frontmatter to templates + existing files before
+      Acceptable per spec — 5.7.b adds frontmatter to templates + existing files before
       this branch merges, and this WU does not otherwise touch agent files.
     - Tier 2 green: lint:md (197 files, 0 err), lint:ts, lint:sh, typecheck,
       typecheck:test, 703 tests (19 new), lint:arc:triggers, build.
@@ -2002,7 +2002,7 @@ clean enough that inconsistency across the three remaining session-init discover
           don't self-host); `.arc/` rendered copy shows the literal `npx arc ...` command (concrete for this
           repo). Accepted drift — no comment asking the agent to mentally transform the command
         - Broader init-time content audit (Contributor Session Path, Trust Hierarchy, Load Errors, probe
-          fallback) captured as Task 5.6.d for Phase 5 scope
+          fallback) captured as Task 5.8.d for Phase 5 scope
 
         **Downstream step-number references scanned:** ADR-013 and `analysis/`, `archive/`, and
         non-activated `backlog/plan-arc-modes.md` are the only hits. ADRs stable once accepted (step
@@ -2373,7 +2373,7 @@ restructure, not as a Phase 4 audit target.
         `template-agent.md`, session-init Step 4 item 3, `arc init` / `add-agent` scaffolding,
         CHECK 12 hook, directory rename `system/agent/` → `system/briefs/`, file rename
         `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md`, subdir README rewrite — absorbed into revised
-        Task 5.5. Docs-site drift captured in `plan-docs-content-sweep.md` Drift Item #4.
+        Task 5.7. Docs-site drift captured in `plan-docs-content-sweep.md` Drift Item #4.
 
     - [x] **4.2.b `DEV-RULES.ARC.md` — audited**
 
@@ -3447,14 +3447,17 @@ restructure, not as a Phase 4 audit target.
 ### **Phase 5:** Worktree-Sync Completion + Partial-Read Narrowing + Session-Init Workflow Restructure
 
 **Purpose:** Phase 3.R.e landed the user-notes half of remote-sync detection; Task 5.0 closed the worktree half
-end-to-end. Remaining phase scope: shrink upfront-read surface (Tasks 5.1–5.4 partial-read narrowing across
-QUICK-REFERENCE, task list, status file, and DEV-RULES sections), retire the `{AGENT}.ARC.md` surface and rename
-`system/agent/` → `system/briefs/` (Task 5.5), then restructure session-init Step 2/4/7 to reflect Phase 4 audit
-outcomes (Task 5.6). Per-rule reliability gate for DEV-RULES is the cautious path — default to up-front load; shift
+end-to-end. Remaining phase scope: codify a tightened task-list authoring shape with PRD-canonical Scope
+(Task 5.2), shrink upfront-read surface (Tasks 5.1, 5.3–5.5 partial-read narrowing across QUICK-REFERENCE,
+task list, status file, and DEV-RULES sections), surface companion-file paths via the composite probe to
+drop one orchestration step (Task 5.6), retire the `{AGENT}.ARC.md` surface and rename `system/agent/` →
+`system/briefs/` (Task 5.7), then restructure session-init Step 2/4/7 to reflect Phase 4 audit outcomes
+(Task 5.8). Per-rule reliability gate for DEV-RULES is the cautious path — default to up-front load; shift
 to conditional only where trigger is clear.
 
-**Two-copy sync convention:** Tasks 5.1–5.5 touch `session-init.md` and adjacent framework files. Edits land in
-both the package source (`.template.md` where applicable) and the `.arc/` instance — no per-task reminder unless
+**Two-copy sync convention:** Tasks 5.1–5.5, 5.7, 5.8 touch `session-init.md` and adjacent framework files;
+Task 5.6 is a CLI surface enhancement (TS source, no markdown two-copy concern). Edits land in both the
+package source (`.template.md` where applicable) and the `.arc/` instance — no per-task reminder unless
 the sync shape is non-obvious.
 
 - [x] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope** — done
@@ -3889,14 +3892,51 @@ the sync shape is non-obvious.
         - Acceptance met: every workflow-tree QUICK-REFERENCE load-pointer either inlines the
           content directly or names the section
 
-- [ ] **5.2 Task list partial-read narrowing**
+- [ ] **5.2 Task list preamble shape codification + one-time cleanup**
 
-    **Goal:** Session-init Step 4 item 10 reads Header + Overview + Scope + current phase preamble + current task
-    section only. Skip completed phases' preambles.
+    **Goal:** PRD becomes canonical for Scope (Will Do / Won't Do); task-list `## Overview` and `## Scope`
+    blocks collapse into a one-line `**Purpose:**` field in the Header; phase-preamble shape codified so the
+    boundary contract in 5.3 lands on a tightened authoring spec rather than ratifying current sprawl.
+
+    **Rationale:** PRD is canonical for Scope but isn't loaded at session-init; task lists currently mirror PRD
+    Scope as the every-session-read derivative — inverting the canonical hierarchy. The on-demand-via-prose-pointer
+    pattern from 5.1 (`§ Platform Commands`) extends naturally: task-list Header carries a one-line Purpose
+    summary; agent loads PRD § Scope when scope decisions arise. Boundary contract in 5.3 becomes Header +
+    current phase preamble + current task — significantly leaner than the prior shape (Header, Overview, Scope,
+    phase preamble, current task).
+
+    - [ ] **5.2.a Authoring shape edits**
+        - `template-tasks.md` (both copies): Feature/Technical variant — drop `## Overview` and `## Scope`
+          sections; add `**Purpose:**` one-line field to the Header alongside PRD / Branch / Base Branch.
+          Incidental variant unchanged (no PRD; `## Context` retained — incidentals may receive separate
+          rework later, not this WU's concern)
+        - `strategy-task-list-formatting.md` (both copies): § Task List Headers — refresh Feature/Technical
+          description to Purpose-in-Header shape; remove `## Scope` references for that variant. Add new
+          sub-section "Phase Preamble Shape": `**Purpose:**` line required after phase heading; optional
+          `**Design decisions:**` block (concise — link to notes file for full rationale); soft cap ~12
+          lines per preamble
+        - `2_generate-tasks.md` Step 4 checklist (both copies — `.template.md` paired): replace Overview/Scope
+          checklist items with Purpose-in-Header item; add phase-preamble-shape items
+
+    - [ ] **5.2.b One-time cleanup**
+        - Sweep existing task lists in `.arc/active/` and `.arc/backlog/` (if any). Recent archive (current
+          quarter) eligible for cleanup; pre-2026-Q1 archive stays as historical artifact
+        - For each: collapse `## Overview` + `## Scope` into Header `**Purpose:**` field; preserve PRD path
+          link unchanged; tighten phase preambles where they exceed the codified shape (~12 lines)
+        - This task list (`tasks-session-init-optimization.md`) gets the same treatment — its current Overview
+          and Scope blocks compress into a one-line Purpose statement; PRD remains canonical for full Scope
+        - Two-copy sync where applicable
+
+- [ ] **5.3 Task list partial-read narrowing**
+
+    **Goal:** Session-init Step 4 item 10 reads Header + current phase preamble + current task section only.
+    Overview and Scope are no longer task-list content (Task 5.2 collapses them into PRD-canonical Scope plus a
+    one-line `**Purpose:**` field in the Header). Skip completed phases' preambles.
 
     **Preamble boundary contract:** "Current phase preamble" = lines from the `### **Phase N:**` heading through
     the line immediately before the first `- [ ]` or `- [x]` bullet under that phase. Multi-paragraph framing
-    (Purpose, Design decisions, Rationale blocks) is included; task entries themselves are not.
+    (Purpose, Design decisions, Rationale blocks per the codified shape from 5.2) is included; task entries
+    themselves are not.
 
     - Update `session-init.md` Step 4 item 10 — replace the "first ~100 lines" heuristic with the
       boundary-contract specification above
@@ -3907,7 +3947,7 @@ the sync shape is non-obvious.
       regardless of read scope; document this independence inline as a guardrail against future narrowing
       changes
 
-- [ ] **5.3 Status file partial-read narrowing**
+- [ ] **5.4 Status file partial-read narrowing**
 
     **Goal:** Session-init reads only the `## Active Work` block of the active status file — the 7 load-bearing fields
     (State, Branch, Task List, Next Task, Last Completed, Blockers, Next Action) plus any optional fields present
@@ -3921,10 +3961,10 @@ the sync shape is non-obvious.
       shipped from the template; this partial-read narrowing is the durable guard regardless of future template content
     - Two-copy sync
 
-- [ ] **5.4 DEV-RULES section-level partial-read evaluation (per-rule)**
+- [ ] **5.5 DEV-RULES section-level partial-read evaluation (per-rule)**
 
     **Goal:** Each candidate section independently evaluated against a strict reliability bar; dispositions recorded.
-    - [ ] **5.4.a Evaluate candidate sections**
+    - [ ] **5.5.a Evaluate candidate sections**
         - Candidates: DEV-RULES.ARC § Task Execution; DEV-RULES.ARC § Leave it cleaner (routing table);
           DEV-RULES.PROJECT § Quality Gates; DEV-RULES.PROJECT § Package-Project Sync
         - For each, assess: is there a clear, reliable trigger (session type, config value, workflow activity detectable
@@ -3932,11 +3972,11 @@ the sync shape is non-obvious.
         - Disposition values: `conditional-load` (with named trigger) / `up-front-load` (with reason) /
           `retired-as-rationale` (if content moves to docs-site staging)
 
-    - [ ] **5.4.b Record dispositions in notes file**
+    - [ ] **5.5.b Record dispositions in notes file**
         - Append a "DEV-RULES partial-read dispositions" section to `notes-session-init-optimization.md`
         - One entry per evaluated section: candidate / disposition / named trigger or reason
 
-    - [ ] **5.4.c Apply dispositions**
+    - [ ] **5.5.c Apply dispositions**
         - For `conditional-load` sections: update `session-init.md` Step 4 items 4/5 to include trigger-based load logic
         - For `up-front-load` sections: no structural change (safety floor)
         - For `retired-as-rationale` sections: move content to staging, leave placeholder
@@ -3944,7 +3984,39 @@ the sync shape is non-obvious.
     **Note:** Default remains up-front load; shifting is opportunistic. "Up-front load remains correct" is always a
     valid disposition.
 
-- [ ] **5.5 Agent file surface removal + `system/briefs/` rename**
+- [ ] **5.6 Companion-file paths in composite probe**
+
+    **Goal:** Composite probe (`arc status --session-init --json`) surfaces companion-file paths
+    (`notes-{name}.md`, `atomic-{name}.md`) directly in `active.value`, eliminating the agent-side directory
+    listing currently required at session-init item 10's "Companion file awareness" sub-bullet.
+
+    **Rationale:** Pattern parallel to 5.0 (worktree-sync probe surface). Agent-side `ls` of the task-list
+    directory at orientation is one Bash call we can avoid by surfacing resolved paths in the probe envelope.
+    Net savings: small but consistent with the "let probe carry orientation-relevant state" principle.
+
+    - [ ] **5.6.a Probe envelope shape**
+        - Extend `active.value` shape (in the relevant CLI source — likely
+          `packages/arc-framework/src/lib/session-init/` or wherever active-status resolution lives) to include
+          `companions: { notes: string | null, atomic: string | null }` when `resolution === "single"`. Path
+          resolution: same directory as `path`, filenames matching `notes-{stem}.md` / `atomic-{stem}.md`
+          where `{stem}` derives from `status-{stem}.md`
+        - Both companions are `null` when files don't exist (truthiness signals existence)
+        - When `resolution === "multiple"` or `"none"`, `companions` is omitted from envelope (no
+          single-file resolution context)
+
+    - [ ] **5.6.b Test coverage**
+        - Unit tests: companion-resolution logic (both present, only notes, only atomic, neither, edge
+          cases like task-list directory missing)
+        - Integration test: composite probe envelope includes correctly-shaped `companions` field across
+          single-resolution scenarios
+
+    - [ ] **5.6.c Session-init.md item 10 simplification**
+        - Replace "Check the task list directory for `notes-[name].md` / `atomic-[name].md`" sub-bullet with
+          "From `active.value.companions` — note their existence so references during execution resolve
+          immediately. **Do not read these at init**"
+        - Two-copy sync (`session-init.md` + `session-init.template.md`)
+
+- [ ] **5.7 Agent file surface removal + `system/briefs/` rename**
 
     **Goal:** Retire the `{AGENT}.ARC.md` surface entirely (seven package per-agent templates, session-init load,
     init/add-agent scaffolding, schema hook coverage) and rename the containing directory `system/agent/` →
@@ -3968,19 +4040,19 @@ the sync shape is non-obvious.
     `AGENT-BRIEF.*.md` pairing for cleaner paths and semantic accuracy (`brief` = foundational orienting
     document; noun-noun reads cleaner than "briefing" noun-verb).
 
-    **Superseded scope:** Original 5.5 ("conditional-load via `active` frontmatter for agent files") is
+    **Superseded scope:** The pre-revision scope ("conditional-load via `active` frontmatter for agent files") is
     retired — the pattern was scoped specifically to `{AGENT}.ARC.md`, which no longer exists. No other
     session-init-loaded files ship as unpopulated templates (briefings all carry real content), so the
     pattern has no remaining application. If such a candidate emerges in future work, the pattern can be
     derived fresh at that point; preserving it here without a use case is premature abstraction.
 
-    **Pre-implementation audit gate:** Run `/arc-task-audit 5.5` immediately before starting 5.5.a. The
+    **Pre-implementation audit gate:** Run `/arc-task-audit 5.7` immediately before starting 5.7.a. The
     subtasks below capture known surfaces; the audit catches what's missed once the rename actually starts
     touching files (e.g., schema/hook coverage in `validate-frontmatter.ts`, classification entries in
     `classification.ts`, hardcoded path strings in CLI output, manifest regeneration, full test-surface
     enumeration). Treat audit findings as task-list amendments before file-touching begins.
 
-    - [ ] **5.5.a Package per-agent source removal + classification entries**
+    - [ ] **5.7.a Package per-agent source removal + classification entries**
         - Delete seven per-agent templates from `packages/arc-framework/arc/system/agent/`: `CLAUDE.ARC.md`,
           `CODEX.ARC.md`, `COPILOT.ARC.md`, `CURSOR.ARC.md`, `GEMINI.ARC.md`, `WARP.ARC.md`, `WINDSURF.ARC.md`
         - Delete `.arc/reference/templates/template-agent.md` (post-init creation template)
@@ -3993,13 +4065,13 @@ the sync shape is non-obvious.
         - Two-copy sync: `.arc/system/agent/CLAUDE.ARC.md` and `CODEX.ARC.md` already deleted pre-4.2.b
           (4.2.a follow-on); verify no drift
 
-    - [ ] **5.5.b Session-init integration removal**
+    - [ ] **5.7.b Session-init integration removal**
         - Remove Step 4 item 3 (agent-specific file conditional load) from `session-init.md`
         - Update Step 4 parallelism guidance (framework docs items 1–7 → items 1–2 + 4–7, renumber as needed)
         - Scan for any disambiguation rules or cross-step references pointing at item 3; update accordingly
         - Two-copy sync
 
-    - [ ] **5.5.c Directory and file renames**
+    - [ ] **5.7.c Directory and file renames**
         - Rename `system/agent/` → `system/briefs/` in both trees
         - Rename files in both trees: `AGENT-BRIEFING.ARC.md` → `AGENT-BRIEF.ARC.md`,
           `AGENT-BRIEFING.PROJECT.md` → `AGENT-BRIEF.PROJECT.md`,
@@ -4007,7 +4079,7 @@ the sync shape is non-obvious.
         - Package tree: `AGENT-BRIEFING.PROJECT.template.md` → `AGENT-BRIEF.PROJECT.template.md`
         - Use `git mv` to preserve history; stage renames as rename operations (not delete + add)
 
-    - [ ] **5.5.d Cross-reference updates**
+    - [ ] **5.7.d Cross-reference updates**
         - Sweep all framework docs for path references (`system/agent/` → `system/briefs/`) and filename
           references (`AGENT-BRIEFING` → `AGENT-BRIEF`) — grep both patterns across `.arc/` and
           `packages/arc-framework/arc/`
@@ -4017,7 +4089,7 @@ the sync shape is non-obvious.
         - Verify no stale inline links, reference-link definitions, or prose mentions remain
         - Two-copy sync all touched files
 
-    - [ ] **5.5.e Subdir README rewrite**
+    - [ ] **5.7.e Subdir README rewrite**
         - Rewrite `system/briefs/README.md` (formerly `system/agent/README.md`): retire dual-hub +
           tool-files architecture framing, "What Belongs in Tool-Specific Files", "Adding Files for Other
           Tools" sections — all obsolete under the removal
@@ -4028,7 +4100,7 @@ the sync shape is non-obvious.
           guidance — complement to ARC briefings, distinct loading layer, outside ARC methodology
         - Two-copy sync
 
-    - [ ] **5.5.f `arc init` scaffolding change**
+    - [ ] **5.7.f `arc init` scaffolding change**
         - Remove per-agent file generation from init flow — selected agents recorded in `arc-config.yml`
           (if still needed for tooling awareness) but no `{AGENT}.ARC.md` files materialize
         - Path/token substitution for briefings continues as-is (only paths change: `system/agent/` →
@@ -4037,7 +4109,7 @@ the sync shape is non-obvious.
         - Test coverage: integration test verifies init produces correct file set under new layout (briefs
           dir exists with three files, no per-agent files)
 
-    - [ ] **5.5.g `add-agent` workflow pivot**
+    - [ ] **5.7.g `add-agent` workflow pivot**
         - Retire the file-scaffolding step (no `{AGENT}.ARC.md` to create)
         - Workflow shrinks to: register agent in `arc-config.yml`, scaffold agent-specific skills per existing
           conventions, document harness-level file as the place for agent-specific operational guidance
@@ -4046,14 +4118,14 @@ the sync shape is non-obvious.
           content weight
         - Two-copy sync
 
-    - [ ] **5.5.h CHECK 12 hook revision**
+    - [ ] **5.7.h CHECK 12 hook revision**
         - Identify CHECK 12's current scope re: agent files (pre-emptive `active: true` frontmatter was added
           to `CLAUDE.ARC.md` in 4.2.a to unblock this hook)
         - Revise hook to remove `{AGENT}.ARC.md` frontmatter expectation; retain any briefing-file checks if
           applicable
         - Test coverage: hook runs clean on briefs-only directory
 
-    - [ ] **5.5.i Release notes + sync verification**
+    - [ ] **5.7.i Release notes + sync verification**
         - Draft release-notes entry documenting breaking change: `{AGENT}.ARC.md` surface removed; migration
           advice = move agent-specific content to harness-level file (`CLAUDE.md`, `AGENTS.md`, etc.); note
           directory/file rename for any adopter code referencing paths
@@ -4062,11 +4134,11 @@ the sync shape is non-obvious.
         - Grep verification: `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md" .arc/ packages/` returns
           zero matches in framework docs (archive / ADR history may retain for provenance)
 
-- [ ] **5.6 Session-init workflow Step 2/4/7 restructure**
+- [ ] **5.8 Session-init workflow Step 2/4/7 restructure**
 
     **Goal:** Batching structure, configuration check, and mismatch-handling prose all match Phase 4 audit outcomes and
-    Phase 5.0–5.5 changes (remote sync step, partial-reads, agent file surface retirement + briefs/ rename).
-    - [ ] **5.6.a Step 2 batching**
+    preceding Phase 5 changes (remote sync step, partial-reads, agent file surface retirement + briefs/ rename).
+    - [ ] **5.8.a Step 2 batching**
         - Re-express Batch 1 / Batch 2 ordering given slimmed loadset
         - Update embedded examples (e.g., many-file disambiguation prompt) if they reference content that moved
         - Evaluate promoting SESSION-NOTES into Batch 1 (or a pre-batch slot after identity resolves).
@@ -4076,18 +4148,18 @@ the sync shape is non-obvious.
           SESSION-NOTES content (persistent context, session-type prefix, one-off instructions)? If yes,
           promote; if no, current Batch 2 placement is fine.
 
-    - [ ] **5.6.b Step 4 simplification (reduced scope after Task 3.5)**
+    - [ ] **5.8.b Step 4 simplification (reduced scope after Task 3.5)**
         - Task 3.5.b already retired item 4.2 (method overrides). Remaining Step 4 scope: config values, platform
           awareness, custom commit patterns
         - Evaluate whether any further simplification is warranted post-Phase 4 audit (e.g., inline rationale that
           can move to staging). If none, collapse this task to a notes-file entry confirming Step 4 is at minimal
           scope
 
-    - [ ] **5.6.c Step 7 tightening**
+    - [ ] **5.8.c Step 7 tightening**
         - Mismatch-handling prose tightened; trust hierarchy preserved; no semantic change to auto-recover vs.
           stop-and-ask tiers
 
-    - [ ] **5.6.d Init-time content audit — externalize rarely-triggered content**
+    - [ ] **5.8.d Init-time content audit — externalize rarely-triggered content**
 
         **Origin:** 3.R.k.f+g review observations. Post-restructure the 8-step workflow is structurally
         cleaner, but ~30-40% of its body is scaffolding or rarely-triggered branches loading every session
@@ -4119,20 +4191,20 @@ the sync shape is non-obvious.
         doc; session-init stub with named trigger referencing it; `strategy-session-operations.md` pattern
         documentation updates if the conditional-load mechanism itself evolves.
 
-        **Scope note on 5.6.a / 5.6.b:** Those subtasks reference Batch 1/Batch 2 naming and separate
+        **Scope note on 5.8.a / 5.8.b:** Those subtasks reference Batch 1/Batch 2 naming and separate
         Step 4 "Check Active Configuration" structures that 3.R.k.f+g retired. Phase 5 activation should
         refresh or consolidate their scope against the post-restructure workflow before executing.
 
     **Note:** Audit session-init.md for speed considerations alongside the structural restructure. Baseline:
     ~2 minutes from `/arc-resume` invocation to orientation summary (pre-optimization). Phase 1–4 reductions
-    shrink wall-clock time naturally (less content to read and process); 5.6 is the moment to also evaluate
+    shrink wall-clock time naturally (less content to read and process); 5.8 is the moment to also evaluate
     structural speed wins independent of load-set size — unexploited batching opportunities, redundant checks,
     steps whose cost is dominated by serial tool calls rather than content. Apply low-risk wins inline during
-    5.6.a–c; record larger opportunities as follow-ons.
+    5.8.a–c; record larger opportunities as follow-ons.
 
     - Two-copy sync
 
-- [ ] **5.7 Phase 5 close — Tier 2 quality gates**
+- [ ] **5.9 Phase 5 close — Tier 2 quality gates**
     - Markdown lint, framework-sync, targeted re-run of session-init against a representative active task list (if
       available) to spot-check regressions
 

@@ -1026,7 +1026,7 @@ agents to follow them.
 - 5.1's verification step becomes falsifiable: "every workflow-tree mention of QUICK-REFERENCE
   either inlines the relevant content or names the section to load on demand."
 
-### Task 5.2 — Preamble boundary contract
+### Task 5.3 — Preamble boundary contract
 
 **Context:** Original task description specified "current phase preamble" as a load target without
 defining the boundary. Phase entries shaped `### **Phase N:** ...\n\n**Purpose:** ...\n\n[other
@@ -1038,9 +1038,9 @@ immediately before the first `- [ ]` or `- [x]` bullet under that phase. All mul
 framing (Purpose, Design decisions, Rationale blocks) included; task entries themselves not.
 Mechanical boundary, no judgment required.
 
-### Task 5.4 — Capture Routing candidate location
+### Task 5.5 — Capture Routing candidate location
 
-**Drift fix:** Original 5.4.a candidate list cited "DEV-RULES.ARC § Capture Routing" — that section
+**Drift fix:** Original 5.5.a candidate list cited "DEV-RULES.ARC § Capture Routing" — that section
 doesn't exist in DEV-RULES.ARC. The routing-related content lives in two places: DEV-RULES.ARC §
 Leave it cleaner (canonical routing table, methodology rule); DEV-RULES.PROJECT § Capture Routing
 (short pointer to the ARC table, project-specific PM-mode framing). Updated candidate list to name

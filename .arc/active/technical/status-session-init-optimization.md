@@ -5,8 +5,8 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.2 — Task list partial-read narrowing
-  (line ~3892)
+- **Next Task:** 5.2 — Task list preamble shape codification +
+  one-time cleanup (line ~3895)
 - **Last Completed:** Task 5.1 closed — QUICK-REFERENCE partial-read
   at session-init delivered across all three subtasks (a/b/c).
   Step 4 item 7 narrowed from full-file load to section-level
@@ -32,9 +32,12 @@
   Tier 2 gates clean (`lint:md` 215 files, `lint:ts`, `lint:sh`,
   `typecheck` src + test, full `npm test` 46/46).
 - **Blockers:** none
-- **Next Action:** Before starting 5.2, evaluate task-list preamble
-  content/structure (Header + Overview + Scope) per
-  `2_generate-tasks.md` and `strategy-task-list-formatting.md` —
-  assess what's truly needed every session and whether tightening
-  the codified preamble shape would shift 5.2's read boundary.
-  Outcome may modify 5.2 spec or add a sibling subtask before 5.2.a.
+- **Next Action:** Phase 5 partial-read chunk restructured per
+  preamble-content evaluation (commit pending). Two new tasks:
+  5.2 (preamble shape codification + PRD-canonical Scope cleanup)
+  precedes 5.3 (boundary contract); 5.6 (companion-file paths in
+  composite probe) lands between DEV-RULES partial-read and agent
+  file removal. Old 5.5/5.6/5.7 cascaded → 5.7/5.8/5.9. Begin Task
+  5.2.a — `template-tasks.md`, `strategy-task-list-formatting.md`,
+  `2_generate-tasks.md` Step 4 checklist edits to drop Overview/Scope
+  and codify Purpose-in-Header + phase-preamble shape.
