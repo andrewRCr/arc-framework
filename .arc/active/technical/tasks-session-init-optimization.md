@@ -3451,7 +3451,21 @@ and restructure session-init Step 2/4/7 to reflect Phase 4 audit outcomes. Phase
 Task 5.0; this phase opens with the worktree half before moving to compression work. Per-rule reliability gate for
 DEV-RULES is the cautious path — default to up-front load; shift to conditional only where trigger is clear.
 
-- [ ] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope**
+- [x] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope** — done
+
+    **Outcome:** Worktree drift detection lands across the full session-init pipeline. `runWorktreeSyncStatus`
+    (5.0.a) classifies local-vs-`origin/<branch>` drift into a 9-state enum with bounded fetch; flat-dotted
+    `session.init_pull.worktree` / `session.init_pull.notes` config (5.0.b) governs per-channel pull policy
+    with parser-level `always`-on-worktree rejection. `arc status --session-init --json` (5.0.c) carries a peer
+    `worktree` slot and attaches a `clean-at-current-head` qualifier on the user channel when worktree=remote-ahead
+    and user=clean. `arc user status` and `arc sync` (5.0.d) share `formatWorktreeQualifierLine` to emit drift
+    qualifiers across the user-facing notes-status surfaces; offline and disabled paths handled. Session-init.md
+    (5.0.e, both copies) consumes the envelope end-to-end — Step 2 envelope table, Step 3 dual-channel pull surface
+    with dirty-tree precheck and combined-prompt, Step 7 conditional `Reconcile required:` / `Local-ahead:` inserts,
+    Step 8 Tier 1 diverged example. Integration coverage (5.0.f) verifies real-exec composition through the
+    composite orchestrator and `runUserStatus`. ADR-012 amendment, `arc-config.yml` cross-references, and CLI
+    help text (5.0.g) close out the doc surface. Per-subtask outcomes carry implementation detail; this block
+    summarizes the rolled-up scope.
 
     **Goal:** Session-init detects and reports local-vs-remote worktree drift with the same rigor as user-notes
     drift. Extends the existing `session.remote_sync` gate and Step 2 probe architecture to the branch channel,
@@ -3690,66 +3704,66 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         `remote-unavailable` failure-mode disambiguation kept verbatim — no operational meaning
         sacrificed.
 
-    - [ ] **5.0.f Integration test coverage**
+    - [x] **5.0.f Integration test coverage**
 
-        **Goal:** Verify the wiring from `handleStatus` / `runUserStatus` down to real `gitExec` and
-        back, replacing the worktree-probe stub at `__tests__/integration/status.test.ts:185` with real
-        fixture runs. The per-state matrix is unit-covered (see below) — integration verifies real-exec
-        composition, not probe classifier behavior.
+        **Outcome:** Six integration scenarios shipped — four extending
+        `__tests__/integration/status.test.ts` (composite envelope with the real `runWorktreeSyncStatus`
+        replacing the prior stub at line 185), two extending `__tests__/integration/user.test.ts`
+        (`runUserStatus` real-exec worktree drift). Suite counts: status integration 4 → 8 tests,
+        user integration 37 → 39 tests. Full unit + integration + e2e suite remains green.
 
-        **Design decisions (resolved pre-implementation):**
-        - Integration tests use the temp-dir git fixture pattern already established in
-          `__tests__/integration/`
-        - E2E tier excluded — built-CLI subprocess overhead adds no qualified scenario beyond what
-          src-direct integration covers; `arc status` has no existing e2e file and the orientation
-          output (prose, prompts) lives in the agent layer
-        - `addBareRemote` gotcha: helper `git push -u origin HEAD`s the local branch, leaving local in
-          sync with bare. To produce `remote-ahead`, advance the bare remote's branch ref directly
-          (`git update-ref refs/heads/<branch>` against the bare dir) or via a transient clone — don't
-          re-call the helper expecting drift
-        - Tests verify envelope JSON shape and `runUserStatus` result fields, not prose orientation
-          output
+        **Composite-envelope scenarios (`__tests__/integration/status.test.ts` § "real worktree probe"):**
+        - Worktree clean + bare-remote in sync → `worktree.state === "clean"`, ahead/behind 0/0,
+          no qualifier on user
+        - Bare remote ahead by 1 (`commit; push; reset --hard HEAD~1`) → `worktree.state ===
+          "remote-ahead"`, `behind === 1`, `user.value.qualifier === "clean-at-current-head"`
+        - No origin configured → `worktree.state === "no-remote"`, user channel independent
+        - `remoteSyncEnabled: false` (proxy for `session.remote_sync: disabled`) → `worktree.state
+          === "skipped"`, `user.state === "disabled"` (distinct vocabularies preserved per design)
 
-        **Pre-existing unit coverage (do not duplicate at integration tier):**
-        - State classifier across the full enum: `__tests__/unit/git/worktree-sync.test.ts` (10 tests)
-        - Composite envelope wiring + qualifier propagation:
-          `__tests__/unit/status/run.test.ts` § "worktree slot + user qualifier" (6 tests)
-        - `runUserStatus` qualifier emission + `--offline` substitute + remote-unavailable softening:
-          `__tests__/unit/user-status.test.ts` § "buildUserStatusResult worktree qualifier" +
-          "runUserStatus worktree probe orchestration"
-        - `handleSync` qualifier emission across all states:
-          `__tests__/unit/sync.test.ts` § "handleSync worktree qualifier"
-        - Config rejection of `always` on worktree at parse: covered in 5.0.b config suites
-        - Fetch timeout / fetch error fault injection: `unit/git/worktree-sync.test.ts:181,207`
-          (cannot be reproduced reliably at integration tier without partial mocking — kept at unit)
+        **`runUserStatus` real-exec scenarios (`__tests__/integration/user.test.ts` § "user status"):**
+        - Bare remote ahead by 1 → `detailLines` contains "Worktree is behind origin by 1 commit(s).";
+          `result.worktree.state === "remote-ahead"`, `behind === 1`
+        - Same fixture with `offline: true` → `detailLines` contains "Worktree remote comparison
+          skipped (`--offline`); reported state reflects local refs only."; `result.worktree`
+          omitted (no probe ran)
 
-        **Composite-envelope scenarios (extends `__tests__/integration/status.test.ts`):**
-        - Worktree real-clean + notes real-clean → both channels report clean; envelope additive
-          (replaces the existing stubbed worktree probe)
-        - Bare remote advanced one commit beyond local → `worktree.value.state === "remote-ahead"`,
-          `user.value.qualifier === "clean-at-current-head"`
-        - Fixture has no origin → `worktree.value.state === "no-remote"`; user channel resolves
-          independently
-        - `session.remote_sync: disabled` in fixture config → `worktree.value.state === "skipped"`,
-          `user.value.state === "disabled"` (note: distinct vocabularies per channel — both probes
-          short-circuit, but their state strings differ by design)
+        **Implementation decisions:**
+        - Reused existing `Fixture` shape from `createFixture()` and added two thin helpers
+          (`gitInit` running `git init` + identity config + initial empty commit; `pushToBareRemote`
+          mirroring the published `addBareRemote` shape but local to the status suite). Kept these
+          inline rather than promoting to `helpers/integration.ts` — both consumers live in one file
+          and the existing helper is already exported for the user-suite pattern; consolidation is
+          premature.
+        - Drift production for the remote-ahead scenario uses `commit → addBareRemote → reset --hard
+          HEAD~1` rather than `git update-ref` against the bare dir. Slightly more git operations
+          but stays inside the same fixture cwd — no need to bind a second `gitExec` to the bare
+          remote dir or compute commit hashes by hand.
+        - User-channel state for the `remote_sync: disabled` scenario is supplied by the stub
+          (`stubUserSessionInit(identity, "disabled")`) — proves the orchestrator doesn't synthesize
+          the `disabled` state itself, which is correct: that's the user probe's responsibility per
+          5.0.c's separation-of-concerns decision.
+        - The `runUserStatus` tests assert against `result.worktree` (typed peer field) plus
+          `detailLines` rather than rendered summary text — same convention as the unit suite.
 
-        **`runUserStatus` real-exec scenarios (extends `__tests__/integration/user.test.ts`):**
-        - Bare remote ahead → `result.detailLines` contains
-          "Worktree is behind origin by N commit(s)."
-        - `--offline` against same fixture → `result.detailLines` contains
-          "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only."
+        **Pre-existing coverage cross-referenced (not duplicated):** Per-state classifier matrix at
+        `__tests__/unit/git/worktree-sync.test.ts` (10 tests); composite orchestrator wiring +
+        qualifier propagation at `__tests__/unit/status/run.test.ts` (6 tests); `buildUserStatusResult`
+        qualifier vocabulary + `--offline` substitute + remote-unavailable softening at
+        `__tests__/unit/user-status.test.ts`; `handleSync` qualifier emission at
+        `__tests__/unit/sync.test.ts`. Fetch timeout / error fault injection kept unit-only — cannot
+        be reproduced reliably at integration tier without partial exec mocking. `arc sync`
+        integration kept out of scope — `p.log.info` emission is only assertable with the Clack
+        mocks already plumbed at unit tier.
 
-        **`arc sync` integration:** Out of scope — qualifier emission goes through `p.log.info`,
-        which is only assertable with the Clack mocks already plumbed at the unit tier. Unit suite
-        (`__tests__/unit/sync.test.ts` § "handleSync worktree qualifier") covers all five branches
-        exhaustively.
+        **Test batching:** All 6 scenarios batched per process-task-loop "batching judgment" —
+        tightly coupled (single integration tier, fixture-builder pattern, no independent discovery
+        value across slices). Configured-state setup dominates per-test time; one-at-a-time would
+        just multiply scaffolding without surfacing additional behavior.
 
-        **Acceptance:**
-        - New scenarios added to `__tests__/integration/status.test.ts` and
-          `__tests__/integration/user.test.ts` per the lists above
-        - No regressions in existing unit / integration / e2e suites
-        - Tier 2 gates clean: `lint:ts`, `typecheck` (src + test), full `npm test`, `npm run build`
+        **Quality gates:** Tier 2 — `lint:ts` clean, `lint:md` clean (223 files), `typecheck` (src +
+        test) clean, full `npm test` 46/46 (8 e2e + integration files), `npm run build` succeeds.
+        Status integration: 8/8; user integration: 39/39.
 
     - [x] **5.0.g Documentation + ADR + config comment sync**
 

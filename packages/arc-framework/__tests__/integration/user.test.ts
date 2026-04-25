@@ -1162,4 +1162,64 @@ describe("user status", () => {
       code: "ENOENT",
     });
   });
+
+  // --- Worktree drift qualifier (real exec) ---
+  //
+  // Verifies that `runUserStatus` orchestrates a real `runWorktreeSyncStatus`
+  // probe end-to-end against a bare-remote fixture and routes its verdict
+  // into `detailLines` via `formatWorktreeQualifierLine`. The qualifier
+  // vocabulary itself is unit-covered exhaustively at
+  // `__tests__/unit/user-status.test.ts` § "buildUserStatusResult worktree
+  // qualifier" — these tests prove the wiring through the real exec layer.
+
+  it("emits a worktree drift qualifier when origin is ahead", async () => {
+    // Advance HEAD, push to bare, then reset local one commit back so origin
+    // is ahead of local by 1. (`addBareRemote` already pushed the initial
+    // commit during `beforeEach`; here we layer a second commit on top, then
+    // rewind locally.)
+    await makeCommit(tempDir, "future commit");
+    await execFileAsync("git", ["push"], { cwd: tempDir });
+    await execFileAsync("git", ["reset", "--hard", "HEAD~1"], { cwd: tempDir });
+
+    const io = makeUserIO(tempDir);
+    const result = await runUserStatus({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.detailLines).toContain(
+      "Worktree is behind origin by 1 commit(s).",
+    );
+    expect(result.worktree?.state).toBe("remote-ahead");
+    expect(result.worktree?.behind).toBe(1);
+  });
+
+  it("substitutes an offline note when --offline is set with remote_sync enabled", async () => {
+    // Set up the same drift, but exercise `--offline` — the worktree probe
+    // should not run, and the offline-scope note should appear in place of
+    // the drift qualifier.
+    await makeCommit(tempDir, "future commit");
+    await execFileAsync("git", ["push"], { cwd: tempDir });
+    await execFileAsync("git", ["reset", "--hard", "HEAD~1"], { cwd: tempDir });
+
+    const io = makeUserIO(tempDir);
+    const result = await runUserStatus({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      offline: true,
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.detailLines).toContain(
+      "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only.",
+    );
+    expect(
+      result.detailLines.some((line) => line.startsWith("Worktree is behind")),
+    ).toBe(false);
+    // No worktree probe was invoked, so the field is omitted.
+    expect(result.worktree).toBeUndefined();
+  });
 });

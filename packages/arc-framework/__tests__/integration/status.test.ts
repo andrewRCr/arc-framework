@@ -49,6 +49,8 @@ import type {
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../../src/commands/user/types.js";
+import { runWorktreeSyncStatus } from "../../src/lib/git/worktree-sync.js";
+import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 
 interface Fixture {
   root: string;
@@ -159,12 +161,16 @@ function stubUserResult(identity: string): UserStatusResult {
   };
 }
 
-function stubUserSessionInit(identity: string): UserSessionInitStatusResult {
+function stubUserSessionInit(
+  identity: string,
+  state: UserSessionInitStatusResult["state"] = "clean",
+): UserSessionInitStatusResult {
   return {
     identity,
-    state: "clean",
-    summary: `${identity}: session-init remote state clean`,
-    detailLines: ["Remote notes match local notes."],
+    state,
+    summary: `${identity}: session-init remote state ${state}`,
+    detailLines:
+      state === "disabled" ? [] : ["Remote notes match local notes."],
     actionHint: null,
     shouldPromptToPull: false,
   };
@@ -346,5 +352,185 @@ describe("runStatus — identity missing", () => {
     expect(result.extensions.ok).toBe(true);
     expect(result.config.ok).toBe(true);
     expect(result.active.ok).toBe(true);
+  });
+});
+
+// --- Real worktree probe (replaces the stub above) ---
+//
+// These exercise `runSessionInitStatus` with the real `runWorktreeSyncStatus`
+// driving `gitExec` against fixture repos. The per-state classifier matrix is
+// already covered exhaustively at unit tier
+// (`__tests__/unit/git/worktree-sync.test.ts` + `unit/status/run.test.ts`);
+// here we verify the wiring from the composite orchestrator down to a real
+// `gitExec` and back, plus the cross-channel qualifier attachment when
+// `worktree=remote-ahead` and `user=clean`.
+//
+// Batching rationale (per process-task-loop "batching judgment"): tightly
+// coupled — single orchestrator over a fixture-builder pattern, no
+// independent discovery value across slices. Configured-state setup
+// dominates per-test time; one-at-a-time would just multiply scaffolding.
+
+async function gitInit(root: string): Promise<void> {
+  await execFileAsync("git", ["init", root]);
+  await execFileAsync("git", ["config", "user.email", "test@test.com"], {
+    cwd: root,
+  });
+  await execFileAsync("git", ["config", "user.name", "Test User"], {
+    cwd: root,
+  });
+  await execFileAsync(
+    "git",
+    ["-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "initial"],
+    { cwd: root },
+  );
+}
+
+async function pushToBareRemote(root: string): Promise<string> {
+  const remoteDir = await mkdtemp(join(tmpdir(), "arc-status-remote-"));
+  await execFileAsync("git", ["init", "--bare", remoteDir]);
+  await execFileAsync("git", ["remote", "add", "origin", remoteDir], {
+    cwd: root,
+  });
+  await execFileAsync("git", ["push", "-u", "origin", "HEAD"], { cwd: root });
+  return remoteDir;
+}
+
+function makeRealWorktreeProbes(
+  fixture: Fixture,
+  opts: {
+    remoteSyncEnabled?: boolean;
+    userState?: UserSessionInitStatusResult["state"];
+  } = {},
+): SessionInitProbes {
+  const remoteSyncEnabled = opts.remoteSyncEnabled ?? true;
+  const userState = opts.userState ?? "clean";
+  return {
+    user: async (identity) => stubUserSessionInit(identity, userState),
+    worktree: () =>
+      runWorktreeSyncStatus({
+        exec: makeGitExec(fixture.root),
+        remoteSyncEnabled,
+      }),
+    extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
+    config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
+    active: () => runActiveSessionInitStatus({ cwd: fixture.root }),
+    domainRules: () => runDomainRulesSessionInitStatus({ cwd: fixture.root }),
+  };
+}
+
+describe("runSessionInitStatus — real worktree probe", () => {
+  let fixture: Fixture;
+  let remoteDir: string | undefined;
+
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await gitInit(fixture.root);
+    remoteDir = undefined;
+  });
+
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+    if (remoteDir) await rm(remoteDir, { recursive: true, force: true });
+  });
+
+  it("reports worktree=clean when local matches a freshly pushed bare remote", async () => {
+    remoteDir = await pushToBareRemote(fixture.root);
+
+    const probes = makeRealWorktreeProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("clean");
+      expect(result.worktree.value.ahead).toBe(0);
+      expect(result.worktree.value.behind).toBe(0);
+    }
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.state).toBe("clean");
+      expect("qualifier" in result.user.value).toBe(false);
+    }
+  });
+
+  it("reports worktree=remote-ahead and attaches clean-at-current-head qualifier when user=clean", async () => {
+    // Advance the working tree, push, then reset local back one commit so the
+    // bare remote is one commit ahead of local.
+    await execFileAsync(
+      "git",
+      ["-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "future"],
+      { cwd: fixture.root },
+    );
+    remoteDir = await pushToBareRemote(fixture.root);
+    await execFileAsync("git", ["reset", "--hard", "HEAD~1"], {
+      cwd: fixture.root,
+    });
+
+    const probes = makeRealWorktreeProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("remote-ahead");
+      expect(result.worktree.value.ahead).toBe(0);
+      expect(result.worktree.value.behind).toBe(1);
+    }
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.qualifier).toBe("clean-at-current-head");
+    }
+  });
+
+  it("reports worktree=no-remote when the fixture has no origin configured", async () => {
+    const probes = makeRealWorktreeProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("no-remote");
+      expect(result.worktree.value.ahead).toBe(0);
+      expect(result.worktree.value.behind).toBe(0);
+    }
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      // User channel resolves independently — qualifier reserved for
+      // remote-ahead worktree only.
+      expect(result.user.value.qualifier).toBeUndefined();
+    }
+  });
+
+  it("propagates session.remote_sync=disabled to worktree=skipped while user channel reports state=disabled (distinct vocabularies)", async () => {
+    const probes = makeRealWorktreeProbes(fixture, {
+      remoteSyncEnabled: false,
+      userState: "disabled",
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("skipped");
+    }
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.state).toBe("disabled");
+      expect(result.user.value.qualifier).toBeUndefined();
+    }
   });
 });
