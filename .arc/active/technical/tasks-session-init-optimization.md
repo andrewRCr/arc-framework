@@ -3,48 +3,9 @@
 - **PRD:** `.arc/active/technical/prd-session-init-optimization.md`
 - **Branch(es):** `technical/session-init-optimization`
 - **Base Branch:** `main`
-
-## Overview
-
-**Purpose:** Reduce session-init token cost from ~75–80k to ≤60k at orientation completion by retiring the aggregate
-`arc-methods.md` / `arc-extensions.md` files in favor of per-file directories with YAML frontmatter, auditing
-always-loaded content for operational relevance, narrowing partial-reads, and introducing session-type conditional
-loading — without regressing orientation correctness or compliance reliability.
-
-Notes file: `notes-session-init-optimization.md` (alternatives, compliance-reliability grounding, phase sequencing
-rationale, risks, research references).
-
-## Scope
-
-### Will Do
-
-- Retire `arc-methods.md` and `arc-extensions.md`; migrate to per-file `system/methods/` and `system/extensions/`
-  directories with YAML frontmatter (both copies — package source + `.arc/`)
-- Add "Method and extension loading" constitutional rule to DEV-RULES.ARC § Verification and Discovery; absolute,
-  hedge-free framing
-- Draft ADR-013 Tier 2 amendment; sanity-check against the implemented model at Phase 3 close
-- Reliable-trigger CI audit enumerating methods × workflow/DEV-RULES/strategy references
-- Pre-commit hooks: frontmatter schema validation, D7a link-resolution, D7b extension-point match
-- Operational-context audit across Tier 1 (always-loaded docs), Tier 2 (high-frequency workflows), Tier 3 (remaining
-  workflows); extractions staged in `notes-docs-content-sweep.md`
-- Task-list-formatting restructure: extract `template-tasks.md`, relocate Quick Format Checklist into
-  `2_generate-tasks.md` Step 4, trim `strategy-task-list-formatting.md`
-- Partial-read narrowing: QUICK-REFERENCE, task-list current-section, reliability-gated DEV-RULES sections
-- Session-init.md Step 2/4/7 restructure to match audit outcomes
-- Session-type conditional loading: `Working On:` type prefix formalized, auto-inference rules, per-type load sets, CLI
-  template updates
-- Test coverage for new infrastructure (frontmatter parser, hooks, inference logic)
-- Release-notes entry documenting breaking changes
-
-### Won't Do
-
-- Automatic migration code for `arc update` (zero adopters; dev repo maintains two-copy sync manually; external beta
-  installers reinstall fresh)
-- Docs-site-side integration of extracted content (handled by `plan-docs-content-sweep.md`)
-- Starlight migration / docs-site build work (handled by `prd-arcd-docs-site.md`)
-- Adopter-facing methods/extensions extensibility (framework-fixed by design)
-- Document classification system (T1/T2/T3) structural changes (out of scope; revisit later)
-- `arc-config.yml` structural changes (comments stay; content-trim only where individual comments cross into rationale)
+- **Purpose:** Cut session-init token cost from ~75–80k to ≤60k at orientation via per-file
+  methods/extensions, narrower partial-reads, and session-type conditional loading — without
+  regressing orientation correctness or compliance reliability.
 
 ---
 
@@ -3446,19 +3407,15 @@ restructure, not as a Phase 4 audit target.
 
 ### **Phase 5:** Worktree-Sync Completion + Partial-Read Narrowing + Session-Init Workflow Restructure
 
-**Purpose:** Phase 3.R.e landed the user-notes half of remote-sync detection; Task 5.0 closed the worktree half
-end-to-end. Remaining phase scope: codify a tightened task-list authoring shape with PRD-canonical Scope
-(Task 5.2), shrink upfront-read surface (Tasks 5.1, 5.3–5.5 partial-read narrowing across QUICK-REFERENCE,
-task list, status file, and DEV-RULES sections), surface companion-file paths via the composite probe to
-drop one orchestration step (Task 5.6), retire the `{AGENT}.ARC.md` surface and rename `system/agent/` →
-`system/briefs/` (Task 5.7), then restructure session-init Step 2/4/7 to reflect Phase 4 audit outcomes
-(Task 5.8). Per-rule reliability gate for DEV-RULES is the cautious path — default to up-front load; shift
-to conditional only where trigger is clear.
+**Purpose:** With Phase 3.R.e + Task 5.0 closing the remote-sync detection half, this phase tightens
+the always-loaded surface — task-list authoring shape (5.2), per-document partial-reads (5.1, 5.3–5.5),
+companion-file paths via composite probe (5.6), `{AGENT}.ARC.md` retirement and `system/agent/` →
+`system/briefs/` rename (5.7) — then restructures `session-init.md` Step 2/4/7 against Phase 4 audit
+outcomes (5.8).
 
-**Two-copy sync convention:** Tasks 5.1–5.5, 5.7, 5.8 touch `session-init.md` and adjacent framework files;
-Task 5.6 is a CLI surface enhancement (TS source, no markdown two-copy concern). Edits land in both the
-package source (`.template.md` where applicable) and the `.arc/` instance — no per-task reminder unless
-the sync shape is non-obvious.
+**Design decisions:** Per-rule reliability gate for DEV-RULES section partial-reads — default up-front
+load; shift to conditional only where trigger is clear. Two-copy sync standard for markdown edits;
+Task 5.6 is TS-only (no markdown sync concern).
 
 - [x] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope** — done
 
@@ -3892,7 +3849,7 @@ the sync shape is non-obvious.
         - Acceptance met: every workflow-tree QUICK-REFERENCE load-pointer either inlines the
           content directly or names the section
 
-- [ ] **5.2 Task list preamble shape codification + one-time cleanup**
+- [x] **5.2 Task list preamble shape codification + one-time cleanup**
 
     **Goal:** PRD becomes canonical for Scope (Will Do / Won't Do); task-list `## Overview` and `## Scope`
     blocks collapse into a one-line `**Purpose:**` field in the Header; phase-preamble shape codified so the
@@ -3924,14 +3881,22 @@ the sync shape is non-obvious.
         - All three pairs verified in sync (workflow pair differs only on the expected team-mode toggle
           blocks); Tier 1 markdown lint clean across all six files
 
-    - [ ] **5.2.b One-time cleanup**
-        - Sweep existing task lists in `.arc/active/` and `.arc/backlog/` (if any). Recent archive (current
-          quarter) eligible for cleanup; pre-2026-Q1 archive stays as historical artifact
-        - For each: collapse `## Overview` + `## Scope` into Header `**Purpose:**` field; preserve PRD path
-          link unchanged; tighten phase preambles where they exceed the codified shape (~12 lines)
-        - This task list (`tasks-session-init-optimization.md`) gets the same treatment — its current Overview
-          and Scope blocks compress into a one-line Purpose statement; PRD remains canonical for full Scope
-        - Two-copy sync where applicable
+    - [x] **5.2.b One-time cleanup**
+        - Active + backlog swept (per-session decision; archive deferred — `2025-q4` historical, `2026-q1`/`q2`
+          declined for shape consistency since they don't pay session-init cost)
+        - This task list: Overview + Scope collapsed into Header `**Purpose:**` (one wrapped sentence);
+          notes-file pointer dropped (companion-file convention codified in template); Phase 5 preamble
+          compressed 15 → 9 lines, factoring out per-task enumeration and per-task two-copy reminders.
+          Phases 1, 2, 3, 6, 7 already under cap; Phase 3.R fully complete (preserved historical Origin
+          paragraph); Phase 4 carries operational audit-heuristic guidance applied per-subtask — justified
+          soft-cap overrun, left as-is
+        - `tasks-arcd-rebrand.md` (backlog): Overview + Scope collapsed; the Multi-branch structure
+          paragraph dropped (duplicates the structured Branch(es) header bullet); Activation-time
+          reconciliation blockquote preserved (operational); Phase 2 lightly tightened by combining the
+          Commit-granularity note into a Design decisions block and inlining Branch — still over cap due
+          to inline guardrails A–F cheat sheet (operational reference, justified)
+        - Orphan `[work-org]` link reference removed after Multi-branch paragraph deletion. Tier 1
+          markdown lint clean on both files. No two-copy sync — both files are project instances
 
 - [ ] **5.3 Task list partial-read narrowing**
 

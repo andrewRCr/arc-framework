@@ -9,64 +9,14 @@
   `technical/arcd-rebrand-self-migrate` (Phase 6 + Phase 7 + final integration,
   created after Phase 5 merge)
 - **Base Branch:** `main`
+- **Purpose:** Establish ARCd as the public product/implementation brand while preserving ARC as the
+  methodology vocabulary (three-tier model: ARC / ARCd / ARCd Framework) — spans structural renames,
+  content sweep, npm publishes, GitHub repo rename, and self-hosted `.arc/` migration.
 
 > **Activation-time reconciliation:** Subtask 2.9.a (line 447) references the framework method as
 > `pre-merge-review`. That method was renamed to `diff-review` during Session-Init Optimization
 > WU (Task 1.4.a) — update the reference when this WU activates. The extension that shares the
 > name (`pre-merge-review` on lines 451-452) keeps its name and needs no change.
-
-## Overview
-
-**Purpose:** Establish ARCd as the public product and implementation brand while preserving ARC as the
-methodology vocabulary, under a three-tier naming model (ARC / ARCd / ARCd Framework). Spans structural
-renames, unified content sweep, npm publishes, GitHub repo rename, and self-hosted `.arc/` migration.
-
-**Multi-branch structure:** Phased delivery across five branches per
-[`strategy-work-organization.md`][work-org] § Task Lists and Branches. Phases 1–2 deliver via the primary
-branch `technical/arcd-rebrand`; Phases 3–5 each run on a dedicated follow-up branch with an intermediate
-[`rotate-branch.md`][rotate-branch] merge between them; Phase 6 runs on the final branch
-`technical/arcd-rebrand-self-migrate`, which also carries Phase 7 verification and the final
-[`integrate-work-unit.md`][integrate-work-unit] + [`archive-work-unit.md`][archive-work-unit] cycle. Four
-session boundaries sit between branches where external actions occur (GitHub UI rename, `@arcd/cli`
-publish, deprecation publish, self-migration smoke test).
-
-## Scope
-
-### Will Do
-
-- Rename CLI package `@arc-framework/cli` → `@arcd/cli` and binary `arc` → `arcd`
-- Rename package directory `packages/arc-framework/` → `packages/arcd/`
-- Rename config file `arc-config.yml` → `ARCd-config.yml` (template source and installed)
-- Rename config keys and values: `pm.mode` → `pm.layer`, `team.mode` → `team.enabled`,
-  value `arc-in-git` → `arc-pm`
-- Rename CLI command `arc status` → `arcd health`; add explicit `arcd version` subcommand
-- Bump manifest schema version (no migration function — zero-adoption YAGNI)
-- Apply three-tier naming sweep across `.arc/`, `packages/arcd/arc/`, root-level docs,
-  `packages/arcd/README.md`
-- Publish `@arcd/cli` as the renamed package (manual publish)
-- Publish `@arc-framework/cli@0.1.1` deprecation release + apply `npm deprecate` wildcard flag
-- Rename GitHub repository `arc-framework` → `ARCd-framework` (via GitHub UI, post-merge)
-- Self-host `.arc/` migration by hand from the rebranded `packages/arcd/arc/` template source
-- Update `scripts/check-package-sync.sh` to reflect new package directory path (P1)
-- Author canonical README hero block for the three-tier relationship (P1)
-
-### Won't Do
-
-- Docs-site migration (→ `prd-arcd-docs-site` follow-up)
-- Automated release pipeline (semantic-release / changesets / release-please) — deferred to WU5
-  Public Release per `plan-wu5-public-release.md` § Release Automation. See `notes-arcd-rebrand.md`
-  § Release Automation Deferred to WU5 for rationale
-- Adopter upgrade path or migration function for pre-rebrand installs (zero adoption)
-- Adopter communication (changelog, blog, social) — passive `npm deprecate` is the entire outbound
-  surface
-- Scrubbing deprecated npm package history
-- Git notes namespace migration (`refs/notes/arc/user/` stays)
-- File suffix migration (`.ARC.md` stays as methodology tier marker)
-- Skill name migration (`arc-resume`, `arc-commit`, `arc-handoff`, etc. stay)
-- Content sweep of `docs/**` (handled during `prd-arcd-docs-site` content port — avoids double-work
-  on files scheduled for deletion)
-- Historical changelog entry rebranding in `packages/arcd/changelog/` (leave as-is for historical
-  accuracy per PRD Open Questions lean)
 
 ---
 
@@ -253,12 +203,12 @@ filenames and identifiers. Atomic commits for each logical change per PRD § Ord
 
 ### **Phase 2:** Content sweep (three-tier naming unified audit)
 
-**Purpose:** Apply ARC / ARCd / ARCd Framework naming consistently across all prose surfaces using
-the six sweep guardrails (A–F) from `prd-arcd-rebrand.md` § Content sweep discipline. Forward-looking
-`docs.arcd.dev` URLs and `andrewRCr/ARCd-framework` repo references are used throughout (R22) — brief
-broken-link windows are acceptable pre-public.
+**Purpose:** Apply ARC / ARCd / ARCd Framework naming consistently across prose surfaces using
+the six guardrails (A–F) from `prd-arcd-rebrand.md` § Content sweep discipline. Forward-looking
+`docs.arcd.dev` URLs and `andrewRCr/ARCd-framework` repo refs throughout (R22) — brief broken-link
+windows acceptable pre-public. **Branch:** Continues on `technical/arcd-rebrand`.
 
-**Guardrails summary** (full text in PRD § Content sweep discipline):
+**Guardrails cheat sheet** (full text in PRD):
 
 - **A.** Common-noun "framework" stays lowercase; brand "ARCd Framework" is capitalized
 - **B.** "ARC session" / "ARC workspace" / "ARC project" stay ARC
@@ -267,14 +217,9 @@ broken-link windows are acceptable pre-public.
 - **E.** AGENT-BRIEFING content drift sweep target (suffix stays, prose updates)
 - **F.** Git hook messages: methodology enforcement stays ARC; install / product state is ARCd
 
-**Commit granularity note:** PRD § Ordering constraint calls for "a single coherent commit" for
-Phase 2. This task list uses per-parent-task commits for review granularity and process-task-loop
-naturalness; PRD intent (reviewable-as-a-coherent-unit sweep) is preserved because all commits land
-on the same branch and integrate via one `rotate-branch.md` PR. If a single squashed commit is
-preferred at merge time, use `merge.strategy: squash` on the Phase 2 rotation PR alone (not on
-intermediate rotations in Phases 3–5).
-
-**Branch:** Continues on `technical/arcd-rebrand`.
+**Design decisions:** Per-parent-task commits (review granularity / process-task-loop fit) — not
+the PRD's "single coherent commit"; same-branch landing + one `rotate-branch.md` PR preserves intent.
+For squashed delivery, use `merge.strategy: squash` on this PR only.
 
 - [ ] **2.1 Sweep `.arc/` installed content**
 
@@ -869,7 +814,6 @@ Phase 7 verification, and the final [`integrate-work-unit.md`][integrate-work-un
 
 ---
 
-[work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [rotate-branch]: ../../system/workflows/arc/work-unit-lifecycle/rotate-branch.md
 [activate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
