@@ -3446,10 +3446,16 @@ restructure, not as a Phase 4 audit target.
 
 ### **Phase 5:** Worktree-Sync Completion + Partial-Read Narrowing + Session-Init Workflow Restructure
 
-**Purpose:** Complete the remote-sync integrity work (worktree channel), then shrink remaining upfront-read surface
-and restructure session-init Step 2/4/7 to reflect Phase 4 audit outcomes. Phase 3.R.e landed the user-notes half of
-Task 5.0; this phase opens with the worktree half before moving to compression work. Per-rule reliability gate for
-DEV-RULES is the cautious path — default to up-front load; shift to conditional only where trigger is clear.
+**Purpose:** Phase 3.R.e landed the user-notes half of remote-sync detection; Task 5.0 closed the worktree half
+end-to-end. Remaining phase scope: shrink upfront-read surface (Tasks 5.1–5.4 partial-read narrowing across
+QUICK-REFERENCE, task list, status file, and DEV-RULES sections), retire the `{AGENT}.ARC.md` surface and rename
+`system/agent/` → `system/briefs/` (Task 5.5), then restructure session-init Step 2/4/7 to reflect Phase 4 audit
+outcomes (Task 5.6). Per-rule reliability gate for DEV-RULES is the cautious path — default to up-front load; shift
+to conditional only where trigger is clear.
+
+**Two-copy sync convention:** Tasks 5.1–5.5 touch `session-init.md` and adjacent framework files. Edits land in
+both the package source (`.template.md` where applicable) and the `.arc/` instance — no per-task reminder unless
+the sync shape is non-obvious.
 
 - [x] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope** — done
 
@@ -3813,21 +3819,67 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         `npm run build` succeeds. CLI smoke test (`npx arc user status --help`) confirms the new
         description renders cleanly.
 
-- [ ] **5.1 QUICK-REFERENCE partial-read at session-init**
+- [ ] **5.1 QUICK-REFERENCE partial-read at session-init + template structural alignment**
 
-    **Goal:** Session-init reads only `## Environment & Path Context` and `## Runtime   Environment`;
-    `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`, `npm Publishing`, and `Anti-Patterns` load
-    on-demand via workflow references.
-    - Update `session-init.md` Step 2 item 7 — specify section-level partial read
-    - Verify callers (workflows that reference quality gate commands, CLI commands) load the relevant sections on demand
+    **Goal:** Session-init reads only `## Environment & Path Context` (subsumes the `### Runtime Environment`
+    H3 nested inside it). Other sections — `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
+    `npm Publishing` — load on demand via existing prose pointers in workflows. No new structural trigger
+    contract: QUICK-REFERENCE is reference material consulted ad-hoc, not behavior injected at workflow steps.
+
+    **Design decision (resolved pre-implementation):** Hybrid favoring strategy-index-style awareness — load
+    `## Environment & Path Context` always; rely on existing prose pointers (`rotate-branch.md`,
+    `integrate-planning-branch.md`, `deactivate-work-unit.md`, etc.) for everything else. Rejected: (A)
+    structural Phase-1-style triggers (overkill — methods/extensions earn their declaration contract because
+    workflows must inject behavior at deterministic points; QUICK-REFERENCE doesn't drive behavior),
+    (C) full-load with content tightening (template already clean and agnostic; populated `.arc/` value not
+    worth tightening if the section isn't always loaded). Captured in `notes-session-init-optimization.md`
+    § Phase 5 Partial-Read Design Decisions.
+
+    - [ ] **5.1.a Session-init.md narrowing**
+        - Update Step 4 item 7 — replace bare `.arc/reference/QUICK-REFERENCE.md` listing with section-level
+          partial-read specification: read `## Environment & Path Context` only (subsumes
+          `### Runtime Environment`)
+        - Two-copy sync (`session-init.md` + `session-init.template.md`)
+
+    - [ ] **5.1.b QUICK-REFERENCE template structural alignment**
+        - Add a one-line awareness note inside `## Environment & Path Context`: "Other sections —
+          `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`, `npm Publishing` — load on
+          demand when workflow steps reference them."
+        - Add a Tier 2 example slot to `## Quality Gate Commands` (template currently has T1 + T3 only;
+          asymmetric for adopters — completes the tier shape)
+        - Verify the template stays bare-bones and tech-stack-agnostic — no backwards-sync from `.arc/`
+          populated content. Currently confirmed clean (no Prettier deep-dive, no MD60 tooling, no
+          `npm Publishing`, no project-specifics)
+        - Two-copy sync: propagate awareness note + Tier 2 slot into `.arc/reference/QUICK-REFERENCE.md`,
+          preserving its populated commands. Post-alignment: structural shape matches across both copies;
+          content depth diverges by design (template provides skeleton, `.arc/` populates)
+
+    - [ ] **5.1.c Verify callers**
+        - Grep workflow tree for `QUICK-REFERENCE` mentions across `.arc/system/workflows/`,
+          `.arc/reference/strategies/`, `.arc/reference/constitution/`, plus package counterparts
+        - For each hit, confirm the prose names the section the agent should consult
+          (e.g., `§ Platform Commands`, `§ Quality Gate Commands`)
+        - Promote any bare "see QUICK-REFERENCE" pointers to section-named pointers
+        - Acceptance: every workflow-tree QUICK-REFERENCE mention either inlines the relevant content
+          directly or names the section to load on demand
 
 - [ ] **5.2 Task list partial-read narrowing**
 
-    **Goal:** Session-init Item 10 reads Header + Overview + Scope + current phase preamble + current task section only.
-    Skip completed phases' preambles.
-    - Update `session-init.md` Item 10 with the narrower read specification
-    - Graduated triple-anchor lookup (line hint → task number → title fragment) continues to resolve correctly under the
-      narrower read (verify in test)
+    **Goal:** Session-init Step 4 item 10 reads Header + Overview + Scope + current phase preamble + current task
+    section only. Skip completed phases' preambles.
+
+    **Preamble boundary contract:** "Current phase preamble" = lines from the `### **Phase N:**` heading through
+    the line immediately before the first `- [ ]` or `- [x]` bullet under that phase. Multi-paragraph framing
+    (Purpose, Design decisions, Rationale blocks) is included; task entries themselves are not.
+
+    - Update `session-init.md` Step 4 item 10 — replace the "first ~100 lines" heuristic with the
+      boundary-contract specification above
+    - Document the preamble boundary contract inline in item 10 so future task-list authors know the
+      session-init read shape they're authoring against
+    - Verify graduated triple-anchor lookup (line hint → task number → title fragment) continues to resolve
+      correctly under the narrower read. Line hints are global to the file, so lookup is mechanically robust
+      regardless of read scope; document this independence inline as a guardrail against future narrowing
+      changes
 
 - [ ] **5.3 Status file partial-read narrowing**
 
@@ -3835,7 +3887,7 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
     (State, Branch, Task List, Next Task, Last Completed, Blockers, Next Action) plus any optional fields present
     (Interrupts, Paused At, Paused To, Superseded By). Non-load-bearing content (the "About this file" blockquote, any
     future documentation) is not read at init.
-    - Update `session-init.md` Step 2 item 8 — replace "MUST RESOLVE, THEN READ IN FULL" with partial-read specification
+    - Update `session-init.md` Step 4 item 8 — replace "MUST RESOLVE, THEN READ IN FULL" with partial-read specification
       (from `## Active Work` heading through the last `**Field:**` line in that section)
     - Document the `## Active Work` section as a contract boundary: any content an agent needs at session-init must live
       inside this block
@@ -3847,8 +3899,8 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
 
     **Goal:** Each candidate section independently evaluated against a strict reliability bar; dispositions recorded.
     - [ ] **5.4.a Evaluate candidate sections**
-        - Candidates: DEV-RULES.ARC § Task Execution; DEV-RULES.ARC § Capture Routing; DEV-RULES.PROJECT § Quality
-          Gates; DEV-RULES.PROJECT § Package-Project Sync
+        - Candidates: DEV-RULES.ARC § Task Execution; DEV-RULES.ARC § Leave it cleaner (routing table);
+          DEV-RULES.PROJECT § Quality Gates; DEV-RULES.PROJECT § Package-Project Sync
         - For each, assess: is there a clear, reliable trigger (session type, config value, workflow activity detectable
           at session-init)?
         - Disposition values: `conditional-load` (with named trigger) / `up-front-load` (with reason) /
@@ -3859,7 +3911,7 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         - One entry per evaluated section: candidate / disposition / named trigger or reason
 
     - [ ] **5.4.c Apply dispositions**
-        - For `conditional-load` sections: update `session-init.md` Step 2 items 4/5 to include trigger-based load logic
+        - For `conditional-load` sections: update `session-init.md` Step 4 items 4/5 to include trigger-based load logic
         - For `up-front-load` sections: no structural change (safety floor)
         - For `retired-as-rationale` sections: move content to staging, leave placeholder
 
@@ -3896,10 +3948,22 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
     pattern has no remaining application. If such a candidate emerges in future work, the pattern can be
     derived fresh at that point; preserving it here without a use case is premature abstraction.
 
-    - [ ] **5.5.a Package per-agent source removal**
+    **Pre-implementation audit gate:** Run `/arc-task-audit 5.5` immediately before starting 5.5.a. The
+    subtasks below capture known surfaces; the audit catches what's missed once the rename actually starts
+    touching files (e.g., schema/hook coverage in `validate-frontmatter.ts`, classification entries in
+    `classification.ts`, hardcoded path strings in CLI output, manifest regeneration, full test-surface
+    enumeration). Treat audit findings as task-list amendments before file-touching begins.
+
+    - [ ] **5.5.a Package per-agent source removal + classification entries**
         - Delete seven per-agent templates from `packages/arc-framework/arc/system/agent/`: `CLAUDE.ARC.md`,
           `CODEX.ARC.md`, `COPILOT.ARC.md`, `CURSOR.ARC.md`, `GEMINI.ARC.md`, `WARP.ARC.md`, `WINDSURF.ARC.md`
         - Delete `.arc/reference/templates/template-agent.md` (post-init creation template)
+        - Remove the seven `system/agent/{AGENT}.ARC.md` entries from `CONFIGURABLE_FILES` in
+          `packages/arc-framework/src/lib/classification.ts` (currently lines ~77–83)
+        - Decide (capture in `notes-session-init-optimization.md`): retire the agent classification path
+          entirely (`AGENT_PATH` regex in `validate-frontmatter.ts`, `frontmatter/agent.ts` parser, `agent`
+          branch in `classifyPath`) vs. keep as dead-but-registered. With no remaining `{AGENT}.ARC.md`
+          files the classification has no live callers; lean retire to avoid surface accumulation
         - Two-copy sync: `.arc/system/agent/CLAUDE.ARC.md` and `CODEX.ARC.md` already deleted pre-4.2.b
           (4.2.a follow-on); verify no drift
 
@@ -3975,7 +4039,7 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
 - [ ] **5.6 Session-init workflow Step 2/4/7 restructure**
 
     **Goal:** Batching structure, configuration check, and mismatch-handling prose all match Phase 4 audit outcomes and
-    Phase 5.0–5.5 changes (remote sync step, partial-reads, agent file conditional load).
+    Phase 5.0–5.5 changes (remote sync step, partial-reads, agent file surface retirement + briefs/ rename).
     - [ ] **5.6.a Step 2 batching**
         - Re-express Batch 1 / Batch 2 ordering given slimmed loadset
         - Update embedded examples (e.g., many-file disambiguation prompt) if they reference content that moved

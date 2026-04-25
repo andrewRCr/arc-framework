@@ -5,7 +5,7 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.1 — QUICK-REFERENCE partial-read at session-init
+- **Next Task:** 5.1.a — Session-init.md QUICK-REFERENCE narrowing
   (line ~3816)
 - **Last Completed:** Task 5.0 closed — worktree-sync detection at
   session-init delivered end-to-end across all seven subtasks (a–g).
@@ -31,11 +31,19 @@
   "batching judgment" (single integration tier, fixture-builder
   pattern, no independent discovery value across slices).
 - **Blockers:** none
-- **Next Action:** Begin Task 5.1 — narrow `session-init.md` Step 2
-  item 7 to read only `## Environment & Path Context` and
-  `## Runtime Environment` from `QUICK-REFERENCE.md`; `Command
-  Patterns`, `Quality Gate Commands`, `ARC CLI Commands`, `npm
-  Publishing`, and `Anti-Patterns` load on-demand via workflow
-  references. Two-copy sync (`.arc/` + `packages/arc-framework/arc/`).
-  Verify downstream workflows that reference quality-gate / CLI
-  command sections still load them on demand.
+- **Next Action:** Phase 5 partial-read chunk (5.1–5.5) restructured
+  per `/arc-task-audit` findings: drift fixes (Step 2 → Step 4
+  references, Capture Routing relocation, Anti-Patterns drop), 5.1
+  expanded into 5.1.a / 5.1.b / 5.1.c with the QUICK-REFERENCE
+  load-contract decision resolved (hybrid strategy-index-style
+  awareness — load `## Environment & Path Context` always, others
+  on-demand via existing prose pointers; no new structural trigger
+  contract), 5.5 audit gate added requiring `/arc-task-audit 5.5`
+  immediately before 5.5.a. Begin Task 5.1.a — update
+  `session-init.md` Step 4 item 7 to read only
+  `## Environment & Path Context` from `QUICK-REFERENCE.md`
+  (subsumes `### Runtime Environment`). Two-copy sync
+  (`session-init.md` + `session-init.template.md`). Subsequent
+  subtasks 5.1.b (template alignment + awareness note + Tier 2
+  slot) and 5.1.c (verify callers, promote bare references) follow
+  per task list.

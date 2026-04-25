@@ -968,3 +968,82 @@ grounded the revived worktree half.
 - **Settings that don't work** — two-copy config sync + explicit validation catch this
   (GitHub Desktop issue #12527 is the canonical failure mode)
 - **Periodic background fetches** — ours run at session-init boundary only; no timer
+
+## Phase 5 Partial-Read Design Decisions
+
+### Task 5.1 — QUICK-REFERENCE load contract: hybrid strategy-index-style awareness
+
+**Context:** Pre-implementation audit (`/arc-task-audit 5.1–5.5`, 2026-04-25) surfaced an unexposed
+assumption in 5.1's verification step ("verify callers load on demand"): unlike methods/extensions
+post-Phase 1, QUICK-REFERENCE has no structural trigger contract. Existing references are inline
+prose pointers (`rotate-branch.md:42` "see QUICK-REFERENCE § Platform Commands";
+`integrate-planning-branch.md:75`, `deactivate-work-unit.md:58`, `session-handoff.md:266`,
+`integrate-external-content.md:106`). With no structural declaration mechanism for QUICK-REFERENCE
+sections, "verify callers load on demand" reduces to confirming prose pointers exist and trusting
+agents to follow them.
+
+**Three options evaluated:**
+
+- **(A) Structural triggers analogous to Phase 1 (`arc.references` frontmatter, CI audit, etc.).**
+  Rejected as overkill. Methods/extensions earn declaration contracts because workflows must inject
+  behavior at deterministic points — the agent can't substitute prose for "run the
+  quality-gate-commands method." QUICK-REFERENCE is reference material consulted ad-hoc, not behavior
+  driving workflow steps. Audit/enforcement infrastructure heavier than the surface it polices
+  (4 deferred sections, ~5 workflow callers).
+- **(B) Strategy-index-style awareness (separate index file, defer rest).** Rejected in pure form.
+  STRATEGY-INDEX exists because strategies are domain bodies the agent might not know to look for.
+  QUICK-REFERENCE doesn't need a separate index — workflows that need a section already name it
+  inline ("see QUICK-REFERENCE § Platform Commands"). The prose pointer _is_ the index entry,
+  delivered at the moment it's relevant.
+- **(C) Full-load with content tightening.** Rejected. Template (`QUICK-REFERENCE.template.md`) is
+  already clean and tech-stack-agnostic — verified during audit, no backwards-sync from `.arc/`
+  populated content. Tightening the populated `.arc/` copy alone delivers minimal value if the
+  whole thing isn't always loaded; tightening framework-wide value lives in the template, which
+  is already minimal.
+
+**Selected: hybrid favoring (B) without a separate index file.**
+
+- Always-load: `## Environment & Path Context` only (subsumes `### Runtime Environment` H3).
+  Foundational orientation: repo root, .arc/ vs. packages/ split, "all commands from repo root."
+  ~30 lines, low token cost, genuinely needed every session.
+- On-demand: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`, `npm Publishing` —
+  load when workflow prose pointers fire.
+- Awareness surface: one-line note in `## Environment & Path Context` listing the deferred sections
+  by name. Replaces a separate index entry — agent learns "these other sections exist and load on
+  demand" inside the always-loaded slice.
+- No CI audit, no per-section frontmatter, no `arc.references` declaration. Verification (5.1.c)
+  reduces to a concrete grep-and-promote pass on existing prose pointers.
+
+**Implications:**
+
+- Template structural alignment (5.1.b): awareness note added to template; Tier 2 example slot
+  added to `## Quality Gate Commands` (currently asymmetric T1 + T3). Project copy syncs structure;
+  populated commands stay project-specific. Post-alignment, structural shape matches across both
+  copies but content depth diverges by design.
+- Pre-existing edge case captured to ATOMIC-INBOX: `## Platform Commands` is conditionally rendered
+  (`platform.type != github`); workflow prose pointers fire into a non-existent section for default
+  GitHub adopters. Orthogonal to 5.1 scope — captured as separate triage item.
+- 5.1's verification step becomes falsifiable: "every workflow-tree mention of QUICK-REFERENCE
+  either inlines the relevant content or names the section to load on demand."
+
+### Task 5.2 — Preamble boundary contract
+
+**Context:** Original task description specified "current phase preamble" as a load target without
+defining the boundary. Phase entries shaped `### **Phase N:** ...\n\n**Purpose:** ...\n\n[other
+framing]\n\n- [ ] **N.M ...**` — multi-paragraph preambles common (e.g., Phase 5 has Design
+decisions block + Two-copy sync convention block before tasks).
+
+**Contract chosen:** Preamble = lines from the `### **Phase N:**` heading through the line
+immediately before the first `- [ ]` or `- [x]` bullet under that phase. All multi-paragraph
+framing (Purpose, Design decisions, Rationale blocks) included; task entries themselves not.
+Mechanical boundary, no judgment required.
+
+### Task 5.4 — Capture Routing candidate location
+
+**Drift fix:** Original 5.4.a candidate list cited "DEV-RULES.ARC § Capture Routing" — that section
+doesn't exist in DEV-RULES.ARC. The routing-related content lives in two places: DEV-RULES.ARC §
+Leave it cleaner (canonical routing table, methodology rule); DEV-RULES.PROJECT § Capture Routing
+(short pointer to the ARC table, project-specific PM-mode framing). Updated candidate list to name
+DEV-RULES.ARC § Leave it cleaner (the routing table) — that's the substantive section worth
+evaluating against the reliability bar. DEV-RULES.PROJECT § Capture Routing is too short to matter
+and likely always-loaded by default.
