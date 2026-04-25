@@ -20,6 +20,24 @@ until design decisions are resolved.
 > analysis. That method was renamed to `diff-review` during Session-Init Optimization WU (Task 1.4.a) —
 > update these references when this WU activates.
 
+<!-- -->
+
+> **Forward-compat callbacks from Session-Init Optimization WU (Task 5.6):** Two design points to revisit
+> when this WU activates.
+>
+> - **Lite companion-file naming asymmetry.** Current plan specifies `atomic-tasks.md` paralleling
+>   `tasks.md` (§ The Lite Task List, Atomic companion file subsection). The notes companion is more likely
+>   `notes.md` (asymmetric to atomic, but cleaner — Lite has no work-unit name to parallel). Settle the
+>   asymmetry during PRD/impl. Task 5.6 ships companion-path resolution for Full layout only and omits the
+>   `companions` field entirely for Lite-shape task lists, so no premature naming gets baked into the
+>   probe.
+> - **Composite status command Lite path.** The composite session-init probe
+>   (`arc status --session-init --json`) and `arc active status` commands didn't exist when this plan was
+>   first written. With Lite's single-work-unit model, the multi-resolution machinery
+>   (`single` / `multiple` / `none`) is largely moot — Lite likely needs its own composite-probe shape
+>   rather than reusing Full's. Treat as a new design surface during PRD scoping; don't assume Full's
+>   probe shape extends.
+
 **Upstream dependency:** Methodology Maturation (`prd-methodology-maturation.md`) — settles the
 methodology/implementation boundary, language consistency, and content architecture that this work unit
 builds on. **Completed** (2026-04-08, archived). The conditional content architecture analysis

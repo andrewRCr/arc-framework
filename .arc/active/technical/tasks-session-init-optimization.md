@@ -3959,34 +3959,51 @@ Task 5.6 is TS-only (no markdown sync concern).
 - [ ] **5.6 Companion-file paths in composite probe**
 
     **Goal:** Composite probe (`arc status --session-init --json`) surfaces companion-file paths
-    (`notes-{name}.md`, `atomic-{name}.md`) directly in `active.value`, eliminating the agent-side directory
-    listing currently required at session-init item 10's "Companion file awareness" sub-bullet.
+    (`notes-{stem}.md`, `atomic-{stem}.md`) directly in `active.value`, eliminating the agent-side
+    directory listing currently required at session-init item 10's "Companion file awareness" sub-bullet.
 
     **Rationale:** Pattern parallel to 5.0 (worktree-sync probe surface). Agent-side `ls` of the task-list
     directory at orientation is one Bash call we can avoid by surfacing resolved paths in the probe envelope.
     Net savings: small but consistent with the "let probe carry orientation-relevant state" principle.
 
-    - [ ] **5.6.a Probe envelope shape**
-        - Extend `active.value` shape (in the relevant CLI source — likely
-          `packages/arc-framework/src/lib/session-init/` or wherever active-status resolution lives) to include
-          `companions: { notes: string | null, atomic: string | null }` when `resolution === "single"`. Path
-          resolution: same directory as `path`, filenames matching `notes-{stem}.md` / `atomic-{stem}.md`
-          where `{stem}` derives from `status-{stem}.md`
-        - Both companions are `null` when files don't exist (truthiness signals existence)
-        - When `resolution === "multiple"` or `"none"`, `companions` is omitted from envelope (no
-          single-file resolution context)
+    **Lite-mode deferral:** Companion-name derivation here is Full-layout only (`tasks-{stem}.md` filename
+    pattern). Lite-shape task lists (e.g., `tasks.md`) → `companions` field omitted, signaling no
+    companion-resolution attempted. Lite's overall composite-probe shape (likely a separate path entirely,
+    given Lite's single-work-unit model) and companion-file conventions get settled during the ARC Operating
+    Modes WU — callback note added to `plan-arc-modes.md` header.
 
-    - [ ] **5.6.b Test coverage**
-        - Unit tests: companion-resolution logic (both present, only notes, only atomic, neither, edge
-          cases like task-list directory missing)
-        - Integration test: composite probe envelope includes correctly-shaped `companions` field across
-          single-resolution scenarios
+    - [ ] **5.6.a Companion resolution + envelope shape (test-first)**
+        - Extend `ActiveSessionInitResult` (in `packages/arc-framework/src/commands/active/types.ts`) with
+          optional `companions?: { notes: string | null; atomic: string | null }`. Field is omitted (not
+          `null`) when `resolution !== "single"` or the task-list filename doesn't match `tasks-{stem}.md`;
+          inner values are `null` when files don't exist.
+        - Resolution logic lives in `resolveSessionInit` (`commands/active/status.ts`), populated only on
+          the `single` branch with a Full-pattern task-list filename — no extra I/O on `multiple`/`none`
+          paths.
+        - Companion-name derivation reads the `**Task List:**` field parsed by `status-reader.ts`.
+          Pattern-match `tasks-{stem}.md`; resolve companions in the same directory as
+          `atomic-{stem}.md` / `notes-{stem}.md`. Bare `tasks.md` (Lite) or any non-matching pattern →
+          omit `companions`.
+        - Render companion paths in `buildActiveSessionInitSummary` (`commands/active/format.ts`) when
+          present, so JSON envelope and human-facing output stay in sync.
 
-    - [ ] **5.6.c Session-init.md item 10 simplification**
-        - Replace "Check the task list directory for `notes-[name].md` / `atomic-[name].md`" sub-bullet with
-          "From `active.value.companions` — note their existence so references during execution resolve
-          immediately. **Do not read these at init**"
-        - Two-copy sync (`session-init.md` + `session-init.template.md`)
+        Build `test-first` (one behavior at a time):
+        - [ ] Both companions present → both paths populated, relative to cwd
+        - [ ] Only notes present → `notes` path populated, `atomic: null`
+        - [ ] Only atomic present → `atomic` path populated, `notes: null`
+        - [ ] Neither present → `companions: { notes: null, atomic: null }` (still emitted)
+        - [ ] Lite-shape task list (`tasks.md`) → `companions` field omitted entirely
+        - [ ] `resolution === "multiple"` → `companions` field omitted
+        - [ ] `resolution === "none"` → `companions` field omitted
+        - [ ] Composite probe envelope (`runSessionInitStatus`) carries `companions` through unchanged
+        - [ ] `buildActiveSessionInitSummary` renders companion paths when present, omits cleanly when absent
+
+    - [ ] **5.6.b Session-init.md item 10 simplification**
+        - Replace "Check the task list directory for `notes-[name].md` / `atomic-[name].md`" sub-bullet
+          (`session-init.md:195-196`) with: "From `active.value.companions` — note their existence so
+          references during execution resolve immediately. **Do not read these at init**"
+        - Two-copy sync (`.arc/system/workflows/arc/session-lifecycle/session-init.md` +
+          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`)
 
 - [ ] **5.7 Agent file surface removal + `system/briefs/` rename**
 
