@@ -24,6 +24,8 @@ import {
   buildUserStatusSummary,
 } from "../user/format.js";
 
+import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+
 import type {
   Probe,
   SessionInitProbeResult,
@@ -64,11 +66,37 @@ export function buildStatusSummary(result: StatusResult): string {
   return sections.join(`\n${SECTION_SEPARATOR}\n`);
 }
 
+function buildWorktreeSessionInitSummary(value: WorktreeSyncStatusResult): string {
+  switch (value.state) {
+    case "clean":
+      return "clean (in sync with origin)";
+    case "remote-ahead":
+      return `remote ahead by ${value.behind}`;
+    case "local-ahead":
+      return `local ahead by ${value.ahead}`;
+    case "diverged":
+      return `diverged (ahead ${value.ahead}, behind ${value.behind})`;
+    case "skipped":
+      return "skipped (session.remote_sync: disabled)";
+    case "no-upstream":
+      return "no upstream tracking branch";
+    case "detached-head":
+      return "detached HEAD";
+    case "no-remote":
+      return "no remote configured";
+    case "remote-unavailable": {
+      const reason = value.failureReason ? ` (${value.failureReason})` : "";
+      return `remote unavailable${reason}`;
+    }
+  }
+}
+
 /** Build the Clack summary for `arc status --session-init`. */
 export function buildSessionInitStatusSummary(result: SessionInitProbeResult): string {
   const sections: string[] = [
     renderIdentity(result.identity),
     renderSlot("User", result.user, buildUserSessionInitStatusSummary),
+    renderSlot("Worktree", result.worktree, buildWorktreeSessionInitSummary),
     renderSlot("Extensions", result.extensions, buildExtensionsSessionInitSummary),
     renderSlot("Config", result.config, buildConfigSessionInitSummary),
     renderSlot("Active", result.active, buildActiveSessionInitSummary),

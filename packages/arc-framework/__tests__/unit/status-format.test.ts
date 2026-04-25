@@ -130,6 +130,7 @@ function makeSessionInitResult(
         shouldPromptToPull: false,
       },
     },
+    worktree: { ok: true, value: { state: "clean", ahead: 0, behind: 0 } },
     extensions: { ok: true, value: { mode: "session-init", active: ["pre-merge-review"] } },
     config: {
       ok: true,
@@ -242,10 +243,11 @@ describe("buildStatusSummary — full mode", () => {
 });
 
 describe("buildSessionInitStatusSummary — scoped mode", () => {
-  it("includes identity block plus all four probe sections", () => {
+  it("includes identity block plus all probe sections (user, worktree, extensions, config, active)", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("Identity:");
     expect(summary).toContain("User:");
+    expect(summary).toContain("Worktree:");
     expect(summary).toContain("Extensions:");
     expect(summary).toContain("Config:");
     expect(summary).toContain("Active:");
@@ -254,9 +256,42 @@ describe("buildSessionInitStatusSummary — scoped mode", () => {
   it("delegates each slot to its session-init formatter", () => {
     const summary = buildSessionInitStatusSummary(makeSessionInitResult());
     expect(summary).toContain("session-init remote state clean");
+    expect(summary).toContain("clean (in sync with origin)");
     expect(summary).toContain("1 active extensions");
     expect(summary).toContain("Init-gating settings");
     expect(summary).toContain("Resolved: .arc/active/technical/status-foo.md");
+  });
+
+  it("renders the Worktree section between User and Extensions", () => {
+    const summary = buildSessionInitStatusSummary(makeSessionInitResult());
+    const lines = summary.split("\n");
+    const idxOfLine = (label: string): number => lines.findIndex((l) => l === label);
+    const userIdx = idxOfLine("User:");
+    const worktreeIdx = idxOfLine("Worktree:");
+    const extIdx = idxOfLine("Extensions:");
+    expect(worktreeIdx).toBeGreaterThan(userIdx);
+    expect(extIdx).toBeGreaterThan(worktreeIdx);
+  });
+
+  it("renders worktree drift states with counts", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: { ok: true, value: { state: "remote-ahead", ahead: 0, behind: 3 } },
+      }),
+    );
+    expect(summary).toContain("remote ahead by 3");
+  });
+
+  it("renders worktree remote-unavailable with the failureReason qualifier", () => {
+    const summary = buildSessionInitStatusSummary(
+      makeSessionInitResult({
+        worktree: {
+          ok: true,
+          value: { state: "remote-unavailable", ahead: 0, behind: 0, failureReason: "timeout" },
+        },
+      }),
+    );
+    expect(summary).toContain("remote unavailable (timeout)");
   });
 
   it("renders an (unavailable) marker for an errored session-init slot", () => {

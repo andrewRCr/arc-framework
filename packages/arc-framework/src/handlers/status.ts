@@ -44,6 +44,7 @@ import {
   runUserStatus,
 } from "../commands/user.js";
 import { gitConfigGet } from "../lib/git/index.js";
+import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -86,6 +87,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
     const probes: SessionInitProbes = {
       user: (id) => runUserSessionInitStatus({ cwd, io, identity: id, remoteSyncEnabled }),
+      worktree: () => runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: () => runConfigSessionInitStatus({ cwd }),
       active: () => runActiveSessionInitStatus({ cwd }),

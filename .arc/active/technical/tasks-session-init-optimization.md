@@ -3562,32 +3562,37 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         smoke-tested rejection of `always` on worktree, unknown values on notes/worktree, and
         invalid `session.remote_sync` against a temp fixture.
 
-    - [ ] **5.0.c Composite probe envelope — worktree field + notes qualifier**
+    - [x] **5.0.c Composite probe envelope — worktree field + notes qualifier**
 
-        **Goal:** `arc status --session-init --json` adds a `worktree` field alongside `user`; the `user` field
-        carries a qualifier when the worktree is `remote-ahead` so downstream consumers can reason about the
-        incomplete reachability of the notes check.
+        **Outcome:** `arc status --session-init --json` carries a peer `worktree` slot alongside `user`,
+        wrapped in `Probe<WorktreeSyncStatusResult>` like the other slots; `user.value` carries an optional
+        `qualifier: "clean-at-current-head"` when the worktree probe says `remote-ahead` and the user probe
+        says `clean`. All probes run in parallel via the existing `Promise.all` orchestration.
 
-        **Design decisions (resolved pre-implementation):**
-        - `worktree` is a peer field, not nested under `user` — they're independent channels with independent
-          failure modes
-        - Notes qualifier is a new optional `qualifier` field on `user.value`, not a change to the existing
-          `state` enum — preserves backward compatibility with existing consumers
-        - Probes run in parallel (`Promise.all`) — the worktree probe does not wait on the user probe or vice versa
-        - Envelope shape remains additive — no existing fields renamed or removed
+        **Implementation decisions:**
+        - Cross-channel qualifier is computed in the composite (`runSessionInitStatus` post-processes the
+          resolved slots) rather than in the user probe, because the user probe must remain independently
+          reusable for `runStatus` and `arc user status`. The user probe doesn't need to know about
+          worktree state; the composite owns the cross-slot reasoning.
+        - `qualifier` is an optional field on `UserSessionInitStatusResult` — omitted (not `null`) when not
+          applicable. New `UserSessionInitQualifier` type narrows the value space; future qualifiers can
+          extend the union without changing the carrier shape.
+        - `WorktreeSyncStatusResult` is the same shape produced by 5.0.a's `runWorktreeSyncStatus` — no
+          slot-specific reshape; the probe value flows through unchanged.
+        - Worktree slot positioned between User and Extensions in both the type ordering and the Clack
+          formatter — the two channels are surfaced as a notes-vs-worktree pair, then the per-install
+          probes follow.
+        - Handler reuses the same `remoteSyncEnabled` flag for both probes — no second config read.
 
-        Build `test-first` (one behavior at a time):
-        - Envelope includes `worktree` field with state and counts on every session-init invocation (regardless
-          of state)
-        - When worktree is `remote-ahead` and user notes are `clean`, the user field carries
-          `qualifier: "clean-at-current-head"`
-        - When worktree is `clean` and user notes are `clean`, the user field has no qualifier (omitted, not
-          `null`)
-        - When worktree is `diverged`, user probe still runs and reports its own independent state
-        - When worktree is `remote-unavailable`, user probe still runs (independent failure modes)
-        - `session.remote_sync: disabled` propagates to both worktree and user fields consistently
-        - Existing consumers of `arc status --session-init --json` continue to parse the envelope without breaking
-          changes
+        **Test batching:** All 7 behaviors batched in a single round (orchestration concerns, single
+        function, shared probe-fixture factory; no independent discovery value across slices). Per
+        process-task-loop "batching judgment".
+
+        **Quality gates:** Tier 1 clean — `lint:ts`, `typecheck` (src + test), `test:unit` 859/859, full
+        `npm test` 46/46 e2e+integration, `npm run build` succeeds. Live `npx arc status --session-init
+        --json` against the working tree confirms the envelope shape: `worktree` peer slot with
+        `state: local-ahead, ahead: 3, behind: 0`, user slot has no qualifier (correct — worktree is
+        `local-ahead`, not `remote-ahead`).
 
     - [ ] **5.0.d CLI status reporting surfaces — worktree qualifier**
 

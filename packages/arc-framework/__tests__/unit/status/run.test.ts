@@ -42,6 +42,7 @@ import type {
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../../../src/commands/user/types.js";
+import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 
 // --- Fixtures ---
 
@@ -138,6 +139,12 @@ function extensionsSessionInit(
   return { mode: "session-init", active: [], ...overrides };
 }
 
+function worktreeSync(
+  overrides: Partial<WorktreeSyncStatusResult> = {},
+): WorktreeSyncStatusResult {
+  return { state: "clean", ahead: 0, behind: 0, ...overrides };
+}
+
 function configSessionInit(
   overrides: Partial<ConfigSessionInitResult> = {},
 ): ConfigSessionInitResult {
@@ -191,6 +198,7 @@ function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
 function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionInitProbes {
   return {
     user: vi.fn(async () => userSessionInit()),
+    worktree: vi.fn(async () => worktreeSync()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
     active: vi.fn(async () => activeSessionInit()),
@@ -447,6 +455,144 @@ describe("runSessionInitStatus — orchestration", () => {
       expect(result.active.error.kind).toBe("runtime");
       expect(result.active.error.message).toBe("boom");
     }
+  });
+});
+
+describe("runSessionInitStatus — worktree slot + user qualifier", () => {
+  it("includes the worktree slot with state and counts on every invocation", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", ahead: 0, behind: 3 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("remote-ahead");
+      expect(result.worktree.value.ahead).toBe(0);
+      expect(result.worktree.value.behind).toBe(3);
+    }
+  });
+
+  it("attaches qualifier 'clean-at-current-head' when worktree=remote-ahead and user=clean", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "clean" })),
+      worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.qualifier).toBe("clean-at-current-head");
+    }
+  });
+
+  it("omits the qualifier (not null) when worktree=clean and user=clean", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "clean" })),
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect("qualifier" in result.user.value).toBe(false);
+    }
+  });
+
+  it("runs the user probe independently when worktree is diverged", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "remote-ahead" })),
+      worktree: vi.fn(async () => worktreeSync({ state: "diverged", ahead: 1, behind: 2 })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.user).toHaveBeenCalledTimes(1);
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.state).toBe("remote-ahead");
+      // qualifier reserved for the clean-at-current-head pattern only
+      expect(result.user.value.qualifier).toBeUndefined();
+    }
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) expect(result.worktree.value.state).toBe("diverged");
+  });
+
+  it("runs the user probe independently when worktree is remote-unavailable", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "clean" })),
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "remote-unavailable", failureReason: "timeout" }),
+      ),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.user).toHaveBeenCalledTimes(1);
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.state).toBe("clean");
+      // No qualifier — worktree never resolved a remote-ahead verdict
+      expect(result.user.value.qualifier).toBeUndefined();
+    }
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.state).toBe("remote-unavailable");
+      expect(result.worktree.value.failureReason).toBe("timeout");
+    }
+  });
+
+  it("propagates session.remote_sync: disabled to both worktree and user fields consistently", async () => {
+    const probes = sessionInitProbes({
+      user: vi.fn(async () => userSessionInit({ state: "disabled" })),
+      worktree: vi.fn(async () => worktreeSync({ state: "skipped" })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.state).toBe("disabled");
+      expect(result.user.value.qualifier).toBeUndefined();
+    }
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) expect(result.worktree.value.state).toBe("skipped");
+  });
+
+  it("keeps the envelope additive — every existing slot remains present", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    // All pre-existing fields plus the new worktree peer.
+    expect(Object.keys(result).sort()).toEqual([
+      "active",
+      "config",
+      "domainRules",
+      "extensions",
+      "identity",
+      "mode",
+      "user",
+      "worktree",
+    ]);
   });
 });
 

@@ -239,6 +239,16 @@ export type UserSessionInitState =
   | "conflict"
   | "remote-unavailable";
 
+/**
+ * Optional qualifier on `UserSessionInitStatusResult.qualifier`.
+ *
+ * - `clean-at-current-head` — notes match local HEAD, but local HEAD itself is
+ *   behind origin (worktree probe says `remote-ahead`). The "clean" verdict
+ *   is true only with respect to the reachable ancestor, not the full remote
+ *   ref. Set by the session-init composite when both signals coincide.
+ */
+export type UserSessionInitQualifier = "clean-at-current-head";
+
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
@@ -246,6 +256,12 @@ export interface UserSessionInitStatusResult {
   detailLines: string[];
   actionHint: string | null;
   shouldPromptToPull: boolean;
+  /**
+   * Optional qualifier carrying cross-channel context (e.g., the worktree
+   * sync state limits what the notes-clean verdict really means). Omitted
+   * when not applicable; do not write `null`.
+   */
+  qualifier?: UserSessionInitQualifier;
 }
 
 export interface UserSessionInitStatusOptions {

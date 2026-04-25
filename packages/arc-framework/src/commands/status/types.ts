@@ -29,6 +29,7 @@ import type {
   UserSessionInitStatusResult,
   UserStatusResult,
 } from "../user/types.js";
+import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
 export interface StatusIdentity {
@@ -71,6 +72,7 @@ export interface SessionInitProbeResult {
   mode: "session-init";
   identity: StatusIdentity;
   user: Probe<UserSessionInitStatusResult>;
+  worktree: Probe<WorktreeSyncStatusResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
   active: Probe<ActiveSessionInitResult>;
@@ -93,6 +95,7 @@ export interface StatusProbes {
 /** Probe functions in session-init mode — bound to cwd and any required I/O. */
 export interface SessionInitProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
+  worktree: () => Promise<WorktreeSyncStatusResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   active: () => Promise<ActiveSessionInitResult>;

@@ -182,6 +182,7 @@ function makeProbes(fixture: Fixture): StatusProbes {
 function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
   return {
     user: async (identity) => stubUserSessionInit(identity),
+    worktree: async () => ({ state: "skipped", ahead: 0, behind: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
     config: () => runConfigSessionInitStatus({ cwd: fixture.root }),
     active: () => runActiveSessionInitStatus({ cwd: fixture.root }),

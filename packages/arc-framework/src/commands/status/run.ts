@@ -105,23 +105,35 @@ export async function runSessionInitStatus(
   const userTask: Promise<SessionInitProbeResult["user"]> = identity === null
     ? Promise.resolve(identityMissing())
     : probes.user(identity).then(ok, fromRejection);
+  const worktreeTask = probes.worktree().then(ok, fromRejection);
   const extensionsTask = probes.extensions().then(ok, fromRejection);
   const configTask = probes.config().then(ok, fromRejection);
   const activeTask = probes.active().then(ok, fromRejection);
   const domainRulesTask = probes.domainRules().then(ok, fromRejection);
 
-  const [user, extensions, config, active, domainRules] = await Promise.all([
+  const [user, worktree, extensions, config, active, domainRules] = await Promise.all([
     userTask,
+    worktreeTask,
     extensionsTask,
     configTask,
     activeTask,
     domainRulesTask,
   ]);
 
+  // Cross-channel qualifier: when the notes-clean verdict is true only
+  // because local HEAD is behind origin, attach the qualifier to user
+  // so downstream consumers can reason about reachability.
+  const qualifiedUser =
+    user.ok && user.value.state === "clean" &&
+      worktree.ok && worktree.value.state === "remote-ahead"
+      ? { ...user, value: { ...user.value, qualifier: "clean-at-current-head" as const } }
+      : user;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
-    user,
+    user: qualifiedUser,
+    worktree,
     extensions,
     config,
     active,
