@@ -172,7 +172,15 @@ session-state, follow the override instead.
     **Skip if** the active status file is not resolved or shows `**Task List:** [none]`.
 
     - Path from the active status file (e.g., `.arc/active/feature/tasks-[name].md`)
-    - **Always read**: overview + current phase summary (first ~100 lines) and the current task section
+    - **Always read** — three sections, nothing else:
+        1. **Header** — bullet list above the first `### **Phase` heading
+        2. **Current phase preamble** — derive the phase identifier from the current task identifier by
+           stripping the leaf segment (`5.3` → Phase `5`, `3.R.e` → Phase `3.R`); locate the heading with
+           `^### \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
+           the line immediately before the first `- [ ]` / `- [x]` bullet under the phase. Multi-paragraph
+           framing (Purpose, Design decisions, Rationale per the codified shape) is included; task entries
+           themselves are not
+        3. **Current task section** — resolved via graduated lookup below
     - **Graduated lookup** using the triple-anchor reference from `**Next Task:**`:
         1. Jump to the line hint (`line ~N`) — if the task number matches there, done
         2. Search for the task number (e.g., `**4.2`) if the line hint is stale

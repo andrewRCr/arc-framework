@@ -3898,25 +3898,26 @@ Task 5.6 is TS-only (no markdown sync concern).
         - Orphan `[work-org]` link reference removed after Multi-branch paragraph deletion. Tier 1
           markdown lint clean on both files. No two-copy sync — both files are project instances
 
-- [ ] **5.3 Task list partial-read narrowing**
+- [x] **5.3 Task list partial-read narrowing**
 
-    **Goal:** Session-init Step 4 item 10 reads Header + current phase preamble + current task section only.
-    Overview and Scope are no longer task-list content (Task 5.2 collapses them into PRD-canonical Scope plus a
-    one-line `**Purpose:**` field in the Header). Skip completed phases' preambles.
+    **Outcome:** `session-init.md` Step 4 item 10 reshaped to a three-section boundary contract
+    (Header + current phase preamble + current task) replacing the prior "first ~100 lines" heuristic.
+    Phase preamble located via task-identifier-derived lookup — strip the leaf segment (`5.3` → `5`,
+    `3.R.e` → `3.R`), grep `^### \*\*Phase {id}:\*\*`. **Preamble boundary contract** documented
+    inline at bullet 2: from the phase heading line through the line immediately before the first
+    `- [ ]` / `- [x]` bullet; multi-paragraph framing (Purpose, Design decisions, Rationale) included,
+    task entries excluded. Two-copy synced (`.arc/` + `.template.md`); Tier 1 markdown lint clean.
 
-    **Preamble boundary contract:** "Current phase preamble" = lines from the `### **Phase N:**` heading through
-    the line immediately before the first `- [ ]` or `- [x]` bullet under that phase. Multi-paragraph framing
-    (Purpose, Design decisions, Rationale blocks per the codified shape from 5.2) is included; task entries
-    themselves are not.
-
-    - Update `session-init.md` Step 4 item 10 — replace the "first ~100 lines" heuristic with the
-      boundary-contract specification above
-    - Document the preamble boundary contract inline in item 10 so future task-list authors know the
-      session-init read shape they're authoring against
-    - Verify graduated triple-anchor lookup (line hint → task number → title fragment) continues to resolve
-      correctly under the narrower read. Line hints are global to the file, so lookup is mechanically robust
-      regardless of read scope; document this independence inline as a guardrail against future narrowing
-      changes
+    **Design decisions:**
+    - Phase identifier derived from task identifier rather than surfaced via the composite probe or
+      stored as a dual pointer in the status file. Probe-computed line numbers couple the CLI to
+      markdown structure (parser obligation grows with task-list shape evolution); dual pointers add
+      an authoring obligation triple-anchor was designed to avoid. Net cost is two ops at
+      session-init — micro-optimization not worth the structural coupling
+    - Line-hint-independence inline guardrail (per original task spec) dropped — read as author-facing
+      meta-commentary, not runtime-actionable. Graduated lookup step 1 ("Jump to the line hint") is
+      self-sufficient; line numbers are absolute by convention. Documented here as a design invariant
+      rather than workflow-body content
 
 - [ ] **5.4 Status file partial-read narrowing**
 
