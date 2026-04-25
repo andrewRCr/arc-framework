@@ -20,8 +20,8 @@ import type { GitExec, DirEntry } from "../lib/git/index.js";
 export const execFileAsync = promisify(execFile);
 
 /** Real git executor wrapping child_process.execFile. */
-export const gitExec: GitExec = async (cmd, args) => {
-  const { stdout, stderr } = await execFileAsync(cmd, args);
+export const gitExec: GitExec = async (cmd, args, options) => {
+  const { stdout, stderr } = await execFileAsync(cmd, args, options ?? {});
   return { stdout: stdout.trimEnd(), stderr };
 };
 

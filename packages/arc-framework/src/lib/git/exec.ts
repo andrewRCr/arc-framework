@@ -11,10 +11,20 @@ export interface ExecResult {
   stderr?: string;
 }
 
+/** Optional execution controls forwarded to the underlying child_process. */
+export interface GitExecOptions {
+  /**
+   * Abort signal for bounded-time invocations. When the signal fires, the
+   * subprocess is killed and the promise rejects with an `AbortError`.
+   */
+  signal?: AbortSignal;
+}
+
 /** Executable function signature matching child_process.execFile patterns. */
 export type GitExec = (
   cmd: string,
   args: string[],
+  options?: GitExecOptions,
 ) => Promise<ExecResult>;
 
 /**

@@ -13,8 +13,16 @@ export {
   gitMergeFile,
   type ExecResult,
   type GitExec,
+  type GitExecOptions,
   type MergeResult,
 } from "./exec.js";
+
+export {
+  runWorktreeSyncStatus,
+  type WorktreeSyncState,
+  type WorktreeSyncStatusResult,
+  type RunWorktreeSyncStatusOptions,
+} from "./worktree-sync.js";
 
 export {
   slugifyIdentity,

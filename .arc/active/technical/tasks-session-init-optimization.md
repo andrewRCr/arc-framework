@@ -3497,36 +3497,32 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
       probe indicates drift. A "clean" notes verdict stays accurate but is no longer misreadable as "fully
       up-to-date" when the check is bounded by a stale worktree
 
-    - [ ] **5.0.a Worktree sync state inspection (probe)**
+    - [x] **5.0.a Worktree sync state inspection (probe)**
 
-        **Goal:** A non-destructive probe function returns the worktree sync state relative to `origin/<current-branch>`,
-        with bounded fetch cost and clear degraded-state reporting.
+        **Outcome:** `runWorktreeSyncStatus` shipped at `packages/arc-framework/src/lib/git/worktree-sync.ts`
+        with companion 10-test unit suite at `__tests__/unit/git/worktree-sync.test.ts`. All 10 documented
+        behaviors GREEN; 840/840 unit total. Result shape: `{state, ahead, behind, failureReason?}`. State
+        enum: `skipped | clean | remote-ahead | local-ahead | diverged | no-upstream | detached-head |
+        no-remote | remote-unavailable`.
 
-        **Design decisions (resolved pre-implementation):**
-        - Probe is pure read — no mutating operations beyond the fetch into the standard tracking ref
-        - State enum parallels git's native vocabulary: `clean | remote-ahead | local-ahead | diverged`, plus
-          degraded states `no-upstream | detached-head | no-remote | remote-unavailable`
-        - `ahead` / `behind` commit counts returned alongside state for caller reporting
-        - Timeout implemented via `AbortController` on the subprocess; no blocking shell timeout
-        - Probe respects `session.remote_sync: disabled` by returning a `skipped` state variant without any git
-          invocation
-        - Lives at `lib/git/worktree-sync.ts` — pure git plumbing, neutral location consumed by both the
-          composite envelope (5.0.c) and the user-status qualifier path (5.0.d). Not under `commands/user/`
-          because worktree state is branch-scoped, not identity-scoped — co-locating with the notes probe
-          would invite a wrong refactor when plan-user-sync-ux unifies the notes spine (worktree stays a
-          parallel channel, not part of the spine). No persistent state file.
+        **Implementation decisions:**
+        - `failureReason: "timeout" | "error"` (optional, omitted outside `remote-unavailable`) added to
+          satisfy "distinguishing detail" for the fetch-error behavior — 5.0.c/5.0.d consumers can surface
+          this without cluttering the basic state contract.
+        - `GitExec` extended with optional `signal: AbortSignal` via new `GitExecOptions`; `gitExec`
+          runtime forwards to `execFileAsync`. Backward-compatible (TS function-type variance).
+          `GitExecOptions` re-exported from `lib/git/index.ts` alongside the worktree-sync types.
+        - Probe sequence: detached-head check → upstream lookup → origin existence (only when upstream
+          missing) → bounded fetch (`DEFAULT_FETCH_TIMEOUT_MS = 3000`) → ahead/behind count → classify.
+        - `boundedFetch` helper isolates AbortController + timer; uses `signal.aborted` to distinguish
+          timeout from other errors post-catch.
 
-        Build `test-first` (one behavior at a time):
-        - `session.remote_sync: disabled` short-circuits cleanly without invoking git
-        - Clean state (local HEAD == `origin/<branch>`) returns `clean` with counts `{ahead: 0, behind: 0}`
-        - Remote-ahead state returns `remote-ahead` with correct `behind` count
-        - Local-ahead state returns `local-ahead` with correct `ahead` count
-        - Diverged state (neither is ancestor) returns `diverged` with both `ahead` and `behind` populated
-        - No upstream (`git rev-parse --abbrev-ref @{upstream}` fails) returns `no-upstream` without attempting fetch
-        - Detached HEAD (no current branch) returns `detached-head` without attempting fetch
-        - Repository has no `origin` remote: returns `no-remote` without attempting fetch
-        - Fetch exceeds 3s timeout: returns `remote-unavailable` cleanly, session-init continues
-        - Fetch fails with auth/network error: returns `remote-unavailable` with distinguishing detail
+        **Test batching:** RED→GREEN in three rounds — (1) disabled short-circuit alone; (2) happy-path
+        state mapping from counts (clean, remote-ahead, local-ahead, diverged share one classifier); (3)
+        pre-fetch degraded states (no-upstream, detached-head, no-remote share short-circuit pattern);
+        (4) fetch failure modes (timeout + error share the GitExec-extension concern). Per process-task-loop
+        "batching judgment": tightly-coupled behaviors with no independent discovery value batched into
+        their natural unit, RED-GREEN cycle preserved per round.
 
     - [ ] **5.0.b Config schema + types for init_pull channels**
 
