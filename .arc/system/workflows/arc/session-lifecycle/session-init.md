@@ -101,8 +101,8 @@ has no path; skip notes regardless of state. Worktree channel still applies.
 
 ### 4. Load Context Documents
 
-**Reading rule**: Read every document in the list below in full EXCEPT the active task list (item 10 —
-strategic partial read).
+**Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 7 —
+section-level partial read) and the active task list (item 10 — strategic partial read).
 
 **Parallelism**: Framework docs (items 1–7), SESSION-NOTES (item 9), and — when `active.resolution === "single"` —
 the active status file can load in parallel. Task list (item 10) and task execution workflow (item 11) wait
@@ -126,7 +126,8 @@ session-state, follow the override instead.
       `DEV-RULES.{DOMAIN}.md` files with the domain-rules frontmatter. Load on-demand when a task
       touches the relevant domain, not at init time.
 6. `.arc/reference/strategies/STRATEGY-INDEX.md`
-7. `.arc/reference/QUICK-REFERENCE.md`
+7. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
+    only (subsumes `### Runtime Environment`)
 
 **Active work context:**
 

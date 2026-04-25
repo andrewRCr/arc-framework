@@ -55,7 +55,7 @@ deactivation in the closure comment — this leaves a search trail for anyone la
 the branch disappeared.
 
 ```bash
-# GitHub example — adjust for your platform (see QUICK-REFERENCE for alternatives)
+# GitHub example — adjust for your platform (see QUICK-REFERENCE § Platform Commands for alternatives)
 gh pr close {pr-number} --comment "Deactivating work unit; no task work executed."
 ```
 

@@ -7,6 +7,9 @@ Command patterns and environment context for {{PROJECT_NAME}}.
 **Repository Root**: `{{REPO_ROOT}}`
 **All commands in this document assume you are at repository root.**
 
+**On-demand sections**: `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands` —
+load on demand when workflow steps reference them.
+
 ### Critical Path Reference
 
 <!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
@@ -123,6 +126,22 @@ Reference commands for DEV-RULES.PROJECT quality gates. See
 
 # Run specific test
 [test_command_single]
+```
+
+### Integration — Tier 2 (coherent unit)
+
+<!-- Project-scoped checks. Run after completing a parent task or coherent unit. -->
+
+```bash
+# Full markdown lint
+[md_lint_command_all]
+
+# Full code lint + type check
+[lint_command_all]
+[type_check_command_all]
+
+# Full test suite (or relevant subset)
+[test_command_all]
 ```
 
 ### Full Suite — Tier 3 (per-phase / pre-PR)

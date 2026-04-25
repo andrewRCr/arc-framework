@@ -3819,7 +3819,7 @@ the sync shape is non-obvious.
         `npm run build` succeeds. CLI smoke test (`npx arc user status --help`) confirms the new
         description renders cleanly.
 
-- [ ] **5.1 QUICK-REFERENCE partial-read at session-init + template structural alignment**
+- [x] **5.1 QUICK-REFERENCE partial-read at session-init + template structural alignment**
 
     **Goal:** Session-init reads only `## Environment & Path Context` (subsumes the `### Runtime Environment`
     H3 nested inside it). Other sections — `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`,
@@ -3835,33 +3835,59 @@ the sync shape is non-obvious.
     worth tightening if the section isn't always loaded). Captured in `notes-session-init-optimization.md`
     § Phase 5 Partial-Read Design Decisions.
 
-    - [ ] **5.1.a Session-init.md narrowing**
-        - Update Step 4 item 7 — replace bare `.arc/reference/QUICK-REFERENCE.md` listing with section-level
-          partial-read specification: read `## Environment & Path Context` only (subsumes
-          `### Runtime Environment`)
-        - Two-copy sync (`session-init.md` + `session-init.template.md`)
+    - [x] **5.1.a Session-init.md narrowing**
+        - Step 4 item 7 reshaped to **section-level partial read**: `## Environment & Path Context`
+          only (subsumes `### Runtime Environment`)
+        - Reading-rule preamble updated to enumerate both partial reads (item 7 + item 10) so the
+          full-read default still reads cleanly
+        - Two-copy sync verified byte-identical across `session-init.md` and `session-init.template.md`
+          (Step 4 region diff clean)
+        - Tier 1: `lint:md` clean on both modified files
 
-    - [ ] **5.1.b QUICK-REFERENCE template structural alignment**
-        - Add a one-line awareness note inside `## Environment & Path Context`: "Other sections —
-          `Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`, `npm Publishing` — load on
-          demand when workflow steps reference them."
-        - Add a Tier 2 example slot to `## Quality Gate Commands` (template currently has T1 + T3 only;
-          asymmetric for adopters — completes the tier shape)
-        - Verify the template stays bare-bones and tech-stack-agnostic — no backwards-sync from `.arc/`
-          populated content. Currently confirmed clean (no Prettier deep-dive, no MD60 tooling, no
-          `npm Publishing`, no project-specifics)
-        - Two-copy sync: propagate awareness note + Tier 2 slot into `.arc/reference/QUICK-REFERENCE.md`,
-          preserving its populated commands. Post-alignment: structural shape matches across both copies;
-          content depth diverges by design (template provides skeleton, `.arc/` populates)
+    - [x] **5.1.b QUICK-REFERENCE template structural alignment**
+        - Awareness note added inside `## Environment & Path Context` in both copies, placed between the
+          repository-root frontmatter and `### Critical Path Reference`. Template variant lists the three
+          framework-universal sections (`Command Patterns`, `Quality Gate Commands`, `ARC CLI Commands`);
+          `.arc/` variant additionally names `npm Publishing` (project-specific). Divergence intentional —
+          template stays tech-stack-agnostic
+        - Tier 2 slot inserted into `Quality Gate Commands` between T1 and T3 in the template — placeholder
+          commands (`[md_lint_command_all]`, `[lint_command_all]`, `[type_check_command_all]`,
+          `[test_command_all]`) matching the existing T1/T3 placeholder convention. `.arc/` already had T2
+          populated — no edit needed there
+        - Template re-verified bare-bones: no Prettier section, no MD060 tooling, no `npm Publishing`, no
+          project-specifics. Section-heading shape now matches across both copies (T1 + T2 + T3 symmetric)
+        - Tier 1: `lint:md` clean on both modified files
 
-    - [ ] **5.1.c Verify callers**
-        - Grep workflow tree for `QUICK-REFERENCE` mentions across `.arc/system/workflows/`,
-          `.arc/reference/strategies/`, `.arc/reference/constitution/`, plus package counterparts
-        - For each hit, confirm the prose names the section the agent should consult
-          (e.g., `§ Platform Commands`, `§ Quality Gate Commands`)
-        - Promote any bare "see QUICK-REFERENCE" pointers to section-named pointers
-        - Acceptance: every workflow-tree QUICK-REFERENCE mention either inlines the relevant content
-          directly or names the section to load on demand
+    - [x] **5.1.c Verify callers**
+        - Workflow-tree grep hit ~30 `QUICK-REFERENCE` mentions across `.arc/system/workflows/`,
+          `.arc/reference/strategies/`, `.arc/reference/constitution/`, plus package counterparts.
+          Triaged into: load-on-demand pointers (the in-scope target for promotion),
+          file-level/meta-descriptive references (file purpose, classification, capture-routing
+          targets), and initial-setup workflows (which create QUICK-REFERENCE rather than load it)
+        - **Bare pointers promoted to `§ Platform Commands`** (joining the
+          `rotate-branch.md:42` pattern):
+            - `system/workflows/arc/work-unit-lifecycle/deactivate-work-unit.md` (line 58 code-block
+              comment)
+            - `system/workflows/arc/work-unit-lifecycle/planning/integrate-planning-branch.md`
+              (line 75 platform note)
+            - `reference/strategies/arc/strategy-configurability-architecture.md` (line 147 agent
+              discovery; line 371 platform-notes meta-prose preceding the canonical example;
+              line 392 platform config setting)
+        - **Out of scope (descriptive/capture-routing references — left untouched):**
+          `session-handoff.md:266` and `integrate-external-content.md:106` (where to *write*
+          durable lessons, not where to read them); `02_define-project.md` and
+          `01_verify-and-configure.md` initial-setup mentions; `strategy-quality-gates.md`,
+          `strategy-session-operations.md`, `strategy-package-project-sync.md`,
+          `strategy-file-classification.md`, `strategy-testing-methodology.md`, and
+          remaining `strategy-configurability-architecture.md` mentions describing
+          QUICK-REFERENCE's role rather than directing a load
+        - **Platform Commands conditional-rendering gap** (workflows naming `§ Platform Commands`
+          while the section is gated `platform.type != github`) remains captured in
+          `user/andrew/ATOMIC-INBOX.md` — orthogonal to caller verification; needs framework-level
+          decision on conditional-section pattern
+        - All edits two-copy synced (`.arc/` ↔ package source); per-file diffs clean
+        - Acceptance met: every workflow-tree QUICK-REFERENCE load-pointer either inlines the
+          content directly or names the section
 
 - [ ] **5.2 Task list partial-read narrowing**
 

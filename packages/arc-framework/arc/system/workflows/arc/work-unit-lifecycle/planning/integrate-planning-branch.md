@@ -72,8 +72,8 @@ git push -u origin {planning-branch}
 gh pr create --base {base-branch} --head {planning-branch}
 ```
 
-> **Platform:** Commands use GitHub CLI (`gh`). For other platforms, see QUICK-REFERENCE for
-> equivalent tools and commands.
+> **Platform:** Commands use GitHub CLI (`gh`). For other platforms, see QUICK-REFERENCE
+> § Platform Commands for equivalent tools and commands.
 
 **PR description** — planning branches don't have completion docs, so the PR description stands alone:
 

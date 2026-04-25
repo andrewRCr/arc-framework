@@ -144,8 +144,8 @@ a configurability path (how teams adapt it).
 The agent learns about the active configuration during session initialization. After loading standard documents,
 the agent reads `arc-config.yml` and enumerates active extensions:
 
-1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE for platform-appropriate
-   commands
+1. **Platform**: If `platform.type` differs from `github`, reference QUICK-REFERENCE § Platform Commands for
+   platform-appropriate commands
 2. **Active extensions**: Run `grep -l "^active: true" system/extensions/*.md` and map hits to extension
    basenames — this is the active-extensions list consulted by fire-point directives in downstream workflows.
    Methods are not enumerated at session init; method defaults and overrides always load on-demand when
@@ -368,7 +368,7 @@ classification, read every session, and designed for teams to edit. Teams on Git
 ### Platform notes in workflows
 
 Workflows retain concrete commands for the default case (GitHub), with brief platform notes pointing to
-QUICK-REFERENCE for alternatives:
+QUICK-REFERENCE § Platform Commands for alternatives:
 
 ```markdown
 ### Push and Create PR
@@ -389,7 +389,7 @@ platform.type: github
 ```
 
 This is informational, not mechanical. The agent reads it during session initialization and knows to reference
-QUICK-REFERENCE for platform-appropriate commands. Hooks do not consume it.
+QUICK-REFERENCE § Platform Commands when invoking platform tooling. Hooks do not consume it.
 
 ### Portable behavioral guidance
 
