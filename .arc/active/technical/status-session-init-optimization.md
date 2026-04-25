@@ -5,34 +5,29 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.0.f — Integration and E2E test coverage (line ~3693)
-- **Last Completed:** Tasks 5.0.e + 5.0.g shipped as one cohesive
-  commit — dual-channel pull surface delivered end-to-end to its
-  consumers. 5.0.e: `session-init.md` (both copies) consumes the
-  worktree envelope slot; Step 2 envelope table documents the new
-  `worktree` field, Step 3 renamed to "Conditional Sync Pulls" with
-  channel-keyed bullets + dirty-tree precheck + combined-prompt
-  logic (worktree pulls first, notes envelope re-evaluated after),
-  Step 7 conditional `Reconcile required:` / `Local-ahead:` template
-  inserts above `Active work state:`, Step 8 Tier 1 diverged-worktree
-  example. Streamlining pass cut initial +50 net lines to +39 with
-  no operational loss. 5.0.g: ADR-012 amendment (2026-04-25)
-  distinguishes worktree from notes channel and rationalizes the
-  `always`-mode rejection on worktree; `arc-config.yml` (both copies)
-  carries one-line cross-references to session-init.md on each
-  channel block; `arc user status` CLI help describes the worktree-
-  drift qualifier and `--offline` parity; release-notes-style
-  writeup routed to `plan-docs-content-sweep.md` § Content
-  Contributions #7 (no in-repo release notes). Tier 2 gates clean
-  (markdown lint 223 files; lint:ts; typecheck src+test; unit
-  876/876; full `npm test` 46/46; `npm run build`; CLI help smoke
-  test).
+- **Next Task:** 5.0.f — Integration test coverage (line ~3693)
+- **Last Completed:** Pre-implementation audit of 5.0.f surfaced
+  significant overlap between the original 22-scenario list and
+  existing unit coverage (worktree-sync classifier, composite
+  envelope wiring, user-status qualifier emission, handleSync
+  qualifier branches all already exhaustively unit-tested), plus
+  scope ambiguity ("Integration AND E2E" with no qualified e2e
+  scenario) and a wording bug ("both channels skipped" in the
+  remote_sync-disabled case ignores the per-channel vocabulary
+  asymmetry — `worktree: skipped`, `user: disabled`). Task block
+  reshaped: title trimmed to "Integration test coverage", scenario
+  list cut from 22 → 6 (4 composite-envelope + 2 `runUserStatus`
+  real-exec), explicit `**Pre-existing unit coverage**` block added
+  cross-referencing the four unit files that already cover the
+  state matrix, `arc sync` integration explicitly scoped out (Clack
+  `p.log.info` only assertable via unit-tier mocks), `addBareRemote`
+  fixture gotcha documented (helper leaves local in sync with bare;
+  drift requires direct ref manipulation), explicit acceptance
+  block added. 5.0.e + 5.0.g remain shipped at `908f3ce` per prior
+  handoff.
 - **Blockers:** none
-- **Next Action:** Begin Task 5.0.f — integration and E2E test
-  coverage for the dual-channel pull surface. ~22 scenarios across
-  temp-dir git fixtures (envelope shape verification, mode handling,
-  dirty-tree cases, no-upstream/detached-head/no-remote/remote-
-  unavailable degraded states, sync-direction reporting). Discovery
-  risk if fixture construction surfaces gaps in 5.0.a–d behavior;
-  recommended as synchronous work rather than deferred review. Task
-  spec at line ~3693.
+- **Next Action:** Begin Task 5.0.f — implement the 6 reshaped
+  integration scenarios (4 in `__tests__/integration/status.test.ts`
+  replacing the worktree-probe stub at line 185; 2 in
+  `__tests__/integration/user.test.ts` extending the bare-remote
+  pattern). Tier 2 gates expected clean. Task spec at line ~3693.

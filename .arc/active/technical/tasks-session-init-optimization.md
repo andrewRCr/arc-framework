@@ -3690,42 +3690,66 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         `remote-unavailable` failure-mode disambiguation kept verbatim — no operational meaning
         sacrificed.
 
-    - [ ] **5.0.f Integration and E2E test coverage**
+    - [ ] **5.0.f Integration test coverage**
 
-        **Goal:** CLI integration and E2E coverage pressure-tests all documented scenarios against real
-        (temporary) git repos.
+        **Goal:** Verify the wiring from `handleStatus` / `runUserStatus` down to real `gitExec` and
+        back, replacing the worktree-probe stub at `__tests__/integration/status.test.ts:185` with real
+        fixture runs. The per-state matrix is unit-covered (see below) — integration verifies real-exec
+        composition, not probe classifier behavior.
 
         **Design decisions (resolved pre-implementation):**
-        - Integration tests use the temp-dir git fixture pattern already established in `__tests__/integration/`
-        - Scenarios map 1:1 to the state matrix documented in 5.0.a / 5.0.d
-        - Tests verify envelope JSON shape and values, not prose orientation output (prompts live in the agent
-          layer, not the CLI)
+        - Integration tests use the temp-dir git fixture pattern already established in
+          `__tests__/integration/`
+        - E2E tier excluded — built-CLI subprocess overhead adds no qualified scenario beyond what
+          src-direct integration covers; `arc status` has no existing e2e file and the orientation
+          output (prose, prompts) lives in the agent layer
+        - `addBareRemote` gotcha: helper `git push -u origin HEAD`s the local branch, leaving local in
+          sync with bare. To produce `remote-ahead`, advance the bare remote's branch ref directly
+          (`git update-ref refs/heads/<branch>` against the bare dir) or via a transient clone — don't
+          re-call the helper expecting drift
+        - Tests verify envelope JSON shape and `runUserStatus` result fields, not prose orientation
+          output
 
-        Scenarios covered (fixture repos):
-        - `session.remote_sync: disabled` → envelope shows both channels skipped
-        - Both channels clean → `worktree: clean`, `user: clean`, no qualifiers
-        - Worktree remote-ahead, notes clean-at-head → user field carries `clean-at-current-head` qualifier
-        - Worktree clean, notes remote-ahead → existing path unchanged; worktree field shows `clean`
-        - Both remote-ahead → both fields populated; qualifier on user; envelope is single source for the
-          combined prompt
-        - Worktree local-ahead, notes clean → informational only
-        - Worktree diverged, notes clean → `worktree: diverged` with counts; no prompt expected
-        - Worktree clean, notes diverged → existing path unchanged
-        - Worktree remote-ahead + dirty tree → worktree field populated; dirty flag reported separately
-        - No upstream for current branch → `worktree: no-upstream`; user field independent
-        - Detached HEAD → `worktree: detached-head`; user field independent (identity-scoped ref still resolvable)
-        - Repo has no origin → `worktree: no-remote`; user field handles independently
-        - Fetch timeout (simulated) → `worktree: remote-unavailable`; user probe still runs
-        - Config `session.init_pull.worktree: manual` and `notes: always` → probe-layer behavior unchanged
-          (mode is for workflow-layer consumption)
-        - Invalid `always` mode on worktree at parse → error with valid-set message (covered in 5.0.b; re-verified
-          here in integration context)
-        - `arc user status` online with remote-ahead worktree → qualifier line present in output
-        - `arc user status` online with diverged worktree → qualifier line present with ahead/behind counts
-        - `arc user status --offline` with remote-ahead worktree → offline-scope note substitutes; no fetch attempted
-        - `arc user status` with `session.remote_sync: disabled` → no qualifier, no worktree probe invocation
-        - `arc user status` with worktree probe timing out → soft `remote-unavailable` qualifier emitted
-        - `arc sync` direction-reporting path → qualifier emitted under the same conditions as `arc user status`
+        **Pre-existing unit coverage (do not duplicate at integration tier):**
+        - State classifier across the full enum: `__tests__/unit/git/worktree-sync.test.ts` (10 tests)
+        - Composite envelope wiring + qualifier propagation:
+          `__tests__/unit/status/run.test.ts` § "worktree slot + user qualifier" (6 tests)
+        - `runUserStatus` qualifier emission + `--offline` substitute + remote-unavailable softening:
+          `__tests__/unit/user-status.test.ts` § "buildUserStatusResult worktree qualifier" +
+          "runUserStatus worktree probe orchestration"
+        - `handleSync` qualifier emission across all states:
+          `__tests__/unit/sync.test.ts` § "handleSync worktree qualifier"
+        - Config rejection of `always` on worktree at parse: covered in 5.0.b config suites
+        - Fetch timeout / fetch error fault injection: `unit/git/worktree-sync.test.ts:181,207`
+          (cannot be reproduced reliably at integration tier without partial mocking — kept at unit)
+
+        **Composite-envelope scenarios (extends `__tests__/integration/status.test.ts`):**
+        - Worktree real-clean + notes real-clean → both channels report clean; envelope additive
+          (replaces the existing stubbed worktree probe)
+        - Bare remote advanced one commit beyond local → `worktree.value.state === "remote-ahead"`,
+          `user.value.qualifier === "clean-at-current-head"`
+        - Fixture has no origin → `worktree.value.state === "no-remote"`; user channel resolves
+          independently
+        - `session.remote_sync: disabled` in fixture config → `worktree.value.state === "skipped"`,
+          `user.value.state === "disabled"` (note: distinct vocabularies per channel — both probes
+          short-circuit, but their state strings differ by design)
+
+        **`runUserStatus` real-exec scenarios (extends `__tests__/integration/user.test.ts`):**
+        - Bare remote ahead → `result.detailLines` contains
+          "Worktree is behind origin by N commit(s)."
+        - `--offline` against same fixture → `result.detailLines` contains
+          "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only."
+
+        **`arc sync` integration:** Out of scope — qualifier emission goes through `p.log.info`,
+        which is only assertable with the Clack mocks already plumbed at the unit tier. Unit suite
+        (`__tests__/unit/sync.test.ts` § "handleSync worktree qualifier") covers all five branches
+        exhaustively.
+
+        **Acceptance:**
+        - New scenarios added to `__tests__/integration/status.test.ts` and
+          `__tests__/integration/user.test.ts` per the lists above
+        - No regressions in existing unit / integration / e2e suites
+        - Tier 2 gates clean: `lint:ts`, `typecheck` (src + test), full `npm test`, `npm run build`
 
     - [x] **5.0.g Documentation + ADR + config comment sync**
 
