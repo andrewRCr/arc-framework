@@ -125,8 +125,8 @@ guidance below.
 - **Pragmatic exception for intermingled code:** Changes tangled in the same file/function
   commit together; note the overlap in the body.
 - **Tracking docs ride with content commits.** Task list checkboxes and active status file
-  updates are derived state — they belong with the commit that produced the content change, not
-  a separate meta-commit.
+  updates are derived state — they belong with the commit that produced the content change,
+  not in a separate meta-commit and not hunk-split to keep 1:1 task-ID-to-checkbox granularity.
 
 ### 6. Execute and Verify
 

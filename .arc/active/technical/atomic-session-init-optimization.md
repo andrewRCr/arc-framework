@@ -60,3 +60,21 @@ Atomic Task Completion for the full protocol.
   sync to both script copies. Two new integration tests in `validate-links.test.ts`
   (happy-path fallback resolution + negative confirms fallback doesn't mask real
   breakage).
+
+- [x] **arc-commit skill: hoist commit-granularity tests into Step 1** — Discovered during
+  the 5.0.e/5.0.g commit flow: agent followed the skill's "simple path" (Step 4) and was about
+  to hunk-split the task list across two commits to keep 1:1 task-ID-to-checkbox granularity —
+  exactly the anti-pattern commit `0a42fc5` (2026-04-23) added to prepare-commits to prevent.
+  Root cause: the load-bearing granularity tests (scope/reversibility/tracking-docs-ride) live
+  only in prepare-commits.md, which the simple path doesn't load. Step 1's "Confirm whether
+  changes represent one logical task or multiple interleaved tasks" carried no test for
+  determining "logical". Fix: hoist the three tests into Step 1 of arc-commit/SKILL.md as a
+  compact triage block (~8 lines added, reaches both simple and complex paths). Five-copy sync
+  (canonical package source → `.arc/` → `.claude/`/`.codex/`/`.gemini/` harness copies).
+  Also tightened the "Tracking docs ride with content commits" bullet in prepare-commits.md
+  (both copies) to name the hunk-split anti-pattern alongside the existing meta-commit one
+  — symmetric failure modes deserve symmetric naming. Pattern: intentional restatement at
+  execution points (per `tasks-structural-validation.md` finding) — skill carries compact
+  triage; workflow carries expanded reference. prepare-commits remains self-contained for
+  callers reaching it via `process-task-loop`, the `commit-format`/`commit-context-format`
+  methods, and the `pre-stage-review` extension. Tier 1 lint clean.
