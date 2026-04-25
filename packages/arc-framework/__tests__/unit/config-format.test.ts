@@ -32,11 +32,15 @@ const FULL_SETTINGS: ConfigSettings = {
   "pm.mode": "arc-in-git",
   "team.mode": "false",
   "session.remote_sync": "enabled",
+  "session.init_pull.worktree": "prompt",
+  "session.init_pull.notes": "prompt",
   "user.sync_push": "always",
 };
 
 const SESSION_INIT_SETTINGS: ConfigSessionInitSettings = {
   "session.remote_sync": "enabled",
+  "session.init_pull.worktree": "prompt",
+  "session.init_pull.notes": "prompt",
   "branch.protection": "full",
   "pm.mode": "arc-in-git",
   "commit.format": "conventional",
@@ -66,9 +70,9 @@ function sessionInitResult(
 }
 
 describe("buildConfigStatusSummary — counts + keys", () => {
-  it("renders the agent-consumable headline with 13 settings", () => {
+  it("renders the agent-consumable headline with 15 settings", () => {
     const summary = buildConfigStatusSummary(fullResult());
-    expect(summary.split("\n")[0]).toBe("13 agent-consumable settings (hooks.* excluded):");
+    expect(summary.split("\n")[0]).toBe("15 agent-consumable settings (hooks.* excluded):");
   });
 
   it("lists every setting key with its value", () => {
@@ -113,9 +117,11 @@ describe("buildConfigSessionInitSummary — narrow subset", () => {
     expect(summary.split("\n")[0]).toBe("Init-gating settings:");
   });
 
-  it("lists only the 5 init-gating keys", () => {
+  it("lists only the 7 init-gating keys", () => {
     const summary = buildConfigSessionInitSummary(sessionInitResult());
     expect(summary).toContain("session.remote_sync: enabled");
+    expect(summary).toContain("session.init_pull.worktree: prompt");
+    expect(summary).toContain("session.init_pull.notes: prompt");
     expect(summary).toContain("branch.protection: full");
     expect(summary).toContain("pm.mode: arc-in-git");
     expect(summary).toContain("commit.format: conventional");

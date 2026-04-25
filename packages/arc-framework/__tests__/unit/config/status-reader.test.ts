@@ -29,14 +29,19 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 13 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(13);
+  it("enumerates the 15 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(15);
   });
 
   it("excludes all hooks.* keys", () => {
     for (const key of AGENT_CONSUMABLE_KEYS) {
       expect(key.startsWith("hooks.")).toBe(false);
     }
+  });
+
+  it("includes the session.init_pull.* channel keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.worktree");
+    expect(AGENT_CONSUMABLE_KEYS).toContain("session.init_pull.notes");
   });
 });
 
@@ -102,6 +107,8 @@ describe("readConfigSettings — user-supplied values", () => {
       "pm.mode: arc-in-git",
       "team.mode: true",
       "session.remote_sync: disabled",
+      "session.init_pull.worktree: manual",
+      "session.init_pull.notes: always",
       "user.sync_push: manual",
     ].join("\n");
     await writeFile(fixture.configPath, content);
@@ -111,6 +118,8 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["commit.format"]).toBe("custom");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.sync_push"]).toBe("manual");
+    expect(result.settings["session.init_pull.worktree"]).toBe("manual");
+    expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.errors).toHaveLength(0);
   });
@@ -145,5 +154,115 @@ describe("readConfigSettings — user-supplied values", () => {
       expect(key.startsWith("hooks.")).toBe(false);
     }
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
+  });
+});
+
+describe("readConfigSettings — session.init_pull channels", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("applies 'prompt' default for both keys when both are absent (file present)", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
+    expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.defaultsApplied).toContain("session.init_pull.worktree");
+    expect(result.defaultsApplied).toContain("session.init_pull.notes");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("accepts manual | prompt | always for notes", async () => {
+    for (const value of ["manual", "prompt", "always"]) {
+      await writeFile(fixture.configPath, `session.init_pull.notes: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["session.init_pull.notes"]).toBe(value);
+      expect(result.errors).toHaveLength(0);
+    }
+  });
+
+  it("accepts manual | prompt for worktree", async () => {
+    for (const value of ["manual", "prompt"]) {
+      await writeFile(fixture.configPath, `session.init_pull.worktree: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["session.init_pull.worktree"]).toBe(value);
+      expect(result.errors).toHaveLength(0);
+    }
+  });
+
+  it("rejects 'always' for worktree with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "session.init_pull.worktree: always\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
+    expect(result.errors).toHaveLength(1);
+    const message = result.errors[0] ?? "";
+    expect(message).toContain("session.init_pull.worktree");
+    expect(message).toContain("'always'");
+    expect(message).toContain("manual");
+    expect(message).toContain("prompt");
+  });
+
+  it("rejects unknown values for worktree with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "session.init_pull.worktree: bogus\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
+    expect(result.errors).toHaveLength(1);
+    const message = result.errors[0] ?? "";
+    expect(message).toContain("session.init_pull.worktree");
+    expect(message).toContain("'bogus'");
+    expect(message).toContain("manual");
+    expect(message).toContain("prompt");
+    expect(message).not.toContain("always");
+  });
+
+  it("rejects unknown values for notes with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "session.init_pull.notes: bogus\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.errors).toHaveLength(1);
+    const message = result.errors[0] ?? "";
+    expect(message).toContain("session.init_pull.notes");
+    expect(message).toContain("'bogus'");
+    expect(message).toContain("manual");
+    expect(message).toContain("prompt");
+    expect(message).toContain("always");
+  });
+
+  it("fills only the missing key with 'prompt' on partial config", async () => {
+    await writeFile(fixture.configPath, "session.init_pull.worktree: manual\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["session.init_pull.worktree"]).toBe("manual");
+    expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.defaultsApplied).not.toContain("session.init_pull.worktree");
+    expect(result.defaultsApplied).toContain("session.init_pull.notes");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("parses pre-existing arc-config.yml without the new keys cleanly", async () => {
+    const legacyContent = [
+      "branch.base: main",
+      "branch.protection: full",
+      "commit.format: conventional",
+      "commit.context_footer: required",
+      "merge.strategy: merge",
+      "review.pre_merge: enabled",
+      "platform.type: github",
+      "pm.mode: arc-in-git",
+      "team.mode: false",
+      "session.remote_sync: enabled",
+      "user.sync_push: always",
+    ].join("\n");
+    await writeFile(fixture.configPath, legacyContent);
+    const result = await readConfigSettings(fixture.root);
+    expect(result.errors).toHaveLength(0);
+    expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
+    expect(result.settings["session.init_pull.notes"]).toBe("prompt");
+    expect(result.defaultsApplied).toContain("session.init_pull.worktree");
+    expect(result.defaultsApplied).toContain("session.init_pull.notes");
+    expect(result.defaultsApplied).not.toContain("pm.mode");
   });
 });

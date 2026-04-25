@@ -5,34 +5,35 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.0.b — Config schema + types for init_pull channels
-  (line ~3527)
-- **Last Completed:** Task 5.0.a — `runWorktreeSyncStatus` probe at
-  `lib/git/worktree-sync.ts` plus 10-behavior unit suite at
-  `__tests__/unit/git/worktree-sync.test.ts`. Result shape
-  `{state, ahead, behind, failureReason?}` over 9-state enum
-  (`skipped | clean | remote-ahead | local-ahead | diverged |
-  no-upstream | detached-head | no-remote | remote-unavailable`).
-  `failureReason: "timeout" | "error"` distinguishes fetch failure
-  modes inside `remote-unavailable` — added during implementation
-  to satisfy "distinguishing detail" cleanly. `GitExec` extended
-  with optional `GitExecOptions { signal?: AbortSignal }`;
-  `gitExec` runtime forwards to `execFileAsync`. Backward-compatible
-  (TS function-type variance). `DEFAULT_FETCH_TIMEOUT_MS = 3000`.
-  Probe sequence: detached-head → upstream → origin → bounded fetch
-  → ahead/behind count → classify. Test-first batched in 4 rounds
-  (rationale recorded on the task entry). Tier 1 gates clean
-  (lint:ts, typecheck src+test, 840/840 unit, md lint).
+- **Next Task:** 5.0.c — Composite probe envelope — worktree field +
+  notes qualifier (line ~3565)
+- **Last Completed:** Task 5.0.b — config schema + types for
+  `session.init_pull.*` channels. Flat-dotted keys
+  `session.init_pull.worktree` (`manual | prompt`, default `prompt`)
+  and `session.init_pull.notes` (`manual | prompt | always`, default
+  `prompt`); `always` rejected on worktree at parse time.
+  TS reader (`lib/config/status-reader.ts`) gained an
+  `ENUM_VALIDATORS` table — invalid values fall back to default and
+  push a diagnostic to `ReaderResult.errors`; `defaultsApplied`
+  retains its "absent in file" meaning. `ConfigSettings` 13→15,
+  `ConfigSessionInitSettings` 5→7; `SESSION_INIT_KEYS` extended so
+  both keys flow through `arc status --session-init --json`.
+  `validate-config.sh` got per-key enum entries plus a backfilled
+  `session.remote_sync` enum (opportunistic, pre-existing gap);
+  `known_keys` allowlist extended for all three. Two-copy sync covers
+  `arc-config.yml` and `validate-config.sh`. Added 9 reader tests,
+  one envelope-propagation test, and one init-render test; hardcoded
+  counts updated in dependent fixtures. Tier 1 gates clean
+  (lint:ts, lint:sh, typecheck src+test, 849/849 unit, full
+  `npm test` 46/46 e2e+integration, md lint).
 - **Blockers:** none
-- **Next Action:** Begin Task 5.0.b — config schema + types for
-  init_pull channels. Flat dotted keys
-  `session.init_pull.worktree` / `session.init_pull.notes`,
-  values `manual | prompt | always` (`always` rejected for worktree
-  at parse). Defaults `prompt`. Touch points: `DEFAULTS` in
-  `lib/config/status-reader.ts`, `ConfigSettings` in
-  `commands/config/types.ts`, `ConfigSessionInitSettings` +
-  `SESSION_INIT_KEYS` in `commands/config/status.ts`, plus
-  `validate-config.sh` enum entries (with opportunistic
-  `session.remote_sync` backfill). Two-copy `arc-config.yml`
-  edit (keys + inline comments). Test-first per task spec at
-  line ~3527.
+- **Next Action:** Begin Task 5.0.c — composite probe envelope adds
+  a `worktree` peer field alongside `user`; the `user` field grows
+  an optional `qualifier` field that carries
+  `clean-at-current-head` when worktree is `remote-ahead` and notes
+  are clean. Probes run in parallel (`Promise.all`); envelope
+  remains additive (no field rename or removal). Touch points:
+  `arc status --session-init --json` envelope shape, the
+  composite-probe orchestration site that aggregates the slot
+  results, and the type that describes the user slot's value.
+  Test-first per task spec at line ~3565.

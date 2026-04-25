@@ -84,6 +84,8 @@ function okConfig(): Probe<ConfigStatusResult> {
         "pm.mode": "none",
         "team.mode": "false",
         "session.remote_sync": "enabled",
+        "session.init_pull.worktree": "prompt",
+        "session.init_pull.notes": "prompt",
         "user.sync_push": "always",
       },
       defaultsApplied: [],
@@ -135,6 +137,8 @@ function makeSessionInitResult(
         mode: "session-init",
         settings: {
           "session.remote_sync": "enabled",
+          "session.init_pull.worktree": "prompt",
+          "session.init_pull.notes": "prompt",
           "branch.protection": "partial",
           "pm.mode": "none",
           "commit.format": "conventional",
@@ -203,8 +207,8 @@ describe("buildStatusSummary — full mode", () => {
     expect(summary).toContain("andrew: git note up to date");
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
-    // Config formatter: "13 agent-consumable settings"
-    expect(summary).toContain("13 agent-consumable settings");
+    // Config formatter: "15 agent-consumable settings"
+    expect(summary).toContain("15 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

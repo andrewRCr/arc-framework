@@ -162,6 +162,19 @@ team.mode: false
 #   disabled - Skip remote notes probing during session-init.
 session.remote_sync: enabled
 
+# Worktree pull policy at session init when the local branch is behind origin.
+#   manual - Surface the drift in orientation; user pulls when ready.
+#   prompt - Prompt before pulling. (default)
+# `always` is rejected for this channel — auto-pulling tracked working-tree
+# state silently is too invasive even on clean trees.
+session.init_pull.worktree: prompt
+
+# Notes pull policy at session init when the remote notes ref is ahead.
+#   manual - Surface the drift in orientation; user runs `arc user pull` when ready.
+#   prompt - Prompt before pulling. (default)
+#   always - Pull automatically (notes are gitignored personal context only).
+session.init_pull.notes: prompt
+
 # --- User Directory ---
 
 # Automatic push of user/{identity}/ directory via git notes.

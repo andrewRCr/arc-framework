@@ -22,6 +22,8 @@ export interface ConfigSettings {
   "pm.mode": string;
   "team.mode": string;
   "session.remote_sync": string;
+  "session.init_pull.worktree": string;
+  "session.init_pull.notes": string;
   "user.sync_push": string;
 }
 
@@ -32,6 +34,8 @@ export interface ConfigSettings {
  */
 export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
+  "session.init_pull.worktree": string;
+  "session.init_pull.notes": string;
   "branch.protection": string;
   "pm.mode": string;
   "commit.format": string;

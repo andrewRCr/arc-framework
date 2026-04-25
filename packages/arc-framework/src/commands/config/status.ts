@@ -25,6 +25,8 @@ import type {
 
 const SESSION_INIT_KEYS = [
   "session.remote_sync",
+  "session.init_pull.worktree",
+  "session.init_pull.notes",
   "branch.protection",
   "pm.mode",
   "commit.format",

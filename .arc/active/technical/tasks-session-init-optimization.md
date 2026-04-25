@@ -3524,43 +3524,43 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         "batching judgment": tightly-coupled behaviors with no independent discovery value batched into
         their natural unit, RED-GREEN cycle preserved per round.
 
-    - [ ] **5.0.b Config schema + types for init_pull channels**
+    - [x] **5.0.b Config schema + types for init_pull channels**
 
-        **Goal:** Config keys `session.init_pull.worktree` and `session.init_pull.notes` parse, validate, and
-        default correctly; TypeScript types cover both the probe outputs and the config shape.
+        **Outcome:** Flat-dotted keys `session.init_pull.worktree` and `session.init_pull.notes` parse,
+        validate, and default to `prompt` end-to-end. TypeScript reader (`lib/config/status-reader.ts`)
+        substitutes the documented default and surfaces a parse-time diagnostic in `ReaderResult.errors`
+        for invalid enum values; on absence, records the key in `defaultsApplied`. Shell-side
+        `validate-config.sh` rejects invalid values via per-key enum entries; the missing
+        `session.remote_sync` enum was backfilled opportunistically.
 
-        **Design decisions (resolved pre-implementation):**
-        - Flat dotted keys `session.init_pull.worktree` and `session.init_pull.notes` — matches every other
-          arc-config.yml key (`session.remote_sync`, `commit.format`, `branch.protection`, etc.) and the
-          existing flat-line parsers in both `lib/config/index.ts` (TS) and `arc-lib.sh` (`arc_config_get`).
-          A nested YAML object would require parser upgrades in both runtimes for no consumer benefit
-        - Value type `"manual" | "prompt" | "always"`; `"always"` rejected at parse time for the `worktree`
-          channel with a clear error message that names the valid set
-        - Defaults: `prompt` for both; applied when the keys are absent (existing installs and fresh installs
-          both get safe default)
-        - Touch points for the new keys: `DEFAULTS` map in `lib/config/status-reader.ts`, `ConfigSettings`
-          interface in `commands/config/types.ts`, `ConfigSessionInitSettings` + `SESSION_INIT_KEYS` in
-          `commands/config/status.ts` (the workflow consumer reads these via the session-init envelope)
-        - Two-copy sync of keys + inline comments across both `arc-config.yml` copies. Values may diverge —
-          package source carries framework defaults that render at `arc init`; `.arc/` carries this project's
-          chosen values. Both copies take `prompt` here; no project-specific override
+        **Implementation decisions:**
+        - Validation lives in the reader, not in `parseArcConfig`. New `ENUM_VALIDATORS` table in
+          `status-reader.ts` carries the per-key allowed sets — extending the table is the way to
+          add future parser-level enum checks. `parseArcConfig` stays a flat key/value reader.
+        - Invalid values fall back to the documented default in `settings`, push to `errors`, but do
+          NOT enter `defaultsApplied`. `defaultsApplied` keeps its meaning of "absent in the file";
+          consumers reconcile via `errors` when they care about the substitution.
+        - "Cross-field" rejection of `always` on worktree is achieved by separate per-key enum sets
+          (worktree: `manual | prompt`, notes: `manual | prompt | always`) — no special-casing.
+        - `ConfigSettings` grew from 13 to 15 keys; `ConfigSessionInitSettings` grew from 5 to 7.
+          Hardcoded counts in two unrelated test fixtures (`status-format.test.ts`,
+          `config-format.test.ts`) updated. Settings literals in `status/run.test.ts` and
+          `status-format.test.ts` extended to keep `ConfigSettings`-typed fixtures complete.
+        - Two-copy sync covers `arc-config.yml`, `validate-config.sh`, and the shell-side
+          `known_keys` allowlist (also extended for the backfilled `session.remote_sync`).
+        - `arc init` / `arc init --reconfigure` render both keys via the existing template +
+          `renderConfigOverrides` pipeline — no init-prompt addition; both flow paths emit defaults.
 
-        Build `test-first` (one behavior at a time):
-        - Parsing applies `prompt` default for both keys when both are absent
-        - Parsing accepts `manual | prompt | always` for notes; `manual | prompt` for worktree
-        - Parsing rejects `always` for worktree with an error that names the valid set
-        - Parsing rejects unknown mode values for either key with an error that names the valid set
-        - Partial config (worktree set, notes absent) fills the missing key with `prompt` default
-        - Existing `arc-config.yml` files without the new keys continue to parse cleanly
-        - `readConfigSettings()` surfaces both keys in the `ConfigSettings` map and records absence in
-          `defaultsApplied`
-        - Both keys appear in `ConfigSessionInitSettings` and propagate through `arc status --session-init
-          --json` (the workflow reads them from this envelope, not by re-reading config)
-        - `arc init` and `arc init --reconfigure` render both keys with default values and inline comments
-          in the Session Initialization section
-        - Shell-side `validate-config.sh` enum entries reject invalid values for both keys, with a
-          cross-field rejection of `always` on `worktree`. Backfill the missing `session.remote_sync` enum
-          entry opportunistically — pre-existing gap, cheap fix at this seam
+        **Test batching:** All 7 reader behaviors batched into a single round (tightly coupled —
+        single function, shared fixture, derive-validation-contract together). Envelope and init
+        rendering tested as additive integration tests reusing fixture setup. Per process-task-loop
+        "batching judgment".
+
+        **Quality gates:** Tier 1 clean — `lint:ts`, `lint:sh`, `typecheck` (src + test),
+        `test:unit` 849/849, full `npm test` 46/46 e2e+integration. Live
+        `validate-config.sh` against `.arc/system/arc-config.yml` passes the new enum entries;
+        smoke-tested rejection of `always` on worktree, unknown values on notes/worktree, and
+        invalid `session.remote_sync` against a temp fixture.
 
     - [ ] **5.0.c Composite probe envelope — worktree field + notes qualifier**
 

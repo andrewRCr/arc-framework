@@ -34,7 +34,19 @@ const DEFAULTS: ConfigSettings = {
   "pm.mode": "none",
   "team.mode": "false",
   "session.remote_sync": "enabled",
+  "session.init_pull.worktree": "prompt",
+  "session.init_pull.notes": "prompt",
   "user.sync_push": "always",
+};
+
+/**
+ * Per-key allowed value sets for keys validated at parse time. Keys absent
+ * from this map are passed through verbatim — shell-side `validate-config.sh`
+ * remains the broader enum gate.
+ */
+const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> = {
+  "session.init_pull.worktree": ["manual", "prompt"],
+  "session.init_pull.notes": ["manual", "prompt", "always"],
 };
 
 /** The set of agent-consumable keys — all settings except `hooks.*`. */
@@ -73,9 +85,20 @@ export async function readConfigSettings(cwd: string): Promise<ReaderResult> {
     if (value === undefined) {
       settings[key] = DEFAULTS[key];
       defaultsApplied.push(key);
-    } else {
-      settings[key] = value;
+      continue;
     }
+    const allowed = ENUM_VALIDATORS[key];
+    if (allowed && !allowed.includes(value)) {
+      // Invalid enum value: substitute the documented default and surface
+      // a parse-time diagnostic. We do not record the key as defaulted —
+      // `defaultsApplied` means "absent in the file".
+      errors.push(
+        `${key}: '${value}' is not valid (expected: ${allowed.join(" | ")})`,
+      );
+      settings[key] = DEFAULTS[key];
+      continue;
+    }
+    settings[key] = value;
   }
 
   return { settings, defaultsApplied, errors };

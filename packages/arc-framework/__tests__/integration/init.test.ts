@@ -443,6 +443,18 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     expect(config).toContain("user.sync_push: always");
   });
 
+  it("renders session.init_pull.* keys with defaults and inline comments", async () => {
+    const config = await readFile(
+      join(arcDir, "system/arc-config.yml"),
+      "utf-8",
+    );
+    expect(config).toContain("session.init_pull.worktree: prompt");
+    expect(config).toContain("session.init_pull.notes: prompt");
+    // Comment block precedes the keys (each key has at least one introductory comment line).
+    expect(config).toMatch(/# Worktree pull policy[\s\S]*?session\.init_pull\.worktree: prompt/);
+    expect(config).toMatch(/# Notes pull policy[\s\S]*?session\.init_pull\.notes: prompt/);
+  });
+
   // --- Conditional File Exclusion ---
 
   it("excludes arc-in-git files when pm.mode=none", async () => {
