@@ -13,6 +13,17 @@ Atomic Task Completion for the full protocol.
 
 ---
 
+- [ ] **DEV-RULES.ARC § Task Execution: trim "One task at a time" duplication with process-task-loop** —
+  Surfaced during Task 5.5 evaluation. The "One task at a time" subsection (4 behavioral bullets:
+  complete one increment, mark complete immediately, mandatory stop, implied permission) duplicates
+  process-task-loop's "Task Implementation" lead + "Completion protocol" content. The rule-statement
+  form serves a different purpose than the procedural form, but the bullets specifically restate what
+  process-task-loop already covers operationally. Trim opportunity: keep principle + workflow pointer
+  (the pointer sentence at `DEV-RULES.ARC.md:90-91` already exists), drop the operational bullets —
+  saves ~6-8 lines, eliminates true duplication. Softer candidate: "Quality gate failure" 4-step
+  protocol (~7 lines) could potentially move to process-task-loop or quality-gates strategy.
+  Two-copy sync needed (`.arc/` + `packages/arc-framework/arc/`).
+
 - [ ] **`arc user fetch` — remove overwrite prompt** — Align with git convention:
   `git fetch` is universally read-only and never prompts. Current `arc user fetch`
   (`packages/arc-framework/src/handlers/user.ts:252-312`) shows "Local notes will be

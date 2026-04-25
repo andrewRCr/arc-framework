@@ -3930,28 +3930,31 @@ Task 5.6 is TS-only (no markdown sync concern).
     template content outside the section can't leak into session-init load. Two-copy synced; Tier 1
     markdown lint clean.
 
-- [ ] **5.5 DEV-RULES section-level partial-read evaluation (per-rule)**
+- [x] **5.5 DEV-RULES section-level partial-read evaluation (per-rule)**
 
-    **Goal:** Each candidate section independently evaluated against a strict reliability bar; dispositions recorded.
-    - [ ] **5.5.a Evaluate candidate sections**
-        - Candidates: DEV-RULES.ARC § Task Execution; DEV-RULES.ARC § Leave it cleaner (routing table);
-          DEV-RULES.PROJECT § Quality Gates; DEV-RULES.PROJECT § Package-Project Sync
-        - For each, assess: is there a clear, reliable trigger (session type, config value, workflow activity detectable
-          at session-init)?
-        - Disposition values: `conditional-load` (with named trigger) / `up-front-load` (with reason) /
-          `retired-as-rationale` (if content moves to docs-site staging)
+    **Outcome:** All four candidates evaluated against the strict reliability bar (clear trigger, detectable at
+    session-init, agent doesn't need pre-awareness to consult). Dispositions: all `up-front-load`. Default holds; no
+    structural change to `session-init.md` Step 4. Per-section rationale: **DEV-RULES.ARC § Task Execution** — § Leave
+    it cleaner subsection is universally applicable, sub-section partial-read complexity exceeds benefit on 89-line
+    section. **DEV-RULES.ARC § Leave it cleaner** — universal trigger (any session may surface routable issues), no
+    detect-at-init signal, agent unawareness causes silent under-routing. **DEV-RULES.PROJECT § Quality Gates** — gate
+    awareness needed for any commit (planning, incidentals, task work all hit Tier 1); short policy framing (~27
+    lines). **DEV-RULES.PROJECT § Package-Project Sync** — self-hosting context makes framework edits nearly universal;
+    pre-commit hook is fallback, not primary defense.
 
-    - [ ] **5.5.b Record dispositions in notes file**
-        - Append a "DEV-RULES partial-read dispositions" section to `notes-session-init-optimization.md`
-        - One entry per evaluated section: candidate / disposition / named trigger or reason
+    **Process deviation:** Original 5.5.b ("Record dispositions in notes file") deferred — rationale captured in commit
+    message instead. Notes-file step would have been write-once-read-never given immediate execution by 5.5.c; judgment
+    call to skip the intermediate documentation overhead.
 
-    - [ ] **5.5.c Apply dispositions**
-        - For `conditional-load` sections: update `session-init.md` Step 4 items 4/5 to include trigger-based load logic
-        - For `up-front-load` sections: no structural change (safety floor)
-        - For `retired-as-rationale` sections: move content to staging, leave placeholder
+    **Adjacent finding** (captured to `atomic-session-init-optimization.md`): DEV-RULES.ARC § Task Execution "One task
+    at a time" subsection duplicates process-task-loop's Task Implementation lead + Completion protocol. Trim
+    opportunity (~6-8 lines) is content-tightening, not partial-read narrowing — outside 5.5 scope.
 
-    **Note:** Default remains up-front load; shifting is opportunistic. "Up-front load remains correct" is always a
-    valid disposition.
+    - [x] **5.5.a Evaluate candidate sections** — Done; all four → up-front-load (per Outcome above).
+
+    - [~] **5.5.b Record dispositions in notes file** — Deferred; rationale captured in commit message instead.
+
+    - [x] **5.5.c Apply dispositions** — No-op. All dispositions `up-front-load` → no structural change.
 
 - [ ] **5.6 Companion-file paths in composite probe**
 
