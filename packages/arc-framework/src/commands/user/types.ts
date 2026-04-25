@@ -1,4 +1,5 @@
 import type { DirEntry, SkipWarning } from "../../lib/git/index.js";
+import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
 
 /** I/O dependencies for the user command. */
@@ -222,6 +223,11 @@ export interface UserStatusResult {
   unsavedDirection: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  /**
+   * Worktree sync probe result, when `session.remote_sync` is enabled and the
+   * caller did not pass `--offline`. Omitted when no probe was run.
+   */
+  worktree?: WorktreeSyncStatusResult;
 }
 
 export interface UserStatusOptions {
@@ -230,6 +236,11 @@ export interface UserStatusOptions {
   identity: string;
   offline?: boolean;
   all?: boolean;
+  /**
+   * Whether `session.remote_sync` is enabled. Gates the worktree-sync probe.
+   * Defaults to `false` (no probe, no qualifier line).
+   */
+  remoteSyncEnabled?: boolean;
 }
 
 export type UserSessionInitState =

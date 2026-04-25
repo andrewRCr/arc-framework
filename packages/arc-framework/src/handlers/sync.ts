@@ -18,9 +18,12 @@ import {
   runUserPull,
   buildSaveSummary,
   buildLoadSummary,
+  formatWorktreeQualifierLine,
   UserSaveError,
   type UserSyncState,
 } from "../commands/user.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
+import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveSyncPushPolicy } from "../lib/sync-policy.js";
 import { pushWithInteractiveRecovery } from "./push-recovery.js";
@@ -66,7 +69,22 @@ export async function handleSync(opts: SyncOptions = {}): Promise<void> {
   const io = createUserIOContext();
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const state = await inspectUserSyncState({ cwd, io, identity });
+  const { settings } = await readConfigSettings(cwd);
+  const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
+  const [state, worktree] = await Promise.all([
+    inspectUserSyncState({ cwd, io, identity }),
+    remoteSyncEnabled
+      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+      : Promise.resolve(undefined),
+  ]);
+  const worktreeQualifier = formatWorktreeQualifierLine({
+    worktree,
+    offline: false,
+    remoteSyncEnabled,
+  });
+  if (worktreeQualifier) {
+    p.log.info(worktreeQualifier);
+  }
   const action = decideSyncAction(state);
   const yes = Boolean(opts.yes);
   const maxWalk = opts.maxWalk;

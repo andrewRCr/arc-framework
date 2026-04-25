@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { serialize, type SyncManifest } from "../../lib/git/index.js";
+import { runWorktreeSyncStatus, type WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   findNearestUserNote,
@@ -61,14 +62,19 @@ export async function inspectUserSyncState(
 export async function runUserStatus(
   options: UserStatusOptions,
 ): Promise<UserStatusResult> {
-  const { cwd, io, identity, offline = false, all = false } = options;
-  const [diskInspection, search, backupFiles, remoteIdentities, refInspection] = await Promise.all([
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
-    findNearestUserNote({ cwd, io, identity }),
-    listBackupFiles(cwd, io, identity),
-    all ? listRemoteUserIdentities(io) : Promise.resolve([]),
-    offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
-  ]);
+  const { cwd, io, identity, offline = false, all = false, remoteSyncEnabled = false } = options;
+  const shouldProbeWorktree = !offline && remoteSyncEnabled;
+  const [diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe] =
+    await Promise.all([
+      inspectDiskVsLocalSnapshot(cwd, io, identity),
+      findNearestUserNote({ cwd, io, identity }),
+      listBackupFiles(cwd, io, identity),
+      all ? listRemoteUserIdentities(io) : Promise.resolve([]),
+      offline ? Promise.resolve(null) : inspectUserSyncRefsDetailed(io, identity),
+      shouldProbeWorktree
+        ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+        : Promise.resolve(null),
+    ]);
 
   const note = search.note;
   const savedAtRelative = note ? await readCommitRelativeAge(io, note.commit) : null;
@@ -86,6 +92,8 @@ export async function runUserStatus(
     unsavedDirection: diskInspection.direction,
     backupFiles,
     remoteIdentities,
+    worktree: worktreeProbe ?? undefined,
+    remoteSyncEnabled,
   });
 }
 
@@ -224,6 +232,16 @@ interface BuildUserStatusInput {
   unsavedDirection?: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  /**
+   * Worktree-sync probe result. Pass `undefined` when no probe was attempted
+   * (e.g. `--offline`, or `session.remote_sync: disabled`).
+   */
+  worktree?: WorktreeSyncStatusResult;
+  /**
+   * Whether `session.remote_sync` is enabled. Distinguishes the offline-with-
+   * remote-sync case (emit a skip note) from the disabled case (emit nothing).
+   */
+  remoteSyncEnabled?: boolean;
 }
 
 export function buildUserStatusResult(
@@ -266,6 +284,15 @@ export function buildUserStatusResult(
   detailLines.push(renderHeadlineExplanation(headline, diskStatus));
   detailLines.push(renderWorkingFilesLine(diskStatus));
   detailLines.push(`Remote notes: ${renderRemoteStatus(remoteStatus)}.`);
+
+  const worktreeQualifier = formatWorktreeQualifierLine({
+    worktree: input.worktree,
+    offline: !remoteChecked,
+    remoteSyncEnabled: input.remoteSyncEnabled ?? false,
+  });
+  if (worktreeQualifier) {
+    detailLines.push(worktreeQualifier);
+  }
 
   if (savedAtRelative) {
     detailLines.push(`Saved ${savedAtRelative}.`);
@@ -314,7 +341,43 @@ export function buildUserStatusResult(
     unsavedDirection,
     backupFiles,
     remoteIdentities,
+    ...(input.worktree ? { worktree: input.worktree } : {}),
   };
+}
+
+/**
+ * Format the worktree qualifier detail line shared between `arc user status`
+ * and `arc sync` direction reporting. Returns `null` when no qualifier should
+ * be emitted (clean / local-ahead / no-upstream / detached / no-remote /
+ * skipped, or `remote_sync: disabled`).
+ */
+export function formatWorktreeQualifierLine(input: {
+  worktree: WorktreeSyncStatusResult | undefined;
+  offline: boolean;
+  remoteSyncEnabled: boolean;
+}): string | null {
+  const { worktree, offline, remoteSyncEnabled } = input;
+
+  if (offline) {
+    // Skip-note belongs to the case where remote sync is wired but the user
+    // opted out for this invocation. Disabled config stays silent.
+    return remoteSyncEnabled
+      ? "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only."
+      : null;
+  }
+
+  if (!worktree) return null;
+
+  switch (worktree.state) {
+    case "remote-ahead":
+      return `Worktree is behind origin by ${worktree.behind} commit(s).`;
+    case "diverged":
+      return `Worktree has diverged from origin (${worktree.ahead} ahead, ${worktree.behind} behind).`;
+    case "remote-unavailable":
+      return "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.";
+    default:
+      return null;
+  }
 }
 
 function renderHeadlineExplanation(

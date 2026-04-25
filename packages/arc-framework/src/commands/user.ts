@@ -25,6 +25,7 @@ export {
   runUserSessionInitStatus,
   buildUserStatusResult,
   computeUnsavedDirection,
+  formatWorktreeQualifierLine,
   inspectUserSyncState,
   runUserStatus,
 } from "./user/sync-status.js";

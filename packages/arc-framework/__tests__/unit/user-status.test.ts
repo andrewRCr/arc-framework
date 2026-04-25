@@ -13,8 +13,10 @@ import {
   buildUserStatusSummary,
   computeUnsavedDirection,
   runUserSessionInitStatus,
+  runUserStatus,
 } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
+import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -485,5 +487,219 @@ describe("buildLoadSummary", () => {
     });
 
     expect(summary).toContain("Loaded from 25 commit(s) back.");
+  });
+});
+
+describe("buildUserStatusResult worktree qualifier", () => {
+  function withWorktree(
+    worktree: WorktreeSyncStatusResult | undefined,
+    overrides: Partial<Parameters<typeof buildUserStatusResult>[0]> = {},
+  ) {
+    return buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      worktree,
+      ...overrides,
+    });
+  }
+
+  it("omits the qualifier when worktree probe is clean", () => {
+    const result = withWorktree({ state: "clean", ahead: 0, behind: 0 });
+
+    expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
+  });
+
+  it("appends a behind-by-N qualifier when worktree is remote-ahead", () => {
+    const result = withWorktree({ state: "remote-ahead", ahead: 0, behind: 3 });
+
+    expect(result.detailLines).toContain("Worktree is behind origin by 3 commit(s).");
+  });
+
+  it("appends a divergence qualifier with both counts when worktree is diverged", () => {
+    const result = withWorktree({ state: "diverged", ahead: 2, behind: 5 });
+
+    expect(result.detailLines).toContain("Worktree has diverged from origin (2 ahead, 5 behind).");
+  });
+
+  it("keeps the qualifier when notes already report remote-ahead", () => {
+    const result = withWorktree(
+      { state: "remote-ahead", ahead: 0, behind: 1 },
+      { refState: "remote-ahead" },
+    );
+
+    expect(result.headline).toBe("remote note ahead");
+    expect(result.detailLines).toContain("Worktree is behind origin by 1 commit(s).");
+  });
+
+  it("keeps the qualifier when notes are in conflict", () => {
+    const result = withWorktree(
+      { state: "remote-ahead", ahead: 0, behind: 4 },
+      { refState: "diverged", diskState: "different", unsavedDirection: "mixed" },
+    );
+
+    expect(result.headline).toBe("notes conflict");
+    expect(result.detailLines).toContain("Worktree is behind origin by 4 commit(s).");
+  });
+
+  it("emits a soft 'comparison unavailable' qualifier when the worktree probe failed", () => {
+    const result = withWorktree({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      failureReason: "timeout",
+    });
+
+    expect(result.detailLines).toContain(
+      "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.",
+    );
+  });
+
+  it("substitutes an offline note when --offline is set with remote_sync enabled", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.detailLines).toContain(
+      "Worktree remote comparison skipped (`--offline`); reported state reflects local refs only.",
+    );
+    expect(result.detailLines.some((line) => line.startsWith("Worktree is behind"))).toBe(false);
+    expect(result.detailLines.some((line) => line.startsWith("Worktree has diverged"))).toBe(false);
+  });
+
+  it("emits no qualifier and no offline note when remote_sync is disabled", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: null,
+      remoteChecked: false,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      ancestorDistance: 0,
+      backupFiles: [],
+      remoteIdentities: [],
+      remoteSyncEnabled: false,
+    });
+
+    expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
+  });
+
+  it("omits the qualifier when worktree is local-ahead (no drift to flag)", () => {
+    const result = withWorktree({ state: "local-ahead", ahead: 2, behind: 0 });
+
+    expect(result.detailLines.some((line) => line.startsWith("Worktree"))).toBe(false);
+  });
+});
+
+describe("runUserStatus worktree probe orchestration", () => {
+  function makeIO(execImpl: (cmd: string, args: string[]) => Promise<{ stdout: string; stderr: string }>) {
+    return {
+      exec: execImpl,
+      readDir: async () => [],
+      readFile: async () => "",
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  // Minimal fake exec covering the calls runUserStatus / inspectDiskVsLocalSnapshot make.
+  // Returns empty stdout for every probe call: no local note, no remote note, clean ref state.
+  function fakeNoNotesExec(record: Array<{ cmd: string; args: string[] }>) {
+    return async (cmd: string, args: string[]) => {
+      record.push({ cmd, args });
+      // Worktree probe success path
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+        return { stdout: "main\n", stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "@{upstream}") {
+        return { stdout: "origin/main\n", stderr: "" };
+      }
+      if (args[0] === "fetch") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "rev-list" && args.includes("--count")) {
+        return { stdout: "0\t0\n", stderr: "" };
+      }
+      // Sync-status probes (notes refs)
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        throw new Error("ref not found");
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "merge-base") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "show") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "update-ref") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "remote") {
+        return { stdout: "", stderr: "" };
+      }
+      return { stdout: "", stderr: "" };
+    };
+  }
+
+  it("invokes the worktree probe when remote_sync is enabled and not offline", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(calls.some((c) => c.args[0] === "fetch")).toBe(true);
+  });
+
+  it("does not invoke the worktree probe when --offline is set", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      offline: true,
+      remoteSyncEnabled: true,
+    });
+
+    expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
+  });
+
+  it("does not invoke the worktree probe when remote_sync is disabled", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: false,
+    });
+
+    expect(calls.some((c) => c.args[0] === "fetch")).toBe(false);
   });
 });

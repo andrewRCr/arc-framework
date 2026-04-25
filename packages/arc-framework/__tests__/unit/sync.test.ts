@@ -35,25 +35,35 @@ const mockHasLocalNotes: Mock<(...args: unknown[]) => Promise<boolean>> = vi.fn(
 const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "save summary");
 const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "load summary");
 
-vi.mock("../../src/commands/user.js", () => ({
-  inspectUserSyncState: (opts: unknown) => mockInspectUserSyncState(opts),
-  runUserLoad: (opts: unknown) => mockRunUserLoad(opts),
-  runUserSave: (opts: unknown) => mockRunUserSave(opts),
-  runUserPull: (opts: unknown) => mockRunUserPull(opts),
-  hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
-  buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
-  buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
-  UserSaveError: class UserSaveError extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "UserSaveError";
-    }
-  },
-}));
+vi.mock("../../src/commands/user.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/commands/user.js")>(
+    "../../src/commands/user.js",
+  );
+  return {
+    ...actual,
+    inspectUserSyncState: (opts: unknown) => mockInspectUserSyncState(opts),
+    runUserLoad: (opts: unknown) => mockRunUserLoad(opts),
+    runUserSave: (opts: unknown) => mockRunUserSave(opts),
+    runUserPull: (opts: unknown) => mockRunUserPull(opts),
+    hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
+    buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
+    buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
+  };
+});
 
 const mockResolvePolicy = vi.fn();
 vi.mock("../../src/lib/sync-policy.js", () => ({
   resolveSyncPushPolicy: (opts: unknown) => mockResolvePolicy(opts),
+}));
+
+const mockReadConfigSettings = vi.fn();
+vi.mock("../../src/lib/config/status-reader.js", () => ({
+  readConfigSettings: (cwd: unknown) => mockReadConfigSettings(cwd),
+}));
+
+const mockRunWorktreeSyncStatus = vi.fn();
+vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+  runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
 }));
 
 const mockPushWithRecovery = vi.fn();
@@ -117,6 +127,9 @@ function resetMockDefaults() {
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
   mockBuildLoadSummary.mockReturnValue("load summary");
+  // Default: remote_sync enabled, worktree clean — qualifier silent.
+  mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "enabled" } });
+  mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
 }
 
 describe("decideSyncAction", () => {
@@ -560,5 +573,74 @@ describe("handleSync non-TTY conflict degradation", () => {
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("No eligible files"));
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleSync worktree qualifier", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockHasLocalNotes.mockResolvedValue(false);
+    process.exitCode = undefined;
+  });
+
+  it("emits a worktree drift qualifier when origin is ahead", async () => {
+    setSyncState("same", "same");
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "remote-ahead", ahead: 0, behind: 3 });
+
+    await handleSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith("Worktree is behind origin by 3 commit(s).");
+  });
+
+  it("emits a divergence qualifier when worktree has diverged", async () => {
+    setSyncState("same", "same");
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "diverged", ahead: 1, behind: 2 });
+
+    await handleSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith("Worktree has diverged from origin (1 ahead, 2 behind).");
+  });
+
+  it("emits a soft 'comparison unavailable' qualifier when the worktree probe failed", async () => {
+    setSyncState("same", "same");
+    mockRunWorktreeSyncStatus.mockResolvedValue({
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      failureReason: "timeout",
+    });
+
+    await handleSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Worktree remote comparison unavailable; reported state may not reflect unreachable remote commits.",
+    );
+  });
+
+  it("stays silent when worktree is clean", async () => {
+    setSyncState("same", "same");
+    mockRunWorktreeSyncStatus.mockResolvedValue({ state: "clean", ahead: 0, behind: 0 });
+
+    await handleSync();
+
+    const qualifierCalls = mockLog.info.mock.calls
+      .map((call) => String(call[0] ?? ""))
+      .filter((line) => line.startsWith("Worktree"));
+    expect(qualifierCalls).toEqual([]);
+  });
+
+  it("skips the worktree probe when remote_sync is disabled", async () => {
+    setSyncState("same", "same");
+    mockReadConfigSettings.mockResolvedValue({ settings: { "session.remote_sync": "disabled" } });
+
+    await handleSync();
+
+    expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
+    const qualifierCalls = mockLog.info.mock.calls
+      .map((call) => String(call[0] ?? ""))
+      .filter((line) => line.startsWith("Worktree"));
+    expect(qualifierCalls).toEqual([]);
   });
 });

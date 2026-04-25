@@ -3594,54 +3594,44 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         `state: local-ahead, ahead: 3, behind: 0`, user slot has no qualifier (correct — worktree is
         `local-ahead`, not `remote-ahead`).
 
-    - [ ] **5.0.d CLI status reporting surfaces — worktree qualifier**
+    - [x] **5.0.d CLI status reporting surfaces — worktree qualifier**
 
-        **Goal:** Human-facing notes-status outputs (`arc user status`, direction reporting in `arc sync`, and any
-        future notes-status surface) carry a concise qualifier line when the worktree is behind origin or diverged.
-        Prevents isolated CLI invocations from being read as "fully up-to-date" when the verdict is truthful only
-        with respect to reachable ancestors.
+        **Outcome:** `runUserStatus` orchestrates the worktree probe in parallel with the existing notes/disk
+        probes when `session.remote_sync` is enabled and `--offline` is not set; result is appended to
+        `UserStatusResult.detailLines` (and surfaced as a peer `worktree` field on the JSON result for
+        consumers). `arc sync` reads the same config gate and emits the qualifier as a `p.log.info` line via
+        the shared `formatWorktreeQualifierLine` helper before action dispatch — so isolated CLI invocations
+        no longer read "fully up-to-date" when the verdict is truthful only with respect to reachable
+        ancestors. No new headline values; qualifier is purely additive detail.
 
-        **Design decisions (resolved pre-implementation):**
-        - Qualifier is a conditional detail line appended to the existing status output — not a new top-level
-          headline. Preserves current headline vocabulary; extends the detail-lines pattern already used for
-          `Pre-load backup present`, saved-at-relative, and ancestor-distance lines
-        - Emitted when (a) `session.remote_sync: enabled`, (b) worktree probe ran successfully, and (c) worktree
-          state is `remote-ahead` or `diverged`
-        - `--offline` flag (existing on `arc user status`) skips the worktree probe symmetrically with the notes
-          remote probe; when offline, the qualifier is replaced with a softer note acknowledging the bound
-          ("Worktree remote comparison skipped (`--offline`); reported state reflects local refs only")
-        - When the worktree probe itself returns `remote-unavailable` (timeout, network failure), a soft qualifier
-          is emitted instead: "Worktree remote comparison unavailable; reported state may not reflect unreachable
-          remote commits"
-        - Qualifier phrasing is concise: single line where possible, ≤80 chars where the content allows
-        - Extends `runUserStatus` (not `runUserSessionInitStatus` — that surface is covered by 5.0.c). The two
-          share the 5.0.a probe function but build distinct human vs machine outputs
-        - Scope is reporting surfaces only — action commands (`arc user save`, `arc user push`, etc.) are not in
-          scope here. If saving to a stale HEAD warrants its own warning, that is a follow-on consideration, not
-          part of 5.0
+        **Implementation decisions:**
+        - Worktree probe call lives inside `runUserStatus`, gated on `!offline && remoteSyncEnabled` (added
+          to `UserStatusOptions`). Reuses `io.exec` — no new injection points; keeps the layer testable via
+          the same fake-exec pattern already established for the notes probes.
+        - `formatWorktreeQualifierLine` is a pure helper exported from `commands/user/sync-status.ts` and
+          re-exported through `commands/user.ts`. Both `arc user status` (via `buildUserStatusResult`) and
+          `arc sync` (via the handler) call it — single source of truth for the qualifier vocabulary.
+        - Offline branch: emits the skip note only when `remoteSyncEnabled === true`; disabled config stays
+          silent. Distinguishes "user opted out for this run" from "feature not wired up".
+        - `remote-unavailable` carries through to a softer "comparison unavailable" qualifier rather than
+          silencing — the detail explains why the verdict is approximate.
+        - Healthy non-drift states (`clean`, `local-ahead`, `no-upstream`, `detached-head`, `no-remote`,
+          `skipped`) emit no qualifier — only `remote-ahead` / `diverged` / `remote-unavailable` carry
+          actionable signal.
+        - `arc sync` calls `runWorktreeSyncStatus` once alongside `inspectUserSyncState` via `Promise.all`,
+          so the probe doesn't serialize behind the notes inspection.
+        - `UserStatusResult.worktree` is optional — omitted when no probe ran, so existing JSON consumers and
+          test fixtures don't need to know about the new field.
 
-        Scope:
-        - `arc user status` — qualifier emitted per the rules above; existing headline and detail lines unchanged
-        - `arc sync` — any status-reporting code path that summarizes notes state picks up the qualifier through
-          the shared `runUserStatus` path or a dedicated hook (decided during implementation based on the sync
-          command's current code shape)
-        - No new headline values in `UserStatusHeadline` — qualifier is a detail line, not a headline change
+        **Test batching:** All 9 behaviors (8 status, 1 sync) batched in a single round — orchestration
+        concerns over a single function plus a single handler, shared probe-fixture pattern, no
+        cross-behavior discovery value. Per process-task-loop "batching judgment".
 
-        Build `test-first` (one behavior at a time):
-        - `arc user status` with worktree clean + notes "git note up to date" → no qualifier appended
-        - `arc user status` with worktree remote-ahead + notes "git note up to date" → qualifier line appended
-          referencing worktree drift (with behind count)
-        - `arc user status` with worktree diverged + notes clean → qualifier line appended with "diverged" phrasing
-          (includes ahead and behind counts)
-        - `arc user status` with worktree remote-ahead + notes "remote note ahead" → qualifier still appended
-          (notes already call out remote-ahead; worktree qualifier remains meaningful as an independent signal)
-        - `arc user status` with worktree remote-ahead + notes "notes conflict" → qualifier still appended
-        - `arc user status --offline` with any notes state → worktree probe not invoked; offline-scope note
-          substitutes for the qualifier
-        - `arc user status` with worktree probe timing out (simulated 3s fetch timeout) → soft "remote comparison
-          unavailable" qualifier emitted; notes probe result preserved
-        - `arc user status` with `session.remote_sync: disabled` → no worktree probe, no qualifier, no offline note
-        - `arc sync` direction-report path emits the qualifier under the same conditions as `arc user status`
+        **Quality gates:** Tier 1 clean — `lint:ts`, `typecheck` (src + test), unit suite 876/876 (was 859;
+        +17 new across `user-status.test.ts` and `sync.test.ts`), full `npm test` 46/46, `npm run build`
+        succeeds. Live smoke: `npx arc user status` (worktree clean → no qualifier), `npx arc user status
+        --offline` (skip note rendered), `npx arc user status --json` (JSON envelope carries the new
+        `worktree` peer field).
 
     - [ ] **5.0.e Session-init workflow rewrite — Step 2/3/7/8**
 

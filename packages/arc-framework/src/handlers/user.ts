@@ -451,12 +451,15 @@ export async function handleUserStatus(opts: UserStatusOptions): Promise<void> {
     return;
   }
 
+  const { settings } = await readConfigSettings(cwd);
+  const remoteSyncEnabled = settings["session.remote_sync"] === "enabled";
   const result = await runUserStatus({
     cwd,
     io,
     identity,
     offline: opts.offline,
     all: opts.all,
+    remoteSyncEnabled,
   });
 
   if (json) {
