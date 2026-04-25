@@ -3905,18 +3905,24 @@ the sync shape is non-obvious.
     current phase preamble + current task — significantly leaner than the prior shape (Header, Overview, Scope,
     phase preamble, current task).
 
-    - [ ] **5.2.a Authoring shape edits**
-        - `template-tasks.md` (both copies): Feature/Technical variant — drop `## Overview` and `## Scope`
-          sections; add `**Purpose:**` one-line field to the Header alongside PRD / Branch / Base Branch.
-          Incidental variant unchanged (no PRD; `## Context` retained — incidentals may receive separate
-          rework later, not this WU's concern)
-        - `strategy-task-list-formatting.md` (both copies): § Task List Headers — refresh Feature/Technical
-          description to Purpose-in-Header shape; remove `## Scope` references for that variant. Add new
-          sub-section "Phase Preamble Shape": `**Purpose:**` line required after phase heading; optional
-          `**Design decisions:**` block (concise — link to notes file for full rationale); soft cap ~12
-          lines per preamble
-        - `2_generate-tasks.md` Step 4 checklist (both copies — `.template.md` paired): replace Overview/Scope
-          checklist items with Purpose-in-Header item; add phase-preamble-shape items
+    - [x] **5.2.a Authoring shape edits**
+        - `template-tasks.md` (both copies): Feature/Technical skeleton dropped `## Overview` and `## Scope`
+          blocks; added `**Purpose:**` one-line field to the Header bullet list (after PRD / Branch / Base
+          Branch). Prose intro for the variant updated to name PRD as canonical for Scope. Incidental
+          variant untouched
+        - `strategy-task-list-formatting.md` (both copies): § Task List Headers — Feature/Technical bullets
+          gained a `**Purpose:**` line; Incidental bullets call out `## Context` replacing the Purpose
+          field and explicitly retain `## Scope`; the "Both variants: `## Scope`" wrap-up rewritten to drop
+          Scope (now Incidental-only). Added new `### Phase Preamble` sub-section under Format Elements
+          Reference, slotted between Phase Headers and Parent Tasks: required `**Purpose:**` line, optional
+          `**Design decisions:**` block linking to `notes-{name}.md`, ~12-line soft cap
+        - `2_generate-tasks.md` Step 4 checklist (both copies — `.template.md` paired): two new items at the
+          top of the checklist — Header `**Purpose:**` field (with Feature/Technical vs. Incidental
+          carve-out) and phase-preamble shape. § Task List Format parenthetical refreshed from
+          "(Overview, Scope, Tasks, Verification Phase, Atomic Tasks, Success Criteria)" to
+          "(header with Purpose, Tasks with phase preambles, Verification Phase, Success Criteria)"
+        - All three pairs verified in sync (workflow pair differs only on the expected team-mode toggle
+          blocks); Tier 1 markdown lint clean across all six files
 
     - [ ] **5.2.b One-time cleanup**
         - Sweep existing task lists in `.arc/active/` and `.arc/backlog/` (if any). Recent archive (current

@@ -96,7 +96,11 @@ file (`notes-{name}.md`), not in the task list.
 
 **Before saving, verify the draft against this checklist:**
 
+- [ ] Header includes `**Purpose:**` field — one-line summary; full Scope lives in the PRD
+      (Feature/Technical only; Incidental retains `## Context` + `## Scope`)
 - [ ] Phase headers use `### **Phase X:** Description` format
+- [ ] Phase preambles open with `**Purpose:**` line; optional `**Design decisions:**` block
+      links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
 - [ ] Parent tasks have checkboxes and bold: `- [ ] **X.Y Description**`
 - [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
@@ -135,8 +139,8 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 ## Task List Format
 
-See [template-tasks.md][template-tasks] for the header and body skeleton (Overview, Scope, Tasks,
-Verification Phase, Atomic Tasks, Success Criteria). See
+See [template-tasks.md][template-tasks] for the header and body skeleton (header with Purpose,
+Tasks with phase preambles, Verification Phase, Success Criteria). See
 [strategy-task-list-formatting.md][task-list-formatting] for formatting rules and conventions.
 
 The PRD path should reflect the PRD's current location (matching the task list's save location).

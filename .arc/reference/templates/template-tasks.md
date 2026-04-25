@@ -17,10 +17,11 @@ element reference, test-first patterns, and annotated examples. The Quick Format
 
 **Use when:** Planned work with a dedicated branch and PRD (feature development, technical improvements).
 
-Title uses `Task List:` (not "Incidental:"). PRD reference is a repo-root-relative path. `Branch(es)`
-lists the primary implementation branch — add comma-separated entries for stacked PRs or team
-sub-branches. Base Branch references the project's configured base branch per
-[`arc-config.yml`][arc-config], not a hardcoded name.
+Title uses `Task List:` (not "Incidental:"). PRD reference is a repo-root-relative path; the PRD
+is canonical for Scope (Will Do / Won't Do) — the task list carries a one-line `**Purpose:**`
+field instead of mirroring it. `Branch(es)` lists the primary implementation branch — add
+comma-separated entries for stacked PRs or team sub-branches. Base Branch references the
+project's configured base branch per [`arc-config.yml`][arc-config], not a hardcoded name.
 
 ```markdown
 # Task List: {Work Name}
@@ -28,20 +29,7 @@ sub-branches. Base Branch references the project's configured base branch per
 - **PRD:** `.arc/{active|backlog}/{feature|technical}/prd-{name}.md`
 - **Branch(es):** `{feature|technical}/{branch-name}`
 - **Base Branch:** {base branch per arc-config.yml — typically `main`}
-
-## Overview
-
-**Purpose:** {One-sentence description of what this accomplishes}
-
-## Scope
-
-### Will Do
-
-- {What's included in this task list}
-
-### Won't Do
-
-- {What's deferred or out of scope}
+- **Purpose:** {One-sentence summary — full Scope lives in the PRD}
 
 ---
 

@@ -38,6 +38,8 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
   PRs or team sub-branches (see [Task Lists and Branches][work-org-task-branches])
 - `Base Branch` references the project's configured base per [`arc-config.yml`][arc-config],
   not a hardcoded name
+- `**Purpose:**` is a one-line summary in the header; full Scope (Will Do / Won't Do) lives
+  in the PRD — the task list does not mirror it
 - Horizontal rule (`---`) separates header from tasks
 
 **Incidental** (`# Incidental: {Title}`) — reactive work discovered during implementation:
@@ -45,14 +47,15 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
 - Title uses `Incidental:` prefix
 - `Base Branch` is the parent branch this branched from (enables grep-based discovery of
   related work)
-- `## Context` replaces `## Overview` — `**Discovered:**` / `**Problem:**` / `**Why Now:**`
+- `## Context` replaces the Feature/Technical Purpose field —
+  `**Discovered:**` / `**Problem:**` / `**Why Now:**`
+- `## Scope` (`### Will Do` / `### Won't Do`) is retained — no PRD to canonicalize from
 - Lifecycle state (`State`, `Interrupts`, `Paused At`, `Paused To`) lives in the status file,
   not the task list header — see
   [manage-incidental-work.md § Coordinated Pause/Resume][manage-incidental]
 
-Both variants: `## Scope` (`### Will Do` / `### Won't Do`) before tasks; Success Criteria
-section at the bottom; optional sections (Architecture Patterns, Current State, Testing
-Strategy) only when the work needs them.
+Both variants: Success Criteria section at the bottom; optional sections (Architecture Patterns,
+Current State, Testing Strategy) only when the work needs them.
 
 ---
 
@@ -62,6 +65,14 @@ Strategy) only when the work needs them.
 
 `### **Phase X:** Description` — level 3, phase number bold within heading, name plain after
 colon. Blank line before and after. No time estimates.
+
+### Phase Preamble
+
+Lines between the phase heading and its first task bullet (`- [ ]` or `- [x]`). Required:
+`**Purpose:**` line — what the phase delivers and why this granularity. Optional:
+`**Design decisions:**` block summarizing the key calls (one or two short paragraphs; link
+to `notes-{name}.md` for full rationale, alternatives considered, and risks). Soft cap
+~12 lines per preamble — anything longer belongs in the notes file.
 
 ### Parent Tasks
 
