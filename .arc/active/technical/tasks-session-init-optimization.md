@@ -3919,19 +3919,16 @@ Task 5.6 is TS-only (no markdown sync concern).
       self-sufficient; line numbers are absolute by convention. Documented here as a design invariant
       rather than workflow-body content
 
-- [ ] **5.4 Status file partial-read narrowing**
+- [x] **5.4 Status file partial-read narrowing**
 
-    **Goal:** Session-init reads only the `## Active Work` block of the active status file — the 7 load-bearing fields
-    (State, Branch, Task List, Next Task, Last Completed, Blockers, Next Action) plus any optional fields present
-    (Interrupts, Paused At, Paused To, Superseded By). Non-load-bearing content (the "About this file" blockquote, any
-    future documentation) is not read at init.
-    - Update `session-init.md` Step 4 item 8 — replace "MUST RESOLVE, THEN READ IN FULL" with partial-read specification
-      (from `## Active Work` heading through the last `**Field:**` line in that section)
-    - Document the `## Active Work` section as a contract boundary: any content an agent needs at session-init must live
-      inside this block
-    - Related: Phase 4.2 audits `template-status.md` to eliminate authoring-guidance comment blocks that historically
-      shipped from the template; this partial-read narrowing is the durable guard regardless of future template content
-    - Two-copy sync
+    **Outcome:** `session-init.md` Step 4 item 8 lead paragraph rewritten — "resolve from `active.value`
+    and read in full" → "resolve from `active.value` and partial-read the `## Active Work` section
+    (heading line through the last `**Field:**` line)". Added two sub-bullets after the resolution
+    branches: **Read scope** enumerating load-bearing + optional fields, and **Contract boundary**
+    requiring any session-init-relevant content to live inside `## Active Work`. Combined with Phase 4.2's
+    `template-status.md` cleanup, the partial-read is the durable guard against future authoring drift —
+    template content outside the section can't leak into session-init load. Two-copy synced; Tier 1
+    markdown lint clean.
 
 - [ ] **5.5 DEV-RULES section-level partial-read evaluation (per-rule)**
 

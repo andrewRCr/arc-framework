@@ -131,7 +131,8 @@ session-state, follow the override instead.
 
 **Active work context:**
 
-8. **Active status file** — resolve from `active.value` and read in full:
+8. **Active status file** — resolve from `active.value` and partial-read the `## Active Work`
+   section (heading line through the last `**Field:**` line):
     - `resolution: "single"`: path is `active.value.path`
     - `resolution: "none"`: no active work unit. Skip items 10–11; Step 6 handles next-work discovery
     - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 9) —
@@ -149,6 +150,11 @@ session-state, follow the override instead.
 
             Include an abort option (`[q]`). If the user aborts, surface the candidate list and halt
             session-init.
+    - **Read scope:** `## Active Work` carries the load-bearing fields (State, Branch, Task List,
+      Next Task, Last Completed, Blockers, Next Action) plus optional fields when present (Interrupts,
+      Paused At, Paused To, Superseded By). The "About this file" blockquote and any other surrounding
+      content are not read at init. **Contract boundary:** any content an agent needs at session-init
+      must live inside `## Active Work`.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —
       `Task 5.5 — Implement validation (line ~1903)`. All three anchors should be present; any two are
       sufficient for reliable lookup.
