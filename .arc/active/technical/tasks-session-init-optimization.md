@@ -3454,7 +3454,7 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
 - [ ] **5.0 Worktree-sync detection at session-init — completes 3.R.e scope**
 
     **Goal:** Session-init detects and reports local-vs-remote worktree drift with the same rigor as user-notes
-    drift. Extends the existing `session.remote_sync` gate and Step 1.5 probe architecture to the branch channel,
+    drift. Extends the existing `session.remote_sync` gate and Step 2 probe architecture to the branch channel,
     closing the gap where a stale worktree produces a misleadingly-confident orientation.
 
     **Context:** Phase 3.R.e pulled forward the notes half of the original Task 5.0 scope during the multi-machine
@@ -3510,7 +3510,11 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         - Timeout implemented via `AbortController` on the subprocess; no blocking shell timeout
         - Probe respects `session.remote_sync: disabled` by returning a `skipped` state variant without any git
           invocation
-        - Lives alongside the existing notes probe (`sync-status.ts` or a sibling module); no persistent state file
+        - Lives at `lib/git/worktree-sync.ts` — pure git plumbing, neutral location consumed by both the
+          composite envelope (5.0.c) and the user-status qualifier path (5.0.d). Not under `commands/user/`
+          because worktree state is branch-scoped, not identity-scoped — co-locating with the notes probe
+          would invite a wrong refactor when plan-user-sync-ux unifies the notes spine (worktree stays a
+          parallel channel, not part of the spine). No persistent state file.
 
         Build `test-first` (one behavior at a time):
         - `session.remote_sync: disabled` short-circuits cleanly without invoking git
@@ -3530,23 +3534,37 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         default correctly; TypeScript types cover both the probe outputs and the config shape.
 
         **Design decisions (resolved pre-implementation):**
-        - Nested config object under `session.init_pull` rather than flat dotted keys — two related channels
-          benefit from co-location
+        - Flat dotted keys `session.init_pull.worktree` and `session.init_pull.notes` — matches every other
+          arc-config.yml key (`session.remote_sync`, `commit.format`, `branch.protection`, etc.) and the
+          existing flat-line parsers in both `lib/config/index.ts` (TS) and `arc-lib.sh` (`arc_config_get`).
+          A nested YAML object would require parser upgrades in both runtimes for no consumer benefit
         - Value type `"manual" | "prompt" | "always"`; `"always"` rejected at parse time for the `worktree`
           channel with a clear error message that names the valid set
         - Defaults: `prompt` for both; applied when the keys are absent (existing installs and fresh installs
           both get safe default)
-        - Two-copy sync in both `arc-config.yml` copies with inline comments explaining the per-channel semantics
+        - Touch points for the new keys: `DEFAULTS` map in `lib/config/status-reader.ts`, `ConfigSettings`
+          interface in `commands/config/types.ts`, `ConfigSessionInitSettings` + `SESSION_INIT_KEYS` in
+          `commands/config/status.ts` (the workflow consumer reads these via the session-init envelope)
+        - Two-copy sync of keys + inline comments across both `arc-config.yml` copies. Values may diverge —
+          package source carries framework defaults that render at `arc init`; `.arc/` carries this project's
+          chosen values. Both copies take `prompt` here; no project-specific override
 
         Build `test-first` (one behavior at a time):
-        - Parsing applies `prompt` default for both channels when `session.init_pull` block is absent
+        - Parsing applies `prompt` default for both keys when both are absent
         - Parsing accepts `manual | prompt | always` for notes; `manual | prompt` for worktree
         - Parsing rejects `always` for worktree with an error that names the valid set
-        - Parsing rejects unknown mode values with an error that names the valid set
-        - Partial config (worktree set, notes absent) fills the missing channel with `prompt` default
-        - Existing `arc-config.yml` files without the new block continue to parse cleanly
-        - `arc init` and `arc init --reconfigure` render the new block with defaults in the Session Initialization
-          section
+        - Parsing rejects unknown mode values for either key with an error that names the valid set
+        - Partial config (worktree set, notes absent) fills the missing key with `prompt` default
+        - Existing `arc-config.yml` files without the new keys continue to parse cleanly
+        - `readConfigSettings()` surfaces both keys in the `ConfigSettings` map and records absence in
+          `defaultsApplied`
+        - Both keys appear in `ConfigSessionInitSettings` and propagate through `arc status --session-init
+          --json` (the workflow reads them from this envelope, not by re-reading config)
+        - `arc init` and `arc init --reconfigure` render both keys with default values and inline comments
+          in the Session Initialization section
+        - Shell-side `validate-config.sh` enum entries reject invalid values for both keys, with a
+          cross-field rejection of `always` on `worktree`. Backfill the missing `session.remote_sync` enum
+          entry opportunistically — pre-existing gap, cheap fix at this seam
 
     - [ ] **5.0.c Composite probe envelope — worktree field + notes qualifier**
 
@@ -3703,13 +3721,18 @@ DEV-RULES is the cautious path — default to up-front load; shift to conditiona
         - ADR-012 receives a short new section or sub-section distinguishing worktree sync from notes sync,
           plus a reference to the session-init integration
         - `arc-config.yml` inline comments explain: purpose of each channel, mode semantics, why `always` is
-          disallowed for worktree, cross-reference to session-init.md for behavior
+          disallowed for worktree, cross-reference to session-init.md for behavior. Keep phrasing terse —
+          `session.init_pull.notes` may migrate when the gate-model frame
+          (plan-session-operational-flow Phase 6) consolidates session-bootstrap config; deeper rationale
+          belongs in ADR-012, not the inline comment, so a future rename stays a one-line edit
         - Release notes call out the new keys under a "Session initialization" heading, with a migration note
           (no migration needed — defaults are safe; opt-outs via `manual`)
-        - Two-copy sync for both ADR and `arc-config.yml`
+        - Two-copy sync for `arc-config.yml` keys + inline comments only. ADR-012 lives at
+          `.arc/reference/adr/` only — `packages/arc-framework/arc/reference/adr/` ships only a README, no
+          ADR copies, so no two-copy work there
 
         Scope:
-        - ADR-012 update (package source + `.arc/` copy)
+        - ADR-012 update (`.arc/` only — ADRs not packaged)
         - `arc-config.yml` inline comment additions (both copies)
         - `arc user status` CLI help text — document the new worktree qualifier behavior, `--offline` interaction,
           and the soft `remote-unavailable` fallback

@@ -5,29 +5,31 @@
 - **State:** In Progress
 - **Branch:** technical/session-init-optimization
 - **Task List:** `.arc/active/technical/tasks-session-init-optimization.md`
-- **Next Task:** 5.0 — Worktree-sync detection at session-init — completes
-  3.R.e scope (line ~3454)
-- **Last Completed:** Task 4.7 — Phase 4 close: Tier 3 quality gates.
-  Full suite clean (markdown lint 223 files, TS/shell lint, typecheck
-  src+test, 1051 tests, build). Spot-check on 4 staging entries (1, 30,
-  55, 68) across the 68-entry corpus confirmed template compliance
-  including the partial-extract variant from 4.5.c. Fixed-pattern
-  `[TODO-docs-site]` greppable across all trimmed sources that preserved
-  in-prose continuity (DEV-RULES.ARC + AGENT-BRIEFING.CONTRIBUTOR);
-  wholesale-section removals (4.5 workflow cluster) intentionally
-  anchor-free — sweep enumerates via entry metadata. CHECK 16 surface
-  check passed (negative-path short-circuit + positive resolvable exit 0
-  + positive unresolvable exit 1 with expected diagnostic). **Phase 4
-  closes** — workflow-trigger contract, per-file methods/extensions
-  restructure, method-rename, CI enforcement (CHECK 12/13/14/15/16),
-  operational-context audit (Tier 1/2/3), staging infrastructure all
-  shipped.
+- **Next Task:** 5.0.a — Worktree sync state inspection (probe)
+  (line ~3500)
+- **Last Completed:** Task 5.0 pre-implementation audit and spec
+  refinements. Pinned probe location at `lib/git/worktree-sync.ts`
+  (forward-compat with plan-user-sync-ux notes-spine unification —
+  worktree stays a parallel channel, not part of the spine). Flat
+  dotted config keys `session.init_pull.worktree` /
+  `session.init_pull.notes` (parser-compatible with both
+  `lib/config/index.ts` and `arc-lib.sh`; matches every existing key).
+  5.0.b touch points enumerated (`DEFAULTS`, `ConfigSettings`,
+  `ConfigSessionInitSettings`, `SESSION_INIT_KEYS`) + shell-side
+  `validate-config.sh` enum coverage added to behavior list (with
+  opportunistic `session.remote_sync` backfill). 5.0.g ADR scope
+  corrected — ADR-012 lives in `.arc/` only; package source has no
+  ADR copies. Migration-awareness note in 5.0.g inline-comment
+  guidance: `session.init_pull.notes` may migrate when the gate-model
+  frame (plan-session-operational-flow Phase 6) consolidates
+  session-bootstrap config; keep comment terse so a future rename is
+  a one-line edit. Three fix-before-starting items resolved before
+  kickoff.
 - **Blockers:** none
-- **Next Action:** Begin Task 5.0 — worktree-sync detection at
-  session-init. Extends the existing `session.remote_sync` gate and
-  Step 1.5 probe to the branch channel; adds narrow-fetch
-  (`git fetch origin <current-branch>`, 3s bounded timeout) with
-  `session.init_pull.worktree` / `session.init_pull.notes` config
-  (manual | prompt | always; `always` invalid for worktree). Worktree
-  pull sequence precedes notes pull when both drift. Full task spec at
-  tasks-file line ~3454.
+- **Next Action:** Begin Task 5.0.a — worktree sync state inspection
+  probe at `lib/git/worktree-sync.ts`. Pure-read probe returning
+  `clean | remote-ahead | local-ahead | diverged` plus degraded
+  states (`no-upstream | detached-head | no-remote | remote-unavailable
+  | skipped`); `ahead`/`behind` counts; 3s `AbortController` timeout;
+  respects `session.remote_sync: disabled` short-circuit. Test-first,
+  9 behaviors per task spec at line ~3515.
