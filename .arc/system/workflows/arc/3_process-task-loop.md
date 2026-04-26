@@ -46,8 +46,9 @@ arc:
   **Batching judgment:** When behaviors are tightly coupled (single function, shared setup, no
   independent discovery value), batching tests before implementing is a pragmatic alternative to
   strict one-at-a-time slicing. When you batch rather than slice, note the rationale briefly in
-  your completion report (e.g., "behaviors tightly coupled, single-pass implementation"). This
-  makes the decision visible — silent compliance and silent deviation should not look identical.
+  your completion report to the user (e.g., "behaviors tightly coupled, single-pass
+  implementation") — not in task list completion notes. This makes the decision visible during
+  review without bloating the persistent record.
 
 - **Issue triage:** When you encounter pre-existing issues in files you're modifying,
   follow the [issue-triage method][arc-methods-it] for severity assessment and fix-vs-defer decisions.
