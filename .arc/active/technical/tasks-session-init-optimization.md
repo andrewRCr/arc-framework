@@ -4043,29 +4043,71 @@ Task 5.6 is TS-only (no markdown sync concern).
     pattern has no remaining application. If such a candidate emerges in future work, the pattern can be
     derived fresh at that point; preserving it here without a use case is premature abstraction.
 
-    **Pre-implementation audit gate:** Run `/arc-task-audit 5.7` immediately before starting 5.7.a. The
-    subtasks below capture known surfaces; the audit catches what's missed once the rename actually starts
-    touching files (e.g., schema/hook coverage in `validate-frontmatter.ts`, classification entries in
-    `classification.ts`, hardcoded path strings in CLI output, manifest regeneration, full test-surface
-    enumeration). Treat audit findings as task-list amendments before file-touching begins.
+    **Pre-implementation audit (completed 2026-04-25):** Audit findings folded back into the
+    subtasks below. Resolved decisions:
 
-    - [ ] **5.7.a Package per-agent source removal + classification entries**
-        - Delete seven per-agent templates from `packages/arc-framework/arc/system/agent/`: `CLAUDE.ARC.md`,
-          `CODEX.ARC.md`, `COPILOT.ARC.md`, `CURSOR.ARC.md`, `GEMINI.ARC.md`, `WARP.ARC.md`, `WINDSURF.ARC.md`
-        - Delete `.arc/reference/templates/template-agent.md` (post-init creation template)
-        - Remove the seven `system/agent/{AGENT}.ARC.md` entries from `CONFIGURABLE_FILES` in
-          `packages/arc-framework/src/lib/classification.ts` (currently lines ~77–83)
-        - Decide (capture in `notes-session-init-optimization.md`): retire the agent classification path
-          entirely (`AGENT_PATH` regex in `validate-frontmatter.ts`, `frontmatter/agent.ts` parser, `agent`
-          branch in `classifyPath`) vs. keep as dead-but-registered. With no remaining `{AGENT}.ARC.md`
-          files the classification has no live callers; lean retire to avoid surface accumulation
-        - Two-copy sync: `.arc/system/agent/CLAUDE.ARC.md` and `CODEX.ARC.md` already deleted pre-4.2.b
-          (4.2.a follow-on); verify no drift
+    - **Agent classification path:** retire entirely — delete `frontmatter/agent.ts`,
+      `__tests__/unit/frontmatter/agent.test.ts`, agent test cases in
+      `validate-frontmatter.test.ts`, and remove the `agent` branch + `AGENT_PATH`/`AGENT_NAME`
+      regexes + dispatch case in `validate-frontmatter.ts`. With no remaining `{AGENT}.ARC.md`
+      files, the classification has no live callers; retiring avoids surface accumulation.
+    - **Execution order:** 5.7.b → 5.7.a → 5.7.c → 5.7.d → 5.7.e → 5.7.f → 5.7.g → 5.7.h → 5.7.i.
+      5.7.b first (docs-only) eliminates in-flight session-init mismatches before file deletes.
+    - **5.7.g re-scoped:** add-agent.md scaffolding step already retired in commit `27174b8`
+      (Task 4.5.d, 2026-04-24). Workflow today is in the desired post-pivot shape — 5.7.g
+      reduces to path/filename updates already covered by 5.7.d.
+    - **Recipe surface:** 5.7.f's primary edit target is `packages/arc-framework/init-recipe.json`
+      (per-tool conditions + `template-agent.md` include + briefs path rename). Source-code init
+      flow (`init.ts`) reads the recipe; code edits limit to the post-init message string.
+    - **Tools-prompt semantics rename** (harness vs agents) captured to ATOMIC-INBOX.md as a
+      follow-on; not blocking 5.7.
 
-    - [ ] **5.7.b Session-init integration removal**
+    - [ ] **5.7.a Package per-agent source removal + agent classification retire**
+        - **File deletions:**
+            - Seven per-agent templates from `packages/arc-framework/arc/system/agent/`:
+              `CLAUDE.ARC.md`, `CODEX.ARC.md`, `COPILOT.ARC.md`, `CURSOR.ARC.md`, `GEMINI.ARC.md`,
+              `WARP.ARC.md`, `WINDSURF.ARC.md`
+            - `.arc/reference/templates/template-agent.md` AND
+              `packages/arc-framework/arc/reference/templates/template-agent.md` (both copies)
+        - **Classification entries** (`packages/arc-framework/src/lib/classification.ts`):
+            - Remove the seven `system/agent/{AGENT}.ARC.md` entries from `CONFIGURABLE_FILES`
+              (currently lines 77-83)
+            - `system/agent/AGENT-BRIEFING.PROJECT.template.md` (line 74) is NOT removed —
+              gets path-renamed in 5.7.c
+        - **Agent classification retire** (per resolved decision):
+            - Delete `packages/arc-framework/src/lib/frontmatter/agent.ts`
+            - Remove `parseAgentFrontmatter` re-export from
+              `packages/arc-framework/src/lib/frontmatter/index.ts`
+            - In `packages/arc-framework/src/scripts/validate-frontmatter.ts`: remove `agent`
+              from `PathClassification` (line 24-29), drop `AGENT_PATH` (line 39) and
+              `AGENT_NAME` (line 40) regexes, drop the agent dispatch in `classifyPath`
+              (lines 62-63), drop the agent branch in `validateFiles` (lines 100-103),
+              update the doc comment block (lines 4-5, 48-49) to drop the agent reference
+        - **Test-surface alignment** (retire path):
+            - Delete `packages/arc-framework/__tests__/unit/frontmatter/agent.test.ts`
+            - Remove agent test cases from
+              `packages/arc-framework/__tests__/unit/scripts/validate-frontmatter.test.ts`
+              (currently lines ~71-89, 124, 177-204)
+            - Update fixture paths in
+              `packages/arc-framework/__tests__/unit/template/recipe.test.ts`
+              (lines 21-22, 57, 74)
+            - Update path string in
+              `packages/arc-framework/__tests__/unit/scripts/validate-package-neutrality.test.ts:110`
+            - Update post-init layout assertions in `__tests__/integration/init.test.ts`,
+              `__tests__/e2e/init.e2e.test.ts`, `__tests__/unit/init.test.ts`,
+              `__tests__/integration/validate-links.test.ts:238,250` (filename rename)
+        - **Two-copy sync verification:** `.arc/system/agent/` confirmed clear of all per-agent
+          files (CLAUDE, CODEX, COPILOT, CURSOR, GEMINI, WARP, WINDSURF) — broader sweep than
+          spec's prior "CLAUDE.ARC.md and CODEX.ARC.md only" claim
+
+    - [ ] **5.7.b Session-init integration removal** (execute first per resolved order)
         - Remove Step 4 item 3 (agent-specific file conditional load) from `session-init.md`
-        - Update Step 4 parallelism guidance (framework docs items 1–7 → items 1–2 + 4–7, renumber as needed)
-        - Scan for any disambiguation rules or cross-step references pointing at item 3; update accordingly
+        - Update Step 4 parallelism guidance (framework docs items 1–7 → items 1–2 + 4–7,
+          renumber as needed)
+        - Drop the `{AGENT}.ARC.md` row from `AGENT-BRIEFING.ARC.md`'s Key Documents table
+          (currently lines 25-26) — row deletion, not rewrite
+        - Scan for any disambiguation rules or cross-step references pointing at item 3;
+          update accordingly
         - Two-copy sync
 
     - [ ] **5.7.c Directory and file renames**
@@ -4075,61 +4117,118 @@ Task 5.6 is TS-only (no markdown sync concern).
           `AGENT-BRIEFING.CONTRIBUTOR.md` → `AGENT-BRIEF.CONTRIBUTOR.md`
         - Package tree: `AGENT-BRIEFING.PROJECT.template.md` → `AGENT-BRIEF.PROJECT.template.md`
         - Use `git mv` to preserve history; stage renames as rename operations (not delete + add)
+        - **Update `CONFIGURABLE_FILES` path in `classification.ts:74`:**
+          `system/agent/AGENT-BRIEFING.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.template.md`
 
-    - [ ] **5.7.d Cross-reference updates**
-        - Sweep all framework docs for path references (`system/agent/` → `system/briefs/`) and filename
-          references (`AGENT-BRIEFING` → `AGENT-BRIEF`) — grep both patterns across `.arc/` and
-          `packages/arc-framework/arc/`
-        - Known hot spots: `session-init.md` item numbering + paths, `AGENT-BRIEFING.ARC.md` Key Documents
-          table + closing pointer (now self-referencing its own rename), DEV-RULES.ARC When-to-Load section,
-          STRATEGY-INDEX, QUICK-REFERENCE, workflow files that reference briefings
+    - [ ] **5.7.d Cross-reference + content updates**
+        - **Doc sweep:** grep `system/agent/` and `AGENT-BRIEFING` patterns across `.arc/` and
+          `packages/arc-framework/arc/`; rename to `system/briefs/` / `AGENT-BRIEF`
+        - **Hot spots (live framework docs):**
+            - `session-init.md` item numbering + paths
+            - `AGENT-BRIEFING.ARC.md` closing pointer (self-referencing the rename)
+            - `DEV-RULES.ARC` When-to-Load section, `STRATEGY-INDEX`, `QUICK-REFERENCE`
+            - Workflow files referencing briefings: `add-agent.md` (paths only — content
+              already pivoted in commit `27174b8`), `01_verify-and-configure.md`,
+              `02_define-project.md`, `maintain-project-docs.md`
+        - **Source-code path strings** (path rename only — content unchanged):
+            - `packages/arc-framework/src/commands/init.ts:291` post-init message string literal
+        - **Hook + script edits** (two-copy across `.arc/system/` and
+          `packages/arc-framework/arc/system/`):
+            - `system/githooks/pre-commit:352` — comment cleanup (regex change tracked in 5.7.h)
+            - `system/scripts/verify-integrity.sh:95-96, 254-255` — direct path checks (4 entries)
+        - **Content section deletions** (not just path rename):
+            - `01_verify-and-configure.md:62-66, 150-152, 186` — remove the entire "Agent
+              config file" verification section + `template-agent` reference link (both copies)
         - Verify no stale inline links, reference-link definitions, or prose mentions remain
+        - **Provenance retain (do not edit):** ADR / analysis / archive / research references —
+          gates verified by 5.7.i grep
         - Two-copy sync all touched files
 
     - [ ] **5.7.e Subdir README rewrite**
         - Rewrite `system/briefs/README.md` (formerly `system/agent/README.md`): retire dual-hub +
-          tool-files architecture framing, "What Belongs in Tool-Specific Files", "Adding Files for Other
-          Tools" sections — all obsolete under the removal
-        - Scope new README to session-init briefings: purpose (orientation docs loaded at session-init),
-          three files and their roles (ARC / PROJECT / CONTRIBUTOR), classification (framework vs configurable
-          per file), adoption guidance (customize PROJECT; ARC and CONTRIBUTOR are framework-managed)
-        - Add pointer to harness-level files as the ARC-external surface for agent-specific operational
-          guidance — complement to ARC briefings, distinct loading layer, outside ARC methodology
+          tool-files architecture framing, "What Belongs in Tool-Specific Files", "Adding Files for
+          Other Tools" sections — all obsolete under the removal
+        - Scope new README to session-init briefings: purpose (orientation docs loaded at
+          session-init), three files and their roles (ARC / PROJECT / CONTRIBUTOR), classification
+          (framework vs configurable per file), adoption guidance (customize PROJECT; ARC and
+          CONTRIBUTOR are framework-managed)
+        - Add pointer to harness-level files as the ARC-external surface for agent-specific
+          operational guidance — complement to ARC briefings, distinct loading layer, outside ARC
+          methodology
+        - **Post-rewrite scope check:** confirm the copy reads coherently in the new
+          `system/briefs/` context — directory now houses agent-only orientation briefings
+          loaded at session-init (ARC, PROJECT, CONTRIBUTOR variants), not the prior dual-hub
+          and per-agent file mix. Framing should reflect the simpler post-removal directory shape;
+          re-read for vestigial language carrying the old mental model
         - Two-copy sync
 
-    - [ ] **5.7.f `arc init` scaffolding change**
-        - Remove per-agent file generation from init flow — selected agents recorded in `arc-config.yml`
-          (if still needed for tooling awareness) but no `{AGENT}.ARC.md` files materialize
-        - Path/token substitution for briefings continues as-is (only paths change: `system/agent/` →
-          `system/briefs/`; filename: `AGENT-BRIEFING.PROJECT.template.md` → `AGENT-BRIEF.PROJECT.template.md`)
-        - Update init prompts / output messaging — no more "tool-specific file scaffolded" lines
-        - Test coverage: integration test verifies init produces correct file set under new layout (briefs
-          dir exists with three files, no per-agent files)
+    - [ ] **5.7.f `arc init` recipe + scaffolding update**
+        - **Primary surface:** `packages/arc-framework/init-recipe.json`
+            - Remove `"reference/templates/template-agent.md"` from unconditional `include_files`
+              (line 17)
+            - Remove the seven per-tool conditions for `system/agent/{TOOL}.ARC.md`
+              (lines 149-184: claude, codex, gemini, copilot, cursor, windsurf, warp)
+            - Rename briefs paths in unconditional `include_files` (lines 34-37):
+              `system/agent/AGENT-BRIEFING.{ARC,CONTRIBUTOR,PROJECT.template}.md` →
+              `system/briefs/AGENT-BRIEF.{ARC,CONTRIBUTOR,PROJECT.template}.md`;
+              `system/agent/README.md` → `system/briefs/README.md`
+        - **No init-flow logic changes** — the `tools` prompt remains; selection records to
+          `arc-config.yml` and drives skill placement (`detectExistingSkillDirs`), no longer
+          materializes per-agent files. Tools-prompt semantics rename (harness vs agents) is
+          captured in ATOMIC-INBOX.md; not blocking 5.7
+        - **Init output messaging:** post-init message path string handled in 5.7.d
+          (`init.ts:291`); no other messaging changes (no "tool-specific file scaffolded"
+          lines existed in current output)
+        - **Test coverage:** post-init layout assertions updated under 5.7.a's
+          test-surface section; cross-reference confirmed here. Integration test should
+          verify init produces `system/briefs/` with three files + README.md only,
+          no per-agent files, no `template-agent.md`
 
-    - [ ] **5.7.g `add-agent` workflow pivot**
-        - Retire the file-scaffolding step (no `{AGENT}.ARC.md` to create)
-        - Workflow shrinks to: register agent in `arc-config.yml`, scaffold agent-specific skills per existing
-          conventions, document harness-level file as the place for agent-specific operational guidance
-        - Assess whether the workflow still earns its file — if reduced to config + skills, may collapse into
-          a few lines in configurability-architecture strategy or QUICK-REFERENCE. Decide based on post-pivot
-          content weight
-        - Two-copy sync
+    - [ ] **5.7.g `add-agent.md` verification (no-op confirmed)**
+        - **Resolved during audit:** Commit `27174b8` (Task 4.5.d, 2026-04-24) already retired
+          the file-scaffolding step from `add-agent.md` — Step 2 "Check for Agent-Specific
+          Configuration" removed wholesale, steps renumbered, summary updated. Workflow today
+          is in the desired post-pivot shape (orient → generate skills → restart)
+        - **Remaining work for this WU:** path/filename updates only — covered under 5.7.d as
+          part of the cross-reference sweep (`system/agent/AGENT-BRIEFING.{ARC,PROJECT}.md`
+          paths in `add-agent.md:25-26` rename to `system/briefs/AGENT-BRIEF.*.md`)
+        - **Mark `[~]` (deferred / no-op)** at execution — no content changes beyond the
+          5.7.d sweep
 
     - [ ] **5.7.h CHECK 12 hook revision**
-        - Identify CHECK 12's current scope re: agent files (pre-emptive `active: true` frontmatter was added
-          to `CLAUDE.ARC.md` in 4.2.a to unblock this hook)
-        - Revise hook to remove `{AGENT}.ARC.md` frontmatter expectation; retain any briefing-file checks if
-          applicable
-        - Test coverage: hook runs clean on briefs-only directory
+        - **Pre-commit hook regex** (`.arc/system/githooks/pre-commit:354` +
+          `packages/arc-framework/arc/system/githooks/pre-commit:354`):
+          `grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions|agent)/'` —
+          remove the `|agent` alternation
+        - **Comment cleanup** (line 352): drop `agent-specific files (system/agent/{AGENT}.ARC.md)`
+          from the CHECK 12 description (path/filename sweep tracked under 5.7.d)
+        - **Two-copy sync** required (both `.arc/` and `packages/arc-framework/arc/` copies of
+          `pre-commit`)
+        - **Test coverage:** retire-path test edits (per 5.7.a) already remove agent test cases
+          from `validate-frontmatter.test.ts`. Verify `__tests__/unit/scripts/` coverage stays
+          green after CHECK 12 regex change. Hook should run clean on a briefs-only staged set
 
-    - [ ] **5.7.i Release notes + sync verification**
-        - Draft release-notes entry documenting breaking change: `{AGENT}.ARC.md` surface removed; migration
-          advice = move agent-specific content to harness-level file (`CLAUDE.md`, `AGENTS.md`, etc.); note
-          directory/file rename for any adopter code referencing paths
-        - Verify two-copy sync across every touched file via framework-sync integration test (if run locally)
-          or manual diff
-        - Grep verification: `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md" .arc/ packages/` returns
-          zero matches in framework docs (archive / ADR history may retain for provenance)
+    - [ ] **5.7.i Release notes + sync verification + phase acceptance**
+        - **Release notes** entry documenting breaking changes:
+            - `{AGENT}.ARC.md` surface removed; migration advice = move agent-specific content
+              to harness-level file (`CLAUDE.md`, `AGENTS.md`, etc.)
+            - Directory rename `system/agent/` → `system/briefs/`; file rename
+              `AGENT-BRIEFING.*.md` → `AGENT-BRIEF.*.md` for any adopter code referencing paths
+            - Adopter migration: run `arc update` to migrate manifest paths
+              (`.arc/system/.internal/manifest.json` regenerates from new recipe)
+        - **Two-copy sync verification:** every touched file via framework-sync integration test
+          (if run locally) or manual diff. Explicit two-copy spots beyond docs: `pre-commit`
+          (CHECK 12 regex), `verify-integrity.sh` (path checks)
+        - **Grep verification:** `grep -rn "AGENT-BRIEFING\|system/agent\|{AGENT}.ARC.md" .arc/ packages/`
+          returns zero matches in live framework docs / source / hooks / scripts (archive / ADR /
+          analysis / research history may retain for provenance — exclude during grep)
+        - **Phase-level acceptance criteria** (all required for 5.7 done):
+            - `npm test` passes end-to-end with new layout
+            - Fresh `arc init` produces only the briefs set:
+              `system/briefs/AGENT-BRIEF.{ARC,PROJECT,CONTRIBUTOR}.md` and
+              `system/briefs/README.md` — no per-agent files, no `template-agent.md`
+            - Pre-commit CHECK 12 runs clean against a briefs-only staged set
+            - Markdown lint clean across all touched files
 
 - [ ] **5.8 Session-init workflow Step 2/4/7 restructure**
 
