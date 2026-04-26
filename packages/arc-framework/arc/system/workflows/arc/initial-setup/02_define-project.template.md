@@ -54,14 +54,14 @@ the project.
 - What are the critical performance and infrastructure requirements?
 - What testing and build infrastructure exists?
 
-### Step 3: Define AGENT-BRIEFING.PROJECT
+### Step 3: Define AGENT-BRIEF.PROJECT
 
 Your project's executive summary for the agent — loaded every session. This distills
 META-PRD (what the project is) and TECHNICAL-OVERVIEW (how it's built) into a concise
 briefing: project type, primary goal, technology stack, repository layout, and common
 friction points.
 
-**Template**: [AGENT-BRIEFING.PROJECT.md][agents-project] → stays in `system/agent/`
+**Template**: [AGENT-BRIEF.PROJECT.md][agents-project] → stays in `system/briefs/`
 
 **Think through**:
 
@@ -150,7 +150,7 @@ say. When they drift from reality, the agent works from wrong assumptions.
 
 **Session-loaded documents — keep current:**
 
-- **AGENT-BRIEFING.PROJECT** — when the project's scope, stack, or friction points change. Stale
+- **AGENT-BRIEF.PROJECT** — when the project's scope, stack, or friction points change. Stale
   content here directly degrades every session's starting context.
 - **QUICK-REFERENCE** — when commands, paths, or environment requirements change. Wrong
   commands here mean the agent fails quality gates or uses outdated tooling.
@@ -175,7 +175,7 @@ decisions are made, not on a schedule.
 
 ## Next Step
 
-Project definition is complete. Three of these documents — AGENT-BRIEFING.PROJECT,
+Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT,
 QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
 session.
 <!-- arc:if pm.mode == arc-in-git -->
@@ -217,7 +217,7 @@ workflows to your tracker.
 <!-- arc:endif -->
 [meta-prd]: ../../../../reference/META-PRD.md
 [tech-overview]: ../../../../reference/TECHNICAL-OVERVIEW.md
-[agents-project]: ../../../agent/AGENT-BRIEFING.PROJECT.md
+[agents-project]: ../../../briefs/AGENT-BRIEF.PROJECT.md
 [quick-ref]: ../../../../reference/QUICK-REFERENCE.md
 [dev-rules]: ../../../../reference/constitution/DEV-RULES.PROJECT.md
 [dev-rules-arc]: ../../../../reference/constitution/DEV-RULES.ARC.md

@@ -22,8 +22,8 @@ project (use `arc join`).
 If you are an AI agent reading this, start by reading these two documents in full — they explain
 what ARC is and how this project uses it:
 
-1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` — ARC framework orientation
-2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` — Project-specific context
+1. `.arc/system/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
+2. `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` — Project-specific context
 
 ### Step 2: Generate Skill Files
 

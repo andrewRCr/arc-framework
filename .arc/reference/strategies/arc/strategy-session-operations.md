@@ -36,9 +36,8 @@ ARC organizes agent context into three tiers based on when the content becomes r
 **T1 — Constitutional.** Content that governs all agent behavior regardless of the session's
 work. Always loaded at session start.
 
-- AGENT-BRIEFING.ARC.md (ARC framework orientation)
-- AGENT-BRIEFING.PROJECT.md (project identity and collaboration context)
-- Agent-specific file (operational guidance)
+- AGENT-BRIEF.ARC.md (ARC framework orientation)
+- AGENT-BRIEF.PROJECT.md (project identity and collaboration context)
 - DEV-RULES — ARC and Project (quality standards, methodology rules)
 - STRATEGY-INDEX — both framework and project (navigation to domain guidance)
 - QUICK-REFERENCE (environment context, command patterns)

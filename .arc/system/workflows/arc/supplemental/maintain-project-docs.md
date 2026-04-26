@@ -15,7 +15,7 @@ When constitutional documents change, update related files to keep documentation
 
 **Update these files:**
 
-- `agent/AGENT-BRIEFING.PROJECT.md` - Project overview and features section
+- `briefs/AGENT-BRIEF.PROJECT.md` - Project overview and features section
 - `PROJECT-STATUS.md` - If scope or priorities change
 
 **Why**: META-PRD is the source of truth for project vision. Changes here ripple to reference docs that summarize that vision.
@@ -25,7 +25,7 @@ When constitutional documents change, update related files to keep documentation
 **Update these files:**
 
 - Version number in DEV-RULES.PROJECT.md header (increment version, update hash)
-- All `agent/*.md` files - If protocols or quality standards change
+- All `briefs/*.md` files - If protocols or quality standards change
 - Team communication about rule changes (if applicable)
 
 **Why**: Development rules govern AI behavior. Version tracking helps identify when behavioral issues stem from rule
@@ -35,7 +35,7 @@ changes versus AI interpretation.
 
 **Update these files:**
 
-- `agent/AGENT-BRIEFING.PROJECT.md` - Technology stack and patterns section
+- `briefs/AGENT-BRIEF.PROJECT.md` - Technology stack and patterns section
 - `PROJECT-STATUS.md` - If architectural decisions affect roadmap
 
 **Why**: Technical architecture decisions cascade to implementation patterns and project timelines.
@@ -69,7 +69,7 @@ When tempted to duplicate content:
 
 ### Keep AI Instructions Lean
 
-When updating `agent/` docs:
+When updating `briefs/` docs:
 
 - **Do**: Reference other docs for details
 - **Do**: Provide quick lookup/navigation guides

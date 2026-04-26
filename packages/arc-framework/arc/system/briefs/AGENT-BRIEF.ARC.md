@@ -1,4 +1,4 @@
-# AGENT-BRIEFING.ARC.md — ARC Orientation for Agents
+# AGENT-BRIEF.ARC.md — ARC Orientation for Agents
 
 ARC is a development methodology for human-AI collaboration, implemented as markdown documents,
 git hooks, and a CLI package — all agent-platform agnostic.
@@ -22,7 +22,7 @@ loaded when workflow YAML frontmatter declares them.
 
 | Document                    | Purpose                                       | Location                  |
 |-----------------------------|-----------------------------------------------|---------------------------|
-| AGENT-BRIEFING.PROJECT.md   | Project overview, tech stack, friction points | `system/agent/`           |
+| AGENT-BRIEF.PROJECT.md      | Project overview, tech stack, friction points | `system/briefs/`          |
 | DEV-RULES.ARC.md            | ARC methodology rules                         | `reference/constitution/` |
 | DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
 | QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |
@@ -42,5 +42,5 @@ loaded when workflow YAML frontmatter declares them.
 ---
 
 _Shared ARC framework entry point for all AI agents. Project-specific context lives in
-[AGENT-BRIEFING.PROJECT.md](AGENT-BRIEFING.PROJECT.md); agent-specific guidance in dedicated
-files (e.g., CLAUDE.ARC.md)._
+[AGENT-BRIEF.PROJECT.md](AGENT-BRIEF.PROJECT.md); agent-specific guidance lives in harness-level
+files (e.g., `CLAUDE.md`, `AGENTS.md`) outside ARC._

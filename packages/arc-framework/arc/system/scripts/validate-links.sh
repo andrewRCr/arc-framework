@@ -114,7 +114,7 @@ validate_file() {
     case "$source_file" in *.md) ;; *) return 0 ;; esac
 
     # Skip template source files. Their links use post-install-relative
-    # paths (e.g., `AGENT-BRIEFING.ARC.md` from `template-agent.md`, or
+    # paths (e.g., `AGENT-BRIEF.ARC.md` from a template, or
     # `[ARCHIVE_PATH]` placeholders) that resolve at install destination,
     # not at storage location. Install-integration tests validate the
     # rendered output.

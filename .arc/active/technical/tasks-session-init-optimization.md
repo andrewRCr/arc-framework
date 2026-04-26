@@ -4174,44 +4174,130 @@ Task 5.6 is TS-only (no markdown sync concern).
         `packages/arc-framework/arc/` (`session-init.template.md` and tracked siblings).
         Tier 1 lint clean (6 files, 0 errors).
 
-    - [ ] **5.7.c Directory and file renames**
-        - Rename `system/agent/` → `system/briefs/` in both trees
-        - Rename files in both trees: `AGENT-BRIEFING.ARC.md` → `AGENT-BRIEF.ARC.md`,
-          `AGENT-BRIEFING.PROJECT.md` → `AGENT-BRIEF.PROJECT.md`,
-          `AGENT-BRIEFING.CONTRIBUTOR.md` → `AGENT-BRIEF.CONTRIBUTOR.md`
-        - Package tree: `AGENT-BRIEFING.PROJECT.template.md` → `AGENT-BRIEF.PROJECT.template.md`
-        - Use `git mv` to preserve history; stage renames as rename operations (not delete + add)
-        - **Update `CONFIGURABLE_FILES` path in `classification.ts:74`:**
-          `system/agent/AGENT-BRIEFING.PROJECT.template.md` → `system/briefs/AGENT-BRIEF.PROJECT.template.md`
-        - **Update briefs paths in `packages/arc-framework/init-recipe.json` unconditional
-          `include_files`** (relocated from 5.7.f to co-locate with the directory rename):
-          `system/agent/AGENT-BRIEFING.{ARC,CONTRIBUTOR,PROJECT.template}.md` →
-          `system/briefs/AGENT-BRIEF.{ARC,CONTRIBUTOR,PROJECT.template}.md`;
-          `system/agent/README.md` → `system/briefs/README.md`
+    - [x] **5.7.c Directory and file renames**
 
-    - [ ] **5.7.d Cross-reference + content updates**
-        - **Doc sweep:** grep `system/agent/` and `AGENT-BRIEFING` patterns across `.arc/` and
-          `packages/arc-framework/arc/`; rename to `system/briefs/` / `AGENT-BRIEF`
-        - **Hot spots (live framework docs):**
-            - `session-init.md` item numbering + paths
-            - `AGENT-BRIEFING.ARC.md` closing pointer (self-referencing the rename)
-            - `DEV-RULES.ARC` When-to-Load section, `STRATEGY-INDEX`, `QUICK-REFERENCE`
-            - Workflow files referencing briefings: `add-agent.md` (paths only — content
-              already pivoted in commit `27174b8`), `01_verify-and-configure.md`,
-              `02_define-project.md`, `maintain-project-docs.md`
-        - **Source-code path strings** (path rename only — content unchanged):
-            - `packages/arc-framework/src/commands/init.ts:291` post-init message string literal
-        - **Hook + script edits** (two-copy across `.arc/system/` and
-          `packages/arc-framework/arc/system/`):
-            - `system/githooks/pre-commit:352` — comment cleanup (regex change tracked in 5.7.h)
-            - `system/scripts/verify-integrity.sh:95-96, 254-255` — direct path checks (4 entries)
-        - **Content section deletions** (not just path rename):
-            - `01_verify-and-configure.md:62-66, 150-152, 186` — remove the entire "Agent
-              config file" verification section + `template-agent` reference link (both copies)
-        - Verify no stale inline links, reference-link definitions, or prose mentions remain
-        - **Provenance retain (do not edit):** ADR / analysis / archive / research references —
-          gates verified by 5.7.i grep
-        - Two-copy sync all touched files
+        **Outcome:** Renamed `system/agent/` → `system/briefs/` in both
+        trees and renamed all briefing files via `git mv` (8 rename ops;
+        all staged as `R` rename operations preserving history).
+        `.arc/system/briefs/`: `AGENT-BRIEF.{ARC,CONTRIBUTOR,PROJECT}.md`
+        plus `README.md`. Package source:
+        `AGENT-BRIEF.{ARC,CONTRIBUTOR}.md`,
+        `AGENT-BRIEF.PROJECT.template.md`, `README.md`.
+
+        Updated `CONFIGURABLE_FILES` in `classification.ts:74` to the new
+        template path. Updated `init-recipe.json` unconditional
+        `include_files` (4 entries: ARC, CONTRIBUTOR, PROJECT.template,
+        README) — briefs-path migration absorbed from 5.7.f as scoped.
+
+        **Test-surface scope expansion:** Path-existence-coupled
+        assertions across the test suite required updates to keep
+        green — broader than the two files 5.7.a deferred. Updated:
+        `recipe.test.ts:21-22` (`validRecipe()` factory `include_files`),
+        `__tests__/integration/init.test.ts` (`expectedDirs` list at
+        line 96 plus 4 file-existence/path checks at 116, 271, 276, 407),
+        `__tests__/unit/init.test.ts:272,279` (`classifyFile` assertions —
+        would have flipped Configurable→Framework after the
+        `CONFIGURABLE_FILES` Set change). The two explicitly-deferred
+        files landed alongside: `validate-package-neutrality.test.ts:110`
+        (`agent/README.md` → `briefs/README.md`) and
+        `validate-links.test.ts:238,250` (fixture link targets
+        `AGENT-BRIEFING.ARC.md` → `AGENT-BRIEF.ARC.md`; fixture source
+        filenames left as-is — they test pattern-matching, not specific
+        files).
+
+        **Manifest sync:** `.arc/system/.internal/manifest.json` updated
+        for 3 path entries (ARC, PROJECT, README); pristine hashes
+        preserved (rename only, no content change). Note: the manifest
+        carries no `AGENT-BRIEFING.CONTRIBUTOR.md` entry — pre-existing
+        gap, not introduced here.
+
+        **Deferred per spec phasing (5.7.d):**
+        `src/commands/init.ts:291` post-init message string still says
+        "system/agent/AGENT-BRIEFING.ARC.md" — explicitly listed under
+        5.7.d source-code path strings. Tests asserting that message
+        content (`init.test.ts:474`, `unit/init.test.ts:822,826,829`)
+        therefore stay green and update with init.ts:291 in 5.7.d.
+
+        **Tier 2 baseline:** 1099 tests / 8 files green, typecheck +
+        eslint clean, 214 markdown files clean, build success.
+        Test count unchanged from 5.7.a.
+
+    - [x] **5.7.d Cross-reference + content updates**
+
+        **Outcome:** Swept all live framework docs, source, hooks, and scripts
+        for `system/agent/` and `AGENT-BRIEFING` patterns and renamed to
+        `system/briefs/` / `AGENT-BRIEF`. Two-copy sync across `.arc/` and
+        `packages/arc-framework/arc/` for every touched file.
+
+        **Brief files self-references:** Updated titles (line 1) plus
+        embedded references in `AGENT-BRIEF.ARC.md` (Key Documents table
+        and closing pointer), `AGENT-BRIEF.PROJECT.md` and
+        `AGENT-BRIEF.PROJECT.template.md` (closing pointers — also reframed
+        the "agent-specific guidance" trailer to point at harness-level
+        files (`CLAUDE.md`, `AGENTS.md`) instead of the retired
+        `{AGENT}.ARC.md` surface), `AGENT-BRIEF.CONTRIBUTOR.md` (title).
+        Pre-commit hook flagged the 3 link-syntax self-references; opportunistic
+        cleanup of the prose-mention "harness-level" framing rode along.
+
+        **Workflows:** `session-init.md` items 1, 2, 7 (contributor variant)
+        paths; `add-agent.md` step-1 paths; `02_define-project.md` Step 3
+        title + template path + maintenance bullet + "Next Step" mention +
+        ref-link target; `maintain-project-docs.md` four `agent/`-prefixed
+        path strings; `01_verify-and-configure.md` content section
+        deletions per spec — Path 1 `**Agent config file:**` paragraph
+        (lines 62-69), Path 2 bullet (lines 150-152),
+        `[template-agent]` ref-link definition (line 186), plus `Path 2`
+        Constitutional-documents prose mention rename.
+
+        **Constitution + strategies:** `DEV-RULES.ARC.md` two prose
+        mentions + ref-link target; `strategy-session-operations.md`
+        T1 list (also dropped the now-obsolete "Agent-specific file"
+        bullet — surface retired); `strategy-file-classification.md`
+        examples list (dropped `CLAUDE.ARC` example), file-type prose
+        examples, and template-suffix-stripping example;
+        `strategy-package-project-sync.md` (project-only, no package
+        counterpart) — table row, Framework templates list (dropped
+        `template-agent.md` entry retired in 5.7.a), Framework system
+        list, Configurable list (dropped `CLAUDE.ARC.md` and
+        `CODEX.ARC.md` entries — files retired in 5.7.a), package-only
+        section (entire "Init-selected agent files" subsection removed —
+        no per-tool agent files remain), template counterpart list.
+
+        **Reference + READMEs:** `META-PRD.md` Hub-spoke architecture
+        bullet (also reframed "agent-specific files (CLAUDE.ARC.md, etc.)"
+        to harness-level files outside ARC); `PROJECT-STATUS.md` two
+        completion-history entries; `TECHNICAL-OVERVIEW.md` `Agent files`
+        directory bullet rewritten as "Agent briefs" (per-agent files
+        retired); `.arc/README.md` and `packages/arc-framework/arc/README.md`
+        directory tree comment; `.arc/user/README.md` and package
+        counterpart contributor briefing path; `template-contributing.md`
+        contributor briefing path (both copies).
+
+        **Skills + hooks + scripts + source:** `arc-setup/SKILL.md` brief
+        path (both copies); `verify-integrity.sh` 4 direct path checks
+        (lines 95-96, 254-255) plus check-message text (`Agent briefing` →
+        `Agent brief`); `validate-links.sh` comment example (both copies);
+        `pre-commit:351-352` comment cleanup — dropped agent-specific
+        files mention (regex change at line 354 stays under 5.7.h);
+        `init.ts:291` post-init message string literal +
+        `init.test.ts:474` and `unit/init.test.ts:822,826,829` dependent
+        message-string assertions.
+
+        **Manifest sync:** Recomputed `.arc/system/.internal/manifest.json`
+        pristine_hash for the 3 briefs entries — content (titles, footers)
+        changed in this commit so the 5.7.c rename-only hashes were stale.
+
+        **Deferred to 5.7.e:** `.arc/system/briefs/README.md` and package
+        counterpart still carry full pre-removal architecture framing
+        ("dual-hub pattern with tool-specific extensions", "What Belongs
+        in Tool-Specific Files", per-tool template descriptions). 5.7.e
+        rewrites this README wholesale; path-substitution alone would
+        leave structurally obsolete prose. 34 grep matches remain there
+        and clear under 5.7.e.
+
+        **Tier 2 gates clean:** 1099 tests / 8 files green (test count
+        unchanged), typecheck + eslint + shellcheck clean, 214 markdown
+        files clean, build success.
 
     - [ ] **5.7.e Subdir README rewrite**
         - Rewrite `system/briefs/README.md` (formerly `system/agent/README.md`): retire dual-hub +

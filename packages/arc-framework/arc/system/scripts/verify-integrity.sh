@@ -92,8 +92,8 @@ check_file() {
 # Note: active/ is lazily created at first work unit activation — no core-file
 # check for status files here; the Session State section below handles
 # presence/validation.
-check_file "$ARC_DIR/system/agent/AGENT-BRIEFING.ARC.md" "Agent briefing (ARC)"
-check_file "$ARC_DIR/system/agent/AGENT-BRIEFING.PROJECT.md" "Agent briefing (project)"
+check_file "$ARC_DIR/system/briefs/AGENT-BRIEF.ARC.md" "Agent brief (ARC)"
+check_file "$ARC_DIR/system/briefs/AGENT-BRIEF.PROJECT.md" "Agent brief (project)"
 check_file "$ARC_DIR/reference/constitution/DEV-RULES.ARC.md" "Dev rules (ARC)"
 check_file "$ARC_DIR/reference/constitution/DEV-RULES.PROJECT.md" "Dev rules (project)"
 check_file "$ARC_DIR/reference/QUICK-REFERENCE.md" "Quick reference"
@@ -251,8 +251,8 @@ check_refs_in_file() {
 # Capture output to count errors (while loop runs in subshell).
 ref_found_errors=false
 for ref_file in \
-    "$ARC_DIR/system/agent/AGENT-BRIEFING.ARC.md" \
-    "$ARC_DIR/system/agent/AGENT-BRIEFING.PROJECT.md" \
+    "$ARC_DIR/system/briefs/AGENT-BRIEF.ARC.md" \
+    "$ARC_DIR/system/briefs/AGENT-BRIEF.PROJECT.md" \
     "$ARC_DIR/reference/constitution/DEV-RULES.ARC.md" \
     "$ARC_DIR/reference/constitution/DEV-RULES.PROJECT.md" \
     "$ARC_DIR/reference/strategies/STRATEGY-INDEX.md"; do

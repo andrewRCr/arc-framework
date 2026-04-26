@@ -44,7 +44,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project].
   activation, archival) that change the branch, next action, or active work unit. Session
   handoff catches missed updates as a fallback, but commit-time is primary.
   **Contributor override:** Contributors (`arc.role = contributor`) do not update project-level
-  status files — see [AGENT-BRIEFING.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
+  status files — see [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing] for contributor boundaries.
 
 **For complex commits** (multi-session accumulated work, interleaved concerns), load the
 [prepare-commits workflow][prepare-commits].
@@ -79,7 +79,7 @@ for task ownership, branching patterns, and handoff conventions.
 
 > **Contributor note:** This section covers maintainer-managed ARC task lists. Contributors
 > (`arc.role = contributor`) work on project code, not ARC task lists — see
-> [AGENT-BRIEFING.CONTRIBUTOR][contributor-briefing].
+> [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
 - **Complete one review increment** — never bundle multiple deliverables
 - **Mark complete immediately** when work is done (quality checks pass)
@@ -321,7 +321,7 @@ Load these documents when you reach the relevant work — not during session ini
 [strategy-index]: ../strategies/STRATEGY-INDEX.md
 [quality-gates]: ../strategies/arc/strategy-quality-gates.md
 [manage-incidental]: ../../system/workflows/arc/supplemental/manage-incidental-work.md
-[contributor-briefing]: ../../system/agent/AGENT-BRIEFING.CONTRIBUTOR.md
+[contributor-briefing]: ../../system/briefs/AGENT-BRIEF.CONTRIBUTOR.md
 [team-coordination]: ../strategies/arc/strategy-team-coordination.md
 
 [TODO-docs-site]: # "Placeholder pending docs-content-sweep — see notes-docs-content-sweep.md"

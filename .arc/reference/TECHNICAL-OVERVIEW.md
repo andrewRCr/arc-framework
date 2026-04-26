@@ -41,8 +41,8 @@ customized, and committed to their repositories.
   and `system/extensions/` (hook points)
 - **Configuration** (`system/arc-config.yml`) — Flat key-value project settings (branch model,
   commit format, hooks, PM mode)
-- **Agent files** (`system/agent/`) — Per-agent instruction files (CLAUDE, CODEX, GEMINI,
-  Copilot, Cursor, Windsurf, Warp)
+- **Agent briefs** (`system/briefs/`) — Session-init orientation files (ARC, PROJECT,
+  CONTRIBUTOR variants)
 - **Git hooks** (`system/githooks/`) — Commit message validation, format enforcement
 - **Active workspace** (`active/`) — Current work (per-WU status files, task lists by category)
 - **Backlog** (`backlog/`) — Future work pipeline (ROADMAP, category backlogs)

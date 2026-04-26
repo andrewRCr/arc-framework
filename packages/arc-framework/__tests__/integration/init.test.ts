@@ -93,7 +93,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "reference/strategies/arc",
       "reference/templates",
       "system",
-      "system/agent",
+      "system/briefs",
       "system/githooks",
       "system/scripts",
       "system/skills",
@@ -113,7 +113,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("renders init-time tokens in output files", async () => {
     const briefing = await readFile(
-      join(arcDir, "system/agent/AGENT-BRIEFING.PROJECT.md"),
+      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
       "utf-8",
     );
     expect(briefing).toContain("Integration Test Project");
@@ -268,12 +268,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   it("installs agent briefing files (ARC + PROJECT split)", async () => {
     const arcBriefing = await stat(
-      join(arcDir, "system/agent/AGENT-BRIEFING.ARC.md"),
+      join(arcDir, "system/briefs/AGENT-BRIEF.ARC.md"),
     );
     expect(arcBriefing.isFile()).toBe(true);
 
     const projectBriefing = await stat(
-      join(arcDir, "system/agent/AGENT-BRIEFING.PROJECT.md"),
+      join(arcDir, "system/briefs/AGENT-BRIEF.PROJECT.md"),
     );
     expect(projectBriefing.isFile()).toBe(true);
   });
@@ -404,7 +404,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const checkPaths = [
       "README.md",
       "system/arc-config.yml",
-      "system/agent/AGENT-BRIEFING.ARC.md",
+      "system/briefs/AGENT-BRIEF.ARC.md",
     ];
 
     for (const filePath of checkPaths) {
@@ -471,7 +471,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const message = buildPostInitMessage(result);
     expect(message).toContain(`(${result.filesWritten.length} files)`);
     expect(message).toContain("/arc-setup");
-    expect(message).toContain("AGENT-BRIEFING.ARC.md");
+    expect(message).toContain("AGENT-BRIEF.ARC.md");
     expect(message).toContain("01_verify-and-configure.md");
   });
 });

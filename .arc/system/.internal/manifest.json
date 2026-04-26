@@ -157,20 +157,20 @@
       "layer": "core",
       "pristine_hash": "25e5a1147528698024f162d38a9b8c1090b0d8feb242130ad900326b3ab57566"
     },
-    "system/agent/AGENT-BRIEFING.ARC.md": {
+    "system/briefs/AGENT-BRIEF.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "94ab01df3e2154f0044a3ac55d4318d2289d6c5406ffb7e5da1850d310d8853e"
+      "pristine_hash": "8f453eb66ebf8d1f3ef247ae70c9909600397d4102f189c9da694dc69196db6c"
     },
-    "system/agent/AGENT-BRIEFING.PROJECT.md": {
+    "system/briefs/AGENT-BRIEF.PROJECT.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "c9dffd0085c871c8829ba00fe70c7df929577a06fe9a60918c4bdee7cfc5a61c"
+      "pristine_hash": "7f66e858173de8581383d0c0ee44f5137cf86cb4a4a2a614939ea029377a18b9"
     },
-    "system/agent/README.md": {
+    "system/briefs/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "10f9b49485483eeba50891a85f1b2c766dcbe0b1a40c536814d3d98ea52f324a"
+      "pristine_hash": "487b9a12095f15daae48b6c0cdf280541afff21737111cd3c61db0d350abb0fc"
     },
     "system/arc-config.yml": {
       "classification": "Configurable",

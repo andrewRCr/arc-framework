@@ -113,8 +113,8 @@ session-state, follow the override instead.
 
 **Project identity and agent context:**
 
-1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` — ARC framework orientation
-2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` — project overview, tech stack, collaboration context
+1. `.arc/system/briefs/AGENT-BRIEF.ARC.md` — ARC framework orientation
+2. `.arc/system/briefs/AGENT-BRIEF.PROJECT.md` — project overview, tech stack, collaboration context
 
 **Constitutional and process context:**
 
@@ -216,7 +216,7 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
 > When `arc.role = contributor`, the session loads a reduced document set. Items 1–6 are universal — load them
 > normally. Then:
 >
-> - **Load** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`
+> - **Load** `.arc/system/briefs/AGENT-BRIEF.CONTRIBUTOR.md`
 > - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and the file exists
 > - **Check** `.arc/user/{identity}/status-contributor.md` if identity resolved — optional local planning
 >   state; note in orientation if present

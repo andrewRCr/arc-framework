@@ -348,8 +348,8 @@ fi
 # ============================================================================
 # Delegates to validate-frontmatter.ts via tsx — schema logic lives in
 # TypeScript where it is unit-tested; this hook is a thin invoker. Catches
-# missing or malformed frontmatter on staged files under system/methods/,
-# system/extensions/, and agent-specific files (system/agent/{AGENT}.ARC.md).
+# missing or malformed frontmatter on staged files under system/methods/
+# and system/extensions/.
 frontmatter_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^(\.arc|packages/arc-framework/arc)/system/(methods|extensions|agent)/' || true)
 

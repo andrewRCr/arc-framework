@@ -269,14 +269,14 @@ describe("classifyFile", () => {
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
     expect(classifyFile("reference/constitution/DEV-RULES.PROJECT.md")).toBe("Configurable");
-    expect(classifyFile("system/agent/AGENT-BRIEFING.PROJECT.template.md")).toBe("Configurable");
+    expect(classifyFile("system/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");
   });
 
   it("classifies everything else as Framework", () => {
     expect(classifyFile("README.md")).toBe("Framework");
     expect(classifyFile("reference/constitution/DEV-RULES.ARC.md")).toBe("Framework");
-    expect(classifyFile("system/agent/AGENT-BRIEFING.ARC.md")).toBe("Framework");
+    expect(classifyFile("system/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
     expect(classifyFile("system/workflows/arc/3_process-task-loop.template.md")).toBe("Framework");
     // Per-file methods/extensions directory READMEs fall through to Framework —
     // only the 8 methods + 8 extensions themselves are adopter-customizable.
@@ -819,14 +819,14 @@ describe("buildPostInitMessage", () => {
   it("always includes the fallback prompt with correct files", () => {
     const msg = buildPostInitMessage(makeInitResult({ tools: ["claude", "cursor"] }));
 
-    expect(msg).toContain("AGENT-BRIEFING.ARC.md");
+    expect(msg).toContain("AGENT-BRIEF.ARC.md");
     expect(msg).toContain("01_verify-and-configure.md");
   });
 
-  it("does not reference AGENT-BRIEFING.PROJECT.md", () => {
+  it("does not reference AGENT-BRIEF.PROJECT.md", () => {
     const msg = buildPostInitMessage(makeInitResult());
 
-    expect(msg).not.toContain("AGENT-BRIEFING.PROJECT");
+    expect(msg).not.toContain("AGENT-BRIEF.PROJECT");
   });
 
   it("handles single-file install", () => {

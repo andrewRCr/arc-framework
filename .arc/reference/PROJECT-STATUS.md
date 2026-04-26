@@ -64,7 +64,7 @@ Settled methodology/implementation boundary, content architecture, and update be
 Prepared the framework for multi-week beta testing on an external project.
 
 - Migrated dev repo from ad-hoc `.arc/` to a real `arc init` installation
-- Contributor role support: ADR-014, AGENT-BRIEFING.CONTRIBUTOR, role-aware hooks and session-init
+- Contributor role support: ADR-014, AGENT-BRIEF.CONTRIBUTOR, role-aware hooks and session-init
 - Docs site skeleton: MkDocs Material + GitHub Pages, navigation structure, CI deployment
 - npm beta publish: `@arc-framework/cli@0.1.0-beta`, granular token auth
 - Public-facing scaffolding: repo rename, README rewrite, license, branding (ARC tagline)
@@ -87,7 +87,7 @@ Resolved all foundational 1.0 design decisions.
 - Core philosophy strategy: 11 principles (P1-P11), philosophical foundation, positioning
 - Configurability architecture strategy: 19 conventions, 3 customization mechanisms
 - 5 research files (agent landscape, context degradation, methodology)
-- Constitutional doc refresh: META-PRD rewrite, AGENT-BRIEFING.PROJECT.md update
+- Constitutional doc refresh: META-PRD rewrite, AGENT-BRIEF.PROJECT.md update
 
 ### Structural Readiness Pass (February 2026)
 

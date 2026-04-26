@@ -107,7 +107,7 @@ describe("classifyPackagePath", () => {
       "other",
     );
     expect(
-      classifyPackagePath("packages/arc-framework/arc/system/agent/README.md"),
+      classifyPackagePath("packages/arc-framework/arc/system/briefs/README.md"),
     ).toBe("other");
   });
 });

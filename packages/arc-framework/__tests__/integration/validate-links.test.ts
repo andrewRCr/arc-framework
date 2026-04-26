@@ -235,7 +235,7 @@ describe("validate-links.sh", () => {
     await writeFixture(
       dir,
       "agent.template.md",
-      "See [briefing](AGENT-BRIEFING.ARC.md) for details.\n",
+      "See [briefing](AGENT-BRIEF.ARC.md) for details.\n",
     );
     const r = await runScript(dir, ["agent.template.md"]);
     expect(r.code).toBe(0);
@@ -247,7 +247,7 @@ describe("validate-links.sh", () => {
     await writeFixture(
       dir,
       "template-agent.md",
-      "See [briefing](AGENT-BRIEFING.ARC.md) for details.\n",
+      "See [briefing](AGENT-BRIEF.ARC.md) for details.\n",
     );
     const r = await runScript(dir, ["template-agent.md"]);
     expect(r.code).toBe(0);

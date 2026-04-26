@@ -18,8 +18,8 @@ function validRecipe(): Recipe {
   return {
     include_files: [
       "reference/QUICK-REFERENCE.template.md",
-      "system/agent/AGENT-BRIEFING.ARC.md",
-      "system/agent/AGENT-BRIEFING.PROJECT.template.md",
+      "system/briefs/AGENT-BRIEF.ARC.md",
+      "system/briefs/AGENT-BRIEF.PROJECT.template.md",
     ],
     computed_tokens: {
       REPO_ROOT: "Auto-detected from working directory at init time",

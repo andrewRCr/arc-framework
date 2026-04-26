@@ -1,4 +1,4 @@
-# AGENT-BRIEFING.PROJECT.md — Project Orientation for Agents
+# AGENT-BRIEF.PROJECT.md — Project Orientation for Agents
 
 ## Project Overview
 
@@ -36,5 +36,5 @@ with strong default conventions that teams adapt to their context
 ---
 
 _This is the project-specific entry point for AI agents. ARC framework orientation lives in
-[AGENT-BRIEFING.ARC.md](AGENT-BRIEFING.ARC.md). Agent-specific guidance lives in dedicated
-files (e.g., CLAUDE.ARC.md, CODEX.ARC.md)._
+[AGENT-BRIEF.ARC.md](AGENT-BRIEF.ARC.md). Agent-specific guidance lives in harness-level files
+(e.g., `CLAUDE.md`, `AGENTS.md`) outside ARC._

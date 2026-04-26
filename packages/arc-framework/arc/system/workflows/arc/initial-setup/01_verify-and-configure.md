@@ -59,15 +59,6 @@ Confirm that agent-specific directories were created for the selected tools
 (e.g., `.claude/`, `.codex/`, `.gemini/`). Each contains pre-built skills and
 settings for that agent platform.
 
-**Agent config file:** Check whether a `{AGENT}.ARC.md` file exists in
-`system/agent/` for the agent running this workflow. Common agents (Claude,
-Codex, Gemini, Copilot, Cursor, Windsurf, Warp) ship with pre-built files
-installed by `arc init`. If no file exists for the current agent, create one
-from [template-agent.md][template-agent] — copy to `system/agent/{AGENT}.ARC.md`,
-replacing `[AGENT]` with the uppercase agent name and `[Agent]` with the
-display name. The agent can then populate it with real guidance as the project
-evolves.
-
 ### User Workspace
 
 `arc init` created `user/{identity}/` as a personal workspace directory (gitignored).
@@ -147,9 +138,6 @@ Confirm that `arc init` set up the local environment:
 
 - **Agent directories** — tool-specific directories created for your selected tools
   (e.g., `.claude/`, `.codex/`). These contain skills and settings.
-- **Agent config file** — check whether `system/agent/{AGENT}.ARC.md` exists for
-  the agent running this workflow. If not, create one from
-  [template-agent.md][template-agent] (see Path 1 § Verify Agent Configuration).
 - **Git hooks** — if your project uses a hook manager (husky, lefthook, pre-commit),
   ARC hooks are integrated into the manager's config. Otherwise, `core.hooksPath` is set
   to `.arc/system/githooks/`. Verify with `git config core.hooksPath` or check your
@@ -173,7 +161,7 @@ Run `/arc-verify` to confirm that the installation is complete and consistent.
 
 ### Next Step
 
-Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEFING.PROJECT, DEV-RULES.PROJECT,
+Constitutional documents (META-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEF.PROJECT, DEV-RULES.PROJECT,
 QUICK-REFERENCE) already exist. Read them for project context rather than creating them —
 skip [02_define-project.md](02_define-project.md) unless documents need updating.
 
@@ -183,4 +171,3 @@ skip [02_define-project.md](02_define-project.md) unless documents need updating
 ---
 
 [config-arch]: ../../../../reference/strategies/arc/strategy-configurability-architecture.md
-[template-agent]: ../../../../reference/templates/template-agent.md

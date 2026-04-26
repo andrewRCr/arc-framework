@@ -1,4 +1,4 @@
-# AGENT-BRIEFING.CONTRIBUTOR.md — Contributor Role Orientation
+# AGENT-BRIEF.CONTRIBUTOR.md — Contributor Role Orientation
 
 This briefing applies when `git config arc.role` is set to `contributor`. It replaces the
 maintainer-focused session initialization (status files, task lists, task execution workflow)
