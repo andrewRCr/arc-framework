@@ -284,6 +284,53 @@ describe("runSessionInitStatus — multi-WU state", () => {
   });
 });
 
+describe("runSessionInitStatus — companion-file resolution carry-through", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "status-foo.md"),
+      [
+        "# Status: fixture",
+        "",
+        "## Active Work",
+        "",
+        "- **State:** In Progress",
+        "- **Branch:** technical/foo",
+        "- **Task List:** `.arc/active/technical/tasks-foo.md`",
+      ].join("\n"),
+    );
+    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
+    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("propagates active.value.companions through the composite envelope unchanged", async () => {
+    const probes = makeSessionInitProbes(fixture);
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    if (result.active.ok) {
+      expect(result.active.value.resolution).toBe("single");
+      expect(result.active.value.companions).toEqual({
+        notes: ".arc/active/technical/notes-foo.md",
+        atomic: ".arc/active/technical/atomic-foo.md",
+      });
+    }
+  });
+});
+
 describe("runStatus — mixed (one probe errors, others succeed)", () => {
   let fixture: Fixture;
   beforeEach(async () => {

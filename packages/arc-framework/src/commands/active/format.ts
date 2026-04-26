@@ -51,6 +51,14 @@ export function buildActiveSessionInitSummary(result: ActiveSessionInitResult): 
     lines.push("No active work unit.");
   } else if (result.resolution === "single") {
     lines.push(`Resolved: ${result.path ?? "(unknown)"}`);
+    if (result.companions !== undefined) {
+      if (result.companions.notes !== null) {
+        lines.push(`  notes:  ${result.companions.notes}`);
+      }
+      if (result.companions.atomic !== null) {
+        lines.push(`  atomic: ${result.companions.atomic}`);
+      }
+    }
   } else {
     lines.push(`${result.candidates.length} candidates — disambiguation required:`);
     for (const candidate of result.candidates) lines.push(`  - ${renderCandidate(candidate)}`);

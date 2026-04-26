@@ -13,8 +13,12 @@
  * @module
  */
 
+import { stat } from "node:fs/promises";
+import { join, sep } from "node:path";
+
 import { readActiveStatusCandidates } from "../../lib/active/status-reader.js";
 import type {
+  ActiveLayout,
   ActiveSessionInitOptions,
   ActiveSessionInitResolution,
   ActiveSessionInitResult,
@@ -22,6 +26,8 @@ import type {
   ActiveStatusResult,
   StatusFileCandidate,
 } from "./types.js";
+
+const TASK_LIST_FULL_PATTERN = /^tasks-(.+)\.md$/;
 
 /** Produce the full per-WU enumeration for `arc active status` (default mode). */
 export async function runActiveStatus(
@@ -56,14 +62,15 @@ export async function runActiveSessionInitStatus(
   options: ActiveSessionInitOptions,
 ): Promise<ActiveSessionInitResult> {
   const { layout, candidates, warnings } = await readActiveStatusCandidates(options.cwd);
-  return resolveSessionInit(layout, candidates, warnings);
+  return resolveSessionInit(options.cwd, layout, candidates, warnings);
 }
 
-function resolveSessionInit(
-  layout: ActiveSessionInitResult["layout"],
+async function resolveSessionInit(
+  cwd: string,
+  layout: ActiveLayout,
   candidates: StatusFileCandidate[],
   warnings: string[],
-): ActiveSessionInitResult {
+): Promise<ActiveSessionInitResult> {
   let resolution: ActiveSessionInitResolution;
   let path: string | null;
   let emittedCandidates: StatusFileCandidate[];
@@ -83,7 +90,7 @@ function resolveSessionInit(
     emittedCandidates = candidates;
   }
 
-  return {
+  const result: ActiveSessionInitResult = {
     mode: "session-init",
     layout,
     resolution,
@@ -91,4 +98,51 @@ function resolveSessionInit(
     candidates: emittedCandidates,
     warnings,
   };
+
+  if (resolution === "single" && only !== undefined) {
+    const companions = await deriveCompanions(cwd, only.taskList);
+    if (companions !== undefined) result.companions = companions;
+  }
+
+  return result;
+}
+
+/**
+ * Derive companion-file paths (`notes-{stem}.md`, `atomic-{stem}.md`) for the
+ * resolved task list. Returns `undefined` when the task-list value is absent
+ * or doesn't match the Full-layout `tasks-{stem}.md` pattern (Lite-shape
+ * `tasks.md` and `[none]` both fall here). Otherwise returns paths relative
+ * to cwd, with `null` for absent files.
+ */
+async function deriveCompanions(
+  cwd: string,
+  taskListValue: string | null,
+): Promise<{ notes: string | null; atomic: string | null } | undefined> {
+  if (taskListValue === null) return undefined;
+  const normalized = taskListValue.split(sep).join("/");
+  const lastSlash = normalized.lastIndexOf("/");
+  const filename = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+  const dirPrefix = lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
+  const match = TASK_LIST_FULL_PATTERN.exec(filename);
+  const stem = match?.[1];
+  if (stem === undefined) return undefined;
+  const notesRel = `${dirPrefix}notes-${stem}.md`;
+  const atomicRel = `${dirPrefix}atomic-${stem}.md`;
+  const [notesExists, atomicExists] = await Promise.all([
+    fileExists(join(cwd, notesRel)),
+    fileExists(join(cwd, atomicRel)),
+  ]);
+  return {
+    notes: notesExists ? notesRel : null,
+    atomic: atomicExists ? atomicRel : null,
+  };
+}
+
+async function fileExists(absPath: string): Promise<boolean> {
+  try {
+    const s = await stat(absPath);
+    return s.isFile();
+  } catch {
+    return false;
+  }
 }

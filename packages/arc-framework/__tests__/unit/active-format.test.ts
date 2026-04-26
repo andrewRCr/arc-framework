@@ -163,6 +163,76 @@ describe("buildActiveSessionInitSummary — resolution states", () => {
   });
 });
 
+describe("buildActiveSessionInitSummary — companion rendering", () => {
+  it("renders both companion paths when both are populated", () => {
+    const summary = buildActiveSessionInitSummary(
+      sessionInitResult({
+        resolution: "single",
+        path: ".arc/active/technical/status-foo.md",
+        companions: {
+          notes: ".arc/active/technical/notes-foo.md",
+          atomic: ".arc/active/technical/atomic-foo.md",
+        },
+      }),
+    );
+    expect(summary).toContain("notes:  .arc/active/technical/notes-foo.md");
+    expect(summary).toContain("atomic: .arc/active/technical/atomic-foo.md");
+  });
+
+  it("renders only the notes line when atomic is null", () => {
+    const summary = buildActiveSessionInitSummary(
+      sessionInitResult({
+        resolution: "single",
+        path: ".arc/active/technical/status-foo.md",
+        companions: {
+          notes: ".arc/active/technical/notes-foo.md",
+          atomic: null,
+        },
+      }),
+    );
+    expect(summary).toContain("notes:  .arc/active/technical/notes-foo.md");
+    expect(summary).not.toContain("atomic:");
+  });
+
+  it("renders only the atomic line when notes is null", () => {
+    const summary = buildActiveSessionInitSummary(
+      sessionInitResult({
+        resolution: "single",
+        path: ".arc/active/technical/status-foo.md",
+        companions: {
+          notes: null,
+          atomic: ".arc/active/technical/atomic-foo.md",
+        },
+      }),
+    );
+    expect(summary).not.toContain("notes:");
+    expect(summary).toContain("atomic: .arc/active/technical/atomic-foo.md");
+  });
+
+  it("renders no companion lines when both inner values are null", () => {
+    const summary = buildActiveSessionInitSummary(
+      sessionInitResult({
+        resolution: "single",
+        path: ".arc/active/technical/status-foo.md",
+        companions: { notes: null, atomic: null },
+      }),
+    );
+    expect(summary).not.toContain("notes:");
+    expect(summary).not.toContain("atomic:");
+  });
+
+  it("renders no companion lines when companions field is omitted", () => {
+    const summary = buildActiveSessionInitSummary(
+      sessionInitResult({
+        resolution: "single",
+        path: ".arc/active/technical/status-foo.md",
+      }),
+    );
+    expect(summary).not.toContain("notes:");
+    expect(summary).not.toContain("atomic:");
+  });
+});
+
 describe("JSON round-trip — typed result shape is stable", () => {
   it("full-mode result preserves all fields through JSON.stringify/parse", () => {
     const result = fullResult({

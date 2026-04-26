@@ -218,3 +218,124 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     }
   });
 });
+
+describe("runActiveSessionInitStatus — companion-file resolution", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  async function writeFullStatus(category: string, stem: string): Promise<string> {
+    const sub = join(fixture.activeDir, category);
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, `status-${stem}.md`),
+      statusBody({
+        state: "In Progress",
+        branch: `${category}/${stem}`,
+        taskList: `\`.arc/active/${category}/tasks-${stem}.md\``,
+      }),
+    );
+    return sub;
+  }
+
+  it("populates both companion paths when notes-{stem}.md and atomic-{stem}.md exist", async () => {
+    const sub = await writeFullStatus("technical", "foo");
+    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
+    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.companions).toEqual({
+      notes: ".arc/active/technical/notes-foo.md",
+      atomic: ".arc/active/technical/atomic-foo.md",
+    });
+  });
+
+  it("populates notes only when atomic companion is absent", async () => {
+    const sub = await writeFullStatus("technical", "foo");
+    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(sub, "notes-foo.md"), "# notes\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.companions).toEqual({
+      notes: ".arc/active/technical/notes-foo.md",
+      atomic: null,
+    });
+  });
+
+  it("populates atomic only when notes companion is absent", async () => {
+    const sub = await writeFullStatus("technical", "foo");
+    await writeFile(join(sub, "tasks-foo.md"), "# tasks\n");
+    await writeFile(join(sub, "atomic-foo.md"), "# atomic\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.companions).toEqual({
+      notes: null,
+      atomic: ".arc/active/technical/atomic-foo.md",
+    });
+  });
+
+  it("emits companions with both null when neither file exists", async () => {
+    await writeFullStatus("technical", "foo");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.companions).toEqual({ notes: null, atomic: null });
+  });
+
+  it("omits companions entirely for Lite-shape `tasks.md` task-list value", async () => {
+    await writeFile(
+      join(fixture.activeDir, "status.md"),
+      statusBody({
+        state: "In Progress",
+        branch: "main",
+        taskList: "`.arc/active/tasks.md`",
+      }),
+    );
+    await writeFile(join(fixture.activeDir, "tasks.md"), "# tasks\n");
+    await writeFile(join(fixture.activeDir, "notes.md"), "# notes\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.layout).toBe("lite");
+    expect(result.resolution).toBe("single");
+    expect(result.companions).toBeUndefined();
+  });
+
+  it("omits companions when resolution is `multiple`", async () => {
+    const sub1 = await writeFullStatus("feature", "alpha");
+    const sub2 = await writeFullStatus("technical", "beta");
+    await writeFile(join(sub1, "notes-alpha.md"), "# notes\n");
+    await writeFile(join(sub2, "atomic-beta.md"), "# atomic\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("multiple");
+    expect(result.companions).toBeUndefined();
+  });
+
+  it("omits companions when resolution is `none`", async () => {
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("none");
+    expect(result.companions).toBeUndefined();
+  });
+
+  it("omits companions when Task List value is `[none]`", async () => {
+    const sub = join(fixture.activeDir, "technical");
+    await mkdir(sub, { recursive: true });
+    await writeFile(
+      join(sub, "status-foo.md"),
+      statusBody({
+        state: "In Progress",
+        branch: "technical/foo",
+        taskList: "[none]",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root });
+    expect(result.resolution).toBe("single");
+    expect(result.companions).toBeUndefined();
+  });
+});

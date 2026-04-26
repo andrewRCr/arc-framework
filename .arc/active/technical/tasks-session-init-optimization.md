@@ -3972,31 +3972,39 @@ Task 5.6 is TS-only (no markdown sync concern).
     given Lite's single-work-unit model) and companion-file conventions get settled during the ARC Operating
     Modes WU — callback note added to `plan-arc-modes.md` header.
 
-    - [ ] **5.6.a Companion resolution + envelope shape (test-first)**
-        - Extend `ActiveSessionInitResult` (in `packages/arc-framework/src/commands/active/types.ts`) with
-          optional `companions?: { notes: string | null; atomic: string | null }`. Field is omitted (not
-          `null`) when `resolution !== "single"` or the task-list filename doesn't match `tasks-{stem}.md`;
-          inner values are `null` when files don't exist.
-        - Resolution logic lives in `resolveSessionInit` (`commands/active/status.ts`), populated only on
-          the `single` branch with a Full-pattern task-list filename — no extra I/O on `multiple`/`none`
-          paths.
-        - Companion-name derivation reads the `**Task List:**` field parsed by `status-reader.ts`.
-          Pattern-match `tasks-{stem}.md`; resolve companions in the same directory as
-          `atomic-{stem}.md` / `notes-{stem}.md`. Bare `tasks.md` (Lite) or any non-matching pattern →
-          omit `companions`.
-        - Render companion paths in `buildActiveSessionInitSummary` (`commands/active/format.ts`) when
-          present, so JSON envelope and human-facing output stay in sync.
+    - [x] **5.6.a Companion resolution + envelope shape (test-first)**
 
-        Build `test-first` (one behavior at a time):
-        - [ ] Both companions present → both paths populated, relative to cwd
-        - [ ] Only notes present → `notes` path populated, `atomic: null`
-        - [ ] Only atomic present → `atomic` path populated, `notes: null`
-        - [ ] Neither present → `companions: { notes: null, atomic: null }` (still emitted)
-        - [ ] Lite-shape task list (`tasks.md`) → `companions` field omitted entirely
-        - [ ] `resolution === "multiple"` → `companions` field omitted
-        - [ ] `resolution === "none"` → `companions` field omitted
-        - [ ] Composite probe envelope (`runSessionInitStatus`) carries `companions` through unchanged
-        - [ ] `buildActiveSessionInitSummary` renders companion paths when present, omits cleanly when absent
+        **Outcome:** `ActiveSessionInitResult` carries optional
+        `companions?: { notes: string | null; atomic: string | null }`. Population gated to the `single`
+        branch with Full-pattern task-list filename — no extra I/O on `multiple`/`none` paths or
+        non-matching filenames (Lite `tasks.md`, `[none]`). Derivation in `resolveSessionInit`
+        (`commands/active/status.ts`) reads the `**Task List:**` value verbatim, regex-matches
+        `^tasks-(.+)\.md$` to extract stem, stats `notes-{stem}.md` / `atomic-{stem}.md` in the same
+        directory, emits paths relative to cwd (forward-slash normalized) or `null` per file.
+        `buildActiveSessionInitSummary` renders only present (non-null) companion paths under the
+        `Resolved:` line; absent companions field or both-null inner values render no extra lines.
+
+        **Test coverage:** All 9 behaviors covered. Integration tests in
+        `__tests__/integration/active.test.ts` exercise the seven resolution × companion-presence
+        permutations (both / notes-only / atomic-only / neither / Lite-shape / multiple / none) plus a
+        `[none]` task-list edge case; composite carry-through verified in
+        `__tests__/integration/status.test.ts`. Formatter coverage in
+        `__tests__/unit/active-format.test.ts` exercises the five rendering shapes.
+
+        **Batching rationale (test-first judgment):** Behaviors tightly coupled around a single derive
+        helper + parameterized fixture pattern; design parallels the existing single/multiple/none
+        resolution branch already shipped. One-at-a-time slicing would only multiply scaffolding
+        without independent discovery value.
+
+        - [x] Both companions present → both paths populated, relative to cwd
+        - [x] Only notes present → `notes` path populated, `atomic: null`
+        - [x] Only atomic present → `atomic` path populated, `notes: null`
+        - [x] Neither present → `companions: { notes: null, atomic: null }` (still emitted)
+        - [x] Lite-shape task list (`tasks.md`) → `companions` field omitted entirely
+        - [x] `resolution === "multiple"` → `companions` field omitted
+        - [x] `resolution === "none"` → `companions` field omitted
+        - [x] Composite probe envelope (`runSessionInitStatus`) carries `companions` through unchanged
+        - [x] `buildActiveSessionInitSummary` renders companion paths when present, omits cleanly when absent
 
     - [ ] **5.6.b Session-init.md item 10 simplification**
         - Replace "Check the task list directory for `notes-[name].md` / `atomic-[name].md`" sub-bullet

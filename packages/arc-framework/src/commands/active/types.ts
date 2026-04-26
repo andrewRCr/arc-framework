@@ -65,6 +65,19 @@ export interface ActiveSessionInitResult {
   path: string | null;
   /** Candidate list when `resolution === "multiple"`; empty otherwise. */
   candidates: StatusFileCandidate[];
+  /**
+   * Resolved companion-file paths for the active task list, derived only when
+   * `resolution === "single"` and the parsed `**Task List:**` filename matches
+   * the Full-layout `tasks-{stem}.md` pattern. Field is omitted (not `null`)
+   * when those preconditions don't hold (e.g., no active WU, multi-WU
+   * disambiguation, or Lite-shape `tasks.md`); inner values are `null` when
+   * the file is absent. Paths are relative to cwd (forward-slash normalized
+   * to match `path`).
+   */
+  companions?: {
+    notes: string | null;
+    atomic: string | null;
+  };
   warnings: string[];
 }
 
