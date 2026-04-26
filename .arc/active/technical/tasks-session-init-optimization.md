@@ -4051,8 +4051,12 @@ Task 5.6 is TS-only (no markdown sync concern).
       `validate-frontmatter.test.ts`, and remove the `agent` branch + `AGENT_PATH`/`AGENT_NAME`
       regexes + dispatch case in `validate-frontmatter.ts`. With no remaining `{AGENT}.ARC.md`
       files, the classification has no live callers; retiring avoids surface accumulation.
-    - **Execution order:** 5.7.b → 5.7.a → 5.7.c → 5.7.d → 5.7.e → 5.7.f → 5.7.g → 5.7.h → 5.7.i.
+    - **Execution order:** 5.7.b → 5.7.f → 5.7.a → 5.7.c → 5.7.d → 5.7.e → 5.7.g → 5.7.h → 5.7.i.
       5.7.b first (docs-only) eliminates in-flight session-init mismatches before file deletes.
+      5.7.f next (recipe-only) so `init-recipe.json` stops referencing per-agent templates +
+      `template-agent.md` before 5.7.a deletes those source files — preserves test-suite green
+      across each task boundary. 5.7.f sub-sequencing (recipe cleanup vs. briefs-path renames
+      that depend on 5.7.c) to be resolved at 5.7.f execution.
     - **5.7.g re-scoped:** add-agent.md scaffolding step already retired in commit `27174b8`
       (Task 4.5.d, 2026-04-24). Workflow today is in the desired post-pivot shape — 5.7.g
       reduces to path/filename updates already covered by 5.7.d.
@@ -4100,15 +4104,21 @@ Task 5.6 is TS-only (no markdown sync concern).
           files (CLAUDE, CODEX, COPILOT, CURSOR, GEMINI, WARP, WINDSURF) — broader sweep than
           spec's prior "CLAUDE.ARC.md and CODEX.ARC.md only" claim
 
-    - [ ] **5.7.b Session-init integration removal** (execute first per resolved order)
-        - Remove Step 4 item 3 (agent-specific file conditional load) from `session-init.md`
-        - Update Step 4 parallelism guidance (framework docs items 1–7 → items 1–2 + 4–7,
-          renumber as needed)
-        - Drop the `{AGENT}.ARC.md` row from `AGENT-BRIEFING.ARC.md`'s Key Documents table
-          (currently lines 25-26) — row deletion, not rewrite
-        - Scan for any disambiguation rules or cross-step references pointing at item 3;
-          update accordingly
-        - Two-copy sync
+    - [x] **5.7.b Session-init integration removal**
+
+        **Outcome:** Removed Step 4 item 3 (agent-specific file conditional load) from
+        `session-init.md`; renumbered items 4–11 → 3–10 throughout. Updated every
+        renumber-impacted reference: Step 2 contributor cue (`skip items 7, 9–10 in
+        Step 4`), reading rule (`item 6` / `item 9`), parallelism guidance (`items 1–6`,
+        `item 8`, `item 9` / `item 10`), item 7's inner cross-refs (`Skip items 9–10`,
+        SESSION-NOTES `item 8`), Contributor Session Path (`Items 1–6 are universal`,
+        `Skip items 7, 9–10`). Dropped the `{AGENT}.ARC.md` row from
+        `AGENT-BRIEFING.ARC.md` Key Documents table (row deletion only — closing pointer
+        left for 5.7.d's rename sweep per spec scope). Updated `DEV-RULES.ARC.md` § When
+        to Load Additional Guidance "session-init item 11" → "item 10" — stale-by-renumber
+        cross-reference caught by the disambiguation scan. Two-copy sync across `.arc/` and
+        `packages/arc-framework/arc/` (`session-init.template.md` and tracked siblings).
+        Tier 1 lint clean (6 files, 0 errors).
 
     - [ ] **5.7.c Directory and file renames**
         - Rename `system/agent/` → `system/briefs/` in both trees

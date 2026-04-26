@@ -23,7 +23,6 @@ loaded when workflow YAML frontmatter declares them.
 | Document                    | Purpose                                       | Location                  |
 |-----------------------------|-----------------------------------------------|---------------------------|
 | AGENT-BRIEFING.PROJECT.md   | Project overview, tech stack, friction points | `system/agent/`           |
-| {AGENT}.ARC.md              | Agent-specific configuration                  | `system/agent/`           |
 | DEV-RULES.ARC.md            | ARC methodology rules                         | `reference/constitution/` |
 | DEV-RULES.PROJECT.md        | Project quality standards                     | `reference/constitution/` |
 | QUICK-REFERENCE.md          | Commands and environment context              | `reference/`              |

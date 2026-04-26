@@ -56,7 +56,7 @@ and overrides reach the user at the consuming operation.
 ATOMIC-INBOX, and git notes all depend on identity for path resolution. Surface a warning in orientation.
 Sessions without identity cannot perform handoff.
 
-**Role is `contributor`**: Follow the **Contributor Session Path** below — skip items 8, 10–11 in Step 4, skip
+**Role is `contributor`**: Follow the **Contributor Session Path** below — skip items 7, 9–10 in Step 4, skip
 Step 6, and use the contributor orientation format in Step 7.
 
 **Probe failure fallback**: If the composite call fails, fall back to direct commands:
@@ -101,11 +101,11 @@ has no path; skip notes regardless of state. Worktree channel still applies.
 
 ### 4. Load Context Documents
 
-**Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 7 —
-section-level partial read) and the active task list (item 10 — strategic partial read).
+**Reading rule**: Read every document in the list below in full EXCEPT QUICK-REFERENCE (item 6 —
+section-level partial read) and the active task list (item 9 — strategic partial read).
 
-**Parallelism**: Framework docs (items 1–7), SESSION-NOTES (item 9), and — when `active.resolution === "single"` —
-the active status file can load in parallel. Task list (item 10) and task execution workflow (item 11) wait
+**Parallelism**: Framework docs (items 1–6), SESSION-NOTES (item 8), and — when `active.resolution === "single"` —
+the active status file can load in parallel. Task list (item 9) and task execution workflow (item 10) wait
 for the status file to resolve. Sequential execution is fine if your platform doesn't support parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
@@ -115,27 +115,25 @@ session-state, follow the override instead.
 
 1. `.arc/system/agent/AGENT-BRIEFING.ARC.md` — ARC framework orientation
 2. `.arc/system/agent/AGENT-BRIEFING.PROJECT.md` — project overview, tech stack, collaboration context
-3. Agent-specific file `.arc/system/agent/[AGENT].ARC.md` (e.g., CLAUDE.ARC.md) — **if one exists**. Skip if
-   absent (framework is agent-agnostic by default)
 
 **Constitutional and process context:**
 
-4. `.arc/reference/constitution/DEV-RULES.ARC.md`
-5. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
+3. `.arc/reference/constitution/DEV-RULES.ARC.md`
+4. `.arc/reference/constitution/DEV-RULES.PROJECT.md`
     - Domain rules: the probe's `domainRules` field lists `{path, domain, purpose}` tuples for any
       `DEV-RULES.{DOMAIN}.md` files with the domain-rules frontmatter. Load on-demand when a task
       touches the relevant domain, not at init time.
-6. `.arc/reference/strategies/STRATEGY-INDEX.md`
-7. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
+5. `.arc/reference/strategies/STRATEGY-INDEX.md`
+6. `.arc/reference/QUICK-REFERENCE.md` — **section-level partial read**: `## Environment & Path Context`
     only (subsumes `### Runtime Environment`)
 
 **Active work context:**
 
-8. **Active status file** — resolve from `active.value` and partial-read the `## Active Work`
+7. **Active status file** — resolve from `active.value` and partial-read the `## Active Work`
    section (heading line through the last `**Field:**` line):
     - `resolution: "single"`: path is `active.value.path`
-    - `resolution: "none"`: no active work unit. Skip items 10–11; Step 6 handles next-work discovery
-    - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 9) —
+    - `resolution: "none"`: no active work unit. Skip items 9–10; Step 6 handles next-work discovery
+    - `resolution: "multiple"` (full mode only): apply disambiguation after SESSION-NOTES loads (item 8) —
       precedence:
         1. SESSION-NOTES `**Working On:**` value matches a candidate filename
         2. Candidate `**Branch:**` matches the current git branch
@@ -172,7 +170,7 @@ work-unit state (one "Next Task"). In team mode, your personal task may differ. 
 See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(@name)` convention.
 <!-- arc:endif -->
 
-9. `.arc/user/{identity}/SESSION-NOTES.md` — **read if exists**. Uses `{identity}` from Step 2
+8. `.arc/user/{identity}/SESSION-NOTES.md` — **read if exists**. Uses `{identity}` from Step 2
     - Personal working context from prior session: approach, decisions, things tried, known risks
     - **Persistent context**: The `## Persistent Context` section carries entries that survive across handoffs
       (each has an explicit removal trigger). Treat these as active constraints for this session
@@ -185,7 +183,7 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
 > namespace (`refs/notes/arc/user/{their-identity}`). See [Team Coordination Strategy][team-coordination]
 > § Person-to-Person Task Handoff for the incoming bootstrap protocol.
 
-10. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
+9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
     **Skip if** the active status file is not resolved or shows `**Task List:** [none]`.
@@ -208,21 +206,21 @@ See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(
     - **Companion file awareness**: From `active.value.companions` — note their existence so
       references during execution resolve immediately. **Do not read these at init**
 
-11. **Task execution workflow** `.arc/system/workflows/arc/3_process-task-loop.md` — **read in full**.
+10. **Task execution workflow** `.arc/system/workflows/arc/3_process-task-loop.md` — **read in full**.
 
     **Skip if** the active status file is not resolved or shows `**Task List:** [none]`. Load later if the
     session pivots to task execution.
 
 > **Contributor Session Path**
 >
-> When `arc.role = contributor`, the session loads a reduced document set. Items 1–7 are universal — load them
+> When `arc.role = contributor`, the session loads a reduced document set. Items 1–6 are universal — load them
 > normally. Then:
 >
 > - **Load** `.arc/system/agent/AGENT-BRIEFING.CONTRIBUTOR.md`
 > - **Load** `.arc/user/{identity}/SESSION-NOTES.md` if identity resolved and the file exists
 > - **Check** `.arc/user/{identity}/status-contributor.md` if identity resolved — optional local planning
 >   state; note in orientation if present
-> - **Skip** items 8, 10–11
+> - **Skip** items 7, 9–10
 > - **Skip** Step 6 (next-work discovery — maintainer concern)
 > - **Proceed to** Step 5 (extensions) → Step 7 with contributor orientation format:
 >

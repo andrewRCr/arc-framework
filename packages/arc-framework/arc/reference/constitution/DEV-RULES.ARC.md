@@ -292,7 +292,7 @@ Load these documents when you reach the relevant work — not during session ini
 
 - **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
   conditionally at session-init when the active `status-{name}.md` shows active task work (see
-  session-init item 11). If it wasn't loaded at init, load it before beginning any task
+  session-init item 10). If it wasn't loaded at init, load it before beginning any task
 - **Before complex commits:** Load the [prepare-commits workflow][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis
 - **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
