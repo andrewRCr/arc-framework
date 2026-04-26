@@ -3956,7 +3956,7 @@ Task 5.6 is TS-only (no markdown sync concern).
 
     - [x] **5.5.c Apply dispositions** — No-op. All dispositions `up-front-load` → no structural change.
 
-- [ ] **5.6 Companion-file paths in composite probe**
+- [x] **5.6 Companion-file paths in composite probe**
 
     **Goal:** Composite probe (`arc status --session-init --json`) surfaces companion-file paths
     (`notes-{stem}.md`, `atomic-{stem}.md`) directly in `active.value`, eliminating the agent-side
@@ -4006,12 +4006,12 @@ Task 5.6 is TS-only (no markdown sync concern).
         - [x] Composite probe envelope (`runSessionInitStatus`) carries `companions` through unchanged
         - [x] `buildActiveSessionInitSummary` renders companion paths when present, omits cleanly when absent
 
-    - [ ] **5.6.b Session-init.md item 10 simplification**
-        - Replace "Check the task list directory for `notes-[name].md` / `atomic-[name].md`" sub-bullet
-          (`session-init.md:195-196`) with: "From `active.value.companions` — note their existence so
-          references during execution resolve immediately. **Do not read these at init**"
-        - Two-copy sync (`.arc/system/workflows/arc/session-lifecycle/session-init.md` +
-          `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`)
+    - [x] **5.6.b Session-init.md item 10 simplification**
+
+        **Outcome:** "Companion file awareness" sub-bullet rewritten to reference
+        `active.value.companions` instead of directing the agent to scan the task-list directory.
+        Two-copy sync applied to both `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+        and `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md`.
 
 - [ ] **5.7 Agent file surface removal + `system/briefs/` rename**
 

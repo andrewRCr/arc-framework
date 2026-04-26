@@ -192,8 +192,8 @@ session-state, follow the override instead.
         2. Search for the task number (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 8)
-    - **Companion file awareness**: Check the task list directory for `notes-[name].md` / `atomic-[name].md`.
-      Note their existence so references during execution resolve immediately. **Do not read these at init**
+    - **Companion file awareness**: From `active.value.companions` — note their existence so
+      references during execution resolve immediately. **Do not read these at init**
 
 11. **Task execution workflow** `.arc/system/workflows/arc/3_process-task-loop.md` — **read in full**.
 
