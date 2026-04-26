@@ -11,351 +11,174 @@
 
 ## Tasks
 
-### **Phase 1:** Workflow Trigger Contract + Per-File Restructure + CI Enforcement
+## **Phase 1:** Workflow Trigger Contract + Per-File Restructure + CI Enforcement
 
-**Purpose:** Establish the workflow→method/extension trigger contract end-to-end: define a structural YAML frontmatter
-schema, codify the author-side declaration rule, migrate all in-scope workflows, pull forward the per-file
-methods/extensions restructure (so the audit script lands on final structure with no legacy-aggregate fallback), rename
-the `pre-merge-review` method to `diff-review` (fixing the method/extension name collision), and enforce coverage in CI.
-Replaces brittle prose-grep enforcement with a structural one. Aggregate files (`arc-methods.md`, `arc-extensions.md`)
-remain in place until Phase 3 retires them — per-file becomes authoritative from Task 1.4 forward.
+_Purpose:_ Establish the workflow→method/extension trigger contract end-to-end — structural YAML frontmatter schema,
+author-side declaration rule, all in-scope workflows migrated, per-file methods/extensions restructure pulled forward
+(so the audit lands on final structure with no legacy-aggregate fallback), `pre-merge-review` method renamed to
+`diff-review` (fixing the method/extension name collision), CI enforcement. Replaces brittle prose-grep enforcement
+with a structural one. Aggregate files (`arc-methods.md`, `arc-extensions.md`) stay in place until Phase 3 retires
+them; per-file is authoritative from Task 1.4 forward.
 
-- [x] **1.1 Method and extension trigger coverage audit**
+### `[x]` **1.1 Method and extension trigger coverage audit**
 
-    **Goal:** Every method and extension has ≥1 qualifying reference in a reachable workflow.
+- _Outcome:_ All 16 methods/extensions pass. Catalog (1.1.a) + classification (1.1.b) recorded in
+  `notes-session-init-optimization.md` § Phase 1 Trigger Coverage Audit / § Phase 1 Classification.
+  1.1.c no-op (zero gaps surfaced).
 
-    **Outcome:** All 16 methods/extensions pass. 1.1.a catalog + 1.1.b classification recorded in
-    `notes-session-init-optimization.md`. 1.1.c no-op. See § Phase 1 Classification (Task 1.1.b) § Overall verdict.
     - [x] **1.1.a Enumerate methods and extensions**
-        - Catalog appended to `notes-session-init-optimization.md` § Phase 1 Trigger Coverage Audit — one subsection per
-          method (8) and per extension (8), each with self-definition line refs and a full list of external references
-          (file:line + surface-kind annotation)
-        - Scope applied: `system/workflows/**/*.md`, `reference/constitution/*.md`, `reference/strategies/**/*.md`,
-          `system/agent/*.md`. Excluded `reference/adr/`, `reference/archive/`, and out-of-scope trees (`active/`,
-          `backlog/`, `reference/analysis/`, `reference/TECHNICAL-OVERVIEW.md`, `system/skills/`)
-        - Observations block flags pre-classification signals for 1.1.b: three extensions (post-unit-quality,
-          post-context-load, pre-stage-review) have no strategy/constitution references — workflow trigger +
-          self-definition only; one false-match flagged (`strategy-session-operations.md:22` on session-state); strategy
-          classification tables and DEV-RULES § When-to-Load bullets marked as informational candidates
+        - Catalog: 8 methods + 8 extensions, each with self-definition refs and external references
+          (file:line + surface-kind annotation). Scope: `system/workflows/**`, `reference/constitution/`,
+          `reference/strategies/**`, `system/agent/`. False-match flagged at
+          `strategy-session-operations.md:22` (regex hit on `#session-state-portability` anchor, not the method).
 
     - [x] **1.1.b Classify each reference against the reliable-trigger bar**
-        - Classification appended to `notes-session-init-optimization.md` § Phase 1 Classification (Task 1.1.b) — rubric
-          block + summary tables for methods and extensions + reliable-trigger location list + judgment-call record
-        - **Outcome — no flags.** All 8 methods and 8 extensions have ≥1 reliable trigger. Reliable counts: methods 2–7
-          (avg ~3.25); extensions exactly 1 each (the structural `If [X extensions] are configured, execute them`
-          wrapper at the firing workflow)
-        - Hedged count: 0 across all 16 entries. Unreachable count: 0
-        - Method-dependencies blocks (e.g., `3_process-task-loop.md:16–18`, `prepare-commits.md:14–15`,
-          `integrate-work-unit.md:33–34`, `session-handoff.md:19`) classified reliable alongside in-step links — each
-          bullet is a targeted markdown-link under an imperative preamble ("load on first reference"). Documented in
-          judgment-calls
-        - `strategy-session-operations.md:22` dropped from catalog (false regex match on `#session-state-portability`
-          anchor — not a reference to the `session-state` method)
-        - Non-link prose pointers (`integrate-work-unit.md:148` plain-text "see `arc-methods.md` §
-          commit-context-format") classified informational — deferred to Phase 3.6 cross-reference sweep for relinking
-          to `system/methods/` paths
-        - CI-audit (Task 1.4) implication recorded: enumerator must treat method-dependencies bullets and in-step links
-          equivalently, and disambiguate substring matches on anchors (e.g., `#session-state` vs
-          `#session-state-portability`)
+        - All 16 entries have ≥1 reliable trigger; zero hedged; zero unreachable. Methods: 2-7 reliable refs
+          each (avg ~3.25). Extensions: exactly 1 each (the structural `If [X extensions] are configured,
+          execute them` wrapper at the firing workflow). Method-dependencies blocks classified reliable
+          alongside in-step links — each bullet is a targeted markdown-link under an imperative preamble.
+          Non-link prose pointers classified informational; deferred to Phase 3.6 cross-reference sweep.
 
-    - [~] **1.1.c Fix coverage gaps surfaced by the audit** — No-op: 1.1.b returned zero gaps across all 16
-        methods/extensions. See `notes-session-init-optimization.md` § Phase 1 Classification (Task 1.1.b) § Overall
-        verdict.
+    - [~] **1.1.c Fix coverage gaps surfaced by the audit** — No-op: 1.1.b returned zero gaps. See
+        `notes-session-init-optimization.md` § Phase 1 Classification § Overall verdict.
 
-- [x] **1.2 Define workflow frontmatter schema + author-side declaration rule**
+### `[x]` **1.2 Define workflow frontmatter schema + author-side declaration rule**
 
-    **Goal:** Structural contract for declaring method/extension triggers in workflow files, replacing prose
-    "Method dependencies" preambles with a machine-readable frontmatter block.
+- _Outcome:_ New `strategy-workflow-authoring.md` houses schema + author-side declaration rule + body
+  conventions; new `template-workflow.md` provides the canonical skeleton. STRATEGY-INDEX entry +
+  pointer in `configurability-architecture.md`; `DEV-RULES.ARC § When to Load Additional Guidance`
+  picks up an on-demand bullet (workflow authoring is rare; not T1 every-session). Schema: `purpose`
+  first, `audience: agent | collaborative (human and agent) | human` with inline comment,
+  `arc.methods` / `arc.extensions` arrays under protected namespace; angle-bracket placeholders for
+  author-fillable fields. Two-copy synced.
 
-    **Outcome:** New dedicated `strategy-workflow-authoring.md` houses the schema, author-side declaration
-    rule, and body conventions (rules-only catalogue, ~70 lines — same shape Task 4.4 will leave
-    `strategy-task-list-formatting.md` in, applied here from creation). New `template-workflow.md` in
-    `reference/templates/` gives framework + adopter workflow authors a canonical skeleton. STRATEGY-INDEX
-    entry added. `configurability-architecture.md` carries a short pointer in its content-customization
-    section ("Authoring project workflows"); no inline schema. `DEV-RULES.ARC.md § When to Load Additional
-    Guidance` gets one bullet pointing at the strategy (load on-demand — workflow authoring is a rare
-    event and doesn't belong in T1 every-session load). `session-operations.md § Method and Extension
-    Loading` picked up a short declaration-mechanism pointer. Schema shape: `purpose` first, `audience:
-    agent` with inline `# agent | collaborative (human and agent) | human` comment, `arc.methods` /
-    `arc.extensions` arrays under protected
-    namespace; angle-bracket placeholder convention for template fields that need author input.
+  Placement decision (dedicated strategy vs. session-operations or configurability-architecture)
+  recorded in commit body and `notes-session-init-optimization.md`.
 
-    Placement discussion summary: original spec placed schema in `strategy-session-operations.md`; moved
-    to a dedicated strategy after discussion — (a) session-operations is about loading mechanics, not
-    file-structure spec; (b) `configurability-architecture.md` owns customization mechanisms but adding
-    workflow authoring broadens its scope; (c) a dedicated strategy mirrors `strategy-task-list-formatting`
-    exactly and gives adopter-authored project workflows a clean discovery surface.
+### `[x]` **1.3 Migrate all workflows to frontmatter**
 
-    Two-copy sync applied across both `.arc/` and `packages/arc-framework/arc/`. Tier 1 markdown lint
-    clean (182 files, 0 violations).
+- _Outcome:_ All 25 workflow files under `system/workflows/` carry schema-conformant YAML frontmatter
+  per `template-workflow.md`. Body-level `**Audience:**`/`**Purpose:**` callouts and
+  `**Method dependencies**` prose preambles removed; in-step markdown links preserved for
+  navigation. Unused ref-defs cleaned up. `arc.methods`/`arc.extensions` populated from the
+  reliable-trigger ground truth in `notes-session-init-optimization.md` § Phase 1 Classification.
+  Audience enum expanded mid-task from binary to three values (`agent | collaborative (human and
+  agent) | human`). Two-copy synced; `workflows/project/` single-copy.
 
-- [x] **1.3 Migrate all workflows to frontmatter**
-
-    **Outcome:** All 25 workflow files under `system/workflows/` now carry schema-conformant YAML
-    frontmatter per `template-workflow.md`. Body-level `**Audience:**`/`**Purpose:**` callouts and
-    `**Method dependencies**` prose preambles removed; in-step markdown links to methods/extensions
-    preserved for reader navigation. Unused `[arc-methods]`/`[session-init]` ref defs cleaned up
-    where their only usage was the retired method-dep block. Two-copy sync applied where applicable;
-    `workflows/project/` single-copy. Tier 2 gate clean after each subtask; full-project lint clean
-    at task close (182 files, 0 errors).
-
-    **Ground truth applied:** `arc.methods`/`arc.extensions` arrays populated per
-    `notes-session-init-optimization.md` § Phase 1 Classification § Reliable-trigger locations.
-    Workflows with no reliable triggers omit the `arc:` block per author-side rule
-    (`strategy-workflow-authoring.md` § Author-side Declaration Rule).
-
-    **Audience mapping:** Schema expanded mid-task from binary (`agent | dual`) to three values
-    (`agent | collaborative (human and agent) | human`) after discussion surfaced that `dual` was
-    opaque in isolation and conflated two distinct cases. Final mapping: `agent` for agent-executed
-    workflows (bulk of the corpus); `collaborative (human and agent)` for `1_create-prd`,
-    `2_generate-tasks`, `activate-work-unit`, `deactivate-work-unit`, supplemental setup,
-    initial-setup workflows; `human` for `session-loop.md` (describes the user's loop; not loaded
-    by agents during session lifecycle). Template + strategy doc updated to match; pre-commit
-    schema validation lands in a later Phase 1 task so enum enforcement was deferred and the swap
-    was editorial only.
-
-    **Follow-ons absorbed mid-task (post-initial-sweep):**
-
-    - `prepare-commits.md` H1 brought inline with body-conventions rule: `# Commit Guide` →
-      `# Workflow: Prepare Commits`. Display-text references updated: `[commit guide]` →
-      `[prepare-commits workflow]` across `DEV-RULES.ARC.md` (× 2) and `3_process-task-loop.md`
-      inline-link display text. Reference-definition anchors (`[prepare-commits]`) unchanged.
-    - `prepare-commits.md` declares `pre-stage-review` extension in frontmatter per the
-      reliable-trigger audit (in-step link at former body line 34).
+  Mid-task absorbed: `prepare-commits.md` H1 normalized (`# Commit Guide` → `# Workflow: Prepare
+  Commits`); display-text references updated; `pre-stage-review` extension declared in
+  `prepare-commits.md` frontmatter per the audit.
 
     - [x] **1.3.a `arc/` top-level (3 files)** — `1_create-prd.md` (no arc block),
-          `2_generate-tasks.md` (methods: test-first),
-          `3_process-task-loop.md` (methods: issue-triage, quality-gate-commands, test-first;
-          extensions: post-task-quality, post-unit-quality, post-task-completion)
+          `2_generate-tasks.md` (methods: test-first), `3_process-task-loop.md` (methods:
+          issue-triage, quality-gate-commands, test-first; extensions: post-task-quality,
+          post-unit-quality, post-task-completion).
 
-    - [x] **1.3.b `arc/session-lifecycle/` (3 files)** — `session-init.md`
-          (methods: session-state; extensions: post-context-load),
-          `session-handoff.md` (methods: session-state),
-          `session-loop.md` (no arc block; audience: human)
+    - [x] **1.3.b `arc/session-lifecycle/` (3 files)** — `session-init.md` (methods: session-state;
+          extensions: post-context-load), `session-handoff.md` (methods: session-state),
+          `session-loop.md` (no arc block; audience: human).
 
-    - [x] **1.3.c `arc/work-unit-lifecycle/` (7 files)** —
-          `activate-work-unit.md` (extensions: post-work-unit-activate),
-          `archive-work-unit.md` (extensions: post-work-unit-archive),
+    - [x] **1.3.c `arc/work-unit-lifecycle/` (7 files)** — `activate-work-unit.md` (extensions:
+          post-work-unit-activate), `archive-work-unit.md` (extensions: post-work-unit-archive),
           `integrate-work-unit.md` (methods: pre-merge-review, review-triage; extensions:
-          pre-merge-review). `clean-work-unit.md`, `deactivate-work-unit.md`, `rotate-branch.md`,
-          `verify-work-unit.md` carry no arc block.
+          pre-merge-review). Four others (clean/deactivate/rotate/verify) carry no arc block.
 
-    - [x] **1.3.d `arc/work-unit-lifecycle/planning/` (2 files)** —
-          `activate-planning-branch.md`, `integrate-planning-branch.md` — both no arc block.
-          Prose mention of `post-work-unit-archive` at `integrate-planning-branch.md:42` was
-          classified informational in Task 1.1.b; does not declare a trigger.
+    - [x] **1.3.d `arc/work-unit-lifecycle/planning/` (2 files)** — `activate-planning-branch.md`,
+          `integrate-planning-branch.md` — both no arc block. Prose mention of
+          `post-work-unit-archive` at `integrate-planning-branch.md:42` classified informational
+          in 1.1.b.
 
-    - [x] **1.3.e `arc/supplemental/` (6 files)** —
-          `prepare-commits.md` (methods: commit-format, commit-context-format; extensions:
-          pre-stage-review). `add-agent.md`, `integrate-external-content.md`,
-          `maintain-project-docs.md`, `manage-incidental-work.md`, `verify-arc-integrity.md` carry
-          no arc block.
+    - [x] **1.3.e `arc/supplemental/` (6 files)** — `prepare-commits.md` (methods: commit-format,
+          commit-context-format; extensions: pre-stage-review). Five others carry no arc block.
 
-    - [x] **1.3.f `arc/initial-setup/` (3 files)** —
-          `01_verify-and-configure.md`, `02_define-project.md` (enumerated in spec). Also migrated
-          `03_configure-external-integration.md` (package source only; `pm.mode: external`
-          conditional install) for goal coverage — not enumerated in the original subtask list but
-          a framework workflow under the same scope. All three: no arc block, audience:
+    - [x] **1.3.f `arc/initial-setup/` (3 files)** — `01_verify-and-configure.md`,
+          `02_define-project.md`, `03_configure-external-integration.md` (package source only;
+          `pm.mode: external` conditional install). All three: no arc block, audience:
           collaborative (human and agent).
 
-    - [x] **1.3.g `project/` (1 file)** —
-          `agent-pre-merge-review.md` (methods: review-triage; single-copy). Overview-prose
-          references to `pre-merge-review` extension and `review-triage` method at lines 6–8 were
-          classified informational in Task 1.1.b; reliable triggers for `review-triage` are the
-          in-step directives at lines 36, 78, 92.
+    - [x] **1.3.g `project/` (1 file)** — `agent-pre-merge-review.md` (methods: review-triage;
+          single-copy). Overview-prose references at lines 6-8 classified informational; reliable
+          triggers are the in-step directives at lines 36, 78, 92.
 
-- [x] **1.4 Per-file restructure + method rename (structural prep for CI audit)**
+### `[x]` **1.4 Per-file restructure + method rename (structural prep for CI audit)**
 
-    **Goal:** Establish the per-file `system/methods/` and `system/extensions/` layout the audit script enumerates from,
-    and fix the `pre-merge-review` method/extension name collision by renaming the method to `diff-review`. Pulls
-    forward what was Phase 3.1 + 3.3 + 3.4 + 3.5 so Task 1.5's audit lands on final structure with no legacy-aggregate
-    fallback branch.
-
-    **Aggregate handling:** `arc-methods.md` and `arc-extensions.md` stay in place until Phase 3 retires them —
-    session-init Step 2 still scans them for override presence through Phase 2 close. Per-file becomes authoritative
-    from this task forward; aggregates are frozen snapshots pending retirement.
+- _Outcome:_ Per-file `system/methods/` and `system/extensions/` layout established (audit script
+  enumerates from this); `pre-merge-review` method renamed to `diff-review` (fixes name collision
+  with the same-named extension). Aggregates retained as frozen snapshots through Phase 2;
+  per-file authoritative from this task forward. Pulls forward original Phase 3.1 + 3.3 + 3.4 + 3.5
+  so 1.5 lands on final structure with no legacy-aggregate fallback branch.
 
     - [x] **1.4.a Rename `pre-merge-review` method → `diff-review`; broaden framing to generic activity contract**
-
-        **Outcome:** Method renamed to `diff-review` across both copies; framing broadened to generic activity contract
-        with primary-caller annotation on `integrate-work-unit.md`. Extension keeps name `pre-merge-review`. Ref-def
-        anchor renamed `[arc-methods-pmr]` → `[arc-methods-diff-review]` everywhere it appeared
-        (`arc-extensions.md`, `integrate-work-unit.md`).
-
-        **Files touched (two-copy sync applied to framework files; single-copy to project files):**
-        - `arc-methods.md` — heading, anchor, Contents entry, Method Dependencies table row, Workflow/When/Contract
-          framing, `.override`/`.default` subsection names, (integration)-context-footer instruction generalized
-        - `arc-extensions.md` — contract cross-references in `pre-merge-review` extension (text + ref-def anchor)
-        - `integrate-work-unit.md` — frontmatter `arc.methods` entry, in-step markdown-link + display text, ref-def
-        - `arc-config.yml` — inline comment under `review.pre_merge`
-        - `integrate-external-content.md` — method example list
-        - `strategy-session-operations.md` — Method Classification by Trigger table row
-        - `adr-013-adopt-on-demand-method-loading.md` — method table row (single-copy)
-        - `analysis-cross-cutting-dependencies.md` — Methods & Dependencies table + override-coupling bullet
-          (single-copy)
-        - `docs/customization/methods.md` — Methods table + Method Dependencies table (single-copy)
-        - `verify-integrity.sh` — both method-list for-loop entries (extension for-loop preserved)
-
-        **Preserved references (extension / moment-name / project-specific):**
-        - `project/agent-pre-merge-review.md` — entirely about the extension; no changes
-        - `arc-task-review/SKILL.md` — prose reference to "the integration workflow's pre-merge-review" as
-          moment-language (not a link), preserved
-        - `integrate-work-unit.md:184` step heading `#pre-merge-review` anchor — moment-name for the step, preserved
-        - `strategy-session-operations.md:61, 176` — both refer to the extension, preserved
-        - Step-heading anchors, frontmatter `arc.extensions` entries, and ref-defs named after the extension
-
-        **Out-of-spec-scope residuals (method references that still say `pre-merge-review`):**
-        - Backlog: `tasks-arcd-rebrand.md` (line 447 "method: pre-merge-review") and `plan-arc-modes.md` (lines 2654,
-          4895, 5440 strategy-audit meta-notes referencing the method name). Spec scope for 1.4.a is
-          `system/workflows/**`, `reference/strategies/**`, `reference/constitution/**`, `system/agent/**`;
-          backlog/ is out of scope. Flagged via SESSION-NOTES persistent-context for reconciliation at each
-          backlog WU's activation.
-        - Archive: `reference/archive/**` references left intact per ARC's "document what is, not what was"
-          convention — historical docs describe the method by the name that was current at the time.
-
-        **Tier 1 gate:** markdownlint clean across 13 edited `.md` files (both copies); shellcheck clean on
-        `verify-integrity.sh` (both copies).
+        - Method renamed across both copies; framing broadened to generic activity contract with
+          primary-caller annotation on `integrate-work-unit.md`. Extension keeps name
+          `pre-merge-review`; extension-named refs and step-heading anchors preserved (the rename is
+          method-only). Ref-def anchor `[arc-methods-pmr]` → `[arc-methods-diff-review]` everywhere
+          it appeared. Files touched: framework (`arc-methods.md`, `arc-extensions.md`,
+          `integrate-work-unit.md`, `arc-config.yml`, `integrate-external-content.md`,
+          `strategy-session-operations.md`); single-copy (ADR-013, cross-cutting analysis,
+          `docs/customization/methods.md`, `verify-integrity.sh`). Backlog references
+          (`tasks-arcd-rebrand:447`, `plan-arc-modes:2654/4895/5440`) flagged via persistent-context
+          for activation-time reconciliation; archive untouched per "document what is, not what was."
 
     - [x] **1.4.b Document per-file frontmatter schema (was Phase 3.1)**
-
-        **Outcome:** New `### Per-file Frontmatter Schema` subsection added to
-        `strategy-session-operations.md § Method and Extension Loading`, placed between the "Declaration
-        mechanism" paragraph and the aggregate `### arc-methods.md` subsection — stable content (workflow-side
-        trigger contract + per-file schema) leads; transitional aggregate subsections follow until Phase 3
-        retires them.
-
-        **Schema landed (revised from 1.4.b spec):**
-        - Methods: `name`, `description`, `related`, `has-override`
-        - Extensions: `name`, `description`, `related`, `active` (was `has-steps` in the original spec —
-          renamed during 1.4.c–f execution for clarity; `active: true/false` directly answers the runtime
-          question the workflow asks at the fire point)
-        - Spec's `workflow` field dropped — the workflow→method/extension trigger contract is already mechanical
-          via workflow frontmatter (Task 1.5 audit); the reverse index (method→workflows) stays centralized in
-          this strategy's "Method classification by trigger" table, which handles fan-out better than a
-          per-file "primary caller" field. `workflow` would have duplicated info with no mechanical consumer
-          and drifted silently. Rationale captured as a "Why no `workflow` field" paragraph in the section so a
-          future author doesn't re-propose it.
-        - `related` kept to preserve the override-coupling signal when Phase 3 retires arc-methods.md's
-          Method Dependencies table — lands at the natural point of use (the method file being overridden).
-
-        **Body conventions codified** in a new `### Per-file Body Conventions` subsection alongside the schema:
-        H1 format (`# Method:` / `# Extension:`), preamble as a bulleted blockquote (`> - **Workflow:** ... >
-        - **When:**/**Fires:** ... > - **Contract:** ... > - **Related:** ...`), structural content sections
-        (`.override` / `.default` for methods, `.actions` for extensions), and ref-def convention. Bulleted form
-        is mandated to prevent prettier (and similar reflow tools) from merging adjacent bold-lead metadata
-        lines — same rationale as commit `0870274`.
-
-        **Files touched (two-copy sync):**
-        - `reference/strategies/arc/strategy-session-operations.md` (both copies, byte-identical via `diff -q`)
-
-        **Tier 1 gate:** markdownlint clean on the `.arc/` copy; package copy is byte-identical and excluded
-        from root lint by design (`!packages/arc-framework/arc/**` in `.markdownlint-cli2.jsonc`).
-
-        **Downstream implications:**
-        - Task 1.4.d (method migration): populate 4 fields per file, not 5; `related` populated from current
-          Method Dependencies table (3 methods have coupling: commit-format ↔ commit-context-format,
-          diff-review → review-triage)
-        - Task 1.4.e (extension migration): populate 4 fields per file, not 5; `related` likely empty for all
-          8 extensions (no coupling table currently exists for extensions — confirm at migration time)
-        - Task 2.3 (ADR-013 Tier 2 amendment): scope already flagged via persistent context; add the
-          `workflow`-field omission decision to the amendment's scope when drafting.
+        - New `### Per-file Frontmatter Schema` + `### Per-file Body Conventions` subsections in
+          `strategy-session-operations.md § Method and Extension Loading`. Schema (revised from spec):
+          methods carry `name`, `description`, `related`, `has-override`; extensions carry `name`,
+          `description`, `related`, `active` (renamed from `has-steps` during 1.4.c-f for clarity —
+          `active: true/false` directly answers the runtime question). Spec's `workflow` field dropped;
+          reverse index stays centralized in the strategy's Method Classification table (handles
+          fan-out better; `workflow` would have duplicated info with no mechanical consumer and
+          drifted silently — captured as a "Why no `workflow` field" paragraph in the section so a
+          future author doesn't re-propose it). Body conventions: H1 (`# Method:` / `# Extension:`),
+          bulleted-blockquote preamble (mandated to prevent prettier-merge of adjacent bold-lead
+          metadata), `.override`/`.default` for methods, `.actions` for extensions.
 
     - [x] **1.4.c Create per-file directory structure (both copies) (was Phase 3.3)**
-
-        **Outcome:** Four directories created (methods + extensions × 2 copies). Each got a thin README with
-        orientation framing (how overrides / `has-steps` work, loading-model note, classification note) plus
-        an index listing the 8 entries with a terse one-liner each. General content reused verbatim from the
-        header sections of `arc-methods.md` / `arc-extensions.md` — no per-method/extension detail in the
-        READMEs; that lives in the per-file entries.
+        - Four directories created (methods + extensions × 2 copies) with thin READMEs (orientation
+          framing + 8-entry index with one-liner each). Detail lives in per-file entries.
 
     - [x] **1.4.d Migrate 8 methods to per-file (was Phase 3.4)**
-
-        **Outcome:** 8 method files created in `system/methods/` (both copies, byte-identical). Content
-        preserved verbatim from `arc-methods.md` per-method sections; header levels shifted one (H2→H1,
-        H3→H2); `#section-anchor` cross-references rewritten to sibling `<name>.md` links; ref-defs recomputed
-        for the per-file location (`../workflows/...`, `../../reference/...`, `../arc-config.yml`, etc.).
-
-        **Frontmatter populated per 1.4.b-revised schema (4 fields):**
-        - `commit-format` · related: `[commit-context-format]`
-        - `commit-context-format` · related: `[commit-format]`
-        - `issue-triage` · no related
-        - `test-first` · no related
-        - `session-state` · no related
-        - `diff-review` · related: `[review-triage]`
-        - `review-triage` · no related (coupling is one-directional: diff-review depends on it, not vice versa)
-        - `quality-gate-commands` · no related
-        - `has-override: false` across all 8
-
-        **Files touched (two-copy sync):** 16 new files (`.arc/system/methods/*.md` + package-copy mirror).
+        - 8 method files in `system/methods/` (both copies, byte-identical). Content verbatim from
+          aggregate; H2→H1, H3→H2; cross-references rewritten to sibling links; ref-defs recomputed.
+          Frontmatter (4 fields per 1.4.b-revised schema): `commit-format` ↔ `commit-context-format`
+          related; `diff-review` → `[review-triage]` related (one-directional — review-triage has
+          no `related` back). All 8 `has-override: false`.
 
     - [x] **1.4.e Migrate 8 extensions to per-file (was Phase 3.5)**
-
-        **Outcome:** 8 extension files created in `system/extensions/` (both copies, byte-identical). Same
-        transformation pattern as methods: verbatim content, header bump, per-file ref-defs.
-
-        **Frontmatter populated per 1.4.b-revised schema (4 fields):**
-        - All 8 extensions — `related` omitted (confirmed: `arc-extensions.md` has no coupling table;
-          the `pre-merge-review` extension references the `diff-review` method but cross-kind coupling is
-          not what `related` captures)
-        - `active: false` for 7 placeholder extensions (post-task-quality, post-unit-quality,
-          post-task-completion, post-context-load, pre-stage-review, post-work-unit-activate,
-          post-work-unit-archive) — section: `## <name>.actions` with `[No extension configured]`
-        - `active: true` for `pre-merge-review` (the one extension with configured actions — CodeRabbit
-          review ceremony) — section: `## pre-merge-review.actions`
-
-        **Naming decisions during migration:** The original 1.4.b spec used `has-steps` / `.steps`; both
-        renamed during execution to `active` / `.actions` to better reflect semantics (runtime state +
-        generalized "actions to perform at this fire point"). Methods unchanged (`has-override` / `.override`
-        — the existing terminology is crisp and there's no parallel concern).
-
-        **Files touched (two-copy sync):** 16 new files (`.arc/system/extensions/*.md` + package-copy mirror).
+        - 8 extension files in `system/extensions/` (both copies, byte-identical). Same transformation
+          as methods. `related` omitted for all 8 (no coupling table for extensions). `active: false`
+          for 7 placeholder extensions (placeholder `.actions` content `[No extension configured]`);
+          `active: true` for `pre-merge-review` (CodeRabbit review ceremony). Naming swap during
+          execution: `has-steps`/`.steps` → `active`/`.actions` (better reflects runtime state +
+          generalized "actions to perform at this fire point"). Methods unchanged
+          (`has-override`/`.override` was already crisp).
 
     - [x] **1.4.f Tier 2 gate after structural prep**
+        - Ref-def scan: every relative path across all 16 new entries + 2 READMEs resolves. Final
+          shape: 9 files each in methods/ and extensions/ (8 entries + README), both copies. 36 total
+          new files this task.
 
-        **Outcome:** Full markdown lint clean (`npm run -s lint:md`, 200 files in the `.arc/` tree, 0 errors).
-        Package copy excluded from root lint config by design (`!packages/arc-framework/arc/**`) but is
-        byte-identical to the `.arc/` copy for methods/ and extensions/ via `diff -rq`, so equally clean by
-        construction. Ref-def scan across all 16 new per-file entries + 2 READMEs — every relative path
-        resolves to an existing file (`../workflows/...`, `../extensions/...`, `../../reference/...`,
-        `../arc-config.yml`, sibling `<name>.md`). Directory structure: 9 files each in
-        `.arc/system/methods/`, `.arc/system/extensions/`, `packages/arc-framework/arc/system/methods/`,
-        `packages/arc-framework/arc/system/extensions/` (8 entries + README). Total new files this phase:
-        36 (16 methods + 16 extensions + 4 READMEs).
+### `[x]` **1.5 Reliable-trigger CI audit script (test-first)**
 
-- [x] **1.5 Reliable-trigger CI audit script (test-first)**
+- _Outcome:_ Structural CI audit at `packages/arc-framework/src/scripts/audit-method-triggers.ts`
+  fails when any method/extension lacks a workflow `arc.methods`/`arc.extensions` frontmatter
+  declaration. No prose-grepping, no legacy-aggregate fallback. Pure exports + guarded CLI entry
+  (`fileURLToPath(import.meta.url) === process.argv[1]`); corpus root resolved from script location;
+  corpus is package-source only (`.arc/` drift is the framework-sync test's concern). Tests at
+  `packages/arc-framework/__tests__/unit/scripts/audit-method-triggers.test.ts` cover all 9 spec
+  behaviors (single batch — tightly coupled glue with no per-behavior discovery value).
 
-    **Outcome:** Structural CI audit that fails when any method/extension lacks a workflow `arc.methods` /
-    `arc.extensions` frontmatter declaration — no prose-grepping, no legacy-aggregate fallback.
-    - **Script:** `packages/arc-framework/src/scripts/audit-method-triggers.ts`. Pure exports
-      (`enumerateMethods`, `enumerateExtensions`, `parseWorkflowFrontmatter`, `buildCoverageMap`,
-      `walkMarkdownFiles`, `formatMethodDiagnostic`, `formatExtensionDiagnostic`, `audit`) + guarded CLI
-      entry (`fileURLToPath(import.meta.url) === process.argv[1]`). Corpus root resolved from script
-      location, not `cwd`. Corpus is package-source only (`packages/arc-framework/arc/system/...`); `.arc/`
-      drift is the framework-sync test's concern.
-    - **Tests:** `packages/arc-framework/__tests__/unit/scripts/audit-method-triggers.test.ts` (14 tests
-      covering all 9 spec behaviors). Test-first executed as a single batch — tightly coupled glue over
-      `readdir` / `yaml.load` / array ops with no independent discovery value per-behavior.
-    - **Key invariants:** separate coverage maps per kind (method+extension same-name collision cannot
-      silently collapse); malformed YAML reported as diagnostic without crashing; diagnostics name the
-      correct frontmatter field for the failing kind.
-    - **Root wiring:** `lint:arc:triggers` script + `tsx ^4.19.2` devDependency added to root `package.json`.
-      Package-level `packages/arc-framework/package.json` deliberately unchanged — framework-CI-only per
-      `strategy-workflow-authoring.md § Enforcement`; shipping a CI-only script entry via the published CLI
-      would be user-hostile.
-    - **Verification:** audit passes against real corpus (all 8 methods + 8 extensions covered). Tier 1 gates
-      clean (`typecheck`, `typecheck:test`, `lint:ts`, `test:unit` 484 tests, `lint:md` 200 files, `build`).
+  Key invariant: separate coverage maps per kind (method+extension same-name collisions can't
+  silently collapse). Root wiring: `lint:arc:triggers` script + `tsx` devDependency in root
+  `package.json`; package-level `package.json` unchanged (framework-CI-only per
+  `strategy-workflow-authoring.md § Enforcement`).
 
-- [x] **1.6 Wire audit into CI**
+### `[x]` **1.6 Wire audit into CI**
 
-    **Outcome:** Added `- run: npm run lint:arc:triggers` to `.github/workflows/ci.yml` `quality` job between
-    `npm run build` and `npm run -s lint:md`. Runs on all branches (fail-fast signal before PR). CI-green
-    acceptance verified on push.
+- _Outcome:_ `lint:arc:triggers` step added to `.github/workflows/ci.yml` `quality` job between
+  `npm run build` and `npm run -s lint:md`.
 
-- [x] **1.7 Phase 1 close — Tier 2 quality gates**
-
-    **Outcome:** All Tier 2 gates green locally. `lint:md` (200 files, 0 errors), `lint:ts`, `lint:sh`,
-    `typecheck`, `typecheck:test`, `npm test` (unit + e2e, all passing), `build`, and `lint:arc:triggers`
-    (all 8 methods + 8 extensions covered). Phase 1 complete.
+### `[x]` **1.7 Phase 1 close — Tier 2 quality gates**
 
 ---
 
@@ -643,7 +466,7 @@ discipline applies throughout — every file change touches `packages/arc-framew
         - `system/methods/README.md` — Loading-model paragraph rewritten: methods always load at workflow
           trigger; `override-active` is consumed by CI audit, docs generation, and authoring tooling, not by
           session-init. Sentence "Session-init scans the `override-active` frontmatter field for override
-          *presence*" retired
+          _presence_" retired
         - `system/extensions/README.md` — both "How extensions work" and "Loading model" paragraphs
           rewritten. "How extensions work" replaces the old "workflow reads `active` at the fire point"
           mechanism with session-init enumeration + fire-point list-consultation. "Loading model" describes
@@ -1036,7 +859,7 @@ discipline applies throughout — every file change touches `packages/arc-framew
       before target validation for (a) basename matching `*.template.md` or `template-*.md` and (b) any path
       under `reference/archive/`. Case-based early-exit pattern matches the existing `.md` extension guard.
       Comments cite the post-install-relative rationale and DEV-RULES.ARC § Documentation Boundaries
-      "document what *is*, not what *was*".
+      "document what _is_, not what _was_".
     - **Test coverage**: 3 new cases in `packages/arc-framework/__tests__/integration/validate-links.test.ts` —
       (a) `agent.template.md` with broken link exits 0; (b) `template-agent.md` with broken link exits 0;
       (c) `reference/archive/old-plan.md` with broken link exits 0. Full suite: 16 / 16 tests pass.
@@ -1944,7 +1767,7 @@ clean enough that inconsistency across the three remaining session-init discover
         "Step 1.5 actually fires after Batch 1" derived ordering.
 
         **Stale-SESSION-NOTES race closed.** Step 3 (Conditional Sync Pull) fires between the probe and
-        context-doc loading — any pull happens *before* SESSION-NOTES reads, not after as the previous
+        context-doc loading — any pull happens _before_ SESSION-NOTES reads, not after as the previous
         wording allowed.
 
         **Design adjustments applied during implementation:**
@@ -3027,7 +2850,7 @@ restructure, not as a Phase 4 audit target.
       persistent context" paragraph compressed without staging (pure dedup with downstream sections).
 
       **Deliberately preserved under ADR-016 constraint:** rotation-field template block and its
-      three *Note* clauses (becomes the primary site for Next Task / Last Completed / Next Action
+      three _Note_ clauses (becomes the primary site for Next Task / Last Completed / Next Action
       updates under gate model); Save-to-Git-Notes preamble and `arc sync` push-policy bullets
       (attachment point for worktree-push toggle); Confirm Handoff orientation template (pairs with
       session-init); Handoff Examples (canonical rotation-field demonstrations); Anti-patterns
@@ -3834,7 +3657,7 @@ Task 5.6 is TS-only (no markdown sync concern).
               discovery; line 371 platform-notes meta-prose preceding the canonical example;
               line 392 platform config setting)
         - **Out of scope (descriptive/capture-routing references — left untouched):**
-          `session-handoff.md:266` and `integrate-external-content.md:106` (where to *write*
+          `session-handoff.md:266` and `integrate-external-content.md:106` (where to _write_
           durable lessons, not where to read them); `02_define-project.md` and
           `01_verify-and-configure.md` initial-setup mentions; `strategy-quality-gates.md`,
           `strategy-session-operations.md`, `strategy-package-project-sync.md`,
@@ -4325,10 +4148,10 @@ Task 5.6 is TS-only (no markdown sync concern).
         resolves.
 
         **In-flight correction:** initial draft framed contributor sessions
-        as reading `AGENT-BRIEF.CONTRIBUTOR.md` *instead of*
+        as reading `AGENT-BRIEF.CONTRIBUTOR.md` _instead of_
         `AGENT-BRIEF.PROJECT.md`. Per session-init.md "Contributor Session
         Path" (lines 201–209), items 1–6 (which include both ARC + PROJECT
-        briefs) are universal; CONTRIBUTOR loads *additionally*. Project
+        briefs) are universal; CONTRIBUTOR loads _additionally_. Project
         orientation is just as relevant to contributors as maintainers.
         Corrected the "How briefs work" paragraph and the CONTRIBUTOR row
         in the Files table (role → "addendum" rather than "variant") in
