@@ -4299,23 +4299,44 @@ Task 5.6 is TS-only (no markdown sync concern).
         unchanged), typecheck + eslint + shellcheck clean, 214 markdown
         files clean, build success.
 
-    - [ ] **5.7.e Subdir README rewrite**
-        - Rewrite `system/briefs/README.md` (formerly `system/agent/README.md`): retire dual-hub +
-          tool-files architecture framing, "What Belongs in Tool-Specific Files", "Adding Files for
-          Other Tools" sections — all obsolete under the removal
-        - Scope new README to session-init briefings: purpose (orientation docs loaded at
-          session-init), three files and their roles (ARC / PROJECT / CONTRIBUTOR), classification
-          (framework vs configurable per file), adoption guidance (customize PROJECT; ARC and
-          CONTRIBUTOR are framework-managed)
-        - Add pointer to harness-level files as the ARC-external surface for agent-specific
-          operational guidance — complement to ARC briefings, distinct loading layer, outside ARC
-          methodology
-        - **Post-rewrite scope check:** confirm the copy reads coherently in the new
-          `system/briefs/` context — directory now houses agent-only orientation briefings
-          loaded at session-init (ARC, PROJECT, CONTRIBUTOR variants), not the prior dual-hub
-          and per-agent file mix. Framing should reflect the simpler post-removal directory shape;
-          re-read for vestigial language carrying the old mental model
-        - Two-copy sync
+    - [x] **5.7.e Subdir README rewrite**
+
+        **Outcome:** Rewrote `system/briefs/README.md` wholesale in both
+        trees (`.arc/` and `packages/arc-framework/arc/`). Retired the
+        dual-hub + tool-files architecture framing, "Why Two Hub Files",
+        "What Belongs in Tool-Specific Files", "Adding Files for Other
+        Tools", "Tool-Specific Templates", and "When to Update
+        Tool-Specific Files" sections — all obsolete under the
+        `{AGENT}.ARC.md` removal. New README scoped to session-init
+        briefings: opening line, How briefs work + Loading model paragraphs
+        (matching `methods/README.md` and `extensions/README.md` style),
+        per-file Files table (ARC + CONTRIBUTOR Framework, PROJECT
+        Configurable, with role descriptions), customize-PROJECT adoption
+        guidance, framework-managed note for ARC + CONTRIBUTOR, and
+        "Agent-Specific Guidance Lives Outside ARC" section pointing at
+        harness-level files (`CLAUDE.md`, `AGENTS.md`, `.gemini/GEMINI.md`)
+        as the pre-session-init system-prompt surface for tool-specific
+        guidance. Trimmed from 154 lines to 41 lines (~73% reduction).
+
+        Both copies content-identical (`sha256: 98035b45…`); manifest
+        `pristine_hash` for `system/briefs/README.md` recomputed
+        (`487b9a12…` → `98035b45…`). Tier 1 markdown lint clean across
+        both files; link check confirms `../workflows/arc/session-lifecycle/session-init.md`
+        resolves.
+
+        **In-flight correction:** initial draft framed contributor sessions
+        as reading `AGENT-BRIEF.CONTRIBUTOR.md` *instead of*
+        `AGENT-BRIEF.PROJECT.md`. Per session-init.md "Contributor Session
+        Path" (lines 201–209), items 1–6 (which include both ARC + PROJECT
+        briefs) are universal; CONTRIBUTOR loads *additionally*. Project
+        orientation is just as relevant to contributors as maintainers.
+        Corrected the "How briefs work" paragraph and the CONTRIBUTOR row
+        in the Files table (role → "addendum" rather than "variant") in
+        both copies.
+
+        Vestigial-language scope check passed — grep for `AGENT-BRIEFING`,
+        `system/agent`, `{AGENT}.ARC.md`, `dual-hub`, and "Tool-Specific
+        Files" returns zero matches in either copy.
 
     - [x] **5.7.f `arc init` recipe cleanup**
 

@@ -170,7 +170,7 @@
     "system/briefs/README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "487b9a12095f15daae48b6c0cdf280541afff21737111cd3c61db0d350abb0fc"
+      "pristine_hash": "98035b45416aea0ac0d70e6fe4e6e0605d93f8c1810dccbbab231c2bf4134fb5"
     },
     "system/arc-config.yml": {
       "classification": "Configurable",
