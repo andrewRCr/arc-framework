@@ -89,15 +89,21 @@ file (`notes-{name}.md`), not in the task list.
 
 - [ ] Header includes `**Purpose:**` field — one-line summary; full Scope lives in the PRD
       (Feature/Technical only; Incidental retains `## Context` + `## Scope`)
-- [ ] Phase headers use `### **Phase X:** Description` format
-- [ ] Phase preambles open with `**Purpose:**` line; optional `**Design decisions:**` block
+- [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
+- [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
       links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
-- [ ] Parent tasks have checkboxes and bold: `- [ ] **X.Y Description**`
-- [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bold when detail bullets follow)
+- [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
+      [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
+- [ ] Subtasks use letter numbering: `- [ ] **X.Y.a Description**` (bullet, no backticks; bold
+      when detail bullets follow)
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
-- [ ] Blank lines between subtasks when they have detail bullets beneath
+- [ ] Subtaskless parents carry no descriptor bullets pre-completion — title alone (no `_Goal:_` /
+      `_Note:_` / etc.; `_Outcome:_` allowed post-completion)
+- [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
-- [ ] Goal/Note lines indented 4 spaces from margin (same level as subtasks)
+- [ ] Goal/Note lines as italic root-level bullets (`- _Goal:_`); subtasks indent 4 spaces under Goal
+- [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
+      `_Rationale:_`, `_Approach:_`, `_Context:_`); bold for actionable titles (`**X.Y Title**`)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
 - [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level

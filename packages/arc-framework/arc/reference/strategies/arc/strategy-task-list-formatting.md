@@ -63,28 +63,43 @@ Current State, Testing Strategy) only when the work needs them.
 
 ### Phase Headers
 
-`### **Phase X:** Description` — level 3, phase number bold within heading, name plain after
-colon. Blank line before and after. No time estimates.
+`## **Phase X:** Description` — level 2, phase number bold within heading, name plain after
+colon. Blank line before and after. No time estimates. Phases are the document's section
+headings; the document title (`# Task List: ...`) is the only H1.
 
 ### Phase Preamble
 
-Lines between the phase heading and its first task bullet (`- [ ]` or `- [x]`). Required:
-`**Purpose:**` line — what the phase delivers and why this granularity. Optional:
-`**Design decisions:**` block summarizing the key calls (one or two short paragraphs; link
-to `notes-{name}.md` for full rationale, alternatives considered, and risks). Soft cap
-~12 lines per preamble — anything longer belongs in the notes file.
+Lines between the phase heading and its first parent task heading. Required: `_Purpose:_` line
+(italic) — what the phase delivers and why this granularity. Optional: `_Design decisions:_`
+block summarizing the key calls (one or two short paragraphs; link to `notes-{name}.md` for
+full rationale, alternatives considered, and risks). Soft cap ~12 lines per preamble —
+anything longer belongs in the notes file.
 
 ### Parent Tasks
 
-`- [ ] **X.Y Description**` — checkbox with space, number and description both bold. Numbers
-follow `1.1`, `1.2`, `2.1` (not `1.1.0`). Description is concise but complete — what, not how.
-Indented 0 spaces from margin (top level within phase).
+```text
+### `[ ]` **X.Y Description**
+```
+
+Level 3 heading; status marker (`` `[ ]` `` / `` `[x]` `` / `` `[~]` ``) wrapped in inline
+code (backticks); X.Y number and description both bold. The marker is text in the heading,
+toggled at completion as a one-character edit. Backticks distinguish the marker from
+incidentally-bracketed prose in titles and give the parent's marker visual weight that subtask
+bullets (no backticks) don't carry.
+
+Numbers follow `1.1`, `1.2`, `2.1` (not `1.1.0`). Description is concise but complete — what,
+not how.
+
+Phase headings (H2) and parent task headings (H3) provide the outline-pane navigation surface
+in editors. Subtasks remain bullets — promoting them to H4 would crowd outline panes without
+navigation benefit.
 
 ### Subtasks (Third Level)
 
-`- [ ] **X.Y.a Description**` — letter numbering at third level. Bold when detail bullets
-follow (creates visual hierarchy); plain when simple single-line. Indented 4 spaces from parent
-task. Blank lines between subtasks when they have detail bullets beneath.
+`- [ ] **X.Y.a Description**` — GFM checkbox bullet (no backticks on the marker), letter
+numbering at third level. Bold when detail bullets follow (creates visual hierarchy); plain
+when simple single-line. Indented 4 spaces from the parent task heading's content (under the
+parent's `_Goal:_` bullet — see § Goal/Note Lines for the structural anchor mechanic).
 
 **Use when:** Parent task requires 2+ distinct, independently completable steps. For test-first
 work, group by concern — one subtask covers both test and implementation.
@@ -92,10 +107,10 @@ work, group by concern — one subtask covers both test and implementation.
 ### Numbering Hierarchy
 
 ```text
-Phase:         ### **Phase X:**
-Parent task:   X.Y          (e.g., 1.1, 2.3)
-Subtask:       X.Y.a        (letters at third level)
-Fourth level:  X.Y.a.1      (rare — resume numbers after letters)
+Phase:         ## **Phase X:**                       (H2 heading)
+Parent task:   ### `[x]` **X.Y Title**               (H3 heading, backtick marker)
+Subtask:       - [x] **X.Y.a Title**                 (bullet, no backticks)
+Fourth level:  X.Y.a.1                               (rare — resume numbers after letters)
 ```
 
 Letters after two number levels provide visual differentiation — `7.3.a` is instantly clearer
@@ -113,12 +128,32 @@ than `7.3.1`. Maintain 4-space indentation per level regardless of numbering sch
 Indented 4 spaces from the task they support; can nest further (8 / 12 spaces). Keep concise
 (1-2 lines per bullet). Use backticks for technical terms.
 
+At task completion, per-subtask description bullets shift from plan-content to outcome-content
+in place — same shape, no label change. See [process-task-loop § Completion notes content
+discipline][process-task-loop] for the content bound and replace-don't-accumulate rule.
+
 ### Goal/Note Lines
 
-`**Goal:** {One-line clarification}` — or `**Note:**`, `**Rationale:**`, `**Purpose:**`,
-`**Approach:**`. Single line only. Must illuminate purpose/impact — never repeat the title.
-Indented 4 spaces from margin (same level as subtasks). Blank line after (before first
-subtask).
+Italic-prefixed bullets at root level under a parent task heading: `- _Goal:_ {one line}`,
+`- _Note:_`, `- _Rationale:_`, `- _Approach:_`, `- _Context:_`. Italics signal non-actionable
+descriptor; bold (`**X.Y Title**`) is reserved for actionable task titles.
+
+**Goal as structural anchor.** When a parent task has subtasks, `_Goal:_` is the bullet that
+owns them via 4-space indent — semantically, subtasks serve the Goal. Goal must come last
+among descriptor bullets so subtasks indent under it; other descriptors (Context, Rationale,
+Approach) appear as flat peer bullets BEFORE Goal.
+
+**Subtaskless parents — no descriptor bullets pre-completion.** A parent task without subtasks
+must not carry `_Goal:_`, `_Note:_`, `_Rationale:_`, `_Approach:_`, or `_Context:_` bullets.
+The title carries the task; supporting bullets without indented children look orphaned. If a
+descriptor seems necessary, that's a signal to subtask the work — surface the Goal as the
+structural anchor and break the work into 2+ subtasks.
+
+**Post-completion: outcomes replace descriptors.** At `[x]` time, all pre-completion
+descriptor bullets are REPLACED by a single `_Outcome:_` bullet at root level (per
+[process-task-loop § Completion notes content discipline][process-task-loop]). This applies to
+subtaskless parents too — `_Outcome:_` is allowed when warranted, and is the only descriptor
+a subtaskless parent ever carries. Don't accumulate plan AND outcome.
 
 ### Revision Numbering (R Scheme)
 
@@ -145,8 +180,27 @@ names (`method_name()`), file names (`models.py`), API endpoints (`/api/users/`)
 
 ### Indentation
 
-4 spaces per hierarchy level — phase header → parent task (0) → goal/note or subtask (4) →
-detail bullet (8) → sub-bullet (12).
+4 spaces per hierarchy level:
+
+- Phase heading (H2) → col 1
+- Parent task heading (H3) → col 1
+- Root-level descriptor bullets (`_Goal:_`, peers) → col 1 (bullet marker; content starts col 3)
+- Subtasks under `_Goal:_` → col 5 (4-space indent + bullet)
+- Per-subtask description bullets → col 9 (8-space indent + bullet)
+- Sub-bullets within description → col 13 (12-space indent + bullet)
+
+### Blank-Line Discipline
+
+Blank lines required:
+
+- Before and after every phase heading (H2)
+- Before and after every parent task heading (H3)
+- Between every subtask (whether or not it carries detail bullets)
+- Before and after multi-paragraph descriptor blocks within a phase preamble
+
+Always blank line — no conditional rules. Markdownlint MD022 enforces heading spacing; the
+"between every subtask" rule is project convention beyond MD022 and is verified at the pre-save
+checklist.
 
 ---
 

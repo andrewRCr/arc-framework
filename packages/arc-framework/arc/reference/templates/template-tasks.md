@@ -33,17 +33,20 @@ project's configured base branch per [`arc-config.yml`][arc-config], not a hardc
 
 ---
 
-## Tasks
+## **Phase 1:** {Phase name}
 
-### **Phase 1:** {Phase name}
+_Purpose:_ {what this phase delivers and why this granularity}
 
-- [ ] **1.1 {Task description}**
+### `[ ]` **1.1 {Task description}**
 
-    ...
+- _Goal:_ {one-line clarification}
 
-### **Phase N:** Verification
+    - [ ] **1.1.a {Subtask description}**
+        - {detail bullet — plan now, outcome at `[x]`}
 
-- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+## **Phase N:** Verification
+
+### `[ ]` **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
 ---
 
@@ -97,15 +100,15 @@ grep-based discovery of related work. Lifecycle state (`State`, `Interrupts`, `P
 
 ---
 
-## Tasks
+## **Phase 1:** {Phase name}
 
-### **Phase 1:** {Phase name}
+_Purpose:_ {what this phase delivers and why this granularity}
 
-- [ ] **1.1 {Task description}**
+### `[ ]` **1.1 {Task description}**
 
-### **Phase N:** Verification
+## **Phase N:** Verification
 
-- [ ] **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[ ]` **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
 
 ---
 
